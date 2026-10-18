@@ -28,5 +28,6 @@ function(athena_use_shipped_macro_labels target)
   add_dependencies(${target} athena_shipped_macro_labels)
   set_source_files_properties(
     "${ATHENA_SOURCE_DIR}/src/Data/Drd/standard_tree_labels.cpp"
+    "${ATHENA_SOURCE_DIR}/src/Data/Convert/Xml/math_v2_to_v3.cpp"
     PROPERTIES INCLUDE_DIRECTORIES "${ATHENA_SHIPPED_LABEL_DIR}")
 endfunction()

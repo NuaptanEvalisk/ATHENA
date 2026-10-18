@@ -41,6 +41,14 @@ threads, Qt 6.5 or newer Core/Network/WebSockets, ICU, libsodium, SQLite, GnuTLS
 spdlog, and nlohmann JSON headers. It does not configure the desktop, GUI, model
 inference, or web assets.
 
+The node initializes and binds XML v3 Vaults (``node_model_version=2``), and
+rejects unpublished migration candidates. The standard named-symbol registry
+is embedded from the same JSON source used by the desktop; no desktop resource
+directory or ``ATHENA_PATH`` is needed. Existing v2 Vaults must be migrated
+offline before binding. Upgrade all members together; the v3 protocol rejects
+older peers and starts fresh revision/conflict journals without replacing
+device identities or Vault keys.
+
 The multi-stage Dockerfile uses Debian Trixie for both stages, with distribution
 Qt 6.8.2 packages, not vendored substitutes. CMake enforces Qt 6.5 as the minimum:
 the existing ``QWebSocket::errorOccurred`` signal requires it. Bookworm's Qt 6.4
@@ -70,7 +78,8 @@ root (this installs packages inside build layers, not on the host)::
   docker build -f tools/hodarium/node/Dockerfile -t athena-hodarium-node:dev .
 
 Keep secrets outside the build context. The Dockerfile copies only the root
-build/license files, ``cmake/``, and ``src/``; it does not copy notes, Vaults,
+build/license files, ``cmake/``, ``src/``, and shipped label/symbol definitions;
+it does not copy notes, Vaults,
 model assets, or host state. No image build or runtime acceptance is implied by
 the presence of this recipe.
 

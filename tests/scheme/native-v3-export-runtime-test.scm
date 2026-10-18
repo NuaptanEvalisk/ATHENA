@@ -42,6 +42,47 @@
 (check (equal? before (tree-node-properties scripts))
        "export mutated typed script metadata")
 
+;; These are exactly the fixed-arity v3 AST shapes now inserted by the
+;; keyboard and Math toolbar's shared arrow/operator action. Exercise the real
+;; LaTeX route as an integration check, independent of the editor QTest build.
+(check (string-contains?
+         (texmacs->latex-document '(math (math-long-arrow "→" "i" "n")) '())
+         "\\xrightarrow[i]{n}")
+       "native long-arrow lower/upper slots were transposed during export")
+(check (string-contains?
+         (texmacs->latex-document '(math (math-long-arrow "→" "" "")) '())
+         "\\xrightarrow{}")
+       "empty native long-arrow annotation slots were lost")
+(check (string-contains?
+         (texmacs->latex-document '(math (big-operator "∑" "0")) '())
+         "\\sum")
+       "native big operator glyph failed the real export route")
+(for-each
+  (lambda (kind command)
+    (check (string-contains?
+             (texmacs->latex-document `(math (math-variant ,kind "A")) '())
+             command)
+           "native math alphabet variant failed the real export route"))
+  '("bf" "bb" "cal")
+  '("\\mathbf{A}" "\\mathbb{A}" "\\mathcal{A}"))
+(for-each
+  (lambda (kind command)
+    (check (string-contains?
+             (texmacs->latex-document `(math (math-variant ,kind "A")) '())
+             command)
+           "mathematical alphabet export changed its original font semantics"))
+  '("mbf" "mbfu" "frak")
+  '("\\boldsymbol{A}" "\\mathbf{A}" "\\mathfrak{A}"))
+;; Verify dependencies as well as visible commands. Bare LaTeX does not
+;; define boldsymbol/mathfrak; these are real package requirements, not
+;; cosmetic formatting differences.
+(texmacs->latex-document '(math (math-variant "mbf" "A")) '())
+(check (member "amsmath" (latex-export-latex-extra-packages))
+       "mathematical bold export omitted its amsmath dependency")
+(texmacs->latex-document '(math (math-variant "frak" "A")) '())
+(check (member "amsfonts" (latex-export-latex-extra-packages))
+       "Fraktur export omitted its amsfonts dependency")
+
 (define block (stree->tree '(math-block "x")))
 (property! block "math:block-numbered" '(boolean #t))
 (define block-source (latex-export-prepare-v3-source block))
@@ -101,6 +142,60 @@
   (lambda () (latex-export-prepare-v3-source
                (stree->tree '(math-block "missing typed metadata"))))
   "malformed")
+
+;; The strict native math validator is also the safety boundary for the XML
+;; v3 reader/writer. A MathLongArrow containing a malformed MathSymbol must
+;; fail closed, not dereference a non-atomic semantic ID and crash ATHENA.
+(define malformed-arrow
+  (stree->tree '(math-long-arrow
+                   (math-symbol (concat "differential-d")) "" "")))
+(expect-native-error
+  (lambda () (latex-export-prepare-v3-source malformed-arrow))
+  "malformed")
+(check (clean? (texmacs->latex-document native '()))
+       "failed malformed-arrow validation poisoned a later native export")
+
+;; The compact XML v3 codec represents these physical descriptors as parent
+;; XML attributes, with no place to store their own source IDs/properties.
+;; They must fail closed instead of silently losing the identified child.
+(define (reject-attributed-descriptor source position)
+  (let ((child (tree-ref source position)))
+    (check (eq? (car (tree-ensure-node-id! child)) 'ok)
+           "could not construct identified descriptor")
+    (expect-native-error
+      (lambda () (latex-export-prepare-v3-source source)) "malformed")))
+(reject-attributed-descriptor (stree->tree '(big-operator "∑" "0")) 0)
+(reject-attributed-descriptor (stree->tree '(big-operator "∑" "0")) 1)
+(reject-attributed-descriptor (stree->tree '(math-middle "|")) 0)
+(do ((slot 0 (+ slot 1))) ((= slot 5))
+  (reject-attributed-descriptor
+    (stree->tree '(delimited "(" ")" "m" "1" "2" "x")) slot))
+(check (clean? (texmacs->latex-document native '()))
+       "descriptor metadata rejection damaged a later native export")
+
+;; The native MathGrid model must reject an unknown cell height mode before
+;; exporting or persisting it. The typesetter only implements auto/exact/min/max;
+;; accepting arbitrary strings would silently ignore an intended constraint.
+(define (height-mode-grid mode)
+  (let ((cell (stree->tree '(cell "x"))))
+    (property! cell "math:cell-format"
+               (list 'dictionary (list (list "height-mode" (list 'string mode)))))
+    (let ((grid (tree-rebuild
+                  (stree->tree '(math-grid))
+                  (list (tree-rebuild (stree->tree '(row)) (list cell))))))
+      (property! grid "math:grid-kind" '(string "matrix"))
+      grid)))
+(expect-native-error
+  (lambda () (latex-export-prepare-v3-source (height-mode-grid "invented")))
+  "malformed")
+;; Supported modes are valid native trees even though LaTeX currently rejects
+;; this cell-format property rather than silently dropping it during export.
+(for-each
+  (lambda (mode)
+    (expect-native-error
+      (lambda () (latex-export-prepare-v3-source (height-mode-grid mode)))
+      "Unsupported MathGrid cell formatting"))
+  '("auto" "exact" "min" "max"))
 
 ;; Exercise the real Scheme callback boundary inside a running C++ export.
 ;; Restore the callback before recursion; no test binding is installed in C++.

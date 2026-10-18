@@ -129,6 +129,7 @@ std::string migrate_fragment (std::string source, bool opaque,
   }
   const auto previous= read_xml_v2 (source, xml_kind::fragment);
   const auto migrated= migrate_math_v2_tree (previous, strict);
+  validate_cold_v3_migration (migrated.document);
   std::string output= write_xml_v3 (migrated.document, xml_kind::fragment);
   const auto restored= read_xml_v3 (output, xml_kind::fragment);
   if (restored != migrated.document ||
@@ -347,6 +348,7 @@ std::optional<v3_title_filter_migration> prepare_vault_title_filter_v3 (
       content= migrated.document;
       result.warnings+= migrated.warnings.size ();
     }
+    validate_cold_v3_migration (content);
     athena_artifact_title_filter_add (converted, content, xml_format_version::v3);
     ++result.fragments;
   }

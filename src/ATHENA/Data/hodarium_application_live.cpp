@@ -35,6 +35,7 @@ bool apply_open_document (const std::filesystem::path& root,
     const std::filesystem::path& database, const std::string& revision_id,
     const std::function<bool()>& permitted, const document_rename_records& records) {
   if (permitted && !permitted ()) return false;
+  detail::require_v3_document_vault (root);
   revision_store journal (database);
   auto target= journal.offer (revision_id);
   if (!target) return false;
@@ -93,7 +94,7 @@ bool apply_open_document (const std::filesystem::path& root,
                   });
                 }
                 else {
-                  auto source= document::read_xml_v2 (target->payload);
+                  auto source= document::read_xml_v3 (target->payload);
                   applied= actor->apply_saved_document (captured, target_hash, std::move (source), [&] {
                     if (!detail::apply_document_on_disk (root, journal, history, revision_id, permitted, records, live_document_application_hooks (), owner.first))
                       return std::unique_ptr<document::document_file> ();

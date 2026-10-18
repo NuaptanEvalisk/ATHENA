@@ -272,8 +272,10 @@ class writer {
         return;
       }
       if (L (value) == MATH_MIDDLE) {
-        if (N (value) != 1 || !is_atomic (value[0]) ||
-            !math_v3::glyph (value[0]->label))
+        // <m> stores its glyph as an attribute. Delegate to the native
+        // validator so an identified/attributed glyph child cannot be
+        // accepted and silently stripped during serialization.
+        if (!math_v3::valid_native_math (value))
           throw codec_exception (codec_error::invalid_structure, "Invalid middle delimiter");
         xml.writeStartElement ("m");
         const auto k= checked_text (bytes (value[0]->label));

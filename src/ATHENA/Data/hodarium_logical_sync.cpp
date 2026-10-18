@@ -97,6 +97,25 @@ bool logical_revision_format (const std::string& format) {
     material_logical_format (format) || derived_logical_revision_format (format);
 }
 
+void validate_logical_revision_metadata (const revision& value) {
+  if (!logical_revision_format (value.format) || value.semantic_version != 1 ||
+      value.relative_path != history_path (value.object))
+    throw std::invalid_argument ("Invalid Hodarium logical revision model or path");
+  if (derived_logical_revision_format (value.format)) {
+    if (value.deleted || !value.parents.empty ())
+      throw std::invalid_argument ("Derived Hodarium result must be immutable");
+    const auto suffix= "/" + fingerprint (value.payload);
+    if (value.object.size () <= suffix.size () ||
+        value.object.compare (value.object.size ()-suffix.size (), suffix.size (), suffix) != 0)
+      throw std::invalid_argument ("Derived Hodarium result fingerprint mismatch");
+  }
+  if (value.deleted && value.format == "athena-artifact-rejections-v1")
+    throw std::invalid_argument ("Use an explicit empty rejection list, not a tombstone");
+  if (value.format == "athena-artifact-rejections-v1" &&
+      value.object != "artifact-rejections")
+    throw std::invalid_argument ("Invalid Hodarium logical rejection object identity");
+}
+
 logical_sync_result capture_logical_databases (
   const std::filesystem::path& root, revision_store& journal,
   const std::string& vault, const std::string& member, const std::function<bool()>& gate) {
@@ -272,19 +291,13 @@ bool apply_logical_revision (const std::filesystem::path& root, revision_store& 
   const std::function<bool()>& gate) {
   if (!allowed (gate)) return false;
   auto target= journal.get (id);
-  if (!target || !logical_revision_format (target->format) || target->semantic_version != 1 ||
-      target->relative_path != history_path (target->object))
-    throw std::invalid_argument ("Invalid Hodarium logical revision model or path");
+  if (!target) throw std::invalid_argument ("Unknown Hodarium logical revision");
+  validate_logical_revision_metadata (*target);
   if (!journal.eligible (id)) return false;
   vault_databases files (root);
   if (history.vault_root () != files.root.path ()) throw std::invalid_argument ("Logical history belongs to another Vault");
   if (derived_logical_revision_format (target->format)) {
-    if (target->deleted || !target->parents.empty ())
-      throw std::invalid_argument ("Derived Hodarium result must be immutable");
     const auto suffix= "/" + fingerprint (target->payload);
-    if (target->object.size () <= suffix.size () ||
-        target->object.compare (target->object.size ()-suffix.size (), suffix.size (), suffix) != 0)
-      throw std::invalid_argument ("Derived Hodarium result fingerprint mismatch");
     if (journal.applied (target->vault, target->object) == id) return true;
     logical_database_object object {target->object.substr (0, target->object.size ()-suffix.size ()),
       target->format, target->payload};
@@ -305,8 +318,6 @@ bool apply_logical_revision (const std::filesystem::path& root, revision_store& 
     journal.record_applied (id, {});
     return true;
   }
-  if (target->deleted && target->format == "athena-artifact-rejections-v1")
-    throw std::invalid_argument ("Use an explicit empty rejection list, not a tombstone");
   if (!target->deleted) validate_logical_object ({target->object, target->format, target->payload});
   const auto operation= "hodarium-logical-apply-" + id;
   auto intent= journal.application (operation);

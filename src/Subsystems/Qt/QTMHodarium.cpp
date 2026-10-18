@@ -467,7 +467,7 @@ public:
         result.origin_member= worker_->settings->find (binding.group)->member;
         if (resource_revision_format (result.format)) validate_resource_revision (binding.root, result,
           material_resource_paths (binding.root, journal, binding.vault));
-        else if (result.format != "ath-xml-v2" || result.semantic_version != 3 ||
+        else if (result.format != document_revision_format || result.semantic_version != document_revision_semantics ||
                  std::filesystem::path (path).extension () != ".ath")
           throw std::runtime_error ("Invalid physical document destination");
         journal.receive (seal_revision (std::move (result)));
@@ -670,7 +670,7 @@ class conflicts_pane: public QWidget {
         for (const auto& id: ids) {
           auto value= journal.offer (id);
           if (!value || value->metadata.vault != vault || value->metadata.object != object ||
-              value->metadata.deleted || value->metadata.format != "ath-xml-v2" || value->metadata.semantic_version != 3 ||
+              value->metadata.deleted || value->metadata.format != document_revision_format || value->metadata.semantic_version != document_revision_semantics ||
               value->size > athena::document::codec_limits ().input_bytes)
             throw std::invalid_argument ("Revision cannot be compared as a native document");
           result.push_back (std::move (*journal.get (id)));
@@ -684,7 +684,7 @@ class conflicts_pane: public QWidget {
           auto decode= [&] (const revision& value) {
             if (!athena::history::valid_relative_document_path (value.relative_path))
               throw std::invalid_argument ("Invalid Hodarium comparison source path");
-            auto source= athena::document::read_xml_v2 (value.payload);
+            auto source= athena::document::read_xml_v3 (value.payload);
             auto diagnostic= interop_document_source_error (source);
             if (!diagnostic.empty ()) throw std::invalid_argument (diagnostic);
             std::string identity;
@@ -715,7 +715,7 @@ class conflicts_pane: public QWidget {
       });
   }
   tree source (const revision& r) {
-    auto t= athena::document::read_xml_v2 (r.payload);
+    auto t= athena::document::read_xml_v3 (r.payload);
     auto diagnostic= interop_document_source_error (t);
     if (!diagnostic.empty ()) throw std::invalid_argument (diagnostic);
     std::string id;
@@ -734,7 +734,7 @@ class conflicts_pane: public QWidget {
       if (result.semantic_version != 1) throw std::runtime_error ("Unsupported logical record version");
       if (!result.deleted) validate_logical_object ({result.object, result.format, result.payload});
     }
-    else if (result.format != "ath-xml-v2" || result.semantic_version != 3)
+    else if (result.format != document_revision_format || result.semantic_version != document_revision_semantics)
       throw std::runtime_error ("Unsupported conflict result format");
     submit_->setEnabled (false);
     service_->prepare_resolution (this, binding_, std::move (result), [this] (std::string operation, QString error) {
@@ -827,7 +827,7 @@ class conflicts_pane: public QWidget {
               result.payload= nlohmann::json::parse (input->toPlainText ().toStdString ()).dump ();
               publish_result (std::move (result)); return;
             }
-            if (result.format != "ath-xml-v2") throw std::runtime_error ("Adopt a resource branch or edit the file with its native editor");
+            if (result.format != document_revision_format) throw std::runtime_error ("Adopt a resource branch or edit the file with its native editor");
             auto document= source (result);
             if (draft_ && QMessageBox::question (this, tr ("Merge draft"), tr ("Start another merge draft? The previous editor buffer will remain open.")) != QMessageBox::Yes) return;
             draft_buffer_= url_scratch ("hodarium_merge_", ".ath");
@@ -840,7 +840,7 @@ class conflicts_pane: public QWidget {
             status_->setText (tr ("Edit the merge buffer, then submit its result here. Source documents remain unchanged."));
           }
           else {
-            if (!result.deleted && result.format == "ath-xml-v2") (void) source (result);
+            if (!result.deleted && result.format == document_revision_format) (void) source (result);
             if (QMessageBox::question (this, tr ("Resolve conflict"), result.deleted ?
                 tr ("Resolve all listed branches by deleting this document? File History protects existing local content.") :
                 tr ("Resolve all listed branches using the selected revision and its path?")) != QMessageBox::Yes) return;
@@ -856,7 +856,7 @@ class conflicts_pane: public QWidget {
     try {
       auto document= get_buffer_tree (draft_buffer_);
       auto result= *draft_;
-      result.payload= athena::document::write_xml_v2 (document);
+      result.payload= athena::document::write_xml_v3 (document);
       (void) source (result);
       bool accepted= false;
       auto path= QInputDialog::getText (this, tr ("Merge result"), tr ("Vault-relative result path"),
@@ -912,7 +912,7 @@ class conflicts_pane: public QWidget {
             if (!value || value->resolution.vault != binding_.vault) throw std::runtime_error ("Merge draft is unavailable");
             const auto& result= value->resolution;
             if (result.deleted) { message->setText (tr ("This retained proposal deletes the object; it has no content payload.")); return; }
-            if (result.format == "ath-xml-v2") {
+            if (result.format == document_revision_format) {
               auto document= athena::document_node::duplicate_source_nodes (source (result));
               auto name= url_scratch ("hodarium_draft_", ".ath");
               set_buffer_tree (name, document);
@@ -1030,7 +1030,7 @@ public:
     connect (submit_, &QPushButton::clicked, this, [this] { submit (); });
     connect (tree_, &QTreeWidget::itemSelectionChanged, this, [this] {
       auto selected= tree_->selectedItems ();
-      auto native= [] (QTreeWidgetItem* item) { return item->data (0, Qt::UserRole+2).toString () == "ath-xml-v2"; };
+      auto native= [] (QTreeWidgetItem* item) { return item->data (0, Qt::UserRole+2).toString () == document_revision_format; };
       compare_->setEnabled (selected.size () == 2 && selected[0]->parent () &&
         selected[0]->parent () == selected[1]->parent () &&
         native (selected[0]) && native (selected[1]) &&

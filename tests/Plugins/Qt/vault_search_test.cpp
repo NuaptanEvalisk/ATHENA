@@ -31,6 +31,7 @@
 #include "Data/Convert/Xml/document_upgrade_file.hpp"
 #include "Subsystems/RAG/rag_index.hpp"
 #include "node_metadata.hpp"
+#include "math_tree_v3.hpp"
 #include "boxes.hpp"
 #include <QSemaphore>
 #include "Qt/qt_utilities.hpp"
@@ -74,6 +75,9 @@ private slots:
   void availableSourceEnunciationsFollowUuidSelections_data ();
   void availableSourceEnunciationsFollowUuidSelections ();
   void findsStructuredMathematicalExpressions ();
+  void nativeV3StructuredSearchHonorsPolicies ();
+  void nativeV3SearchExcludesMathDescriptorsFromTextAndFuzzy ();
+  void emptyNativeSearchPatternDoesNotLoopOrIndexMissingChildren ();
   void filtersCanonicalAndLegacyEnunciations ();
   void keepsConcurrentSearchOptionsIndependent ();
   void fuzzyInsertion ();
@@ -943,6 +947,192 @@ TestVaultSearch::findsStructuredMathematicalExpressions () {
   append_content_matches (matches, compound ("math", "sinh"),
                           compound ("math", "sin"), path (), 200, false, false);
   QVERIFY (matches.empty ());
+}
+
+void TestVaultSearch::nativeV3StructuredSearchHonorsPolicies () {
+  using namespace athena;
+  struct SourceAccess {
+    int previous= set_access_mode (DRD_ACCESS_SOURCE);
+    ~SourceAccess () { set_access_mode (previous); }
+  } sourceAccess;
+
+  auto count= [] (tree source, tree query, bool fuzzy= true) {
+    std::vector<VaultContentMatch> matches;
+    append_content_matches (matches, compound ("math", source),
+                            compound ("math", query), path (), 200,
+                            false, fuzzy);
+    return matches.size ();
+  };
+  tree script= math_v3::scripts ("x", "", "", "i", "2", 'r');
+  tree same_script= math_v3::scripts ("x", "", "", "i", "2", 'r');
+  // Source UUIDs do not constrain an otherwise identical structured query.
+  auto source_meta= *node::get (same_script);
+  source_meta.id= node::new_id ();
+  node::set (script, source_meta);
+  QCOMPARE (count (script, same_script), std::size_t (1));
+  QCOMPARE (count (script, math_v3::scripts ("x", "", "", "i", "2", 'o')),
+            std::size_t (0));
+  QCOMPARE (count (script, math_v3::scripts ("x", "", "", "i", "3", 'r')),
+            std::size_t (0));
+  QCOMPARE (count (math_v3::scripts ("x", "j", "", "i", "2", 'r'),
+                   same_script), std::size_t (0));
+
+  tree delimiter= math_v3::delimited ("(", ")", 'a', "x");
+  QCOMPARE (count (delimiter, math_v3::delimited ("(", ")", 'a', "x")),
+            std::size_t (1));
+  QCOMPARE (count (delimiter, math_v3::delimited ("(", "]", 'a', "x")),
+            std::size_t (0));
+  QCOMPARE (count (delimiter, math_v3::delimited ("(", ")", 'f', "x")),
+            std::size_t (0));
+
+  auto grid= [] (const char* kind, math_v3::row_numbering policy,
+                 const tree& tag) {
+    tree row (ROW, tree (CELL, "x"));
+    math_v3::set_row_numbering (row, policy);
+    math_v3::set_row_tag (row, tag);
+    tree result (MATH_GRID, row);
+    node::metadata meta;
+    meta.properties["math:grid-kind"]= node::property (std::string (kind));
+    node::set (result, meta);
+    return result;
+  };
+  tree source_grid= grid ("align", math_v3::row_numbering::unnumbered,
+                           tree ("A"));
+  tree query_grid= grid ("align", math_v3::row_numbering::unnumbered,
+                          tree ("A"));
+  auto row_meta= *node::get (source_grid[0]);
+  row_meta.id= node::new_id ();
+  node::set (source_grid[0], row_meta);
+  QCOMPARE (count (source_grid, query_grid), std::size_t (1));
+  QCOMPARE (count (source_grid, grid ("eqnarray",
+            math_v3::row_numbering::unnumbered, tree ("A"))), std::size_t (0));
+  QCOMPARE (count (source_grid, grid ("align",
+            math_v3::row_numbering::numbered, tree ("A"))), std::size_t (0));
+  QCOMPARE (count (source_grid, grid ("align",
+            math_v3::row_numbering::unnumbered, tree ("B"))), std::size_t (0));
+  tree inherited= grid ("align", math_v3::row_numbering::inherit, tree ("A"));
+  QCOMPARE (count (source_grid, inherited), std::size_t (0));
+  tree extra_cell= copy (source_grid);
+  extra_cell[0] << tree (CELL, "y");
+  QCOMPARE (count (extra_cell, query_grid), std::size_t (0));
+  tree empty_cell_query= copy (query_grid);
+  empty_cell_query[0][0]= tree (CELL, "");
+  QCOMPARE (count (source_grid, empty_cell_query), std::size_t (0));
+  tree empty_cell_source= copy (source_grid);
+  empty_cell_source[0][0]= tree (CELL, "");
+  QCOMPARE (count (empty_cell_source, empty_cell_query), std::size_t (1));
+
+  // The Vault math route adds an outer select-region to an expression query.
+  // Keep an already nested selector active while enforcing the complete grid
+  // shape; a partial-column grid must not yield a selected cell.
+  tree selection_source= copy (source_grid);
+  selection_source[0] << tree (CELL, "y");
+  tree selected_grid= copy (query_grid);
+  selected_grid[0] << tree (CELL, "y");
+  selected_grid[0][0]= tree (CELL, compound ("select-region", "x"));
+  std::vector<VaultContentMatch> selections;
+  append_content_matches (selections, compound ("math", selection_source),
+                          compound ("math", selected_grid), path (),
+                          200, false, false);
+  QCOMPARE (selections.size (), std::size_t (1));
+  tree short_selected_grid= copy (selected_grid);
+  short_selected_grid[0]= tree (ROW, selected_grid[0][0]);
+  node::copy_metadata (selected_grid[0], short_selected_grid[0]);
+  QCOMPARE (N(selection_source[0]), 2);
+  QCOMPARE (N(short_selected_grid[0]), 1);
+  selections.clear ();
+  append_content_matches (selections, compound ("math", selection_source),
+                          compound ("math", short_selected_grid), path (),
+                          200, false, false);
+  QVERIFY (selections.empty ());
+
+  tree selected_delimiter= math_v3::delimited (
+    "(", ")", 'a', compound ("select-region", "x"));
+  selections.clear ();
+  append_content_matches (selections, compound ("math", delimiter),
+                          compound ("math", selected_delimiter), path (),
+                          200, false, false);
+  QCOMPARE (selections.size (), std::size_t (1));
+  selected_delimiter= math_v3::delimited (
+    "", ")", 'a', compound ("select-region", "x"));
+  selections.clear ();
+  append_content_matches (selections, compound ("math", delimiter),
+                          compound ("math", selected_delimiter), path (),
+                          200, false, false);
+  QVERIFY (selections.empty ());
+
+  // Explicit metadata on the outer math wrapper must survive the temporary
+  // select-region wrapper used by the Vault's mathematical search.
+  tree outer= compound ("math", same_script);
+  tree constrained= compound ("math", same_script);
+  node::metadata marker;
+  marker.properties["query:scope"]= node::property (std::string ("proof"));
+  node::set (constrained, marker);
+  std::vector<VaultContentMatch> matches;
+  append_content_matches (matches, outer, constrained, path (), 200, false, true);
+  QVERIFY (matches.empty ());
+  node::set (outer, marker);
+  append_content_matches (matches, outer, constrained, path (), 200, false, true);
+  QCOMPARE (matches.size (), std::size_t (1));
+
+  tree word ("properties");
+  tree word_query ("properties");
+  node::metadata word_meta;
+  word_meta.properties["role"]= node::property (std::string ("definition"));
+  node::set (word_query, word_meta);
+  matches.clear ();
+  append_content_matches (matches, word, word_query, path (), 200, false, true);
+  QVERIFY (matches.empty ());
+  node::set (word, word_meta);
+  append_content_matches (matches, word, word_query, path (), 200, false, true);
+  QCOMPARE (matches.size (), std::size_t (1));
+}
+
+void TestVaultSearch::emptyNativeSearchPatternDoesNotLoopOrIndexMissingChildren () {
+  struct SourceAccess {
+    int previous= set_access_mode (DRD_ACCESS_SOURCE);
+    ~SourceAccess () { set_access_mode (previous); }
+  } sourceAccess;
+  const tree empty_concat (CONCAT);
+  const auto from_atom= search (tree ("abc"), empty_concat,
+                                path (), false, 10);
+  QCOMPARE (N(from_atom), 0);
+  const auto from_concat= search (tree (CONCAT, "a", "b"), empty_concat,
+                                  path (), false, 10);
+  QCOMPARE (N(from_concat), 0);
+  // A zero-length atomic query cannot repeatedly revisit the same byte.
+  const auto empty_atom= search (tree ("abc"), tree (""),
+                                 path (), false, 10);
+  QVERIFY (N(empty_atom) <= 20);
+}
+
+void TestVaultSearch::nativeV3SearchExcludesMathDescriptorsFromTextAndFuzzy () {
+  struct SourceAccess {
+    int previous= set_access_mode (DRD_ACCESS_SOURCE);
+    ~SourceAccess () { set_access_mode (previous); }
+  } sourceAccess;
+  tree manual= athena::math_v3::delimited ("(", ")", 'm', "x", "1024", "1024");
+  tree source= compound ("math", manual);
+  std::vector<VaultContentMatch> matches;
+  append_content_matches (matches, source, tree ("1024"), path (),
+                          200, false, false);
+  QVERIFY (matches.empty ());
+  append_content_matches (matches, source, tree ("1023"), path (),
+                          200, false, true);
+  QVERIFY (matches.empty ());
+  append_content_matches (matches, source, tree ("x"), path (),
+                          200, false, false);
+  QCOMPARE (matches.size (), std::size_t (1));
+
+  matches.clear ();
+  tree visible= compound ("math", athena::math_v3::delimited (
+    "(", ")", 'm', "1024", "1024", "1024"));
+  append_content_matches (matches, visible, tree ("1023"), path (),
+                          200, false, true);
+  QVERIFY (!matches.empty ());
+  for (const auto& match: matches)
+    QVERIFY (match.start == path (0, 5, 0) || match.start == path (0, 5, 1) ||
+             match.start == path (0, 5, 2) || match.start == path (0, 5, 3));
 }
 
 void TestVaultSearch::filtersCanonicalAndLegacyEnunciations () {

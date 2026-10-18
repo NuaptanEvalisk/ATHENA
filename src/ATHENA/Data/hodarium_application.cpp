@@ -5,6 +5,7 @@
 #include "interop_document_source.hpp"
 #include "node_metadata.hpp"
 #include "hodarium_local_notifications.hpp"
+#include "vaultfile_json.hpp"
 #include <stdexcept>
 
 namespace athena::hodarium {
@@ -32,6 +33,8 @@ std::optional<observed_file> observe (filesystem::confined_root& root,
 }
 void validate_path (const std::string& path) {
   if (!history::valid_relative_document_path (path) ||
+      path.find ('\\') != std::string::npos ||
+      std::filesystem::path (path).lexically_normal ().generic_string () != path ||
       std::filesystem::path (path).extension () != ".ath")
     throw std::invalid_argument ("Invalid Hodarium document application path");
   for (const auto& part: std::filesystem::path (path))
@@ -40,12 +43,28 @@ void validate_path (const std::string& path) {
 }
 }
 
+void detail::validate_document_application_path (const std::string& relative_path) {
+  validate_path (relative_path);
+}
+
 void detail::validate_document_application_source (const revision& target) {
-  if (target.format != "ath-xml-v2" || target.semantic_version != 3)
+  if (target.format != document_revision_format ||
+      target.semantic_version != document_revision_semantics)
     throw std::invalid_argument ("Unsupported Hodarium document model");
-  validate_path (target.relative_path);
-  if (target.deleted) return;
-  auto source= document::read_xml_v2 (target.payload);
+  validate_document_application_path (target.relative_path);
+  // A tombstone has no XML body from which to extract the persistent source
+  // UUID. Require the same canonical source identity for deletions as for
+  // saved documents before returning from the empty-payload fast path.
+  if (!node::valid_id (target.object))
+    throw std::invalid_argument ("Invalid Hodarium document source identity");
+  if (target.deleted) {
+    if (!target.payload.empty ())
+      throw std::invalid_argument ("Hodarium document tombstone contains a payload");
+    return;
+  }
+  if (document::inspect_xml_version (target.payload) != document::xml_format_version::v3)
+    throw std::invalid_argument ("Hodarium document revision requires an XML v3 envelope");
+  auto source= document::read_xml_v3 (target.payload);
   auto error= interop_document_source_error (source);
   if (!error.empty ()) throw std::invalid_argument (error);
   std::string id;
@@ -53,6 +72,22 @@ void detail::validate_document_application_source (const revision& target) {
     if (is_compound (source[i], "body", 1)) id= node::id (source[i][0]);
   if (!node::valid_id (id) || id != target.object)
     throw std::invalid_argument ("Hodarium payload differs from its source identity");
+}
+void detail::require_v3_document_vault (const std::filesystem::path& root) {
+  AthenaVaultfileInfo info;
+  std::string error;
+  if (!athena_vaultfile_read (root, info, error))
+    throw std::invalid_argument ("Hodarium cannot verify Vault format: " + error);
+  if (info.node_model_version != 2)
+    throw std::invalid_argument (
+      "Hodarium synchronization requires a migrated XML v3 Vault");
+  std::error_code ec;
+  const auto marker= std::filesystem::symlink_status (
+    root / ".athena/xml-v3-candidate-manifest.json", ec);
+  if ((ec && ec != std::errc::no_such_file_or_directory) ||
+      std::filesystem::exists (marker))
+    throw std::invalid_argument (
+      "Unpublished XML v3 migration candidates cannot synchronize");
 }
 namespace {
 struct live_source {};
@@ -72,6 +107,7 @@ bool detail::apply_document_on_disk (const std::filesystem::path& path,
   if (!target) throw std::invalid_argument ("Unknown Hodarium application revision");
   validate_document_application_source (*target);
   filesystem::confined_root root (path);
+  require_v3_document_vault (root.path ());
   if (history.vault_root () != root.path ())
     throw std::invalid_argument ("Hodarium history belongs to another Vault root");
   const auto operation= "hodarium-apply-" + target->id;
@@ -136,6 +172,10 @@ bool detail::apply_document_on_disk (const std::filesystem::path& path,
     const auto gate= [&] {
       if (!publication.owns_lock () && !publication.try_lock ()) throw live_source {};
       ensure_closed ();
+      // Recheck at the actual write boundary under the publication mutex;
+      // a Vaultfile version check performed before preparing history is not
+      // proof that another owner has not since changed the local epoch.
+      require_v3_document_vault (root.path ());
     };
     auto source= observe (root, source_path);
     const auto target_hash= journal.payload_fingerprint (target->id);

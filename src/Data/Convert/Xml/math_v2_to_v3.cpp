@@ -11,8 +11,12 @@
 #include "tree_analyze.hpp"
 #include "named_symbol.hpp"
 #include "drd_std.hpp"
+#include "ATHENA/Data/document_node_model.hpp"
+#include "vars.hpp"
+#include <algorithm>
 #include <map>
 #include <optional>
+#include <regex>
 #include <set>
 #include <stdexcept>
 #include <unordered_set>
@@ -26,6 +30,52 @@ using source_path= std::vector<int>;
 
 std::string ascii (const string& value) {
   return {value.data (), std::size_t (N (value))};
+}
+
+const std::set<std::string>& cold_declarations () {
+  static const auto names= [] {
+    std::set<std::string> result;
+#define init(label, name, ...) result.insert (ascii (name))
+#define init_var(name, ...) result.insert (ascii (name))
+#include "Data/Drd/standard_tree_labels.inc"
+#undef init_var
+#undef init
+#define make_tree_label(name) result.insert (ascii (name))
+#include "shipped_macro_labels.inc"
+#undef make_tree_label
+    return result;
+  } ();
+  return names;
+}
+
+void check_cold_tree (const tree& value, const std::string& where);
+
+void check_cold_property (const athena::node::property& value,
+                          const std::string& where) {
+  if (const auto* rich= std::get_if<athena::node::rich_text> (&value.data))
+    check_cold_tree (rich->content, where);
+  else if (const auto* list= std::get_if<athena::node::property::list> (&value.data))
+    for (std::size_t i=0; i<list->size (); ++i)
+      check_cold_property ((*list)[i], where + "/" + std::to_string (i));
+  else if (const auto* dict=
+           std::get_if<athena::node::property::dictionary> (&value.data))
+    for (const auto& [key, child]: *dict)
+      check_cold_property (child, where + "/" + key);
+}
+
+void check_cold_tree (const tree& value, const std::string& where) {
+  if (is_compound (value)) {
+    const auto tag= ascii (as_string (L (value)));
+    if (!cold_declarations ().count (tag))
+      throw std::runtime_error (
+        "No cold-load declaration for v3 tag '" + tag + "' at " + where +
+        "; resolve the source or its extension declaration before migration");
+    for (int i=0; i<N(value); ++i)
+      check_cold_tree (value[i], where + "/" + std::to_string (i));
+  }
+  if (const auto* meta= athena::node::get (value))
+    for (const auto& [key, property]: meta->properties)
+      check_cold_property (property, where + "/@" + key);
 }
 
 bool has_metadata (const tree& value);
@@ -122,6 +172,76 @@ int script_slot (tree_label label) {
 bool has_metadata (const tree& value) {
   const auto* meta= athena::node::get (value);
   return meta && !meta->empty ();
+}
+
+tree repair_character_escapes (const tree& source) {
+  if (!is_func (source, CONCAT)) return source;
+  static const std::regex digit ("'?([0-9])");
+  bool damaged= false;
+  for (int i=0; i<N(source); ++i)
+    if (is_compound (source[i]) && N(source[i]) == 0 &&
+        std::regex_match (ascii (as_string (L(source[i]))), digit)) damaged= true;
+  if (!damaged) return source;
+  std::string encoded;
+  for (int i=0; i<N(source); ++i) {
+    const tree& child= source[i];
+    if (has_metadata (child))
+      throw std::runtime_error ("Character escape repair would merge annotated source nodes");
+    if (is_atomic (child)) encoded+= ascii (child->label);
+    else {
+      std::smatch match;
+      const std::string tag= ascii (as_string (L(child)));
+      if (N(child) != 0 || !std::regex_match (tag, match, digit) ||
+          encoded.empty () || encoded.back () != '<')
+        throw std::runtime_error ("Ambiguous fragmented character escape");
+      encoded+= "#" + match[1].str ();
+    }
+  }
+  static const std::regex escape ("<#([0-9A-Fa-f][0-9A-Fa-f*]*)>");
+  std::string decoded;
+  std::size_t offset= 0;
+  for (std::sregex_iterator it (encoded.begin (), encoded.end (), escape), end;
+       it != end; ++it) {
+    decoded+= encoded.substr (offset, std::size_t (it->position ()) - offset);
+    std::string hex= (*it)[1].str ();
+    hex.erase (std::remove (hex.begin (), hex.end (), '*'), hex.end ());
+    if (hex.size () > 6) throw std::runtime_error ("Oversized character escape");
+    const auto scalar= std::stoul (hex, nullptr, 16);
+    if (scalar < 0xa0 || scalar > 0x10ffff || !U_IS_UNICODE_CHAR (scalar))
+      throw std::runtime_error ("Invalid Unicode character escape");
+    char bytes[4];
+    int32_t length= 0;
+    UBool error= false;
+    U8_APPEND (bytes, length, 4, scalar, error);
+    if (error) throw std::runtime_error ("Cannot encode repaired character escape");
+    decoded.append (bytes, std::size_t (length));
+    offset= std::size_t (it->position () + it->length ());
+  }
+  decoded+= encoded.substr (offset);
+  if (decoded.find ("<#") != std::string::npos)
+    throw std::runtime_error ("Incomplete fragmented character escape");
+  tree result (CONCAT, tree (string (decoded.data (), int (decoded.size ()))));
+  athena::node::copy_metadata (source, result);
+  return result;
+}
+
+tree legacy_length (const tree& source) {
+  if (!is_atomic (source))
+    throw std::runtime_error ("Non-text legacy layout length");
+  std::string value= ascii (source->label);
+  static const std::regex historical_length (
+    "[+-]?([0-9]+(\\.\\*?[0-9]*)?|\\.\\*?[0-9]+)\\*?"
+    "(p\\*?t|p\\*?c|i\\*?n|c\\*?m|m\\*?m|e\\*?m|e\\*?x|p\\*?x)");
+  if (!std::regex_match (value, historical_length))
+    throw std::runtime_error ("Ambiguous legacy layout length: " + value);
+  value.erase (std::remove (value.begin (), value.end (), '*'), value.end ());
+  static const std::regex length (
+    "[+-]?([0-9]+(\\.[0-9]*)?|\\.[0-9]+)(pt|pc|in|cm|mm|em|ex|px)");
+  if (!std::regex_match (value, length))
+    throw std::runtime_error ("Unsupported legacy layout length: " + ascii (source->label));
+  tree result (string (value.data (), int (value.size ())));
+  athena::node::copy_metadata (source, result);
+  return result;
 }
 
 bool locally_enters_math_mode (const tree& value) {
@@ -379,19 +499,43 @@ class converter {
   }
 
   tree sequence (const tree& source, bool math, source_path where) {
+    const tree normalized= repair_character_escapes (source);
     array<tree> children;
     std::optional<pending_left_script> deferred_lsub, deferred_lsup;
     std::vector<logical_math_item> items;
     items.reserve (std::size_t (N (source)));
-    for (int i=0; i<N (source); ++i) {
+    for (int i=0; i<N (normalized); ++i) {
       source_path path= where;
       path.push_back (i);
-      collect_math_items (source[i], std::move (path), math, items);
+      collect_math_items (normalized[i], std::move (path), math, items);
     }
     for (std::size_t i= 0; i<items.size (); ++i) {
       const tree& raw= items[i].source;
       const tree_label label= L (raw);
       const source_path& child_path= items[i].original_path;
+      if (math && is_compound (raw, "Big", 1) && raw[0] == "<") {
+        int depth= 1;
+        std::size_t closing= i+1;
+        for (; closing<items.size (); ++closing) {
+          const tree& candidate= items[closing].source;
+          if (is_compound (candidate, "Big", 1) && candidate[0] == "<") ++depth;
+          if (is_compound (candidate, "Big", 1) && candidate[0] == ">" && --depth == 0)
+            break;
+        }
+        if (closing == items.size ())
+          throw std::runtime_error ("Unpaired historical Big delimiter at " + path_text (child_path));
+        const tree& right= items[closing].source;
+        if (has_metadata (raw) || has_metadata (right) ||
+            has_metadata (raw[0]) || has_metadata (right[0]))
+          throw std::runtime_error ("Annotated Big endpoints require explicit identity resolution");
+        tree middle (CONCAT);
+        for (std::size_t j=i+1; j<closing; ++j) middle << items[j].source;
+        tree inner= sequence (middle, true, child_path);
+        children << math_v3::delimited ("⟨", "⟩", 'm', inner, "2", "2");
+        ++report_.delimiters;
+        i= closing;
+        continue;
+      }
       if (label == LEFT) {
         int closing= -1, depth= 1;
         for (std::size_t j=i+1; j<items.size (); ++j) {
@@ -734,6 +878,8 @@ class converter {
     const string old= as_string (L (source));
     static const std::map<std::string,string> styles= {
       {"math-alpha-bbb", "bb"}, {"math-up", "rm"},
+      {"math-alpha-bold", "mbf"}, {"math-alpha-bold-up", "mbfu"},
+      {"math-alpha-frak", "frak"}, {"math-alpha-cal", "cal"},
       {"math-it", "it"}, {"math-bf", "bf"},
       {"math-ss", "ss"}, {"math-tt", "tt"},
       {"math-sl", "sl"}, {"math-cal", "cal"}
@@ -1088,6 +1234,71 @@ class converter {
   tree walk (const tree& source, bool math, source_path where,
              bool explicit_standalone_math= false) {
     if (is_atomic (source)) return math ? tokenized (source) : copy (source);
+    if (is_compound (source, "fint", 0)) {
+      tree operator_source (BIG, "fint");
+      inherited_header (source, operator_source);
+      return operator_atom (operator_source, where);
+    }
+    if (is_compound (source, "ohm", 0)) {
+      tree result ("Ω");
+      inherited_header (source, result);
+      return result;
+    }
+    if (is_compound (source, "mathllap", 1)) {
+      auto child= where; child.push_back (0);
+      tree result (RESIZE, walk (source[0], true, child), "1r", "", "1r", "");
+      inherited_header (source, result);
+      return result;
+    }
+    if (is_compound (source, "kern", 1)) {
+      tree result (SPACE, legacy_length (source[0]));
+      inherited_header (source, result);
+      return result;
+    }
+    if (is_compound (source, "raise", 2)) {
+      auto child= where; child.push_back (1);
+      tree result (MOVE, walk (source[1], math, child), "0pt", legacy_length (source[0]));
+      inherited_header (source, result);
+      return result;
+    }
+    if (is_compound (source, "bbox*", 2)) {
+      if (!is_atomic (source[0]) || has_metadata (source[0]))
+        throw std::runtime_error ("Unsupported structured/annotated bbox options");
+      std::string options= ascii (source[0]->label);
+      options.erase (std::remove (options.begin (), options.end (), '*'), options.end ());
+      static const std::regex syntax (
+        "([0-9]+(?:\\.[0-9]+)?px), *border: *([0-9]+(?:\\.[0-9]+)?px) *solid *([a-zA-Z]+|#[0-9a-fA-F]{6})");
+      std::smatch match;
+      if (!std::regex_match (options, match, syntax))
+        throw std::runtime_error ("Unsupported bbox options: " + options);
+      auto text= [&] (int index) { return tree (string (match[index].str ().c_str ())); };
+      auto child= where; child.push_back (1);
+      tree result (WITH);
+      result << tree (ORNAMENT_SHAPE) << tree ("classic")
+             << tree (ORNAMENT_BORDER) << text (2)
+             << tree (ORNAMENT_HPADDING) << text (1)
+             << tree (ORNAMENT_VPADDING) << text (1)
+             << tree (ORNAMENT_COLOR) << tree ("none")
+             << tree (ORNAMENT_SUNNY_COLOR) << text (3)
+             << tree (ORNAMENT_SHADOW_COLOR) << text (3)
+             << tree (ORNAMENT_SWELL) << tree ("0")
+             << tree (ORNAMENT, walk (source[1], math, child));
+      inherited_header (source, result);
+      return result;
+    }
+    if (is_compound (source, ">", 4) && is_func (source[1], DOCUMENT) &&
+        is_atomic (source[3])) {
+      tree content (DOCUMENT);
+      auto first= where; first.push_back (0);
+      auto body= where; body.push_back (1);
+      auto title= where; title.push_back (2);
+      content << walk (source[0], false, first)
+              << walk (source[1], false, body)
+              << tree (HLINK, walk (source[2], false, title), copy (source[3]));
+      tree result= compound ("quote-env", content);
+      inherited_header (source, result);
+      return result;
+    }
     if (is_row_marker (source))
       throw std::runtime_error ("Equation marker outside supported row content at " +
                                 path_text (where));
@@ -1131,6 +1342,10 @@ class converter {
     if (label == ABOVE || label == BELOW) return annotation (source, where);
     if (label == NAMED_SYMBOL) return named_symbol (source, where);
     if (is_compound (source, "math-alpha-bbb", 1) ||
+        is_compound (source, "math-alpha-bold", 1) ||
+        is_compound (source, "math-alpha-bold-up", 1) ||
+        is_compound (source, "math-alpha-frak", 1) ||
+        is_compound (source, "math-alpha-cal", 1) ||
         is_compound (source, "math-up", 1) ||
         is_compound (source, "math-it", 1) ||
         is_compound (source, "math-bf", 1) ||
@@ -1168,12 +1383,15 @@ class converter {
     }
     const bool math_body= math || is_compound (source, "math", 1) ||
                           locally_enters_math_mode (source);
+    const auto roles= athena::document_node::standard_source_role (source);
     array<tree> children;
     for (int i=0; i<N (source); ++i) {
       // Identifiers and string/URL arguments are data, not formula operands.
       // Preserve their exact tree and metadata even inside a mathematical row.
       const int field_type= standard_drd_for_thread ()->get_type_child (source, i);
-      if (field_type == TYPE_IDENTIFIER || field_type == TYPE_STRING ||
+      const bool data= math_body && roles && i < int (roles->children.size ()) &&
+        roles->children[i] == athena::document_node::child_role::data;
+      if (data || field_type == TYPE_IDENTIFIER || field_type == TYPE_STRING ||
           field_type == TYPE_URL) {
         children << copy (source[i]);
         continue;
@@ -1242,6 +1460,10 @@ public:
 
 math_v3_migration migrate_math_v2_tree (const tree& source, bool strict) {
   return converter (strict).migrate (source);
+}
+
+void validate_cold_v3_migration (const tree& source) {
+  check_cold_tree (source, "root");
 }
 
 } // namespace athena::document

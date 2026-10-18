@@ -73,10 +73,22 @@ Admission callbacks carry their captured generation to prevent stale approval.
 
 Vault bindings, source files, history, old journals and secret descriptors are
 retained. ``client_settings::trust_database_path`` and
-``revision_database_path`` provide generation-specific paths after recovery while
-preserving the original generation's legacy filenames. Old trust high-water
+``revision_database_path`` provide generation-specific paths after recovery.
+Revision journals use the ``revisions-v3-`` prefix even in the initial
+generation; XML v2 journals are never reopened by the new runtime. Old trust high-water
 records must not be deleted. Old-generation secrets and conflict certificates
 must not be silently reused under new-generation commitments.
+
+XML v3 cutover uses ``ATHENA-HODARIUM-VAULTS-v3`` announcements and
+``ATHENA-HODARIUM-EXCHANGE-v2`` / ``ATHENA-HODARIUM-REVISION-v2`` messages.
+Document descriptors require ``ath-xml-v3`` with semantic version 4. The old
+protocol is rejected, including for logical records and resources. Local
+conflict drafts use ``conflicts-v3-`` databases; conflict/branch/resolution
+opaque tokens use v3-specific roles, so old decisions cannot authorize new
+merges. Device identities, membership state and protected Vault keys remain
+unchanged. Server and Relay transports stay content-blind and need no XML
+parser. Every participating desktop, iPad or headless node must be upgraded;
+there is no mixed-format replication or conversion of an old revision DAG.
 
 The application coordinator suspends the old session, cancels and joins in-flight
 scan/application workers, then attempts to settle pending application intents for

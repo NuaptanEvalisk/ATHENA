@@ -13,6 +13,7 @@
 #include "language.hpp"
 #include "native_keyboard_prefixes.hpp"
 #include "utf8_edit.hpp"
+#include "auto_close.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -264,12 +265,11 @@ void execute_action (const QJsonObject& action) {
   else if (op == "insert-long-arrow") {
     const tree value= native_tree (action.value ("value"));
     const bool below= action.value ("below").toBool (false);
-    tree arrow= below ? tree (LONG_ARROW, value, "", "") :
-                        tree (LONG_ARROW, value, "");
-    ed->insert_tree (arrow, below ? path (2, 0) : path (1, 0));
+    athena::auto_close::insert_long_arrow (ed.operator-> (), value, below);
   }
   else if (op == "insert-big")
-    ed->insert_tree (tree (BIG, native_tree (action.value ("value"))));
+    athena::auto_close::insert_big_operator (
+      ed.operator-> (), native_tree (action.value ("value")));
   else if (op == "make") {
     ASSERT (action.value ("tag").isString (), "make action needs tag");
     ed->make_compound (as_tree_label (native_string (action.value ("tag"))));

@@ -19,7 +19,7 @@
   (:name "MathML (native v3)"))
 
 (tm-define (mathml-v3->texmacs source)
-  (native-mathml->tree-v3 (parse-xml source)))
+  (native-mathml-xml->tree-v3 source))
 
 ;; Return the native tree directly. A texmacs-stree intermediate would erase
 ;; typed script policies, accent stretch, grid formatting and block numbering.

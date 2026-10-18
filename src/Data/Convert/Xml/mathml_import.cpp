@@ -826,6 +826,13 @@ string text (scheme_tree source) {
   const auto parts= content (source);
   for (int i=0; i<N(parts); ++i) {
     const auto& part= parts[i];
+    if (scheme_head (part, "*LITERAL-AMP*")) {
+      // Internal lexical marker emitted only by parse_xml_mathml_v3 for a
+      // source-level &amp; or numeric ampersand entity. It must survive the
+      // token decoder without a second (incorrect) named-entity expansion.
+      result << '\001';
+      continue;
+    }
     if (!scheme_string (part)) fail (source, "token must contain text only");
     result << scheme_text (part);
   }
@@ -843,9 +850,17 @@ class Importer {
     if (++nodes > 1000000 || depth > 256) fail (source, "resource limit exceeded");
     if (scheme_string (source)) {
       const string value= scheme_text (source);
+      for (int i=0; i<N(value); ++i)
+        if (value[i] == '\001') fail (source, "reserved MathML lexical marker");
       bytes += std::size_t (N(value));
       if (bytes > 64u * 1024u * 1024u) fail (source, "text budget exceeded");
       athena::text::require_utf8 (std::string_view (value.data (), std::size_t (N(value))));
+      return;
+    }
+    if (scheme_head (source, "*LITERAL-AMP*")) {
+      if (N(source) != 1 ||
+          !one_of (parent, {"mi", "mn", "mo", "mtext"}))
+        fail (source, "literal XML ampersand outside a MathML token");
       return;
     }
     if (!is_tuple (source) || N(source) == 0 || !is_atomic (source[0]) ||
@@ -972,6 +987,12 @@ class Importer {
     array<tree> pieces;
     int start= 0;
     for (int i=0; i<N(value); ++i) {
+      if (value[i] == '\001') {
+        if (i > start) pieces << mapped (value (start, i), source);
+        pieces << tree ("&");
+        start= i+1;
+        continue;
+      }
       if (value[i] != '&') continue;
       const int end= search_forwards (";", i+1, value);
       if (end < 0) continue; // A literal XML &amp; has already been decoded.
@@ -1011,8 +1032,10 @@ class Importer {
 
   string variant_kind (scheme_tree source, string variant) {
     const std::pair<const char*, const char*> variants[]= {
-      {"normal", "rm"}, {"bold", "bf"}, {"italic", "it"},
+      {"normal", "rm"}, {"bold", "mbfu"}, {"italic", "it"},
+      {"bold-italic", "mbf"},
       {"double-struck", "bb"}, {"script", "cal"},
+      {"fraktur", "frak"},
       {"sans-serif", "ss"}, {"monospace", "tt"}
     };
     for (const auto& entry: variants) if (variant == entry.first) return entry.second;
@@ -1436,4 +1459,12 @@ mathml_to_tree (scheme_tree t) {
 tree
 mathml_to_tree_v3 (scheme_tree t) {
   return native_mathml::Importer ().run (t);
+}
+
+tree
+mathml_xml_to_tree_v3 (string raw_xml) {
+  // Only explicit source-string MathML v3 routes use lexical entity-preserving
+  // parsing. Existing v2 HTML/MathML and already-parsed SXML callers retain
+  // their old contracts, which cannot retroactively recover escaped text.
+  return native_mathml::Importer ().run (parse_xml_mathml_v3 (raw_xml));
 }

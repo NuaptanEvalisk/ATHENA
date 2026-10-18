@@ -149,10 +149,12 @@ conflict_tokens derive_conflict_tokens (const vault_secret& secret,
   if (secret.commitment != vault_token (key.value, secret.group, secret.vault, "commitment", nullptr))
     throw key_store_error (key_store_failure::corrupt, "Protected Hodarium secret does not match its Vault scope");
   auto branch_set= nlohmann::json::array ({object, parents});
+  // Keep the protected key/commitment, but do not let an old-format decision
+  // authorize a new-format merge (including otherwise identical logical data).
   return {vault_token (key.value, secret.group, secret.vault, "vault", nullptr),
-    vault_token (key.value, secret.group, secret.vault, "conflict", branch_set),
-    vault_token (key.value, secret.group, secret.vault, "branches", branch_set),
-    vault_token (key.value, secret.group, secret.vault, "resolution", nlohmann::json::array ({object, resolution_id}))};
+    vault_token (key.value, secret.group, secret.vault, "conflict-v3", branch_set),
+    vault_token (key.value, secret.group, secret.vault, "branches-v3", branch_set),
+    vault_token (key.value, secret.group, secret.vault, "resolution-v3", nlohmann::json::array ({object, resolution_id}))};
 }
 
 namespace {

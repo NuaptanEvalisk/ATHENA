@@ -1,5 +1,6 @@
 /* Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later. */
 #include "ATHENA/Data/hodarium_worker.hpp"
+#include "ATHENA/Data/hodarium_application.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "ATHENA/Data/namespaces_schema.hpp"
 #include "ATHENA/Data/hodarium_artifact_database.hpp"
@@ -98,7 +99,7 @@ void initialize_vault (const fs::path& root) {
   fs::create_directories (root / ".athena");
   AthenaVaultfileInfo info;
   info.name= root.filename ().string ();
-  info.node_model_version= 1;
+  info.node_model_version= 2;
   info.namespace_db_path= ".athena/namespaces.sqlite";
   info.artifacts_path= ".athena/artifacts.sqlite";
   info.enunciations_path= ".athena/enunciations.sqlite";
@@ -190,9 +191,7 @@ int main (int argc, char** argv) {
       if (command == "bind") {
         const auto root= fs::canonical (fs::u8path (required ("root")));
         separate_state (fs::canonical (state), root);
-        AthenaVaultfileInfo info; std::string error;
-        if (!athena_vaultfile_read (root, info, error)) throw std::invalid_argument (error);
-        if (info.node_model_version != 1) throw std::invalid_argument ("Vault must use the native node model");
+        detail::require_v3_document_vault (root);
         settings.bind_vault ({group, required ("vault"), root, true, parser.isSet ("allow-code-resources")});
       }
       else if (command == "unbind") settings.unbind_vault (group, required ("vault"));

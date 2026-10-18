@@ -186,7 +186,7 @@ std::filesystem::path client_settings::trust_database_path (const std::filesyste
 
 std::filesystem::path client_settings::revision_database_path (const std::filesystem::path& directory,
   const std::string& group) const {
-  return generation_database_path (directory, group, "revisions");
+  return generation_database_path (directory, group, "revisions-v3");
 }
 
 std::optional<std::filesystem::path> client_settings::previous_revision_database_path (
@@ -208,7 +208,7 @@ std::optional<std::filesystem::path> client_settings::previous_revision_database
   predecessor.text (1, group); predecessor.text (2, previous);
   if (!predecessor.row ()) throw std::runtime_error ("Missing predecessor Hodarium generation");
   const bool legacy= sqlite3_column_int (predecessor.value, 0) != 0;
-  return directory / ("revisions-" + group + (legacy ? "" : "-" + previous) + ".sqlite");
+  return directory / ("revisions-v3-" + group + (legacy ? "" : "-" + previous) + ".sqlite");
 }
 
 namespace {

@@ -40,6 +40,7 @@
 
 struct xml_html_parser {
   bool html;
+  bool preserve_mathml_literal_amp= false;
   parse_string s;
   hashmap<string,string> entities;
   array<tree> a;
@@ -61,6 +62,7 @@ struct xml_html_parser {
   string parse_quoted ();
   string expand_entity (string s);
   string expand_entities (string s);
+  int mathml_literal_amp_length ();
   string parse_entity ();
   tree parse_attribute ();
   tree parse_opening ();
@@ -323,6 +325,32 @@ xml_html_parser::expand_entities (string s) {
   return expand_entities (r);
 }
 
+int
+xml_html_parser::mathml_literal_amp_length () {
+  if (!preserve_mathml_literal_amp) return 0;
+  if (test (s, "&amp;")) return 5;
+  if (!test (s, "&#")) return 0;
+  // XML accepts leading zeroes in decimal/hex character references. Every
+  // numeric spelling of U+0026 must remain literal in v3 MathML token text,
+  // not be recursively reinterpreted as the start of a new named entity.
+  int pos= 2;
+  const bool hex= s[pos] == 'x' || s[pos] == 'X';
+  if (hex) ++pos;
+  const int radix= hex ? 16 : 10;
+  int value= 0;
+  int digits= 0;
+  for (; pos < 64; ++pos) {
+    const char c= s[pos];
+    const int digit= c >= '0' && c <= '9' ? c-'0' :
+                     hex && c >= 'a' && c <= 'f' ? c-'a'+10 :
+                     hex && c >= 'A' && c <= 'F' ? c-'A'+10 : -1;
+    if (digit < 0 || digit >= radix) break;
+    value= min (39, value * radix + digit);
+    ++digits;
+  }
+  return digits && s[pos] == ';' && value == 38 ? pos+1 : 0;
+}
+
 string
 xml_html_parser::parse_entity () {
   string r= s->read (1);
@@ -420,6 +448,15 @@ xml_html_parser::parse_comment () {
 tree
 xml_html_parser::parse_cdata () {
   s += 9;
+  if (preserve_mathml_literal_amp) {
+    // In CDATA every ampersand is literal. The tolerant XML parser normally
+    // calls expand_entities even here; that would turn a user's literal
+    // <![CDATA[&Sum;]]> into a mathematical operator before import.
+    string literal;
+    while (s && !test (s, "]]>")) literal << s->read (1);
+    if (test (s, "]]>")) s += 3;
+    return tuple ("cdata-raw", literal);
+  }
   return tuple ("cdata", parse_until ("]]>"));
 }
 
@@ -454,6 +491,16 @@ xml_html_parser::parse () {
       else if (test (s, "<!")) a << parse_misc ();
       else a << parse_opening ();
       r= "";
+    }
+    else if (const int literal_amp= mathml_literal_amp_length ()) {
+      // The ordinary parser expands entity references recursively. Without
+      // a lexical marker, raw &Sum; and escaped &amp;Sum; become identical
+      // SXML text, making a lossless v3 MathML importer impossible. Only
+      // distinguish the ampersand in *text* here; attributes keep the usual
+      // XML decoding, and the default parser stays untouched.
+      if (N(r) != 0) { a << tree (r); r= ""; }
+      s += literal_amp;
+      a << tuple ("literal-amp");
     }
     else if (s[0] == '&') r << parse_entity ();
     else r << s->read (1);
@@ -734,6 +781,18 @@ xml_html_parser::finalize_sxml (tree t) {
       content << tuple ("*DOCTYPE*", xml_quote (t[i][1]->label));
     else if (is_tuple (t[i], "cdata"))
       content << xml_quote (t[i][1]->label);
+    else if (is_tuple (t[i], "cdata-raw")) {
+      const string literal= t[i][1]->label;
+      int start= 0;
+      for (int j=0; j<N(literal); ++j) if (literal[j] == '&') {
+        if (j > start) content << xml_quote (literal (start, j));
+        content << tuple ("*LITERAL-AMP*");
+        start= j+1;
+      }
+      if (start < N(literal)) content << xml_quote (literal (start, N(literal)));
+    }
+    else if (is_tuple (t[i], "literal-amp"))
+      content << tuple ("*LITERAL-AMP*");
 
   if (N(attrs) > 1) tag << attrs;
   tag << A(content);
@@ -793,6 +852,14 @@ parse_xml (string s) {
   parser.html= false;
   tree t= parser.parse (s);
   return t;
+}
+
+tree
+parse_xml_mathml_v3 (string s) {
+  xml_html_parser parser;
+  parser.html= false;
+  parser.preserve_mathml_literal_amp= true;
+  return parser.parse (s);
 }
 
 tree

@@ -39,6 +39,15 @@ void make_bracket_close (editor_rep* ed, string right, string left,
 bool test_matching_brackets ();
 void toggle_matching_brackets ();
 void make_big_operator (editor_rep* ed, string op);
+// Shared keymap/toolbar long-arrow insertion. Old XML v2 buffers retain
+// LONG_ARROW; native v3 mathematics use the fixed three-slot MATH_LONG_ARROW.
+void insert_long_arrow (editor_rep* ed, tree glyph, bool below=false);
+// Interpret the shipped math keymap's `with` presentation flags into native
+// v3 operator metadata. Preserve the legacy BIG source exactly for XML v2.
+void insert_big_operator (editor_rep* ed, tree descriptor);
+// Convert losslessly supported toolbar alphabet groups to native v3 variants;
+// unsupported font families do not silently become legacy XML v2 wrappers.
+void insert_alphabet (editor_rep* ed, string tag, string value);
 
 // The JSON keymap evaluator asks this before falling back to Scheme.
 bool keyboard_call (string name, const array<object>& args, object& result);

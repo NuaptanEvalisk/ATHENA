@@ -1344,6 +1344,7 @@ private slots:
     using namespace athena::document;
     namespace node= athena::node;
     buffer->storage_version= xml_format_version::v3;
+    editor->init_style ("generic");
     tree grid (MATH_GRID, tree (ROW, tree (CELL, "x")), tree (ROW, tree (CELL, "y")));
     node::metadata grid_metadata;
     grid_metadata.id= node::new_id ();
@@ -1361,6 +1362,8 @@ private slots:
     const tree before= copy (editor->the_buffer ());
     const path grid_path= buffer->root_path * path (0, 0);
     SI x1, y1, x2, y2;
+    // This fixture has no UI change loop to apply the pending style change.
+    editor->typeset_preamble ();
     editor->typeset (x1, y1, x2, y2);
     editor->select (grid_path * 0, grid_path * 1);
     QCOMPARE (editor->selection_get (), before[0]);
@@ -1384,6 +1387,8 @@ private slots:
   void nativePasteModePreflightLeavesSourceUntouched () {
     using namespace athena::document;
     buffer->storage_version= xml_format_version::v3;
+    editor->init_style ("generic");
+    editor->typeset_preamble ();
     editor->start_editing ();
     editor->insert_tree (compound ("math", ""), path (0, 0));
     editor->end_editing ();

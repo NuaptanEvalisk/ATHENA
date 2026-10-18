@@ -296,6 +296,25 @@ private slots:
     QVERIFY_EXCEPTION_THROWN (write_xml_v3 (grid (row), xml_kind::fragment), codec_exception);
   }
 
+  void cellHeightModeRejectsUnknownValues () {
+    for (const char* mode: {"auto", "exact", "min", "max", "invented"}) {
+      tree row (ROW, tree (CELL, tree ("x")));
+      athena::node::metadata cell_meta;
+      cell_meta.properties.emplace ("math:cell-format", property (
+        property::dictionary {{"height-mode", property (std::string (mode))}}));
+      athena::node::set (row[0], cell_meta);
+      const bool supported= std::string (mode) != "invented";
+      QCOMPARE (valid_grid_row (row), supported);
+      if (supported) {
+        const std::string encoded= write_xml_v3 (grid (row), xml_kind::fragment);
+        QCOMPARE (write_xml_v3 (read_xml_v3 (encoded, xml_kind::fragment),
+                                xml_kind::fragment), encoded);
+      }
+      else QVERIFY_THROWS_EXCEPTION (codec_exception,
+             write_xml_v3 (grid (row), xml_kind::fragment));
+    }
+  }
+
   void richTagsObeyNativeGrammarIdentityAndLimits () {
     tree row (ROW, tree (CELL, tree ("x")));
     set_row_tag (row, tree (MATH_SCRIPTS, tree ("x")));

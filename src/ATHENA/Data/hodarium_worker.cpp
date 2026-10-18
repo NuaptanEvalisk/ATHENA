@@ -63,6 +63,10 @@ resource_attachment_paths material_resource_paths (const std::filesystem::path& 
 
 bool sync_worker::application_allowed (const vault_binding& binding) {
   if (paused || !selected (binding)) return false;
+  // Recheck even after inventory: unpublished migration candidates cannot
+  // receive documents or logical records, and Vaultfile may have changed.
+  try { detail::require_v3_document_vault (binding.root); }
+  catch (const std::exception&) { return false; }
   auto track= inventories.find ({binding.group, binding.vault});
   if (track != inventories.end () && track->second->recovery_baseline_pending) return false;
   auto session= sessions.find (binding.group);
@@ -224,6 +228,8 @@ bool sync_worker::extra_step () {
         extra_result result;
         auto permitted= [current, track] {
           if (!current->load ()) return false;
+          try { detail::require_v3_document_vault (track->binding.root); }
+          catch (const std::exception&) { return false; }
           athena::filesystem::confined_root root (track->binding.root);
           const auto actual= root.open (".").stat ();
           return track->root_revision && actual.device == track->root_revision->device &&
@@ -328,6 +334,16 @@ bool sync_worker::missing_source (const revision& previous) {
 
 bool sync_worker::reconcile_deletions (QElapsedTimer& budget) {
   if (!deletion_started) {
+    // Deletions synthesize signed tombstone revisions without going through
+    // saved(). Never infer a v2 document deletion from the absence of files
+    // in a disconnected v3 staging directory.
+    try { detail::require_v3_document_vault (scanning->root); }
+    catch (const std::exception& e) {
+      deletion_deferred= true;
+      report ({scanning->group, profile_phase::error,
+               "Hodarium deletion reconciliation blocked: " + std::string (e.what ()), "", 0});
+      return true;
+    }
     deletion_started= true;
     for (const auto& [path, entry]: scanned.cache) present_objects.insert (entry.object);
   }
@@ -344,7 +360,7 @@ bool sync_worker::reconcile_deletions (QElapsedTimer& budget) {
     auto page= journal.applied_page (scanning->vault, deletion_cursor, 1);
     if (page.empty ()) return true;
     const auto& previous= page.front (); deletion_cursor= previous.object;
-    if (previous.deleted || previous.format != "ath-xml-v2" || present_objects.count (previous.object)) continue;
+    if (previous.deleted || previous.format != document_revision_format || present_objects.count (previous.object)) continue;
     try {
       if (!missing_source (previous)) { deletion_deferred= true; continue; }
       if (!deletion_history) {
@@ -368,6 +384,10 @@ bool sync_worker::reconcile_deletions (QElapsedTimer& budget) {
         }
 #endif
         if (!missing_source (previous)) { deletion_deferred= true; return; }
+        // A Vaultfile change may occur after inventory's initial check.
+        // Revalidate under the source-publication callback immediately before
+        // signing a deletion in the old Hodarium revision DAG.
+        detail::require_v3_document_vault (scanning->root);
         revision removed= previous;
         removed.id.clear (); removed.parents.clear (); removed.payload.clear ();
         removed.deleted= true; removed.origin_member= profile->member;
@@ -467,6 +487,8 @@ void sync_worker::inventory_step () {
 void sync_worker::configure_ready_replication (const std::string& group) {
   std::vector<std::string> vaults;
   for (const auto& binding: settings->vaults (group)) if (binding.enabled) {
+    try { detail::require_v3_document_vault (binding.root); }
+    catch (const std::exception&) { continue; }
     auto track= inventories.find ({group, binding.vault});
     if (track != inventories.end () && !track->second->recovery_baseline_pending)
       vaults.push_back (binding.vault);
@@ -527,6 +549,10 @@ void sync_worker::settle_recovery (const std::string& group) {
     for (;;) {
       auto pending= journal.pending_applications (binding.vault, after, 64);
       if (pending.empty ()) break;
+      // Recovery is a separate path from application_step(). A pending
+      // resource/logical/document intent from the v2 epoch must not resume
+      // against an offline v3 candidate either.
+      detail::require_v3_document_vault (binding.root);
       athena::history::document_history_store history;
       std::string error;
       if (!history.open (binding.root, error)) throw std::runtime_error (error);
@@ -571,8 +597,11 @@ void sync_worker::reset_recovered_journal (const std::string& group) {
 void sync_worker::update_capture () {
   bool enabled= false;
   for (const auto& profile: settings->profiles ())
-    if (!profile.member.empty ()) for (const auto& binding: settings->vaults (profile.pin.group))
-      enabled= enabled || binding.enabled;
+    if (!profile.member.empty ()) for (const auto& binding: settings->vaults (profile.pin.group)) {
+      if (!binding.enabled) continue;
+      try { detail::require_v3_document_vault (binding.root); enabled= true; }
+      catch (const std::exception&) { /* Disconnected or wrong-epoch Vault. */ }
+    }
   if (capture_enabled_changed) capture_enabled_changed (enabled);
 }
 
@@ -589,6 +618,14 @@ void sync_worker::saved (const std::filesystem::path& path, const std::string& o
         return part == ".athena" || part == ".backup" || part == ".git";
       })) continue;
       if (object.empty ()) throw std::invalid_argument ("Saved Hodarium document has no source UUID");
+      // A stray save notification must not publish legacy bytes or activate
+      // an unpublished migration candidate.
+      detail::require_v3_document_vault (binding.root);
+      revision snapshot;
+      snapshot.vault= binding.vault; snapshot.object= object; snapshot.origin_member= profile.member;
+      snapshot.format= document_revision_format; snapshot.semantic_version= document_revision_semantics;
+      snapshot.relative_path= relative.generic_u8string (); snapshot.payload= bytes;
+      detail::validate_document_application_source (snapshot);
       auto& journal= journals[profile.pin.group];
       if (!journal) journal= std::make_unique<revision_store> (settings->revision_database_path (root, profile.pin.group));
       auto expected= journal->applied (binding.vault, object);
@@ -609,10 +646,6 @@ void sync_worker::saved (const std::filesystem::path& path, const std::string& o
       }
       if (expected && !predecessor && !inventory)
         throw std::invalid_argument ("Saved Hodarium document has no predecessor fingerprint");
-      revision snapshot;
-      snapshot.vault= binding.vault; snapshot.object= object; snapshot.origin_member= profile.member;
-      snapshot.format= "ath-xml-v2"; snapshot.semantic_version= 3;
-      snapshot.relative_path= relative.generic_u8string (); snapshot.payload= bytes;
       // Identical imported replicas share a deterministic genesis revision.
       // Actual editor saves retain their member provenance.
       if (inventory && !expected) snapshot.origin_member= "saved-source-baseline-v1";

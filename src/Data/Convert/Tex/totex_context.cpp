@@ -2783,6 +2783,9 @@ native_v3_tex_math (string key, scheme_tree args) {
     string command;
     if (kind == "bb") command= "mathbb";
     else if (kind == "cal") command= "mathcal";
+    else if (kind == "frak") command= "mathfrak";
+    else if (kind == "mbf") command= "boldsymbol";
+    else if (kind == "mbfu") command= "mathbf";
     else if (kind == "rm") command= "mathrm";
     else if (kind == "bf") command= "mathbf";
     else if (kind == "it") command= "mathit";
@@ -2790,7 +2793,17 @@ native_v3_tex_math (string key, scheme_tree args) {
     else if (kind == "tt") command= "mathtt";
     else if (kind == "sl") command= "textsl";
     else return preserve_object (original);
-    if (kind != "bb" && kind != "cal") {
+    // These mathematical alphabet commands are not defined by plain LaTeX:
+    // boldsymbol requires amsmath/amsbsy, and mathfrak/mathbb need AMS fonts.
+    // Register the dependencies on the actual native source conversion path,
+    // not by smuggling a legacy WITH wrapper through the v3 AST.
+    if (!latex_export_mathjax ()) {
+      if (kind == "mbf") latex_export_add_latex_extra_package ("amsmath");
+      if (kind == "frak" || kind == "bb")
+        latex_export_add_latex_extra_package ("amsfonts");
+    }
+    if (kind != "bb" && kind != "cal" && kind != "frak" &&
+        kind != "mbf" && kind != "mbfu") {
       if (kind == "sl" && latex_export_mathjax ())
         throw std::runtime_error ("MathJax cannot preserve the slanted math variant");
       latex_export_env_set ("mode", object ("text"));

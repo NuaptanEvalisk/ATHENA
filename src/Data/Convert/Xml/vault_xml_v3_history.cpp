@@ -243,6 +243,7 @@ v3_history_migration_stats migrate_vault_history_v3 (
       next.original_bytes= reconstruct (original, version.id);
       const tree old= read_xml_v2 (next.original_bytes);
       const auto result= migrate_math_v2_tree (old, strict);
+      validate_cold_v3_migration (result.document);
       stats.warnings += result.warnings.size ();
       next.v3_bytes= write_xml_v3 (result.document);
       if (read_xml_v3 (next.v3_bytes) != result.document)

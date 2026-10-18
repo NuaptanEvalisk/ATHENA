@@ -17,6 +17,7 @@ COPY src/ src/
 COPY tools/generate-shipped-macro-labels.py tools/
 COPY ATHENA/packages/ ATHENA/packages/
 COPY ATHENA/styles/ ATHENA/styles/
+COPY ATHENA/misc/symbols/ ATHENA/misc/symbols/
 
 RUN cmake -S . -B build_hodarium_node \
       -DATHENA_BUILD_HODARIUM_NODE_ONLY=ON -DCMAKE_BUILD_TYPE=Release \

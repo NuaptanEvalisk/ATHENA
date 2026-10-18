@@ -14,6 +14,7 @@
 #include "file.hpp"
 #include "utf8_edit.hpp"
 #include "Modify/edit_math.hpp"
+#include "math_tree_v3.hpp"
 
 #include <QByteArray>
 #include <QJsonArray>
@@ -187,6 +188,99 @@ large_arg (const array<object>& args, int index) {
 }
 
 } // namespace
+
+void
+insert_long_arrow (editor_rep* ed, tree glyph, bool below) {
+  if (native_math_editor (ed)) {
+    tree descriptor= glyph;
+    if (is_func (glyph, NAMED_SYMBOL, 1) && is_atomic (glyph[0])) {
+      const string name= glyph[0]->label;
+      if (starts (name, "texmacs:")) {
+        string identity= name (8, N(name));
+        // The v3 model uses descriptive canonical IDs for the historical
+        // short renderer recipes. Never store those renderer aliases as v3
+        // semantic IDs, but retain the usable named-arrow key bindings.
+        if (identity == "backassign") identity= "backward-assignment";
+        else if (identity == "longhookrightarrow")
+          identity= "long-hookrightarrow";
+        if (athena::math_v3::symbol_registry_identity (identity) != "")
+          descriptor= tree (MATH_SYMBOL, identity);
+      }
+    }
+    const tree arrow (MATH_LONG_ARROW, descriptor, tree (""), tree (""));
+    if (!athena::math_v3::valid_native_math (arrow)) {
+      ed->set_message ("Error: unsupported native v3 long arrow", "long arrow");
+      return;
+    }
+    ed->insert_tree (arrow, path (below ? 1 : 2, 0));
+    return;
+  }
+  const tree arrow= below ? tree (LONG_ARROW, glyph, "", "") :
+                            tree (LONG_ARROW, glyph, "");
+  ed->insert_tree (arrow, below ? path (2, 0) : path (1, 0));
+}
+
+void
+insert_big_operator (editor_rep* ed, tree descriptor) {
+  if (ed == nullptr) return;
+  if (native_math_editor (ed)) {
+    tree glyph= descriptor;
+    bool upright= false, display_limits= false, known= true;
+    if (is_func (glyph, WITH)) {
+      if (N(glyph) < 3 || N(glyph) % 2 == 0) known= false;
+      else {
+        for (int i=0; i+1<N(glyph)-1; i+=2) {
+          if (!is_atomic (glyph[i]) || !is_atomic (glyph[i+1])) {
+            known= false;
+            break;
+          }
+          const bool flag= glyph[i+1] == "true";
+          if (glyph[i+1] != "true" && glyph[i+1] != "false") known= false;
+          else if (glyph[i] == "math-big-limits") display_limits= flag;
+          else if (glyph[i] == "math-big-upright") upright= flag;
+          else known= false;
+        }
+        glyph= glyph[N(glyph)-1];
+      }
+    }
+    if (!known || !is_atomic (glyph) ||
+        !athena::math_v3::glyph (glyph->label)) {
+      ed->set_message ("Error: unsupported native v3 big operator", "big operator");
+      return;
+    }
+    tree atom= athena::math_v3::big_operator (glyph->label, upright);
+    if (display_limits)
+      atom= athena::math_v3::scripts (atom, "", "", "", "", 'd');
+    if (ed->selection_active_normal ()) {
+      const tree selected= ed->selection_get_cut ();
+      ed->insert_tree (tree (CONCAT, atom, selected), path (1, end (selected)));
+    }
+    else ed->insert_tree (atom, path (1));
+    return;
+  }
+  ed->insert_tree (tree (BIG, descriptor));
+}
+
+void
+insert_alphabet (editor_rep* ed, string tag, string value) {
+  if (ed == nullptr) return;
+  if (native_math_editor (ed)) {
+    string kind;
+    if (tag == "math-alpha-bold") kind= "mbf";
+    else if (tag == "math-alpha-bbb") kind= "bb";
+    else if (tag == "math-alpha-cal") kind= "cal";
+    else if (tag == "math-alpha-frak") kind= "frak";
+    else if (tag == "math-alpha-bold-up") kind= "mbfu";
+    else {
+      ed->set_message ("Error: unsupported native v3 alphabet variant", tag);
+      return;
+    }
+    if (value == "") return;
+    ed->insert_tree (tree (MATH_VARIANT, kind, value));
+    return;
+  }
+  ed->insert_tree (tree (as_tree_label (tag), value));
+}
 
 bool
 rest_large_option (object options) {

@@ -21,10 +21,10 @@ import (
 	"time"
 )
 
-// This is the XMLv2 structure of the isolated P2P.before-delete.ath sample,
+// This is the XML v3 structure of the isolated P2P.before-delete.ath sample,
 // including stable source/node identities. No external Vault is read at runtime.
 const nativeNodeDocument = `<?xml version="1.0" encoding="UTF-8"?>
-<athena-document version="2" text-model="utf-8"><node tag="document"><node tag="style"><node tag="tuple"><text><value>generic</value></text></node></node><node tag="body"><node tag="document" id="29a5648e-f077-477d-8e7c-8d530ef03e66"><text id="09f4a9e8-001b-4516-8468-cf03121fc185"><value>P2P-only arrival from A.</value></text></node></node></node></athena-document>
+<a v="3" k="d"><n t="document"><n t="style"><n t="tuple"><t><v>generic</v></t></n></n><n t="body"><n t="document" i="29a5648e-f077-477d-8e7c-8d530ef03e66"><t i="09f4a9e8-001b-4516-8468-cf03121fc185"><v>P2P-only arrival from A.</v></t></n></n></n></a>
 `
 
 type nativeNodeOutput struct {

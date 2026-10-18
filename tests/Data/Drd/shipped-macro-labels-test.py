@@ -25,6 +25,14 @@ def assignment(name, value):
     return '<node tag="assign">' + name + value + '</node>'
 
 
+def node(name, *children):
+    return '<node tag="' + name + '">' + ''.join(children) + '</node>'
+
+
+def text(value):
+    return '<text>' + value + '</text>'
+
+
 MACRO = '<node tag="macro"><text>body</text><text>result</text></node>'
 XMACRO = '<node tag="xmacro"><text>args</text><text>result</text></node>'
 
@@ -45,7 +53,7 @@ class ShippedMacroLabelsTest(unittest.TestCase):
             + assignment('<text>alias</text>', '<node tag="value"><text>ordinary</text></node>')
             + '<node tag="undeclared-use"><text>body</text></node>')
         names, skipped = self.parse(source)
-        self.assertEqual(names, {"ordinary", "variadic"})
+        self.assertEqual(names, {"ordinary", "variadic", "alias"})
         self.assertEqual(skipped, 0)
 
     def test_nested_literal_declarations_but_no_computed_name_evaluation(self):
@@ -64,6 +72,50 @@ class ShippedMacroLabelsTest(unittest.TestCase):
         self.assertEqual(GENERATOR.cpp_string('a"\\\u00e97'), '"a\\"\\\\\\303\\2517"')
         self.assertEqual(GENERATOR.cpp_string("line\n"), '"line\\012"')
         self.assertTrue(GENERATOR.render(names).isascii())
+
+    def test_factory_names_come_from_actual_declaration_templates(self):
+        parameter = node('arg', text('name'))
+        factory = assignment(text('make-family'), node('macro', text('name'),
+            node('quasi', node('concat',
+                assignment(node('unquote', parameter), MACRO),
+                assignment(node('merge', parameter, text('*')), XMACRO)))))
+        names, _ = self.parse(document(factory + node('make-family', text('chapter'))))
+        self.assertTrue({'make-family', 'chapter', 'chapter*'} <= names)
+        self.assertNotIn('name', names)
+
+    def test_unresolved_calls_and_nested_macro_scope_cannot_declare_names(self):
+        parameter = node('arg', text('name'))
+        factory = assignment(text('make-family'), node('macro', text('name'),
+            node('concat', assignment(parameter, MACRO),
+                assignment(text('inner'), node('macro', text('name'),
+                    assignment(node('merge', parameter, text('-shadowed')), MACRO))))))
+        names, _ = self.parse(document(factory + node('make-family', text('outer'))
+            + node('make-family', node('extern', text('untrusted')))
+            + node('quote', node('make-family', text('quoted')))))
+        self.assertTrue({'make-family', 'inner', 'outer'} <= names)
+        self.assertFalse({'outer-shadowed', 'untrusted', 'quoted'} & names)
+
+    def test_aliases_require_a_proven_macro_not_a_variable_or_cycle(self):
+        source = document(assignment(text('original'), MACRO)
+            + assignment(text('first'), node('value', text('second')))
+            + assignment(text('second'), node('value', text('original')))
+            + assignment(text('cycle-a'), node('value', text('cycle-b')))
+            + assignment(text('cycle-b'), node('value', text('cycle-a')))
+            + assignment(text('variable'), text('ordinary text'))
+            + assignment(text('not-a-macro'), node('value', text('variable'))))
+        names, _ = self.parse(source)
+        self.assertEqual(names, {'original', 'first', 'second'})
+
+    def test_factory_declared_in_another_shipped_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'packages').mkdir()
+            (root / 'styles').mkdir()
+            factory = assignment(text('make-tag'), node('macro', text('name'),
+                assignment(node('arg', text('name')), MACRO)))
+            (root / 'packages/factory.ats').write_text(document(factory), encoding='utf-8')
+            (root / 'styles/use.ats').write_text(document(node('make-tag', text('generated'))), encoding='utf-8')
+            self.assertIn('generated', GENERATOR.catalog(root)[0])
 
     def test_unsupported_and_malformed_sources_fail(self):
         bad_sources = (
@@ -99,6 +151,9 @@ class ShippedMacroLabelsTest(unittest.TestCase):
         names, skipped, count = GENERATOR.catalog(ROOT / "ATHENA")
         self.assertIn("strong", names)
         self.assertIn("em", names)
+        for name in ('section', 'subsection*', 'description', 'todo-list',
+                     'cloud-todo-list', 'enumerate-numeric', 'choose'):
+            self.assertIn(name, names)
         self.assertGreater(count, 0)
         self.assertGreater(sum(skipped.values()), 0)
         self.assertEqual(names, sorted(set(names)))

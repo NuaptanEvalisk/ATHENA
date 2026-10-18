@@ -37,6 +37,11 @@ struct resource_inventory {
 std::optional<resource_kind> resource_path_kind (const std::string& path,
   const resource_attachment_paths& declared= {});
 bool resource_revision_format (const std::string& format);
+// Metadata-only half of the live resource application contract. Does not read
+// or mutate the Vault, journal, or resource payload. Declared custom material
+// attachments must be supplied explicitly: unknown extensions fail closed.
+resource_kind validate_resource_revision_metadata (
+  const revision& value, const resource_attachment_paths& declared= {});
 resource_inventory inventory_resources (const std::filesystem::path& root,
   const std::atomic<bool>& cancelled, std::size_t maximum_entries= 100000,
   background::source_watch* watch= nullptr, const resource_attachment_paths& declared= {});

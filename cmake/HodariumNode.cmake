@@ -51,6 +51,10 @@ add_library(athena_hodarium_node_core STATIC
   src/Data/Drd/standard_tree_labels.cpp
   src/Data/Drd/vars.cpp
   src/Data/Convert/Xml/athena_document_xml.cpp
+  src/Data/Convert/Xml/athena_document_xml_v3.cpp
+  src/Data/Convert/Xml/native_xml_codec.cpp
+  src/Data/Tree/math_tree_v3.cpp
+  src/System/Language/named_symbol.cpp
   src/Data/Convert/Xml/document_upgrade_file.cpp
   src/System/Files/confined_filesystem.cpp
   src/ATHENA/Data/background_workers.cpp
@@ -73,13 +77,19 @@ add_library(athena_hodarium_node_core STATIC
   src/ATHENA/Data/artifact_title_filter.cpp
   src/ATHENA/Data/interop_document_validation.cpp)
 target_compile_features(athena_hodarium_node_core PUBLIC cxx_std_17)
+target_compile_definitions(athena_hodarium_node_core PRIVATE ATHENA_HODARIUM_NODE_CORE=1)
+qt_add_resources(athena_hodarium_node_core athena_hodarium_symbols
+  PREFIX "/athena/symbols"
+  BASE "${ATHENA_SOURCE_DIR}/ATHENA/misc/symbols"
+  FILES "${ATHENA_SOURCE_DIR}/ATHENA/misc/symbols/named-symbols.json")
 athena_use_shipped_macro_labels(athena_hodarium_node_core)
 target_include_directories(athena_hodarium_node_core PUBLIC
   "${HODARIUM_CONFIG_DIR}"
   "${ATHENA_SOURCE_DIR}/src")
 foreach(directory
     Kernel/Abstractions Kernel/Containers Kernel/Types
-    System System/Misc System/Files System/Classes System/Boot
+    System System/Misc System/Files System/Classes System/Boot System/Language
+    Graphics/Fonts
     Data/String Data/Convert Data/Convert/Xml Data/Drd Data/Tree Data/Document
     ATHENA ATHENA/Data)
   target_include_directories(athena_hodarium_node_core PUBLIC

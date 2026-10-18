@@ -402,11 +402,14 @@ private slots:
     catch (const std::exception& error) { QFAIL (error.what ()); }
   }
 
-  void productionGateStaysClosed () {
+  void unpublishedCandidateGateStaysClosed () {
     QTemporaryDir temporary;
     QVERIFY (temporary.isValid ());
     const fs::path root (temporary.path ().toStdString ());
     write_vault (root, 2);
+    fs::create_directories (root / ".athena");
+    const auto marker= root / ".athena/xml-v3-candidate-manifest.json";
+    QVERIFY (write_bytes (marker, "{}"));
     const auto before= read_bytes (root / "Vaultfile.json");
     const auto active= vault_capture_context ();
     QVERIFY (vault_load (file_url (root), "v3 fixture", "map.sqlite", "ns.sqlite") != "");
@@ -414,6 +417,25 @@ private slots:
     QCOMPARE (read_bytes (root / "Vaultfile.json"), before);
     QVERIFY (!fs::exists (root / "map.sqlite"));
     QVERIFY (!fs::exists (root / "ns.sqlite"));
+    fs::remove (marker);
+    fs::create_symlink (root / "missing-receipt", marker);
+    QVERIFY (vault_load (file_url (root), "v3 fixture", "map.sqlite", "ns.sqlite") != "");
+    QVERIFY (vault_capture_context () == active);
+    QVERIFY (!fs::exists (root / "ns.sqlite"));
+  }
+
+  void localV3VaultOpensButFutureModelsDoNot () {
+    QTemporaryDir temporary;
+    QVERIFY (temporary.isValid ());
+    const fs::path root (temporary.path ().toStdString ());
+    auto cleanup= qScopeGuard ([] { vault_close (); });
+    write_vault (root, 3);
+    QVERIFY (vault_load (file_url (root), "future fixture", "map.sqlite", "ns.sqlite") != "");
+    QVERIFY (!fs::exists (root / "ns.sqlite"));
+    write_vault (root, 2);
+    QCOMPARE (vault_load (file_url (root), "v3 fixture", "map.sqlite", "ns.sqlite"), string (""));
+    QVERIFY (vault_capture_context ());
+    QCOMPARE (vault_capture_context ()->node_model_version, 2);
   }
 };
 

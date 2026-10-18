@@ -2000,6 +2000,9 @@
   <binding name="native-mathml-&gt;tree-v3" native="mathml_to_tree_v3" returns="tree" exceptions="scheme">
     <arg type="scheme_tree" />
   </binding>
+  <binding name="native-mathml-xml-&gt;tree-v3" native="mathml_xml_to_tree_v3" returns="tree" exceptions="scheme">
+    <arg type="string" />
+  </binding>
   <binding name="retrieve-mathjax" native="retrieve_mathjax" returns="tree">
     <arg type="int" />
   </binding>

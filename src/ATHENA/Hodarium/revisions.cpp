@@ -664,15 +664,15 @@ std::vector<revision_path_collision> revision_store::path_collisions (
     "json_extract(r.descriptor,'$.path') AS path FROM revisions r "
     "JOIN eligible e ON e.id=r.id WHERE r.vault=? "
     "AND json_extract(r.descriptor,'$.deleted')=0 "
-    "AND json_extract(r.descriptor,'$.format') IN ('ath-xml-v2','ath-resource-avd-v1',"
+    "AND json_extract(r.descriptor,'$.format') IN (?,'ath-resource-avd-v1',"
     "'ath-resource-blob-v1','ath-resource-style-v1','ath-resource-sorter-v1') "
     "AND NOT EXISTS(SELECT 1 FROM parents p JOIN eligible child ON child.id=p.child WHERE p.parent=r.id)),"
     "collisions AS (SELECT path FROM heads WHERE path>? GROUP BY path "
     "HAVING COUNT(DISTINCT object)>1 ORDER BY path LIMIT ?) "
     "SELECT h.path,h.id,h.descriptor FROM collisions c JOIN heads h ON h.path=c.path "
     "ORDER BY h.path,h.object,h.id");
-  st.text (1, vault); st.text (2, after);
-  check (db_, sqlite3_bind_int (st.value, 3, int (limit)));
+  st.text (1, vault); st.text (2, document_revision_format); st.text (3, after);
+  check (db_, sqlite3_bind_int (st.value, 4, int (limit)));
   std::vector<revision_path_collision> result;
   while (st.row ()) {
     auto path= st.bytes (0);
@@ -712,14 +712,7 @@ std::optional<apply_intent> revision_store::application (const std::string& oper
   return read_intent (operation, st.bytes (0), sqlite3_column_int (st.value, 1) != 0);
 }
 bool revision_store::prepare_apply (const apply_intent& intent) {
-  if (intent.operation.empty () || intent.operation.size () > 256 ||
-      intent.operation.find ('\0') != std::string::npos || intent.completed ||
-      !digest_id (intent.revision_id) ||
-      (intent.expected_revision && !digest_id (*intent.expected_revision)) ||
-      intent.source_path.empty () || intent.source_path.size () > 64*1024 ||
-      (intent.source_fingerprint && (!digest_id (*intent.source_fingerprint) || intent.protected_history_version <= 0)) ||
-      (!intent.source_fingerprint && intent.protected_history_version != 0))
-    throw std::invalid_argument ("Invalid protected application intent");
+  validate_apply_intent_metadata (intent);
   auto descriptor= intent_descriptor (intent).dump ();
   transaction tx (db_);
   if (auto previous= application (intent.operation)) {
@@ -749,6 +742,19 @@ bool revision_store::prepare_apply (const apply_intent& intent) {
   statement st (db_, "INSERT INTO apply_intents VALUES(?,?,?,?,?,0)");
   st.text (1, intent.operation); st.text (2, r.vault); st.text (3, r.object);
   st.text (4, r.id); st.text (5, descriptor); st.row (); tx.commit (); return true;
+}
+
+void validate_apply_intent_metadata (const apply_intent& intent,
+                                     bool allow_completed) {
+  if (intent.operation.empty () || intent.operation.size () > 256 ||
+      intent.operation.find ('\0') != std::string::npos ||
+      (!allow_completed && intent.completed) ||
+      !digest_id (intent.revision_id) ||
+      (intent.expected_revision && !digest_id (*intent.expected_revision)) ||
+      intent.source_path.empty () || intent.source_path.size () > 64*1024 ||
+      (intent.source_fingerprint && (!digest_id (*intent.source_fingerprint) || intent.protected_history_version <= 0)) ||
+      (!intent.source_fingerprint && intent.protected_history_version != 0))
+    throw std::invalid_argument ("Invalid protected application intent");
 }
 bool revision_store::abandon_unpublished_apply (const std::string& operation) {
   transaction tx (db_);

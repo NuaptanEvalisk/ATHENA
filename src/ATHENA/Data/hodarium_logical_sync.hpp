@@ -14,6 +14,10 @@ struct logical_sync_result {
 
 bool logical_revision_format (const std::string& format);
 bool derived_logical_revision_format (const std::string& format);
+// Read-only format, stable object-addressed path and derived-record identity
+// validator shared by old-epoch runtime application and v3 migration audit.
+// Does not open or change a Vault, journal, or logical database.
+void validate_logical_revision_metadata (const revision& value);
 
 // Keep one instance per bound Vault, exclusively owned by the serialized worker.
 // Cursor advances only after journal capture succeeds; losing this cache is safe.

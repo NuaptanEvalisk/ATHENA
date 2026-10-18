@@ -2624,6 +2624,7 @@ vault_xml_v3_preflight_result preflight_vault_xml_v3 (
                "Vault document is not XML v2");
       const tree source= read_xml_v2 (input);
       const auto migrated= migrate_math_v2_tree (source, strict);
+      validate_cold_v3_migration (migrated.document);
       const auto xml= write_xml_v3 (migrated.document);
       require (read_xml_v3 (xml) == migrated.document,
                "XML v3 codec round trip differs from the converted native tree");
@@ -2688,9 +2689,8 @@ int preflight_vault_xml_v3_cli (const fs::path& root, bool strict) {
               << ", historical_versions=" << stats.history_versions
               << ", protected_history=" << stats.protected_history_versions
               << ", warnings=" << stats.warnings << ".\n"
-              << "Read-only preflight passed. Whole-vault publication remains "
-                 "disabled until the v3 runtime, Artifact databases and "
-                 "Hodarium protocol cutover are complete.\n";
+              << "Read-only preflight passed. Offline publication requires "
+                 "--upgrade-vault-xml-v3 --publish with all Vault users stopped.\n";
     code= 0;
   }
   catch (const std::exception& failure) {
@@ -2887,18 +2887,158 @@ void audit_v3_tree_references (const tree& value, std::set<std::string>& out) {
 
 } // namespace
 
+namespace {
+std::vector<fs::path> nonempty_sqlite_wals (const inventory& files,
+    const std::vector<fs::path>& discarded_caches) {
+  const std::set<fs::path> discarded (discarded_caches.begin (), discarded_caches.end ());
+  std::vector<fs::path> result;
+  for (const auto& [path, entry]: files) {
+    const auto name= path.string ();
+    if (!discarded.count (path) && name.size () > 4 &&
+        name.compare (name.size () - 4, 4, "-wal") == 0 &&
+        S_ISREG (entry.info.st_mode) && entry.info.st_size > 0)
+      result.emplace_back (name.substr (0, name.size () - 4));
+  }
+  return result;
+}
+
+void checkpoint_private_snapshot (const fs::path& root,
+    const std::vector<fs::path>& databases) {
+  filesystem::confined_root confined (root);
+  for (const auto& relative: databases) {
+    (void) confined.open (relative);
+    for (const char* suffix: {"-wal", "-shm", "-journal"}) {
+      const fs::path companion (relative.string () + suffix);
+      const auto status= fs::symlink_status (root / companion);
+      if (fs::exists (status)) (void) confined.open (companion);
+    }
+    sqlite3* raw= nullptr;
+    const int opened= sqlite3_open_v2 ((root / relative).c_str (), &raw,
+      SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOFOLLOW, nullptr);
+    struct close_database {
+      sqlite3* value;
+      ~close_database () { if (value) sqlite3_close (value); }
+    } guard {raw};
+    require (opened == SQLITE_OK,
+             "Cannot open copied WAL database: " + relative.string ());
+    // Force schema recovery before checkpointing: an unopened WAL connection
+    // can otherwise report success without doing any work.
+    require (sqlite3_exec (raw, "SELECT count(*) FROM sqlite_schema", nullptr,
+                           nullptr, nullptr) == SQLITE_OK,
+             "Cannot recover copied WAL database: " + relative.string ());
+    int frames= -1, copied= -1;
+    require (sqlite3_wal_checkpoint_v2 (raw, nullptr, SQLITE_CHECKPOINT_TRUNCATE,
+                                       &frames, &copied) == SQLITE_OK,
+             "Cannot checkpoint copied WAL database: " + relative.string ());
+    const fs::path wal ((root / relative).string () + "-wal");
+    require (!fs::exists (wal) || fs::file_size (wal) == 0,
+             "Copied WAL was not fully checkpointed: " + relative.string ());
+  }
+}
+
+vault_xml_v3_upgrade_result publish_vault_xml_v3 (
+    const fs::path& requested, const vault_xml_v3_upgrade_options& options,
+    const vault_upgrade_progress& progress) {
+#ifndef __linux__
+  throw std::runtime_error ("Atomic XML v3 publication requires Linux renameat2");
+#else
+  const auto absolute= fs::absolute (requested).lexically_normal ();
+  require (!fs::is_symlink (fs::symlink_status (absolute)),
+           "Vault root must not be a symlink");
+  const auto root= fs::canonical (absolute);
+  require (root != root.root_path (), "Cannot upgrade filesystem root");
+  descriptor parent (::open (root.parent_path ().c_str (), O_RDONLY | O_DIRECTORY | O_CLOEXEC));
+  inventory original;
+  std::vector<fs::path> wals;
+  {
+    filesystem::vault_directory_lease lease (root, true);
+    struct stat parent_info {}, root_info {};
+    require (::fstat (parent.value, &parent_info) == 0 &&
+             ::fstat (lease.descriptor (), &root_info) == 0 &&
+             parent_info.st_dev == root_info.st_dev,
+             "Vault must not be a mount point");
+    original= scan (root, progress, "Snapshot before v3 publication");
+    AthenaVaultfileInfo info;
+    std::string error;
+    require (athena_vaultfile_read (root, info, error), error);
+    wals= nonempty_sqlite_wals (original, vault_xml_v3_derived_cache_files (root, info));
+  }
+  const auto workspace= root.parent_path () / ("." + root.filename ().string () +
+    ".xml-v3-upgrade-" + QUuid::createUuid ().toString (QUuid::WithoutBraces).toStdString ());
+  require (::mkdir (workspace.c_str (), 0700) == 0,
+           "Cannot create private v3 upgrade workspace");
+  const auto staged= workspace / "vault";
+  bool exchanged= false;
+  try {
+    auto input= root;
+    if (!wals.empty ()) {
+      input= workspace / "input";
+      require (::mkdir (input.c_str (), 0700) == 0,
+               "Cannot create private WAL recovery directory");
+      filesystem::vault_directory_lease source_lease (root, true);
+      compare (original, scan (root, progress, "Check source before WAL recovery"), true);
+      clone (root, input, progress);
+      compare (original, scan (input, progress, "Verify WAL snapshot"), false);
+      compare (original, scan (root, progress, "Check source after WAL snapshot"), true);
+      checkpoint_private_snapshot (input, wals);
+    }
+    auto candidate= stage_vault_xml_v3_candidate (
+      input, staged, options.strict, progress, options.hodarium_state);
+    if (input != root) fs::remove_all (input);
+    // Staging owns its own leases. Reacquire both and compare the entire source
+    // to close the gaps around preflight/staging, including non-document data.
+    filesystem::vault_directory_lease source_lease (root, true);
+    filesystem::vault_directory_lease staged_lease (staged, true);
+    compare (original, scan (root, progress, "Check source before publication"), true);
+    fs::rename (staged / ".athena/xml-v3-candidate-manifest.json",
+                workspace / "candidate-check.json");
+    const QJsonObject receipt {
+      {"version", 3}, {"commit", "atomic-directory-exchange"},
+      {"source", QString::fromStdString (root.string ())},
+      {"documents", qint64 (candidate.checked.documents)},
+      {"history_versions", qint64 (candidate.migrated_history_versions)},
+      {"index_trees", qint64 (candidate.migrated_index_trees)},
+      {"hodarium_exchange", "ATHENA-HODARIUM-EXCHANGE-v2"},
+      {"hodarium_journal", "revisions-v3"}};
+    const auto json= QJsonDocument (receipt).toJson (QJsonDocument::Indented);
+    filesystem::confined_root record (workspace);
+    record.preserve ("manifest.json", std::string_view (json.constData (), json.size ()));
+    scan (staged, progress, "Sync published v3 candidate", true, false);
+    descriptor workspace_fd (::open (workspace.c_str (), O_RDONLY | O_DIRECTORY | O_CLOEXEC));
+    sync_fd (workspace_fd.value);
+    sync_fd (parent.value);
+    report (progress, "Commit XML v3", 0, 1, root);
+    compare (original, scan (root, progress, "Final source check", true), true);
+    auto result= std::move (candidate.checked);
+    result.backup= staged;
+    if (::syscall (SYS_renameat2, parent.value, root.filename ().c_str (),
+                   AT_FDCWD, staged.c_str (), RENAME_EXCHANGE) != 0)
+      throw std::system_error (errno, std::generic_category (), "Atomic XML v3 Vault exchange");
+    exchanged= true;
+    // Preserve the old directory in place; this is a rename, not another copy.
+    // No throwing callbacks or rollback after the successful exchange.
+    const int first= ::fsync (workspace_fd.value);
+    const int second= ::fsync (parent.value);
+    result.durable= first == 0 && second == 0;
+    return result;
+  }
+  catch (...) {
+    if (!exchanged) {
+      std::error_code ignored;
+      fs::remove_all (workspace, ignored);
+    }
+    throw;
+  }
+#endif
+}
+} // namespace
+
 vault_xml_v3_upgrade_result upgrade_vault_xml_v3 (
   const fs::path& requested,
   const vault_xml_v3_upgrade_options& options,
   const vault_upgrade_progress& progress) {
-  // v3 documents are not yet consumable by all editor, Typesetter, Artifact
-  // and Hodarium paths. Never publish a partially upgraded production Vault.
-  // This validation path is still useful: every candidate must be built with
-  // the true v3 writer and read back with the true v3 reader.
   if (!options.check_only)
-    throw std::runtime_error (
-      "XML v3 whole-Vault publication is disabled until native runtime, "
-      "Artifact and Hodarium cutover tests are complete; use --check");
+    return publish_vault_xml_v3 (requested, options, progress);
   const auto absolute= fs::absolute (requested).lexically_normal ();
   require (!fs::is_symlink (fs::symlink_status (absolute)),
           "Vault root must not be a symlink");
@@ -2925,6 +3065,7 @@ vault_xml_v3_upgrade_result upgrade_vault_xml_v3 (
                "Vault document is not XML v2");
       audit_v3_tree_references (decoded.document, referenced);
       const auto migrated= migrate_math_v2_tree (decoded.document, options.strict);
+      validate_cold_v3_migration (migrated.document);
       eliminated.insert (migrated.removed_identities.begin (),
                          migrated.removed_identities.end ());
       const auto serialized= write_xml_v3 (migrated.document);
@@ -3054,6 +3195,7 @@ vault_xml_v3_upgrade_result upgrade_vault_xml_v3 (
         const tree old= read_xml_v2 (encoded, xml_kind::fragment);
         audit_v3_tree_references (old, referenced);
         const auto migrated= migrate_math_v2_tree (old, options.strict);
+        validate_cold_v3_migration (migrated.document);
         const std::string output= write_xml_v3 (migrated.document, xml_kind::fragment);
         const auto restored= read_xml_v3 (output, xml_kind::fragment);
         require (restored == migrated.document &&
@@ -3142,6 +3284,7 @@ vault_xml_v3_stage_result stage_vault_xml_v3_candidate (
       report (progress, "Write private v3 candidate", converted, total, path);
       const tree previous= read_xml_v2 (bytes (candidate, path));
       const auto migrated= migrate_math_v2_tree (previous, strict);
+      validate_cold_v3_migration (migrated.document);
       const std::string xml= write_xml_v3 (migrated.document);
       const auto checked= read_xml_v3 (xml);
       require (checked == migrated.document &&
@@ -3284,8 +3427,8 @@ int stage_vault_xml_v3_cli (
               << ", indexed trees: " << result.migrated_index_trees
               << ", invalidated hashes: " << result.invalidated_cache_hashes
               << ", preflight warnings: " << result.checked.warnings << "\n"
-              << "UNPUBLISHABLE: Hodarium v3 and native runtime cutover "
-                 "are not validated. Original Vault unchanged.\n";
+              << "UNPUBLISHED: this candidate cannot be opened or synchronized. "
+                 "Use --publish on the source for a fresh atomic upgrade. Original Vault unchanged.\n";
     code= 0;
   }
   catch (const std::exception& failure) {
@@ -3304,7 +3447,8 @@ int upgrade_vault_xml_v3_cli (
   int code= 1;
   try {
     init_std_drd ();
-    std::cerr << "Offline XML v3 Vault preflight. Close all users of this Vault.\n";
+    std::cerr << (options.check_only ? "Offline XML v3 Vault preflight.\n" :
+      "Offline XML v3 Vault upgrade. Close all users of this Vault; old clients must not reopen it.\n");
     auto progress= [&] (const char* phase, std::size_t done,
                         std::size_t total, const std::string& path) {
       if (interrupted) throw std::runtime_error ("XML v3 preflight cancelled");
@@ -3312,15 +3456,19 @@ int upgrade_vault_xml_v3_cli (
         std::cerr << phase << " " << done << "/" << total << " " << path << "\n";
     };
     const auto result= upgrade_vault_xml_v3 (root, options, progress);
-    std::cerr << "XML v3 preflight complete: " << result.documents
+    std::cerr << "XML v3 validation complete: " << result.documents
               << " current documents, " << result.delimiters << " delimiters, "
               << result.scripts << " scripts, " << result.operators
               << " operators, " << result.math_blocks << " math blocks, "
               << result.grids << " grids; " << result.history_versions
               << " historical versions (" << result.protected_history_versions
               << " protected), " << result.index_tree_fragments
-              << " indexed tree fragments, " << result.warnings << " warnings.\n"
-              << "Original Vault unchanged. This is a check, not an upgrade.\n";
+              << " indexed tree fragments, " << result.warnings << " warnings.\n";
+    if (options.check_only)
+      std::cerr << "Original Vault unchanged. This is a check, not an upgrade.\n";
+    else
+      std::cerr << "XML v3 Vault published. Previous directory moved to " << result.backup
+                << ". Directory sync: " << (result.durable ? "complete" : "FAILED") << ".\n";
     if (result.hodarium_external) {
       const auto& ext= *result.hodarium_external;
       std::cerr << "External Hodarium (immutable read-only audit): "
@@ -3334,12 +3482,13 @@ int upgrade_vault_xml_v3_cli (
                 << ext.incomplete_receives << " receiving, "
                 << ext.conflict_approvals << " approvals.\n"
                 << (ext.coordinated_cutover_required ?
-                    "CROSS-DEVICE CUTOVER REQUIRED: authenticated revision "
-                    "IDs cannot be rewritten to XML v3 in place.\n" :
+                    "CROSS-DEVICE CUTOVER REQUIRED: content-addressed legacy "
+                    "revision IDs and their causal evidence cannot be "
+                    "rewritten to XML v3 in place.\n" :
                     "No binding for this Vault found in the supplied state; "
                     "other devices/state directories remain unaudited.\n");
     }
-    code= 0;
+    code= result.durable ? 0 : 2;
   }
   catch (const std::exception& failure) {
     std::cerr << "XML v3 preflight failed: " << failure.what () << "\n";

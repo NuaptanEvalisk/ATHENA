@@ -14,6 +14,9 @@ struct sqlite3;
 
 namespace athena::hodarium {
 
+inline constexpr char document_revision_format[]= "ath-xml-v3";
+inline constexpr std::uint32_t document_revision_semantics= 4;
+
 // These identifiers and descriptors travel only inside authenticated E2E sessions.
 struct revision {
   std::string id;
@@ -59,6 +62,12 @@ struct apply_intent {
   std::int64_t protected_history_version= 0;
   bool completed= false;
 };
+
+// Shared, side-effect-free validation of the durable intent descriptor.
+// Normal preparation never creates completed intents; immutable recovery
+// auditing also checks records which have already finished publication.
+void validate_apply_intent_metadata (const apply_intent& value,
+                                     bool allow_completed= false);
 
 // One owner thread per store. No editor access and no network side effects.
 class revision_store {

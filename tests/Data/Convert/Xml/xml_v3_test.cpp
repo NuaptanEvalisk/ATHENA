@@ -68,6 +68,90 @@ private slots:
     QCOMPARE (write_xml_v3 (restored), xml);
   }
 
+  void mathematicalAlphabetMigrationPreservesNativeFontSemantics () {
+    struct fixture { const char* old; const char* kind; } samples[]= {
+      {"math-alpha-bold", "mbf"},
+      {"math-alpha-bold-up", "mbfu"},
+      {"math-alpha-frak", "frak"},
+      {"math-alpha-cal", "cal"},
+      {"math-alpha-bbb", "bb"},
+      {"math-bf", "bf"}
+    };
+    for (const auto& example: samples) {
+      tree styled= compound (example.old, "A");
+      athena::node::metadata identity;
+      identity.id= athena::node::new_id ();
+      athena::node::set (styled, identity);
+      const tree old (DOCUMENT, compound ("math", styled));
+      const auto migrated= migrate_math_v2_tree (old, true);
+      QVERIFY (migrated.warnings.empty ());
+      const tree value= migrated.document[0][0];
+      QVERIFY (is_func (value, MATH_VARIANT, 2));
+      QCOMPARE (value[0], tree (example.kind));
+      QCOMPARE (value[1], tree ("A"));
+      QCOMPARE (athena::node::id (value), identity.id);
+      const auto xml= write_xml_v3 (migrated.document);
+      const tree restored= read_xml_v3 (xml);
+      QCOMPARE (restored, migrated.document);
+      QCOMPARE (athena::node::id (restored[0][0]), identity.id);
+      QCOMPARE (write_xml_v3 (restored), xml);
+    }
+  }
+
+  void malformedLongArrowSymbolFailsClosed () {
+    // A malformed semantic ID subtree used to dereference atomic_rep::label
+    // while validating MATH_LONG_ARROW, crashing the XML v3 writer. Neither
+    // an isolated native fragment nor a document may serialize it.
+    const tree wrong (MATH_LONG_ARROW,
+      tree (MATH_SYMBOL, tree (CONCAT, "differential-d")), "", "");
+    QVERIFY (!athena::math_v3::valid_native_math (wrong));
+    QVERIFY_THROWS_EXCEPTION (codec_exception,
+      write_xml_v3 (wrong, xml_kind::fragment));
+    QVERIFY_THROWS_EXCEPTION (codec_exception,
+      write_xml_v3 (tree (DOCUMENT, wrong)));
+
+    const tree valid (MATH_LONG_ARROW, "→", "i", "n");
+    QVERIFY (athena::math_v3::valid_native_math (valid));
+    const std::string encoded= write_xml_v3 (valid, xml_kind::fragment);
+    QCOMPARE (read_xml_v3 (encoded, xml_kind::fragment), valid);
+  }
+
+  void attributedMathDescriptorsCannotDisappearDuringEncoding () {
+    // Compact <d>, <o>, and <m> encode descriptor values in attributes, not
+    // as child nodes. Child source IDs and typed properties cannot survive
+    // that encoding and must be rejected before any bytes are published.
+    athena::node::metadata descriptor_identity;
+    descriptor_identity.id= athena::node::new_id ();
+    for (int index= 0; index<5; ++index) {
+      tree value= athena::math_v3::delimited ("(", ")", 'm', "x", "1", "2");
+      athena::node::set (value[index], descriptor_identity);
+      QVERIFY (!athena::math_v3::valid_delimited (value));
+      QVERIFY_THROWS_EXCEPTION (codec_exception,
+        write_xml_v3 (value, xml_kind::fragment));
+    }
+    for (int index= 0; index<2; ++index) {
+      tree value= athena::math_v3::big_operator ("∑");
+      athena::node::set (value[index], descriptor_identity);
+      QVERIFY (!athena::math_v3::valid_big_operator (value));
+      QVERIFY_THROWS_EXCEPTION (codec_exception,
+        write_xml_v3 (value, xml_kind::fragment));
+    }
+    tree middle (MATH_MIDDLE, "|");
+    athena::node::set (middle[0], descriptor_identity);
+    QVERIFY (!athena::math_v3::valid_native_math (middle));
+    QVERIFY_THROWS_EXCEPTION (codec_exception,
+      write_xml_v3 (middle, xml_kind::fragment));
+
+    // An identity on the expression child belongs to a serialized source
+    // node and must still roundtrip normally.
+    tree legitimate= athena::math_v3::delimited ("(", ")", 'a', "x");
+    athena::node::set (legitimate[5], descriptor_identity);
+    const auto bytes= write_xml_v3 (legitimate, xml_kind::fragment);
+    const auto restored= read_xml_v3 (bytes, xml_kind::fragment);
+    QCOMPARE (athena::node::id (restored[5]), descriptor_identity.id);
+    QCOMPARE (write_xml_v3 (restored, xml_kind::fragment), bytes);
+  }
+
   void typedMetadataAndBinary () {
     using athena::node::property;
     auto meta_id= athena::node::new_id ();
@@ -508,6 +592,129 @@ private slots:
     QVERIFY (read_xml_v3 (xml) == result.document);
   }
 
+  void migrationPreservesDeclaredDataArgumentsInsideMath () {
+    const tree expression (CONCAT, "x", tree (RSUP, "2"));
+    tree offset ("-0.5*p*t");
+    athena::node::metadata metadata;
+    metadata.properties["test:layout"]= athena::node::property (std::string ("unchanged"));
+    athena::node::set (offset, metadata);
+    const tree options ("5*p*x,b*o*r*d*e*r:2*p*x*s*o*l*i*d*b*l*a*c*k");
+    const tree source (DOCUMENT, compound ("math", tree (CONCAT,
+      compound ("raise", offset, expression),
+      compound ("kern", offset),
+      compound ("bbox*", options, expression))));
+    const auto migrated= migrate_math_v2_tree (source, true);
+    const tree& result= migrated.document[0][0];
+    QVERIFY (is_func (result[0], MOVE, 3));
+    QCOMPARE (result[0][2]->label, string ("-0.5pt"));
+    QVERIFY (athena::node::equal_metadata (result[0][2], offset));
+    QVERIFY (is_func (result[1], SPACE, 1));
+    QCOMPARE (result[1][0]->label, string ("-0.5pt"));
+    QVERIFY (athena::node::equal_metadata (result[1][0], offset));
+    QVERIFY (is_func (result[2], WITH));
+    QCOMPARE (result[2][3], tree ("2px"));
+    QCOMPARE (result[2][5], tree ("5px"));
+    QVERIFY (is_func (result[0][0][0], MATH_SCRIPTS, 5));
+    QVERIFY (is_func (result[2][N(result[2])-1][0][0], MATH_SCRIPTS, 5));
+    validate_cold_v3_migration (migrated.document);
+    QVERIFY (migrated.warnings.empty ());
+  }
+
+  void migrationRepairsConfirmedLegacySymbolsAndLayout () {
+    tree integral= compound ("fint");
+    athena::node::metadata meta;
+    meta.id= athena::node::new_id ();
+    athena::node::set (integral, meta);
+    const tree source (DOCUMENT, compound ("math", tree (CONCAT,
+      integral, tree (RSUB, "B"), compound ("ohm"),
+      compound ("mathllap", tree (BIG, "iint")),
+      compound ("Big", "<"), "x", compound ("Big", ">"), tree (RSUB, "G"))));
+    const auto migrated= migrate_math_v2_tree (source, true);
+    const tree& body= migrated.document[0][0];
+    QVERIFY (is_func (body[0], MATH_SCRIPTS, 5));
+    QVERIFY (is_func (body[0][0], BIG_OPERATOR, 2));
+    QCOMPARE (body[0][0][0], tree ("⨍"));
+    QCOMPARE (athena::node::id (body[0][0]), meta.id);
+    QCOMPARE (body[0][3], tree ("B"));
+    QCOMPARE (body[1], tree ("Ω"));
+    QVERIFY (is_func (body[2], RESIZE, 5));
+    QCOMPARE (body[2][1], tree ("1r"));
+    QCOMPARE (body[2][3], tree ("1r"));
+    QVERIFY (is_func (body[3], MATH_SCRIPTS, 5));
+    QCOMPARE (body[3][0][0], tree ("⟨"));
+    QCOMPARE (body[3][0][1], tree ("⟩"));
+    QCOMPARE (body[3][0][2], tree ("m"));
+    QCOMPARE (body[3][0][3], tree ("2"));
+    QCOMPARE (body[3][3], tree ("G"));
+    validate_cold_v3_migration (migrated.document);
+    QCOMPARE (read_xml_v3 (write_xml_v3 (migrated.document)), migrated.document);
+    QVERIFY (migrated.removed_identities.empty ());
+  }
+
+  void migrationRejectsAmbiguousLegacyLengths () {
+    for (const char* length: {"1*2pt", "2*3*p*t", "1pt+2pt", "arbitrary"}) {
+      const tree source (DOCUMENT, compound ("math", compound ("kern", length)));
+      QVERIFY_THROWS_EXCEPTION (std::runtime_error, migrate_math_v2_tree (source, true));
+    }
+    const tree source (DOCUMENT, compound ("math", compound ("raise", ".*4*p*t", "x")));
+    const auto result= migrate_math_v2_tree (source, true);
+    QCOMPARE (result.document[0][0][2], tree (".4pt"));
+  }
+
+  void migrationRepairsOnlyCompleteFragmentedCharacterEscapes () {
+    const tree source (DOCUMENT, tree (CONCAT,
+      "<", compound ("4"), "EC0><", compound ("4"), "E48><",
+      compound ("'6"), "5*F*6>候<#FF1F>"));
+    const auto result= migrate_math_v2_tree (source, true);
+    QCOMPARE (result.document, tree (DOCUMENT, tree (CONCAT, "什么时候？")));
+    validate_cold_v3_migration (result.document);
+    const tree literal (DOCUMENT, "literal <#4EC0> is not a fragmented escape");
+    QCOMPARE (migrate_math_v2_tree (literal, true).document, literal);
+    for (const char* rest: {"ZZ>", "EC0", "000000>", "0>"}) {
+      const tree invalid (DOCUMENT, tree (CONCAT, "<", compound ("4"), rest));
+      QVERIFY_THROWS_EXCEPTION (std::runtime_error, migrate_math_v2_tree (invalid, true));
+    }
+    tree annotated= copy (source);
+    athena::node::metadata meta;
+    meta.id= athena::node::new_id ();
+    athena::node::set (annotated[0][1], meta);
+    QVERIFY_THROWS_EXCEPTION (std::runtime_error, migrate_math_v2_tree (annotated, true));
+  }
+
+  void migrationPreservesHistoricalQuoteContentAndLink () {
+    const tree body (DOCUMENT, "retained body");
+    const tree source (DOCUMENT, compound (">", "source", body, "title", "https://example.org/"));
+    const auto migrated= migrate_math_v2_tree (source, true);
+    const tree& quote= migrated.document[0];
+    QVERIFY (is_compound (quote, "quote-env", 1));
+    QCOMPARE (quote[0][0], tree ("source"));
+    QCOMPARE (quote[0][1], body);
+    QCOMPARE (quote[0][2], tree (HLINK, "title", "https://example.org/"));
+    validate_cold_v3_migration (migrated.document);
+  }
+
+  void migrationCannotWarmItsOwnColdDeclarations () {
+    const auto source= read_xml_v2 (
+      "<athena-document version=\"2\" text-model=\"utf-8\">"
+      "<node tag=\"document\"><node tag=\"test-v3-legacy-interned-label\"/>"
+      "</node></athena-document>");
+    QVERIFY (existing_tree_label ("test-v3-legacy-interned-label"));
+    const auto migrated= migrate_math_v2_tree (source, true);
+    // Same-process round trips cannot prove that a fresh process can read it.
+    QCOMPARE (read_xml_v3 (write_xml_v3 (migrated.document)), migrated.document);
+    QVERIFY_THROWS_EXCEPTION (std::runtime_error,
+      validate_cold_v3_migration (migrated.document));
+    tree owner (DOCUMENT, "content");
+    athena::node::metadata metadata;
+    metadata.properties["test:nested"]= athena::node::property (
+      athena::node::property::list {athena::node::property (
+        athena::node::rich_text {migrated.document})});
+    athena::node::set (owner[0], metadata);
+    QVERIFY_THROWS_EXCEPTION (std::runtime_error, validate_cold_v3_migration (owner));
+    validate_cold_v3_migration (tree (DOCUMENT,
+      compound ("section", "cold"), compound ("description", "source")));
+  }
+
   void migrateNestedHistoricalLeftRightPairs () {
     tree sequence (CONCAT);
     sequence << tree (LEFT, "|") << tree (LEFT, "langle") << tree ("x")
@@ -846,6 +1053,7 @@ private slots:
         const std::string xml (bytes.constData (), std::size_t (bytes.size ()));
         const tree previous= read_xml_v2 (xml);
         const auto result= migrate_math_v2_tree (previous);
+        validate_cold_v3_migration (result.document);
         const std::string output= write_xml_v3 (result.document);
         const tree restored= read_xml_v3 (output);
         if (restored != result.document ||
@@ -855,8 +1063,15 @@ private slots:
         script_count+= result.scripts;
         block_count+= result.math_blocks;
         warning_count+= result.warnings.size ();
-        for (const auto& warning: result.warnings)
+        for (const auto& warning: result.warnings) {
           ++warning_types[warning.code];
+          QStringList location;
+          for (const auto index: warning.old_path) location << QString::number (index);
+          qInfo ().noquote () << "Corpus migration warning:"
+            << QString::fromStdString (relative.string ())
+            << location.join ('/') << QString::fromStdString (warning.code)
+            << QString::fromStdString (warning.detail);
+        }
         ++files;
       }
       catch (const std::exception& error) {
@@ -961,6 +1176,90 @@ private slots:
     QCOMPARE (sqlite3_column_int64 (query,2), std::int64_t (content_b.size ()));
     sqlite3_finalize (query);
     sqlite3_close (db);
+  }
+
+  void vaultPublicationRejectsConcurrentWrite () {
+    namespace fs= std::filesystem;
+    QTemporaryDir temp;
+    QVERIFY (temp.isValid ());
+    const fs::path root= fs::path (temp.path ().toStdString ()) / "vault";
+    fs::create_directory (root);
+    const auto put= [&] (const char* name, const std::string& bytes) {
+      QFile file (QString::fromStdString ((root / name).string ()));
+      if (!file.open (QIODevice::WriteOnly) ||
+          file.write (bytes.data (), qsizetype (bytes.size ())) != qsizetype (bytes.size ()))
+        throw std::runtime_error ("Cannot write private publication fixture");
+    };
+    const std::string info= "{\"name\":\"Publication fixture\",\"node_model_version\":1}";
+    const auto first= write_xml_v2 (tree (DOCUMENT, compound ("body", tree (DOCUMENT, "first"))));
+    const auto changed= write_xml_v2 (tree (DOCUMENT, compound ("body", tree (DOCUMENT, "external edit"))));
+    put ("Vaultfile.json", info); put ("one.ath", first);
+    bool changed_before_commit= false;
+    const auto concurrent= [&] (const char* phase, std::size_t, std::size_t,
+                                const std::string&) {
+      if (std::string_view (phase) == "Commit XML v3") {
+        put ("one.ath", changed);
+        changed_before_commit= true;
+      }
+    };
+    QVERIFY_THROWS_EXCEPTION (std::runtime_error,
+      upgrade_vault_xml_v3 (root, {}, concurrent));
+    QVERIFY (changed_before_commit);
+    QFile document (QString::fromStdString ((root / "one.ath").string ()));
+    QVERIFY (document.open (QIODevice::ReadOnly));
+    QCOMPARE (document.readAll ().toStdString (), changed);
+    QFile vaultfile (QString::fromStdString ((root / "Vaultfile.json").string ()));
+    QVERIFY (vaultfile.open (QIODevice::ReadOnly));
+    QCOMPARE (vaultfile.readAll ().toStdString (), info);
+    QCOMPARE (std::distance (fs::directory_iterator (root.parent_path ()),
+                             fs::directory_iterator ()), 1);
+  }
+
+  void vaultPublicationRecoversPrivateWal () {
+    namespace fs= std::filesystem;
+    QTemporaryDir temp;
+    QVERIFY (temp.isValid ());
+    const fs::path root= fs::path (temp.path ().toStdString ()) / "vault";
+    fs::create_directory (root);
+    const auto put= [&] (const char* name, const std::string& bytes) {
+      QFile file (QString::fromStdString ((root / name).string ()));
+      if (!file.open (QIODevice::WriteOnly) ||
+          file.write (bytes.data (), qsizetype (bytes.size ())) != qsizetype (bytes.size ()))
+        throw std::runtime_error ("Cannot write private WAL fixture");
+    };
+    const auto read= [] (const fs::path& path) {
+      QFile file (QString::fromStdString (path.string ()));
+      if (!file.open (QIODevice::ReadOnly)) throw std::runtime_error ("Cannot read WAL fixture");
+      return file.readAll ();
+    };
+    put ("Vaultfile.json", "{\"name\":\"WAL fixture\",\"node_model_version\":1}");
+    put ("one.ath", write_xml_v2 (tree (DOCUMENT, compound ("body", tree (DOCUMENT, "one")))));
+    sqlite3* raw= nullptr;
+    QCOMPARE (sqlite3_open ((root / "data.sqlite").c_str (), &raw), SQLITE_OK);
+    const std::unique_ptr<sqlite3, decltype (&sqlite3_close)> database (raw, sqlite3_close);
+    QCOMPARE (sqlite3_exec (raw, "PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0;"
+      "CREATE TABLE latest(value TEXT); INSERT INTO latest VALUES('committed in WAL');",
+      nullptr, nullptr, nullptr), SQLITE_OK);
+    const auto db_before= read (root / "data.sqlite");
+    const auto wal_before= read (root / "data.sqlite-wal");
+    QVERIFY (!wal_before.isEmpty ());
+    const auto result= upgrade_vault_xml_v3 (root, {});
+    QVERIFY (result.durable);
+    QCOMPARE (read (result.backup / "data.sqlite"), db_before);
+    QCOMPARE (read (result.backup / "data.sqlite-wal"), wal_before);
+    sqlite3* published= nullptr;
+    QCOMPARE (sqlite3_open_v2 ((root / "data.sqlite").c_str (), &published,
+                              SQLITE_OPEN_READONLY, nullptr), SQLITE_OK);
+    const std::unique_ptr<sqlite3, decltype (&sqlite3_close)> target (published, sqlite3_close);
+    sqlite3_stmt* query= nullptr;
+    QCOMPARE (sqlite3_prepare_v2 (published, "SELECT value FROM latest", -1,
+                                 &query, nullptr), SQLITE_OK);
+    QCOMPARE (sqlite3_step (query), SQLITE_ROW);
+    QCOMPARE (std::string (reinterpret_cast<const char*> (sqlite3_column_text (query, 0))),
+              std::string ("committed in WAL"));
+    sqlite3_finalize (query);
+    QVERIFY (!fs::exists (root / "data.sqlite-wal") || fs::file_size (root / "data.sqlite-wal") == 0);
+    QVERIFY (!fs::exists (result.backup.parent_path () / "input"));
   }
 
   void vaultPreflightDoesNotWriteOrPublish () {
@@ -1100,7 +1399,20 @@ private slots:
     QCOMPARE (std::distance (fs::directory_iterator (root.parent_path ()),
                              fs::directory_iterator ()), 1);
     options.check_only= false;
-    QVERIFY_THROWS_EXCEPTION (std::runtime_error, upgrade_vault_xml_v3 (root, options));
+    bool reached_commit= false;
+    const auto cancel= [&] (const char* phase, std::size_t, std::size_t,
+                            const std::string&) {
+      if (std::string_view (phase) == "Commit XML v3") {
+        reached_commit= true;
+        throw std::runtime_error ("Test cancellation before exchange");
+      }
+    };
+    QVERIFY_THROWS_EXCEPTION (std::runtime_error,
+      upgrade_vault_xml_v3 (root, options, cancel));
+    QVERIFY (reached_commit);
+    QVERIFY (snapshot_bytes (root) == untouched_source);
+    QCOMPARE (std::distance (fs::directory_iterator (root.parent_path ()),
+                             fs::directory_iterator ()), 1);
 
     const fs::path staged= root.parent_path () / "disconnected-v3-candidate";
     qInfo () << "v3 staging fixture: building disconnected candidate";
@@ -1143,7 +1455,7 @@ private slots:
       url_system (string (staged.string ().c_str ())),
       "XML v3 candidate", "map.sqlite", "ns.sqlite");
     const std::string message (refused.data (), std::size_t (N (refused)));
-    QVERIFY (message.find ("XML v3 Vaults cannot yet be opened") !=
+    QVERIFY (message.find ("Unpublished XML v3 migration candidates cannot be opened") !=
              std::string::npos);
     athena::history::document_history_store staged_history;
     std::string history_error;
@@ -1174,6 +1486,48 @@ private slots:
     QVERIFY (original_vaultfile.open (QIODevice::ReadOnly));
     QCOMPARE (original_vaultfile.readAll ().toStdString (), info);
     QVERIFY (snapshot_bytes (root) == untouched_source);
+    const auto published= upgrade_vault_xml_v3 (root, options);
+    QVERIFY (published.durable);
+    QVERIFY (snapshot_bytes (published.backup) == untouched_source);
+    QVERIFY (!fs::exists (root / ".athena/xml-v3-candidate-manifest.json"));
+    const auto published_files= snapshot_bytes (root);
+    QVERIFY (read_xml_v3 (published_files.at ("Math.ath").first) ==
+             read_xml_v3 (staged_files.at ("Math.ath").first));
+    QVERIFY (published_files.at ("Vaultfile.json").first.find (
+      "\"node_model_version\": 2") != std::string::npos);
+  }
+
+  void vaultStageRejectsWarmOnlyLabelsBeforeCreatingCandidate () {
+    namespace fs= std::filesystem;
+    QTemporaryDir temp;
+    QVERIFY (temp.isValid ());
+    const fs::path root= fs::path (temp.path ().toStdString ()) / "source";
+    const fs::path candidate= root.parent_path () / "candidate";
+    fs::create_directories (root);
+    const auto save= [&] (const char* name, const std::string& bytes) {
+      QFile file (QString::fromStdString ((root / name).string ()));
+      if (!file.open (QIODevice::WriteOnly) ||
+          file.write (bytes.data (), qsizetype (bytes.size ())) != qint64 (bytes.size ()))
+        throw std::runtime_error ("Cannot write cold declaration fixture");
+    };
+    save ("Vaultfile.json", "{\"name\":\"Cold labels\",\"node_model_version\":1}");
+    const std::string bytes= write_xml_v2 (tree (DOCUMENT,
+      compound ("body", tree (DOCUMENT, compound ("test-v3-warm-only-vault-label", "x")))));
+    save ("Source.ath", bytes);
+    try {
+      stage_vault_xml_v3_candidate (root, candidate, false);
+      QFAIL ("Warm-only label must not produce a v3 candidate");
+    }
+    catch (const std::runtime_error& failure) {
+      const std::string message= failure.what ();
+      QVERIFY2 (message.find ("No cold-load declaration") != std::string::npos,
+                message.c_str ());
+      QVERIFY (message.find ("Source.ath") != std::string::npos);
+    }
+    QVERIFY (!fs::exists (candidate));
+    QFile source (QString::fromStdString ((root / "Source.ath").string ()));
+    QVERIFY (source.open (QIODevice::ReadOnly));
+    QCOMPARE (source.readAll (), QByteArray::fromStdString (bytes));
   }
 
   void vaultInventoryRejectsUnrecognizedSources_data () {
@@ -1484,7 +1838,9 @@ private slots:
       snapshot.format= "ath-xml-v2";
       snapshot.semantic_version= 3;
       snapshot.relative_path= "Math.ath";
-      snapshot.payload= write_xml_v2 (tree (DOCUMENT, "authenticated old math"));
+      tree source (DOCUMENT, compound ("body", tree (DOCUMENT, "authenticated old math")));
+      athena::node::set (source[0][0], {snapshot.object, {}});
+      snapshot.payload= write_xml_v2 (source);
       QVERIFY (store.capture_saved (snapshot, std::nullopt).has_value ());
     }
 
@@ -1597,6 +1953,142 @@ private slots:
       "UPDATE revisions SET payload='tampered'", nullptr, nullptr, nullptr),
       SQLITE_OK);
     sqlite3_close (modified);
+    QVERIFY_THROWS_EXCEPTION (std::runtime_error,
+      audit_external_hodarium_v3 (vault, state));
+  }
+
+  void externalHodariumSharedGroupJournalsCountOnce () {
+    namespace fs= std::filesystem;
+    QTemporaryDir temp;
+    QVERIFY (temp.isValid ());
+    const fs::path base (temp.path ().toStdString ());
+    const fs::path vault= base / "vault", state= base / "external";
+    const fs::path other_vault= base / "other-vault";
+    fs::create_directory (vault);
+    fs::create_directory (state);
+    fs::create_directory (other_vault);
+    const std::string group (43, 'G');
+    const std::string bound_root= fs::canonical (vault).generic_string ();
+    const std::string first_vault= "10000000-0000-4000-8000-000000000001";
+    const std::string second_vault= "20000000-0000-4000-8000-000000000002";
+    sqlite3* settings= nullptr;
+    QCOMPARE (sqlite3_open_v2 ((state / "device.sqlite").c_str (), &settings,
+      SQLITE_OPEN_CREATE | SQLITE_OPEN_READWRITE, nullptr), SQLITE_OK);
+    QCOMPARE (sqlite3_exec (settings,
+      "CREATE TABLE vault_bindings(hodarium TEXT,vault TEXT,root TEXT,enabled INTEGER)",
+      nullptr, nullptr, nullptr), SQLITE_OK);
+    sqlite3_stmt* binding= nullptr;
+    QCOMPARE (sqlite3_prepare_v2 (settings,
+      "INSERT INTO vault_bindings VALUES(?1,?2,?3,1)", -1,
+      &binding, nullptr), SQLITE_OK);
+    for (const auto& [vault_id, root_path]:
+         std::vector<std::pair<std::string,std::string>> {
+           {first_vault, bound_root},
+           {second_vault, fs::canonical (other_vault).generic_string ()}}) {
+      for (const auto& item: std::vector<std::pair<int,std::string>> {
+             {1, group}, {2, vault_id}, {3, root_path}})
+        QCOMPARE (sqlite3_bind_text (binding, item.first, item.second.data (),
+          int (item.second.size ()), SQLITE_TRANSIENT), SQLITE_OK);
+      QCOMPARE (sqlite3_step (binding), SQLITE_DONE);
+      QCOMPARE (sqlite3_reset (binding), SQLITE_OK);
+    }
+    sqlite3_finalize (binding);
+    sqlite3_close (settings);
+
+    const fs::path journal_path= state / ("revisions-" + group + ".sqlite");
+    std::vector<std::string> saved_ids;
+    {
+      athena::hodarium::revision_store journal (journal_path);
+      for (const auto& vault_id: {first_vault, second_vault}) {
+        athena::hodarium::revision value;
+        value.vault= vault_id;
+        value.object= athena::node::new_id ();
+        value.origin_member= "fixture-member";
+        value.format= "ath-xml-v2";
+        value.semantic_version= 3;
+        value.relative_path= "Math.ath";
+        tree source (DOCUMENT, compound ("body", tree (DOCUMENT, "legacy")));
+        athena::node::set (source[0][0], {value.object, {}});
+        value.payload= write_xml_v2 (source);
+        const auto saved= journal.capture_saved (value, std::nullopt);
+        QVERIFY (saved.has_value ());
+        saved_ids.push_back (*saved);
+      }
+    }
+    const auto audited= audit_external_hodarium_v3 (vault, state);
+    QCOMPARE (audited.bindings, std::size_t (1));
+    QCOMPARE (audited.enabled_bindings, std::size_t (1));
+    QCOMPARE (audited.revision_stores, std::size_t (1));
+    QCOMPARE (audited.revisions_verified, std::size_t (2));
+    QCOMPARE (audited.v2_document_revisions, std::size_t (1));
+    QCOMPARE (audited.applied_revisions, std::size_t (1));
+    QCOMPARE (audited.incomplete_receives, std::size_t (0));
+    QCOMPARE (audited.state_fingerprint,
+              audit_external_hodarium_v3 (vault, state).state_fingerprint);
+    const auto other_audit= audit_external_hodarium_v3 (other_vault, state);
+    QCOMPARE (other_audit.bindings, std::size_t (1));
+    QCOMPARE (other_audit.revision_stores, std::size_t (1));
+    QCOMPARE (other_audit.revisions_verified, std::size_t (2));
+    QCOMPARE (other_audit.v2_document_revisions, std::size_t (1));
+
+    // FK integrity alone cannot detect a fabricated parent index edge: the
+    // referenced revision exists but its signed descriptor has no such edge.
+    sqlite3* altered= nullptr;
+    QCOMPARE (sqlite3_open_v2 (journal_path.c_str (), &altered,
+      SQLITE_OPEN_READWRITE, nullptr), SQLITE_OK);
+    const std::string extra_edge= "INSERT INTO parents VALUES('" +
+      saved_ids[0] + "','" + saved_ids[1] + "')";
+    QCOMPARE (sqlite3_exec (altered, extra_edge.c_str (), nullptr, nullptr,
+                           nullptr), SQLITE_OK);
+    sqlite3_close (altered);
+    QVERIFY_THROWS_EXCEPTION (std::runtime_error,
+      audit_external_hodarium_v3 (vault, state));
+    QCOMPARE (sqlite3_open_v2 (journal_path.c_str (), &altered,
+      SQLITE_OPEN_READWRITE, nullptr), SQLITE_OK);
+    const std::string undo_edge= "DELETE FROM parents WHERE child='" +
+      saved_ids[0] + "' AND parent='" + saved_ids[1] + "'";
+    QCOMPARE (sqlite3_exec (altered, undo_edge.c_str (), nullptr, nullptr,
+                           nullptr), SQLITE_OK);
+    sqlite3_close (altered);
+    QCOMPARE (audit_external_hodarium_v3 (vault, state).revisions_verified,
+              std::size_t (2));
+
+    // The 'applied' pointer can also reference a genuine revision belonging
+    // to another Vault; that is not a valid application history.
+    QCOMPARE (sqlite3_open_v2 (journal_path.c_str (), &altered,
+      SQLITE_OPEN_READWRITE, nullptr), SQLITE_OK);
+    const std::string foreign_applied= "UPDATE applied SET revision='" +
+      saved_ids[1] + "' WHERE vault='" + first_vault + "'";
+    QCOMPARE (sqlite3_exec (altered, foreign_applied.c_str (), nullptr, nullptr,
+                           nullptr), SQLITE_OK);
+    sqlite3_close (altered);
+    QVERIFY_THROWS_EXCEPTION (std::runtime_error,
+      audit_external_hodarium_v3 (vault, state));
+    QCOMPARE (sqlite3_open_v2 (journal_path.c_str (), &altered,
+      SQLITE_OPEN_READWRITE, nullptr), SQLITE_OK);
+    const std::string restore_applied= "UPDATE applied SET revision='" +
+      saved_ids[0] + "' WHERE vault='" + first_vault + "'";
+    QCOMPARE (sqlite3_exec (altered, restore_applied.c_str (), nullptr, nullptr,
+                           nullptr), SQLITE_OK);
+    sqlite3_close (altered);
+    QCOMPARE (audit_external_hodarium_v3 (vault, state).revisions_verified,
+              std::size_t (2));
+
+    // A signed, content-addressed revision is not proof of a correct format
+    // label. A second fixture revision can carry canonical XML v3 bytes under
+    // the old v2 format tag; immutable preflight must refuse the entire state.
+    {
+      athena::hodarium::revision_store journal (journal_path);
+      athena::hodarium::revision wrongly_labelled;
+      wrongly_labelled.vault= first_vault;
+      wrongly_labelled.object= athena::node::new_id ();
+      wrongly_labelled.origin_member= "fixture-member";
+      wrongly_labelled.format= "ath-xml-v2";
+      wrongly_labelled.semantic_version= 3;
+      wrongly_labelled.relative_path= "WrongEnvelope.ath";
+      wrongly_labelled.payload= write_xml_v3 (tree (DOCUMENT, "wrong format"));
+      QVERIFY (journal.receive (athena::hodarium::seal_revision (wrongly_labelled)));
+    }
     QVERIFY_THROWS_EXCEPTION (std::runtime_error,
       audit_external_hodarium_v3 (vault, state));
   }

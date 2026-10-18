@@ -445,6 +445,131 @@ private slots:
       verify_roundtrip ();
     }
   }
+  void nativeLongArrowDeletionKeepsThreeSlots () {
+    // The legacy LONG_ARROW editing handler may remove an empty script child;
+    // this is forbidden for the fixed MATH_LONG_ARROW arity in native XML v3.
+    for (bool forward: {false, true})
+      for (int slot: {1, 2}) {
+        tree arrow (MATH_LONG_ARROW, "→", "", "");
+        athena::node::metadata metadata;
+        metadata.id= athena::node::new_id ();
+        metadata.properties["test:arrow"]= athena::node::property (true);
+        athena::node::set (arrow, metadata);
+        reset (arrow);
+        const tree before= copy (content ());
+        editor->start_editing ();
+        editor->back_in_long_arrow (content (), content_path () * slot, forward);
+        editor->end_editing ();
+        QCOMPARE (content (), before);
+        QCOMPARE (N(content ()), 3);
+        QCOMPARE (athena::node::id (content ()), metadata.id);
+        QVERIFY (athena::math_v3::valid_native_math (content ()));
+        verify_roundtrip ();
+      }
+  }
+  void longArrowKeyboardAndToolbarActionsUseNativeV3 () {
+    for (bool below: {false, true}) {
+      reset_inline ("");
+      editor->start_editing ();
+      athena::auto_close::insert_long_arrow (editor, tree ("→"), below);
+      editor->end_editing ();
+      QVERIFY (is_func (content (), MATH_LONG_ARROW, 3));
+      QCOMPARE (content ()[0], tree ("→"));
+      QCOMPARE (content ()[1], tree (""));
+      QCOMPARE (content ()[2], tree (""));
+      QVERIFY (editor->the_path () ==
+        start (current_document_tree (), content_path () * (below ? 1 : 2)));
+      verify_roundtrip ();
+
+      reset_inline ("", false);
+      editor->start_editing ();
+      athena::auto_close::insert_long_arrow (editor, tree ("→"), below);
+      editor->end_editing ();
+      QCOMPARE (content (), below ?
+        tree (LONG_ARROW, "→", "", "") : tree (LONG_ARROW, "→", ""));
+    }
+    reset_inline ("");
+    editor->start_editing ();
+    athena::auto_close::insert_long_arrow (
+      editor, tree (NAMED_SYMBOL, "texmacs:longhookrightarrow"), false);
+    editor->end_editing ();
+    QCOMPARE (content (), tree (MATH_LONG_ARROW,
+      tree (MATH_SYMBOL, "long-hookrightarrow"), "", ""));
+    verify_roundtrip ();
+
+    reset_inline ("x");
+    editor->start_editing ();
+    athena::auto_close::insert_long_arrow (
+      editor, tree (NAMED_SYMBOL, "texmacs:nonexistent-arrow"), false);
+    editor->end_editing ();
+    QCOMPARE (content (), tree ("x"));
+    verify_roundtrip ();
+  }
+  void bigOperatorKeyboardAndToolbarActionsKeepV3Policies () {
+    reset_inline ("");
+    editor->start_editing ();
+    athena::auto_close::insert_big_operator (editor, tree ("∑"));
+    editor->end_editing ();
+    QCOMPARE (content (), athena::math_v3::big_operator ("∑"));
+    verify_roundtrip ();
+
+    const tree legacy_flags (WITH, "math-big-upright", "true",
+                             "math-big-limits", "true", "∫");
+    reset_inline ("");
+    editor->start_editing ();
+    athena::auto_close::insert_big_operator (editor, legacy_flags);
+    editor->end_editing ();
+    QVERIFY (athena::math_v3::valid_scripts (content ()));
+    QCOMPARE (content ()[0], athena::math_v3::big_operator ("∫", true));
+    QCOMPARE (std::get<std::string> (athena::node::get (content ())->properties.at (
+      athena::math_v3::scripts_policy_key).data), std::string ("d"));
+    verify_roundtrip ();
+
+    reset_inline ("", false);
+    editor->start_editing ();
+    athena::auto_close::insert_big_operator (editor, legacy_flags);
+    editor->end_editing ();
+    QCOMPARE (content (), tree (BIG, legacy_flags));
+
+    // A registry-only named symbol with no Unicode operator glyph has no
+    // lossless BIG_OPERATOR encoding. Do not write a legacy BIG into XML v3.
+    reset_inline ("x");
+    editor->start_editing ();
+    athena::auto_close::insert_big_operator (
+      editor, tree (NAMED_SYMBOL, "texmacs:idotsint"));
+    editor->end_editing ();
+    QCOMPARE (content (), tree ("x"));
+    verify_roundtrip ();
+  }
+  void mathAlphabetToolbarUsesNativeV3Variants () {
+    struct variant_fixture { const char* tag; const char* kind; };
+    for (const auto& item: {
+           variant_fixture {"math-alpha-bold", "mbf"},
+           variant_fixture {"math-alpha-bbb", "bb"},
+           variant_fixture {"math-alpha-cal", "cal"},
+           variant_fixture {"math-alpha-frak", "frak"},
+           variant_fixture {"math-alpha-bold-up", "mbfu"}}) {
+      reset_inline ("");
+      editor->start_editing ();
+      athena::auto_close::insert_alphabet (editor, item.tag, "A");
+      editor->end_editing ();
+      QCOMPARE (content (), tree (MATH_VARIANT, item.kind, "A"));
+      verify_roundtrip ();
+    }
+    for (const char* tag: {"math-alpha-does-not-exist"}) {
+      reset_inline ("x");
+      editor->start_editing ();
+      athena::auto_close::insert_alphabet (editor, tag, "A");
+      editor->end_editing ();
+      QCOMPARE (content (), tree ("x"));
+      verify_roundtrip ();
+      reset_inline ("", false);
+      editor->start_editing ();
+      athena::auto_close::insert_alphabet (editor, tag, "A");
+      editor->end_editing ();
+      QCOMPARE (content (), tree (as_tree_label (string (tag)), "A"));
+    }
+  }
 };
 
 static void run_tests (int argc, char** argv) {

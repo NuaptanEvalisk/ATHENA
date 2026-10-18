@@ -288,6 +288,9 @@ string xml_name_to_tm (string s);
 string xml_unspace (string s, bool first, bool last);
 
 tree   parse_xml (string s);
+// Explicit v3 MathML source parser: preserve the lexical difference between
+// a named mathematical entity and an escaped literal ampersand in token text.
+tree   parse_xml_mathml_v3 (string s);
 tree   parse_plain_html (string s);
 tree   parse_html (string s);
 tree   clean_html (tree t);
@@ -296,6 +299,7 @@ string serialize_xml (scheme_tree t);
 tree   mathml_to_tree (scheme_tree t);
 // Explicit strict Presentation MathML -> native v3 AST entry; no v2 normalization.
 tree   mathml_to_tree_v3 (scheme_tree t);
+tree   mathml_xml_to_tree_v3 (string raw_xml);
 tree   retrieve_mathjax (int id);
 
 tree   find_first_element_by_name (tree t, string name);

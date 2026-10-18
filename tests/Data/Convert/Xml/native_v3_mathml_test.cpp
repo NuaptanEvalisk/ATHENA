@@ -182,6 +182,57 @@ private slots:
               std::string ("stack"));
   }
 
+  void nativeMathematicalAlphabetVariantsRemainDistinct () {
+    const struct { const char* mathml; const char* kind; } examples[]= {
+      {"bold", "mbfu"}, {"bold-italic", "mbf"},
+      {"fraktur", "frak"}, {"double-struck", "bb"},
+      {"script", "cal"}
+    };
+    for (const auto& example: examples) {
+      const std::string input= std::string ("<math><mi mathvariant='") +
+        example.mathml + "'>A</mi></math>";
+      tree value= mathml_to_tree_v3 (parse_xml (input.c_str ()));
+      QVERIFY (is_func (value[0], MATH_VARIANT, 2));
+      QCOMPARE (value[0][0], tree (example.kind));
+      QCOMPARE (value[0][1], tree ("A"));
+      const auto serialized= athena::document::write_xml_v3 (
+        value, athena::document::xml_kind::fragment);
+      const tree restored= athena::document::read_xml_v3 (
+        serialized, athena::document::xml_kind::fragment);
+      QCOMPARE (restored, value);
+      QCOMPARE (athena::document::write_xml_v3 (
+        restored, athena::document::xml_kind::fragment), serialized);
+    }
+  }
+
+  void sourceXmlPreservesEscapedAmpersandInTokens () {
+    const tree mathematical= mathml_xml_to_tree_v3 (
+      "<math><mo>&Sum;</mo></math>");
+    QVERIFY (is_func (mathematical[0], BIG_OPERATOR, 2));
+    QCOMPARE (mathematical[0][0], tree ("∑"));
+    for (const char* escaped: {"&amp;", "&#38;", "&#038;", "&#00038;",
+                              "&#x26;", "&#x0026;", "&#X26;"}) {
+      const std::string xml= std::string ("<math><mtext>") +
+        escaped + "Sum;</mtext></math>";
+      const tree imported= mathml_xml_to_tree_v3 (xml.c_str ());
+      QCOMPARE (imported[0], tree (WITH, "mode", "text",
+                                tree (CONCAT, "&", "Sum;")));
+      // The generic parsed-SXML route and the legacy converter are not
+      // rewritten by this specialized source-lexical entry.
+    }
+    for (const auto& source: {
+           "<math><mtext><![CDATA[&Sum;]]></mtext></math>",
+           "<math><mtext>&amp;Sum;</mtext></math>"}) {
+      const tree imported= mathml_xml_to_tree_v3 (source);
+      QCOMPARE (imported[0], tree (WITH, "mode", "text",
+                                tree (CONCAT, "&", "Sum;")));
+    }
+    const tree literal= mathml_xml_to_tree_v3 (
+      "<math><mtext><![CDATA[&amp;Sum;]]></mtext></math>");
+    QCOMPARE (literal[0], tree (WITH, "mode", "text",
+                              tree (CONCAT, "&", "amp;Sum;")));
+  }
+
   void tableFormattingDisplayAndRoundtrip () {
     const tree source= import_mathml (
       "<m:math xmlns:m='http://www.w3.org/1998/Math/MathML' display='block'>"
@@ -216,7 +267,7 @@ private slots:
       "<math><mi>x</mi><mo>)</mo></math>",
       "<math><mo stretchy='false'>(</mo><mi>x</mi><mo>)</mo></math>",
       "<math><mo minsize='2em'>(</mo><mi>x</mi><mo>)</mo></math>",
-      "<math><mi mathvariant='fraktur'>x</mi></math>",
+      "<math><mi mathvariant='bold-script'>x</mi></math>",
       "<math><mi>&not-defined;</mi></math>",
       "<math><mi style='color:red'>x</mi></math>",
       "<math><mi displaystyle='yes'>x</mi></math>",

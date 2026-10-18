@@ -27,6 +27,7 @@
 #include "math_font.hpp"
 #include "Concat/concater.hpp"
 #include "math_tree_v3.hpp"
+#include "Data/Convert/Xml/math_v2_to_v3.hpp"
 #include "node_metadata.hpp"
 #include "Boxes/construct.hpp"
 
@@ -47,6 +48,40 @@ letter_font (box b) {
 class PreviewMathFontTest: public QObject {
   Q_OBJECT
 private slots:
+  void migratedHistoricalLayoutRetainsGeometry () {
+    drd_info drd ("migrated-historical-layout", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (MODE, "math");
+    env->update ();
+    auto converted= [] (const tree& expression) {
+      return athena::document::migrate_math_v2_tree (
+        tree (DOCUMENT, compound ("math", expression)), true).document[0][0];
+    };
+    box normal= typeset_as_concat (env, tree ("x"), path (0));
+    box overlap= typeset_as_concat (env,
+      converted (compound ("mathllap", "x")), path (0));
+    QCOMPARE (overlap->w (), SI (0));
+    QVERIFY (overlap->x3 < 0);
+    QCOMPARE (overlap->x4 - overlap->x3, normal->x4 - normal->x3);
+    box raised= typeset_as_concat (env,
+      converted (compound ("raise", ".*4*p*t", "x")), path (0));
+    QCOMPARE (raised->w (), normal->w ());
+    QVERIFY (raised->y3 > normal->y3);
+    QCOMPARE (raised->y4 - raised->y3, normal->y4 - normal->y3);
+    box omega= typeset_as_concat (env, converted (compound ("ohm")), path (0));
+    box expected= typeset_as_concat (env, tree ("Ω"), path (0));
+    QVERIFY (tree (omega) == tree (expected));
+    box integral= typeset_as_concat (env, converted (compound ("fint")), path (0));
+    box expected_integral= typeset_as_concat (env, tree (BIG_OPERATOR, "⨍", "0"), path (0));
+    QVERIFY (integral->w () > 0);
+    QVERIFY (integral->h () > 0);
+    QVERIFY (tree (integral) == tree (expected_integral));
+  }
+
   void nativeV3MiddleStretchMatchesLegacyUnicodeMiddle () {
     drd_info drd ("native-v3-math-middle-stretch", std_drd);
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);

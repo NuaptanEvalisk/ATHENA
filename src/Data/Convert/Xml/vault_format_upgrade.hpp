@@ -58,17 +58,17 @@ struct vault_xml_v3_preflight_result {
   std::size_t history_versions= 0, protected_history_versions= 0;
 };
 // Explicit and entirely read-only. No XML-v2 fallback in the production v3
-// reader. A destructive whole-vault commit must not be exposed until runtime,
-// Artifact, history and Hodarium cutover contracts are validated together.
+// reader. The publication entry point below separately stages and atomically
+// exchanges the Vault after validating history, indexes and references.
 vault_xml_v3_preflight_result preflight_vault_xml_v3 (
   const std::filesystem::path&, bool strict = false,
   const vault_upgrade_progress& = {});
 int preflight_vault_xml_v3_cli (const std::filesystem::path&, bool strict = false);
 
 // XML v3 is a native AST change, not an XML spelling update. The explicit
-// preflight never writes to the source Vault, even on failure. Write-mode
-// publication is gated separately on complete history, derived-data and
-// Hodarium invariants; it must never quietly fall back to opening XML v2.
+// preflight never writes to the source Vault, even on failure. Write mode is
+// offline only, uses a fresh v3 Hodarium journal, and retains the original
+// directory by rename after atomic publication. No old revision DAG is imported.
 struct vault_xml_v3_upgrade_options {
   bool check_only= false;
   bool strict= false;

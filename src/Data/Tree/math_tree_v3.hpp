@@ -83,4 +83,15 @@ void clear_row_tag (tree& row);
 // Non-math node types are validated by their separate DRD declarations.
 bool valid_native_math (const tree& value);
 
+// Physical metadata/descriptor slots of native mathematical AST nodes. These
+// are inspected exactly when matching an entire native node. Most are not
+// independently searchable or visible, but an operator/separator Unicode glyph
+// is visible content despite occupying a descriptor slot.
+// Returns false for non-math nodes and for indices outside the node's arity.
+bool descriptor_slot (const tree& value, int index);
+// Subset of descriptor slots which must not be traversed as plain text or
+// exported into a search-preview's visible text (for example, DELIMITED sizing
+// or MATH_VARIANT kind). BIG_OPERATOR and MATH_MIDDLE glyphs stay searchable.
+bool hidden_search_descriptor_slot (const tree& value, int index);
+
 } // namespace athena::math_v3

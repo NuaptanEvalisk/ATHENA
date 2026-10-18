@@ -13,6 +13,8 @@
 #include "analyze.hpp"
 #include "boot.hpp"
 #include "drd_mode.hpp"
+#include "node_metadata.hpp"
+#include "math_tree_v3.hpp"
 #include "unicode_text.hpp"
 
 static thread_local int  search_max_hits= 1000000;
@@ -68,16 +70,97 @@ search_bytes (const string& s) {
   return {s.data (), std::size_t (N(s))};
 }
 
+// A structured query may constrain typed source properties, but never the
+// persistent UUID of the particular source object. In particular, the policy
+// properties of native mathematical nodes are part of the expression: a missing
+// policy (for example, an inherited grid-row number) is not an arbitrary value.
+// Compare rich-text properties without the identity of their nested nodes.
+static bool
+search_property_equal (const athena::node::property& a,
+                       const athena::node::property& b) {
+  using namespace athena::node;
+  if (a.data.index () != b.data.index ()) return false;
+  if (const auto* rich= std::get_if<rich_text> (&a.data))
+    return content_equal (rich->content,
+      std::get<rich_text> (b.data).content);
+  if (const auto* list= std::get_if<property::list> (&a.data)) {
+    const auto& other= std::get<property::list> (b.data);
+    if (list->size () != other.size ()) return false;
+    for (std::size_t i=0; i<list->size (); ++i)
+      if (!search_property_equal ((*list)[i], other[i])) return false;
+    return true;
+  }
+  if (const auto* dict= std::get_if<property::dictionary> (&a.data)) {
+    const auto& other= std::get<property::dictionary> (b.data);
+    if (dict->size () != other.size ()) return false;
+    auto j= other.begin ();
+    for (auto i= dict->begin (); i != dict->end (); ++i, ++j)
+      if (i->first != j->first ||
+          !search_property_equal (i->second, j->second)) return false;
+    return true;
+  }
+  return equal (a, b);
+}
+
+static bool
+search_math_property (const std::string& key) {
+  return key.compare (0, 5, "math:") == 0;
+}
+
+static bool
+search_properties_match (const tree& source, const tree& query) {
+  using namespace athena::node;
+  const auto* s= get (source);
+  const auto* q= get (query);
+  static const property::dictionary empty;
+  const auto& actual= s ? s->properties : empty;
+  const auto& required= q ? q->properties : empty;
+  for (const auto& [name, value]: required) {
+    auto it= actual.find (name);
+    if (it == actual.end () || !search_property_equal (it->second, value))
+      return false;
+  }
+  // Unlike unrelated presentation properties, all native mathematical
+  // policies must agree in both directions. An omitted row override means
+  // 'inherit', not 'any row policy'.
+  for (const auto& [name, value]: actual)
+    if (search_math_property (name) && !required.count (name)) return false;
+  return true;
+}
+
+static bool
+search_native_math_node (tree t) {
+  if (is_atomic (t)) return false;
+  switch (L(t)) {
+  case DELIMITED: case BIG_OPERATOR: case MATH_MIDDLE:
+  case MATH_SCRIPTS: case MATH_ACCENT: case MATH_ANNOTATION:
+  case MATH_LONG_ARROW: case MATH_GRID: case MATH_BLOCK:
+  case MATH_VARIANT: case MATH_SYMBOL:
+    return true;
+  default: return false;
+  }
+}
+
 static void
 merge (range_set& sel, range_set ssel) {
-  for (int i=0; i+1<N(ssel); i+=2)
+  // range_set alternates begin/end paths. Limits count whole matches, not
+  // individual path endpoints, across all descendant searches and merges.
+  for (int i=0; i+1<N(ssel); i+=2) {
+    if (N(sel) / 2 >= search_max_hits) break;
     if (N(sel) == 0 || path_less_eq (sel[N(sel)-1], ssel[i]))
       sel << ssel[i] << ssel[i+1];
+  }
 }
 
 static bool
 is_accessible_for_search (tree t, int i) {
   if (is_func (t, RAW_DATA) || is_func (t, NAMED_SYMBOL)) return false;
+  // A native mathematical descriptor is part of the node's representation,
+  // not an expression child. Source access mode exposes physical tree slots
+  // for editing/debugging, but must not turn sizing policies, variant kind or
+  // delimiter endpoints into free-text search results. Structural math queries
+  // still compare these descriptors in match()/select_direct().
+  if (athena::math_v3::hidden_search_descriptor_slot (t, i)) return false;
   if (is_accessible_child (t, i)) return true;
   if (is_func (t, HIDDEN)) return true;
   if (get_access_mode () != DRD_ACCESS_SOURCE) return false;
@@ -98,6 +181,10 @@ match_atomic (athena::text::literal_search& source, tree what,
     return pos == source.size ();
   }
   if (is_atomic (what[i])) {
+    // An attributed atom cannot be represented by a substring of a different
+    // atom; it needs an actual node on which to check its properties.
+    if (const auto* meta= athena::node::get (what[i]))
+      if (!meta->properties.empty ()) return false;
     auto hit= source.at (search_bytes (what[i]->label), pos);
     if (hit &&
         match_atomic (source, what, hit->end, i+1, start, end))
@@ -148,11 +235,39 @@ match_cascaded (tree t, tree what) {
   return false;
 }
 
+// MathGrid rows and cells are positional storage, not a subsequence to match
+// under the user's injective-search preference. Keep ordinary table search
+// unchanged: ROW/CELL only acquire this constraint inside MATH_GRID.
+static bool
+match_math_grid_row (tree source, tree query) {
+  if (!is_func (source, ROW) || !is_func (query, ROW) ||
+      N(source) != N(query) || !search_properties_match (source, query))
+    return false;
+  for (int i=0; i<N(query); ++i) {
+    if (!is_func (source[i], CELL, 1) || !is_func (query[i], CELL, 1) ||
+        !search_properties_match (source[i], query[i])) return false;
+    if (is_atomic (query[i][0]) && query[i][0]->label == "") {
+      if (!athena::node::content_equal (source[i][0], query[i][0]))
+        return false;
+    }
+    else if (!match_cascaded (source[i][0], query[i][0])) return false;
+  }
+  return true;
+}
+
 bool
 match (tree t, tree what) {
+  // A query with typed properties is a constraint on a real source node, not
+  // merely on its flattened text. Text-vs-CONCAT matching is valid for a plain
+  // pattern, but it cannot satisfy properties attached to the CONCAT wrapper.
+  // Check this before the legacy blank/wildcard shortcuts as well.
+  if (const auto* meta= athena::node::get (what))
+    if (!meta->properties.empty () && L(t) != L(what)) return false;
+  if (L(t) == L(what) && !search_properties_match (t, what)) return false;
   if (blank_match_flag && what == "") return true;
   if (is_func (what, WILDCARD, 1)) return true;
-  if (is_func (t, RAW_DATA) || is_func (t, NAMED_SYMBOL)) return t == what;
+  if (is_func (t, RAW_DATA) || is_func (t, NAMED_SYMBOL))
+    return athena::node::content_equal (t, what);
   if (is_atomic (t)) {
     athena::text::literal_search source (search_bytes (t->label), case_insensitive_match_flag);
     if (is_concat (what)) {
@@ -164,7 +279,7 @@ match (tree t, tree what) {
     auto hit= source.at (search_bytes (what->label), 0);
     return hit && (initial_match_flag || hit->end == source.size ());
   }
-  else if (injective_match_flag) {
+  else if (injective_match_flag && !search_native_math_node (what)) {
     if (L(t) != L(what)) return false;
     int cur=0;
     for (int i=0; i<N(t); i++) {
@@ -175,8 +290,22 @@ match (tree t, tree what) {
   }
   else {
     if (L(t) != L(what) || N(t) != N(what)) return false;
+    if (L(what) == MATH_GRID) {
+      for (int i=0; i<N(what); ++i)
+        if (!match_math_grid_row (t[i], what[i])) return false;
+      return true;
+    }
     for (int i=0; i<N(t); i++)
-      if (!match_cascaded (t[i], what[i])) return false;
+      if (athena::math_v3::descriptor_slot (what, i)) {
+        if (!athena::node::content_equal (t[i], what[i])) return false;
+      }
+      else if (search_native_math_node (what) && is_atomic (what[i]) &&
+               what[i]->label == "") {
+        // An empty script/annotation/content slot is structural data, not
+        // the global blank-match wildcard for free-text search.
+        if (!athena::node::content_equal (t[i], what[i])) return false;
+      }
+      else if (!match_cascaded (t[i], what[i])) return false;
     return true;
   }
 }
@@ -267,15 +396,17 @@ search_string (range_set& sel, string s, tree what, path p) {
 
   if (is_atomic (what)) {
     int pos= 0;
-    while (pos < N(s) && N(sel) <= search_max_hits) {
+    while (pos < N(s) && N(sel) / 2 < search_max_hits) {
       auto hit= source.find (search_bytes (what->label), pos);
       if (!hit) break;
       merge (sel, simple_range (p * int (hit->begin), p * int (hit->end)));
-      pos= hit->end;
+      // The empty text atom is a valid source/query value in XML v3. A
+      // zero-length hit must still advance to the next grapheme.
+      pos= hit->end > pos ? int (hit->end) : int (source.next (pos));
     }
   }
-  else if (is_concat (what)) {
-    for (int pos=0; pos<N(s) && N(sel) <= search_max_hits; ) {
+  else if (is_concat (what) && N(what) != 0) {
+    for (int pos=0; pos<N(s) && N(sel) / 2 < search_max_hits; ) {
       int start, end;
       if (match_atomic (source, what, pos, 0, start, end)) {
         merge (sel, simple_range (p * start, p * end));
@@ -299,6 +430,7 @@ search_compound (range_set& sel, tree t, tree what, path p) {
 
 void
 search_concat (range_set& sel, tree t, tree what, path p) {
+  if (N(what) == 0) return;
   for (int pos=0; pos<N(t); ) {
     range_set ssel;
     search (ssel, t[pos], what, p * pos);
@@ -327,6 +459,14 @@ search_concat (range_set& sel, tree t, tree what, path p) {
 void
 search_document (range_set& sel, tree t, tree what, path p) {
   if (N(what) == 0) return;
+  if (N(what) == 1) {
+    // There is no next query paragraph: the multi-paragraph matcher starts
+    // at child 1 and would otherwise index past the single query child.
+    // Retain the usual search ranges within each individual source paragraph.
+    for (int i=0; i<N(t); ++i)
+      search (sel, t[i], what[0], p * i);
+    return;
+  }
   for (int i=0; i<N(t); i++) {
     bool found= false;
     range_set fsel;
@@ -363,12 +503,19 @@ search_document (range_set& sel, tree t, tree what, path p) {
 
 void
 search (range_set& sel, tree t, tree what, path p) {
-  if (N(sel) > search_max_hits) return;
-  if (is_atomic (t))
+  if (N(sel) / 2 >= search_max_hits) return;
+  if (is_atomic (t)) {
+    if (is_atomic (what) && !search_properties_match (t, what)) return;
+    if (is_concat (what))
+      if (const auto* meta= athena::node::get (what))
+        if (!meta->properties.empty ()) return;
     search_string (sel, t->label, what, p);
-  else if (is_func (t, CONCAT) && is_func (what, CONCAT))
+  }
+  else if (is_func (t, CONCAT) && is_func (what, CONCAT) &&
+           search_properties_match (t, what))
     search_concat (sel, t, what, p);
-  else if (is_func (t, DOCUMENT) && is_func (what, DOCUMENT))
+  else if (is_func (t, DOCUMENT) && is_func (what, DOCUMENT) &&
+           search_properties_match (t, what))
     search_document (sel, t, what, p);
   else
     search_compound (sel, t, what, p);
@@ -392,7 +539,7 @@ search (range_set& sel, tree t, tree what, path p, path pos) {
         }
       for (int d=1; d<N(t); d++)
         for (int e=0; e<=1; e++) {
-          if (hits > search_max_hits) break;
+          if (hits / 2 >= search_max_hits) break;
           int i= (e==0? pos->item + d: pos->item - d);
           if (i >= 0 && i < N(t))
             if (is_accessible_for_search (t, i)) {
@@ -421,9 +568,72 @@ contains_select_region (tree t) {
   }
 }
 
+// Within a native MathGrid, ROW/CELL are positional containers. Even when
+// SELECT_REGION occurs in one cell, all other cells and row policies must
+// match before a selection is published. Evaluate into a temporary range set:
+// a later mismatch must not leave partial search hits behind.
+static bool
+select_math_grid (range_set& matched, tree source, tree query, path p) {
+  if (N(source) != N(query)) return false;
+  range_set pending;
+  for (int row=0; row<N(query); ++row) {
+    tree actual_row= source[row], pattern_row= query[row];
+    if (!is_func (actual_row, ROW) || !is_func (pattern_row, ROW) ||
+        N(actual_row) != N(pattern_row) ||
+        !search_properties_match (actual_row, pattern_row)) return false;
+    for (int column=0; column<N(pattern_row); ++column) {
+      tree actual_cell= actual_row[column], pattern_cell= pattern_row[column];
+      if (!is_func (actual_cell, CELL, 1) ||
+          !is_func (pattern_cell, CELL, 1) ||
+          !search_properties_match (actual_cell, pattern_cell)) return false;
+      tree actual_body= actual_cell[0], pattern_body= pattern_cell[0];
+      if (contains_select_region (pattern_body)) {
+        range_set selected;
+        select (selected, actual_body, pattern_body, p * row * column * 0);
+        if (N(selected) == 0) return false;
+        merge (pending, selected);
+      }
+      else if (is_atomic (pattern_body) && pattern_body->label == "") {
+        if (!athena::node::content_equal (actual_body, pattern_body))
+          return false;
+      }
+      else if (!match_cascaded (actual_body, pattern_body)) return false;
+    }
+  }
+  if (N(pending) == 0) return false;
+  merge (matched, pending);
+  return true;
+}
+
 void
 select_direct (range_set& sel, tree t, tree what, path p) {
-  if (L(t) != L(what)) return;
+  if (L(t) != L(what) || N(what) == 0 ||
+      !search_properties_match (t, what)) return;
+  if (search_native_math_node (what)) {
+    if (N(t) != N(what)) return;
+    if (L(what) == MATH_GRID) {
+      select_math_grid (sel, t, what, p);
+      return;
+    }
+    range_set pending;
+    for (int i=0; i<N(what); ++i) {
+      if (athena::math_v3::descriptor_slot (what, i)) {
+        if (!athena::node::content_equal (t[i], what[i])) return;
+      }
+      else if (contains_select_region (what[i])) {
+        range_set selected;
+        select (selected, t[i], what[i], p * i);
+        if (N(selected) == 0) return;
+        merge (pending, selected);
+      }
+      else if (is_atomic (what[i]) && what[i]->label == "") {
+        if (!athena::node::content_equal (t[i], what[i])) return;
+      }
+      else if (!match_cascaded (t[i], what[i])) return;
+    }
+    merge (sel, pending);
+    return;
+  }
   int cur=0;
   for (int i=0; i<N(t); i++)
     if (contains_select_region (what[cur])) {
@@ -454,8 +664,16 @@ select_cascaded (range_set& sel, tree t, tree what, path p) {
 void
 select (range_set& sel, tree t, tree what, path p) {
   if (is_func (what, SELECT_REGION, 1)) {
+    // SELECT_REGION is a search instruction, not an XML v3 source node.
+    // Compare the nested query against the source instead of treating the
+    // instruction's absent properties as missing mathematical policies.
     if (is_empty (what[0]))
       merge (sel, simple_range (p * start (t), p * end (t)));
+    else if (contains_select_region (what[0]))
+      // A caller may already have chosen a subexpression inside a structured
+      // query. Preserve that selection through an enclosing Vault math scope
+      // instead of passing its instruction nodes to the ordinary matcher.
+      select (sel, t, what[0], p);
     else
       search (sel, t, what[0], p);
   }

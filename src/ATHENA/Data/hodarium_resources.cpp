@@ -150,6 +150,10 @@ bool resource_revision_format (const std::string& value) {
   return value == format (resource_kind::avd) || value == format (resource_kind::attachment) ||
          value == format (resource_kind::style) || value == format (resource_kind::sorter);
 }
+resource_kind validate_resource_revision_metadata (
+    const revision& value, const resource_attachment_paths& declared) {
+  return validate_revision (value, declared);
+}
 
 resource_inventory inventory_resources (const std::filesystem::path& path,
     const std::atomic<bool>& cancelled, std::size_t maximum_entries,

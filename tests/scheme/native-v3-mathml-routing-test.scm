@@ -58,6 +58,75 @@
 (check (eq? (tree-label formatted) 'math-block) "display became a legacy equation")
 (check (equal? (mathml-node-property formatted "math:block-numbered") '(boolean #f))
        "display numbering metadata was lost")
+
+;; The old general XML parser recursively decodes entities, so raw &Sum; and
+;; escaped &amp;Sum; became the same SXML text. The explicit raw v3 converter
+;; must preserve this lexical distinction; otherwise copying a text token
+;; silently changes a literal name into the mathematical sum glyph.
+(define raw-sum
+  (generic->texmacs "<math><mo>&Sum;</mo></math>" "mathml-v3-snippet"))
+(check (equal? (tree->stree raw-sum) '(math (big-operator "∑" "0")))
+       "genuine MathML named entity lost mathematical operator meaning")
+(for-each
+  (lambda (escaped)
+    (let ((value (generic->texmacs
+                   (string-append "<math><mtext>" escaped "Sum;</mtext></math>")
+                   "mathml-v3-snippet")))
+      (check (equal? (tree->stree value)
+                     '(math (with "mode" "text" (concat "&" "Sum;"))))
+             "escaped MathML text ampersand was re-expanded as a named entity")))
+  '("&amp;" "&#38;" "&#038;" "&#00038;" "&#x26;" "&#x0026;" "&#X26;"))
+;; CDATA is a lexical escape boundary just like &amp;, except that *every*
+;; ampersand inside it is literal. In particular, names which would expand
+;; in ordinary XML text must not expand within a CDATA section.
+(check
+  (equal? (tree->stree
+            (generic->texmacs "<math><mtext><![CDATA[&Sum;]]></mtext></math>"
+                             "mathml-v3-snippet"))
+          '(math (with "mode" "text" (concat "&" "Sum;"))))
+  "MathML CDATA incorrectly expanded a named entity")
+(check
+  (equal? (tree->stree
+            (generic->texmacs "<math><mtext><![CDATA[&amp;Sum;]]></mtext></math>"
+                             "mathml-v3-snippet"))
+          '(math (with "mode" "text" (concat "&" "amp;Sum;"))))
+  "MathML CDATA incorrectly decoded an entity-looking literal")
+(check
+  (equal? (tree->stree
+            (generic->texmacs
+              "<math><mtext>name &amp;Sum; plus &Sum;</mtext></math>"
+              "mathml-v3-snippet"))
+          '(math (with "mode" "text"
+                 (concat "name " "&" "Sum; plus " "∑"))))
+  "mixed literal/named MathML text lost entity origins")
+(check
+  (equal? (tree->stree
+            (generic->texmacs
+              "<math><mtext>&amp;amp;</mtext></math>"
+              "mathml-v3-snippet"))
+          '(math (with "mode" "text" (concat "&" "amp;"))))
+  "doubly escaped MathML named entity was expanded recursively")
+(check
+  (equal? (tree->stree
+            (generic->texmacs
+              "<math><mtext><![CDATA[A&&B]]></mtext></math>"
+              "mathml-v3-snippet"))
+          '(math (with "mode" "text" (concat "A" "&" "&" "B"))))
+  "consecutive CDATA ampersands were not preserved")
+;; Already-parsed SXML is intentionally a different API: the old parse-xml
+;; has already erased the source spelling and cannot reconstruct it.
+(for-each
+  (lambda (attribute expected)
+    (let* ((xml (string-append "<math><mi mathvariant='" attribute
+                               "'>A</mi></math>"))
+           (result (generic->texmacs xml "mathml-v3-snippet"))
+           (variant (tree-ref result 0)))
+      (check (eq? (tree-label variant) 'math-variant)
+             "MathML alphabet did not import as native v3 variant")
+      (check (equal? (tree->stree variant) `(math-variant ,expected "A"))
+             "MathML alphabet bold/upright/fraktur semantics were lost")))
+  '("bold" "bold-italic" "fraktur" "double-struck" "script")
+  '("mbfu" "mbf" "frak" "bb" "cal"))
 (let* ((grid (tree-ref formatted 0)) (left (tree-ref grid 0 0))
        (fields (cadr (mathml-node-property left "math:cell-format")))
        (right-fields

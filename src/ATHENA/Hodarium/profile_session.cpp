@@ -337,7 +337,7 @@ std::optional<vault_secret> profile_session::selected_secret (const std::string&
 conflict_store& profile_session::conflict_journal () {
   owner ();
   if (!conflicts_) conflicts_= std::make_unique<conflict_store> (trust_database_.parent_path () /
-    ("conflicts-" + profile_.pin.group + "-" + profile_.pin.generation + ".sqlite"), profile_.pin);
+    ("conflicts-v3-" + profile_.pin.group + "-" + profile_.pin.generation + ".sqlite"), profile_.pin);
   return *conflicts_;
 }
 std::vector<conflict_proposal_summary> profile_session::proposals (const std::string& vault, const std::string& after) {

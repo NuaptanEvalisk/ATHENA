@@ -17,6 +17,7 @@
 #include "buffer_actor.hpp"
 #include "buffer_name_catalog.hpp"
 #include "node_metadata.hpp"
+#include "math_tree_v3.hpp"
 #include "tree_cursor.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include "convert.hpp"
@@ -714,8 +715,9 @@ collect_fuzzy_atomic_matches (
   }
   if (is_func (t, RAW_DATA)) return;
   for (int i=0; i<N(t) && remaining>0; i++)
-    collect_fuzzy_atomic_matches (out, t[i], base * i, query, remaining,
-                                  cutoff, caseInsensitive, scorer, exact);
+    if (!athena::math_v3::hidden_search_descriptor_slot (t, i))
+      collect_fuzzy_atomic_matches (out, t[i], base * i, query, remaining,
+                                    cutoff, caseInsensitive, scorer, exact);
 }
 
 } // namespace
@@ -740,8 +742,10 @@ append_content_matches (std::vector<VaultContentMatch>& out, tree t,
   // Keep the mathematical context but select the expression inside it,
   // rather than requiring the enclosing formula to equal the whole query.
   tree pattern= query;
-  if (is_compound (query, "math", 1))
+  if (is_compound (query, "math", 1)) {
     pattern= compound ("math", compound ("select-region", query[0]));
+    athena::node::copy_metadata (query, pattern);
+  }
   range_set exactRanges= search (t, pattern, base, caseInsensitive, limit);
   std::vector<VaultContentMatch> exact;
   for (int i=0; i+1<N(exactRanges); i+=2) {
@@ -756,7 +760,12 @@ append_content_matches (std::vector<VaultContentMatch>& out, tree t,
     exact.push_back (match);
     out.push_back (match);
   }
-  if (!fuzzy || !is_atomic (query) || (int) exact.size () >= limit) return;
+  // A fuzzy text hit cannot satisfy an explicit typed property constraint.
+  // Do not let the approximate path bypass the strict structured matcher.
+  const auto* query_meta= athena::node::get (query);
+  if (!fuzzy || !is_atomic (query) ||
+      (query_meta && !query_meta->properties.empty ()) ||
+      (int) exact.size () >= limit) return;
 
   static thread_local string cachedQuery;
   static thread_local bool cachedInsensitive= false;
@@ -824,8 +833,9 @@ append_atomic_descendant_matches (
   }
   if (is_func (t, RAW_DATA)) return;
   for (int i=0; i<N(t) && remaining>0; i++)
-    append_atomic_descendant_matches (out, t[i], query, base * i, remaining,
-                                      caseInsensitive, fuzzy);
+    if (!athena::math_v3::hidden_search_descriptor_slot (t, i))
+      append_atomic_descendant_matches (out, t[i], query, base * i, remaining,
+                                        caseInsensitive, fuzzy);
 }
 
 static bool
@@ -878,7 +888,8 @@ tree_has_visible_text (tree t) {
   if (is_atomic (t)) return !to_qstring (t->label).trimmed ().isEmpty ();
   if (is_func (t, LABEL) || is_func (t, RAW_DATA)) return false;
   for (int i=0; i<N(t); i++)
-    if (tree_has_visible_text (t[i])) return true;
+    if (!athena::math_v3::hidden_search_descriptor_slot (t, i) &&
+        tree_has_visible_text (t[i])) return true;
   return false;
 }
 
@@ -888,6 +899,7 @@ visible_tree_text (tree t) {
   if (is_func (t, LABEL) || is_func (t, RAW_DATA)) return QString ();
   QStringList parts;
   for (int i=0; i<N(t); i++) {
+    if (athena::math_v3::hidden_search_descriptor_slot (t, i)) continue;
     QString part= visible_tree_text (t[i]).trimmed ();
     if (!part.isEmpty ()) parts << part;
   }
@@ -906,6 +918,7 @@ leading_bold_scope (tree t, path base, path& scope, tree& titleTree) {
     return leading_bold_scope (t[N(t)-1], base * (N(t)-1), scope,
                                titleTree);
   for (int i=0; i<N(t); i++) {
+    if (athena::math_v3::hidden_search_descriptor_slot (t, i)) continue;
     if (!tree_has_visible_text (t[i])) continue;
     return leading_bold_scope (t[i], base * i, scope, titleTree);
   }

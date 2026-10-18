@@ -3,6 +3,10 @@
 #include "interop_document_source.hpp"
 #include "node_metadata.hpp"
 #include "vars.hpp"
+#include "named_symbol.hpp"
+#include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <stdexcept>
 #include <thread>
@@ -35,11 +39,13 @@ int main () {
     metadata.id= "11111111-1111-4111-8111-111111111111";
     metadata.properties["test:preserved"]= athena::node::property (std::string ("value"));
     athena::node::set (source[0][0], metadata);
-    auto encoded= athena::document::write_xml_v2 (source);
-    auto decoded= athena::document::read_xml_v2 (encoded);
-    check (decoded == source, "XML v2 tree round trip changed content");
+    check (athena::text::standard_named_symbols ().lookup ("texmacs:mathD"),
+           "Embedded named-symbol registry is unavailable");
+    auto encoded= athena::document::write_xml_v3 (source);
+    auto decoded= athena::document::read_xml_v3 (encoded);
+    check (decoded == source, "XML v3 tree round trip changed content");
     check (athena::node::equal_metadata (decoded[0][0], source[0][0]),
-           "XML v2 metadata round trip changed content");
+           "XML v3 metadata round trip changed content");
     check (interop_document_source_error (decoded).empty (), "Valid document rejected");
     check (!interop_document_source_error (tree (CONCAT)).empty (), "Invalid root accepted");
     check (!interop_document_source_error (tree (DOCUMENT,
@@ -63,7 +69,24 @@ int main () {
     catch (const string& error) { caught= error == "native-runtime-test"; }
     set_tm_exception_reporter (nullptr);
     check (caught && reports == 1, "Exception/reporting contract changed");
-    std::cout << "Native runtime, standard labels, and XML v2 verified\n";
+    if (const char* corpus= std::getenv ("ATHENA_V3_NATIVE_CORPUS")) {
+      std::size_t count= 0;
+      for (const auto& entry: std::filesystem::recursive_directory_iterator (corpus)) {
+        if (!entry.is_regular_file () || entry.path ().extension () != ".ath") continue;
+        std::ifstream input (entry.path (), std::ios::binary);
+        check (bool (input), "Cannot open corpus document");
+        const std::string bytes ((std::istreambuf_iterator<char> (input)), {});
+        const auto document= athena::document::read_xml_v3 (bytes);
+        const auto restored= athena::document::read_xml_v3 (
+          athena::document::write_xml_v3 (document));
+        check (document == restored && athena::node::equal_metadata (document, restored),
+               "Headless corpus roundtrip changed content or identities");
+        ++count;
+      }
+      check (count > 0, "Empty native corpus");
+      std::cout << "Headless XML v3 corpus verified: " << count << '\n';
+    }
+    std::cout << "Native runtime, standard labels, and XML v3 verified\n";
     return 0;
   }
   catch (const std::exception& error) {

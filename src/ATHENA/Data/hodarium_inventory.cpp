@@ -49,7 +49,7 @@ source_inventory inventory_sources (const std::filesystem::path& root,
       if (!filesystem::same_revision (before, entry.stat ())) {
         result.retry= true; continue;
       }
-      auto source= document::read_xml_v2 (*bytes);
+      auto source= document::read_xml_v3 (*bytes);
       auto error= interop_document_source_error (source);
       if (!error.empty ()) throw std::runtime_error (error);
       std::string id;

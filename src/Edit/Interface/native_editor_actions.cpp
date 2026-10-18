@@ -23,6 +23,7 @@
 #include "language.hpp"
 #include "scheme.hpp"
 #include "tree_select.hpp"
+#include "auto_close.hpp"
 #include "Subsystems/Qt/QTMFormulaAstViewer.hpp"
 #include "Scheme/Scheme/native_interfaces.hpp"
 #include "Subsystems/Qt/QTMParagraphPropertiesPane.hpp"
@@ -1192,7 +1193,8 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     else ed->make_wide_under (value, stretch);
   }
   else if (op == "insert-big")
-    ed->insert_tree (tree (BIG, native_action_tree (action.value ("value"))));
+    athena::auto_close::insert_big_operator (
+      ed.operator-> (), native_action_tree (action.value ("value")));
   else if (op == "emulate-keyboard")
     ed->emulate_keyboard (native_action_string (action.value ("keys")));
   else if (op == "make-space")
@@ -1214,14 +1216,12 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
   else if (op == "insert-long-arrow") {
     const string value= native_action_string (action.value ("value"));
     const bool below= action.value ("below").toBool (false);
-    tree arrow= below ? tree (LONG_ARROW, tree (value), "", "") :
-                        tree (LONG_ARROW, tree (value), "");
-    ed->insert_tree (arrow, below ? path (2, 0) : path (1, 0));
+    athena::auto_close::insert_long_arrow (ed.operator-> (), tree (value), below);
   }
   else if (op == "insert-alphabet")
-    ed->insert_tree (
-      tree (as_tree_label (native_action_string (action.value ("tag"))),
-            tree (native_action_string (action.value ("value")))));
+    athena::auto_close::insert_alphabet (
+      ed.operator-> (), native_action_string (action.value ("tag")),
+      native_action_string (action.value ("value")));
   else if (op == "focus-variant") {
     path focus= ed->focus_get ();
     if (!ed->test_subtree (focus)) return;

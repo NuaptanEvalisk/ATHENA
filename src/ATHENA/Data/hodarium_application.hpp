@@ -29,6 +29,12 @@ bool apply_closed_document (const std::filesystem::path& root,
 
 namespace detail {
 void validate_document_application_source (const revision& target);
+// Exact confined-path policy shared by document application and immutable
+// migration preflight (including its persisted apply-intent source_path).
+void validate_document_application_path (const std::string& relative_path);
+// Capture/application require a published v3 Vault. Staging candidates and
+// legacy Vaults cannot participate in the new exchange.
+void require_v3_document_vault (const std::filesystem::path& root);
 // Nonzero owning_actor is reserved for the live adapter, which finishes the
 // intent only after the actor's in-memory state has been published or retired.
 bool apply_document_on_disk (const std::filesystem::path& root,

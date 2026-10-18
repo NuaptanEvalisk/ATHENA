@@ -763,6 +763,19 @@ edit_math_rep::back_in_around (tree t, path p, bool forward) {
 
 void
 edit_math_rep::back_in_long_arrow (tree t, path p, bool forward) {
+  if (is_func (t, MATH_LONG_ARROW, 3)) {
+    // Native XML v3 long arrows always own all three physical children:
+    // glyph, lower annotation, upper annotation. The legacy LONG_ARROW may
+    // remove an empty upper child, which corrupts the fixed native arity.
+    // Keep both empty annotation slots and navigate to the neighboring slot
+    // or out of the arrow, preserving any identity on the native node.
+    const path owner= path_up (p);
+    const int index= last_item (p);
+    if (index == 2 && !forward) go_to_border (owner * 1, false);
+    else if (index == 1 && forward) go_to_border (owner * 2, true);
+    else go_to_border (owner, !forward);
+    return;
+  }
   int i= last_item (p);
   if (i == 2) {
     if (is_empty (t[2])) remove (path_up (p) * 2, 1);

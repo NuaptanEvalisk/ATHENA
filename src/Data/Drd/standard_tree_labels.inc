@@ -23,6 +23,16 @@
         fixed (1) -> accessible (0) -> name (0, "body"));
   init (make_tree_label ("program"), "program",
         fixed (1) -> accessible (0) -> name (0, "body"));
+  // Native environment and namespace-page placeholders exist without styles.
+  init (make_tree_label (TABULAR), TABULAR, fixed (1) -> accessible (0));
+  init (make_tree_label ("ns-name"), "ns-name", fixed (0));
+  init (make_tree_label ("ns-type"), "ns-type", fixed (0));
+  init (make_tree_label ("ns-sorting-algo"), "ns-sorting-algo", fixed (0));
+  init (make_tree_label ("ns-matches"), "ns-matches", fixed (0));
+  init (make_tree_label ("ns-children"), "ns-children", fixed (0));
+  init (make_tree_label ("ns-parents"), "ns-parents", fixed (0));
+  init (make_tree_label ("ns-filename-template"), "ns-filename-template", fixed (0));
+  init (make_tree_label ("ns-summary-link"), "ns-summary-link", fixed (0));
   init (PARA, "para",
         repeat (1, 1) -> inner_border () -> accessible (0) ->
         name ("paragraph"));

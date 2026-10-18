@@ -2,6 +2,8 @@
 #include "revisions.hpp"
 #include "revision_transfer.hpp"
 #include "client_settings.hpp"
+#include <QCborArray>
+#include <QCborValue>
 #include <iostream>
 #include <stdexcept>
 #include <QTemporaryDir>
@@ -117,6 +119,53 @@ void check_transfer_protocol (revision value) {
   }
 }
 
+void check_document_epoch_boundary () {
+  revision_store source (":memory:"), target (":memory:");
+  revision next;
+  next.vault= "isolated-vault";
+  next.object= "isolated-object";
+  next.origin_member= "isolated-member";
+  next.relative_path= "Example.ath";
+  next.format= document_revision_format;
+  next.semantic_version= document_revision_semantics;
+  next.payload= "deliberately opaque test bytes";
+  next= seal_revision (next);
+  require (source.receive (next), "Cannot set up isolated v3 fixture");
+  const auto allowed= [] (const std::string& vault) { return vault == "isolated-vault"; };
+  revision_sender sender (source, next.vault, next.id, allowed);
+  revision_receiver receiver (target, allowed);
+  auto outgoing= sender.begin ();
+  while (!sender.complete ()) outgoing= sender.acknowledge (receiver.accept (outgoing));
+  require (target.get (next.id)->payload == next.payload, "V3 wire lost payload");
+
+  // Even a valid v3 descriptor cannot be offered through the old protocol.
+  QCborArray parents;
+  QCborArray metadata {QString::fromStdString (next.id), QString::fromStdString (next.vault),
+    QString::fromStdString (next.object), QString::fromStdString (next.origin_member),
+    QString::fromStdString (next.format), qint64 (next.semantic_version),
+    QString::fromStdString (next.relative_path), next.deleted, parents};
+  QCborArray offer {QStringLiteral ("ATHENA-HODARIUM-REVISION-v1"),
+    QStringLiteral ("offer"), metadata, qint64 (next.payload.size ())};
+  rejects ([&] { receiver.accept (QCborValue (offer).toCbor ()); });
+  revision_exchange exchange (target, allowed);
+  rejects ([&] { exchange.accept (QCborValue (QCborArray {
+    QStringLiteral ("ATHENA-HODARIUM-EXCHANGE-v1"), false, 1,
+    QStringLiteral ("isolated-vault"), QCborValue (offer).toCbor ()}).toCbor ()); });
+
+  for (const auto& [format, version]: std::vector<std::pair<std::string, unsigned>> {
+      {"ath-xml-v2", 3}, {"ath-xml-v3", 3}, {"ath-xml-v4", 4}}) {
+    next.format= format; next.semantic_version= version;
+    next= seal_revision (next);
+    require (source.receive (next), "Cannot set up incompatible document fixture");
+    rejects ([&] { revision_sender rejected (source, next.vault, next.id, allowed); });
+    metadata[0]= QString::fromStdString (next.id);
+    metadata[4]= QString::fromStdString (format); metadata[5]= qint64 (version);
+    offer[0]= QStringLiteral ("ATHENA-HODARIUM-REVISION-v2"); offer[2]= metadata;
+    rejects ([&] { receiver.accept (QCborValue (offer).toCbor ()); });
+    require (!target.contains (next.vault, next.id), "Incompatible document entered target journal");
+  }
+}
+
 void check_vault_exchange (revision base) {
   revision_store source (":memory:"), target (":memory:");
   source.receive (base);
@@ -187,6 +236,11 @@ void check_vault_bindings () {
   {
     client_settings settings (root / "settings.sqlite");
     settings.add_pending (profile);
+    require (settings.revision_database_path (root, key) ==
+               root / ("revisions-v3-" + key + ".sqlite"),
+             "V3 synchronization reused the legacy revision journal");
+    require (!settings.previous_revision_database_path (root, key),
+             "Format cutover invented a recovery predecessor");
     rejects ([&] { settings.bind_vault (binding); });
     settings.complete_admission (key, key, key, key);
     settings.bind_vault (binding);
@@ -301,10 +355,12 @@ void check_application_queue (revision base) {
 int main () {
   try {
     check_vault_bindings ();
+    check_document_epoch_boundary ();
     revision_store store (":memory:");
     revision initial;
     initial.vault= "vault"; initial.object= "object";
-    initial.origin_member= "member-A"; initial.format= "ath-xml-v2";
+    initial.origin_member= "member-A"; initial.format= document_revision_format;
+    initial.semantic_version= document_revision_semantics;
     initial.relative_path= "Notes/example.ath";
     initial.payload= std::string ("body\0bytes", 10);
     auto base= seal_revision (initial);

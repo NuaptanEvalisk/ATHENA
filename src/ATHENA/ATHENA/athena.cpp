@@ -842,6 +842,7 @@ print_command_line_help () {
   cout << "  --upgrade-vault-node-model [dir]  Offline UTF-8 XML v1 -> node-model XML v2 vault migration\n";
   cout << "  --upgrade-vault-xml-v3 --check [--strict] [--hodarium-state DIR] [dir]  Read-only XML v3 preflight\n";
   cout << "  --upgrade-vault-xml-v3 --stage NEW_DIR [--strict] [--hodarium-state DIR] [dir]  Disconnected v3 candidate\n";
+  cout << "  --upgrade-vault-xml-v3 --publish [--strict] [dir]  Offline atomic XML v3 upgrade\n";
   cout << "  --upgrade-vault-sorters [dir] --sorter-map JSON  Offline explicit C-to-Luau namespace sorter migration\n";
   cout << "  --convert-style [source.ts] [dest.ats]  Convert a legacy style to native UTF-8 XML\n";
   cout << "  --rag-delegated-embedding [dir]  Run only delegated incremental embedding\n";
@@ -2136,15 +2137,16 @@ texmacs_entrypoint (int argc, char** argv) {
     if (std::string (argv[i]) != "--upgrade-vault-xml-v3") continue;
     if (i != 1 || argc < 3 || (argc == 3 && std::string (argv[2]) == "--help")) {
       std::cerr << "Usage: ATHENA.bin --upgrade-vault-xml-v3 "
-                   "(--check | --stage NEW_DIRECTORY) [--strict] "
+                   "(--check | --stage NEW_DIRECTORY | --publish) [--strict] "
                    "[--hodarium-state PRIVATE_STATE_DIR] VAULT_DIRECTORY\n";
       return argc == 3 && i == 1 && std::string (argv[2]) == "--help" ? 0 : 1;
     }
     athena::document::vault_xml_v3_upgrade_options options;
     std::optional<std::filesystem::path> stage_destination;
-    bool malformed= false;
+    bool malformed= false, publish= false;
     for (int j=2; j<argc-1; ++j) {
       if (std::string (argv[j]) == "--check") options.check_only= true;
+      else if (std::string (argv[j]) == "--publish") publish= true;
       else if (std::string (argv[j]) == "--strict") options.strict= true;
       else if (std::string (argv[j]) == "--stage" && j+1<argc-1 &&
                !stage_destination.has_value ())
@@ -2154,13 +2156,11 @@ texmacs_entrypoint (int argc, char** argv) {
         options.hodarium_state= std::filesystem::path (argv[++j]);
       else malformed= true;
     }
-    if (malformed || options.check_only == stage_destination.has_value () ||
+    if (malformed || int (options.check_only) + int (stage_destination.has_value ()) + int (publish) != 1 ||
         argv[argc-1][0] == '-') {
       std::cerr << "Usage: ATHENA.bin --upgrade-vault-xml-v3 "
-                   "(--check | --stage NEW_DIRECTORY) [--strict] "
-                   "[--hodarium-state PRIVATE_STATE_DIR] VAULT_DIRECTORY\n"
-                   "Publication is disabled until the v3 native runtime and "
-                   "Hodarium cutover are verified.\n";
+                   "(--check | --stage NEW_DIRECTORY | --publish) [--strict] "
+                   "[--hodarium-state PRIVATE_STATE_DIR] VAULT_DIRECTORY\n";
       return 1;
     }
     immediate_options (argc, argv);

@@ -13,7 +13,7 @@ int main () {
     QTemporaryDir directory;
     require (directory.isValid (), "Cannot create collision fixture");
     revision_store store (std::filesystem::path (directory.path ().toStdString ()) / "journal.sqlite");
-    auto add= [&] (std::string object, std::string path, std::string format= "ath-xml-v2",
+    auto add= [&] (std::string object, std::string path, std::string format= document_revision_format,
                   std::vector<std::string> parents= {}, bool deleted= false,
                   std::string vault= "vault") {
       auto value= seal_revision ({ {}, vault, object, "test-member", format, 3,
@@ -24,7 +24,7 @@ int main () {
     auto second= add ("object-b", "a.ath");
     add ("resource-a", "b.png", "ath-resource-blob-v1");
     add ("resource-b", "b.png", "ath-resource-blob-v1");
-    add ("other-vault", "a.ath", "ath-xml-v2", {}, false, "other");
+    add ("other-vault", "a.ath", document_revision_format, {}, false, "other");
     add ("logical-a", "a.ath", "athena-namespace-v1");
     add ("logical-b", "virtual-history", "athena-namespace-v1");
     add ("logical-c", "virtual-history", "athena-artifact-rejections-v1");

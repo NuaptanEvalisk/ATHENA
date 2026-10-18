@@ -78,6 +78,7 @@ private slots:
   void v3LoadSaveAndHistoryKeepVersion ();
   void mismatchedOpenFingerprintBlocksSave ();
   void hodariumAppliesOnlyCleanSource ();
+  void hodariumV3WireBoundaryRejectsMislabeledDocuments ();
 };
 
 void
@@ -199,6 +200,11 @@ TestBufferActor::hodariumAppliesOnlyCleanSource () {
   QTemporaryDir temporary;
   QVERIFY (temporary.isValid ());
   const std::filesystem::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo vault_info;
+  vault_info.node_model_version= 2;
+  std::string vault_error;
+  QVERIFY2 (athena_vaultfile_write (root, vault_info, vault_error),
+            vault_error.c_str ());
   const auto file= root / "live.ath", database= root / "journal.sqlite";
   const std::string object= "10000000-0000-4000-8000-000000000001";
   const auto bytes= [&] (const char* text) {
@@ -206,7 +212,7 @@ TestBufferActor::hodariumAppliesOnlyCleanSource () {
     athena::node::set (paragraph, {"10000000-0000-4000-8000-000000000002", {}});
     tree body (DOCUMENT, paragraph);
     athena::node::set (body, {object, {}});
-    return athena::document::write_xml_v2 (tree (DOCUMENT, compound ("body", body)));
+    return athena::document::write_xml_v3 (tree (DOCUMENT, compound ("body", body)));
   };
   const auto first= bytes ("original"), second= bytes ("remote update");
   { std::ofstream out (file); out << first; }
@@ -224,7 +230,8 @@ TestBufferActor::hodariumAppliesOnlyCleanSource () {
   revision_store journal (database);
   revision value;
   value.vault= "vault"; value.object= object; value.relative_path= "live.ath";
-  value.origin_member= "remote"; value.format= "ath-xml-v2"; value.semantic_version= 3;
+  value.origin_member= "remote"; value.format= document_revision_format;
+  value.semantic_version= document_revision_semantics;
   value.payload= first;
   const auto base= seal_revision (value);
   journal.receive (base); QVERIFY (journal.record_applied (base.id, {}));
@@ -248,6 +255,84 @@ TestBufferActor::hodariumAppliesOnlyCleanSource () {
   QVERIFY (adopted);
   std::ifstream in (file);
   QCOMPARE (std::string ((std::istreambuf_iterator<char> (in)), {}), second);
+}
+
+void
+TestBufferActor::hodariumV3WireBoundaryRejectsMislabeledDocuments () {
+  using namespace athena::hodarium;
+  using namespace athena::document;
+  QTemporaryDir temporary;
+  QVERIFY (temporary.isValid ());
+  const std::filesystem::path root (temporary.path ().toStdString ());
+  AthenaVaultfileInfo info;
+  info.node_model_version= 2;
+  std::string error;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+  detail::require_v3_document_vault (root);
+  tree body (DOCUMENT, "source text");
+  const std::string id= athena::node::new_id ();
+  athena::node::set (body, {id, {}});
+  const tree source (DOCUMENT, compound ("body", body));
+  revision snapshot;
+  snapshot.vault= "vault"; snapshot.object= id;
+  snapshot.origin_member= "member";
+  snapshot.relative_path= "source.ath";
+  snapshot.format= document_revision_format;
+  snapshot.semantic_version= document_revision_semantics;
+  snapshot.payload= write_xml_v3 (source);
+  detail::validate_document_application_source (snapshot);
+  const auto valid_bytes= snapshot.payload;
+
+  // Neither old envelope may be relabeled as a native v3 revision.
+  snapshot.payload= write_xml (tree (DOCUMENT, compound (
+    "body", tree (DOCUMENT, "legacy"))));
+  QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+    detail::validate_document_application_source (snapshot));
+  snapshot.payload= write_xml_v2 (source);
+  QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+    detail::validate_document_application_source (snapshot));
+  snapshot.payload= valid_bytes;
+  snapshot.object= athena::node::new_id ();
+  QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+    detail::validate_document_application_source (snapshot));
+  snapshot.object= id;
+  snapshot.semantic_version= 3;
+  QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+    detail::validate_document_application_source (snapshot));
+  snapshot.semantic_version= document_revision_semantics;
+  snapshot.deleted= true;
+  snapshot.payload.clear ();
+  snapshot.object= "not-a-source-uuid";
+  QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+    detail::validate_document_application_source (snapshot));
+  snapshot.object= id;
+  detail::validate_document_application_source (snapshot);
+  snapshot.deleted= false;
+  snapshot.payload= valid_bytes;
+  snapshot.format= "ath-xml-v2";
+  QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+    detail::validate_document_application_source (snapshot));
+
+  info.node_model_version= 1;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+  QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+    detail::require_v3_document_vault (root));
+  info.node_model_version= 0;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+  QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+    detail::require_v3_document_vault (root));
+  info.node_model_version= 2;
+  QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+  detail::require_v3_document_vault (root);
+  const auto marker= root / ".athena/xml-v3-candidate-manifest.json";
+  std::filesystem::create_directories (marker.parent_path ());
+  { std::ofstream out (marker); out << "{}"; }
+  QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+    detail::require_v3_document_vault (root));
+  std::filesystem::remove (marker);
+  std::filesystem::create_symlink (root / "missing", marker);
+  QVERIFY_THROWS_EXCEPTION (std::invalid_argument,
+    detail::require_v3_document_vault (root));
 }
 
 void

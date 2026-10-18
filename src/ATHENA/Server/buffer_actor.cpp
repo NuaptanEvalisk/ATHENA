@@ -707,7 +707,7 @@ buffer_actor::can_apply_saved_document (const std::string& expected_storage) con
   ASSERT (is_owner_thread (), "remote source replacement outside its actor");
   const auto& state= impl_->state;
   if (!state.storage || state.storage_capture_failed ||
-      state.storage_version != athena::document::xml_storage_version::v2 ||
+      state.storage_version != athena::document::xml_storage_version::v3 ||
       state.storage->source_sha256 () != expected_storage ||
       state.source_modified || state.source_autosave_modified ||
       !state.node_identities || state.node_identities->pending ()) return false;
@@ -757,7 +757,7 @@ buffer_actor::apply_saved_document (const std::string& expected_storage,
   if (!identities) return false;
   auto storage= publish ();
   if (!storage) return false;
-  if (storage->version () != athena::document::xml_storage_version::v2 ||
+  if (storage->version () != athena::document::xml_storage_version::v3 ||
       storage->source_sha256 () != target_storage)
     throw std::runtime_error ("Remote document publication returned a different storage revision");
 

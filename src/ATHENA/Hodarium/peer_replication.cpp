@@ -8,7 +8,7 @@
 #include <stdexcept>
 
 namespace athena::hodarium {
-namespace { const QString domain= QStringLiteral ("ATHENA-HODARIUM-VAULTS-v2"); }
+namespace { const QString domain= QStringLiteral ("ATHENA-HODARIUM-VAULTS-v3"); }
 peer_replication::peer_replication (peer_network& network, revision_store& store,
   std::vector<std::string> vaults, std::function<void(std::string)> error, peer_secret_exchange* secrets):
   network_ (network), store_ (store), vaults_ (std::move (vaults)), error_ (std::move (error)), secrets_ (secrets) {

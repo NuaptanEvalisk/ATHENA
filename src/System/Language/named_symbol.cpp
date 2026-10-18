@@ -10,7 +10,14 @@
 #include "named_symbol.hpp"
 #include "unicode_text.hpp"
 #include "language.hpp"
+#ifdef ATHENA_HODARIUM_NODE_CORE
+#include <QResource>
+static void initialize_named_symbol_resource () {
+  Q_INIT_RESOURCE (athena_hodarium_symbols);
+}
+#else
 #include "file.hpp"
+#endif
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -164,8 +171,13 @@ const named_symbol_definition* named_symbol_registry::lookup (
 
 const named_symbol_registry& standard_named_symbols () {
   static const named_symbol_registry registry= [] {
+#ifdef ATHENA_HODARIUM_NODE_CORE
+    initialize_named_symbol_resource ();
+    QFile file (QStringLiteral (":/athena/symbols/named-symbols.json"));
+#else
     const auto name= concretize (url ("$ATHENA_PATH/misc/symbols/named-symbols.json"));
     QFile file (QString::fromUtf8 (name.data (), N(name)));
+#endif
     if (!file.open (QIODevice::ReadOnly) || file.size () > maximum_bytes)
       throw std::runtime_error ("Cannot read named-symbol registry");
     const auto bytes= file.readAll ();

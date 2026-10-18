@@ -47,13 +47,16 @@ bool size_level (const string& value) {
 bool valid_delimited (const tree& value) {
   if (!is_func (value, DELIMITED, 6)) return false;
   for (int i= 0; i < 5; ++i)
-    if (!atomic (value[i])) return false;
+    // These five scalar descriptors are encoded as attributes of <d>.
+    // Any nested UUID/property would be silently discarded by that encoding.
+    if (!atomic (value[i]) || athena::node::get (value[i])) return false;
   if (!glyph (value[0]->label, true) || !glyph (value[1]->label, true) ||
-      (value[0] == "" && value[1] == "") || !one_of (value[2]->label, "afm"))
+      (value[0]->label == "" && value[1]->label == "") ||
+      !one_of (value[2]->label, "afm"))
     return false;
-  return value[2] == "m" ?
+  return value[2]->label == "m" ?
     size_level (value[3]->label) && size_level (value[4]->label) :
-    value[3] == "" && value[4] == "";
+    value[3]->label == "" && value[4]->label == "";
 }
 
 tree delimited (const string& left, const string& right, char sizing,
@@ -70,6 +73,7 @@ tree delimited (const string& left, const string& right, char sizing,
 bool valid_big_operator (const tree& value) {
   if (!is_func (value, BIG_OPERATOR, 2) ||
       !atomic (value[0]) || !atomic (value[1]) ||
+      athena::node::get (value[0]) || athena::node::get (value[1]) ||
       !one_of (value[1]->label, "01")) return false;
   const string& symbol= value[0]->label;
   if (N (symbol) == 0) return false;
@@ -174,6 +178,14 @@ bool valid_grid_row (const tree& row) {
           name != "height" && name != "height-mode" &&
           name != "align" && name != "color") return false;
       if (!std::holds_alternative<std::string> (entry.data)) return false;
+      if (name == "height-mode") {
+        const auto& mode= std::get<std::string> (entry.data);
+        // These are the actual cell-height policies implemented by the
+        // Typesetter. Unknown values used to roundtrip as if valid native
+        // math while silently behaving as the default mode.
+        if (mode != "auto" && mode != "exact" &&
+            mode != "min" && mode != "max") return false;
+      }
     }
   }
   return true;
@@ -251,6 +263,7 @@ bool valid_native_math (const tree& value) {
   case MATH_SCRIPTS: return valid_scripts (value);
   case MATH_MIDDLE:
     return N (value) == 1 && is_atomic (value[0]) &&
+           !athena::node::get (value[0]) &&
            glyph (value[0]->label);
   case MATH_ACCENT: {
     if (N (value) != 3 || !is_atomic (value[0]) ||
@@ -270,6 +283,7 @@ bool valid_native_math (const tree& value) {
     return N (value) == 3 &&
            ((is_atomic (value[0]) && glyph (value[0]->label)) ||
             (is_func (value[0], MATH_SYMBOL, 1) &&
+             is_atomic (value[0][0]) &&
              !symbol_registry_identity (value[0][0]->label).empty ()));
   case MATH_GRID: {
     if (N (value) == 0) return false;
@@ -307,7 +321,8 @@ bool valid_native_math (const tree& value) {
     const string& kind= value[0]->label;
     return kind == "bb" || kind == "rm" || kind == "it" ||
            kind == "bf" || kind == "ss" || kind == "tt" ||
-           kind == "sl" || kind == "cal";
+           kind == "sl" || kind == "cal" || kind == "frak" ||
+           kind == "mbf" || kind == "mbfu";
   }
   case MATH_SYMBOL: {
     if (N (value) != 1 || !is_atomic (value[0])) return false;
@@ -315,6 +330,29 @@ bool valid_native_math (const tree& value) {
   }
   default: return true;
   }
+}
+
+bool descriptor_slot (const tree& value, int index) {
+  if (!is_compound (value) || index < 0 || index >= N (value))
+    return false;
+  switch (L (value)) {
+  case DELIMITED: return index < 5;
+  case BIG_OPERATOR: return true;
+  case MATH_MIDDLE: case MATH_SYMBOL: return index == 0;
+  case MATH_ACCENT: return index < 2;
+  case MATH_VARIANT: return index == 0;
+  case MATH_LONG_ARROW: return index == 0;
+  default: return false;
+  }
+}
+
+bool hidden_search_descriptor_slot (const tree& value, int index) {
+  if (!descriptor_slot (value, index)) return false;
+  if (index == 0 &&
+      (L (value) == BIG_OPERATOR || L (value) == MATH_MIDDLE ||
+       (L (value) == MATH_LONG_ARROW && is_atomic (value[index]))))
+    return false;
+  return true;
 }
 
 } // namespace athena::math_v3

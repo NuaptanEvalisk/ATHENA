@@ -31,7 +31,8 @@ struct vault_v3_hodarium_audit {
 };
 
 // STATE_DIR is an explicitly supplied private Hodarium state directory,
-// containing device.sqlite and revisions-*.sqlite. No auto-discovery or
+// containing device.sqlite, revisions-*.sqlite and (if present) the group's
+// membership/conflicts/decisions generation sidecars. No auto-discovery or
 // network activity; no writes, journal creation, WAL/SHM or checkpoints.
 // A nonempty WAL is a blocker: immutable SQLite must not ignore pending
 // source journal changes. Source Vault and external state remain untouched.

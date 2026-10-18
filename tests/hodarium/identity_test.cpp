@@ -158,7 +158,8 @@ void check_peer_network (const device_identity& a, const device_identity& b) {
   revision_store source (":memory:"), target (":memory:");
   revision value;
   value.vault= "10000000-0000-4000-8000-000000000002"; value.object= "isolated-object";
-  value.origin_member= a.handle; value.format= "ath-xml-v2";
+  value.origin_member= a.handle; value.format= document_revision_format;
+  value.semantic_version= document_revision_semantics;
   value.relative_path= "Notes/example.ath"; value.payload= std::string (700*1024, 'n');
   value.payload[17]= '\0'; value.payload[600000]= char (255);
   auto base= value; base.payload= "common ancestor"; base= seal_revision (base);

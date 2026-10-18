@@ -37,4 +37,8 @@ struct math_v3_migration {
 // ambiguity warnings into errors; invariant violations always cause errors.
 math_v3_migration migrate_math_v2_tree (const tree& source, bool strict= false);
 
+// Whole-Vault migration must not mistake labels interned by the legacy reader
+// for declarations available to a fresh v3 process. Includes rich metadata.
+void validate_cold_v3_migration (const tree& source);
+
 } // namespace athena::document

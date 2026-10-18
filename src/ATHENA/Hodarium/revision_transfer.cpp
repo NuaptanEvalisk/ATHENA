@@ -8,7 +8,7 @@
 
 namespace athena::hodarium {
 namespace {
-const QString domain= QStringLiteral ("ATHENA-HODARIUM-REVISION-v1");
+const QString domain= QStringLiteral ("ATHENA-HODARIUM-REVISION-v2");
 QString text (const std::string& bytes) {
   auto result= QString::fromUtf8 (bytes.data (), qsizetype (bytes.size ()));
   if (result.toUtf8 ().toStdString () != bytes)
@@ -41,6 +41,15 @@ QCborArray metadata (const revision& r) {
   for (const auto& parent: r.parents) parents.append (text (parent));
   return {text (r.id), text (r.vault), text (r.object), text (r.origin_member),
     text (r.format), qint64 (r.semantic_version), text (r.relative_path), r.deleted, parents};
+}
+void require_document_epoch (const revision& r) {
+  // The v2 exchange starts a new journal; it cannot replay legacy document
+  // ancestry. Resource and logical-record schemas keep their own versions.
+  if (r.format.rfind ("ath-xml-", 0) == 0 &&
+      (r.format != document_revision_format ||
+       r.semantic_version != document_revision_semantics))
+    throw std::invalid_argument (
+      "Hodarium revision exchange requires XML v3 document semantics");
 }
 revision metadata (const QCborValue& value) {
   if (!value.isArray ()) throw std::invalid_argument ("Invalid revision descriptor");
@@ -80,6 +89,7 @@ QByteArray revision_receiver::accept (const QByteArray& message) {
       throw std::invalid_argument ("Invalid revision offer");
     revision_offer offer{metadata (value[2]), integer (value[3])};
     if (!authorized_ (offer.metadata.vault)) throw std::invalid_argument ("Revision Vault is not authorized");
+    require_document_epoch (offer.metadata);
     if (!active_.count (offer.metadata.id) && active_.size () >= 32)
       throw std::invalid_argument ("Too many active revision transfers");
     auto offset= store_.begin_receive (offer.metadata, offer.size);
@@ -125,6 +135,7 @@ revision_sender::revision_sender (revision_store& store, std::string vault, std:
   auto offered= store.offer (id);
   if (!offered || offered->metadata.vault != vault || offered->size > 512ULL*1024*1024)
     throw std::invalid_argument ("Outgoing revision does not belong to the requested Vault or exceeds budget");
+  require_document_epoch (offered->metadata);
   offer_= std::move (*offered);
 }
 QByteArray revision_sender::begin () {
@@ -230,7 +241,7 @@ std::int64_t vault_revision_sender::completed_through () const {
 }
 
 namespace {
-const QString exchange_domain= QStringLiteral ("ATHENA-HODARIUM-EXCHANGE-v1");
+const QString exchange_domain= QStringLiteral ("ATHENA-HODARIUM-EXCHANGE-v2");
 QByteArray envelope (bool reply, std::int64_t sequence, const std::string& vault, QByteArray bytes) {
   return encode ({exchange_domain, reply, qint64 (sequence), text (vault), std::move (bytes)});
 }

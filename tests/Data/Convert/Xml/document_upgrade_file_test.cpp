@@ -14,7 +14,9 @@
 #include "ATHENA/Data/hodarium_inventory.hpp"
 #include "ATHENA/Data/hodarium_application.hpp"
 #include "ATHENA/Data/hodarium_rename_records.hpp"
+#include "ATHENA/Hodarium/revision_transfer.hpp"
 #include "node_metadata.hpp"
+#include "drd_std.hpp"
 #include <fstream>
 #include <future>
 #include <sys/stat.h>
@@ -44,13 +46,100 @@ tree migrated () { return tree (DOCUMENT, tree (u8"caf\u00e9")); }
 class TestDocumentUpgrade: public QObject {
   Q_OBJECT
 private slots:
-  void initTestCase () { make_tree_label (DOCUMENT, "document"); }
+  void initTestCase () { init_std_drd (); }
+  void hodariumV3ReplicaRoundtrip () {
+    using namespace athena::hodarium;
+    QTemporaryDir temporary;
+    QVERIFY (temporary.isValid ());
+    const fs::path root (temporary.path ().toStdString ());
+    const auto a= root / "a", b= root / "b";
+    fs::create_directory (a); fs::create_directory (b);
+    for (const auto& dir: {a, b})
+      put (dir / "Vaultfile.json", "{\"name\":\"V3 sync test\",\"node_model_version\":2}");
+    tree body (DOCUMENT, "initial source");
+    athena::node::set (body, {athena::node::new_id (), {}});
+    std::string original= write_xml_v3 (tree (DOCUMENT, compound ("body", body)));
+    const auto fixture= qgetenv ("ATHENA_V3_SYNC_SOURCE");
+    if (!fixture.isEmpty ()) original= get (fs::path (fixture.toStdString ()));
+    (void) read_xml_v3 (original);
+    put (a / "document.ath", original);
+    revision_store ja (a / ".athena-journal.sqlite"), jb (b / ".athena-journal.sqlite");
+    athena::history::document_history_store ha, hb;
+    std::string error;
+    QVERIFY2 (ha.open (a, error), error.c_str ());
+    QVERIFY2 (hb.open (b, error), error.c_str ());
+    const auto capture= [&] (const fs::path& directory, revision_store& journal) {
+      std::atomic<bool> cancelled {false};
+      auto inventory= inventory_sources (directory, cancelled);
+      if (!inventory.errors.empty ()) throw std::runtime_error (inventory.errors.front ());
+      if (inventory.documents.size () != 1) throw std::runtime_error ("Expected one v3 document");
+      const auto& file= inventory.documents.front ();
+      revision value;
+      value.vault= "vault"; value.object= file.object;
+      value.origin_member= directory.filename ().string ();
+      value.relative_path= file.path; value.payload= *file.bytes;
+      value.format= document_revision_format; value.semantic_version= document_revision_semantics;
+      detail::validate_document_application_source (value);
+      auto expected= journal.applied (value.vault, value.object);
+      auto saved= journal.capture_saved (value, expected);
+      if (!saved) throw std::runtime_error ("Could not capture v3 source");
+      return *saved;
+    };
+    const auto transfer= [&] (revision_store& from, revision_store& to) {
+      auto allowed= [] (const std::string& vault) { return vault == "vault"; };
+      vault_revision_sender sender (from, "vault", allowed);
+      revision_receiver receiver (to, allowed);
+      auto message= sender.begin ();
+      int steps= 0;
+      while (!sender.complete ()) {
+        if (++steps > 10000) throw std::runtime_error ("V3 transfer did not converge");
+        message= sender.acknowledge (receiver.accept (message));
+      }
+    };
+    auto first= capture (a, ja);
+    transfer (ja, jb);
+    QVERIFY (apply_closed_document (b, jb, hb, first));
+    QCOMPARE (get (b / "document.ath"), original);
+
+    tree updated= read_xml_v3 (original);
+    for (int i= 0; i < N (updated); ++i) if (is_compound (updated[i], "body", 1)) {
+      tree paragraph ("Edited on the second replica");
+      athena::node::set (paragraph, {athena::node::new_id (), {}});
+      updated[i][0] << paragraph;
+    }
+    const auto changed= write_xml_v3 (updated);
+    QVERIFY (changed != original);
+    put (b / "document.ath", changed);
+    auto second= capture (b, jb);
+    transfer (jb, ja);
+    QVERIFY (apply_closed_document (a, ja, ha, second));
+    QCOMPARE (get (a / "document.ath"), changed);
+    auto intent= ja.application ("hodarium-apply-" + second);
+    QVERIFY (intent && intent->completed && intent->protected_history_version > 0);
+    std::string protected_source;
+    QVERIFY (ha.reconstruct (intent->protected_history_version, protected_source, error));
+    QCOMPARE (protected_source, original);
+
+    auto removed= *ja.get (second);
+    removed.id.clear (); removed.parents.clear (); removed.deleted= true; removed.payload.clear ();
+    fs::remove (a / "document.ath");
+    auto last= ja.capture_saved (removed, second);
+    QVERIFY (last);
+    transfer (ja, jb);
+    QVERIFY (apply_closed_document (b, jb, hb, *last));
+    QVERIFY (!fs::exists (b / "document.ath"));
+    intent= jb.application ("hodarium-apply-" + *last);
+    QVERIFY (intent && intent->completed);
+    QVERIFY (hb.reconstruct (intent->protected_history_version, protected_source, error));
+    QCOMPARE (protected_source, changed);
+    if (!fixture.isEmpty ()) QCOMPARE (get (fs::path (fixture.toStdString ())), original);
+  }
   void hodariumApplication () {
     using namespace athena::hodarium;
     QTemporaryDir temporary;
     QVERIFY (temporary.isValid ());
     const fs::path root (temporary.path ().toStdString ());
-    put (root / "Vaultfile.json", "{\"name\":\"Application test\",\"node_model_version\":1}");
+    put (root / "Vaultfile.json", "{\"name\":\"Application test\",\"node_model_version\":2}");
     athena::history::document_history_store history;
     std::string error;
     QVERIFY2 (history.open (root, error), error.c_str ());
@@ -58,10 +147,10 @@ private slots:
     tree body (DOCUMENT, "first content");
     const std::string object= "10000000-0000-4000-8000-000000000001";
     athena::node::set (body, {object, {}});
-    const auto payload= [&] { return write_xml_v2 (tree (DOCUMENT, compound ("body", body))); };
+    const auto payload= [&] { return write_xml_v3 (tree (DOCUMENT, compound ("body", body))); };
     revision value;
     value.vault= "vault"; value.object= object; value.origin_member= "remote";
-    value.format= "ath-xml-v2"; value.semantic_version= 3;
+    value.format= document_revision_format; value.semantic_version= document_revision_semantics;
     value.relative_path= "one.ath"; value.payload= payload ();
     auto first= seal_revision (value); journal.receive (first);
     QVERIFY (!apply_closed_document (root, journal, history, first.id, [] { return false; }));
@@ -124,7 +213,7 @@ private slots:
     tree body (DOCUMENT, "saved source");
     athena::node::set (body, {"10000000-0000-4000-8000-000000000001", {}});
     tree source (DOCUMENT, compound ("body", body));
-    auto bytes= write_xml_v2 (source);
+    auto bytes= write_xml_v3 (source);
     put (root / "one.ath", bytes);
     put (root / ".athena/ignored.ath", bytes);
     std::atomic<bool> cancelled {false};

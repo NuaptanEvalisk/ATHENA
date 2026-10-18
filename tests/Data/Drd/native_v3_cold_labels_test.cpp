@@ -19,7 +19,9 @@ private slots:
     init_standard_tree_labels ();
   }
   void shippedMacroDecodesCold () {
-    for (const char* name: {"strong", "em"}) {
+    for (const char* name: {"strong", "em", "section", "subsection*",
+                           "description", "todo-list", "cloud-todo-list",
+                           "enumerate-numeric", "tabular"}) {
       const tree_label label= as_tree_label (name);
       QVERIFY (label != UNKNOWN);
       const std::string bytes= std::string ("<a v=\"3\" k=\"t\"><n t=\"") + name +
@@ -29,6 +31,16 @@ private slots:
       QCOMPARE (decoded.document, tree (label, "cold source"));
       init_standard_tree_labels ();
       QCOMPARE (as_tree_label (name), label);
+    }
+  }
+  void nativeNamespacePlaceholdersDecodeCold () {
+    for (const char* name: {"ns-name", "ns-type", "ns-sorting-algo", "ns-matches",
+                           "ns-children", "ns-parents", "ns-filename-template",
+                           "ns-summary-link"}) {
+      QVERIFY (existing_tree_label (name));
+      const std::string bytes= std::string ("<a v=\"3\" k=\"t\"><n t=\"") + name + "\"/></a>";
+      QCOMPARE (xml::decode_native_xml_bytes (bytes, xml::xml_kind::fragment).document,
+                tree (as_tree_label (name)));
     }
   }
   void unknownInputCannotDeclareItself () {

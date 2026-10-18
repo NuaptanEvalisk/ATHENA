@@ -480,11 +480,25 @@ concater_rep::typeset_v3_variant (tree t, path ip) {
   // FONT_SHAPE and FONT_SERIES alone do not control the selected math face.
   // Decode the v3 typed variant into environment scopes directly; never
   // construct or execute a historical math-up or TEXT/WITH wrapper AST.
-  if (kind == "bb" || kind == "cal") {
-    const tree previous= env->local_begin (
-      MATH_FONT_SHAPE, kind == "bb" ? "bbb" : "cal");
+  if (kind == "bb" || kind == "cal" || kind == "frak" ||
+      kind == "mbf" || kind == "mbfu") {
+    // These are mathematical alphabet families, not the historical textual
+    // math-bf operator. Keep mathematical mode and set the actual math font
+    // attributes used by std-math: bold preserves the inherited italic
+    // shape, bold-upright explicitly requests the right shape, and Fraktur
+    // changes the mathematical font shape rather than the surrounding font.
+    tree previous_series, previous_shape;
+    if (kind == "mbf" || kind == "mbfu")
+      previous_series= env->local_begin (MATH_FONT_SERIES, "bold");
+    if (kind == "bb" || kind == "cal" || kind == "frak" || kind == "mbfu")
+      previous_shape= env->local_begin (MATH_FONT_SHAPE,
+        kind == "bb" ? "bbb" : kind == "cal" ? "cal" :
+        kind == "frak" ? "frak" : "right");
     typeset (t[1], descend (ip, 1));
-    env->local_end (MATH_FONT_SHAPE, previous);
+    if (kind == "bb" || kind == "cal" || kind == "frak" || kind == "mbfu")
+      env->local_end (MATH_FONT_SHAPE, previous_shape);
+    if (kind == "mbf" || kind == "mbfu")
+      env->local_end (MATH_FONT_SERIES, previous_series);
     return;
   }
   const string family= kind == "ss" ? "ss" : kind == "tt" ? "tt" : "rm";
