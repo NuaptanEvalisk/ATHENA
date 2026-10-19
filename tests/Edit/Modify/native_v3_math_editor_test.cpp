@@ -72,6 +72,30 @@ class NativeV3MathEditorTest: public QObject {
   }
 
 private slots:
+  void inlineFormulaBackspaceTakesThreeSteps () {
+    reset_inline ("X");
+    const path formula= buffer->root_path * 0;
+    editor->go_to_border (formula, false);
+    editor->remove_text (false);
+    QVERIFY (editor->the_path () == content_path () * 1);
+    QCOMPARE (content (), tree ("X"));
+    editor->remove_text (false);
+    QCOMPARE (content (), tree (""));
+    editor->remove_text (false);
+    QCOMPARE (subtree (current_document_tree (), buffer->root_path), tree (DOCUMENT, ""));
+  }
+  void inlineFormulaBackspaceFromFollowingText () {
+    set_document (buffer->document, buffer->root_path,
+      tree (DOCUMENT, tree (CONCAT, "before", compound ("math", "X"), "after")));
+    const path paragraph= buffer->root_path * 0;
+    editor->go_to (paragraph * path (2, 0));
+    editor->remove_text (false);
+    QVERIFY (editor->the_path () == paragraph * path (1, 0, 1));
+    editor->remove_text (false);
+    QCOMPARE (subtree (current_document_tree (), paragraph * path (1, 0)), tree (""));
+    editor->remove_text (false);
+    QCOMPARE (subtree (current_document_tree (), buffer->root_path), tree (DOCUMENT, "beforeafter"));
+  }
   void init () {
     previous_brackets= get_preference ("automatic brackets", "mathematics");
     buffer= tm_new<buffer_document_state> (

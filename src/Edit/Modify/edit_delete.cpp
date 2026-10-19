@@ -47,6 +47,14 @@ edit_text_rep::get_deletion_point (
       }
     //cout << "p= " << p << "\n";
   }
+  else if ((rp < p) && (N (p / rp) >= 2) &&
+           is_concat (subtree (et, path_up (p, 2))) &&
+           last_item (p) == 0 && last_item (path_up (p)) > 0) {
+    // The start of the following text is also the preceding node's right
+    // boundary. Backspace must operate on that node, not the whole concat.
+    p= path_dec (path_up (p));
+    p= p * end (subtree (et, p), path ());
+  }
 
   // get the position where to delete
   last= last_item (p);

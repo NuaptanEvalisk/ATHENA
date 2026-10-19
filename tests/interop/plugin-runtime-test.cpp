@@ -14,11 +14,13 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QDialog>
+#include <QDir>
 #include <QEventLoop>
 #include <QFile>
 #include <QMenu>
 #include <QLabel>
 #include <QPlainTextEdit>
+#include <QProcess>
 #include <QPushButton>
 #include <QTemporaryDir>
 #include <QTest>
@@ -27,6 +29,7 @@
 #include <QTreeWidget>
 #include <algorithm>
 #include <chrono>
+#include <csignal>
 #include <map>
 #include <set>
 #include <fstream>
@@ -99,9 +102,38 @@ static std::set<pid_t> descendants (pid_t root) {
   }
   return result;
 }
+static void test_abrupt_exit (bool killSupervisor) {
+  QTemporaryDir directory;
+  require (directory.isValid (), "No crash-test directory");
+  QProcess host;
+  std::set<pid_t> children;
+  struct cleanup {
+    QProcess& host;
+    std::set<pid_t>& children;
+    ~cleanup () {
+      host.kill (); host.waitForFinished (3000);
+      for (auto pid: children) if (alive (pid)) ::kill (pid, SIGKILL);
+    }
+  } guard {host, children};
+  host.start (QCoreApplication::applicationFilePath (), {"--orphan-host", directory.path ()});
+  require (host.waitForStarted (), "Cannot start crash-test host");
+  const auto ready= directory.filePath ("ready").toStdString ();
+  until ([&] { return std::filesystem::exists (ready); }, "Crash-test host did not become ready", 15000);
+  pid_t supervisor= 0;
+  { std::ifstream input (ready); input >> supervisor; pid_t pid;
+    while (input >> pid) children.insert (pid); }
+  require (supervisor > 0 && children.size () >= 2, "Missing sandbox descendant evidence");
+  children.insert (supervisor);
+  if (killSupervisor) require (::kill (supervisor, SIGKILL) == 0, "Cannot kill supervisor");
+  else { host.kill (); require (host.waitForFinished (3000), "Host survived SIGKILL"); }
+  until ([&] { return std::none_of (children.begin (), children.end (), alive); },
+         "Abrupt exit left a plugin or detached descendant alive");
+}
 int main (int argc, char** argv) {
   QApplication app (argc, argv);
-  QTemporaryDir profile;
+  const bool orphanHost= argc == 3 && std::string (argv[1]) == "--orphan-host";
+  QTemporaryDir profile (orphanHost ? QString::fromLocal8Bit (argv[2]) + "/profile-XXXXXX"
+                                   : QDir::tempPath () + "/plugin-test-XXXXXX");
   struct cleanup { ~cleanup () { qt_audmap_stop (); } } guard;
   try {
     require (profile.isValid (), "No isolated profile");
@@ -130,6 +162,20 @@ int main (int argc, char** argv) {
     require (page->findChild<QTreeWidget*> ("plugin-list")->topLevelItemCount () == 1, "Preferences omitted plugin");
     manager->start ("fixture.plugin", true);
     until ([&] { return info (manager).connected; }, "Plugin did not authenticate");
+    if (orphanHost) {
+      const pid_t supervisor= info (manager).pid;
+      const auto before= descendants (supervisor);
+      run (manager, "child");
+      std::set<pid_t> children;
+      until ([&] { children= descendants (supervisor); return children.size () > before.size (); },
+             "No detached child");
+      run (manager, "ignore-stop");
+      const auto ready= std::filesystem::path (argv[2]) / "ready";
+      { std::ofstream output (ready.string () + ".tmp"); output << supervisor << '\n';
+        for (auto pid: children) output << pid << '\n'; }
+      std::filesystem::rename (ready.string () + ".tmp", ready);
+      return app.exec ();
+    }
     require (run (manager, "hello").at ("parameters").at ("x") == 42, "Plugin lost command arguments");
     require (run (manager, "probe").at ("allowed") == false, "Read-only plugin wrote to a native resource");
     for (auto* widget: QApplication::topLevelWidgets ())
@@ -232,6 +278,8 @@ int main (int argc, char** argv) {
              "Startup failure omitted the plugin's diagnostic output");
     manager->uninstall ("fixture.failure");
     until ([&] { return !manager->busy (); }, "Failing fixture uninstall did not finish");
+    test_abrupt_exit (false);
+    test_abrupt_exit (true);
     std::cout << "Plugin runtime tests passed\n";
     return 0;
   }

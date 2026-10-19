@@ -34,8 +34,12 @@ instances load the new settings on restart. Each instance starts its own configu
 subprocesses. Every Start/Restart creates a fresh CURVE identity and subscription
 GUID. Stop cancels scheduled startup, revokes the connection and sends SIGTERM to
 the group, escalating to SIGKILL after two seconds. Force quit skips the grace.
-Shutdown and leader exit also clean up group children. Deliberately detached
-processes are outside this cooperative lifecycle model and the API permission model.
+Shutdown and leader exit also clean up group children. On Linux, kernel
+parent-death guards connect the desktop to the supervisor and the supervisor to
+the plugin's PID-namespace init. Host crashes and SIGKILL therefore tear down
+the namespace, including descendants that create their own sessions or ignore
+SIGTERM. A supervisor pidfd closes the startup race across the PID-namespace
+boundary; failure to establish the guard fails the launch.
 
 Process state, bounded stdout/stderr and the latest result are shown in the
 management page. Failures remain visible; there is no automatic crash/restart loop.

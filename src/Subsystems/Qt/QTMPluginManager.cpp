@@ -30,6 +30,9 @@
 #include <deque>
 #include <fstream>
 #include <sys/stat.h>
+#ifdef __linux__
+#include <sys/prctl.h>
+#endif
 #include <unistd.h>
 
 using namespace athena::interop;
@@ -470,6 +473,14 @@ void QTMPluginManager::start (const std::string& id, bool userInitiated) {
   s.identities[e.key] = {id, e.generation};
   e.process = std::make_unique<QProcess> ();
   auto* process = e.process.get ();
+#ifdef __linux__
+  const pid_t host_pid= ::getpid ();
+  process->setChildProcessModifier ([host_pid] {
+    // Also cover host death between fork and installing the kernel guard.
+    if (::prctl (PR_SET_PDEATHSIG, SIGKILL) != 0 || ::getppid () != host_pid)
+      ::_exit (126);
+  });
+#endif
   process->setUnixProcessParameters (QProcess::UnixProcessFlag::CreateNewSession |
     QProcess::UnixProcessFlag::CloseFileDescriptors | QProcess::UnixProcessFlag::ResetSignalHandlers);
   process->setProcessEnvironment (QProcessEnvironment::systemEnvironment ());

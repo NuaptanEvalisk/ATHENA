@@ -90,6 +90,7 @@ int main () {
           const pid_t child= ::fork ();
           if (child < 0) throw std::runtime_error ("fork failed");
           if (child == 0) {
+            if (::setsid () < 0) ::_exit (125);
             std::signal (SIGTERM, SIG_IGN);
             for (;;) ::pause ();
           }

@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <array>
 #include <cerrno>
+#include <csignal>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -23,6 +24,8 @@
 #include <string_view>
 #include <sys/resource.h>
 #include <sys/stat.h>
+#include <sys/prctl.h>
+#include <sys/syscall.h>
 #include <thread>
 #include <unistd.h>
 #include <vector>
@@ -102,6 +105,18 @@ struct descriptor_list {
   std::vector<int> values;
   ~descriptor_list () { for (int descriptor: values) if (descriptor >= 0) ::close (descriptor); }
 };
+
+int bind_supervisor_lifetime (void* payload) {
+  const int descriptor= *static_cast<int*> (payload);
+  // Install after credential changes, which clear PDEATHSIG. getppid() cannot
+  // identify the supervisor from inside the new PID namespace; use its pidfd.
+  if (::prctl (PR_SET_PDEATHSIG, SIGKILL) != 0) return -1;
+  pollfd parent {descriptor, POLLIN, 0};
+  int result;
+  do { result= ::poll (&parent, 1, 0); } while (result < 0 && errno == EINTR);
+  ::close (descriptor);
+  return result == 0 ? 0 : -1;
+}
 
 void copy_fd (int input, int output) {
   std::array<char,16384> buffer;
@@ -303,6 +318,14 @@ int run (const fs::path& policy_path) {
   }
   auto envp= pointers (env_storage);
   fs::current_path (plugin);
+  descriptor_list lifetime;
+  lifetime.values.push_back (static_cast<int> (::syscall (SYS_pidfd_open, ::getpid (), 0)));
+  int& supervisor= lifetime.values.front ();
+  if (supervisor < 0 ||
+      minijail_preserve_fd (jail.get (), supervisor, supervisor) ||
+      minijail_add_hook (jail.get (), bind_supervisor_lifetime, &supervisor,
+                        MINIJAIL_HOOK_EVENT_PRE_EXECVE))
+    throw std::runtime_error ("Cannot configure plugin supervisor lifetime guard");
   pid_t child= -1;
   int stdout_fd= -1, stderr_fd= -1;
   const int result= minijail_run_env_pid_pipes_no_preload (
