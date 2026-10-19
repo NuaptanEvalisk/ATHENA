@@ -180,8 +180,12 @@ do_cache_stat_fail (string name) {
 bool
 do_cache_file (string name) {
   if (!cache_initialize_paths ()) return false;
+  // Declarative resources can change in place without changing their parent
+  // directory's mtime. Parsed JSON catalogs already cache within the process;
+  // do not resurrect outdated actions from the persistent content cache.
   return
     !ends (name, ".ats") && !ends (name, ".ts") && !ends (name, ".css") &&
+    !ends (name, ".json") &&
     (starts (name, texmacs_path_string) ||
      starts (name, texmacs_font_path_string));
 }

@@ -665,7 +665,11 @@ complete_identified_selection_path (tree document, path p1, path p2, path root) 
   path parent= path_up (selected);
   if (is_nil (parent) || !has_subtree (document, parent)) return path ();
   tree container= subtree (document, parent);
-  return (is_document (container) || is_concat (container)) ? selected : path ();
+  if (is_document (container) || is_concat (container)) return selected;
+  // A complete identified range in a fixed content slot must also move its
+  // header. Ordinary character/range cuts retain it on the empty remainder.
+  return (is_atomic (value) || is_document (value) || is_concat (value)) ?
+    selected : path ();
 }
 
 } // namespace
@@ -1192,7 +1196,15 @@ edit_select_rep::selection_cut (string key) {
       observer pos= position_new (stable_right_boundary? p2: p1);
       if (!is_nil (complete_object)) {
         const path parent_path= path_up (complete_object);
-        remove (complete_object, 1);
+        const tree parent= subtree (et, parent_path);
+        if (is_document (parent) || is_concat (parent))
+          remove (complete_object, 1);
+        else {
+          // Fixed-arity owners keep their slot, but not the moved identity.
+          const tree value= subtree (et, complete_object);
+          assign (complete_object, is_document (value) ?
+            tree (DOCUMENT, "") : tree (""));
+        }
         // A complete identified paragraph is removed as an object so its UUID
         // can move rather than being duplicated on the empty remainder.  Keep
         // the containing document editable, though: ordinary range cuts have

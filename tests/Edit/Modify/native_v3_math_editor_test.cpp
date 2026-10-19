@@ -14,6 +14,7 @@
 #include "ATHENA/server.hpp"
 #include "Editor/edit_main.hpp"
 #include "Interface/auto_close.hpp"
+#include "Interface/generic_keyboard_commands.hpp"
 #include "Graphics/Gui/gui.hpp"
 #include "boot.hpp"
 #include "buffer_state.hpp"
@@ -22,6 +23,7 @@
 #include "tree_cursor.hpp"
 #include "drd_std.hpp"
 #include "node_metadata.hpp"
+#include "document_node_model.hpp"
 #include "scheme.hpp"
 #include "scheme_execution_context.hpp"
 #include "sys_utils.hpp"
@@ -102,6 +104,169 @@ class NativeV3MathEditorTest: public QObject {
   }
 
 private slots:
+  void escapePickerBracketsAreNative_data () {
+    QTest::addColumn<QString> ("action");
+    QTest::addColumn<QString> ("left");
+    QTest::addColumn<QString> ("right");
+    QTest::addColumn<QString> ("automatic");
+    QTest::addColumn<bool> ("selected");
+    for (const QString action: {QString ("angle"), QString ("norm")})
+      for (const QString automatic: {QString ("on"), QString ("off"),
+                                     QString ("mathematics")})
+        for (bool selected: {false, true}) {
+          const QByteArray name= (action + "-" + automatic +
+            (selected ? "-selected" : "-empty")).toUtf8 ();
+          QTest::newRow (name.constData ())
+            << ("tree:" + action + "-brackets")
+            << (action == "angle" ? QString::fromUtf8 ("⟨") : QString::fromUtf8 ("‖"))
+            << (action == "angle" ? QString::fromUtf8 ("⟩") : QString::fromUtf8 ("‖"))
+            << automatic << selected;
+        }
+  }
+  void escapePickerBracketsAreNative () {
+    QFETCH (QString, action);
+    QFETCH (QString, left);
+    QFETCH (QString, right);
+    QFETCH (QString, automatic);
+    QFETCH (bool, selected);
+    eval ("(import-from (math math-edit))");
+    SchemeExecutionContext context (nullptr, editor, &editor->drd,
+      &buffer->document, ATHENA_NO_ACTOR, ATHENA_NO_VIEW, 0,
+      SCHEME_CAPABILITY_BUFFER);
+    SchemeExecutionScope execution (context);
+    set_preference ("automatic brackets", string (automatic.toUtf8 ().constData ()));
+    const tree body= selected ? tree (CONCAT, "x", tree (FRAC, "a", "b")) : tree ("");
+    reset_inline (body);
+    if (selected)
+      editor->selection_set_paths (start (current_document_tree (), content_path ()),
+                                   end (current_document_tree (), content_path ()));
+    editor->start_editing ();
+    generic_escape_symbol_insert (string (action.toUtf8 ().constData ()));
+    editor->end_editing ();
+    verify_roundtrip ();
+    QCOMPARE (content (), athena::math_v3::delimited (
+      string (left.toUtf8 ().constData ()), string (right.toUtf8 ().constData ()),
+      'a', body));
+    QCOMPARE (editor->the_path (), end (current_document_tree (), content_path () * 5));
+  }
+  void escapePickerBracketsInTextStaySerializable () {
+    SchemeExecutionContext context (nullptr, editor, &editor->drd,
+      &buffer->document, ATHENA_NO_ACTOR, ATHENA_NO_VIEW, 0,
+      SCHEME_CAPABILITY_BUFFER);
+    SchemeExecutionScope execution (context);
+    for (const string preference: {string ("on"), string ("off"), string ("mathematics")})
+      for (bool angle: {true, false}) {
+        set_preference ("automatic brackets", preference);
+        buffer->storage_version= athena::document::xml_storage_version::v3;
+        set_document (buffer->document, buffer->root_path, tree (DOCUMENT, ""));
+        editor->go_to_start (buffer->root_path * 0);
+        QCOMPARE (editor->get_env_string (MODE), string ("text"));
+        editor->start_editing ();
+        generic_escape_symbol_insert (angle ? "tree:angle-brackets" : "tree:norm-brackets");
+        editor->end_editing ();
+        const string left= angle ? "⟨" : "‖";
+        const string right= angle ? "⟩" : "‖";
+        QCOMPARE (subtree (current_document_tree (), buffer->root_path),
+                  tree (DOCUMENT, preference == "on" ? left * right : left));
+        verify_roundtrip ();
+      }
+  }
+  void selectedNativeFormulaAcceptsBrackets_data () {
+    QTest::addColumn<bool> ("identified");
+    QTest::addColumn<bool> ("partial");
+    QTest::newRow ("whole") << false << false;
+    QTest::newRow ("partial") << false << true;
+    QTest::newRow ("identified-whole") << true << false;
+    QTest::newRow ("identified-partial") << true << true;
+  }
+  void selectedNativeFormulaAcceptsBrackets () {
+    QFETCH (bool, identified);
+    QFETCH (bool, partial);
+    with_borrowed_drd context (&editor->drd);
+    namespace model= athena::document_node;
+    tree accent (MATH_ACCENT, "\xcc\x87", "o", "\xce\xb3");
+    athena::node::metadata accent_meta;
+    accent_meta.properties["math:accent-stretch"]=
+      athena::node::property (false);
+    athena::node::set (accent, accent_meta);
+    tree scripts= athena::math_v3::scripts ("\xe2\x88\x87", "", "", accent, "");
+    tree expression (CONCAT, scripts, "*", "V");
+    if (identified) {
+      athena::node::metadata expression_meta;
+      expression_meta.id= athena::node::new_id ();
+      athena::node::set (expression, expression_meta);
+      athena::node::edit (scripts)->id= athena::node::new_id ();
+      athena::node::edit (accent)->id= athena::node::new_id ();
+    }
+    if (partial) {
+      tree surrounding (CONCAT, "x", "+", scripts, "*", "V", "+", "y");
+      athena::node::copy_metadata (expression, surrounding);
+      expression= surrounding;
+    }
+    reset_inline (expression);
+    const auto assigned= model::assign_detached_source_ids (
+      subtree (current_document_tree (), buffer->root_path), editor->drd,
+      model::standard_source_role, [] (const auto&) { return athena::node::new_id (); });
+    QVERIFY2 (assigned.ok (), assigned.diagnostics.empty () ? "No source body" :
+              assigned.diagnostics.front ().detail.c_str ());
+    set_document (buffer->document, buffer->root_path, *assigned.body);
+    editor->clear_undo_history ();
+    buffer->node_identities= std::make_unique<model::source_identity_state> ();
+    QVERIFY (buffer->node_identities->initialize_complete (
+      *assigned.body, editor->drd, model::standard_source_role).empty ());
+    const tree before= copy (*assigned.body);
+    editor->archive_state ();
+    editor->selection_set_paths (content_path () * path (partial ? 2 : 0, 0),
+                                content_path () * path (partial ? 4 : 2, 1));
+    QVERIFY (editor->selection_active_normal ());
+    const tree selected= copy (editor->selection_get ());
+    editor->start_editing ();
+    editor->math_bracket_open ("(", ")", 1);
+    const auto plan= buffer->node_identities->prepare (
+      subtree (current_document_tree (), buffer->root_path), editor->drd,
+      model::standard_source_role, [] (const auto&) { return athena::node::new_id (); });
+    editor->end_editing ();
+    QVERIFY2 (plan.ok (), plan.diagnostics.empty () ? "Invalid edit" :
+              plan.diagnostics.front ().detail.c_str ());
+    if (partial) QVERIFY (is_concat (content ()) && N(content ()) > 2);
+    const tree enclosed= partial ? content ()[1] : content ();
+    QVERIFY (athena::math_v3::valid_delimited (enclosed));
+    QCOMPARE (enclosed[5], selected);
+    verify_roundtrip ();
+    const tree after= copy (subtree (current_document_tree (), buffer->root_path));
+    editor->undo (0);
+    QCOMPARE (subtree (current_document_tree (), buffer->root_path), before);
+    editor->redo (0);
+    QCOMPARE (subtree (current_document_tree (), buffer->root_path), after);
+  }
+  void cutIdentifiedFixedContentTransfersHeader () {
+    with_borrowed_drd context (&editor->drd);
+    for (tree value: {tree ("xy"), tree (CONCAT, "x", tree (FRAC, "a", "b")),
+                      tree (DOCUMENT, "x", "y")}) {
+      athena::node::metadata meta;
+      meta.id= athena::node::new_id ();
+      meta.properties["test:selection"]= athena::node::property (true);
+      athena::node::set (value, meta);
+      const tree before (DOCUMENT, tree (WITH, MODE, "text", value));
+      set_document (buffer->document, buffer->root_path, copy (before));
+      editor->clear_undo_history ();
+      const path slot= buffer->root_path * path (0, 2);
+      editor->selection_set_paths (start (current_document_tree (), slot),
+                                   end (current_document_tree (), slot));
+      editor->archive_state ();
+      editor->start_editing ();
+      const tree selected= editor->selection_get_cut ();
+      editor->end_editing ();
+      QCOMPARE (athena::node::id (selected), meta.id);
+      QVERIFY (athena::node::equal_metadata (selected, value));
+      const tree owner= subtree (current_document_tree (), path_up (slot));
+      QVERIFY (is_func (owner, WITH, 3));
+      QCOMPARE (owner[2], is_document (value) ? tree (DOCUMENT, "") : tree (""));
+      QVERIFY (!athena::node::get (owner[2]));
+      editor->undo (0);
+      QCOMPARE (subtree (current_document_tree (), buffer->root_path), before);
+    }
+  }
   void displayFocusExcludesPrecedingParagraphs () {
     tree grid (MATH_GRID,
       tree (ROW, tree (CELL, "x"), tree (CELL, "="), tree (CELL, "y")),

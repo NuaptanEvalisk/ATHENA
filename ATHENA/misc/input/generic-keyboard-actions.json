@@ -164,24 +164,18 @@
     },
     "tree:angle-brackets": {
       "kind": "scheme-call",
-      "function": "math-bracket-open",
+      "function": "make-bracket-open",
       "args": [
-        "<langle>",
-        "<rangle>",
-        {
-          "symbol": "default"
-        }
+        "⟨",
+        "⟩"
       ]
     },
     "tree:norm-brackets": {
       "kind": "scheme-call",
-      "function": "math-bracket-open",
+      "function": "make-bracket-open",
       "args": [
-        "<||>",
-        "<||>",
-        {
-          "symbol": "default"
-        }
+        "‖",
+        "‖"
       ]
     },
     "tree:math-ss": {

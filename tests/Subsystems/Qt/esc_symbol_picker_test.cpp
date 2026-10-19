@@ -55,7 +55,16 @@ private slots:
   void cleanupTestCase () {
     qInstallMessageHandler (previous_handler);
   }
+  void returnsSelectionOnUiThread_data () {
+    QTest::addColumn<QString> ("query");
+    QTest::addColumn<QString> ("action");
+    QTest::newRow ("alpha") << QString ("a") << QString ("alpha");
+    QTest::newRow ("angle-brackets") << QString ("<") << QString ("tree:angle-brackets");
+    QTest::newRow ("norm-brackets") << QString ("|") << QString ("tree:norm-brackets");
+  }
   void returnsSelectionOnUiThread () {
+    QFETCH (QString, query);
+    QFETCH (QString, action);
     bool selected= false;
     QTimer select;
     connect (&select, &QTimer::timeout, this, [&] {
@@ -64,12 +73,12 @@ private slots:
       select.stop ();
       QCOMPARE (picker->thread (), qApp->thread ());
       auto* search= picker->findChild<QLineEdit*> ();
-      search->setText ("a");
+      QTest::keyClicks (search, query);
       selected= true;
       QTest::keyClick (search, Qt::Key_Escape);
     });
     select.start (10);
-    QCOMPARE (escape_symbol_picker_dialog (), string ("alpha"));
+    QCOMPARE (escape_symbol_picker_dialog (), string (action.toUtf8 ().constData ()));
     QVERIFY (selected);
     QVERIFY (!affinity_warning.load ());
   }
