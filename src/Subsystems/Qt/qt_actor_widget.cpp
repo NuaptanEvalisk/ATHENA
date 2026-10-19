@@ -342,7 +342,8 @@ qt_actor_widget_rep::handle_user_scroll (time_t time) {
 void
 qt_actor_widget_rep::handle_mouse (
   string kind, SI x, SI y, int modifiers, time_t time, array<double> data) {
-  if (kind == "move" && (modifiers & 1) && endpoint_->image_resize_active ()) {
+  if (kind == "move" && (modifiers & 1) &&
+      (endpoint_->image_resize_active () || endpoint_->table_resize_active ())) {
     pending_resize_motion_= resize_motion {x, y, modifiers, time, std::move (data)};
     if (resize_motions_in_flight_ == 0) flush_resize_motion ();
     return;

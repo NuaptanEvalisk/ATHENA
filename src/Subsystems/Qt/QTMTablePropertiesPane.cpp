@@ -9,6 +9,10 @@
 
 #include "QTMMainTabWindow.hpp"
 #include "new_buffer.hpp"
+#include "new_view.hpp"
+#include "tm_buffer.hpp"
+#include "tm_window.hpp"
+#include "buffer_actor.hpp"
 #include "qt_utilities.hpp"
 #include "scheme.hpp"
 #include "server.hpp"
@@ -18,6 +22,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QFormLayout>
+#include <QElapsedTimer>
 #include <QGroupBox>
 #include <QLabel>
 #include <QLineEdit>
@@ -29,11 +34,31 @@
 #include <QThread>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <chrono>
+#include <future>
 
 namespace {
 
 QString qs (string s) { return utf8_to_qstring (s); }
 string ts (const QString& s) { return from_qstring_utf8 (s); }
+
+bool postToBuffer (url buffer, std::function<void()> action) {
+  // Poll existing visible views only; never recreate one after its tab closes.
+  tm_view view= concrete_view (get_recent_view (buffer, true, false, true, false));
+  if (view == nullptr) return false;
+  auto id= actor_continuation_registry::instance ().store (std::move (action));
+  if (view->buf->actor->try_submit (
+        actor_command_kind::run_native_continuation, view->runtime_id,
+        ATHENA_NO_BLOB, ATHENA_NO_BLOB,
+        SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_UI, id)) return true;
+  (void) actor_continuation_registry::instance ().discard (id);
+  return false;
+}
+
+struct PropertySnapshot {
+  QMap<QString,QString> values;
+  int rows= 1, columns= 1;
+};
 
 class QTMTablePropertiesPane: public QWidget {
 public:
@@ -46,13 +71,16 @@ public:
     tabs->addTab (buildSpacingTab (), "Borders & spacing");
     tabs->addTab (buildLayoutTab (), "Layout");
     root->addWidget (tabs, 1);
-    refreshTimer->setInterval (500);
+    refreshTimer->setInterval (50);
     connect (refreshTimer, &QTimer::timeout, this, [this] () { refresh (); });
     refreshTimer->start ();
-    refresh ();
   }
 
-  void retarget (url buffer) { targetBuffer= buffer; refresh (); }
+  void retarget (url buffer) {
+    targetBuffer= buffer;
+    ++generation;
+    lastRefresh.invalidate ();
+  }
 
 private:
   QWidget* page (QFormLayout*& form) {
@@ -65,31 +93,27 @@ private:
     return scroll;
   }
 
-  QString get (const QString& key) const {
-    if (is_none (targetBuffer)) return QString ();
-    try {
-      object value= qt_call_in_buffer (
-        targetBuffer, cellMode ? "cell-get-format" : "table-get-format",
-        object (ts (key)));
-      return qs (as_string (value));
-    }
-    catch (...) { return QString (); }
-  }
-
   void set (const QString& key, const QString& value) {
     if (loading || is_none (targetBuffer)) return;
-    try {
-      qt_call_in_buffer (
-        targetBuffer, cellMode ? "cell-set-format*" : "table-set-format*",
-        object (ts (key)), object (ts (value)));
-    }
-    catch (...) {}
+    const bool cell= cellMode;
+    postEdit ([cell, key, value] {
+      call (cell ? "cell-set-format*" : "table-set-format*",
+            object (ts (key)), object (ts (value)));
+    });
   }
 
-  int integer (const char* function, int fallback) const {
-    if (is_none (targetBuffer)) return fallback;
-    try { return as_int (qt_call_in_buffer (targetBuffer, function)); }
-    catch (...) { return fallback; }
+  void postEdit (std::function<void()> action) {
+    if (postToBuffer (targetBuffer, std::move (action))) {
+      ++generation;
+      lastRefresh.invalidate ();
+    }
+  }
+
+  void setExtents (int rowCount, int columnCount) {
+    if (loading || is_none (targetBuffer)) return;
+    postEdit ([rowCount, columnCount] {
+      call ("table-set-extents", object (rowCount), object (columnCount));
+    });
   }
 
   QLineEdit* line (QFormLayout* form, const QString& label,
@@ -98,7 +122,11 @@ private:
     lines[key]= edit;
     form->addRow (label + ":", edit);
     connect (edit, &QLineEdit::editingFinished, this,
-             [this, key, edit] () { set (key, edit->text ()); });
+             [this, key, edit] () {
+      if (!edit->isModified ()) return;
+      set (key, edit->text ());
+      edit->setModified (false);
+    });
     return edit;
   }
 
@@ -138,17 +166,11 @@ private:
       form->addRow ("Columns:", columns);
       connect (rows, QOverload<int>::of (&QSpinBox::valueChanged),
                this, [this] (int value) {
-        if (!loading && !is_none (targetBuffer))
-          try { qt_call_in_buffer (targetBuffer, "table-set-extents",
-                                   object (value), object (columns->value ())); }
-          catch (...) {}
+        setExtents (value, columns->value ());
       });
       connect (columns, QOverload<int>::of (&QSpinBox::valueChanged),
                this, [this] (int value) {
-        if (!loading && !is_none (targetBuffer))
-          try { qt_call_in_buffer (targetBuffer, "table-set-extents",
-                                   object (rows->value ()), object (value)); }
-          catch (...) {}
+        setExtents (rows->value (), value);
       });
       line (form, "Minimum rows", "table-min-rows");
       line (form, "Maximum rows", "table-max-rows");
@@ -208,26 +230,62 @@ private:
   }
 
   void refresh () {
+    if (!isVisible ()) return;
     url currentBuffer= get_current_buffer_safe ();
     if (!is_none (currentBuffer) &&
         (is_none (targetBuffer) ||
          as_string (currentBuffer) != as_string (targetBuffer)))
-      targetBuffer= currentBuffer;
+      retarget (currentBuffer);
     if (is_none (targetBuffer)) return;
+    if (pending.valid ()) {
+      if (pending.wait_for (std::chrono::seconds (0)) != std::future_status::ready)
+        return;
+      try {
+        auto snapshot= pending.get ();
+        if (requestedGeneration == generation) applySnapshot (snapshot);
+      }
+      catch (...) { /* The target view may have closed during the request. */ }
+    }
+    if (lastRefresh.isValid () && lastRefresh.elapsed () < 500) return;
+    QStringList keys= lines.keys ();
+    keys.append (combos.keys ());
+    if (!cellMode) keys.append ("table-hyphen");
+    const bool cell= cellMode;
+    // A single actor-owned snapshot; never block Qt on individual fields.
+    auto task= std::make_shared<std::packaged_task<PropertySnapshot()>> (
+      [cell, keys] {
+        PropertySnapshot snapshot;
+        for (const auto& key: keys)
+          snapshot.values[key]= qs (as_string (call (
+            cell ? "cell-get-format" : "table-get-format", object (ts (key)))));
+        if (!cell) {
+          snapshot.rows= as_int (call ("table-nr-rows"));
+          snapshot.columns= as_int (call ("table-nr-columns"));
+        }
+        return snapshot;
+      });
+    pending= task->get_future ();
+    requestedGeneration= generation;
+    postToBuffer (targetBuffer, [task] { (*task) (); });
+    lastRefresh.start ();
+  }
+
+  void applySnapshot (const PropertySnapshot& snapshot) {
     loading= true;
     for (auto it= lines.begin (); it != lines.end (); ++it) {
-      QString value= get (it.key ());
+      QString value= snapshot.values.value (it.key ());
       if (!it.value ()->hasFocus ()) it.value ()->setText (value);
     }
     for (auto it= combos.begin (); it != combos.end (); ++it) {
-      QString value= get (it.key ());
+      QString value= snapshot.values.value (it.key ());
       int index= it.value ()->findData (value);
-      if (index >= 0) it.value ()->setCurrentIndex (index);
+      if (index >= 0 && !it.value ()->hasFocus ())
+        it.value ()->setCurrentIndex (index);
     }
     if (!cellMode) {
-      rows->setValue (integer ("table-nr-rows", 1));
-      columns->setValue (integer ("table-nr-columns", 1));
-      pageBreak->setChecked (get ("table-hyphen") == "y");
+      if (!rows->hasFocus ()) rows->setValue (snapshot.rows);
+      if (!columns->hasFocus ()) columns->setValue (snapshot.columns);
+      pageBreak->setChecked (snapshot.values.value ("table-hyphen") == "y");
     }
     loading= false;
   }
@@ -241,6 +299,9 @@ private:
   QSpinBox* columns= nullptr;
   QCheckBox* pageBreak= nullptr;
   QTimer* refreshTimer;
+  QElapsedTimer lastRefresh;
+  std::future<PropertySnapshot> pending;
+  unsigned long long generation= 0, requestedGeneration= 0;
 };
 
 QTMTablePropertiesPane* cellWidget= nullptr;

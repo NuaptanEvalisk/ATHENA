@@ -106,6 +106,7 @@ protected:
   int           table_resize_row, table_resize_column;
   SI            table_resize_start_x, table_resize_start_y;
   SI            table_resize_initial_size;
+  string        table_resize_value;
   rectangles    selection_rects;
   array<rectangles> alt_selection_rects;
   array<rectangles> spell_selection_rects;

@@ -1,6 +1,6 @@
 /******************************************************************************
 * MODULE     : table_resize_test.cpp
-* DESCRIPTION: Mathematical layout tables cannot be resized with the mouse
+* DESCRIPTION: Table resize geometry, incremental layout and math exclusions
 * COPYRIGHT  : (C) 2026 Felix
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -9,10 +9,98 @@
 
 #include <QtTest/QtTest>
 #include "table_resize.hpp"
+#include "ATHENA/server.hpp"
+#include "Editor/edit_main.hpp"
+#include "Graphics/Gui/gui.hpp"
+#include "boot.hpp"
+#include "buffer_state.hpp"
+#include "data_cache.hpp"
+#include "scheme.hpp"
+#include "sys_utils.hpp"
+#include <cstdlib>
+#include <unistd.h>
+
+bool headless_mode= true;
+bool is_headless () { return true; }
+static server_rep* test_server= nullptr;
+
+class TableTestEditor: public edit_main_rep {
+public:
+  TableTestEditor (buffer_document_state* buffer):
+    editor_rep (test_server, buffer), edit_main_rep (test_server, buffer) {}
+  void* derived_this () override { return this; }
+  using edit_interface_rep::table_cell_bounds;
+  using edit_interface_rep::table_resize_start;
+  using edit_interface_rep::table_resize_update;
+  using edit_interface_rep::table_resize_finish;
+};
 
 class TableResizeTest: public QObject {
   Q_OBJECT
 private slots:
+  void resizePreservesGeometryAndLocalInvalidation () {
+    for (double zoom: {0.75, 1.0, 1.5, 2.0}) {
+      auto* buffer= tm_new<buffer_document_state> (
+        nullptr, "tmfs://table-resize-test", "", "UTF-8", false, 0);
+      swap_current_document_tree (&buffer->document);
+      tree nested= compound ("subtable", tree (TFORMAT, tree (TABLE,
+        tree (ROW, tree (CELL, "Nested table with a longer line")),
+        tree (ROW, tree (CELL, "Second nested row")))));
+      tree table (TABLE,
+        tree (ROW, tree (CELL, tree (WITH, "font-series", "bold", "Name")),
+                   tree (CELL, "Value")),
+        tree (ROW, tree (CELL, "Details"), tree (CELL, nested)));
+      set_document (buffer->document, buffer->root_path,
+        tree (DOCUMENT, compound ("tabular", tree (TFORMAT, table))));
+      auto* editor= tm_new<TableTestEditor> (buffer);
+      editor->init_style ("generic");
+      editor->set_zoom_factor (zoom);
+      path fp= buffer->root_path * 0 * 0;
+      editor->go_to_start (fp * 0 * 0 * 0 * 0);
+      editor->typeset_forced ();
+      rectangle before;
+      QVERIFY (editor->table_cell_bounds (fp, 0, 0, before));
+      SI x= before->x2, y= (before->y1 + before->y2) / 2;
+      SI delta= 24 * editor->get_pixel_size ();
+      QVERIFY (editor->table_resize_start (x, y));
+      editor->notify_change (0, THE_TREE | THE_ENVIRONMENT);
+      QVERIFY (editor->table_resize_update (x, y));
+      QVERIFY (!editor->has_changed (THE_TREE | THE_ENVIRONMENT));
+      QVERIFY (editor->table_resize_update (x + delta, y));
+      QVERIFY (!editor->has_changed (THE_ENVIRONMENT));
+      editor->typeset_forced ();
+      rectangle after;
+      QVERIFY (editor->table_cell_bounds (fp, 0, 0, after));
+      QCOMPARE (after->x2 - after->x1, before->x2 - before->x1 + delta);
+
+      // The drag recognizer sends another start after the press. It must not
+      // replace the original geometry or make a repeated move an edit.
+      QVERIFY (editor->table_resize_start (x + delta, y));
+      editor->notify_change (0, THE_TREE | THE_ENVIRONMENT);
+      QVERIFY (editor->table_resize_update (x + delta, y));
+      QVERIFY (!editor->has_changed (THE_TREE | THE_ENVIRONMENT));
+      QVERIFY (editor->table_resize_update (x + 2 * delta, y));
+      editor->typeset_forced ();
+      QVERIFY (editor->table_cell_bounds (fp, 0, 0, after));
+      QCOMPARE (after->x2 - after->x1, before->x2 - before->x1 + 2 * delta);
+      editor->table_resize_finish ();
+
+      SI rowY= after->y1;
+      SI rowX= (after->x1 + after->x2) / 2;
+      SI height= after->y2 - after->y1;
+      QVERIFY (editor->table_resize_start (rowX, rowY));
+      editor->notify_change (0, THE_TREE | THE_ENVIRONMENT);
+      QVERIFY (editor->table_resize_update (rowX, rowY - delta));
+      QVERIFY (!editor->has_changed (THE_ENVIRONMENT));
+      editor->typeset_forced ();
+      QVERIFY (editor->table_cell_bounds (fp, 0, 0, after));
+      QCOMPARE (after->y2 - after->y1, height + delta);
+      editor->table_resize_finish ();
+      tm_delete<editor_rep> (editor);
+      swap_current_document_tree (nullptr);
+      tm_delete (buffer);
+    }
+  }
   void protectsEquationLayout () {
     tree table (TABLE, tree (ROW, tree (CELL, "x")));
     QVERIFY (table_mouse_resize_allowed (tree (DOCUMENT, table), path (0)));
@@ -48,5 +136,28 @@ private slots:
   }
 };
 
-QTEST_MAIN (TableResizeTest)
+static int test_status= 1;
+static void run_tests (int argc, char** argv) {
+  init_system_state ();
+  gui_open (argc, argv);
+  server sv;
+  test_server= sv->get_server ();
+  eval ("(begin (tm-define (notify-cursor-moved status) #f) "
+        "(tm-define (like-emacs?) #f))");
+  TableResizeTest test;
+  test_status= QTest::qExec (&test, argc, argv);
+  std::_Exit (test_status);
+}
+
+int main (int argc, char** argv) {
+  qputenv ("QT_QPA_PLATFORM", "offscreen");
+  QApplication app (argc, argv);
+  set_env ("ATHENA_HOME_PATH", "/tmp/athena-table-resize-test-" *
+           as_string ((int) getpid ()));
+  cache_initialize ();
+  reset_document_tree (current_document_tree ());
+  init_athena ();
+  start_scheme (argc, argv, run_tests);
+  return test_status;
+}
 #include "table_resize_test.moc"

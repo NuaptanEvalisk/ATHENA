@@ -353,6 +353,7 @@ edit_interface_rep::table_resize_handle_at (SI x, SI y, path& best_fp,
 
 bool
 edit_interface_rep::table_resize_start (SI x, SI y) {
+  if (table_resize_active) return true;
   path fp;
   int row= 0, column= 0;
   rectangle r;
@@ -361,6 +362,8 @@ edit_interface_rep::table_resize_start (SI x, SI y) {
 
   if (is_func (subtree (et, fp), TABLE)) insert_node (fp * 0, TFORMAT);
   table_resize_active= true;
+  if (ui_endpoint) ui_endpoint->set_table_resize_active (true);
+  table_resize_value= "";
   table_resize_handle= handle;
   table_resize_format_path= fp;
   table_resize_row= row;
@@ -389,27 +392,33 @@ edit_interface_rep::table_resize_update (SI x, SI y) {
     x - table_resize_start_x : table_resize_start_y - y;
   SI min_size= max (as_length ("16px"), (SI) 1);
   SI final_size= max (table_resize_initial_size + delta, min_size);
-  SI px_len= (SI) tm_round (((double) max (as_length ("1px"), (SI) 1)) *
-                            zoomf);
-  px_len= max (px_len, (SI) 1);
-  int size_px= (int) max ((SI) 1,
-    (SI) tm_round (((double) final_size) / ((double) px_len)));
-  tree value (as_string (size_px) * "px");
+  // Mouse positions and cell boxes are already in typesetter coordinates.
+  // Persist that length directly: multiplying the px unit by zoom once more
+  // makes a small rightward drag shrink the column at zoom factors above one.
+  string length= as_string (final_size) * "tmpt";
+  if (length == table_resize_value ||
+      (table_resize_value == "" && delta == 0)) return true;
+  bool first= table_resize_value == "";
+  table_resize_value= length;
+  tree value (length);
 
   if (table_resize_handle == TABLE_RESIZE_COLUMN) {
     table_set_format (fp, 1, table_resize_column + 1, -1,
                       table_resize_column + 1, CELL_WIDTH, value);
-    table_set_format (fp, 1, table_resize_column + 1, -1,
-                      table_resize_column + 1, CELL_HMODE, tree ("exact"));
+    if (first)
+      table_set_format (fp, 1, table_resize_column + 1, -1,
+                        table_resize_column + 1, CELL_HMODE, tree ("exact"));
   }
   else {
     table_set_format (fp, table_resize_row + 1, 1,
                       table_resize_row + 1, -1, CELL_HEIGHT, value);
-    table_set_format (fp, table_resize_row + 1, 1,
-                      table_resize_row + 1, -1, CELL_VMODE, tree ("exact"));
+    if (first)
+      table_set_format (fp, table_resize_row + 1, 1,
+                        table_resize_row + 1, -1, CELL_VMODE, tree ("exact"));
   }
 
-  notify_change (THE_TREE + THE_ENVIRONMENT);
+  // The format edits already notify their owning bridge. Do not invalidate
+  // the entire document and its environment on every pointer sample.
   return true;
 }
 
@@ -417,6 +426,8 @@ void
 edit_interface_rep::table_resize_finish () {
   if (!table_resize_active) return;
   table_resize_active= false;
+  if (ui_endpoint) ui_endpoint->set_table_resize_active (false);
+  table_resize_value= "";
   table_resize_handle= TABLE_RESIZE_NONE;
   table_resize_format_path= path ();
   (void) publish_ui (actor_command_kind::ui_mouse_grab, 0);
