@@ -332,9 +332,13 @@ concater_rep::typeset_v3_delimited (tree t, path ip) {
                         desired_bottom, desired_top);
     print (STD_ITEM, left ? OP_OPENING_BRACKET : OP_CLOSING_BRACKET, b);
   };
+  // Descriptor glyphs are not editable children. Expose the enclosing
+  // node's borders so navigation can stop outside the pair inside mathematics.
+  marker (descend (ip, 0));
   bracket (t[0], 0, true);
   print (body);
   bracket (t[1], 1, false);
+  marker (descend (ip, 1));
 }
 
 void

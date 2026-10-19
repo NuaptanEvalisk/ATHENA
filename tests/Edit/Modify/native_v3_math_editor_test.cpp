@@ -18,8 +18,11 @@
 #include "buffer_state.hpp"
 #include "data_cache.hpp"
 #include "math_tree_v3.hpp"
+#include "tree_cursor.hpp"
+#include "drd_std.hpp"
 #include "node_metadata.hpp"
 #include "scheme.hpp"
+#include "scheme_execution_context.hpp"
 #include "sys_utils.hpp"
 #include "Xml/athena_document_xml.hpp"
 
@@ -29,6 +32,7 @@ static server_rep* test_server= nullptr;
 
 class NativeMathEditor: public edit_main_rep {
 public:
+  using editor_rep::drd;
   NativeMathEditor (server_rep* server, buffer_document_state* buffer):
     editor_rep (server, buffer), edit_main_rep (server, buffer) {}
   void* derived_this () override { return this; }
@@ -38,6 +42,7 @@ class NativeV3MathEditorTest: public QObject {
   Q_OBJECT
   buffer_document_state* buffer= nullptr;
   NativeMathEditor* editor= nullptr;
+  ::editor editor_owner;
   string previous_brackets;
 
   path content_path () const { return buffer->root_path * path (0, 0); }
@@ -76,12 +81,13 @@ private slots:
     buffer->data->init (ZOOM_FACTOR)= "1";
     set_document (buffer->document, buffer->root_path, tree (DOCUMENT, ""));
     editor= tm_new<NativeMathEditor> (test_server, buffer);
+    editor_owner= ::editor (editor);
     editor->init_style ("generic");
     editor->typeset_preamble ();
   }
   void cleanup () {
     set_preference ("automatic brackets", previous_brackets);
-    tm_delete<editor_rep> (editor);
+    editor_owner= ::editor ();
     swap_current_document_tree (nullptr);
     tm_delete (buffer);
   }
@@ -451,6 +457,57 @@ private slots:
     QVERIFY (content () == before);
     QVERIFY (editor->the_path () == end (current_document_tree (), content_path ()));
     verify_roundtrip ();
+  }
+  void arrowKeysStopOutsideDelimitersInsideMath () {
+    with_borrowed_drd context (&editor->drd);
+    for (char sizing: {'a', 'f', 'm'})
+      for (const tree& body: {tree (""), tree ("x"), tree (FRAC, "a", "b")}) {
+        reset_inline (athena::math_v3::delimited ("(", ")", sizing, body,
+          sizing == 'm' ? "1" : "", sizing == 'm' ? "2" : ""));
+        editor->typeset_forced ();
+        editor->notify_change (0, THE_TREE | THE_ENVIRONMENT);
+        const tree before= copy (content ());
+        editor->go_to_end (content_path () * 5);
+        editor->go_right ();
+        QVERIFY (editor->the_path () == end (current_document_tree (), content_path ()));
+        QCOMPARE (editor->get_env_string (MODE), string ("math"));
+        editor->go_right ();
+        QCOMPARE (editor->get_env_string (MODE), string ("text"));
+        editor->go_to_start (content_path () * 5);
+        editor->go_left ();
+        QVERIFY (editor->the_path () == start (current_document_tree (), content_path ()));
+        QCOMPARE (editor->get_env_string (MODE), string ("math"));
+        QCOMPARE (content (), before);
+      }
+    reset_inline (athena::math_v3::delimited ("(", ")", 'a',
+      athena::math_v3::delimited ("[", "]", 'a', "x")));
+    editor->typeset_forced ();
+    editor->notify_change (0, THE_TREE | THE_ENVIRONMENT);
+    editor->go_to_end (content_path () * path (5, 5));
+    editor->go_right ();
+    QVERIFY (editor->the_path () == end (current_document_tree (), content_path () * 5));
+    editor->go_right ();
+    QVERIFY (editor->the_path () == end (current_document_tree (), content_path ()));
+  }
+  void hybridBigOperatorsAcceptScriptsInV3 () {
+    SchemeExecutionContext context (nullptr, editor, &editor->drd,
+      &buffer->document, 0, 0, 0, SCHEME_CAPABILITY_BUFFER);
+    SchemeExecutionScope scope (context);
+    for (const char* name: {"prod", "sum", "int", "coprod"}) {
+      reset_inline ("");
+      editor->start_editing ();
+      editor->make_hybrid ();
+      editor->insert_tree (name);
+      editor->activate_hybrid (false);
+      QVERIFY (is_func (content (), BIG_OPERATOR, 2));
+      editor->make_script (false, true);
+      editor->insert_tree ("i");
+      editor->end_editing ();
+      QVERIFY (athena::math_v3::valid_scripts (content ()));
+      QVERIFY (is_func (content ()[0], BIG_OPERATOR, 2));
+      QCOMPARE (content ()[3], tree ("i"));
+      verify_roundtrip ();
+    }
   }
   void nativeDelimiterDeletionHandlersPreservePair () {
     for (bool forward: {false, true}) {

@@ -5,6 +5,7 @@
 *******************************************************************************/
 
 #include "native_latex_commands.hpp"
+#include "auto_close.hpp"
 #include "editor.hpp"
 #include "file.hpp"
 #include "generic_editor_commands.hpp"
@@ -151,7 +152,8 @@ void execute_action (const QJsonObject& action) {
   else if (op == "emulate-keyboard")
     ed->emulate_keyboard (native_string (action.value ("keys")));
   else if (op == "insert-big")
-    ed->insert_tree (tree (BIG, native_tree (action.value ("value"))));
+    athena::auto_close::insert_big_operator (
+      ed.operator-> (), native_tree (action.value ("value")));
   else if (op == "bracket-open")
     ed->math_bracket_open (native_string (action.value ("left")),
                            native_string (action.value ("right")), 1);
