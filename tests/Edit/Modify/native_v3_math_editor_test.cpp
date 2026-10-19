@@ -33,6 +33,7 @@ static server_rep* test_server= nullptr;
 class NativeMathEditor: public edit_main_rep {
 public:
   using editor_rep::drd;
+  using editor_rep::eb;
   NativeMathEditor (server_rep* server, buffer_document_state* buffer):
     editor_rep (server, buffer), edit_main_rep (server, buffer) {}
   void* derived_this () override { return this; }
@@ -72,6 +73,52 @@ class NativeV3MathEditorTest: public QObject {
   }
 
 private slots:
+  void emptyInlineScriptFocusStaysInsideEnunciationFormula_data () {
+    QTest::addColumn<bool> ("sup");
+    QTest::addColumn<bool> ("right");
+    QTest::newRow ("right-subscript") << false << true;
+    QTest::newRow ("right-superscript") << true << true;
+    QTest::newRow ("left-subscript") << false << false;
+    QTest::newRow ("left-superscript") << true << false;
+  }
+  void emptyInlineScriptFocusStaysInsideEnunciationFormula () {
+    QFETCH (bool, sup);
+    QFETCH (bool, right);
+    buffer->storage_version= athena::document::xml_storage_version::v3;
+    tree statement (make_tree_label ("enunciation"), tree (DOCUMENT,
+      tree (CONCAT, "The law ", compound ("math", "P"))));
+    athena::node::metadata meta;
+    meta.id= athena::node::new_id ();
+    meta.properties["kind"]= athena::node::property (std::string ("theorem"));
+    meta.properties["name"]= athena::node::property (athena::node::rich_text {tree ("")});
+    meta.properties["numbered"]= athena::node::property (false);
+    athena::node::set (statement, meta);
+    set_document (buffer->document, buffer->root_path, tree (DOCUMENT, statement));
+    const path scripts= buffer->root_path * path (0, 0, 0) * path (1, 0);
+    editor->go_to_end (scripts);
+    editor->start_editing ();
+    editor->make_script (sup, right);
+    editor->end_editing ();
+    QVERIFY (athena::math_v3::valid_scripts (subtree (current_document_tree (), scripts)));
+    const int slot= right ? (sup ? 4 : 3) : (sup ? 2 : 1);
+    QVERIFY (editor->the_path () == scripts * path (slot, 0));
+    editor->typeset_forced ();
+    for (int side: {0, 1}) {
+      bool found= false;
+      editor->eb->find_box_path (scripts * side, found);
+      QVERIFY2 (found, "Script owner boundary has no rendered box");
+    }
+    selection selected= editor->eb->find_check_selection (scripts * 0, scripts * 1);
+    QVERIFY (selected->valid);
+    QVERIFY (N(selected->rs) > 0);
+    for (rectangles rs= selected->rs; !is_nil (rs); rs= rs->next)
+      QVERIFY (rs->item->x2-rs->item->x1 < (editor->eb->x2-editor->eb->x1)/3);
+    rectangles focus;
+    editor->compute_env_rects (scripts, focus, false, PIXEL);
+    QVERIFY (N(focus) > 0);
+    for (rectangles rs= focus; !is_nil (rs); rs= rs->next)
+      QVERIFY (rs->item->x2-rs->item->x1 < (editor->eb->x2-editor->eb->x1)/3);
+  }
   void inlineFormulaBackspaceTakesThreeSteps () {
     reset_inline ("X");
     const path formula= buffer->root_path * 0;

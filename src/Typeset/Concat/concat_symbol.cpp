@@ -144,6 +144,10 @@ void concater_rep::typeset_native_symbol_identity (
   if (symbol && symbol->recipe) {
     glyph= render_native_symbol_recipe (
       *symbol->recipe, decorate (ip), env->fn, env->pen, symbol->italic, math_mode, bg);
+    // Recipes transform around their own centers. Inline composition advances
+    // by x2, so publish the completed symbol with its logical left edge at zero.
+    if (glyph->x1 != 0)
+      glyph= move_box (decorate (ip), glyph, -glyph->x1, 0, false, true);
     if (math_mode) glyph= center_native_symbol_on_axis (decorate (ip), glyph, env->fn);
   }
   else

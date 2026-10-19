@@ -51,6 +51,53 @@ letter_font (box b) {
 class PreviewMathFontTest: public QObject {
   Q_OBJECT
 private slots:
+  void transformedNamedSymbolsHaveInlineOrigins () {
+    drd_info drd ("transformed-symbol-origins", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    for (const char* family: {"TeX Gyre Pagella", "roman"})
+      for (const char* size: {"10", "12", "18"}) {
+        env->write (FONT, family);
+        env->write (FONT_BASE_SIZE, size);
+        env->write (MODE, "math");
+        env->update ();
+        tree symbol (NAMED_SYMBOL, "texmacs:longequal");
+        box equal= typeset_as_concat (env, tree ("="), path (0));
+        box stretched= typeset_as_concat (env, symbol, path (0));
+        QVERIFY (stretched->w () > equal->w ());
+        QCOMPARE (stretched->x1, SI (0));
+        box sequence= typeset_as_concat (env, tree (CONCAT, ")", symbol, "X"), path (0));
+        QVERIFY (N(sequence) >= 3);
+        for (int i=1; i<N(sequence); ++i)
+          QVERIFY (sequence->sx1 (i) >= sequence->sx2 (i-1));
+        for (const char* name: {"texmacs:longequivlim", "texmacs:Yleft", "texmacs:Yright"}) {
+          box transformed= typeset_as_concat (env, tree (NAMED_SYMBOL, name), path (0));
+          QCOMPARE (transformed->x1, SI (0));
+          QVERIFY (transformed->w () > 0);
+        }
+        const int width= (sequence->x4-sequence->x3+PIXEL-1)/PIXEL + 32;
+        const int height= (sequence->y4-sequence->y3+PIXEL-1)/PIXEL + 32;
+        QImage image (width, height, QImage::Format_ARGB32_Premultiplied);
+        image.fill (Qt::white);
+        QPainter painter (&image);
+        qt_renderer_rep renderer (&painter, 1.0, width, height, true);
+        renderer.set_clipping (0, -height*PIXEL, width*PIXEL, 0);
+        rectangles invalid;
+        sequence->redraw (&renderer, path (), invalid,
+          16*PIXEL-sequence->x3, -16*PIXEL-sequence->y4);
+        painter.end ();
+        int ink= 0;
+        for (int y=0; y<height; ++y)
+          for (int x=0; x<width; ++x)
+            if (qGray (image.pixel (x, y)) < 128) ++ink;
+        QVERIFY (ink > 10);
+        const QString output= qEnvironmentVariable ("ATHENA_SYMBOL_ORIGIN_SCREENSHOT");
+        if (!output.isEmpty () && string (family) == "TeX Gyre Pagella" && string (size) == "18")
+          QVERIFY (image.save (output));
+      }
+  }
   void migratedBigOperatorGlyphsAndScriptsRender () {
     drd_info drd ("migrated-big-operator-glyphs", std_drd);
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);

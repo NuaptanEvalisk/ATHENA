@@ -431,11 +431,15 @@ concater_rep::typeset_v3_scripts (tree t, path ip) {
   else if (has_right)
     assembled= right_script_box (ip, base, children[2], children[3],
                                  env->fn, env->vert_pos);
+  // With empty script slots the assembled box is just the base child. Keep
+  // the owning node's boundaries available to selection and focus geometry.
+  marker (descend (ip, 0));
   if (big) {
     print (STD_ITEM, OP_BIG, assembled);
     print (native_operator_afterspace (env, t[0][0], t[0][1] == "1"));
   }
   else print (assembled);
+  marker (descend (ip, 1));
 }
 
 void
