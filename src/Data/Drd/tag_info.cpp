@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "tag_info.hpp"
+#include "drd_info.hpp"
 #include "hashmap.hpp"
 
 #include <mutex>
@@ -433,7 +434,7 @@ tag_info
 tag_info_rep::locals (int i, string var, string val) {
   if (i < 0 || i >= N(ci)) cout << i << " out of " << N(ci) << "\n";
   ASSERT (i >= 0 && i<N(ci), "index out of range");
-  ci[i].env= drd_encode (tree (ATTR, var, val));
+  ci[i].env= drd_encode (drd_env_write (drd_decode (ci[i].env), var, val));
   return tag_info (pi, ci, extra);
 }
 

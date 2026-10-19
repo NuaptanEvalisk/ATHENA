@@ -6,6 +6,7 @@
 * This software falls under the GNU general public license version 3 or later.
 ******************************************************************************/
 #include <QApplication>
+#include <QFile>
 #include <QtTest/QtTest>
 #include <cstdlib>
 #include <unistd.h>
@@ -72,7 +73,86 @@ class NativeV3MathEditorTest: public QObject {
       athena::document::write_xml_v3 (source)) == source);
   }
 
+  void verify_display_focus (path block) {
+    SchemeExecutionContext context (nullptr, editor, &editor->drd,
+      &buffer->document, ATHENA_NO_ACTOR, ATHENA_NO_VIEW, 0,
+      SCHEME_CAPABILITY_BUFFER);
+    SchemeExecutionScope execution (context);
+    editor->go_to_end (block * 0);
+    editor->typeset_forced ();
+    for (int side: {0, 1}) {
+      bool found= false;
+      editor->eb->find_box_path (block * side, found);
+      QVERIFY2 (found, "MathBlock boundary has no rendered box");
+    }
+    selection formula= editor->eb->find_check_selection (
+      start (current_document_tree (), block * 0),
+      end (current_document_tree (), block * 0));
+    QVERIFY (formula->valid);
+    QVERIFY (N(formula->rs) > 0);
+    rectangle bounds= least_upper_bound (formula->rs);
+    rectangles focus;
+    editor->compute_env_rects (block, focus, false, PIXEL);
+    QVERIFY (N(focus) > 0);
+    rectangle outline= least_upper_bound (focus);
+    QVERIFY (outline->y1 >= bounds->y1 - 4*PIXEL);
+    QVERIFY (outline->y2 <= bounds->y2 + 4*PIXEL);
+    QVERIFY (outline->x1 >= bounds->x1 - 4*PIXEL);
+    QVERIFY (outline->x2 <= bounds->x2 + 4*PIXEL);
+  }
+
 private slots:
+  void displayFocusExcludesPrecedingParagraphs () {
+    tree grid (MATH_GRID,
+      tree (ROW, tree (CELL, "x"), tree (CELL, "="), tree (CELL, "y")),
+      tree (ROW, tree (CELL, "u"), tree (CELL, "="), tree (CELL, "v")));
+    athena::node::metadata meta;
+    meta.properties["math:grid-kind"]= athena::node::property (std::string ("eqnarray"));
+    athena::node::set (grid, meta);
+    for (const tree& body: {tree ("X"), tree (CONCAT, "X", "+", "Y"),
+                           tree (FRAC, "x", "y"), grid}) {
+      reset (body);
+      tree block= subtree (current_document_tree (), buffer->root_path * 0);
+      set_document (buffer->document, buffer->root_path,
+        tree (DOCUMENT, "Title", "First paragraph", "Second paragraph",
+              block, "Following paragraph"));
+      verify_display_focus (buffer->root_path * 3);
+    }
+  }
+
+  void copiedDocumentDisplayFocusExcludesTitleAndSections () {
+    const QString source= qEnvironmentVariable ("ATHENA_V3_DISPLAY_SOURCE");
+    if (source.isEmpty ()) QSKIP ("No private document supplied");
+    QFile input (source);
+    QVERIFY (input.open (QIODevice::ReadOnly));
+    tree document= athena::document::read_xml_v3 (input.readAll ().toStdString ());
+    tree prefix (DOCUMENT);
+    array<int> blocks;
+    for (int i=0; i<N(document); ++i)
+      if (is_compound (document[i], "body", 1)) {
+        tree body= document[i][0];
+        // Preserve the exact title, sections and formulas, but stop before
+        // transclusions/assets that would require accessing the real vault.
+        for (int j=0; j<N(body) && N(blocks)<2; ++j) {
+          prefix << body[j];
+          if (is_func (body[j], MATH_BLOCK)) blocks << j;
+        }
+      }
+    QCOMPARE (N(blocks), 2);
+    buffer->storage_version= athena::document::xml_storage_version::v3;
+    set_document (buffer->document, buffer->root_path, prefix);
+    for (int i=0; i<N(blocks); ++i)
+      verify_display_focus (buffer->root_path * blocks[i]);
+  }
+
+  void nativeDisplayEstablishesCursorMathEnvironment () {
+    reset ("x");
+    QCOMPARE (editor->get_env_value (MODE, content_path () * 0), tree ("math"));
+    QCOMPARE (editor->get_env_value (MATH_DISPLAY, content_path () * 0), tree ("true"));
+    reset (tree (WITH, MODE, "text", "word"));
+    QCOMPARE (editor->get_env_value (MODE, content_path () * path (2, 0)), tree ("text"));
+  }
+
   void emptyInlineScriptFocusStaysInsideEnunciationFormula_data () {
     QTest::addColumn<bool> ("sup");
     QTest::addColumn<bool> ("right");

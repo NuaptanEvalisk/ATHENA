@@ -33,6 +33,8 @@
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "node_metadata.hpp"
 #include "Boxes/construct.hpp"
+#include "Line/lazy_typeset.hpp"
+#include "Format/format.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -51,6 +53,95 @@ letter_font (box b) {
 class PreviewMathFontTest: public QObject {
   Q_OBJECT
 private slots:
+  void nativeDisplayParagraphIsCentered () {
+    drd_info drd ("native-display-paragraph", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (MODE, "text");
+    env->write (PAR_FIRST, "2fn");
+    env->update ();
+    tree display (MATH_BLOCK, "X");
+    athena::node::metadata meta;
+    meta.properties["math:block-numbered"]= athena::node::property (false);
+    athena::node::set (display, meta);
+    for (const char* width: {"20em", "40em"}) {
+      SI available= env->as_length (width);
+      lazy content= make_lazy (env, tree (DOCUMENT, display), path (0));
+      lazy lines= content->produce (LAZY_VSTREAM,
+        make_format_vstream (available, 0, 0));
+      box rendered= (box) lines->produce (LAZY_BOX, make_format_none ());
+      bool found= false;
+      std::function<void(box,SI)> visit= [&] (box b, SI x) {
+        if (b->get_type () == TEXT_BOX && b->get_leaf_string () == "X") {
+          found= true;
+          QVERIFY (abs (2*x + b->x1 + b->x2 - available) <= 2*PIXEL);
+        }
+        for (int i=0; i<N(b); ++i) visit (b[i], x+b->sx(i));
+      };
+      visit (rendered, 0);
+      QVERIFY (found);
+    }
+    QCOMPARE (env->read (MODE), tree ("text"));
+  }
+
+  void copiedCorpusDisplayBlocksUseCenteredMathLayout () {
+    const QString source= qEnvironmentVariable ("ATHENA_V3_DISPLAY_SOURCE");
+    if (source.isEmpty ()) QSKIP ("No private document supplied");
+    QFile input (source);
+    QVERIFY (input.open (QIODevice::ReadOnly));
+    tree document= athena::document::read_xml_v3 (input.readAll ().toStdString ());
+    drd_info drd ("native-display-corpus", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (MODE, "text");
+    env->update ();
+    int blocks= 0, grids= 0;
+    std::function<void(tree)> visit= [&] (tree t) {
+      if (is_atomic (t)) return;
+      if (is_func (t, MATH_BLOCK)) {
+        QCOMPARE (drd->get_env_child (t, 0, MODE, "text"), tree ("math"));
+        auto items= typeset_concat (env, t, path (0));
+        int springs= 0;
+        for (int i=0; i<N(items); ++i)
+          if (items[i]->type == CONTROL_ITEM && is_func (items[i]->t, HTAB))
+            ++springs;
+        QCOMPARE (springs, 2);
+        lazy content= make_lazy (env, tree (DOCUMENT, t), path (0));
+        lazy lines= content->produce (LAZY_VSTREAM,
+          make_format_vstream (env->as_length ("60em"), 0, 0));
+        box rendered= (box) lines->produce (LAZY_BOX, make_format_none ());
+        QVERIFY (rendered->h () > 0);
+        const QString output= qEnvironmentVariable ("ATHENA_V3_DISPLAY_SCREENSHOTS");
+        if (!output.isEmpty () && (blocks < 2 || (grids == 0 && is_func (t[0], MATH_GRID)))) {
+          const int width= (rendered->x4-rendered->x3+PIXEL-1)/PIXEL + 32;
+          const int height= (rendered->y4-rendered->y3+PIXEL-1)/PIXEL + 32;
+          QImage image (width, height, QImage::Format_ARGB32_Premultiplied);
+          image.fill (Qt::white);
+          QPainter painter (&image);
+          qt_renderer_rep renderer (&painter, 1.0, width, height, true);
+          renderer.set_clipping (0, -height*PIXEL, width*PIXEL, 0);
+          rectangles invalid;
+          rendered->redraw (&renderer, path (), invalid,
+            16*PIXEL-rendered->x3, -16*PIXEL-rendered->y4);
+          painter.end ();
+          QVERIFY (image.save (output + QString::number (blocks) + ".png"));
+        }
+        ++blocks;
+        if (is_func (t[0], MATH_GRID)) ++grids;
+      }
+      for (int i=0; i<N(t); ++i) visit (t[i]);
+    };
+    visit (document);
+    QVERIFY (blocks > 0);
+    qInfo () << "Rendered native display blocks:" << blocks << "grids:" << grids;
+  }
+
   void transformedNamedSymbolsHaveInlineOrigins () {
     drd_info drd ("transformed-symbol-origins", std_drd);
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);

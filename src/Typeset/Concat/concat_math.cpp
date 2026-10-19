@@ -554,12 +554,31 @@ concater_rep::typeset_v3_block (tree t, path ip) {
   if (!numbered) { typeset_error (t, ip); return; }
   const bool grid= is_func (t[0], MATH_GRID);
   if (grid) validate_native_math_grid_layout (t[0]);
+  // A display is centered by the paragraph's stretchable tabs, not by the
+  // formula's natural-width box. Keep these outside the math content so both
+  // the incremental bridge and lazy paragraph routes use the available width.
+  auto print_display= [&] (box body) {
+    const tree spring (HTAB, "0fn");
+    if (N(a) == 0)
+      print (empty_box (decorate_left (ip), 0, 0, 0, env->fn->yx));
+    control (tuple ("env_par", PAR_FIRST, "0cm"), decorate_left (ip));
+    print (space (0));
+    control (spring, decorate_left (ip));
+    // Focus/selection addresses the MathBlock borders, not only its child.
+    // Keep the border markers inside the tabs so they enclose the formula,
+    // without selecting paragraph padding or falling back to earlier content.
+    marker (descend (ip, 0));
+    print (body);
+    marker (descend (ip, 1));
+    print (space (0));
+    control (spring, decorate_right (ip));
+  };
   const bool row_numbers= grid && native_math_grid_uses_row_numbering (t[0]);
   if (row_numbers) {
     const tree old_mode= env->local_begin (MODE, "math");
     const tree old_display= env->local_begin (MATH_DISPLAY, "true");
     try {
-      print (typeset_native_math_grid (env, t[0], descend (ip, 0), *numbered));
+      print_display (typeset_native_math_grid (env, t[0], descend (ip, 0), *numbered));
     }
     catch (...) {
       env->local_end (MATH_DISPLAY, old_display);
@@ -610,7 +629,7 @@ concater_rep::typeset_v3_block (tree t, path ip) {
   }
   env->local_end (MATH_DISPLAY, old_display);
   env->local_end (MODE, old_mode);
-  if (!*numbered) { print (body); return; }
+  if (!*numbered) { print_display (body); return; }
 
   const tree old_text_mode= env->local_begin (MODE, "text");
   const tree old_shape= env->local_begin (FONT_SHAPE, "right");
@@ -627,7 +646,7 @@ concater_rep::typeset_v3_block (tree t, path ip) {
   array<SI> xs, ys;
   xs << 0 << body->x2 + gap - label->x1;
   ys << 0 << 0;
-  print (composite_box (ip, parts, xs, ys));
+  print_display (composite_box (ip, parts, xs, ys));
 }
 
 void

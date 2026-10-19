@@ -73,6 +73,23 @@ int main (int argc, char** argv) {
   ispell_done ("english");
   CHECK (!ispell_test ("english", "zzqqxxzz"));
   CHECK (!check_word ("english", "zzqqxxzz"));
+  // Native displays establish math mode for every spell traversal, while
+  // explicit text inside a formula remains eligible for spelling checks.
+  tree display (MATH_BLOCK, tree (CONCAT, "qzxqzxqzx",
+    tree (WITH, "mode", "text", "qzxqzxqzx")));
+  CHECK (std_drd->get_env_child (display, 0, "mode", "text") == "math");
+  tree math_doc (DOCUMENT, display,
+    tree (MATH_GRID, tree (ROW, tree (CELL, "qzxqzxqzx"))), "qzxqzxqzx");
+  incremental_spell math_scan;
+  math_scan.start (math_doc, "text", "english", path (0), path ());
+  for (int i=0; !math_scan.done () && i<100; ++i) math_scan.step ();
+  CHECK (math_scan.done ());
+  range_set math_hits= math_scan.selections (path ());
+  CHECK (N(math_hits) == 4);
+  CHECK (math_hits[0] == path (0, 0, 0) * path (1, 2, 0));
+  CHECK (math_hits[2] == path (0, 2, 0));
+  range_set full_math_hits= spell ("english", math_doc, path (0));
+  CHECK (full_math_hits == math_hits);
   std::thread writer ([] {
     ispell_insert ("english", "zzqqxxzz");
     ispell_done ("english");

@@ -172,8 +172,10 @@
         regular (0) ->
         accessible (1) -> name (1, "below") ->
         accessible (2) -> name (2, "above"));
-  init (MATH_GRID, "math-grid", repeat (1, 1) -> accessible (0));
-  init (MATH_BLOCK, "math-block", fixed (1) -> accessible (0));
+  init (MATH_GRID, "math-grid", repeat (1, 1) -> accessible (0) ->
+        locals (0, "mode", "math"));
+  init (MATH_BLOCK, "math-block", fixed (1) -> accessible (0) ->
+        locals (0, "mode", "math") -> locals (0, "math-display", "true"));
   init (MATH_VARIANT, "math-variant", fixed (2, 0, DETAILED) ->
         string_type (0) ->
         accessible (1) -> name (1, "expression"));
