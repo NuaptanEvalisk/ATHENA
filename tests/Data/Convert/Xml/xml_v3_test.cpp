@@ -35,6 +35,38 @@ class TestXmlV3: public QObject {
 private slots:
   void initTestCase () { init_std_drd (); }
 
+  void malformedScriptsLocateAuxiliaryEntry () {
+    tree invalid (MATH_SCRIPTS, "S", "", "", "", "1");
+    tree source (DOCUMENT, compound ("auxiliary",
+      tree (COLLECTION, tree (ASSOCIATE, "figure", tree (DOCUMENT, invalid)))));
+    try {
+      (void) write_xml_v3 (source);
+      QFAIL ("Malformed auxiliary scripts must not be exported");
+    }
+    catch (const codec_exception& error) {
+      QCOMPARE (error.code, codec_error::invalid_structure);
+      const std::string message= error.what ();
+      QVERIFY (message.find ("missing math:scripts-policy") != std::string::npos);
+      QVERIFY (message.find ("tree path /0/0/0/1/0") != std::string::npos);
+      QVERIFY (message.find ("auxiliary > collection > associate[figure]") != std::string::npos);
+      QCOMPARE (message.find ("tree path"), message.rfind ("tree path"));
+    }
+    for (const auto& policy: {athena::node::property (true),
+                             athena::node::property (std::string ("bad"))}) {
+      athena::node::metadata meta;
+      meta.properties[athena::math_v3::scripts_policy_key]= policy;
+      athena::node::set (invalid, meta);
+      try {
+        (void) write_xml_v3 (invalid, xml_kind::fragment);
+        QFAIL ("Invalid scripts policy must fail");
+      }
+      catch (const codec_exception& error) {
+        QVERIFY (std::string (error.what ()).find (
+          "math:scripts-policy must be") != std::string::npos);
+      }
+    }
+  }
+
   void compactTextIsNeverPolymorphic () {
     tree original (DOCUMENT, tree ("first"), tree (""));
     const auto bytes= write_xml_v3 (original);

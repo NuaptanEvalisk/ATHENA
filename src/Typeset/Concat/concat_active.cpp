@@ -18,6 +18,7 @@
 #include "packrat.hpp"
 #include "convert.hpp"
 #include "converter.hpp"
+#include "node_metadata.hpp"
 
 static string
 athena_labels_mode (edit_env env) {
@@ -331,16 +332,20 @@ remove_labels (tree t) {
   else if (is_func (t, CONCAT)) {
     tree r (CONCAT);
     for (int i=0; i<N(t); i++)
-      if (!is_func (t, LABEL))
+      if (!is_func (t[i], LABEL))
         r << remove_labels (t[i]);
-    if (N(r) == 0) return "";
-    else if (N(r) == 1) return r[0];
-    else return r;
+    athena::node::copy_metadata (t, r);
+    if (!athena::node::get (r)) {
+      if (N(r) == 0) return "";
+      if (N(r) == 1) return r[0];
+    }
+    return r;
   }
   else {
     tree r (t, N(t));
     for (int i=0; i<N(t); i++)
       r[i]= remove_labels (t[i]);
+    athena::node::copy_metadata (t, r);
     return r;
   }
 }
@@ -349,7 +354,9 @@ void
 concater_rep::typeset_write (tree t, path ip) {
   if (N(t) != 2) { typeset_error (t, ip); return; }
   string s= env->exec_string (t[0]);
-  tree   r= remove_labels (env->exec (t[1]));
+  // Auxiliary entries are derived content: retain semantic properties (notably
+  // native math), but never persist another copy of the source node identities.
+  tree   r= remove_labels (athena::node::content_projection (env->exec (t[1])));
   if (env->complete) {
     if (!env->local_aux->contains (s))
       env->local_aux (s)= tree (DOCUMENT);

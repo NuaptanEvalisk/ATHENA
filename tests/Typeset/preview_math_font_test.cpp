@@ -53,6 +53,54 @@ letter_font (box b) {
 class PreviewMathFontTest: public QObject {
   Q_OBJECT
 private slots:
+  void auxiliaryCaptionsPreserveMathProperties () {
+    drd_info drd ("auxiliary-caption-metadata", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->complete= true;
+    env->update ();
+    tree power= athena::math_v3::scripts ("S", "", "", "", "1");
+    athena::node::metadata meta= *athena::node::get (power);
+    meta.id= "11111111-1111-4111-8111-111111111111";
+    athena::node::set (power, meta);
+    tree formula (CONCAT, power, "\xc3\x97I");
+    tree caption (CONCAT, "Two geodesics between p and q on ",
+                  tree (WITH, "mode", tree (QUOTE, "math"), formula), ".");
+    tree entry (TUPLE, "normal", tree (SURROUND, "", "", caption),
+                tree (PAGEREF, "auto-3"));
+    // Exercise WRITE itself: the expanded caption is valid before label removal.
+    tree expanded= env->exec (tree (QUOTE, entry));
+    QVERIFY (athena::math_v3::valid_scripts (expanded[1][2][1][2][0]));
+    (void) typeset_as_concat (env,
+      tree (WRITE, "figure", tree (QUOTE, entry)), path (0));
+    QVERIFY (env->local_aux->contains ("figure"));
+    tree actual= env->local_aux["figure"];
+    tree copied= actual[0][1][2][1][2][0];
+    QVERIFY (athena::math_v3::valid_scripts (copied));
+    QVERIFY (athena::node::id (copied).empty ());
+    QVERIFY (athena::node::content_equal (actual[0], entry));
+    // Source and derived caption can coexist without duplicate identities.
+    tree document (DOCUMENT, compound ("body", tree (DOCUMENT, caption)),
+      compound ("auxiliary", tree (COLLECTION, tree (ASSOCIATE, "figure", actual))));
+    const auto encoded= athena::document::write_xml_v3 (document);
+    QVERIFY (athena::document::read_xml_v3 (encoded) == document);
+    QCOMPARE (athena::node::id (power), meta.id);
+
+    tree labelled (CONCAT, tree (LABEL, "caption-anchor"), power);
+    athena::node::metadata wrapper;
+    wrapper.properties["caption-kind"]= athena::node::property (std::string ("figure"));
+    athena::node::set (labelled, wrapper);
+    (void) typeset_as_concat (env,
+      tree (WRITE, "annotated-caption", tree (QUOTE, labelled)), path (0));
+    tree cleaned= env->local_aux["annotated-caption"][0];
+    QVERIFY (is_func (cleaned, CONCAT, 1));
+    QVERIFY (athena::node::equal_metadata (cleaned, labelled));
+    QVERIFY (athena::math_v3::valid_scripts (cleaned[0]));
+    QVERIFY (athena::node::id (cleaned[0]).empty ());
+  }
+
   void vacantScriptCursorsPreserveVisibleGeometry () {
     drd_info drd ("vacant-script-cursors", std_drd);
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);

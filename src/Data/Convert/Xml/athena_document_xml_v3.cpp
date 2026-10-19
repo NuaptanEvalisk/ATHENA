@@ -122,6 +122,29 @@ class writer {
   output sink;
   QXmlStreamWriter xml;
   std::set<std::string> identities;
+  struct node_frame {
+    const tree* value;
+    int child;
+  };
+  std::vector<node_frame> node_stack;
+  bool error_located= false;
+
+  std::string location () const {
+    std::string indices, ancestry, identity;
+    for (const auto& frame: node_stack) {
+      if (frame.child >= 0) indices+= "/" + std::to_string (frame.child);
+      else if (frame.child == -2) indices+= "/@rich-text";
+      const tree& value= *frame.value;
+      if (!ancestry.empty ()) ancestry+= " > ";
+      ancestry+= is_atomic (value) ? "text" : std::string (bytes (as_string (L (value))));
+      if (is_func (value, ASSOCIATE, 2) && is_atomic (value[0]))
+        ancestry+= "[" + std::string (bytes (value[0]->label).substr (0, 80)) + "]";
+      const auto id= athena::node::id (value);
+      if (!id.empty ()) identity= id;
+    }
+    return " at tree path " + (indices.empty () ? "/" : indices) +
+      " (" + ancestry + (identity.empty () ? "" : "; nearest UUID " + identity) + ")";
+  }
   QString checked_text (std::string_view s) {
     count.consume (s.size ());
     if (!text::valid_utf8 (s))
@@ -195,7 +218,7 @@ class writer {
     }
     else if (const auto* rich= std::get_if<athena::node::rich_text> (&data)) {
       xml.writeAttribute ("t", "h");
-      node (rich->content, depth + 1);
+      node (rich->content, depth + 1, false, -2);
     }
     else throw codec_exception (codec_error::invalid_structure, "Invalid property variant");
     xml.writeEndElement ();
@@ -222,7 +245,23 @@ class writer {
       xml.writeEndElement ();
     }
   }
-  void node (const tree& value, std::size_t depth, bool binary= false) {
+  void node (const tree& value, std::size_t depth, bool binary= false,
+             int child= -1) {
+    node_stack.push_back ({&value, child});
+    struct pop_frame {
+      std::vector<node_frame>& stack;
+      ~pop_frame () { stack.pop_back (); }
+    } pop {node_stack};
+    try { node_impl (value, depth, binary); }
+    catch (const identity_conflict&) { throw; }
+    catch (const codec_exception& error) {
+      if (error_located) throw;
+      error_located= true;
+      throw codec_exception (error.code, std::string (error.what ()) + location (),
+                             error.line, error.column, error.character_offset);
+    }
+  }
+  void node_impl (const tree& value, std::size_t depth, bool binary) {
     count.node (depth);
     if (is_atomic (value)) {
       xml.writeStartElement (binary ? "b" : "t");
@@ -254,7 +293,7 @@ class writer {
           xml.writeAttribute ("rs", descriptor (4));
         }
         metadata (value, depth);
-        node (value[5], depth + 1);
+        node (value[5], depth + 1, false, 5);
         xml.writeEndElement ();
         return;
       }
@@ -286,8 +325,21 @@ class writer {
         xml.writeEndElement ();
         return;
       }
-      if (L (value) == MATH_SCRIPTS && !math_v3::valid_scripts (value))
-        throw codec_exception (codec_error::invalid_structure, "Invalid MathScripts");
+      if (L (value) == MATH_SCRIPTS && !math_v3::valid_scripts (value)) {
+        std::string reason;
+        const auto* meta= athena::node::get (value);
+        if (N (value) != 5)
+          reason= "expected 5 children, got " + std::to_string (N (value));
+        else if (!meta || !meta->properties.count (math_v3::scripts_policy_key))
+          reason= "missing math:scripts-policy";
+        else {
+          const auto& policy= meta->properties.at (math_v3::scripts_policy_key);
+          reason= std::holds_alternative<std::string> (policy.data) ?
+            "math:scripts-policy must be one of a, d, o, r" :
+            "math:scripts-policy must be a string";
+        }
+        throw codec_exception (codec_error::invalid_structure, "Invalid MathScripts: " + reason);
+      }
       if (!v3_core_math_label (L (value)))
         throw codec_exception (codec_error::invalid_structure,
                                "Noncanonical v3 mathematical node: " +
@@ -347,7 +399,7 @@ class writer {
         L (value) == MATH_GRID ? grid_kind_property :
         L (value) == MATH_BLOCK ? block_numbered_property : nullptr);
       for (int i= 0; i < N (value); ++i)
-        node (value[i], depth + 1, L (value) == RAW_DATA);
+        node (value[i], depth + 1, L (value) == RAW_DATA, i);
       xml.writeEndElement ();
     }
     else throw codec_exception (codec_error::opaque_value, "Opaque native value is not document content");
