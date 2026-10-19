@@ -187,6 +187,7 @@ edit_text_rep::remove_text_sub (bool forward) {
     case AROUND:
     case VAR_AROUND:
     case BIG_AROUND:
+    case DELIMITED:
       back_around (t, p, forward);
       return;
     case LEFT:
@@ -236,6 +237,7 @@ edit_text_rep::remove_text_sub (bool forward) {
     case AROUND:
     case VAR_AROUND:
     case BIG_AROUND:
+    case DELIMITED:
       back_in_around (u, p, forward);
       return;
     case LONG_ARROW:

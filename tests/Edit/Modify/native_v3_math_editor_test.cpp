@@ -453,23 +453,44 @@ private slots:
     verify_roundtrip ();
   }
   void nativeDelimiterDeletionHandlersPreservePair () {
-    // Exercise the owned handlers directly. Public remove_text dispatch must
-    // also route DELIMITED here before this is an end-to-end deletion test.
     for (bool forward: {false, true}) {
       reset (athena::math_v3::delimited ("(", ")", 'a', tree ("x")));
       const tree before= copy (content ());
-      editor->back_around (content (), content_path (), forward);
+      editor->go_to_border (content_path (), forward);
+      editor->remove_text (forward);
       const path body= content_path () * 5;
       QVERIFY (editor->the_path () == (forward ?
         start (current_document_tree (), body) :
         end (current_document_tree (), body)));
-      editor->back_in_around (content (), body, forward);
+      editor->go_to_border (body, !forward);
+      editor->remove_text (forward);
       QVERIFY (content () == before);
       verify_roundtrip ();
-      reset (athena::math_v3::delimited ("(", ")", 'a', tree ("")));
+      reset_inline ("");
+      editor->archive_state ();
       editor->start_editing ();
-      editor->back_in_around (content (), content_path () * 5, forward);
+      athena::auto_close::make_bracket_open (editor, "(", ")");
       editor->end_editing ();
+      const tree empty_pair= copy (content ());
+      QVERIFY (athena::math_v3::valid_delimited (empty_pair));
+      editor->archive_state ();
+      editor->start_editing ();
+      editor->remove_text (forward);
+      editor->end_editing ();
+      QCOMPARE (content (), tree (""));
+      verify_roundtrip ();
+      editor->undo (0);
+      QCOMPARE (content (), empty_pair);
+      editor->redo (0);
+      QCOMPARE (content (), tree (""));
+
+      reset (athena::math_v3::delimited ("(", ")", 'a',
+        athena::math_v3::delimited ("[", "]", 'a', "")));
+      editor->go_to_start (content_path () * path (5, 5));
+      editor->remove_text (forward);
+      QVERIFY (athena::math_v3::valid_delimited (content ()));
+      QCOMPARE (content ()[5], tree (""));
+      editor->remove_text (forward);
       QCOMPARE (content (), tree (""));
       verify_roundtrip ();
     }
