@@ -53,6 +53,44 @@ letter_font (box b) {
 class PreviewMathFontTest: public QObject {
   Q_OBJECT
 private slots:
+  void vacantScriptCursorsPreserveVisibleGeometry () {
+    drd_info drd ("vacant-script-cursors", std_drd);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (MODE, "math");
+    env->write (MATH_DISPLAY, "true");
+    env->update ();
+    for (const tree& base: {tree ("D"), tree (FRAC, "x", "y"),
+                            athena::math_v3::big_operator ("\xe2\x88\x91")})
+      for (char policy: {'a', 'r', 'o', 'd'}) {
+        tree source= athena::math_v3::scripts (base, "", "", "", "", policy);
+        box rendered= typeset_as_concat (env, source, path (0));
+        box plain= typeset_as_concat (env, base, path (0));
+        // Big-operator scripts already add their own operator afterspace.
+        if (!is_func (base, BIG_OPERATOR))
+          QCOMPARE (rendered->w (), plain->w ());
+        QCOMPARE (rendered->y1, plain->y1);
+        QCOMPARE (rendered->y2, plain->y2);
+        for (int i=1; i<5; ++i) {
+          bool found= false;
+          path bp= rendered->find_box_path (path (0, i, 0), found);
+          QVERIFY (found);
+          QVERIFY (rendered->find_tree_path (bp) == path (0, i, 0));
+          cursor caret= rendered->find_check_cursor (path (0, i, 0));
+          QVERIFY (caret->valid);
+          QVERIFY (caret->y2 > caret->y1);
+        }
+        // The cursor-only layouts must remain addressable after line fitting.
+        for (box fitted: {rendered->adjust_kerning (0, 0.01),
+                          rendered->expand_glyphs (0, 0.01)})
+          for (int i=1; i<5; ++i)
+            QVERIFY (fitted->find_check_cursor (path (0, i, 0))->valid);
+      }
+  }
+
   void nativeDisplayParagraphIsCentered () {
     drd_info drd ("native-display-paragraph", std_drd);
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);

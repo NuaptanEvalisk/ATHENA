@@ -212,6 +212,9 @@ edit_text_rep::remove_text_sub (bool forward) {
     case VAR_WIDE:
       go_to_border (p * 0, forward);
       return;
+    case MATH_ACCENT:
+      go_to_border (p * 2, forward);
+      return;
     case TFORMAT:
     case TABLE:
     case ROW:
@@ -253,6 +256,7 @@ edit_text_rep::remove_text_sub (bool forward) {
       return;
     case WIDE:
     case VAR_WIDE:
+    case MATH_ACCENT:
       back_in_wide (u, p, forward);
       return;
     case TREE:

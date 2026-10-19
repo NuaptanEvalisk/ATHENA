@@ -183,6 +183,14 @@ private slots:
     const int slot= right ? (sup ? 4 : 3) : (sup ? 2 : 1);
     QVERIFY (editor->the_path () == scripts * path (slot, 0));
     editor->typeset_forced ();
+    cursor caret= editor->eb->find_check_cursor (editor->the_path ());
+    QVERIFY2 (caret->valid, "Empty script slot has no valid rendered cursor");
+    cursor base= editor->eb->find_check_cursor (right ?
+      end (current_document_tree (), scripts * 0) :
+      start (current_document_tree (), scripts * 0));
+    QVERIFY (base->valid);
+    QVERIFY (right ? caret->ox >= base->ox : caret->ox <= base->ox);
+    QVERIFY (sup ? caret->oy > base->oy : caret->oy < base->oy);
     for (int side: {0, 1}) {
       bool found= false;
       editor->eb->find_box_path (scripts * side, found);
@@ -198,6 +206,13 @@ private slots:
     QVERIFY (N(focus) > 0);
     for (rectangles rs= focus; !is_nil (rs); rs= rs->next)
       QVERIFY (rs->item->x2-rs->item->x1 < (editor->eb->x2-editor->eb->x1)/3);
+    editor->insert_tree ("i");
+    editor->typeset_forced ();
+    QVERIFY (editor->eb->find_check_cursor (editor->the_path ())->valid);
+    editor->remove_text (false);
+    editor->typeset_forced ();
+    QVERIFY (editor->the_path () == scripts * path (slot, 0));
+    QVERIFY (editor->eb->find_check_cursor (editor->the_path ())->valid);
   }
   void inlineFormulaBackspaceTakesThreeSteps () {
     reset_inline ("X");
@@ -527,6 +542,84 @@ private slots:
     QCOMPARE (result[4][4], tree ("2"));
     verify_roundtrip ();
   }
+  void repeatedPrimesShareOneScript_data () {
+    QTest::addColumn<bool> ("right");
+    QTest::addColumn<QString> ("input");
+    QTest::newRow ("right-primes") << true << QString ("'");
+    QTest::newRow ("left-primes") << false << QString ("'");
+    QTest::newRow ("left-backprimes") << false << QString ("`");
+  }
+  void repeatedPrimesShareOneScript () {
+    QFETCH (bool, right);
+    QFETCH (QString, input);
+    const string key= input.toStdString ().c_str ();
+    const tree glyph= key == "'" ? tree ("\xe2\x80\xb2") : tree (key);
+    const int slot= right ? 4 : 2;
+    reset_inline ("r");
+    string expected;
+    for (int count=1; count<=3; ++count) {
+      editor->start_editing ();
+      if (right) editor->make_rprime (key);
+      else editor->make_lprime (key);
+      editor->end_editing ();
+      const tree result= content ();
+      QVERIFY (athena::math_v3::valid_scripts (result));
+      QCOMPARE (result[0], tree ("r"));
+      expected= expected * glyph->label;
+      QCOMPARE (result[slot], tree (expected));
+      editor->typeset_forced ();
+      cursor previous;
+      for (int i=0; i<count; ++i) {
+        cursor caret= editor->eb->find_check_cursor (
+          content_path () * path (slot, i*N(glyph->label)));
+        QVERIFY (caret->valid);
+        if (i > 0) {
+          QCOMPARE (caret->oy, previous->oy);
+          QVERIFY (caret->ox > previous->ox);
+        }
+        previous= caret;
+      }
+      verify_roundtrip ();
+    }
+  }
+  void primeInsideOrdinaryExponentStillAttachesToExponent () {
+    reset_inline ("r");
+    editor->make_script (true, true);
+    editor->insert_tree ("n");
+    editor->make_rprime ("'");
+    const tree result= content ();
+    QVERIFY (athena::math_v3::valid_scripts (result));
+    QVERIFY (athena::math_v3::valid_scripts (result[4]));
+    QCOMPARE (result[4][0], tree ("n"));
+    QCOMPARE (result[4][4], tree ("\xe2\x80\xb2"));
+    verify_roundtrip ();
+  }
+  void primesInsideSubscriptStayOnSubscriptBase () {
+    reset_inline ("A");
+    editor->make_script (false, true);
+    editor->insert_tree ("r");
+    string primes;
+    for (int count=1; count<=2; ++count) {
+      editor->make_rprime ("'");
+      primes= primes * "\xe2\x80\xb2";
+      const tree result= content ();
+      QVERIFY (athena::math_v3::valid_scripts (result));
+      QCOMPARE (result[0], tree ("A"));
+      QCOMPARE (result[4], tree (""));
+      QVERIFY (athena::math_v3::valid_scripts (result[3]));
+      QCOMPARE (result[3][0], tree ("r"));
+      QCOMPARE (result[3][4], tree (primes));
+      editor->typeset_forced ();
+      QVERIFY (editor->eb->find_check_cursor (editor->the_path ())->valid);
+      verify_roundtrip ();
+    }
+    // After leaving the scripts, a prime belongs to A rather than to r.
+    editor->go_to_border (content_path (), false);
+    editor->make_rprime ("'");
+    QCOMPARE (content ()[4], tree ("\xe2\x80\xb2"));
+    QCOMPARE (content ()[3][4], tree (primes));
+    verify_roundtrip ();
+  }
   void selectedScriptAttachesToPrecedingBase () {
     reset (tree ("xi"));
     editor->selection_set_paths (content_path () * 1, content_path () * 2);
@@ -724,6 +817,42 @@ private slots:
         QVERIFY (athena::math_v3::valid_native_math (content ()));
         verify_roundtrip ();
       }
+  }
+  void hybridEmptyHatCanBeDeleted () {
+    SchemeExecutionContext context (nullptr, editor, &editor->drd,
+      &buffer->document, 0, 0, 0, SCHEME_CAPABILITY_BUFFER);
+    SchemeExecutionScope scope (context);
+    reset_inline ("");
+    editor->make_hybrid ();
+    editor->insert_tree ("hat");
+    editor->activate_hybrid (false);
+    QVERIFY (is_func (content (), MATH_ACCENT, 3));
+    QCOMPARE (content ()[2], tree (""));
+    editor->remove_text (false);
+    QCOMPARE (content (), tree (""));
+    verify_roundtrip ();
+  }
+  void nativeAccentsDeleteThroughTheirBody () {
+    for (bool forward: {false, true})
+      for (bool below: {false, true})
+        for (bool stretch: {false, true}) {
+          reset_inline ("");
+          if (below) editor->make_wide_under ("^", stretch);
+          else editor->make_wide ("^", stretch);
+          editor->insert_tree ("x");
+          const tree accent= copy (content ());
+          QVERIFY (is_func (accent, MATH_ACCENT, 3));
+          editor->go_to_border (content_path (), forward);
+          editor->remove_text (forward);
+          QCOMPARE (content (), accent);
+          QVERIFY (editor->the_path () == content_path () * path (2, forward ? 0 : 1));
+          editor->remove_text (forward);
+          QVERIFY (is_func (content (), MATH_ACCENT, 3));
+          QCOMPARE (content ()[2], tree (""));
+          editor->remove_text (forward);
+          QCOMPARE (content (), tree (""));
+          verify_roundtrip ();
+        }
   }
   void longArrowKeyboardAndToolbarActionsUseNativeV3 () {
     for (bool below: {false, true}) {

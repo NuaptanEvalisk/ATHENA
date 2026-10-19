@@ -14,6 +14,8 @@
 #include "editor.hpp"
 
 class edit_math_rep: virtual public editor_rep {
+  void make_script (bool sup, bool right, bool switch_slots);
+
 public:
   edit_math_rep ();
   ~edit_math_rep ();

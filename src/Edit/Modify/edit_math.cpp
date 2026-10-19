@@ -264,6 +264,33 @@ find_native_scripts (tree root, path cursor, path& result) {
 }
 
 bool
+native_prime_run (tree t) {
+  if (is_concat (t)) {
+    for (int i=0; i<N(t); ++i)
+      if (!native_prime_run (t[i])) return false;
+    return N(t) > 0;
+  }
+  if (!is_atomic (t) || t == "") return false;
+  int32_t offset= 0;
+  while (offset < N(t->label)) {
+    UChar32 cp= U_SENTINEL;
+    U8_NEXT (t->label.data (), offset, N(t->label), cp);
+    if (cp != '\'' && cp != '`' &&
+        !(cp >= 0x2032 && cp <= 0x2037) && cp != 0x2057)
+      return false;
+  }
+  return true;
+}
+
+bool
+continue_native_primes (tree root, path cursor, int slot) {
+  path scripts;
+  return find_native_scripts (root, cursor, scripts) &&
+    cursor == end (root, scripts * slot) &&
+    native_prime_run (subtree (root, scripts * slot));
+}
+
+bool
 native_script_base (tree root, path cursor, path& result, int& offset) {
   if (is_nil (cursor)) return false;
   result= path_up (cursor);
@@ -409,7 +436,8 @@ edit_math_rep::make_rigid () {
 void
 edit_math_rep::make_lprime (string s) {
   if (native_v3_math_context (buf)) {
-    make_script (true, false);
+    if (selection_active_small () || !continue_native_primes (et, tp, 2))
+      make_script (true, false, false);
     insert_tree (s == "'" ? tree ("′") : tree (s));
     return;
   }
@@ -424,7 +452,9 @@ edit_math_rep::make_lprime (string s) {
 void
 edit_math_rep::make_rprime (string s) {
   if (native_v3_math_context (buf)) {
-    make_script (true, true);
+    // Consecutive primes share a superscript; ordinary powers still nest.
+    if (selection_active_small () || !continue_native_primes (et, tp, 4))
+      make_script (true, true, false);
     insert_tree (s == "'" ? tree ("′") : tree (s));
     return;
   }
@@ -474,12 +504,17 @@ edit_math_rep::make_above () {
 
 void
 edit_math_rep::make_script (bool sup, bool right) {
+  make_script (sup, right, true);
+}
+
+void
+edit_math_rep::make_script (bool sup, bool right, bool switch_slots) {
   if (native_v3_math_context (buf)) {
     const int slot= right ? (sup ? 4 : 3) : (sup ? 2 : 1);
     const bool selected= selection_active_small ();
     const tree content= selected ? selection_get_cut () : tree ("");
     path attached;
-    if (find_native_scripts (et, tp, attached)) {
+    if (switch_slots && find_native_scripts (et, tp, attached)) {
       const tree scripts= subtree (et, attached);
       const path relative= tp / attached;
       // Repeating the current script command nests on its last token; the
@@ -822,7 +857,8 @@ edit_math_rep::back_prime (tree t, path p, bool forward) {
 void
 edit_math_rep::back_in_wide (tree t, path p, bool forward) {
   int i= last_item (p);
-  if ((i == 0) && is_empty (t[0])) {
+  const int body= L(t) == MATH_ACCENT ? 2 : 0;
+  if ((i == body) && is_empty (t[body])) {
     assign (path_up (p), "");
     correct (path_up (p, 2));
   }

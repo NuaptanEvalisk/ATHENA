@@ -10,6 +10,8 @@
 ******************************************************************************/
 
 #include "Boxes/composite.hpp"
+#include "Boxes/modifier.hpp"
+#include "Boxes/Composite/native_script_cursor.hpp"
 #include "Boxes/Composite/italic_correct.hpp"
 #include "Boxes/construct.hpp"
 #include "math_font.hpp"
@@ -787,6 +789,72 @@ side_box_rep::get_bracket_extents (SI& lo, SI& hi) {
 /******************************************************************************
 * box construction routines
 ******************************************************************************/
+
+class native_script_cursor_box_rep: public modifier_box_rep {
+  array<box> layouts;
+  path base_position;
+
+public:
+  native_script_cursor_box_rep (path ip, box visible, array<box> layouts,
+                               path base_position):
+    modifier_box_rep (ip, visible), layouts (layouts),
+    base_position (base_position) {}
+
+  path find_lip () override { return descend (ip, 0); }
+  path find_rip () override { return descend (ip, 1); }
+  using modifier_box_rep::find_box_path;
+  path find_box_path (path p, bool& found) override {
+    for (int i=0; i<N(layouts); ++i)
+      if (!is_nil (layouts[i]) && p == reverse (ip) * path (i+1, 0)) {
+        layouts[i]->find_box_path (p, found);
+        return path (i+1);
+      }
+    return modifier_box_rep::find_box_path (p, found);
+  }
+  path find_tree_path (path bp) override {
+    if (is_atom (bp)) return reverse (ip) * path (bp->item, 0);
+    return modifier_box_rep::find_tree_path (bp);
+  }
+  cursor find_cursor (path bp) override {
+    if (!is_atom (bp)) return modifier_box_rep::find_cursor (bp);
+    box layout= layouts[bp->item-1];
+    cursor result= layout->find_check_cursor (find_tree_path (bp));
+    cursor reference= layout->find_check_cursor (base_position);
+    cursor visible= b->find_check_cursor (base_position);
+    // Prescripts and limits may left-justify their reference layout. Align
+    // on the same base cursor rather than shifting the actual formula.
+    result->ox += visible->ox - reference->ox;
+    result->oy += visible->oy - reference->oy;
+    return result;
+  }
+  selection find_selection (path lp, path rp) override {
+    if (is_atom (lp) || is_atom (rp))
+      return selection (lp == rp ? rectangles () :
+        rectangles (rectangle (x1, y1, x2, y2)),
+        find_tree_path (lp), find_tree_path (rp));
+    return modifier_box_rep::find_selection (lp, rp);
+  }
+  box adjust_kerning (int mode, double factor) override {
+    array<box> adjusted (N(layouts));
+    for (int i=0; i<N(layouts); ++i)
+      if (!is_nil (layouts[i])) adjusted[i]= layouts[i]->adjust_kerning (mode, factor);
+    return native_script_cursor_box (ip, b->adjust_kerning (mode, factor),
+                                     adjusted, base_position);
+  }
+  box expand_glyphs (int mode, double factor) override {
+    array<box> expanded (N(layouts));
+    for (int i=0; i<N(layouts); ++i)
+      if (!is_nil (layouts[i])) expanded[i]= layouts[i]->expand_glyphs (mode, factor);
+    return native_script_cursor_box (ip, b->expand_glyphs (mode, factor),
+                                     expanded, base_position);
+  }
+};
+
+box
+native_script_cursor_box (path ip, box visible, array<box> layouts,
+                          path base_position) {
+  return tm_new<native_script_cursor_box_rep> (ip, visible, layouts, base_position);
+}
 
 box
 limit_box (path ip, box ref, box lo, box hi, font fn, bool glued) {

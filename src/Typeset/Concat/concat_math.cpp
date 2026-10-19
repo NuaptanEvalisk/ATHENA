@@ -17,6 +17,7 @@
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
 #include "Table/table.hpp"
+#include "Boxes/Composite/native_script_cursor.hpp"
 
 namespace {
 // A native math node can also occur directly in a rich-text row tag.
@@ -385,8 +386,9 @@ concater_rep::typeset_v3_scripts (tree t, path ip) {
     typeset_error (t, ip); return;
   }
   const bool big= is_func (t[0], BIG_OPERATOR, 2);
-  const box base= typeset_as_concat (env, t[0], descend (ip, 0));
+  box base= typeset_as_concat (env, t[0], descend (ip, 0));
   box children[4];
+  box vacant[4];
   const tree old_display= env->local_begin (MATH_DISPLAY, "false");
   const tree old_condensed= env->local_begin (MATH_CONDENSED, "true");
   const tree old_script= env->local_begin_script ();
@@ -395,13 +397,12 @@ concater_rep::typeset_v3_scripts (tree t, path ip) {
       MATH_VPOS, (i == 1 || i == 3) ? "-1" : "1");
     if (t[i] != "")
       children[i-1]= typeset_as_concat (env, t[i], descend (ip, i));
+    else vacant[i-1]= typeset_as_concat (env, t[i], descend (ip, i));
     env->local_end (MATH_VPOS, old_vpos);
   }
   env->local_end_script (old_script);
   env->local_end (MATH_CONDENSED, old_condensed);
   env->local_end (MATH_DISPLAY, old_display);
-  const bool has_left= t[1] != "" || t[2] != "";
-  const bool has_right= t[3] != "" || t[4] != "";
   const auto* meta= athena::node::get (t);
   const auto policy= std::get<std::string> (
     meta->properties.at (athena::math_v3::scripts_policy_key).data);
@@ -409,30 +410,42 @@ concater_rep::typeset_v3_scripts (tree t, path ip) {
     (policy == "d" && env->display_style) ||
     (policy == "a" && big && env->display_style &&
      !native_integral_operator (t[0][0]));
-  box assembled= base;
-  if (has_left && has_right && limits) {
-    // Right limits and left prescripts are independent slots. Placing both
-    // sides using side_box discards the explicit over/under policy whenever
-    // the formula also has a left script. Attach the lower/upper limit to the
-    // operator first, then position prescripts on its left.
-    box limited= limit_box (ip, base, children[2], children[3],
-                            env->fn, false);
-    assembled= left_script_box (ip, limited, children[0], children[1],
+  auto assemble= [&] (box* slots) -> box {
+    const bool has_left= !is_nil (slots[0]) || !is_nil (slots[1]);
+    const bool has_right= !is_nil (slots[2]) || !is_nil (slots[3]);
+    if (has_left && has_right && limits) {
+      // Attach right limits first, then independent left prescripts.
+      box limited= limit_box (ip, base, slots[2], slots[3], env->fn, false);
+      return left_script_box (ip, limited, slots[0], slots[1],
+                               env->fn, env->vert_pos);
+    }
+    if (has_left && has_right)
+      return side_box (ip, base, slots[0], slots[1],
+                         slots[2], slots[3], env->fn, env->vert_pos);
+    if (has_left)
+      return left_script_box (ip, base, slots[0], slots[1],
                                 env->fn, env->vert_pos);
-  }
-  else if (has_left && has_right)
-    assembled= side_box (ip, base, children[0], children[1],
-                         children[2], children[3], env->fn, env->vert_pos);
-  else if (has_left)
-    assembled= left_script_box (ip, base, children[0], children[1],
-                                env->fn, env->vert_pos);
-  else if (has_right && limits)
-    assembled= limit_box (ip, base, children[2], children[3], env->fn, false);
-  else if (has_right)
-    assembled= right_script_box (ip, base, children[2], children[3],
+    if (has_right && limits)
+      return limit_box (ip, base, slots[2], slots[3], env->fn, false);
+    if (has_right)
+      return right_script_box (ip, base, slots[2], slots[3],
                                  env->fn, env->vert_pos);
-  // With empty script slots the assembled box is just the base child. Keep
-  // the owning node's boundaries available to selection and focus geometry.
+    return base;
+  };
+  box assembled= assemble (children);
+  array<box> cursor_layouts (4);
+  bool has_vacant= false;
+  for (int i=0; i<4; ++i)
+    if (!is_nil (vacant[i])) {
+      has_vacant= true;
+      children[i]= vacant[i];
+      cursor_layouts[i]= assemble (children);
+      children[i]= box ();
+    }
+  if (has_vacant)
+    assembled= native_script_cursor_box (ip, assembled, cursor_layouts,
+      base->find_tree_path (base->find_left_box_path ()));
+  // Keep the owning node's boundaries available to selection/focus geometry.
   marker (descend (ip, 0));
   if (big) {
     print (STD_ITEM, OP_BIG, assembled);
