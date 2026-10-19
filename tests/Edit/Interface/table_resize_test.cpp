@@ -33,11 +33,52 @@ public:
   using edit_interface_rep::table_resize_start;
   using edit_interface_rep::table_resize_update;
   using edit_interface_rep::table_resize_finish;
+  using edit_interface_rep::hanging_reanchor_pending;
 };
 
 class TableResizeTest: public QObject {
   Q_OBJECT
 private slots:
+  void resizeOutsideCursorFreezesViewportThroughRelease () {
+    auto* buffer= tm_new<buffer_document_state> (
+      nullptr, "tmfs://table-resize-scroll-test", "", "UTF-8", false, 0);
+    swap_current_document_tree (&buffer->document);
+    tree table (TABLE, tree (ROW, tree (CELL, "Column"), tree (CELL, "Value")));
+    set_document (buffer->document, buffer->root_path,
+      tree (DOCUMENT, "Before", compound ("tabular", tree (TFORMAT, table)),
+            "After"));
+    auto* editor= tm_new<TableTestEditor> (buffer);
+    editor->init_style ("generic");
+    path fp= buffer->root_path * 1 * 0;
+    for (int paragraph: {0, 2}) {
+      editor->go_to_start (buffer->root_path * paragraph);
+      editor->typeset_forced ();
+      rectangle cell;
+      QVERIFY (editor->table_cell_bounds (fp, 0, 0, cell));
+      SI x= (cell->x1 + cell->x2) / 2, y= cell->y1;
+      SI delta= 20 * editor->get_pixel_size ();
+      editor->hanging_reanchor_pending= true;
+      QVERIFY (editor->table_resize_start (x, y));
+      QVERIFY (!editor->hanging_reanchor_pending);
+      QVERIFY (editor->has_changed (THE_FREEZE));
+      for (int step= 1; step <= 3; ++step) {
+        editor->notify_change (0, THE_FREEZE);
+        QVERIFY (editor->table_resize_update (x, y - step * delta));
+        QVERIFY (editor->has_changed (THE_FREEZE));
+        editor->typeset_forced ();
+      }
+      // Release requests reanchoring before it dispatches to the resize handler.
+      editor->hanging_reanchor_pending= true;
+      editor->notify_change (0, THE_FREEZE);
+      editor->table_resize_finish ();
+      QVERIFY (editor->has_changed (THE_FREEZE));
+      QVERIFY (!editor->hanging_reanchor_pending);
+    }
+    tm_delete<editor_rep> (editor);
+    swap_current_document_tree (nullptr);
+    tm_delete (buffer);
+  }
+
   void resizePreservesGeometryAndLocalInvalidation () {
     for (double zoom: {0.75, 1.0, 1.5, 2.0}) {
       auto* buffer= tm_new<buffer_document_state> (

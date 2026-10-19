@@ -377,6 +377,7 @@ static SI absval (SI x) { return max (x, -x); }
 
 void
 edit_interface_rep::cursor_visible () {
+  if (table_resize_active) return;
   path sp= find_innermost_scroll (eb, tp);
   cursor cu= get_cursor ();
   if (selection_active_any ()) {
@@ -2107,7 +2108,8 @@ edit_interface_rep::apply_changes () {
     const auto follow= follow_viewport.cursor_follow;
     follow->configure (mode == "hanging" ? viewport_follow_mode::hanging :
       mode == "on" ? viewport_follow_mode::typewriter : viewport_follow_mode::normal);
-    if (mode == "hanging" && (follow->anchor () < 0 || hanging_reanchor_pending)) {
+    if (mode == "hanging" && !table_resize_active &&
+        (follow->anchor () < 0 || hanging_reanchor_pending)) {
       update_visible ();
       if (vy2 > vy1 && follow->capture (
             double (vy2 - get_cursor ()->oy) / (vy2 - vy1)))

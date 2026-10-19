@@ -373,7 +373,8 @@ insert_apostrophe (editor_rep* ed, bool alternate) {
 void
 make_bracket_open (editor_rep* ed, string left, string right, bool large) {
   if (ed == nullptr) return;
-  if (auto* math= native_math_editor (ed)) {
+  if (auto* math= native_math_editor (ed);
+      math != nullptr && ed->get_env_string (MODE) == "math") {
     math->math_bracket_open (left, right, large ? 1 : 0);
     return;
   }
@@ -396,7 +397,8 @@ make_bracket_open (editor_rep* ed, string left, string right, bool large) {
 void
 make_separator (editor_rep* ed, string separator, bool large) {
   if (ed == nullptr) return;
-  if (auto* math= native_math_editor (ed)) {
+  if (auto* math= native_math_editor (ed);
+      math != nullptr && ed->get_env_string (MODE) == "math") {
     math->math_separator (separator, large ? 1 : 0);
     return;
   }
@@ -407,7 +409,8 @@ void
 make_bracket_close (editor_rep* ed, string right, string left, bool large) {
   (void) left;
   if (ed == nullptr) return;
-  if (auto* math= native_math_editor (ed)) {
+  if (auto* math= native_math_editor (ed);
+      math != nullptr && ed->get_env_string (MODE) == "math") {
     math->math_bracket_close (right, left, large ? 1 : 0);
     return;
   }

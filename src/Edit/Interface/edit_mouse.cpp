@@ -362,6 +362,8 @@ edit_interface_rep::table_resize_start (SI x, SI y) {
 
   if (is_func (subtree (et, fp), TABLE)) insert_node (fp * 0, TFORMAT);
   table_resize_active= true;
+  hanging_reanchor_pending= false;
+  notify_change (THE_FREEZE);
   if (ui_endpoint) ui_endpoint->set_table_resize_active (true);
   table_resize_value= "";
   table_resize_handle= handle;
@@ -379,6 +381,9 @@ edit_interface_rep::table_resize_start (SI x, SI y) {
 bool
 edit_interface_rep::table_resize_update (SI x, SI y) {
   if (!table_resize_active) return false;
+  // Resizing targets the pointer, not the text cursor. Following a cursor
+  // outside the table changes the next motion's document coordinates.
+  notify_change (THE_FREEZE);
   path fp= table_resize_format_path;
   if (!(rp <= fp) || !has_subtree (et, fp) ||
       !table_mouse_resize_allowed (et, fp) ||
@@ -426,6 +431,9 @@ void
 edit_interface_rep::table_resize_finish () {
   if (!table_resize_active) return;
   table_resize_active= false;
+  hanging_reanchor_pending= false;
+  // The final size may still need layout after the drag flag is cleared.
+  notify_change (THE_FREEZE);
   if (ui_endpoint) ui_endpoint->set_table_resize_active (false);
   table_resize_value= "";
   table_resize_handle= TABLE_RESIZE_NONE;

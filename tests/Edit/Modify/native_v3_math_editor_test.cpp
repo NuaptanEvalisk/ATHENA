@@ -76,6 +76,8 @@ private slots:
     buffer->data->init (ZOOM_FACTOR)= "1";
     set_document (buffer->document, buffer->root_path, tree (DOCUMENT, ""));
     editor= tm_new<NativeMathEditor> (test_server, buffer);
+    editor->init_style ("generic");
+    editor->typeset_preamble ();
   }
   void cleanup () {
     set_preference ("automatic brackets", previous_brackets);
@@ -184,6 +186,33 @@ private slots:
         QVERIFY (athena::math_v3::valid_delimited (pair));
         QCOMPARE (pair[5], tree (CONCAT, "x", tree (MATH_MIDDLE, "|"), "y"));
         QVERIFY (editor->the_path () == end (current_document_tree (), content_path ()));
+        verify_roundtrip ();
+      }
+  }
+  void keyboardTextBracketsRespectModeAndPreference () {
+    using namespace athena::auto_close;
+    for (bool embedded: {false, true})
+      for (const char* preference: {"off", "mathematics", "on"}) {
+        set_preference ("automatic brackets", preference);
+        buffer->storage_version= athena::document::xml_storage_version::v3;
+        tree text= embedded ? compound ("math", tree (WITH, MODE, "text", "")) :
+                              tree ("");
+        set_document (buffer->document, buffer->root_path, tree (DOCUMENT, text));
+        const path atom= embedded ? buffer->root_path * path (0, 0, 2) :
+                                    buffer->root_path * 0;
+        editor->go_to_end (atom);
+        QCOMPARE (editor->get_env_string (MODE), string ("text"));
+        editor->start_editing ();
+        make_bracket_open (editor, "(", ")");
+        const bool paired= string (preference) == "on";
+        QCOMPARE (subtree (current_document_tree (), atom), tree (paired ? "()" : "("));
+        editor->insert_tree ("x");
+        make_separator (editor, "|");
+        if (paired) editor->go_to_end (atom);
+        make_bracket_close (editor, ")", "(");
+        editor->end_editing ();
+        QCOMPARE (subtree (current_document_tree (), atom),
+                  tree (paired ? "(x|))" : "(x|)"));
         verify_roundtrip ();
       }
   }
