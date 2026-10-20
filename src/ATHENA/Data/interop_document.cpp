@@ -146,6 +146,53 @@ value edit_node (tree& source, document_nodes& nodes, const document_node& node,
   return {{"changed", changed}};
 }
 
+document_node_path batch_path (const value& encoded) {
+  if (!encoded.is_array ())
+    throw std::invalid_argument ("Batch paths must be child-index arrays");
+  document_node_path result;
+  for (const auto& index: encoded) {
+    if (!index.is_number_integer () ||
+        (!index.is_number_unsigned () && index.get<std::int64_t> () < 0) ||
+        index.get<std::uint64_t> () > std::uint64_t (std::numeric_limits<int>::max ()))
+      throw std::invalid_argument ("Batch child indices must be nonnegative integers");
+    result.push_back (index.get<int> ());
+  }
+  return result;
+}
+
+value edit_saved_batch (tree& source, document_nodes& nodes,
+                        const document_node& node, const value& parameters) {
+  require_parameters (parameters, {"checks", "edits"});
+  if (!nodes.locate (source, node).empty ())
+    throw std::invalid_argument ("Batch editing requires the document root");
+  const auto& checks= parameters.at ("checks");
+  const auto& edits= parameters.at ("edits");
+  if (!checks.is_array () || !edits.is_array () ||
+      checks.size () > 10000 || edits.size () > 10000)
+    throw std::invalid_argument ("Batch checks and edits must be arrays of at most 10000 entries");
+  for (const auto& check: checks) {
+    require_parameters (check, {"path", "tree"});
+    auto target= nodes.track (source, batch_path (check.at ("path")));
+    if (nodes.read (source, target) != check.at ("tree"))
+      throw std::runtime_error ("STALE: batch source precondition differs");
+  }
+  bool changed= false;
+  for (const auto& edit: edits) {
+    require_parameters (edit, {"path", "command", "parameters"});
+    const auto operation= edit.at ("command").get<std::string> ();
+    if (operation != "set" && operation != "insert" && operation != "erase" &&
+        operation != "insert_before" && operation != "insert_after" &&
+        operation != "set_tag" && operation != "clear_formatting" &&
+        operation != "update_properties" && operation != "assign_id")
+      throw std::invalid_argument ("Unsupported saved batch operation");
+    auto target= nodes.track (source, batch_path (edit.at ("path")));
+    auto result= edit_node (source, nodes, target, operation, edit.at ("parameters"));
+    changed= changed || result.value ("changed", false);
+  }
+  validate_document (source);
+  return {{"changed", changed}, {"edit_count", edits.size ()}};
+}
+
 void complete_v2_identities (tree& source, const std::string& filename) {
   new_data data;
   tree body= detach_data (source, data);
@@ -459,8 +506,12 @@ public:
     tree source= document_node_from_value_v3 (snapshot.source_value ());
     document_nodes nodes;
     nodes.import_nodes (source, snapshot);
-    value result= edit_node (
-      source, nodes, node ? node : nodes.track (source, {}), command, parameters);
+    const auto target= node ? node : nodes.track (source, {});
+    // The detached working tree is published and renamed only after the entire
+    // batch validates. Intermediate edits never reach either disk or a BufferActor.
+    value result= command == "batch" ?
+      edit_saved_batch (source, nodes, target, parameters) :
+      edit_node (source, nodes, target, command, parameters);
     if (source_format == athena::document::document_source_format::xml_v2 ||
         source_format == athena::document::document_source_format::xml_v3)
       complete_v2_identities (source, filename);
@@ -553,6 +604,11 @@ public:
     return current->metadata ();
   }
   bool writable () const override { return true; }
+  bool metadata_writable () const override {
+    std::lock_guard<std::mutex> lock (mutex);
+    refresh ();
+    return current->metadata_writable ();
+  }
   bool source_relocation_available () const override {
     std::lock_guard<std::mutex> lock (mutex);
     refresh ();
@@ -626,6 +682,10 @@ public:
         {{"set", "document-model-v3 property entry array"},
          {"remove", "property-name string array"}}} };
       commands["assign_id"]= {{"parameters", value::object ()}};
+      if (document && source->mode == "saved")
+        commands["batch"]= {{"parameters", {
+          {"checks", "array of {path: child-index array, tree: expected encoded node}"},
+          {"edits", "array of {path: child-index array, command, parameters}; paths follow preceding edits"}}}};
     }
     if (document && source->source_relocation_available ())
       commands["relocate_source_position"]= {{"parameters",
@@ -644,6 +704,11 @@ public:
           command == "clear_formatting" ||
           command == "insert_before" || command == "insert_after") {
         if (!source->writable ()) return {"UNSUPPORTED", "Editing this source is not available"};
+        return {"OK", source->edit (node, command, parameters)};
+      }
+      if (command == "batch") {
+        if (!document || source->mode != "saved" || !source->metadata_writable ())
+          return {"UNSUPPORTED", "Atomic batches require a saved document with persistent metadata"};
         return {"OK", source->edit (node, command, parameters)};
       }
       if (command == "update_properties" || command == "assign_id") {

@@ -347,6 +347,18 @@ Document and node operations:
 - `update_properties {"set": PROPERTY_ENTRIES, "remove": [NAME,...]}`: atomically
   apply typed property replacements/removals using the v3 property schema.
   `id`, `uuid` and reserved `athena:artifact-bindings` remain protected.
+- `batch {"checks": [{"path": PATH, "tree": NODE}, ...], "edits": [{"path": PATH,
+  "command": COMMAND, "parameters": PARAMETERS}, ...]}`: available only on the
+  root `/saved` document with persistent metadata support. Paths are arrays of
+  nonnegative child indices relative to the document root. All exact source
+  checks run before editing; edit paths then refer to the tree resulting from
+  preceding edits. Commands are the primitive mutations listed above, not
+  nested batches. Each array is limited to 10,000 entries; ordinary wire limits
+  also apply. All edits run on one detached working tree and commit with one
+  file replacement. Any failed check, edit, validation or pre-rename revision
+  check discards the whole batch. There is no intermediate disk save or live
+  BufferActor mutation. The result includes `changed`, `edit_count` and the
+  usual saved-edit durability fields.
 
 `assign_id` and `update_properties` are advertised only for sources whose
 persistent metadata contract is active (normal XML v2 source / active v2
