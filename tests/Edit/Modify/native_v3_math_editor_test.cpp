@@ -104,6 +104,69 @@ class NativeV3MathEditorTest: public QObject {
   }
 
 private slots:
+  void eqnarrayInsertionUsesNativeGrid_data () {
+    QTest::addColumn<QString> ("entry");
+    QTest::addColumn<QString> ("name");
+    QTest::addColumn<bool> ("selected");
+    for (const QString entry: {QString ("compound"), QString ("hybrid"),
+                               QString ("prepared"), QString ("curly")})
+      for (const QString name: {QString ("eqnarray"), QString ("eqnarray*")})
+        for (bool selected: {false, true}) {
+          if (entry == "curly" && name != "eqnarray") continue;
+          const QByteArray row= (entry + "-" + name +
+            (selected ? "-selection" : "-empty")).toUtf8 ();
+          QTest::newRow (row.constData ()) << entry << name << selected;
+        }
+  }
+  void eqnarrayInsertionUsesNativeGrid () {
+    QFETCH (QString, entry);
+    QFETCH (QString, name);
+    QFETCH (bool, selected);
+    SchemeExecutionContext context (nullptr, editor, &editor->drd,
+      &buffer->document, 0, 0, 0, SCHEME_CAPABILITY_BUFFER);
+    SchemeExecutionScope scope (context);
+    buffer->storage_version= athena::document::xml_storage_version::v3;
+    const tree body= selected ? tree ("X") : tree ("");
+    set_document (buffer->document, buffer->root_path, tree (DOCUMENT, body));
+    const path paragraph= buffer->root_path * 0;
+    editor->go_to_end (paragraph);
+    if (selected)
+      editor->selection_set_paths (start (current_document_tree (), paragraph),
+                                    end (current_document_tree (), paragraph));
+    const string command (name.toUtf8 ().constData ());
+    editor->start_editing ();
+    if (entry == "compound") editor->make_compound (make_tree_label (command), -1);
+    else {
+      editor->make_hybrid ();
+      if (entry == "curly") generic_hybrid_kbd_curly_left ();
+      else {
+        editor->insert_tree (command);
+        if (entry == "prepared") QVERIFY (editor->prepare_hybrid ());
+        editor->activate_hybrid (false);
+      }
+    }
+    editor->end_editing ();
+    const tree block= subtree (current_document_tree (), paragraph);
+    QVERIFY (is_func (block, MATH_BLOCK, 1));
+    QVERIFY (athena::math_v3::valid_native_math (block));
+    const tree grid= block[0];
+    QVERIFY (is_func (grid, MATH_GRID, 1));
+    QVERIFY (athena::math_v3::valid_native_math (grid));
+    QCOMPARE (std::get<std::string> (athena::node::get (grid)->properties.at (
+      "math:grid-kind").data), std::string ("eqnarray"));
+    QVERIFY (!std::get<bool> (athena::node::get (block)->properties.at (
+      "math:block-numbered").data));
+    QCOMPARE (grid[0], tree (ROW, tree (CELL, body), tree (CELL, ""), tree (CELL, "")));
+    QVERIFY (editor->the_path () == end (current_document_tree (),
+      paragraph * path (0, 0, 0, 0)));
+    verify_roundtrip ();
+    editor->typeset_forced ();
+    QVERIFY (editor->eb->find_check_cursor (editor->the_path ())->valid);
+    editor->insert_tree ("Y");
+    QCOMPARE (subtree (current_document_tree (), paragraph * path (0, 0, 0, 0)),
+              tree (selected ? "XY" : "Y"));
+    verify_roundtrip ();
+  }
   void escapePickerBracketsAreNative_data () {
     QTest::addColumn<QString> ("action");
     QTest::addColumn<QString> ("left");
