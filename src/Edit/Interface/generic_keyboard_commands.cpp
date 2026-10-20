@@ -13,6 +13,7 @@
 #include "file.hpp"
 #include "hashset.hpp"
 #include "native_latex_commands.hpp"
+#include "auto_close.hpp"
 #include "structured_commands.hpp"
 #include "new_view.hpp"
 #include "server.hpp"
@@ -145,6 +146,17 @@ bool execute_json_keyboard_action (QJsonObject descriptor, string capture= "") {
     ASSERT (json_keyboard_string (value, capture, text),
             "invalid text keyboard action descriptor");
     get_current_editor ()->insert_tree (tree (text));
+    return true;
+  }
+  if (kind == "alphabet") {
+    string tag, value;
+    ASSERT (json_keyboard_string (descriptor.value ("tag"), capture, tag) &&
+            json_keyboard_string (descriptor.value ("value"), capture, value),
+            "invalid alphabet keyboard action descriptor");
+    editor ed= get_current_editor ();
+    // The same owner interprets toolbar alphabets as native XML v3 variants.
+    // Never insert their historical macro AST through a generic tree action.
+    athena::auto_close::insert_alphabet (ed.operator-> (), tag, value);
     return true;
   }
   return false;

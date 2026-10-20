@@ -50,8 +50,9 @@ new_source_version_for_target (
     if (parent == directory) break;
     directory= parent;
   }
-  return template_format == document_source_format::xml_v3 ?
-    xml_format_version::v3 : xml_format_version::v2;
+  // No Vault owns this target: a new ATHENA 0.11 source is XML v3.
+  // An existing legacy Vault above still retains authority over its format.
+  return xml_format_version::v3;
 }
 
 } // namespace athena::document

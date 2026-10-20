@@ -157,7 +157,7 @@ private slots:
     QCOMPARE (new_source_version_for_model (2), xml_format_version::v3);
     QVERIFY_THROWS_EXCEPTION (std::invalid_argument, new_source_version_for_model (3));
     QVERIFY_THROWS_EXCEPTION (std::invalid_argument, new_source_version_for_model (-1));
-    QCOMPARE (new_source_version_for_target (root / "plain.ath"), xml_format_version::v2);
+    QCOMPARE (new_source_version_for_target (root / "plain.ath"), xml_format_version::v3);
     QCOMPARE (new_source_version_for_target (root / "template.ath",
       document_source_format::xml_v3), xml_format_version::v3);
 
@@ -266,6 +266,22 @@ private slots:
     QCOMPARE (decode_native_xml_bytes (read_bytes (root / "v3/plain.ath")).version,
               xml_format_version::v3);
     QCOMPARE (read_bytes (root / "plain.ath"), plain);
+  }
+
+  void newScratchDocumentDefaultsToV3 () {
+    const url scratch= make_new_source_buffer ();
+    auto cleanup= qScopeGuard ([&] { remove_buffer (scratch); });
+    auto buffer= concrete_buffer (scratch);
+    QVERIFY (!is_nil (buffer));
+    actor_command_record snapshot;
+    QVERIFY (buffer->actor->invoke (actor_command_kind::snapshot_document,
+      ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, &snapshot));
+    QCOMPARE (snapshot.argument[0], std::uint64_t (3));
+    const auto document= actor_tree_registry::instance ().take (snapshot.payload0);
+    const tree body= extract (document, "body");
+    QVERIFY (is_func (body, DOCUMENT, 1));
+    QVERIFY (athena::node::valid_id (athena::node::id (body)));
+    QVERIFY (athena::node::valid_id (athena::node::id (body[0])));
   }
 
   void bufferCreationAndExistingVersion () {

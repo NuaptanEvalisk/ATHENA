@@ -688,6 +688,9 @@ buffer_create_source (url name) {
     using namespace athena::document;
     xml_format_version version= xml_format_version::v2;
     if (is_scratch (name)) {
+      // New, unsaved documents have no persisted format to preserve.
+      // An owning Vault still selects its own model version.
+      version= xml_format_version::v3;
       if (const auto context= vault_capture_context ())
         version= new_source_version_for_model (context->node_model_version);
     }

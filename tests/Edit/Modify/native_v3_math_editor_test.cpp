@@ -1205,6 +1205,22 @@ private slots:
     QCOMPARE (content (), tree ("x"));
     verify_roundtrip ();
   }
+  void escapeBlackboardFollowedByBracketUsesNativeV3 () {
+    SchemeExecutionContext context (nullptr, editor, &editor->drd,
+      &buffer->document, ATHENA_NO_ACTOR, ATHENA_NO_VIEW, 0,
+      SCHEME_CAPABILITY_BUFFER);
+    SchemeExecutionScope scope (context);
+    reset_inline ("");
+    editor->start_editing ();
+    generic_escape_symbol_insert ("bbb-k");
+    editor->math_bracket_open ("(", ")", 0);
+    editor->end_editing ();
+    QCOMPARE (content (), tree (CONCAT,
+      tree (MATH_VARIANT, "bb", "k"),
+      athena::math_v3::delimited ("(", ")", 'a', "")));
+    verify_roundtrip ();
+  }
+
   void mathAlphabetToolbarUsesNativeV3Variants () {
     struct variant_fixture { const char* tag; const char* kind; };
     for (const auto& item: {

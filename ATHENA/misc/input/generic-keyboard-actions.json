@@ -253,13 +253,11 @@
     {
       "prefix": "bbb-",
       "action": {
-        "kind": "tree",
-        "value": [
-          "math-alpha-bbb",
-          {
-            "capture": "suffix"
-          }
-        ]
+        "kind": "alphabet",
+        "tag": "math-alpha-bbb",
+        "value": {
+          "capture": "suffix"
+        }
       }
     },
     {
