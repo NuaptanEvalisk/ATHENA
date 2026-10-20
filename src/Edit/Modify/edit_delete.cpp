@@ -92,6 +92,26 @@ is_multi_paragraph_or_sectional (tree t) {
 
 void
 edit_text_rep::remove_text_sub (bool forward) {
+  // A native mathematical variant has an immutable kind descriptor (slot 0)
+  // and an editable expression (slot 1). The generic empty-argument deletion
+  // would enter the descriptor when the expression becomes empty, wrapping the
+  // node in INACTIVE and exposing <math-variant|bb|> as raw source. Delete the
+  // empty variant itself instead, including an already-exposed INACTIVE wrapper.
+  // Do not discard a nonempty expression or alter other fixed-arity nodes.
+  for (path variant_path= path_up (tp); rp < variant_path;
+       variant_path= path_up (variant_path)) {
+    tree variant= subtree (et, variant_path);
+    if (L(variant) != MATH_VARIANT) continue;
+    if (N(variant) == 2 && !is_content_empty (variant[1])) continue;
+    if (N(variant) != 1 && N(variant) != 2) continue;
+    path target= variant_path;
+    if (rp < target &&
+        is_func (subtree (et, path_up (target)), INACTIVE, 1))
+      target= path_up (target);
+    assign (target, "");
+    correct (path_up (target));
+    return;
+  }
   if (!forward && !in_source ()) {
     for (path cell= path_up (tp); rp < cell; cell= path_up (cell)) {
       tree value= subtree (et, cell);

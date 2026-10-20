@@ -1221,6 +1221,31 @@ private slots:
     verify_roundtrip ();
   }
 
+  void emptyNativeVariantBackspaceRemovesWholeNode () {
+    // Deleting the last glyph must never navigate into the non-editable "bb"
+    // kind field or expose an inactive source macro.
+    reset_inline (tree (MATH_VARIANT, "bb", "k"));
+    editor->go_to_end (content_path () * 1);
+    editor->start_editing ();
+    editor->remove_text (false);
+    editor->end_editing ();
+    QCOMPARE (content (), tree (MATH_VARIANT, "bb", ""));
+    editor->start_editing ();
+    editor->remove_text (false);
+    editor->end_editing ();
+    QCOMPARE (content (), tree (""));
+    verify_roundtrip ();
+
+    // Repair an already-exposed macro left behind by the old Backspace path.
+    reset_inline (tree (INACTIVE, tree (MATH_VARIANT, "bb", "")));
+    editor->go_to_end (content_path () * path (0, 0));
+    editor->start_editing ();
+    editor->remove_text (false);
+    editor->end_editing ();
+    QCOMPARE (content (), tree (""));
+    verify_roundtrip ();
+  }
+
   void mathAlphabetToolbarUsesNativeV3Variants () {
     struct variant_fixture { const char* tag; const char* kind; };
     for (const auto& item: {
