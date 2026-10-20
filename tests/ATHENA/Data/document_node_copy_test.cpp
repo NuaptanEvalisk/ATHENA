@@ -92,8 +92,9 @@ private slots:
     tree result_caption= std::get<node::rich_text> (
       node::get (result)->properties.at ("example:caption").data).content;
     result_caption[0]= "changed";
-    QVERIFY (std::get<node::rich_text> (
-      node::get (source)->properties.at ("example:caption").data).content[0] == "caption");
+    const tree caption= std::get<node::rich_text> (
+      node::get (source)->properties.at ("example:caption").data).content;
+    QVERIFY (caption[0] == "caption");
   }
 
   void clipboardVersionsAreLosslessSnapshots () {
@@ -140,7 +141,8 @@ private slots:
     const auto& props= node::get (result[0])->properties;
     QVERIFY (props.count (athena::document_node::artifact_bindings_property) == 0);
     QVERIFY (std::get<node::reference> (props.at ("example:target").data).id == mapping.at (second));
-    QVERIFY (std::get<node::rich_text> (props.at ("example:rich").data).content == link (mapping.at (second)));
+    const tree rich= std::get<node::rich_text> (props.at ("example:rich").data).content;
+    QVERIFY (rich == link (mapping.at (second)));
     QVERIFY (node::id (source[0]) == first);
     QVERIFY (node::get (source[0])->properties.count (
       athena::document_node::artifact_bindings_property) == 1);

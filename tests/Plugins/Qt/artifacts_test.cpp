@@ -85,7 +85,7 @@ private slots:
   void prefersLongestRadioactiveArtifactTerm ();
   void linksAmbiguousRadioactiveArtifactTerms ();
   void namesEnunciationsStrictlyAndSkipsCompletions ();
-  void extractsEveryDefinitionAliasFromFirstLine ();
+  void ignoresUnstructuredDefinitionNames ();
   void preservesStructuredDefinitionNames ();
   void upgradesLegacyNamesBeforeRadioactiveIndex ();
   void matchesStructuredRadioactiveNames ();
@@ -501,9 +501,7 @@ TestArtifacts::extractsEnunciationsBoldTextAndProofLink () {
   QCOMPARE (records[0].type, std::string ("provable"));
   QCOMPARE (records[0].anchor_stem,
             std::string ("Compactness theorem"));
-  QCOMPARE (records[0].semantic_names,
-            std::vector<std::string> (
-              {"Every finite rank operator is compact."}));
+  QVERIFY (records[0].semantic_names.empty ());
   QVERIFY (records[0].proof_uuid.rfind ("@order:", 0) == 0);
   QCOMPARE (records[1].type, std::string ("completion"));
   QVERIFY (records[1].semantic_names.empty ());
@@ -513,7 +511,8 @@ TestArtifacts::extractsEnunciationsBoldTextAndProofLink () {
             std::vector<std::string> ({"compact operator"}));
   QCOMPARE (read_xml (records[2].keyword_tree, xml_kind::fragment),
             compound ("strong", "compact operator"));
-  QCOMPARE (records[2].paragraph_offsets, std::vector<int> ({0}));
+  QVERIFY (records[2].paragraph_offsets.empty ());
+  QCOMPARE (records[2].range_state, AthenaArtifactRangeState::pending);
 }
 
 void
@@ -581,7 +580,7 @@ TestArtifacts::appliesVaultArtifactTitleFilterIncrementally () {
   QCOMPARE (filtered.documents_changed, (size_t) 1);
   QCOMPARE (filtered.artifacts, (size_t) 2);
 
-  QVERIFY2 (athena_artifact_title_filter_write (root, {}, error),
+  QVERIFY2 (athena_artifact_title_filter_write (root, std::vector<std::string> {}, error),
             error.c_str ());
   AthenaArtifactsBuildResult restored;
   QVERIFY2 (athena_artifacts_build (root, {}, true, {}, restored, error),
@@ -815,6 +814,9 @@ TestArtifacts::excludesOnlyArtifactDefiningOccurrences () {
     return r.origin == "bold-text" && r.display_text == "middle concept";
   });
   QVERIFY (bold != records.end ());
+  // This test exercises a chosen range, independently of model availability.
+  bold->paragraph_offsets= {0};
+  bold->range_state= AthenaArtifactRangeState::resolved;
   AthenaArtifactParagraphLocation location;
   QVERIFY2 (athena_artifact_locate_paragraph (
               document, *bold, location, error), error.c_str ());
@@ -1069,9 +1071,7 @@ TestArtifacts::preservesAccentedArtifactTextAcrossWorkerAndDatabase () {
   QCOMPARE (enunciation->anchor_stem, std::string ("H\xc3\xb6lder theorem"));
   QCOMPARE (enunciation->display_text,
             std::string ("A th\xc3\xa9or\xc3\xa8me statement."));
-  QCOMPARE (enunciation->semantic_names,
-            std::vector<std::string> (
-              {"A th\xc3\xa9or\xc3\xa8me statement."}));
+  QVERIFY (enunciation->semantic_names.empty ());
   QCOMPARE (found->semantic_names,
             std::vector<std::string> ({"Ces\xc3\xa0ro summation"}));
   QCOMPARE (found->keyword_tree,
@@ -1130,8 +1130,11 @@ TestArtifacts::storesAndDisambiguatesSameNamedArtifacts () {
     same_name, "Eulerian theorem applies here.");
   QCOMPARE (matches.size (), (size_t) 1);
   QCOMPARE (matches[0].uuids.size (), (size_t) 2);
-  QCOMPARE (matches[0].uuids[0], same_name[0].uuid);
-  QCOMPARE (matches[0].uuids[1], same_name[1].uuid);
+  std::vector<std::string> expected_ids {same_name[0].uuid, same_name[1].uuid};
+  std::sort (expected_ids.begin (), expected_ids.end ());
+  auto matched_ids= matches[0].uuids;
+  std::sort (matched_ids.begin (), matched_ids.end ());
+  QVERIFY (matched_ids == expected_ids);
   QCOMPARE (matches[0].disambiguation_key,
             athena_artifact_radioactive_key (same_name[0]));
   std::string target= athena_artifact_radioactive_destination (matches[0]);
@@ -1567,7 +1570,9 @@ TestArtifacts::preservesIdentityAcrossTrustedPathRenames () {
     root / "Old/B.ath", artifact_test_document ("Fredholm operator"));
 
   AthenaArtifactsBuildResult initial;
-  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, initial, error),
+  AthenaArtifactsBuildOptions options;
+  options.structural_only= true;
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, initial, error, options),
             error.c_str ());
   std::vector<AthenaArtifactRecord> before;
   QVERIFY2 (athena_artifacts_query (root, before, error), error.c_str ());
@@ -1585,7 +1590,7 @@ TestArtifacts::preservesIdentityAcrossTrustedPathRenames () {
             error.c_str ());
 
   AthenaArtifactsBuildResult rebuilt;
-  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, rebuilt, error),
+  QVERIFY2 (athena_artifacts_build (root, {}, true, {}, rebuilt, error, options),
             error.c_str ());
   QCOMPARE (rebuilt.documents_changed, (size_t) 0);
   QCOMPARE (rebuilt.documents_deleted, (size_t) 0);
@@ -1624,7 +1629,7 @@ radioactive_record (const char* uuid, const char* term,
 }
 
 void
-TestArtifacts::extractsEveryDefinitionAliasFromFirstLine () {
+TestArtifacts::ignoresUnstructuredDefinitionNames () {
   MissingRangeModel noModel;
   tree first (CONCAT);
   first << "We call this "
@@ -1646,20 +1651,14 @@ TestArtifacts::extractsEveryDefinitionAliasFromFirstLine () {
   QVERIFY2 (athena_artifacts_extract_document (
               document, "aliases.ath", records, error), error.c_str ());
   QCOMPARE (records.size (), (size_t) 2);
-  QCOMPARE (records[0].semantic_names, std::vector<std::string> (
-    {"covering map", "local homeomorphism", "atlas map", "C*-algebra"}));
+  QVERIFY (records[0].semantic_names.empty ());
   QVERIFY (records[1].semantic_names.empty ());
   records[0].uuid= "definition-aliases";
   const string text=
     "covering map; local homeomorphism; atlas map; C*-algebra. "
     "Later body emphasis. Later title. No name declared here.";
   auto matches= athena_artifact_radioactive_matches_for_records (records, text);
-  QCOMPARE (matches.size (), (size_t) 4);
-  for (size_t i=0; i<matches.size (); ++i) {
-    QCOMPARE (matches[i].uuids, std::vector<std::string> ({"definition-aliases"}));
-    QCOMPARE (text (matches[i].start, matches[i].end),
-              string (records[0].semantic_names[i].c_str ()));
-  }
+  QCOMPARE (matches.size (), (size_t) 0);
 
   tree wrapped_lines (DOCUMENT);
   wrapped_lines << "(first alias, second alias, first alias)" << "Not a title";
@@ -1675,10 +1674,8 @@ TestArtifacts::extractsEveryDefinitionAliasFromFirstLine () {
   QVERIFY2 (athena_artifacts_extract_document (
               extra_document, "wrappers.ath", extra_records, error), error.c_str ());
   QCOMPARE (extra_records.size (), (size_t) 2);
-  QCOMPARE (extra_records[0].semantic_names,
-            std::vector<std::string> ({"first alias", "second alias"}));
-  QCOMPARE (extra_records[1].semantic_names,
-            std::vector<std::string> ({"Before break"}));
+  QVERIFY (extra_records[0].semantic_names.empty ());
+  QVERIFY (extra_records[1].semantic_names.empty ());
 
   QTemporaryDir temporary;
   QVERIFY (temporary.isValid ());
@@ -1707,10 +1704,16 @@ TestArtifacts::preservesStructuredDefinitionNames () {
   tree script= compound ("math", tree (CONCAT, "R", tree (RSUB, "n")));
   tree pair= compound ("math", "(x,y)");
   tree title (CONCAT);
-  title << "(" << sigma << "-algebra, " << script << "-module, " << pair
-        << "-space, σ-algebra)";
+  title << sigma << "-algebra, " << script << "-module, " << pair
+        << "-space, σ-algebra";
   tree body (DOCUMENT);
-  body << compound ("definition", tree (CONCAT, compound ("strong", title), " is defined here."));
+  body << tree (athena::enunciation::label (),
+    tree (DOCUMENT, tree (CONCAT, compound ("strong", title), " is defined here.")));
+  athena::node::metadata metadata;
+  metadata.properties["kind"]= athena::node::property (std::string ("definition"));
+  metadata.properties["numbered"]= athena::node::property (true);
+  metadata.properties["name"]= athena::node::property (athena::node::rich_text {title});
+  athena::node::set (body[0], metadata);
   tree document (DOCUMENT);
   document << compound ("style", "generic")
            << compound ("body", body);
@@ -1719,16 +1722,12 @@ TestArtifacts::preservesStructuredDefinitionNames () {
   QVERIFY2 (athena_artifacts_extract_document (
     document, "structured.ath", records, error), error.c_str ());
   QCOMPARE (records.size (), size_t (1));
-  QCOMPARE (records[0].semantic_names.size (), size_t (4));
-  QCOMPARE (records[0].semantic_name_trees.size (), size_t (4));
-  QCOMPARE (records[0].semantic_names[0], records[0].semantic_names[3]);
+  QCOMPARE (records[0].semantic_names.size (), size_t (1));
+  QCOMPARE (records[0].semantic_name_trees.size (), size_t (1));
   auto parse= [] (const std::string& source) {
     return read_xml (source, xml_kind::fragment);
   };
-  QCOMPARE (parse (records[0].semantic_name_trees[0]), tree (CONCAT, sigma, "-algebra"));
-  QCOMPARE (parse (records[0].semantic_name_trees[1]), tree (CONCAT, script, "-module"));
-  QCOMPARE (parse (records[0].semantic_name_trees[2]), tree (CONCAT, pair, "-space"));
-  QCOMPARE (parse (records[0].semantic_name_trees[3]), tree ("σ-algebra"));
+  QCOMPARE (parse (records[0].semantic_name_trees[0]), title);
 
   QTemporaryDir temporary;
   QVERIFY (temporary.isValid ());
@@ -1738,7 +1737,7 @@ TestArtifacts::preservesStructuredDefinitionNames () {
   info.enunciations_path= "indexes/enunciations.db";
   info.bold_text_path= "indexes/bold-text.db";
   QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
-  write_xml_document (root / "structured.ath", document);
+  write_xml_v2_document (root / "structured.ath", document);
   AthenaArtifactsBuildResult built;
   QVERIFY2 (athena_artifacts_build (root, {}, true, {}, built, error), error.c_str ());
   std::vector<AthenaArtifactRecord> stored;
@@ -1991,18 +1990,11 @@ TestArtifacts::namesEnunciationsStrictlyAndSkipsCompletions () {
               forensic_error), forensic_error.c_str ());
   QCOMPARE (forensic_records.size (), (size_t) 4);
   QCOMPARE (forensic_records[0].anchor_stem, std::string ("question:Show that"));
-  QCOMPARE (forensic_records[0].semantic_names,
-            std::vector<std::string> (
-              {"Show that U(H) is isomorphic to SU(2)."}));
+  QVERIFY (forensic_records[0].semantic_names.empty ());
   QCOMPARE (forensic_records[1].anchor_stem, std::string ("question:52297528"));
-  QCOMPARE (forensic_records[1].semantic_names,
-            std::vector<std::string> (
-              {"A complete non-Latin mathematical statement."}));
-  QCOMPARE (forensic_records[2].semantic_names,
-            std::vector<std::string> ({"Einstein, 2026", "Einstein"}));
-  QCOMPARE (forensic_records[3].semantic_names,
-            std::vector<std::string> (
-              {"(X,d) is a complete metric space."}));
+  QVERIFY (forensic_records[1].semantic_names.empty ());
+  QVERIFY (forensic_records[2].semantic_names.empty ());
+  QVERIFY (forensic_records[3].semantic_names.empty ());
   for (const AthenaArtifactRecord& record: forensic_records)
     QVERIFY (record.anchor_stem != "question");
 
@@ -2043,8 +2035,7 @@ TestArtifacts::namesEnunciationsStrictlyAndSkipsCompletions () {
     });
   QVERIFY (theorem != extracted.end ());
   QCOMPARE (theorem->display_text, long_statement);
-  QCOMPARE (theorem->semantic_names,
-            std::vector<std::string> ({long_statement}));
+  QVERIFY (theorem->semantic_names.empty ());
 }
 
 void

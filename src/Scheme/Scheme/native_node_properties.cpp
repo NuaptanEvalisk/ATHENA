@@ -140,7 +140,7 @@ object encode_property (const property& source) {
       tag= "reference"; result= object (native (value.id));
     }
     else if constexpr (std::is_same_v<T, node::rich_text>) {
-      tag= "rich-text"; result= object (copy (value.content));
+      tag= "rich-text"; result= object (tree (value.content));
     }
     else if constexpr (std::is_same_v<T, property::dictionary>) {
       tag= "dictionary"; result= encode_dictionary (value);

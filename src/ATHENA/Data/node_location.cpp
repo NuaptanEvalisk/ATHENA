@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "node_location.hpp"
+#include <list>
 #include "node_location_cache.hpp"
 #include "node_metadata.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
@@ -188,6 +189,7 @@ census collect (const tree& source) {
   return std::move (walk.found);
 }
 tree lookup (const tree& source, const address& where, const std::string& expected_id) {
+  std::list<tree> fields;
   const tree* t= &source;
   const property* p= nullptr;
   const auto stale= [] { return std::runtime_error ("Stale node location"); };
@@ -219,7 +221,8 @@ tree lookup (const tree& source, const address& where, const std::string& expect
     case step_kind::rich_text: {
       const auto* rich= p ? std::get_if<node::rich_text> (&p->data) : nullptr;
       if (!rich) throw stale ();
-      t= &rich->content; p= nullptr; break;
+      fields.push_back (rich->content);
+      t= &fields.back (); p= nullptr; break;
     }
     }
   }
@@ -568,6 +571,7 @@ static bool preview_context_item (const tree& value) {
 }
 
 static tree nearby_context (const tree& source, const address& where) {
+  std::list<tree> fields;
   const tree* current= &source;
   const property* property_value= nullptr;
   const tree* document_parent= nullptr;
@@ -614,7 +618,8 @@ static tree nearby_context (const tree& source, const address& where) {
       const auto* rich= property_value ?
         std::get_if<node::rich_text> (&property_value->data) : nullptr;
       if (!rich) return tree (DOCUMENT);
-      current= &rich->content;
+      fields.push_back (rich->content);
+      current= &fields.back ();
       property_value= nullptr;
       break;
     }

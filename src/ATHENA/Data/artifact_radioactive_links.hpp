@@ -105,7 +105,8 @@ void athena_artifact_radioactive_invalidate ();
 void athena_artifact_radioactive_refresh ();
 void athena_artifact_radioactive_overlay (
   const std::string& incarnation, const std::string& relative_path,
-  std::uint64_t owner, const std::vector<AthenaArtifactRecord>& records);
+  std::uint64_t owner, const std::vector<AthenaArtifactRecord>& records,
+  const std::function<bool()>& still_current= {});
 void athena_artifact_radioactive_remove_overlay (std::uint64_t owner);
 // Apply the same per-document replacement semantics to database query results.
 void athena_artifact_radioactive_merge (

@@ -535,8 +535,9 @@ TestVaultSearch::structuredQueryNativeRoundTrip () {
     QVERIFY (preserved != nullptr);
     QCOMPARE (preserved->id, meta.id);
     QVERIFY (std::get<bool> (preserved->properties.at ("test:enabled").data));
-    QVERIFY (std::get<athena::node::rich_text> (
-      preserved->properties.at ("test:title").data).content == tree (CONCAT, "typed", " title"));
+    const tree title= std::get<athena::node::rich_text> (
+      preserved->properties.at ("test:title").data).content;
+    QVERIFY (title == tree (CONCAT, "typed", " title"));
 
     tree atom ("typed text");
     // Keep only general properties on a text node.

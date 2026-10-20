@@ -22,6 +22,28 @@ namespace {
 template<class... F> struct visitor: F... { using F::operator()...; };
 template<class... F> visitor(F...) -> visitor<F...>;
 
+// tree's ordinary equality/hash use A(t), which copies a non-atomic array
+// handle. Immutable properties can be read by different actors concurrently,
+// so traverse by const reference without touching legacy reference counts.
+bool frozen_equal (const tree& a, const tree& b) {
+  if (strong_equal (a, b)) return true;
+  if (L(a) != L(b) || !equal_metadata (a, b)) return false;
+  if (is_atomic (a)) return a->label == b->label;
+  if (N(a) != N(b)) return false;
+  for (int i=0; i<N(a); ++i)
+    if (!frozen_equal (a[i], b[i])) return false;
+  return true;
+}
+
+int frozen_hash (const tree& value) {
+  const int attributes= hash_metadata (value);
+  if (is_atomic (value)) return ::hash (value->label) ^ attributes;
+  int children= 0;
+  for (int i=0; i<N(value); ++i)
+    children= (children << 7) + (children >> 25) + frozen_hash (value[i]);
+  return int (L(value)) ^ children ^ attributes;
+}
+
 struct validation {
   std::size_t nodes= 0, bytes= 0;
   std::set<const tree_rep*> active;
@@ -96,29 +118,9 @@ metadata clone (const metadata& source) {
   return result;
 }
 
-bool property_contains_rich_text (const property& p) {
-  if (std::holds_alternative<rich_text> (p.data)) return true;
-  if (const auto* a= std::get_if<property::list> (&p.data)) {
-    for (const auto& item: *a)
-      if (property_contains_rich_text (item)) return true;
-  }
-  else if (const auto* a= std::get_if<property::dictionary> (&p.data)) {
-    for (const auto& item: *a)
-      if (property_contains_rich_text (item.second)) return true;
-  }
-  return false;
-}
-
-bool shareable_metadata (const metadata& value) {
-  for (const auto& item: value.properties)
-    if (property_contains_rich_text (item.second)) return false;
-  return true;
-}
-
 metadata_rep* make_storage (const metadata& value) {
   metadata copied= clone (value);
-  bool shareable= shareable_metadata (copied);
-  return tm_new<metadata_rep> (std::move (copied), shareable);
+  return tm_new<metadata_rep> (std::move (copied), true);
 }
 
 bool equal_property_content (const property& a, const property& b);
@@ -182,7 +184,7 @@ std::uint32_t hash_property (const property& p) {
       return h;
     },
     [] (const reference& r) { return hash_text (r.id); },
-    [] (const rich_text& r) { return std::uint32_t (::hash (r.content)); }
+    [] (const rich_text& r) { return std::uint32_t (r.content.hash ()); }
   }, p.data);
   return mix (std::uint32_t (p.data.index ()), value);
 }
@@ -193,7 +195,11 @@ template<class F> void walk_property (property& p, F& fn) {
     for (auto& item: *a) walk_property (item, fn);
   else if (auto* a= std::get_if<property::dictionary> (&p.data))
     for (auto& item: *a) walk_property (item.second, fn);
-  else if (auto* r= std::get_if<rich_text> (&p.data)) walk (r->content, fn);
+  else if (auto* r= std::get_if<rich_text> (&p.data)) {
+    tree detached= r->content;
+    walk (detached, fn);
+    r->content= detached;
+  }
 }
 template<class F> void walk (tree& t, F& fn) {
   metadata* m= edit (t);
@@ -214,6 +220,11 @@ void remap_property (property& p, const identity_map& replacements) {
     for (auto& item: *a) remap_property (item.second, replacements);
 }
 } // namespace
+
+bool frozen_tree::operator == (const frozen_tree& other) const {
+  return value == other.value || frozen_equal (*value, *other.value);
+}
+int frozen_tree::hash () const { return frozen_hash (*value); }
 
 bool valid_id (const std::string& value) {
   if (value.size () != 36) return false;
@@ -242,6 +253,7 @@ metadata* edit (tree& node) {
   auto*& storage= inside (node)->attributes;
   if (storage == nullptr) return nullptr;
   metadata_rep* replacement= make_storage (storage->value);
+  replacement->shareable= false;
   storage->release ();
   storage= replacement;
   return &storage->value;
@@ -294,7 +306,7 @@ property copy_property (const property& p) {
       for (const auto& item: a) out.emplace (item.first, copy_property (item.second));
       return property (std::move (out));
     },
-    [] (const rich_text& r) { return property (rich_text {copy (r.content)}); },
+    [] (const rich_text& r) { return property (r); },
     [] (const auto& value) { return property (value); }
   }, p.data);
 }

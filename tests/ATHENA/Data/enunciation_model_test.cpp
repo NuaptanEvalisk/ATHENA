@@ -136,7 +136,7 @@ void TestEnunciationModel::explicit_titles_and_metadata () {
   auto result= en::convert_detached_source (source);
   QVERIFY (node::id (result.source) == source_id);
   QVERIFY (node::id (result.source[0]) == body_id);
-  const auto& name= value<node::rich_text> (result.source, "name").content;
+  const tree name= value<node::rich_text> (result.source, "name").content;
   QCOMPARE (name, title);
   QVERIFY (node::id (name) == title_id);
   QCOMPARE (result.source[0], body);
@@ -178,9 +178,9 @@ void TestEnunciationModel::does_not_infer_names_or_links () {
                compound ("proof-of", compound ("reference", "old-label"), "Proof"));
   auto result= en::convert_detached_source (source);
   QCOMPARE (result.converted, std::size_t (3));
-  QCOMPARE (value<node::rich_text> (result.source[0], "name").content, tree (""));
+  QCOMPARE (tree (value<node::rich_text> (result.source[0], "name").content), tree (""));
   QCOMPARE (result.source[0][0], statement[0]);
-  QCOMPARE (value<node::rich_text> (result.source[2], "name").content, source[2][0]);
+  QCOMPARE (tree (value<node::rich_text> (result.source[2], "name").content), source[2][0]);
   for (int i= 0; i < N(result.source); ++i) {
     QVERIFY (node::get (result.source[i])->properties.count ("target") == 0);
     QVERIFY (node::id (result.source[i]).empty ());

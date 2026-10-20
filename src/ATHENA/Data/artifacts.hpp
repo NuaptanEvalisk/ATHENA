@@ -18,6 +18,7 @@
 
 #include <filesystem>
 #include <functional>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -144,6 +145,11 @@ bool athena_artifacts_extract_structure (
 // caller's edit transaction for live source; never pass a shared actor tree.
 bool athena_artifacts_bind_structure (
   tree& document, std::vector<AthenaArtifactRecord>& records, std::string& error);
+// Identity-only actor work. Stops at semantic nodes; never extracts bodies,
+// computes fingerprints or serializes XML.
+bool athena_artifacts_ensure_bindings (
+  tree& body, const std::vector<int>& dirty,
+  const std::map<std::string, std::string>& previous, std::string& error);
 
 bool athena_artifacts_build (
   const std::filesystem::path& vault_root,

@@ -357,44 +357,6 @@ bool contains_tag (const tree& t, const std::string& wanted) {
   return false;
 }
 
-bool leading_bold_scope (const tree& t, path base, path& scope,
-                         std::string* text= nullptr) {
-  if (!is_compound (t)) return false;
-  if (bold_wrapper (t)) {
-    std::string value= plain_text (visible_body (t));
-    if (value.empty ()) return false;
-    scope= base;
-    if (text != nullptr) *text= value;
-    return true;
-  }
-  if (formatting_wrapper (tag_name (t)) && N(t) >= 1)
-    return leading_bold_scope (
-      t[N(t)-1], base * (N(t)-1), scope, text);
-  for (int i=0; i<N(t); i++) {
-    if (plain_text (t[i]).empty ()) continue;
-    return leading_bold_scope (t[i], base * i, scope, text);
-  }
-  return false;
-}
-
-bool leading_bold_text (const tree& t, std::string& text) {
-  path scope;
-  return leading_bold_scope (t, path (), scope, &text);
-}
-
-void append_title_parts (const tree& t, tree& parts) {
-  if (is_func (t, DOCUMENT)) {
-    if (N(t) > 0) append_title_parts (t[0], parts);
-  }
-  else if (is_func (t, CONCAT)) {
-    for (int i=0; i<N(t); ++i) {
-      if (is_func (t[i], NEXT_LINE, 0) || is_func (t[i], NEW_LINE, 0)) break;
-      append_title_parts (t[i], parts);
-    }
-  }
-  else parts << t;
-}
-
 std::string definition_name_text (const tree& name) {
   if (!is_func (name, CONCAT)) return plain_text (name);
   std::string text;
@@ -402,110 +364,20 @@ std::string definition_name_text (const tree& name) {
   return text;
 }
 
-void append_definition_names (const tree& title, AthenaArtifactRecord& record,
-                              xml_format_version version) {
-  tree parts (CONCAT);
-  append_title_parts (title, parts);
-  if (N(parts) > 0 && is_atomic (parts[0]) && is_atomic (parts[N(parts)-1])) {
-    QString first= qstr (to_std (parts[0]->label)).trimmed ();
-    QString last= qstr (to_std (parts[N(parts)-1]->label)).trimmed ();
-    if ((first.startsWith ('(') && last.endsWith (')')) ||
-        (first.startsWith (QChar (0xff08)) && last.endsWith (QChar (0xff09)))) {
-      auto native= [] (const QString& s) {
-        QByteArray bytes= s.toUtf8 ();
-        return tree (string (bytes.constData (), bytes.size ()));
-      };
-      if (N(parts) == 1) parts[0]= native (first.mid (1, first.size ()-2));
-      else {
-        parts[0]= native (first.mid (1));
-        parts[N(parts)-1]= native (last.left (last.size ()-1));
-      }
-    }
-  }
-  // Delimit only text; commas inside a mathematical subtree are not aliases.
-  std::vector<tree> aliases (1, tree (CONCAT));
-  for (int i=0; i<N(parts); ++i) {
-    if (!is_atomic (parts[i])) { aliases.back () << parts[i]; continue; }
-    QString text= qstr (to_std (parts[i]->label));
-    const QStringList pieces= text.split (
-      QRegularExpression (QStringLiteral ("[,\\x{ff0c}]")));
-    for (qsizetype j=0; j<pieces.size (); ++j) {
-      if (j != 0) aliases.emplace_back (CONCAT);
-      QByteArray bytes= pieces[j].toUtf8 ();
-      aliases.back () << tree (string (bytes.constData (), bytes.size ()));
-    }
-  }
-  for (tree alias: aliases) {
-    if (N(alias) == 0) continue;
-    if (is_atomic (alias[0])) alias[0]= trim_spaces (alias[0]->label);
-    if (is_atomic (alias[N(alias)-1]))
-      alias[N(alias)-1]= trim_spaces (alias[N(alias)-1]->label);
-    alias= simplify_concat (alias);
-    std::string display= collapse_spaces (definition_name_text (alias));
-    std::string serialized= fragment_bytes (alias, version);
-    if (display.empty () || std::find (record.semantic_name_trees.begin (),
-        record.semantic_name_trees.end (), serialized) != record.semantic_name_trees.end ())
-      continue;
-    record.semantic_names.push_back (display);
-    record.semantic_name_trees.push_back (serialized);
-  }
-}
-
-void definition_names_in_first_line (
-  const tree& t, AthenaArtifactRecord& record, xml_format_version version) {
-  if (!is_compound (t)) return;
-  if (bold_wrapper (t)) {
-    append_definition_names (visible_body (t), record, version);
-    return;
-  }
-  if (formatting_wrapper (tag_name (t)) && N(t) >= 1) {
-    definition_names_in_first_line (t[N(t)-1], record, version);
-    return;
-  }
-  if (is_func (t, DOCUMENT)) {
-    if (N(t) > 0) definition_names_in_first_line (t[0], record, version);
-    return;
-  }
-  if (is_func (t, CONCAT))
-    for (int i=0; i<N(t); ++i) {
-      if (is_func (t[i], NEXT_LINE, 0) || is_func (t[i], NEW_LINE, 0)) break;
-      definition_names_in_first_line (t[i], record, version);
-    }
-}
-
-std::vector<std::string> semantic_names_for (
-  const std::string& origin, const std::string& type,
-  const std::string& display_text, const std::string& explicit_title= {}) {
-  if (type == "completion") return {};
-  QString display= qstr (display_text).simplified ();
-  if (display.isEmpty ()) return {};
-  if (origin == "bold-text") return {display.toStdString ()};
-  if (origin != "enunciation") return {};
-
-  QString title_source= qstr (explicit_title).simplified ();
-  if (title_source.isEmpty ()) return {display.toStdString ()};
-  QChar opening= title_source.front ();
-  QChar closing;
-  if (opening == QChar ('(')) closing= QChar (')');
-  else if (opening == QChar (0xff08)) closing= QChar (0xff09);
-  else return {display.toStdString ()};
-
-  qsizetype close= title_source.indexOf (closing, 1);
-  if (close <= 1) return {display.toStdString ()};
-  if (close + 1 < title_source.size () &&
-      !title_source[close + 1].isSpace ())
-    return {display.toStdString ()};
-  QString title= title_source.mid (1, close - 1).trimmed ();
-  if (title.isEmpty ()) return {display.toStdString ()};
-
-  std::vector<std::string> names= {title.toStdString ()};
-  qsizetype comma= title.indexOf (QRegularExpression (QStringLiteral ("[,，]")));
-  if (comma > 0) {
-    QString leading= title.left (comma).trimmed ();
-    if (!leading.isEmpty () && leading != title)
-      names.push_back (leading.toStdString ());
-  }
-  return names;
+void structured_enunciation_name (
+  const tree& source, AthenaArtifactRecord& record, xml_format_version version) {
+  if (record.type == "completion") return;
+  const auto* metadata= athena::node::get (source);
+  if (!metadata) return;
+  const auto found= metadata->properties.find ("name");
+  if (found == metadata->properties.end ()) return;
+  const auto* rich= std::get_if<athena::node::rich_text> (&found->second.data);
+  if (!rich) return;
+  tree name= rich->content;
+  const auto text= collapse_spaces (definition_name_text (name));
+  if (text.empty ()) return;
+  record.semantic_names= {text};
+  record.semantic_name_trees= {fragment_bytes (name, version)};
 }
 
 std::string enunciation_type (const std::string& original,
@@ -717,11 +589,13 @@ void scan_enunciations (const tree& parent, const std::string& rel,
     std::string base;
     std::string type= enunciation_type (child, base);
     if (!type.empty ()) {
+      AthenaArtifactRecord record;
+      record.type= type;
+      structured_enunciation_name (child, record, version);
       std::string display= plain_text (child);
-      // Image-only enunciations have no textual semantic identity that can be
-      // named, searched, or matched reliably. Leave them out until image
-      // understanding becomes part of artifactization.
-      if (display.empty () && contains_tag (child, "image")) continue;
+      // A structured name also identifies an otherwise image-only statement.
+      if (record.semantic_names.empty () && display.empty () &&
+          contains_tag (child, "image")) continue;
       std::string anchor;
       for (int j=i-1; j>=0; j--) {
         if (ignorable (parent[j])) continue;
@@ -735,8 +609,6 @@ void scan_enunciations (const tree& parent, const std::string& rel,
           break;
         }
       }
-      AthenaArtifactRecord record;
-      record.type= type;
       record.origin= "enunciation";
       record.source_role= "enunciation";
       record.source_path= source_path_vector (where * i);
@@ -744,13 +616,9 @@ void scan_enunciations (const tree& parent, const std::string& rel,
       record.relative_path= rel;
       record.anchor_stem= anchor;
       record.display_text= display;
-      std::string explicit_title;
-      (void) leading_bold_text (child, explicit_title);
-      if (type == "definition" && N(child) > 0)
-        definition_names_in_first_line (child[N(child)-1], record, version);
-      else
-        record.semantic_names= semantic_names_for (
-          record.origin, record.type, record.display_text, explicit_title);
+      if (!record.semantic_names.empty ())
+        record.display_text= record.semantic_names.front () +
+          (display.empty () ? "" : ". " + display);
       record.keyword_tree= base;
       record.identity_focus= identity_fingerprint (child, version);
       record.identity_before= identity_neighbor (parent, i - 1, -1, version);
@@ -986,8 +854,7 @@ bool extract (const tree& document, const std::string& rel,
       record.source_role= "bold-text-definition";
       record.relative_path= rel;
       record.display_text= display;
-      record.semantic_names= semantic_names_for (
-        record.origin, record.type, record.display_text);
+      record.semantic_names= {display};
       record.keyword_tree= serialized;
       record.semantic_name_trees= {fragment_bytes (visible_body (keyword), version)};
       record.keyword_occurrence= occurrence;
@@ -2418,7 +2285,63 @@ athena_artifacts_extract_structure (
   if (!extract (document, relative_path, athena_artifact_title_filter_defaults (),
                 extracted, error, true, version)) return false;
   records= std::move (extracted.records);
+  tree body= document_body (document);
+  std::map<int, std::string> enunciations;
+  for (auto& record: records) {
+    record.uuid= artifact_binding (source_at (body, record.source_path), record.source_role);
+    record.content_uuid= record.source_uuid;
+    if (!record.uuid.empty ()) record.identity_decision= "source-binding";
+    if (record.origin == "enunciation")
+      enunciations[record.document_order]= record.source_uuid;
+  }
+  for (auto& record: records)
+    if (record.proof_uuid.rfind ("@order:", 0) == 0) {
+      const auto proof= enunciations.find (std::stoi (record.proof_uuid.substr (7)));
+      if (proof != enunciations.end () && !proof->second.empty ())
+        record.proof_uuid= proof->second;
+    }
   return true;
+}
+
+bool
+athena_artifacts_ensure_bindings (
+  tree& body, const std::vector<int>& dirty,
+  const std::map<std::string, std::string>& previous, std::string& error) {
+  std::vector<AthenaArtifactRecord> missing;
+  auto candidate= [&] (const tree& source, const std::vector<int>& where) {
+    std::string base;
+    const bool enunciation= !enunciation_type (source, base).empty ();
+    if (!enunciation && !bold_wrapper (source)) return false;
+    const std::string role= enunciation ? "enunciation" : "bold-text-definition";
+    if (artifact_binding (source, role).empty ()) {
+      AthenaArtifactRecord record;
+      record.source_path= where;
+      record.source_role= role;
+      auto old= previous.find (athena::node::id (source) + ":" + role);
+      if (old != previous.end ()) record.uuid= old->second;
+      missing.push_back (std::move (record));
+    }
+    return true;
+  };
+  std::vector<int> where;
+  const tree* source= &body;
+  for (int index: dirty) {
+    if (candidate (*source, where))
+      return athena_artifacts_bind_structure (body, missing, error);
+    if (!is_compound (*source) || index < 0 || index >= N(*source)) break;
+    source= &(*source)[index];
+    where.push_back (index);
+  }
+  std::function<void (const tree&, std::vector<int>)> visit=
+    [&] (const tree& value, std::vector<int> path) {
+      if (candidate (value, path) || !is_compound (value)) return;
+      for (int i=0; i<N(value); ++i) {
+        auto child= path; child.push_back (i);
+        visit (value[i], std::move (child));
+      }
+    };
+  visit (*source, where);
+  return athena_artifacts_bind_structure (body, missing, error);
 }
 
 bool
@@ -2873,7 +2796,7 @@ athena_artifacts_build (
   if (!athena_artifact_title_filter_read (root, title_filter, error))
     return false;
   const std::string complete_contract= std::string (source_locator_contract) +
-    ":title-filter=" +
+    ":structured-enunciation-names=1:title-filter=" +
     athena_artifact_title_filter_fingerprint (title_filter);
   const std::string extraction_contract= complete_contract +
     (options.structural_only ? ":structural" : "");

@@ -149,7 +149,8 @@ private slots:
         node::get (body)->properties.at ("fixture:typed").data);
       const auto& list= std::get<node::property::list> (dictionary.at ("list").data);
       QCOMPARE (std::get<std::string> (list[0].data), std::string ("opaque plot.png"));
-      QVERIFY (std::get<node::rich_text> (list[1].data).content[0] == "renamed.png");
+      const tree rich= std::get<node::rich_text> (list[1].data).content;
+      QVERIFY (rich[0] == "renamed.png");
       QVERIFY (source == before);
       QVERIFY (decode_native_xml_bytes (encode_native_xml_bytes (rewritten, version)).document == rewritten);
 

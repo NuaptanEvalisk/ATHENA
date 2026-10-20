@@ -30,9 +30,21 @@
 #include "ATHENA/Data/vault.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "ATHENA/Data/vault_map_sqlite.hpp"
+#include "ATHENA/Data/enunciation_model.hpp"
+#include "node_metadata.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
+
+static tree named_definition (const tree& name, const tree& body) {
+  tree source (athena::enunciation::label (), tree (DOCUMENT, body));
+  athena::node::metadata metadata;
+  metadata.properties["kind"]= athena::node::property (std::string ("definition"));
+  metadata.properties["numbered"]= athena::node::property (true);
+  metadata.properties["name"]= athena::node::property (athena::node::rich_text {name});
+  athena::node::set (source, metadata);
+  return source;
+}
 
 static int link_count (box b, const string& destination) {
   int result= 0;
@@ -180,22 +192,24 @@ private slots:
     if (scriptKind == 3)
       formula= tree (CONCAT, tree (LSUB, "1"), tree (LSUP, "2"), "e");
     tree math= compound ("math", formula);
-    tree body (DOCUMENT, compound ("definition", compound ("strong", math)));
-    tree document (DOCUMENT, compound ("TeXmacs", "2.1.4"),
-                   compound ("style", "generic"), compound ("body", body));
-    string bytes= tree_to_texmacs (document);
+    tree body (DOCUMENT, named_definition (math, compound ("strong", math)));
+    tree document (DOCUMENT, compound ("style", "generic"), compound ("body", body));
+    const auto bytes= athena::document::write_xml_v2 (document);
     std::ofstream source (root / "scripts.ath");
-    source.write (as_charp (bytes), N(bytes));
+    source.write (bytes.data (), static_cast<std::streamsize> (bytes.size ()));
     source.close ();
     AthenaArtifactsBuildResult built;
     QVERIFY2 (athena_artifacts_build (root, {}, true, {}, built, error), error.c_str ());
     std::vector<AthenaArtifactRecord> records;
     QVERIFY2 (athena_artifacts_query (root, records, error), error.c_str ());
     QCOMPARE (records.size (), size_t (1));
+    QCOMPARE (records[0].semantic_names.size (), size_t (1));
+    QCOMPARE (records[0].semantic_name_trees.size (), size_t (1));
     string destination= "tmfs://artifact-disambiguation/" *
       string (athena_artifact_radioactive_key (records[0]).c_str ());
     QCOMPARE (vault_load (url_system (root.string ().c_str ()), "test", "vault.sqlite"), string (""));
     struct CloseVault { ~CloseVault () { vault_close (); } } close;
+    athena_artifact_radioactive_refresh ();
     drd_info drd ("linked-scripts", std_drd);
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
@@ -403,7 +417,7 @@ private slots:
     QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
     tree sigma= compound ("math", "<sigma>");
     tree name (CONCAT, sigma, "-algebra");
-    tree body (DOCUMENT, compound ("definition",
+    tree body (DOCUMENT, named_definition (name,
       tree (CONCAT, compound ("label", "peek-start"),
         compound ("strong", name), " is a family of subsets.",
         compound ("label", "peek-end"))));
@@ -418,14 +432,20 @@ private slots:
     std::vector<AthenaArtifactRecord> records;
     QVERIFY2 (athena_artifacts_query (root, records, error), error.c_str ());
     QCOMPARE (records.size (), size_t (1));
+    QCOMPARE (records[0].semantic_names.size (), size_t (1));
+    QCOMPARE (records[0].semantic_name_trees.size (), size_t (1));
     string destination= "tmfs://artifact-disambiguation/" *
       string (athena_artifact_radioactive_key (records[0]).c_str ());
     QCOMPARE (vault_load (url_system (root.string ().c_str ()), "test", "vault.sqlite"), string (""));
     struct CloseVault { ~CloseVault () { vault_close (); } } close;
+    athena_artifact_radioactive_refresh ();
     url peek_source;
     QVERIFY (is_document (athena_link_peek_document (destination, peek_source)));
     tree artifactpeek= athena_link_peek_document (
       "tmfs://artifact/" * string (records[0].uuid.c_str ()), peek_source);
+    QTRY_VERIFY_WITH_TIMEOUT ((artifactpeek= athena_link_peek_document (
+      "tmfs://artifact/" * string (records[0].uuid.c_str ()), peek_source),
+      !is_none (peek_source)), 10000);
     QVERIFY (is_document (artifactpeek));
     QCOMPARE (peek_source, url_system ((root / "name.ath").string ().c_str ()));
     AthenaArtifactNameResolution resolved;

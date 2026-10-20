@@ -63,6 +63,8 @@ struct TrieNode {
 
 struct RadioactiveIndex {
   std::uint64_t matching_revision= 0;
+  std::deque<std::pair<std::uint64_t, QSet<QString>>> changes;
+  std::string incarnation;
   std::string vault_root;
   std::vector<TrieNode> nodes= {TrieNode ()};
   std::vector<int> free_nodes;
@@ -81,6 +83,7 @@ struct RadioactiveIndex {
   bool has_structured_names= false;
   std::shared_ptr<const RadioactiveIndex> base;
   std::unordered_map<std::string, std::shared_ptr<const RadioactiveIndex>> overlays;
+  std::unordered_map<std::string, std::shared_ptr<const RadioactiveIndex>> saved;
   std::unordered_set<std::string> live_paths;
   QHash<QString, std::vector<const RadioactiveIndex*>> overlay_heads;
 };
@@ -182,6 +185,9 @@ const AthenaArtifactRecord* lookup (const RadioactiveIndex& index,
 void publish_index () {
   auto next= std::make_shared<RadioactiveIndex> ();
   next->matching_revision= matching_revision.load (std::memory_order_relaxed);
+  next->changes= matching_changes;
+  next->incarnation= loaded_incarnation;
+  next->saved= saved_overlays;
   next->base= disk_index;
   if (disk_index) {
     next->vault_root= disk_index->vault_root;
@@ -792,13 +798,14 @@ std::vector<Token> update_tokens (const QString& before,
   return result;
 }
 
-QSet<QString> changed_heads (std::uint64_t before, std::uint64_t after) {
+QSet<QString> changed_heads (std::uint64_t before, const RadioactiveIndex& index) {
   QSet<QString> result;
+  const auto after= index.matching_revision;
   if (before == after) return result;
-  std::lock_guard<std::mutex> guard (index_build_mutex);
-  if (before > after || matching_changes.empty () || before + 1 < matching_changes.front ().first)
+  const auto& changes= index.changes;
+  if (before > after || changes.empty () || before + 1 < changes.front ().first)
     result.insert (QString ()); // The bounded journal no longer covers this view.
-  for (const auto& change: matching_changes)
+  for (const auto& change: changes)
     if (change.first > before && change.first <= after) result.unite (change.second);
   return result;
 }
@@ -815,7 +822,7 @@ bool same_matches (const std::vector<AthenaArtifactRadioactiveMatch>& a,
 
 bool update_query (MatchQuery& query, const RadioactiveIndex& index,
     QString text, std::vector<Token> tokens, AthenaArtifactRadioactiveWork& work) {
-  const auto heads= changed_heads (query.revision, index.matching_revision);
+  const auto heads= changed_heads (query.revision, index);
   const int old_count= query.tokens.size (), count= tokens.size ();
   int first= 0, suffix= 0;
   // Include surface text and gaps: blacklists apply to surface forms, not only
@@ -1286,7 +1293,8 @@ void athena_artifact_radioactive_refresh () {
 
 void athena_artifact_radioactive_overlay (
   const std::string& incarnation, const std::string& relative_path,
-  std::uint64_t owner, const std::vector<AthenaArtifactRecord>& records) {
+  std::uint64_t owner, const std::vector<AthenaArtifactRecord>& records,
+  const std::function<bool()>& still_current) {
   const auto current= active_index ();
   std::shared_ptr<const RadioactiveIndex> previous_index;
   if (current) {
@@ -1296,7 +1304,8 @@ void athena_artifact_radioactive_overlay (
   auto index= build_index (records, {}, current && current->has_title_filter ? &current->title_filter : nullptr,
                           previous_index.get ());
   const auto vault= vault_capture_context ();
-  if (!vault || vault->incarnation != incarnation) return;
+  if (!vault || vault->incarnation != incarnation ||
+      (still_current && !still_current ())) return;
   std::lock_guard<std::mutex> guard (index_build_mutex);
   if (loaded_incarnation != incarnation) {
     overlays.clear (); saved_overlays.clear (); loaded_incarnation= incarnation; loaded_revision= 0;
@@ -1319,6 +1328,7 @@ void athena_artifact_radioactive_overlay (
     auto updated= saved_overlays.find (relative_path);
     if (updated != saved_overlays.end ()) saved= updated->second;
   }
+  if (still_current && !still_current ()) return;
   note_matching_changes (previous == overlays.end () ? saved.get () : previous->second.index.get (), index.get ());
   overlays[relative_path]= {owner, std::move (index)};
   publish_index ();
@@ -1362,13 +1372,10 @@ void athena_artifact_radioactive_merge (
 bool athena_artifact_radioactive_baseline (
   const std::string& incarnation, const std::string& relative_path,
   std::vector<AthenaArtifactRecord>& records) {
-  std::shared_ptr<const RadioactiveIndex> baseline;
-  {
-    std::lock_guard<std::mutex> guard (index_build_mutex);
-    if (loaded_incarnation != incarnation || !loaded_revision || !disk_index) return false;
-    auto updated= saved_overlays.find (relative_path);
-    baseline= updated == saved_overlays.end () ? disk_index : updated->second;
-  }
+  const auto index= std::atomic_load_explicit (&cached_index, std::memory_order_acquire);
+  if (!index || index->incarnation != incarnation || !index->base) return false;
+  auto updated= index->saved.find (relative_path);
+  const auto baseline= updated == index->saved.end () ? index->base : updated->second;
   records.clear ();
   auto ids= baseline->records_by_path.find (relative_path);
   if (ids != baseline->records_by_path.end ())
@@ -1383,7 +1390,7 @@ bool athena_artifact_radioactive_changed (
   static const RadioactiveIndex empty;
   const auto& current= index ? *index : empty;
   if (dependencies->revision == current.matching_revision) return false;
-  const auto heads= changed_heads (dependencies->revision, current.matching_revision);
+  const auto heads= changed_heads (dependencies->revision, current);
   bool affected= false;
   for (auto& entry: dependencies->queries) {
     auto& query= entry.second;

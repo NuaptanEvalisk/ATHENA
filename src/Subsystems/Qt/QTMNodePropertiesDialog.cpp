@@ -288,7 +288,7 @@ private:
     authors->setObjectName ("enunciation-attribution");
     authors->setMaximumHeight (100);
     if (const auto* values= field<node::property::list> (header, "attribution"))
-      for (const auto& value: *values) authorValues.push_back (copy (std::get<node::rich_text> (value.data).content));
+      for (const auto& value: *values) authorValues.push_back (std::get<node::rich_text> (value.data).content);
     refreshAuthors ();
     authorLayout->addWidget (authors);
     auto* controls= new QHBoxLayout;

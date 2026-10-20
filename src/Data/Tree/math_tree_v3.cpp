@@ -236,7 +236,7 @@ std::optional<tree> get_row_tag (const tree& row) {
   if (!meta) return std::nullopt;
   const auto tag= meta->properties.find (row_tag_key);
   if (tag == meta->properties.end ()) return std::nullopt;
-  return copy (std::get<athena::node::rich_text> (tag->second.data).content);
+  return std::get<athena::node::rich_text> (tag->second.data).content;
 }
 
 void set_row_tag (tree& row, const tree& tag) {

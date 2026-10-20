@@ -13,6 +13,7 @@
 #include <QTemporaryDir>
 #include "ATHENA/Data/artifacts.hpp"
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
+#include "ATHENA/Data/artifact_live_cache.hpp"
 #include "ATHENA/Data/artifact_title_filter.hpp"
 #include "ATHENA/Data/document_node_model.hpp"
 #include "ATHENA/Data/document_node_copy.hpp"
@@ -24,6 +25,8 @@
 #include "drd_std.hpp"
 #include <sqlite3.h>
 #include <map>
+#include <algorithm>
+#include <thread>
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -137,6 +140,122 @@ class TestArtifactV3Runtime: public QObject {
 private slots:
   void initTestCase () { init_std_drd (); }
 
+  void namesComeOnlyFromStructuredFields () {
+    using namespace athena;
+    tree document= fixture_document (true);
+    auto& source= document[0][0][0];
+    source[0]= tree (DOCUMENT, compound ("strong", "(Not the title, Author, 1900) body"));
+    std::vector<AthenaArtifactRecord> records;
+    std::string error;
+    auto extract= [&] {
+      return athena_artifacts_extract_structure (
+        document, "Source.ath", records, error, xml_format_version::v3);
+    };
+    QVERIFY2 (extract (), error.c_str ());
+    QCOMPARE (records.front ().semantic_names, std::vector<std::string> {"Named theorem"});
+    QCOMPARE (read_xml_v3 (records.front ().semantic_name_trees.front (), xml_kind::fragment),
+              tree ("Named theorem"));
+    auto names= records.front ().semantic_names;
+    auto fragments= records.front ().semantic_name_trees;
+    source[0][0]= tree ("Completely different body");
+    QVERIFY2 (extract (), error.c_str ());
+    QCOMPARE (records.front ().semantic_names, names);
+    QCOMPARE (records.front ().semantic_name_trees, fragments);
+    auto metadata= *node::get (source);
+    metadata.properties["name"]= node::property (node::rich_text {tree ("")});
+    node::set (source, metadata);
+    source[0][0]= compound ("strong", "(Do not guess this) remainder");
+    QVERIFY2 (extract (), error.c_str ());
+    QVERIFY (records.front ().semantic_names.empty ());
+    QVERIFY (records.front ().semantic_name_trees.empty ());
+    const tree rich (CONCAT, compound ("math", tree ("x")),
+                    tree (" criterion, alternative name"));
+    metadata.properties["name"]= node::property (node::rich_text {rich});
+    node::set (source, metadata);
+    QVERIFY2 (extract (), error.c_str ());
+    QCOMPARE (records.front ().semantic_name_trees.size (), std::size_t (1));
+    QCOMPARE (read_xml_v3 (records.front ().semantic_name_trees.front (), xml_kind::fragment), rich);
+  }
+
+  void liveExtractionIsDeferredAndCoalesced () {
+    namespace ar= athena::artifact;
+    fixture f (3);
+    const auto root= f.root.string ();
+    QCOMPARE (vault_load (url_system (string (root.c_str ())),
+      "Artifact live fixture", "map.sqlite", "ns.sqlite"), string (""));
+    ar::live_cache cache;
+    constexpr std::uint64_t owner= 923417;
+    auto cleanup= qScopeGuard ([&] {
+      cache.reset (); ar::close (owner); ar::publish_pending (); vault_close ();
+    });
+    const auto vault= vault_capture_context ();
+    tree body= f.original[0][0];
+    auto update= [&] (std::vector<int> where) {
+      cache.update (vault, f.root / "Source.ath", owner,
+                    xml_format_version::v3, false, body, where);
+    };
+    auto publish= [] {
+      std::exception_ptr failure;
+      std::thread worker ([&] {
+        try { ar::publish_pending (); }
+        catch (...) { failure= std::current_exception (); }
+      });
+      worker.join ();
+      if (failure) std::rethrow_exception (failure);
+    };
+    update ({});
+    const auto id= binding (body[0], "enunciation");
+    QVERIFY (!id.empty ());
+    AthenaArtifactRecord record;
+    QVERIFY (!athena_artifact_radioactive_record (id, record));
+    // Multiple pending updates include both a body change and a name change.
+    for (int i=0; i<30; ++i) {
+      body[0][0][0]= tree (("Typed " + std::to_string (i)).c_str ());
+      update ({0, 0, 0});
+    }
+    auto metadata= *athena::node::get (body[0]);
+    metadata.properties["name"]= athena::node::property (
+      athena::node::rich_text {tree ("Renamed theorem")});
+    athena::node::set (body[0], metadata);
+    update ({0});
+    publish ();
+    QVERIFY (athena_artifact_radioactive_record (id, record));
+    QCOMPARE (record.semantic_names, std::vector<std::string> {"Renamed theorem"});
+    QVERIFY (record.display_text.find ("Typed 29") != std::string::npos);
+    auto stale= record;
+    stale.semantic_names= {"Superseded name"};
+    int validity_checks= 0;
+    athena_artifact_radioactive_overlay (vault->incarnation, "Source.ath", owner,
+      {stale}, [&] { return ++validity_checks == 1; });
+    QCOMPARE (validity_checks, 2);
+    QVERIFY (athena_artifact_radioactive_record (id, record));
+    QCOMPARE (record.semantic_names, std::vector<std::string> {"Renamed theorem"});
+    body[0][0][0]= tree ("After publication");
+    update ({0, 0, 0});
+    publish ();
+    QVERIFY (athena_artifact_radioactive_record (id, record));
+    QVERIFY (record.display_text.find ("After publication") != std::string::npos);
+    // A root replacement changes paths; the next leaf delta uses the new path.
+    body= tree (DOCUMENT, tree ("Inserted paragraph"), body[0], body[1]);
+    update ({});
+    body[1][0][0]= tree ("Shifted");
+    update ({1, 0, 0});
+    publish ();
+    QVERIFY (athena_artifact_radioactive_record (id, record));
+    QCOMPARE (record.source_path.front (), 1);
+    QVERIFY (record.display_text.find ("Shifted") != std::string::npos);
+    body[1][0][0]= tree ("Never publish");
+    update ({1, 0, 0});
+    ar::close (owner);
+    publish ();
+    QVERIFY (!athena_artifact_radioactive_record (id, record));
+    // Reusing the cache after cancellation must send a new full baseline.
+    update ({1, 0, 0});
+    publish ();
+    QVERIFY (athena_artifact_radioactive_record (id, record));
+    QVERIFY (record.display_text.find ("Never publish") != std::string::npos);
+  }
+
   void extractionRetainsSemanticMetadataAndStableKeys () {
     tree document= fixture_document (true);
     std::vector<AthenaArtifactRecord> records;
@@ -157,6 +276,23 @@ private slots:
       document, "Source.ath", after, error, xml_format_version::v3), error.c_str ());
     QCOMPARE (after.back ().keyword_tree, keyword);
     QVERIFY (!binding (document[0][0][1][1], "bold-text-definition").empty ());
+  }
+
+  void structuredNameContractRebuildsUnchangedSources () {
+    fixture f (3);
+    AthenaArtifactsBuildResult result;
+    QVERIFY2 (f.build (result), f.error.c_str ());
+    sql (f.root / f.info.artifacts_path,
+      "UPDATE documents SET locator_contract=replace("
+      "locator_contract,':structured-enunciation-names=1','')");
+    QVERIFY2 (f.build (result), f.error.c_str ());
+    QCOMPARE (result.documents_changed, std::size_t (1));
+    std::vector<AthenaArtifactRecord> records;
+    QVERIFY2 (f.query (records), f.error.c_str ());
+    auto found= std::find_if (records.begin (), records.end (),
+      [] (const auto& record) { return record.origin == "enunciation"; });
+    QVERIFY (found != records.end ());
+    QCOMPARE (found->semantic_names, std::vector<std::string> {"Named theorem"});
   }
 
   void sourceBindingPreservesStorageVersion_data () {

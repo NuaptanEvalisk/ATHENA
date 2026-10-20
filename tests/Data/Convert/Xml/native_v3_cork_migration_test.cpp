@@ -121,7 +121,7 @@ private slots:
     QVERIFY (result.document[0][0][1] == tree (">"));
     const auto& rich= std::get<athena::node::rich_text> (
       athena::node::get (result.document)->properties.at ("fixture:caption").data);
-    QVERIFY (rich.content == tree (CONCAT, tree ("<"), tree ("tag>")));
+    QVERIFY (tree (rich.content) == tree (CONCAT, tree ("<"), tree ("tag>")));
     QVERIFY (read_xml_v3 (write_xml_v3 (result.document)) == result.document);
   }
 

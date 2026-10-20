@@ -316,7 +316,7 @@ void TestDocumentNodeModel::property_update_preserves_identity_and_replays () {
   QVERIFY (strong_equal (changed[0][0], source[0][0]));
   QVERIFY (strong_equal (changed[1], source[1]));
   title[0]= "Changed outside";
-  auto name= std::get<node::rich_text> (node::get (changed[0])->properties.at ("name").data).content;
+  tree name= std::get<node::rich_text> (node::get (changed[0])->properties.at ("name").data).content;
   QCOMPARE (name[0], tree ("Hahn-Banach "));
   auto undone= clean_apply (changed, inverse);
   QCOMPARE (undone, source);

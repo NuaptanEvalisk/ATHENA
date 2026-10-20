@@ -12,21 +12,33 @@
 #include "vault.hpp"
 #include <map>
 #include <memory>
+#include <atomic>
 
 struct buffer_document_state;
 
 namespace athena::artifact {
 using record_batch= std::shared_ptr<const std::vector<AthenaArtifactRecord>>;
-// No live tree is retained. Unaffected source units reuse their extracted data.
+struct live_generation {
+  std::atomic<std::uint64_t> revision {0};
+  std::atomic<bool> cancelled {false};
+};
+// Actor-owned bookkeeping only. Detached changed branches are handed to the
+// matching worker, which owns the source mirror and extracted unit cache.
 class live_cache {
   std::string incarnation, file;
-  std::map<std::string, record_batch> units;
   std::map<std::string, std::string> previous_bindings;
+  std::shared_ptr<live_generation> generation;
   bool initialized= false;
 public:
   bool ready (const buffer_document_state&) const;
   void update (buffer_document_state&, tree& body, const std::vector<int>& dirty);
-  void reset () { initialized= false; units.clear (); }
+  void update (const vault_context_handle&, const std::filesystem::path&,
+               std::uint64_t owner, document::xml_format_version,
+               bool read_only, tree& body, const std::vector<int>& dirty);
+  void reset () {
+    if (generation) generation->cancelled.store (true);
+    generation.reset (); initialized= false;
+  }
 };
 
 struct publication {
@@ -40,7 +52,8 @@ struct saved_revision {
   std::filesystem::path file;
   std::string sha256;
 };
-// These queues contain only C++ values, never TeXmacs trees or Scheme objects.
+// Source updates transfer exclusive ownership of detached trees; no live tree,
+// mutable handle or Scheme object is shared with the matching worker.
 void publish (publication);
 void close (std::uint64_t owner);
 void saved (const std::filesystem::path&, const std::string& sha256);

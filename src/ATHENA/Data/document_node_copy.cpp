@@ -32,8 +32,11 @@ std::map<std::string,move_entry> moves;
 std::map<double,std::string> moves_by_marker;
 
 void remap_rich_text (node::property& property, const node::identity_map& ids) {
-  if (auto* rich= std::get_if<node::rich_text> (&property.data))
-    remap_tree (rich->content, ids);
+  if (auto* rich= std::get_if<node::rich_text> (&property.data)) {
+    tree detached= rich->content;
+    remap_tree (detached, ids);
+    rich->content= detached;
+  }
   else if (auto* list= std::get_if<node::property::list> (&property.data))
     for (auto& item: *list) remap_rich_text (item, ids);
   else if (auto* dict= std::get_if<node::property::dictionary> (&property.data))

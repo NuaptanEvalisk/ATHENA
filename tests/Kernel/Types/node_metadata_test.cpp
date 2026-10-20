@@ -14,6 +14,7 @@
 #include <limits>
 #include <set>
 #include <stdexcept>
+#include <thread>
 
 namespace node= athena::node;
 using node::property;
@@ -126,7 +127,7 @@ private slots:
     QVERIFY (snapshot == source);
     QVERIFY (!strong_equal (snapshot, source));
     QVERIFY (!strong_equal (snapshot[0], source[0]));
-    QVERIFY (node::get (snapshot) != node::get (source));
+    QVERIFY (node::get (snapshot) == node::get (source));
     QVERIFY (!strong_equal (rich_value (snapshot), rich_value (source)));
     QCOMPARE (hash (snapshot), hash (source));
     QCOMPARE (node::hash_metadata (snapshot), node::hash_metadata (source));
@@ -155,7 +156,10 @@ private slots:
     auto property_copy= node::copy_property (node::get (source)->properties.at ("nested"));
     auto& dict= std::get<property::dictionary> (
       std::get<property::list> (property_copy.data)[0].data);
-    std::get<node::rich_text> (dict.at ("rich").data).content[0]= tree ("changed nested copy");
+    auto& field= std::get<node::rich_text> (dict.at ("rich").data);
+    tree edited= field.content;
+    edited[0]= tree ("changed nested copy");
+    field.content= edited;
     QVERIFY (!node::equal (property_copy, node::get (source)->properties.at ("nested")));
     QVERIFY (rich_value (source)[0] == tree ("original"));
   }
@@ -199,6 +203,52 @@ private slots:
     changed.properties.at ("note")= property (std::string ("changed"));
     node::set (projected[0], changed);
     QVERIFY (!node::content_equal (source, projected));
+  }
+
+  void richMetadataSharesButEditsDetach () {
+    tree source ("body");
+    auto meta= attributes (root_id, "root");
+    meta.properties["name"]= property (node::rich_text {
+      tree (CONCAT, tree ("A title "), compound ("math", tree ("x")))});
+    node::set (source, meta);
+    const auto original_hash= node::hash_metadata (source);
+    tree snapshot= copy (source);
+    QVERIFY (node::get (snapshot) == node::get (source));
+    // A tree obtained through a const property must not mutate shared storage.
+    tree exposed= rich_value (snapshot, "name");
+    exposed[0]= tree ("Changed external tree");
+    QCOMPARE (node::hash_metadata (source), original_hash);
+    QCOMPARE (node::hash_metadata (snapshot), original_hash);
+    auto* edited= node::edit (snapshot);
+    edited->properties["name"]= property (node::rich_text {tree ("New title")});
+    QVERIFY (node::get (snapshot) != node::get (source));
+    QVERIFY (node::hash_metadata (snapshot) != original_hash);
+    // edit() exposes mutable properties, so that storage must not cache a hash.
+    const auto changed_hash= node::hash_metadata (snapshot);
+    edited->properties["name"]= property (node::rich_text {tree ("Another title")});
+    QVERIFY (node::hash_metadata (snapshot) != changed_hash);
+    QCOMPARE (node::hash_metadata (source), original_hash);
+  }
+
+  void richValuesAreConcurrentReadSnapshots () {
+    tree source (CONCAT, tree ("Title "), compound ("math", tree ("x")));
+    property first (node::rich_text {source}), second (node::rich_text {copy (source)});
+    const int expected= hash (source);
+    std::atomic<bool> correct {true};
+    std::vector<std::thread> readers;
+    for (int i=0; i<4; ++i) readers.emplace_back ([&] {
+      for (int j=0; j<1000; ++j) {
+        const auto& rich= std::get<node::rich_text> (first.data);
+        if (!node::equal (first, second) || rich.content.hash () != expected)
+          correct.store (false);
+        tree detached= rich.content;
+        detached[0]= tree ("Changed reader copy");
+      }
+    });
+    for (auto& reader: readers) reader.join ();
+    QVERIFY (correct.load ());
+    tree after= std::get<node::rich_text> (first.data).content;
+    QVERIFY (after == source);
   }
 
   void projectionClearsIdentityOnlyStorage () {

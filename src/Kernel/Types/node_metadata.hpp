@@ -13,6 +13,7 @@
 #include <atomic>
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <string>
 #include <variant>
 #include <vector>
@@ -21,7 +22,18 @@
 namespace athena::node {
 
 struct reference { std::string id; };
-struct rich_text { tree content; };
+// Legacy tree handles are mutable even after copying a const handle. Never
+// expose the stored handle: readers receive a detached tree, while ordinary
+// property copies share the immutable payload (including across actors).
+class frozen_tree {
+  std::shared_ptr<const tree> value;
+public:
+  frozen_tree (const tree& source): value (std::make_shared<const tree> (copy (source))) {}
+  operator tree () const { return copy (*value); }
+  bool operator == (const frozen_tree& other) const;
+  int hash () const;
+};
+struct rich_text { frozen_tree content; };
 
 struct property {
   using list= std::vector<property>;
@@ -41,9 +53,8 @@ struct metadata {
 
 // Immutable copy-on-write storage. Most source nodes carry only an identity
 // (or scalar properties), so ordinary tree copies can share this immutable
-// payload instead of cloning maps and strings at every node. Metadata which
-// embeds rich-text trees remains unshared because those legacy tree handles can
-// be mutated after being obtained through a const property value.
+// payload instead of cloning maps and strings at every node. Rich text is also
+// immutable; only storage handed out by edit() must remain unshared and uncached.
 struct metadata_rep {
   std::atomic<std::uint32_t> references {1};
   metadata value;
