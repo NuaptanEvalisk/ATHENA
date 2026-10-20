@@ -27,6 +27,7 @@
 #include "analyze.hpp"
 #include "convert.hpp"
 #include "enunciation_presentation.hpp"
+#include "enunciation_surround.hpp"
 #include "formatter.hpp"
 #include "Format/format.hpp"
 #include "ATHENA/Data/vault.hpp"
@@ -136,6 +137,25 @@ box text_box_containing (box b, string token) {
   return box ();
 }
 
+bool text_position (box b, string token, SI& x, SI& y, SI& width) {
+  if (N(b) == 0) {
+    tree description= (tree) b;
+    if (is_atomic (description) && occurs (token, description->label)) {
+      x= b->x1;
+      y= 0;
+      width= b->w ();
+      return true;
+    }
+  }
+  for (int i= 0; i < N(b); ++i)
+    if (text_position (b[i], token, x, y, width)) {
+      x+= b->sx (i);
+      y+= b->sy (i);
+      return true;
+    }
+  return false;
+}
+
 bool has_link_target (box b, const AthenaArtifactRecord& record) {
   AthenaArtifactRadioactiveMatch match;
   match.uuids= {record.uuid};
@@ -153,6 +173,68 @@ bool has_link_target (box b, const AthenaArtifactRecord& record) {
 class EnunciationPresentationTest: public QObject {
   Q_OBJECT
 private slots:
+  void nativeDisplayStartsSeparateEnunciationParagraph () {
+    tree grid (MATH_GRID,
+      tree (ROW, tree (CELL, "x"), tree (CELL, "="), tree (CELL, "y")));
+    node::metadata grid_metadata;
+    grid_metadata.properties["math:grid-kind"]= node::property (std::string ("eqnarray"));
+    node::set (grid, grid_metadata);
+    for (tree formula: {tree ("x"), grid}) {
+      tree block (MATH_BLOCK, formula);
+      node::metadata metadata;
+      metadata.properties["math:block-numbered"]= node::property (false);
+      node::set (block, metadata);
+      // The migrated corollary retains both document layers and whole-body bold.
+      for (tree display: {block, grid})
+      for (tree body: {tree (DOCUMENT, display),
+                      tree (DOCUMENT, tree (WITH, "font-series", "bold",
+                                            tree (DOCUMENT, display)))}) {
+        Environment context;
+        QVERIFY (athena_enunciation_starts_display (context.env, body));
+        tree surround= compound ("enunciation-surround", "HeadingToken", "", body);
+        tree rewritten= athena_enunciation_surround_rewrite (context.env, surround);
+        QVERIFY (is_func (rewritten, DOCUMENT, 2));
+        QCOMPARE (rewritten[1], body);
+        QCOMPARE (rewritten[0],
+          tree (WITH, "par-mode", "left", tree (CONCAT, tree (NO_INDENT), "HeadingToken")));
+
+        // Macro argument indirection is the active native enunciation route.
+        context.env->macro_arg= list<hashmap<string,tree> > (
+          hashmap<string,tree> (UNINIT), context.env->macro_arg);
+        context.env->macro_arg->item ("body")= body;
+        QVERIFY (athena_enunciation_starts_display (context.env, tree (ARG, "body")));
+
+        tree statement= source ("corollary");
+        node::metadata statement_metadata= *node::get (statement);
+        statement_metadata.properties["name"]= node::property (
+          node::rich_text {tree ("HeadingToken")});
+        node::set (statement, statement_metadata);
+        statement[0]= body;
+        for (int route: {1, 2}) {
+          box rendered= render_destination_fixture (statement, route);
+          SI title_x, title_y, title_w, formula_x, formula_y, formula_w;
+          QVERIFY (text_position (rendered, "HeadingToken", title_x, title_y, title_w));
+          QVERIFY (text_position (rendered, "x", formula_x, formula_y, formula_w));
+          QVERIFY (formula_y < title_y);
+          // A lone formula is centered across the whole paragraph, not the
+          // space remaining to the right of its title.
+          if (is_atomic (formula) && is_func (display, MATH_BLOCK))
+            QVERIFY (abs (2 * formula_x + formula_w -
+                          rendered->x1 - rendered->x2) < context.env->as_length ("1em"));
+        }
+      }
+    }
+    Environment context;
+    for (tree body: {tree (DOCUMENT, compound ("math", "x")),
+                    tree (DOCUMENT, compound ("math", grid)),
+                    tree (DOCUMENT, "A statement", compound ("equation*", "x"))}) {
+      QVERIFY (!athena_enunciation_starts_display (context.env, body));
+      tree surround= compound ("enunciation-surround", "HeadingToken", "", body);
+      QCOMPARE (athena_enunciation_surround_rewrite (context.env, surround),
+                tree (SURROUND, "HeadingToken", "", body));
+    }
+  }
+
   void proofEquationArrayCellSelections () {
     for (const char* tag: {"eqnarray", "eqnarray*"})
     for (int proof: {0, 1, 2}) {

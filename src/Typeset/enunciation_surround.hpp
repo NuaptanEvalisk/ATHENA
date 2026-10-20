@@ -154,6 +154,9 @@ static inline bool
 athena_enunciation_starts_display (edit_env env, tree t, int depth= 0) {
   if (depth > 32) return false;
   if (is_atomic (t)) return false;
+  // Native v3 displays no longer carry the historical equation macro tags.
+  // Inline math wrappers are intentionally not traversed by this predicate.
+  if (is_func (t, MATH_BLOCK, 1) || is_func (t, MATH_GRID)) return true;
   if (is_func (t, ARG, 1) && is_atomic (t[0]) &&
       (!is_nil (env->macro_arg)) &&
       env->macro_arg->item->contains (t[0]->label)) {
