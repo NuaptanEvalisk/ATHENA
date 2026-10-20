@@ -92,6 +92,42 @@ is_multi_paragraph_or_sectional (tree t) {
 
 void
 edit_text_rep::remove_text_sub (bool forward) {
+  if (!forward && !in_source ()) {
+    for (path cell= path_up (tp); rp < cell; cell= path_up (cell)) {
+      tree value= subtree (et, cell);
+      if (!is_func (value, CELL)) continue;
+      // Only the nearest cell owns Backspace; nested tables stay independent.
+      if (N(value) != 1 || !is_content_empty (value[0]) ||
+          N(cell) < N(rp) + 3) break;
+      const path row_path= path_up (cell);
+      const path grid_path= path_up (row_path);
+      tree grid= subtree (et, grid_path);
+      if (!is_func (grid, MATH_GRID) ||
+          !is_func (subtree (et, row_path), ROW)) break;
+      const int column= last_item (cell);
+      const int row= last_item (row_path);
+      if (column > 0) go_to_end (row_path * (column - 1) * 0);
+      else if (N(grid) > 1) {
+        remove (grid_path * row, 1);
+        if (row > 0) {
+          tree previous= subtree (et, grid_path * (row - 1));
+          go_to_end (grid_path * path (row - 1, N(previous) - 1, 0));
+        }
+        else go_to_start (grid_path * path (0, 0, 0));
+      }
+      else {
+        // A native grid cannot have zero rows. Remove its display wrapper too
+        // when this is the last row, leaving an ordinary editable empty slot.
+        path target= grid_path;
+        if (rp < target && is_func (subtree (et, path_up (target)), MATH_BLOCK, 1))
+          target= path_up (target);
+        assign (target, "");
+        go_to (target * 0);
+        correct (path_up (target));
+      }
+      return;
+    }
+  }
   path p;
   int  last, rix;
   tree t, u;

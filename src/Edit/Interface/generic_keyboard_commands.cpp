@@ -17,6 +17,7 @@
 #include "new_view.hpp"
 #include "server.hpp"
 #include "scheme.hpp"
+#include "math_tree_v3.hpp"
 #include "Subsystems/Qt/QTMESCSymbolPicker.hpp"
 
 #include <QByteArray>
@@ -196,6 +197,29 @@ table_enter_inside_document (editor ed) {
     if (is_func (current, DOCUMENT)) return true;
     if (is_func (current, TABLE)) return false;
     p= path_up (p);
+  }
+  return false;
+}
+
+bool
+native_grid_enter (editor ed) {
+  if (is_nil (ed)) return false;
+  const path root_path= ed->the_buffer_path ();
+  tree root= ed->the_root ();
+  for (path p= path_up (ed->the_path ()); root_path < p; p= path_up (p)) {
+    tree grid= subtree (root, p);
+    // A nested text paragraph or ordinary table owns its own Enter behavior.
+    if (is_func (grid, DOCUMENT) || is_func (grid, TABLE)) return false;
+    if (!is_func (grid, MATH_GRID)) continue;
+    if (!athena::math_v3::valid_native_math (grid)) return false;
+    const path local= tail (ed->the_path (), N(p));
+    if (N(local) < 4 || local->item >= N(grid)) return false;
+    const int row= local->item;
+    tree added (ROW, N(grid[row]));
+    for (int col= 0; col < N(added); ++col) added[col]= tree (CELL, "");
+    insert (grid, row + 1, tree (TUPLE, added));
+    ed->go_to_start (p * path (row + 1, 0, 0));
+    return true;
   }
   return false;
 }
@@ -458,6 +482,7 @@ void generic_kbd_space_bar (tree t, bool shift) {
 }
 
 void generic_kbd_enter (tree t, bool shift) {
+  if (native_grid_enter (get_current_editor ())) return;
   if (generic_table_markup_context (t)) {
     (void) shift;
     editor ed= get_current_editor ();

@@ -104,6 +104,77 @@ class NativeV3MathEditorTest: public QObject {
   }
 
 private slots:
+  void nativeGridEnterAddsRow_data () {
+    QTest::addColumn<QString> ("kind");
+    QTest::addColumn<int> ("columns");
+    QTest::addColumn<int> ("row");
+    QTest::addColumn<int> ("column");
+    for (const QString kind: {QString ("eqnarray"), QString ("align"),
+                              QString ("matrix"), QString ("stack"),
+                              QString ("cases"), QString ("generic")}) {
+      const int columns= kind == "stack" ? 1 : kind == "eqnarray" ? 3 : 2;
+      for (int row: {0, 1})
+        for (int column= 0; column < columns; ++column) {
+          const QByteArray name= (kind + "-" + QString::number (row) + "-" +
+            QString::number (column)).toUtf8 ();
+          QTest::newRow (name.constData ()) << kind << columns << row << column;
+        }
+    }
+  }
+  void nativeGridEnterAddsRow () {
+    QFETCH (QString, kind);
+    QFETCH (int, columns);
+    QFETCH (int, row);
+    QFETCH (int, column);
+    SchemeExecutionContext context (nullptr, editor, &editor->drd,
+      &buffer->document, 0, 0, 0, SCHEME_CAPABILITY_BUFFER);
+    SchemeExecutionScope scope (context);
+    tree grid (MATH_GRID, 2);
+    for (int r= 0; r < 2; ++r) {
+      grid[r]= tree (ROW, columns);
+      for (int c= 0; c < columns; ++c) grid[r][c]= tree (CELL, "X");
+      athena::node::metadata row_meta;
+      row_meta.id= athena::node::new_id ();
+      athena::node::set (grid[r], row_meta);
+    }
+    athena::node::metadata meta;
+    meta.id= athena::node::new_id ();
+    meta.properties["math:grid-kind"]= athena::node::property (kind.toStdString ());
+    athena::node::set (grid, meta);
+    reset (grid);
+    const tree original= copy (content ());
+    editor->go_to_end (content_path () * path (row, column, 0));
+    editor->clear_undo_history ();
+    editor->start_editing ();
+    generic_kbd_return ();
+    editor->end_editing ();
+    QCOMPARE (N(content ()), 3);
+    QCOMPARE (content ()[row], original[row]);
+    QCOMPARE (content ()[row == 0 ? 2 : 0], original[row == 0 ? 1 : 0]);
+    tree empty (ROW, columns);
+    for (int c= 0; c < columns; ++c) empty[c]= tree (CELL, "");
+    QCOMPARE (content ()[row + 1], empty);
+    QVERIFY (athena::node::equal_metadata (content (), original));
+    QCOMPARE (athena::node::id (content ()), meta.id);
+    QVERIFY (athena::node::id (content ()[row + 1]).empty () ||
+      (athena::node::id (content ()[row + 1]) != athena::node::id (original[0]) &&
+       athena::node::id (content ()[row + 1]) != athena::node::id (original[1])));
+    QVERIFY (editor->the_path () == content_path () * path (row + 1, 0, 0, 0));
+    verify_roundtrip ();
+    editor->typeset_forced ();
+    QVERIFY (editor->eb->find_check_cursor (editor->the_path ())->valid);
+    editor->undo (0);
+    QCOMPARE (content (), original);
+    editor->go_to_end (content_path () * path (row, column, 0));
+    editor->start_editing ();
+    generic_kbd_return ();
+    generic_kbd_return ();
+    editor->insert_tree ("Y");
+    editor->end_editing ();
+    QCOMPARE (N(content ()), 4);
+    QCOMPARE (content ()[row + 2][0][0], tree ("Y"));
+    verify_roundtrip ();
+  }
   void eqnarrayInsertionUsesNativeGrid_data () {
     QTest::addColumn<QString> ("entry");
     QTest::addColumn<QString> ("name");
@@ -165,6 +236,10 @@ private slots:
     editor->insert_tree ("Y");
     QCOMPARE (subtree (current_document_tree (), paragraph * path (0, 0, 0, 0)),
               tree (selected ? "XY" : "Y"));
+    verify_roundtrip ();
+    generic_kbd_return ();
+    QVERIFY (is_func (subtree (current_document_tree (), paragraph * 0), MATH_GRID, 2));
+    QVERIFY (editor->the_path () == paragraph * path (0, 1, 0, 0) * 0);
     verify_roundtrip ();
   }
   void escapePickerBracketsAreNative_data () {
