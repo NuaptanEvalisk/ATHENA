@@ -7,9 +7,9 @@
     Welcome to <ATHENA> version <texmacs-version>
   </tmdoc-title>
 
-  Thank you for using <ATHENA>. Version 0.10 is a source-only release.
+  Thank you for using <ATHENA> 0.11.
 
-  <hlink|Changes since 0.9 and upgrading an existing vault|release-0.10.en.tm>
+  <hlink|Changes since 0.10 and XML v3 Vaults|release-0.11.en.tm>
 
   <ATHENA> stands for the <em|Advanced Typesetting and Hypertext Environment
   for Notes and Archives>. It is a mathematics-centered knowledge work
@@ -109,11 +109,11 @@
 
     <ATHENA> is <strong|not> a conservative distribution of GNU <TeXmacs>. To
     support its knowledge-management features, <ATHENA> introduces
-    native UTF-8 text, XML documents, node properties, and incompatible runtime
-    behavior. Legacy import remains available for supported content, but
+    native UTF-8 text, strict XML v3 documents, node properties,
+    mathematical structure, and incompatible runtime behavior. Legacy import remains available for supported content, but
     compatibility with upstream <TeXmacs> is not guaranteed in either
-    direction. Back up old vaults and use the offline upgrade tools before
-    continuing work in the new document model.
+    direction. Existing XML v3 Vaults do not need another format upgrade;
+    use explicit offline migration on a separate copy for older Vaults.
 
     <item*|Development status>
 

@@ -52,7 +52,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "iOS")
 endif ()
 project (ATHENA CXX C) # check for C/C++ compiler
 
-set (ATHENA_APP_VERSION "0.10")
+set (ATHENA_APP_VERSION "0.11")
 
 option (ATHENA_BUILD_HODARIUM_NODE_ONLY
   "Build the headless Hodarium node without the desktop runtime" OFF)

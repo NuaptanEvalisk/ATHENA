@@ -131,7 +131,7 @@
   enunciation forms to the canonical node model. Background UUID indexing,
   artifact extraction, and optional NPU RAG share status and progress.
 
-  Before using an older vault, read <hlink|Upgrading to 0.10|release-0.10.en.tm>.
+  Before using an older vault, read <hlink|XML v3 upgrade and ATHENA 0.11|release-0.11.en.tm>.
   Do not delete existing artifact databases as a migration shortcut.
 
   <section|Workspace and saving>
