@@ -35,8 +35,9 @@ not a compatibility distribution of TeXmacs. It has structured document editing,
 vaults, namespaces, artifacts, linked/transcluded content and compound virtual
 documents (AVD). It is migrating behavior from Scheme to native C++.
 
-Native document text is UTF-8 and `.ath` persistence is XML v2 with optional
-node UUIDs and typed properties. Modern enunciations have one `enunciation` tag
+Native document text is UTF-8. Current production `.ath` persistence is XML v3
+with source UUIDs, typed properties and native mathematical structures
+(see `notes/athena-xml-v3.md`). Modern enunciations have one `enunciation` tag
 plus properties. Source UUIDs, not generated identity anchors, underlie modern
 references. Do not restart historical document migrations during this task.
 

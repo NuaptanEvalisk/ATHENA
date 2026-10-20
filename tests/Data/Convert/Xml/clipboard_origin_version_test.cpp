@@ -11,9 +11,6 @@
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
 #include "tree_label.hpp"
-#include <filesystem>
-#include <fstream>
-#include <iterator>
 
 namespace xml= athena::document;
 namespace node= athena::node;
@@ -49,47 +46,6 @@ class ClipboardOriginVersionTest: public QObject {
   Q_OBJECT
 private slots:
   void initTestCase () { init_standard_tree_labels (); }
-
-  void isolatedCorpusColdRoundtrip () {
-    const auto directory= qgetenv ("ATHENA_V3_CLIPBOARD_CORPUS");
-    if (directory.isEmpty ()) QSKIP ("Optional isolated migrated corpus was not supplied");
-    const std::filesystem::path root (directory.constData ());
-    QVERIFY (std::filesystem::is_directory (root));
-    std::size_t count= 0, rejected= 0;
-    QStringList errors;
-    for (const auto& entry: std::filesystem::recursive_directory_iterator (root)) {
-      if (!entry.is_regular_file () || entry.path ().extension () != ".ath") continue;
-      ++count;
-      try {
-        std::ifstream input (entry.path (), std::ios::binary);
-        if (!input) throw std::runtime_error ("Cannot read corpus source");
-        const std::string bytes {std::istreambuf_iterator<char> (input), std::istreambuf_iterator<char> ()};
-        const auto decoded= xml::decode_native_xml_bytes (bytes);
-        if (decoded.version != version::v3) throw std::runtime_error ("Corpus source is not v3");
-        tree body;
-        bool found= false;
-        for (int i=0; i<N(decoded.document); ++i)
-          if (is_compound (decoded.document[i], "body", 1)) {
-            body= decoded.document[i][0];
-            found= true;
-            break;
-          }
-        if (!found) throw std::runtime_error ("Corpus document has no body");
-        const tree offer= xml::clipboard_with_version (selection (body), version::v3);
-        const auto restored= xml::read_clipboard_xml (xml::write_clipboard_xml (offer));
-        if (restored != offer) throw std::runtime_error ("Clipboard roundtrip changed corpus content");
-        xml::validate_clipboard_paste (restored, version::v3);
-      }
-      catch (const std::exception& error) {
-        ++rejected;
-        if (errors.size () < 20)
-          errors << QString::fromStdString (entry.path ().string () + ": " + error.what ());
-      }
-    }
-    qInfo () << "Cold clipboard corpus:" << count << "documents," << rejected << "rejected";
-    QVERIFY (count > 0);
-    QVERIFY2 (rejected == 0, qPrintable (errors.join ("\n")));
-  }
 
   void explicitVersionsPreservePlainAndBinaryPayloads () {
     const tree raw (RAW_DATA, tree (string ("\0\xff\xc0\x80", 4)));

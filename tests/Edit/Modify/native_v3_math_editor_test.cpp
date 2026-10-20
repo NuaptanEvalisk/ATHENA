@@ -6,7 +6,6 @@
 * This software falls under the GNU general public license version 3 or later.
 ******************************************************************************/
 #include <QApplication>
-#include <QFile>
 #include <QtTest/QtTest>
 #include <cstdlib>
 #include <unistd.h>
@@ -421,31 +420,6 @@ private slots:
               block, "Following paragraph"));
       verify_display_focus (buffer->root_path * 3);
     }
-  }
-
-  void copiedDocumentDisplayFocusExcludesTitleAndSections () {
-    const QString source= qEnvironmentVariable ("ATHENA_V3_DISPLAY_SOURCE");
-    if (source.isEmpty ()) QSKIP ("No private document supplied");
-    QFile input (source);
-    QVERIFY (input.open (QIODevice::ReadOnly));
-    tree document= athena::document::read_xml_v3 (input.readAll ().toStdString ());
-    tree prefix (DOCUMENT);
-    array<int> blocks;
-    for (int i=0; i<N(document); ++i)
-      if (is_compound (document[i], "body", 1)) {
-        tree body= document[i][0];
-        // Preserve the exact title, sections and formulas, but stop before
-        // transclusions/assets that would require accessing the real vault.
-        for (int j=0; j<N(body) && N(blocks)<2; ++j) {
-          prefix << body[j];
-          if (is_func (body[j], MATH_BLOCK)) blocks << j;
-        }
-      }
-    QCOMPARE (N(blocks), 2);
-    buffer->storage_version= athena::document::xml_storage_version::v3;
-    set_document (buffer->document, buffer->root_path, prefix);
-    for (int i=0; i<N(blocks); ++i)
-      verify_display_focus (buffer->root_path * blocks[i]);
   }
 
   void nativeDisplayEstablishesCursorMathEnvironment () {

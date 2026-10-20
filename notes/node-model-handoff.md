@@ -1,15 +1,16 @@
 # 节点模型设计备忘录
 
-更新：2026-09-29。
+更新：2026-10-20。
 
-这份文件曾用于节点模型改造的跨会话交接。该 handoff 阶段已经结束；现在保留它作为
-ATHENA 节点身份、属性、引用、持久化与迁移语义的长期设计备忘录。
+这份文件用于记录当前仍然有效的 ATHENA 节点身份、属性、引用与编辑语义。
+生产文档已迁移为 XML v3；本文件不定义当前 XML 的物理编码，
+格式契约见 `notes/athena-xml-v3.md`。
 
 本文不是待办清单，也不表示源码必须永远保持这里记录的具体实现方式。它记录的是已经
 确立、后续修改不应无意破坏的模型边界和设计理由。行为的最终依据仍是源码和格式版本。
 
-逐批迁移历史见 `notes/node-model-migration.md`。早期日志中的 WIP、缺口和验证状态只用于
-追溯当时的实现过程，不应被解释为要求重做保存、恢复、AUDMAP、剪贴板或已经完成的 migration。
+已完成的逐批迁移日志保存在 Git 历史中，不再作为独立现行文档维护；
+不要把旧 XML v2 激活步骤当成仍需执行的工作。
 
 ## 架构核心
 
@@ -179,26 +180,20 @@ identity completeness 与唯一性要求。接管不是“顺便迁移旧文档�
 完整 source snapshot 除正文外还要保留 envelope、标准字段、collection、association、
 key 和未知字段的 metadata。空 COLLECTION 也是合法对象，不能因 arity 检查写错而丢 header。
 
-## XML v2 persistence
+## XML v3 persistence
 
-XML v2 是能够持久化 source UUID 与 typed properties 的文档格式。
+当前生产 `.ath` 为 XML v3，`Vaultfile.json` 的节点模型版本为 `2`。
+文档节点（包括 atomic）携带独立 UUID 和 typed properties；标准
+v3 Writer/Reader 严格往返，不允许把 metadata 经旧 stree/legacy 格式
+静默丢弃。原生数学直接使用 DELIMITED、MATH_SCRIPTS、
+MATH_BLOCK、MATH_GRID 等 v3 AST。详见 `notes/athena-xml-v3.md`。
 
-核心要求：
-
-- atomic 和 compound metadata 都能往返。
-- reader/writer 有明确资源预算与冲突诊断。
-- v1 writer 遇到 metadata 必须拒绝，而不是静默丢字段。
-- v2 reader 可接受 v1/v2，但“能读 v1”不代表 v1 自动升级。
-- normal v2 load 会验证完整 identity baseline 并激活 owner identity index。
-- v2 normal save / Save As 保持 UUID 与 properties。
-- v2 autosave/recovery 必须直接走 v2-capable native persistence，不能经过会丢 metadata 的
-  legacy serializer。
-- ordinary new source documents born-v2：从创建开始就有完整 source identity baseline，
-  第一次保存直接写 XML v2。
-- DataArt、临时派生 buffer 等匿名工作树不应因普通文档规则被误升级为 source document。
-
-旧 `--upgrade-vault-format` 的职责仍然是 legacy Cork/S-expression -> UTF-8/XML。
-node-model migration 是另一层升级，输入前提是 vault 已经处于 UTF-8/XML 世界。
+新文档、正常保存、Save As、自动保存/恢复须遵循相应 Vault 的
+版本与身份不变量。实际版本 dispatch 以
+`src/Data/Convert/Xml/native_xml_codec.cpp`、
+`document_file_codec.cpp` 和 `document_upgrade_file.cpp` 为准。
+旧 XML v1/v2 与旧升级工具仍有源码残留，不意味着当前生产
+Vault 仍待升级。不得为普通开发任务重新迁移生产 Notes。
 
 ## Wikilink、Transclusion 与 locator
 
@@ -208,7 +203,7 @@ migrated vault 的 canonical Wikilink：
 tmfs://wikilink/<source-uuid>
 ```
 
-`Vaultfile.json` 中 `node_model_version >= 1` 是新语义的 cutover gate。不能只根据 URI 形状
+`Vaultfile.json` 中当前生产 `node_model_version=2` 表示 XML v3 源模型。不能只根据 URI 形状
 判断第一个 component 是 source UUID 还是旧 map identity。
 
 migrated vault 中，historical file/anchor suffix 最多只是显示兼容信息，不能覆盖、修复或替代
@@ -317,48 +312,8 @@ PDF/打印不能把 pending reference placeholder 当最终输出。输出前必
 - `anchor-structures` maintenance pass
 - 对应 preferences/tests
 
-offline node-model migration 会在 reference rewrite、Artifact binding 和旧 map 定位都完成后，
-只删除能由“旧 map 位置 + 当前结构 + 旧生成命名规则”共同证明是 generated 的历史 labels。
-用户 label 只要证据链不完整就保留。
-
-普通 save 和 maintenance 不执行 historical anchor cleanup。
-
-## offline node-model migration
-
-node-model migration 是独立 CLI：
-
-```text
---upgrade-vault-node-model VAULT_DIRECTORY
-```
-
-输入必须已经是 UTF-8/XML vault。若仍是 Cork/S-expression，先运行旧
-`--upgrade-vault-format`。
-
-migration 的事务模型：
-
-1. 预检查。
-2. 建 private sibling snapshot/staging。
-3. canonicalize source structures。
-4. 确定性分配 source UUID；旧 map UUID 能唯一映射时优先复用。
-5. 迁移 Wikilink/Transclusion。
-6. 写回 Artifact source bindings / source node sets。
-7. 在证据充分时清理 historical generated labels。
-8. 完整验证。
-9. 最终 atomic directory exchange 发布。
-
-失败必须保留原 vault。重复运行已完成 migration 应为 no-op。
-
-迁移语义：
-
-- 旧 map 多 UUID 指向同一 source object 时合并到 canonical node identity，并重写真实引用。
-- whole-file identity 对应 persistent root。
-- legacy range 转成明确 source object list，不继续依赖 anchor hints。
-- 原有坏链接/歧义应保留为 explicit unresolved，带原始目标和诊断；不能猜修。
-- 原本有效的引用若迁移失败，应阻止最终发布。
-- 不从自由文本猜 metadata。
-- 保留 Artifact UUID、判断结果和可复用 vectors；无法可靠重定位时标记待处理，而不是挂错对象。
-
-`Vaultfile.json` 的 `node_model_version: 1` 记录 migration cutover。
+已完成的离线迁移只清理有完整证据链的 generated labels；普通
+save 和 maintenance 不执行历史 anchor 清理。用户 label 和源身份不得凭猜测删除。
 
 ## native tree diff 与 source-aware rebuild
 
@@ -383,7 +338,7 @@ child 增删/label 变化、匿名目标、嵌套 wrap/unwrap、undo/redo 与 Ma
 
 以下属于长期维护时值得继续审计的边界，但不是“重新开始 node-model migration”的清单：
 
-- 任何新增的 tree-bearing persistence/clipboard/delegation 边界是否完整支持 v2 metadata。
+- 任何新增的 tree-bearing persistence/clipboard/delegation 边界是否完整支持 XML v3 metadata。
 - 新的 tree rebuild / normalization caller 是否错误丢 source header。
 - cache key 是否明确选择 full tree equality、content projection 或自己的输入 fingerprint。
 - Qt/actor 生命周期中的 owner close、vault switch、modal cancellation 是否正确取消异步 locator。
@@ -411,27 +366,10 @@ child 增删/label 变化、匿名目标、嵌套 wrap/unwrap、undo/redo 与 Ma
 | 定位 | `src/ATHENA/Data/node_location.*`、`vault_node_location.*` |
 | 引用/hover | `src/ATHENA/Data/node_reference.*`、`src/Subsystems/Qt/QTMNodeReferences.cpp` |
 | 导出 | `src/ATHENA/Data/node_reference_export.*`、`src/Subsystems/Qt/QTMNodeReferenceExport.cpp` |
-| XML/离线迁移 | `src/Data/Convert/Xml/athena_document_xml.*`、`vault_format_upgrade.*` |
+| 当前 XML v3 | `src/Data/Convert/Xml/athena_document_xml_v3.cpp`、`native_xml_codec.cpp` |
 | AUDMAP | `src/ATHENA/Data/interop_document_codec.*`、`interop_document_nodes.*` |
 | Safe Rename | `src/ATHENA/Data/vault_safe_rename.*`、`.athena/safe-rename.sqlite` |
-| 历史实现记录 | `notes/node-model-migration.md` |
-
-## 实现演进中的关键提交
-
-下面这些 commit 主要用于追溯设计形成过程，不表示必须保留其内部实现：
-
-- `7e9b23a9b` — native tree diff
-- `6b965f3c9` — source identity lifecycle
-- `6f2937262` — normal XML v2 persistence/activation
-- `417efe87e` — AUDMAP document-model v3
-- `70da9708a` — Artifact source identity
-- `e5fa5aae6` — source move identity
-- `727bea0cb` — ordinary source born-v2
-- `c465b4605` — offline node-model migration
-- `750639634` — historical generated-label retirement
-
-更细的逐批验证、旧缺口、调试日志和当时的 WIP 状态统一留在
-`notes/node-model-migration.md`，不再复制到本备忘录。
+| 当前 XML v3 契约 | `notes/athena-xml-v3.md` |
 
 ## 仓库工作流备注
 

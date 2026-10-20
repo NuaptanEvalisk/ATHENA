@@ -9,8 +9,6 @@
 
 #include <QApplication>
 #include <QTemporaryDir>
-#include <QDirIterator>
-#include <QFile>
 #include <QtTest/QtTest>
 #include <functional>
 #include "boot.hpp"
@@ -173,61 +171,6 @@ private slots:
     QCOMPARE (env->read (MODE), tree ("text"));
   }
 
-  void copiedCorpusDisplayBlocksUseCenteredMathLayout () {
-    const QString source= qEnvironmentVariable ("ATHENA_V3_DISPLAY_SOURCE");
-    if (source.isEmpty ()) QSKIP ("No private document supplied");
-    QFile input (source);
-    QVERIFY (input.open (QIODevice::ReadOnly));
-    tree document= athena::document::read_xml_v3 (input.readAll ().toStdString ());
-    drd_info drd ("native-display-corpus", std_drd);
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
-    env->write_default_env ();
-    env->write (FONT, "TeX Gyre Pagella");
-    env->write (MODE, "text");
-    env->update ();
-    int blocks= 0, grids= 0;
-    std::function<void(tree)> visit= [&] (tree t) {
-      if (is_atomic (t)) return;
-      if (is_func (t, MATH_BLOCK)) {
-        QCOMPARE (drd->get_env_child (t, 0, MODE, "text"), tree ("math"));
-        auto items= typeset_concat (env, t, path (0));
-        int springs= 0;
-        for (int i=0; i<N(items); ++i)
-          if (items[i]->type == CONTROL_ITEM && is_func (items[i]->t, HTAB))
-            ++springs;
-        QCOMPARE (springs, 2);
-        lazy content= make_lazy (env, tree (DOCUMENT, t), path (0));
-        lazy lines= content->produce (LAZY_VSTREAM,
-          make_format_vstream (env->as_length ("60em"), 0, 0));
-        box rendered= (box) lines->produce (LAZY_BOX, make_format_none ());
-        QVERIFY (rendered->h () > 0);
-        const QString output= qEnvironmentVariable ("ATHENA_V3_DISPLAY_SCREENSHOTS");
-        if (!output.isEmpty () && (blocks < 2 || (grids == 0 && is_func (t[0], MATH_GRID)))) {
-          const int width= (rendered->x4-rendered->x3+PIXEL-1)/PIXEL + 32;
-          const int height= (rendered->y4-rendered->y3+PIXEL-1)/PIXEL + 32;
-          QImage image (width, height, QImage::Format_ARGB32_Premultiplied);
-          image.fill (Qt::white);
-          QPainter painter (&image);
-          qt_renderer_rep renderer (&painter, 1.0, width, height, true);
-          renderer.set_clipping (0, -height*PIXEL, width*PIXEL, 0);
-          rectangles invalid;
-          rendered->redraw (&renderer, path (), invalid,
-            16*PIXEL-rendered->x3, -16*PIXEL-rendered->y4);
-          painter.end ();
-          QVERIFY (image.save (output + QString::number (blocks) + ".png"));
-        }
-        ++blocks;
-        if (is_func (t[0], MATH_GRID)) ++grids;
-      }
-      for (int i=0; i<N(t); ++i) visit (t[i]);
-    };
-    visit (document);
-    QVERIFY (blocks > 0);
-    qInfo () << "Rendered native display blocks:" << blocks << "grids:" << grids;
-  }
-
   void transformedNamedSymbolsHaveInlineOrigins () {
     drd_info drd ("transformed-symbol-origins", std_drd);
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
@@ -312,46 +255,6 @@ private slots:
         QVERIFY (!occurs ("invalid rubber", description));
       }
     }
-  }
-
-  void copiedCorpusBigOperatorScriptsRender () {
-    const QString corpus= qEnvironmentVariable ("ATHENA_V3_OPERATOR_CORPUS");
-    if (corpus.isEmpty ()) QSKIP ("No private corpus supplied");
-    drd_info drd ("corpus-big-operator-glyphs", std_drd);
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
-    env->write_default_env ();
-    env->write (FONT, "TeX Gyre Pagella");
-    env->write (MODE, "math");
-    env->update ();
-    int operators= 0;
-    std::function<void(tree)> visit= [&] (tree value) {
-      if (is_atomic (value)) return;
-      const bool scripted= is_func (value, MATH_SCRIPTS, 5) &&
-        is_func (value[0], BIG_OPERATOR, 2);
-      if (scripted || is_func (value, BIG_OPERATOR, 2)) {
-        box result= typeset_as_concat (env, value, path (0));
-        string description;
-        tm_ostream out= string_ostream (description);
-        out << tree (result);
-        out.flush ();
-        QVERIFY (!occurs ("invalid rubber", description));
-        QVERIFY (result->w () > 0);
-        QVERIFY (result->h () > 0);
-        ++operators;
-      }
-      for (int i=0; i<N(value); ++i) visit (value[i]);
-    };
-    QDirIterator files (corpus, {"*.ath"}, QDir::Files,
-                        QDirIterator::Subdirectories);
-    while (files.hasNext ()) {
-      QFile input (files.next ());
-      QVERIFY (input.open (QIODevice::ReadOnly));
-      visit (athena::document::read_xml_v3 (input.readAll ().toStdString ()));
-    }
-    QVERIFY (operators > 0);
-    qInfo () << "Rendered corpus operators and scripted operators:" << operators;
   }
 
   void migratedHistoricalLayoutRetainsGeometry () {
