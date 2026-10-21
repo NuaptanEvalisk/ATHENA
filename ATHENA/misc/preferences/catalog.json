@@ -1860,6 +1860,40 @@
       }
     },
     {
+      "key": "show prooftrack",
+      "type": "boolean",
+      "scope": "active",
+      "default": "on",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Components and Layout",
+        "section": "ProofTrack",
+        "order": 0,
+        "label": "Show ProofTrack",
+        "control": "toggle",
+        "category_order": 3,
+        "tab_order": 0,
+        "section_order": 1
+      }
+    },
+    {
+      "key": "prooftrack in transclusions",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off",
+      "ui": {
+        "category": "Rendering",
+        "tab": "Components and Layout",
+        "section": "ProofTrack",
+        "order": 1,
+        "label": "Show ProofTrack in transclusions",
+        "control": "toggle",
+        "category_order": 3,
+        "tab_order": 0,
+        "section_order": 1
+      }
+    },
+    {
       "key": "fold table of contents in reflow",
       "type": "boolean",
       "scope": "active",

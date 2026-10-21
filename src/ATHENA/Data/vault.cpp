@@ -28,6 +28,7 @@
 #include "vault_directory_lease.hpp"
 #include "ATHENA/Data/transclusion_cache.hpp"
 #include "ATHENA/Data/node_location_cache.hpp"
+#include "ATHENA/Data/prooftrack.hpp"
 #include "ATHENA/tm_window.hpp"
 
 #include <filesystem>
@@ -281,6 +282,7 @@ vault_load (url root_dir, string name, string db_rel_path,
     true, root, vault_std_string (name), root / resolved,
     root / vault_std_string (ns_db_rel_path), vaultfile.node_model_version);
   athena::node_location::persistent_index_start (vault_capture_context ());
+  athena::prooftrack::start (vault_capture_context ());
   athena_namespace_ontology_start (vault_get_root (),
                                    vault_get_namespace_db ());
   athena_artifact_radioactive_invalidate ();
@@ -291,6 +293,7 @@ vault_load (url root_dir, string name, string db_rel_path,
 
 void
 vault_close () {
+  athena::prooftrack::stop ();
   athena::node_location::persistent_index_stop ();
   publish_vault_snapshot (false, {}, "", {}, {});
   if (is_vault_active) {

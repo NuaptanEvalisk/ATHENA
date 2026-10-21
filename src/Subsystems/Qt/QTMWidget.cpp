@@ -221,6 +221,11 @@ QTMWidget::QTMWidget (QWidget* _parent, qt_widget _tmwid)
   setAttribute (Qt::WA_InputMethodEnabled);
   setInputMethodHints (Qt::ImhMultiLine);
   surface ()->setMouseTracking (true);
+  proofTrack= std::make_unique<QTMProofTrack> (surface ());
+  proofTrack->navigate= [this] (const QTMProofEndpoint& endpoint) {
+    const QPoint destination= endpoint.position.toPoint () + origin ();
+    verticalScrollBar ()->setValue (destination.y ()-surface ()->height ()/3);
+  };
   surface ()->setAcceptDrops (true);
   setAttribute (Qt::WA_AcceptTouchEvents);
   viewport ()->setAttribute (Qt::WA_AcceptTouchEvents);
@@ -1092,6 +1097,12 @@ QTMWidget::paintContent (QPainter& p, const QRegion& region) {
   drawNativeInkPreview (p);
   drawNativeDrawingInsertSpace (p);
   drawNativeDrawingSelection (p);
+  if (!externallyPresented () && !isEmbedded () &&
+      !viewPinchActive && !viewPinchCommitPending) {
+    auto endpoints= proofTrack->endpoints;
+    for (auto& endpoint: endpoints) endpoint.position-= origin ();
+    proofTrack->paint (p, std::move (endpoints));
+  }
 }
 
 void QTMWidget::setPresentationTarget (QWidget* target) {
@@ -1893,6 +1904,7 @@ QTMWidget::pencilHover (const QPoint& globalPosition) {
 
 void
 QTMWidget::mousePressEvent (QMouseEvent* event) {
+  if (!externallyPresented () && proofTrack->mouse (event)) return;
   cancelTouchContextMenu ();
   if (is_nil (tmwid)) return;
   refreshCursorBlinking (true);
@@ -1951,6 +1963,7 @@ QTMWidget::mousePressEvent (QMouseEvent* event) {
 
 void
 QTMWidget::mouseReleaseEvent (QMouseEvent* event) {
+  if (!externallyPresented () && proofTrack->mouse (event)) return;
   if (is_nil (tmwid)) return;
   QPoint point = event->pos() + origin();
   coord2 pt = from_qpoint(point);
@@ -1999,6 +2012,7 @@ QTMWidget::mouseReleaseEvent (QMouseEvent* event) {
 
 void
 QTMWidget::mouseMoveEvent (QMouseEvent* event) {
+  if (!externallyPresented () && proofTrack->mouse (event)) return;
   if (is_nil (tmwid)) return;
   if (event->buttons () == Qt::NoButton &&
       !surface ()->rect ().contains (event->position ().toPoint ())) {
@@ -2360,6 +2374,7 @@ QTMWidget::gestureEvent (QGestureEvent* event) {
  
 bool
 QTMWidget::event (QEvent* event) {
+  if (event->type () == QEvent::Leave) proofTrack->leave ();
   if (event->type () == QEvent::Leave && !is_nil (tmwid))
     the_gui->process_mouse (tm_widget (), "peek-leave", 0, 0, 0, texmacs_time ());
   if ((event->type () == QEvent::KeyPress || event->type () == QEvent::KeyRelease) &&

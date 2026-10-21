@@ -932,6 +932,14 @@ qt_actor_widget_rep::drain_external_effects () {
         refresh_native_drawing_focus_actions (view->win->wid);
       break;
     }
+    case actor_command_kind::ui_prooftrack: {
+      const string payload= actor_text_registry::instance ().take (record.payload0);
+      if (auto* target= canvas ()) {
+        target->proofTrack->accept (std::string (payload.data (), N(payload)));
+        target->updatePresentation ();
+      }
+      break;
+    }
     case actor_command_kind::ui_enunciation_slot: {
       const string request= actor_text_registry::instance ().take (record.payload0);
       const auto actor= actor_id_, view= view_id_;

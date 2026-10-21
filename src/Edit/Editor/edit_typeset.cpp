@@ -11,6 +11,7 @@
 
 #include <climits>
 #include "edit_typeset.hpp"
+#include "prooftrack_presentation.hpp"
 #include "heading_word_count.hpp"
 #include "tm_buffer.hpp"
 #include "convert.hpp"
@@ -1387,6 +1388,7 @@ edit_typeset_rep::typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2) {
       fold_view_rebuild= false;
       fold_view_active= folded_screen;
     }
+    prooftrack_screen_scope prooftrack_screen (!printed);
     eb= ::typeset (ttt, x1, y1, x2, y2);
     progressive_typeset_pending=
       ttt->progressive_root_active && ttt->progressive_pending;

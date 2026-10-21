@@ -15,6 +15,7 @@
 #include "qt_widget.hpp"
 #include "QTMScrollView.hpp"
 #include "QTMPerformanceMonitor.hpp"
+#include "QTMProofTrack.hpp"
 #include "ATHENA/native_ink.hpp"
 #include "ATHENA/viewport_follow.hpp"
 #include "native_drawing_ui.hpp"
@@ -58,6 +59,7 @@ class QTMWidget: public QTMScrollView {
 
 public:
 
+  std::unique_ptr<QTMProofTrack> proofTrack;
   std::shared_ptr<viewport_follow_state> cursorFollow=
     std::make_shared<viewport_follow_state> ();
 

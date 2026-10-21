@@ -2411,6 +2411,7 @@ edit_interface_rep::apply_changes () {
     ((env_change & THE_CURSOR) != 0 && (env_change & THE_TREE) == 0);
   publish_editor_command_state ();
   refresh_enunciation_slot_geometry ();
+  refresh_prooftrack_geometry ();
   athena::enunciation::title_input_changed (*this);
   env_change  = 0;
   last_change = texmacs_time ();

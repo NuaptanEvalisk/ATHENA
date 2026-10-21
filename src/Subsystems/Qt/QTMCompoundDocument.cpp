@@ -11,6 +11,7 @@
 #include "QTMApplication.hpp"
 #include "athena_platform.hpp"
 #include "QTMWidget.hpp"
+#include "native_interfaces.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "QTMEditorToolbarPresenter.hpp"
 #include "QTMToolbarController.hpp"
@@ -184,6 +185,7 @@ protected:
 }
 
 class QTMCompoundViewport: public QAbstractScrollArea {
+  std::unique_ptr<QTMProofTrack> prooftrack_;
   struct SourceView {
     url view= url_none ();
     athena_view_id runtime_id= ATHENA_NO_VIEW;
@@ -1241,6 +1243,8 @@ protected:
       const bool mouse= event->type () == QEvent::MouseButtonPress ||
         event->type () == QEvent::MouseButtonRelease || event->type () == QEvent::MouseButtonDblClick ||
         event->type () == QEvent::MouseMove;
+      if (mouse && prooftrack_->mouse (static_cast<QMouseEvent*> (event))) return true;
+      if (event->type () == QEvent::Leave) prooftrack_->leave ();
       const bool wheel= event->type () == QEvent::Wheel;
       const bool keyboard= event->type () == QEvent::KeyPress || event->type () == QEvent::KeyRelease ||
         event->type () == QEvent::ShortcutOverride || event->type () == QEvent::InputMethod;
@@ -1551,6 +1555,22 @@ protected:
         fontMetrics ().elidedText (members_[i].relative_filename, Qt::ElideMiddle,
                                   std::max (0, viewport ()->width () - 16)));
     }
+    if (prooftrack_->enabled ()) {
+      std::vector<QTMProofEndpoint> endpoints;
+      std::map<std::string, QTMProofMember> members;
+      for (std::size_t i=0; i<members_.size (); ++i) {
+        const double top= layout_.top (i)+member_heading_height-start;
+        members.emplace (members_[i].relative_filename.toStdString (), QTMProofMember {int (i), top});
+        const auto* canvas= views_[i].canvas.data ();
+        if (!canvas) continue;
+        for (auto endpoint: canvas->proofTrack->endpoints) {
+          endpoint.member= int (i);
+          endpoint.position+= QPointF (-horizontalScrollBar ()->value (), top);
+          endpoints.push_back (std::move (endpoint));
+        }
+      }
+      prooftrack_->paint (painter, std::move (endpoints), members);
+    }
     performance_.finishPaint (event, painter);
   }
 
@@ -1624,6 +1644,22 @@ public:
     layout_ (members_.size (), 1200),
     counters_ (members_, QByteArrayLiteral ("ATHENA counter executor 3 native row policy"), descriptor_.value.checkpoints),
     views_ (members_.size ()) {
+    prooftrack_= std::make_unique<QTMProofTrack> (viewport ());
+    prooftrack_->navigate= [this] (const QTMProofEndpoint& endpoint) {
+      const auto i= std::size_t (endpoint.member);
+      if (i >= members_.size ()) return;
+      if (endpoint.precise) {
+        updateRange (offset ()+endpoint.position.y ()-viewport ()->height ()/3);
+        arrange (true); mount (i); activateMember (i);
+      }
+      else {
+        goToMember (i, false);
+        const auto id= endpoint.id.toStdString ();
+        queueInput ([i, id] (QTMCompoundViewport& self) {
+          self.submit (i, [id] { athena_node_reference_position (string (id.c_str ())); });
+        });
+      }
+    };
     setVerticalScrollBar (new MemberScrollBar (layout_));
     viewport ()->installEventFilter (this);
     installEventFilter (this);

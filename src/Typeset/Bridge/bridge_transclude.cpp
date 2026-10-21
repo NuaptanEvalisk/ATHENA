@@ -155,7 +155,9 @@ bridge_transclude_rep::my_typeset (int desired_status) {
     ttt->insert_marker (st, ip);
   tree old_radioactive_scope= env->local_begin (
     "athena-radioactive-links-in-transclusion", "true");
+  tree old_prooftrack_scope= env->local_begin ("prooftrack-transclusion", "true");
   body->typeset (desired_status);
+  env->local_end ("prooftrack-transclusion", old_prooftrack_scope);
   env->local_end ("athena-radioactive-links-in-transclusion",
                   old_radioactive_scope);
 }

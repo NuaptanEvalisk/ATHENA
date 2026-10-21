@@ -175,6 +175,7 @@ enum class actor_command_kind: std::uint32_t {
   ui_refresh_chrome,
   ui_native_drawing_focus_refresh,
   ui_enunciation_slot,
+  ui_prooftrack,
   ui_global_action,
   ui_new_buffer,
   ui_open_document_window,

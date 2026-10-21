@@ -95,6 +95,9 @@ protected:
   path enunciation_slot_box_path_;
   void refresh_enunciation_slots ();
   void refresh_enunciation_slot_geometry ();
+  struct prooftrack_geometry;
+  std::shared_ptr<prooftrack_geometry> prooftrack_geometry_;
+  void refresh_prooftrack_geometry ();
   bool mouse_enunciation_slot (string kind, SI x, SI y);
   int           mouse_adjusting;  // mask with active key modifiers upon click
   bool          image_resize_active;

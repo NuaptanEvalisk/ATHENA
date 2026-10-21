@@ -139,6 +139,9 @@ QTMCommandRegistry::registerViewMenuCommands () {
           labels == QString::fromLatin1 (entry.first));
 
       const bool hasDocument= context.lastDocument.has_buffer_name ();
+      append_item (out, "prooftrack", QObject::tr ("Show ProofTrack"),
+        QObject::tr ("Display"), true, true,
+        get_user_preference ("show prooftrack", "on") == "on");
       append_item (
         out, "graph/global", QObject::tr ("Global hierarchy graph"),
         QObject::tr ("Graphs"), vault_active ());
@@ -180,6 +183,11 @@ QTMCommandRegistry::registerViewMenuCommands () {
     [] (const QString& key, const QTMCommandContext& context) {
       qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
       if (proxy == nullptr) return false;
+      if (key == QStringLiteral ("prooftrack")) {
+        set_user_preference ("show prooftrack",
+          get_user_preference ("show prooftrack", "on") == "on" ? "off" : "on");
+        return true;
+      }
       if (key == QStringLiteral ("full-screen-edit"))
         return submit_view_business (context, "view-toggle-full-screen-edit");
       if (key == QStringLiteral ("full-screen"))

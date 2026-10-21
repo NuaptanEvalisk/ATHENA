@@ -17,7 +17,7 @@
 #include <vector>
 
 namespace athena::background {
-enum class worker { uuid, rag, maintenance, artifacts, hodarium, count };
+enum class worker { uuid, rag, maintenance, artifacts, hodarium, prooftrack, count };
 constexpr std::size_t worker_count= std::size_t (worker::count);
 enum class phase { inactive, idle, working, paused, error, waiting, disconnected };
 struct progress {

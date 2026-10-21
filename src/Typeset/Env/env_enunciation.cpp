@@ -12,6 +12,8 @@
 #include "convert.hpp"
 #include "ATHENA/Data/enunciation_slots.hpp"
 #include "math_tree_v3.hpp"
+#include "observer.hpp"
+#include "prooftrack_presentation.hpp"
 #include <set>
 
 namespace {
@@ -233,6 +235,35 @@ tree native_enunciation_macro (edit_env_rep* env, const tree& source) {
     heading= append (heading, definition_title ? details : tree (CONCAT, "(", details, ")"));
   if (const auto* target= property<node::reference> (source, "target"))
     heading= tree (HLINK, heading, "tmfs://wikilink/" * text (target->id));
+
+  if (prooftrack_screen_scope::active () && env->get_string (PAGE_PRINTED) != "true" &&
+      (kind == "proof" || kind == "theorem" || kind == "proposition" ||
+       kind == "lemma" || kind == "corollary")) {
+    const auto* target= property<node::reference> (source, "target");
+    auto id= node::id (source);
+    if (id.empty ())
+      if (const auto* origin= property<node::reference> (source, "athena:prooftrack-source"))
+        id= origin->id;
+    if (!id.empty ()) {
+      nlohmann::json endpoint {
+        {"id", id}, {"target", kind == "proof" && target ? target->id : ""},
+        {"proof", kind == "proof"},
+        {"transclusion", env->get_string ("prooftrack-transclusion") == "true"},
+        {"title", std::string (kind.data (), N(kind))}
+      };
+      tree attached= source;
+      const string occurrence= as_string (obtain_ip (attached));
+      endpoint["occurrence"]= std::string (occurrence.data (), N(occurrence));
+      if (name != "") {
+        string title= tree_as_string (name);
+        endpoint["title"]= std::string (title.data (), N(title));
+      }
+      tree body= tree (WITH, LOCUS_COLOR, env->read (LOCUS_COLOR),
+        VISITED_COLOR, env->read (VISITED_COLOR), heading);
+      heading= tree (WITH, LOCUS_COLOR, "preserve", VISITED_COLOR, "preserve",
+        tree (LOCUS, tree (ID, "prooftrack:" * text (endpoint.dump ())), body));
+    }
+  }
 
   tree body (ARG, "body");
   tree presented;

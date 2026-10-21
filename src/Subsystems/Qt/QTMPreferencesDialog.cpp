@@ -1344,6 +1344,9 @@ QTMPreferencesDialog::buildRenderingPage () {
   add_toggle (c, "new style page breaking");
   add_toggle (c, "render solution in smaller font");
   add_toggle (c, "number solutions");
+  QFormLayout* prooftrack= add_section (components, "ProofTrack");
+  add_toggle (prooftrack, "show prooftrack");
+  add_toggle (prooftrack, "prooftrack in transclusions");
   finish_page (components);
 
   QWidget* documentColors= make_page ();

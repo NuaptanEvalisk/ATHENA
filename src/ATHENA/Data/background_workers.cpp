@@ -295,7 +295,7 @@ registry& state () {
 }
 }
 const char* worker_name (worker id) {
-  const char* names[]= {"UUID", "NPU RAG", "Maintenance", "Artifacts", "Hodarium"};
+  const char* names[]= {"UUID", "NPU RAG", "Maintenance", "Artifacts", "Hodarium", "ProofTrack"};
   return names[std::size_t (id)];
 }
 bool failed (const progress& value) {

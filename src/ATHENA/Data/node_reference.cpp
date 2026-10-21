@@ -31,6 +31,8 @@ tree presentation (const tree& source, const url& base) {
   // interactive render copies do not own persistent IDs or artifact bindings.
   if (const auto* m= node::get (source)) {
     auto props= *m;
+    if (is_compound (source, "enunciation") && !m->id.empty ())
+      props.properties["athena:prooftrack-source"]= node::property (node::reference {m->id});
     if (!export_node_destinations_active ()) props.id.clear ();
     props.properties.erase ("athena:artifact-bindings");
     node::set (out, props);
@@ -44,7 +46,8 @@ tree presentation (const tree& source, const url& base) {
 }
 bool canonical (const tree& t) { return is_func (t, TRANSCLUDE, 1) && is_tuple (t[0]); }
 tree presentation_copy (const tree& source, const url& base) {
-  return presentation (node::content_projection (source), base);
+  // Capture display provenance before the projection drops source identities.
+  return node::content_projection (presentation (source, base));
 }
 std::vector<std::string> targets (const tree& t) {
   if (!canonical (t) || N(t[0]) == 0) throw std::invalid_argument ("Expected a nonempty node UUID list");
@@ -111,9 +114,10 @@ static tree compute_display (const view& current) {
         for (int i=0; i<N(node); ++i) if (is_compound (node[i], "body", 1)) {
           node= node[i][0]; break;
         }
-      node= presentation (export_node_destinations_active () ? node : node::content_projection (node),
+      node= presentation (node,
         target.source_directory.empty () ?
         url_none () : url_system (native (target.source_directory)));
+      if (!export_node_destinations_active ()) node= node::content_projection (node);
       tree content= is_document (node) ? node : tree (DOCUMENT, node);
       const string source= native ("tmfs://transclude/" + target.id);
       std::string source_name= "Source";

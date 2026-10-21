@@ -238,6 +238,7 @@ athena_backup_dispatch_prepare (
     // UUID locations are rebuildable; never copy a live LMDB or its locks.
     // Sender-only hiding also removes cache copies from older backups.
     "--filter=H /.athena/node-locations/",
+    "--filter=H /.athena/prooftrack/",
     utf8 (source), utf8 (final_destination)};
   return true;
 #endif
@@ -281,6 +282,7 @@ athena_backup_dispatch_run (
       }
       if (it->is_directory ()) {
         if (relative == ".backup" || relative == ".athena/node-locations" ||
+            relative == ".athena/prooftrack" ||
             (relative.parent_path () == ".athena" &&
              relative.filename ().string ().rfind ("rag-backup-", 0) == 0))
           it.disable_recursion_pending ();
