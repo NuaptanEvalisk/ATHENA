@@ -18,6 +18,7 @@
 #endif
 #include "QTMVaultSearch.hpp"
 #include "QTMVaultSearchWorker.hpp"
+#include "QTMVaultPreviewBuilder.hpp"
 #include "QTMVaultLinkModel.hpp"
 #include "QTMVaultAnchorModel.hpp"
 #include "QTMWidget.hpp"
@@ -119,46 +120,6 @@ apply_vault_preferred_font (tree body) {
   string font= get_preference ("vault preferred font", "");
   if (font == "") return body;
   return tree (WITH, "font", font, body);
-}
-
-static tree
-import_body_for_global_preview (url file) {
-  tree t= import_tree (file, "texmacs");
-  tree body= extract (t, "body");
-  return is_empty (body) ? t : body;
-}
-
-static bool
-preview_absolute_image_path (const string& path) {
-  return path == "" || starts (path, "/") || starts (path, "~") ||
-    starts (path, "$") || occurs ("://", path);
-}
-
-static string
-preview_rebase_image_path (const string& path, url sourceDir) {
-  if (preview_absolute_image_path (path)) return path;
-  url absolute= sourceDir * url_unix (path);
-  return as_system_string (absolute);
-}
-
-static tree
-rebase_preview_images (tree t, url sourceDir) {
-  if (is_atomic (t)) return copy (t);
-
-  tree r (L(t));
-  for (int i=0; i<N(t); i++) {
-    if (i == 0 && is_func (t, IMAGE) && is_atomic (t[i]))
-      r << tree (preview_rebase_image_path (t[i]->label, sourceDir));
-    else
-      r << rebase_preview_images (t[i], sourceDir);
-  }
-  return r;
-}
-
-static tree
-import_body_for_preview (url file) {
-  return rebase_preview_images (import_body_for_global_preview (file),
-                                head (file));
 }
 
 static void
@@ -724,6 +685,7 @@ QTMGlobalSearch::normalizeQuery (tree t) const {
     return meta && !meta->properties.empty ();
   };
   while (!has_properties (t) && (is_func (t, DOCUMENT, 1) ||
+         is_func (t, CONCAT, 1) ||
          is_func (t, INACTIVE, 1) ||
          is_func (t, VAR_INACTIVE, 1)))
     t= t[0];
@@ -1063,8 +1025,9 @@ QTMGlobalSearch::buildPreviewFromBody (tree body, path hitStart) const {
 tree
 QTMGlobalSearch::buildPreview (const Result& result) const {
   try {
-    tree body= import_body_for_preview (result.file);
-    return buildPreviewFromBody (body, result.hitStart);
+    tree body= import_body (result.file);
+    return rebase_preview_images (
+      buildPreviewFromBody (body, result.hitStart), head (result.file));
   }
   catch (...) {
     return tree (DOCUMENT, "Preview unavailable.");

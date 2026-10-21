@@ -167,14 +167,15 @@ vault_search_buffer_snapshot (url name) {
 
 void vault_search_set_query (VaultSearchOptions& options, const tree& query,
                             athena::document::xml_format_version version) {
-  const auto bytes= athena::document::encode_native_xml_bytes (
-    query, version, athena::document::xml_kind::fragment);
-  // Keep the text prefilter for plain strings; metadata-bearing text is a
-  // structured query and must travel through the same strict native codec.
-  const bool plain= is_atomic (query) && !athena::node::contains_metadata (query);
+  // Search constrains properties, never the query editor's persistent UUID.
+  const auto* metadata= athena::node::get (query);
+  const bool plain= is_atomic (query) &&
+    (!metadata || metadata->properties.empty ());
   options.query= is_atomic (query) ? to_qstring (query->label) :
     to_qstring (tree_as_string (query));
-  options.serializedQuery= plain ? std::string () : bytes;
+  options.serializedQuery= plain ? std::string () :
+    athena::document::encode_native_xml_bytes (
+      query, version, athena::document::xml_kind::fragment);
   options.queryFormat= plain ? std::nullopt : std::make_optional (version);
 }
 
