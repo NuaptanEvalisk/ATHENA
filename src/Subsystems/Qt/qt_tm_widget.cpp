@@ -1063,8 +1063,12 @@ qt_tm_widget_rep::send (slot s, blackbox val) {
       string file = open_box<string> (val);
       if (DEBUG_QT_WIDGETS) debug_widgets << "\tFile: " << file << LF;
       mainwindow()->setWindowFilePath (utf8_to_qstring (file));
-      QIcon icon= is_rooted_tmfs (url (file)) ?
-        tmapp ()->icon_manager ().getPresentationIcon ("applications-internet") :
+      const url source (file);
+      const bool disambiguation= is_rooted_tmfs (source, "artifact-disambiguation") ||
+        is_rooted_tmfs (source, "artifact-name-query");
+      QIcon icon= is_rooted_tmfs (source) ?
+        tmapp ()->icon_manager ().getPresentationIcon (
+          disambiguation ? "artifact-disambiguation" : "applications-internet") :
         tmapp ()->icon_manager ().getDocumentIcon (utf8_to_qstring (file));
       if (icon.isNull ())
         icon= tmapp ()->icon_manager ().getDocumentIcon ("document.ath");

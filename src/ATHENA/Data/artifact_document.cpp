@@ -92,7 +92,7 @@ tree artifact_disambiguation_table (
 
     tree artifact= compound ("hlink", compound ("strong", name), destination);
 
-    tree source= compound ("samp", internal_text (record.relative_path));
+    tree source= compound ("verbatim", internal_text (record.relative_path));
     tree row (ROW);
     row << table_cell (artifact)
         << table_cell (internal_text (record.type))

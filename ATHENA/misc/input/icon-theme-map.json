@@ -44,6 +44,9 @@
       "theme": ["applications-system", "configure"],
       "libreoffice": ["cmd/32/configuredialog.svg"]
     },
+    "artifact-disambiguation": {
+      "libreoffice": ["cmd/32/arrowshapes.split-arrow.svg"]
+    },
     "code-context": {
       "theme": ["code-context"],
       "libreoffice": ["cmd/32/scriptorganizer.svg"]
