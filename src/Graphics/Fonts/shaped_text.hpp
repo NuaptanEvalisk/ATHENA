@@ -162,6 +162,7 @@ struct shaped_text {
   SI ink_x1= 0, ink_y1= 0, ink_x2= 0, ink_y2= 0;
   bool has_ink= false;
   bool missing_glyphs= false;
+  bool math_assembly= false;
   std::optional<shaped_math_metrics> math;
 
   // Supply the same immutable input used for shaping (including context).

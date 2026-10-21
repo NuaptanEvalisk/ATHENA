@@ -296,9 +296,9 @@ tt_font_glyphs_rep::tt_font_glyphs_rep (
   tt_font_glyphs_rep (name, load_tt_face (family), size2, hdpi2, vdpi2) {}
 
 tt_font_glyphs_rep::tt_font_glyphs_rep (
-  string name, tt_face source, int size2, int hdpi2, int vdpi2):
+  string name, tt_face source, int size2, int hdpi2, int vdpi2, bool extensible2):
   font_glyphs_rep (name), face (source), size (size2),
-  hdpi (hdpi2), vdpi (vdpi2), fng (glyph ())
+  hdpi (hdpi2), vdpi (vdpi2), extensible (extensible2), fng (glyph ())
 {
   bad_font_glyphs= face->bad_face ||
     ft_set_char_size (face->ft_face, 0, size<<6, hdpi, vdpi);
@@ -330,7 +330,7 @@ tt_font_glyphs_rep::get (int i) {
     unsigned char *buf= slot->bitmap.buffer;
     if (pitch<0) buf -= pitch*h;
     int x, y;
-    glyph G (w, h, -ox, oy);
+    glyph G (w, h, -ox, oy, 1, extensible ? 1 : 0);
     // mg:
     // the index variable is used by code who need the glyph_index for unicode characters
     // to locate the right glyph in the font file
@@ -364,8 +364,10 @@ tt_font_glyphs (string family, int size, int hdpi, int vdpi) {
 	       tm_new<tt_font_glyphs_rep> (name, family, size, hdpi, vdpi));
 }
 
-font_glyphs tt_font_glyphs (tt_face face, int size, int hdpi, int vdpi) {
+font_glyphs tt_font_glyphs (tt_face face, int size, int hdpi, int vdpi,
+                           bool extensible) {
   const string name= face->res_name * ":glyphs:" * as_string (size) * ":" *
-    as_string (hdpi) * ":" * as_string (vdpi);
-  return make (font_glyphs, name, tm_new<tt_font_glyphs_rep> (name, face, size, hdpi, vdpi));
+    as_string (hdpi) * ":" * as_string (vdpi) * (extensible ? ":extensible" : "");
+  return make (font_glyphs, name,
+    tm_new<tt_font_glyphs_rep> (name, face, size, hdpi, vdpi, extensible));
 }

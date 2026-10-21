@@ -146,7 +146,8 @@ renderer_rep::draw_utf8 (const athena::text::shaped_text& run,
     if (hdpi <= 0 || vdpi <= 0)
       throw std::invalid_argument ("Invalid scaled text resolution");
     font_glyphs raster= tt_font_glyphs (load_tt_face (source.file),
-                                       source.point_size, hdpi, vdpi);
+                                       source.point_size, hdpi, vdpi,
+                                       run.math_assembly);
     for (const auto& glyph: run.glyphs) {
       scaled_text_coordinate (x + glyph.x, zoomf);
       scaled_text_coordinate (y + glyph.y, zoomf);

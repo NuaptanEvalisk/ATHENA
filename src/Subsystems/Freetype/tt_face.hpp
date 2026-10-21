@@ -49,11 +49,13 @@ struct tt_font_glyphs_rep: font_glyphs_rep {
   bool bad_glyphs;
   tt_face face;
   int size, hdpi, vdpi;
+  bool extensible;
   hashmap<int,glyph> fng;
   //glyph* fng;
   //bool* done;
   tt_font_glyphs_rep (string name, string family, int size, int hdpi, int vdpi);
-  tt_font_glyphs_rep (string name, tt_face face, int size, int hdpi, int vdpi);
+  tt_font_glyphs_rep (string name, tt_face face, int size, int hdpi, int vdpi,
+                      bool extensible= false);
   glyph& get (int char_code) override;
   bool physical_source (athena::text::physical_font_source& out) const override;
 };
@@ -61,7 +63,8 @@ struct tt_font_glyphs_rep: font_glyphs_rep {
 tt_face load_tt_face (string name);
 tt_face load_tt_face (const athena::text::font_file_source& source);
 font_metric tt_font_metric (tt_face face, int size, int hdpi, int vdpi);
-font_glyphs tt_font_glyphs (tt_face face, int size, int hdpi, int vdpi);
+font_glyphs tt_font_glyphs (tt_face face, int size, int hdpi, int vdpi,
+                           bool extensible= false);
 int tt_math_vertical_variant (string family, unsigned int codepoint,
                               unsigned int variant);
 array<int> tt_math_vertical_variants (string family, unsigned int codepoint);

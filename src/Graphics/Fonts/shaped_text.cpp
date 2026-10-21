@@ -724,9 +724,11 @@ std::optional<math_stretch_result> shape_open_type_math_stretch (
   const SI extent= extent_with (overlaps);
 
   shaped_text run;
+  // Assembly pieces must share one raster grid, without per-piece stem shifts.
+  run.math_assembly= true;
   run.byte_end= scalar.size ();
   run.glyph_source= tt_font_glyphs (
-    face, source.point_size, source.horizontal_dpi, source.vertical_dpi);
+    face, source.point_size, source.horizontal_dpi, source.vertical_dpi, true);
   font_metric metrics= tt_font_metric (
     face, source.point_size, source.horizontal_dpi, source.vertical_dpi);
   if (run.glyph_source->bad_font_glyphs || metrics->bad_font_metric)
