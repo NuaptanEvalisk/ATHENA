@@ -666,8 +666,9 @@ struct block_background_box_rep: public change_box_rep {
 
 block_background_box_rep::block_background_box_rep (
   path ip, box b, array<rectangle> rs2, array<brush> bg2):
-    change_box_rep (ip, true), rs (rs2), bg (bg2)
+    change_box_rep (ip, false), rs (rs2), bg (bg2)
 {
+  // Background painting must not intercept margin clicks before line lookup.
   insert (b, 0, 0);
   position ();
   for (int i=0; i<N(rs); i++) {
