@@ -75,6 +75,8 @@ int main (int argc, char** argv) {
     return 7;
   }
   if (!std::strcmp (mode, "uncaught")) throw std::runtime_error ("probe");
+  if (!std::strcmp (mode, "terminate")) std::terminate ();
+  if (!std::strcmp (mode, "non-standard")) throw 42;
   if (!std::strcmp (mode, "fpe")) raise (SIGFPE);
   if (!std::strcmp (mode, "ill")) raise (SIGILL);
   if (!std::strcmp (mode, "bus")) raise (SIGBUS);

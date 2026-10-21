@@ -20,6 +20,7 @@ namespace athena::artifact {
 using record_batch= std::shared_ptr<const std::vector<AthenaArtifactRecord>>;
 struct live_generation {
   std::atomic<std::uint64_t> revision {0};
+  std::atomic<bool> resnapshot {false};
   std::atomic<bool> cancelled {false};
 };
 // Actor-owned bookkeeping only. Detached changed branches are handed to the
@@ -30,6 +31,8 @@ class live_cache {
   std::shared_ptr<live_generation> generation;
   bool initialized= false;
 public:
+  // Ready means initialized, including pending or failed extraction. Only a
+  // source edit submits another revision; a worker failure is not cancellation.
   bool ready (const buffer_document_state&) const;
   void update (buffer_document_state&, tree& body, const std::vector<int>& dirty);
   void update (const vault_context_handle&, const std::filesystem::path&,

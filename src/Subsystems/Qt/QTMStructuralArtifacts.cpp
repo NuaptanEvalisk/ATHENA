@@ -103,7 +103,7 @@ class StructuralArtifacts final: public QObject {
     while (!stopping->load ()) {
       try {
         athena_artifact_radioactive_refresh ();
-        ar::publish_pending (); reported.clear ();
+        ar::publish_pending ();
       }
       catch (const std::exception& e) {
         if (reported != e.what ()) athena_spdlog_warning (

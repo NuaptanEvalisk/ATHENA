@@ -99,7 +99,12 @@ deploy_scheme_tree () {
   list_tmp=
 }
 
-atomic_install "$build_dir/src/ATHENA.bin" "$runtime_dir/bin/ATHENA.bin" 755
+if [ "$(uname -s)" = Linux ]; then
+  python3 "$repo_root/tools/install-local-executable.py" \
+    "$build_dir/src/ATHENA.bin" "$runtime_dir/bin/ATHENA.bin"
+else
+  atomic_install "$build_dir/src/ATHENA.bin" "$runtime_dir/bin/ATHENA.bin" 755
+fi
 
 if [ -f "$build_dir/src/ATHENA-Watchdog" ]; then
   atomic_install "$build_dir/src/ATHENA-Watchdog" \

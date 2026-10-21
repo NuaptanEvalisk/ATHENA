@@ -173,6 +173,16 @@ boundaries, do not patch from intuition. Debug from evidence.
   decision, not as incremental progress. Do not leave the approximation in the
   worktree while switching to the proper implementation.
 
+## Local Executable Deployment
+
+- On Linux, deploy rebuilt ATHENA binaries with
+  `python3 tools/install-local-executable.py build_qt6/src/ATHENA.bin ATHENA/bin/ATHENA.bin`
+  or `tools/deploy-local-runtime.sh`. Do not bypass this with `install`, `cp`, or
+  a manual rename: the helper preserves retired executables by ELF build ID for
+  active processes and core dumps. Archives live under
+  `ATHENA/bin/.retired/ATHENA.bin/<build-id>/` and are pruned on later deployments
+  only after a one-day grace period, with no active instance or retained core.
+
 ## System Package Installation Boundary
 
 - Never install system packages without the user's explicit action or approval.

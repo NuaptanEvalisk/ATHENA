@@ -13,6 +13,10 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <typeinfo>
+#if defined(__GNUG__)
+#include <cxxabi.h>
+#endif
 
 #if !defined(_WIN32) && !ATHENA_PLATFORM_IPADOS
 #include <cerrno>
@@ -137,6 +141,33 @@ void fatal_signal (int signal, siginfo_t* info, void* raw_context) noexcept {
 }
 
 void uncaught_exception () noexcept {
+  Report report;
+  report.text ("ATHENA terminate: uncaught-exceptions=");
+  report.number (std::uncaught_exceptions ());
+  const auto exception= std::current_exception ();
+  if (!exception) report.text ("; no current exception");
+  else {
+    try { std::rethrow_exception (exception); }
+    catch (const std::exception& error) {
+      report.text ("; type="); report.text (typeid (error).name ());
+      report.text ("; what="); report.text (error.what ());
+    }
+    catch (...) {
+      report.text ("; non-standard exception; type=");
+#if defined(__GNUG__)
+      const auto* type= __cxxabiv1::__cxa_current_exception_type ();
+      report.text (type ? type->name () : "unknown");
+#else
+      report.text ("unknown");
+#endif
+    }
+  }
+  // Terminate is not a signal handler. Inspect only the active exception,
+  // without demangling, editor access, logging locks or recovery attempts.
+  if (report.size == sizeof (report.bytes)) --report.size;
+  report.text ("\n");
+  write_report (report_fd.load (std::memory_order_relaxed), report);
+  write_report (diagnostic_fd.load (std::memory_order_relaxed), report);
   athena_crash_abort ("C++ termination");
 }
 #endif

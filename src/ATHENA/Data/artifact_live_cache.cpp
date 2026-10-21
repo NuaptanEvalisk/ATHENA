@@ -12,6 +12,7 @@
 #include "buffer_actor.hpp"
 #include "buffer_state.hpp"
 #include "node_metadata.hpp"
+#include "tm_ostream.hpp"
 #include <algorithm>
 #include <cstdlib>
 #include <mutex>
@@ -36,6 +37,7 @@ struct source_mirror {
   tree body;
   std::shared_ptr<live_generation> generation;
   std::map<std::string, record_batch> units;
+  std::map<std::string, std::string> failures;
   std::set<int> dirty;
   bool all= true;
 };
@@ -69,8 +71,10 @@ void enqueue (source_request request) {
   }
 }
 
-publication extract_pending (source_mirror& mirror, const source_request& request) {
+publication extract_pending (source_mirror& mirror, const source_request& request,
+                             std::string& failure) {
   std::map<std::string, record_batch> next;
+  std::map<std::string, std::string> failed;
   std::vector<record_batch> batches;
   const tree& body= mirror.body;
   for (int i=0; i<N(body); ++i) {
@@ -83,13 +87,26 @@ publication extract_pending (source_mirror& mirror, const source_request& reques
     record_batch batch;
     if (mirror.all || mirror.dirty.count (i) || cached == mirror.units.end ()) {
       tree slice (DOCUMENT);
-      const int first= std::max (0, i-1), last= std::min (N(body), i+2);
+      int first= std::max (0, i-1);
+      const int last= std::min (N(body), i+2);
       for (int j=first; j<last; ++j) slice << body[j];
       std::vector<AthenaArtifactRecord> records;
       std::string error;
-      if (!athena_artifacts_extract_structure (
-            slice, request.file, records, error, request.format))
-        throw std::runtime_error (error);
+      bool ok= athena_artifacts_extract_structure (
+        slice, request.file, records, error, request.format);
+      if (!ok && (first != i || last != i+1)) {
+        // An invalid neighbour must not suppress this unit too. Cross-unit
+        // proof/context links are available again when that neighbour is fixed.
+        slice= tree (DOCUMENT, body[i]);
+        first= i; records.clear (); error.clear ();
+        ok= athena_artifacts_extract_structure (
+          slice, request.file, records, error, request.format);
+      }
+      if (!ok) {
+        records.clear ();
+        failed[key]= error;
+        failure += "\n  body/" + std::to_string (i) + ": " + error;
+      }
       records.erase (std::remove_if (records.begin (), records.end (), [&] (auto& record) {
         if (record.source_path.empty ()) throw std::runtime_error ("Artifact has no source path");
         record.source_path[0] += first;
@@ -97,11 +114,16 @@ publication extract_pending (source_mirror& mirror, const source_request& reques
       }), records.end ());
       batch= std::make_shared<const std::vector<AthenaArtifactRecord>> (std::move (records));
     }
-    else batch= cached->second;
+    else {
+      batch= cached->second;
+      auto previous= mirror.failures.find (key);
+      if (previous != mirror.failures.end ()) failed.emplace (*previous);
+    }
     batches.push_back (batch);
     next.emplace (key, std::move (batch));
   }
   mirror.units= std::move (next);
+  mirror.failures= std::move (failed);
   mirror.dirty.clear (); mirror.all= false;
   return {request.vault, request.file, request.owner, std::move (batches)};
 }
@@ -167,7 +189,8 @@ void live_cache::update (const vault_context_handle& vault,
     generation= std::make_shared<live_generation> ();
   }
   std::string error;
-  const auto scope= initialized ? dirty : std::vector<int> {};
+  const auto scope= initialized && !generation->resnapshot.exchange (false)
+    ? dirty : std::vector<int> {};
   if (!read_only &&
       !athena_artifacts_ensure_bindings (body, scope, previous_bindings, error))
     throw std::runtime_error (error);
@@ -238,8 +261,9 @@ void publish_pending () {
     athena_artifact_radioactive_remove_overlay (owner);
   }
   closed.clear ();
-  std::string failure;
   for (auto& [owner, request]: sources) {
+    std::string failure;
+    bool mirror_failed= false;
     try {
       if (request.generation->cancelled.load () ||
           !vault_context_is_current (request.vault)) {
@@ -265,22 +289,31 @@ void publish_pending () {
           mirror.dirty.insert (change.where.front () + offset);
       }
       if (request.generation->revision.load () != request.revision) continue;
-      auto result= extract_pending (mirror, request);
+      auto result= extract_pending (mirror, request, failure);
       if (!request.generation->cancelled.load () &&
-          request.generation->revision.load () == request.revision)
+          request.generation->revision.load () == request.revision) {
         live[owner]= std::move (result);
+      }
+      else failure.clear ();
     }
     catch (const std::exception& error) {
-      request.generation->cancelled.store (true);
-      mirrors.erase (owner);
-      athena_artifact_radioactive_remove_overlay (owner);
-      failure= request.file + ": " + error.what ();
+      failure= error.what ();
+      mirror_failed= true;
+      request.generation->resnapshot.store (true);
     }
     catch (...) {
-      request.generation->cancelled.store (true);
+      failure= "artifact extraction failed (non-standard exception)";
+      mirror_failed= true;
+      request.generation->resnapshot.store (true);
+    }
+    if (mirror_failed) {
       mirrors.erase (owner);
+      live.erase (owner);
       athena_artifact_radioactive_remove_overlay (owner);
-      failure= request.file + ": artifact extraction failed";
+    }
+    if (!failure.empty ()) {
+      athena_spdlog_warning ("structural artifacts: " + request.file +
+        " (revision " + std::to_string (request.revision) + "): " + failure);
     }
   }
   for (const auto& item: live) {
@@ -322,7 +355,6 @@ void publish_pending () {
     mirrors.erase (owner);
     athena_artifact_radioactive_remove_overlay (owner);
   }
-  if (!failure.empty ()) throw std::runtime_error (failure);
 }
 std::vector<saved_revision> take_saved () {
   auto& q= pending ();

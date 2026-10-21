@@ -37,6 +37,8 @@ with tempfile.TemporaryDirectory(prefix="athena-crash-report-") as temporary:
         ("closed-stderr", signal.SIGSEGV, "Main"),
         ("full-stderr", signal.SIGSEGV, "Main"),
         ("uncaught", signal.SIGABRT, "Main"),
+        ("terminate", signal.SIGABRT, "Main"),
+        ("non-standard", signal.SIGABRT, "Main"),
         ("fpe", signal.SIGFPE, "Main"),
         ("ill", signal.SIGILL, "Main"),
         ("bus", signal.SIGBUS, "Main"),
@@ -59,6 +61,11 @@ with tempfile.TemporaryDirectory(prefix="athena-crash-report-") as temporary:
             assert "owner-actor=71 actor=71 view=91 command=111" in report, report
         if mode == "uncaught":
             assert "ATHENA fatal error: C++ termination" in report, report
+            assert "type=" in report and "what=probe" in report, report
+        if mode == "terminate":
+            assert "no current exception" in report, report
+        if mode == "non-standard":
+            assert "non-standard exception; type=" in report, report
         assert reports[0].stat().st_mode & 0o077 == 0
         print(f"PASS {mode}: preserved signal, thread identity and private crash record", flush=True)
 

@@ -243,6 +243,19 @@ private slots:
     publish ();
     QVERIFY (athena_artifact_radioactive_record (id, record));
     QVERIFY (record.display_text.find ("After publication") != std::string::npos);
+    const auto healthy_id= binding (body[1][1], "bold-text-definition");
+    body[0][0][0]= tree (BIG_OPERATOR, tree (""), tree ("0"));
+    update ({0, 0, 0});
+    publish ();
+    QVERIFY (!athena_artifact_radioactive_record (id, record));
+    QVERIFY (athena_artifact_radioactive_record (healthy_id, record));
+    publish (); // An idle poll must retain the partial index, not retry the source.
+    QVERIFY (athena_artifact_radioactive_record (healthy_id, record));
+    body[0][0][0]= tree ("Repaired");
+    update ({0, 0, 0});
+    publish ();
+    QVERIFY (athena_artifact_radioactive_record (id, record));
+    QVERIFY (record.display_text.find ("Repaired") != std::string::npos);
     // A root replacement changes paths; the next leaf delta uses the new path.
     body= tree (DOCUMENT, tree ("Inserted paragraph"), body[0], body[1]);
     update ({});

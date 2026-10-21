@@ -258,6 +258,7 @@ edit_text_rep::remove_text_sub (bool forward) {
     case MID:
     case RIGHT:
     case BIG:
+    case BIG_OPERATOR:
       back_monolithic (p);
       return;
     case LPRIME:

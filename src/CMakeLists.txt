@@ -209,6 +209,9 @@ target_link_libraries (${ATHENA_binary_name}
   ${ADS_LIBRARIES}
   ${ATHENA_Libraries}
 )
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+  target_link_options (${ATHENA_binary_name} PRIVATE "-Wl,--build-id=sha1")
+endif ()
 if (CMAKE_CXX_COMPILER_ID STREQUAL "IntelLLVM" AND
     ATHENA_INTEL_NATIVE_OPTIMIZATION AND NOT ATHENA_ENABLE_TSAN)
   target_compile_options (${ATHENA_binary_name} PRIVATE -flto=thin)
@@ -311,6 +314,18 @@ if (NOT WIN32 AND NOT ATHENA_PLATFORM_IPADOS)
     set (ATHENA_LOCAL_PLUGIN_SANDBOX_COPY)
     set (ATHENA_LOCAL_RAG_NPU_WORKER_COPY)
   endif ()
+  if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set (ATHENA_LOCAL_EXECUTABLE_COPY
+      COMMAND "${Python3_EXECUTABLE}"
+              "${ATHENA_SOURCE_DIR}/tools/install-local-executable.py"
+              $<TARGET_FILE:${ATHENA_binary_name}>
+              "${ATHENA_LOCAL_RUNTIME_DIR}/bin/ATHENA.bin")
+  else ()
+    set (ATHENA_LOCAL_EXECUTABLE_COPY
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              $<TARGET_FILE:${ATHENA_binary_name}>
+              "${ATHENA_LOCAL_RUNTIME_DIR}/bin/ATHENA.bin")
+  endif ()
   add_custom_target (athena_local_runtime ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory
             "${ATHENA_LOCAL_RUNTIME_DIR}/bin"
@@ -325,9 +340,7 @@ if (NOT WIN32 AND NOT ATHENA_PLATFORM_IPADOS)
             "${ATHENA_GUILE_PREFIX}"
             "${ATHENA_LOCAL_RUNTIME_DIR}"
             "${ATHENA_GUILE_RUNTIME_ID}"
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            $<TARGET_FILE:${ATHENA_binary_name}>
-            "${ATHENA_LOCAL_RUNTIME_DIR}/bin/ATHENA.bin"
+    ${ATHENA_LOCAL_EXECUTABLE_COPY}
     COMMAND ${CMAKE_COMMAND}
             "-DATHENA_EXECUTABLE=$<TARGET_FILE:${ATHENA_binary_name}>"
             "-DATHENA_RUNTIME_LIB_DIR=${ATHENA_LOCAL_RUNTIME_DIR}/lib"
