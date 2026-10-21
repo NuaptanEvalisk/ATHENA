@@ -17,6 +17,7 @@
 #include "utf8_edit.hpp"
 #include "unicode_text.hpp"
 #include "native_math_keyboard.hpp"
+#include "ATHENA/Data/enunciation_slots.hpp"
 #include <algorithm>
 
 #ifdef Q_OS_MAC
@@ -301,6 +302,7 @@ edit_interface_rep::kbd_shortcut (string cmd) {
 void
 edit_interface_rep::handle_keypress (string key, time_t t) {
   if (buf == nullptr) return;
+  if (athena::enunciation::title_input_key (*this, key)) return;
   if (image_resize_active) {
     image_resize_finish ();
     if (key == "escape" || key == "S-escape") return;

@@ -515,7 +515,9 @@ public:
             return found == schema->end () ? nullptr : &*found;
           } ();
         if (rule != nullptr) {
-          if (type_of (entry.second) != rule->type)
+          if (type_of (entry.second) != rule->type &&
+              (!rule->accepted_legacy_type ||
+               type_of (entry.second) != *rule->accepted_legacy_type))
             error (issue::wrong_property_type, entry.first,
                    enunciation ? "Does not match enunciation property schema" :
                                  "Does not match program property schema");
@@ -982,7 +984,7 @@ std::vector<diagnostic> source_identity_state::cancelled (const tree& body, limi
 const std::vector<property_rule>& enunciation_property_schema () {
   static const std::vector<property_rule> schema {
     {"kind", property_type::string, true},
-    {"name", property_type::rich_text, true},
+    {"name", property_type::list, true, property_type::rich_text, property_type::rich_text},
     {"attribution", property_type::list, false, property_type::rich_text},
     {"year", property_type::string, false},
     {"numbered", property_type::boolean, true},

@@ -371,13 +371,12 @@ void structured_enunciation_name (
   if (!metadata) return;
   const auto found= metadata->properties.find ("name");
   if (found == metadata->properties.end ()) return;
-  const auto* rich= std::get_if<athena::node::rich_text> (&found->second.data);
-  if (!rich) return;
-  tree name= rich->content;
-  const auto text= collapse_spaces (definition_name_text (name));
-  if (text.empty ()) return;
-  record.semantic_names= {text};
-  record.semantic_name_trees= {fragment_bytes (name, version)};
+  for (const auto& name: athena::enunciation::names (source)) {
+    const auto text= collapse_spaces (definition_name_text (name));
+    if (text.empty ()) continue;
+    record.semantic_names.push_back (text);
+    record.semantic_name_trees.push_back (fragment_bytes (name, version));
+  }
 }
 
 std::string enunciation_type (const std::string& original,

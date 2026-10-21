@@ -23,6 +23,7 @@
 #include "ATHENA/Hodarium/revisions.hpp"
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
+#include "ATHENA/Data/enunciation_model.hpp"
 #include "drd_std.hpp"
 #include <limits>
 #include <filesystem>
@@ -34,6 +35,39 @@ class TestXmlV3: public QObject {
   Q_OBJECT
 private slots:
   void initTestCase () { init_std_drd (); }
+
+  void provableNamesPreserveStoredTypeWithoutSplittingCommas () {
+    namespace en= athena::enunciation;
+    namespace node= athena::node;
+    tree statement (en::label (), tree (DOCUMENT, "Body"));
+    node::metadata metadata;
+    metadata.properties["kind"]= node::property (std::string ("theorem"));
+    metadata.properties["numbered"]= node::property (true);
+    metadata.properties["name"]= node::property (node::rich_text {tree ("A, B")});
+    node::set (statement, metadata);
+    QVERIFY (en::is_canonical (statement));
+    QCOMPARE (en::names (statement).size (), size_t (1));
+    tree document (DOCUMENT, compound ("body", tree (DOCUMENT, statement)));
+    const auto bytes= write_xml_v3 (document);
+    const tree restored= read_xml_v3 (bytes);
+    const tree& target= restored[0][0][0];
+    QVERIFY (en::is_canonical (target));
+    QCOMPARE (restored, document);
+    QVERIFY (std::holds_alternative<node::rich_text> (
+      node::get (target)->properties.at ("name").data));
+    QCOMPARE (en::names (target).size (), size_t (1));
+    QCOMPARE (en::names (target)[0], tree ("A, B"));
+    QCOMPARE (write_xml_v3 (restored), bytes);
+    QVERIFY (std::holds_alternative<node::rich_text> (
+      node::get (statement)->properties.at ("name").data));
+    QCOMPARE (read_xml_v3 (write_xml_v3 (statement, xml_kind::fragment), xml_kind::fragment), statement);
+    metadata.properties["name"]= node::property (node::property::list {
+      node::property (node::rich_text {tree ("A, B")}),
+      node::property (node::rich_text {tree ("Second name")})});
+    node::set (statement, metadata);
+    document= tree (DOCUMENT, compound ("body", tree (DOCUMENT, statement)));
+    QCOMPARE (read_xml_v3 (write_xml_v3 (document)), document);
+  }
 
   void malformedScriptsLocateAuxiliaryEntry () {
     tree invalid (MATH_SCRIPTS, "S", "", "", "", "1");

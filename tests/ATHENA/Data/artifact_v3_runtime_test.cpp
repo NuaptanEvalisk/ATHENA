@@ -175,6 +175,14 @@ private slots:
     QVERIFY2 (extract (), error.c_str ());
     QCOMPARE (records.front ().semantic_name_trees.size (), std::size_t (1));
     QCOMPARE (read_xml_v3 (records.front ().semantic_name_trees.front (), xml_kind::fragment), rich);
+    metadata.properties["name"]= node::property (node::property::list {
+      node::property (node::rich_text {rich}),
+      node::property (node::rich_text {tree ("Second alias")})});
+    node::set (source, metadata);
+    QVERIFY2 (extract (), error.c_str ());
+    QCOMPARE (records.front ().semantic_names.size (), std::size_t (2));
+    QCOMPARE (records.front ().semantic_names[1], std::string ("Second alias"));
+    QCOMPARE (read_xml_v3 (records.front ().semantic_name_trees[0], xml_kind::fragment), rich);
   }
 
   void liveExtractionIsDeferredAndCoalesced () {

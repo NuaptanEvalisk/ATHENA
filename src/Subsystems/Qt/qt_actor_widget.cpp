@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "qt_actor_widget.hpp"
+#include "QTMEnunciationSlots.hpp"
 
 #include "buffer_actor.hpp"
 #include "Data/new_buffer.hpp"
@@ -929,6 +930,18 @@ qt_actor_widget_rep::drain_external_effects () {
       tm_view view= concrete_runtime_view (view_id_);
       if (view != nullptr && view->win != nullptr)
         refresh_native_drawing_focus_actions (view->win->wid);
+      break;
+    }
+    case actor_command_kind::ui_enunciation_slot: {
+      const string request= actor_text_registry::instance ().take (record.payload0);
+      const auto actor= actor_id_, view= view_id_;
+      QPointer<QTMWidget> target= canvas ();
+      // Embedded editors register new canvases. Do not mutate the canvas
+      // registry while repaint_all is iterating it to drain these effects.
+      qt_post_to_main_thread ([target, actor, view,
+          request= std::string (request.data (), N(request))] {
+        qtm_enunciation_slot (target, actor, view, request);
+      });
       break;
     }
     case actor_command_kind::ui_footer_left:

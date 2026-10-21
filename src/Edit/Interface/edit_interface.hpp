@@ -87,6 +87,15 @@ protected:
   bool          table_selection;
   commutative_diagram_session_ptr commutative_diagram_session_;
   path commutative_diagram_grid_path_;
+  path enunciation_slots_path_;
+  uint64_t enunciation_slot_request_= 0;
+  bool enunciation_slot_mouse_= false;
+  string enunciation_slot_field_, enunciation_slot_geometry_;
+  int enunciation_slot_index_= 0;
+  path enunciation_slot_box_path_;
+  void refresh_enunciation_slots ();
+  void refresh_enunciation_slot_geometry ();
+  bool mouse_enunciation_slot (string kind, SI x, SI y);
   int           mouse_adjusting;  // mask with active key modifiers upon click
   bool          image_resize_active;
   int           image_resize_handle;
@@ -348,6 +357,8 @@ public:
   void handle_keypress (string key, time_t t);
   void handle_text_input (string text, time_t t);
   void handle_keyboard_focus (bool has_focus, time_t t);
+  bool open_enunciation_slot (string field, int index,
+                              uint64_t expected_request= 0) override;
   void handle_cursor_blink (bool visible);
   void handle_user_scroll (time_t t);
   void handle_mouse (string k, SI x, SI y, int m, time_t t, array<double> d);

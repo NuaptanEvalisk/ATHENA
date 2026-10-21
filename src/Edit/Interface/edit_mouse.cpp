@@ -1261,6 +1261,10 @@ edit_interface_rep::handle_mouse (string kind, SI x, SI y, int m, time_t t,
   started= true;
   x= ((SI) (x / magf));
   y= ((SI) (y / magf));
+  if (mouse_enunciation_slot (kind, x, y)) {
+    end_editing ();
+    return;
+  }
   // Consume overlay input before document drag and double-click recognition.
   if (mouse_link_peek (kind, x, y, m, data)) {
     end_editing ();

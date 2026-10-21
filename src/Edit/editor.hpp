@@ -739,6 +739,9 @@ public:
   virtual path the_path () = 0;
   virtual path the_shifted_path () = 0;
   virtual path the_buffer_path () = 0;
+  virtual bool open_enunciation_slot (string field, int index,
+                                      uint64_t expected_request= 0) = 0;
+  virtual bool set_enunciation_editing_id (const std::string& id) = 0;
   virtual void show_selection () = 0;
   virtual void edit_special () = 0;
 

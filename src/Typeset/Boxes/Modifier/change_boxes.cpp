@@ -759,6 +759,13 @@ struct locus_box_rep: public change_box_rep, public inline_link_source {
   locus_box_rep (path ip, box b, list<string> ids, SI pixel, string _rep,
                  string _anchor, bool cursor_transparent);
   operator tree () { return tree (TUPLE, "locus"); }
+  tree get_info (tree query) {
+    if (query != "locus-ids") return box_rep::get_info (query);
+    tree result (TUPLE);
+    for (auto current= ids; !is_nil (current); current= current->next)
+      result << current->item;
+    return result;
+  }
   box adjust_kerning (int mode, double factor);
   box expand_glyphs (int mode, double factor);
   tree message (tree type, SI x, SI y, rectangles& rs);

@@ -16,6 +16,7 @@
 #include "ATHENA/Data/hodarium_rename_records.hpp"
 #include "ATHENA/Hodarium/revision_transfer.hpp"
 #include "node_metadata.hpp"
+#include "ATHENA/Data/enunciation_model.hpp"
 #include "drd_std.hpp"
 #include <fstream>
 #include <future>
@@ -47,6 +48,47 @@ class TestDocumentUpgrade: public QObject {
   Q_OBJECT
 private slots:
   void initTestCase () { init_std_drd (); }
+  void provableAttributionSavePreservesNames () {
+    namespace node= athena::node;
+    namespace en= athena::enunciation;
+    QTemporaryDir temporary;
+    QVERIFY (temporary.isValid ());
+    const fs::path destination= fs::path (temporary.path ().toStdString ()) / "source.ath";
+    tree statement (en::label (), tree (DOCUMENT, "Body"));
+    node::metadata metadata;
+    metadata.properties["kind"]= node::property (std::string ("theorem"));
+    metadata.properties["numbered"]= node::property (true);
+    metadata.properties["name"]= node::property (node::rich_text {tree ("Gauss's Equation")});
+    node::set (statement, metadata);
+    tree document (DOCUMENT, compound ("body", tree (DOCUMENT, statement)));
+    const auto fixture= qgetenv ("ATHENA_PROVABLE_SAVE_SOURCE");
+    if (!fixture.isEmpty ()) {
+      const auto bytes= get (fs::path (fixture.toStdString ()));
+      document= read_xml_v3 (bytes);
+      put (destination, bytes);
+    }
+    else put (destination, write_xml_v3 (document));
+    auto storage= xml_file::capture (destination);
+    int changed= 0;
+    std::function<void (tree&)> edit= [&] (tree& value) {
+      const auto names= en::names (value);
+      if (en::is_canonical (value) && names.size () == 1 &&
+          node::content_equal (names[0], tree ("Gauss's Equation"))) {
+        auto properties= *node::get (value);
+        properties.properties["attribution"]= node::property (node::property::list {
+          node::property (node::rich_text {tree ("Gauss")})});
+        node::set (value, properties);
+        ++changed;
+      }
+      if (is_compound (value)) for (int i=0; i<N(value); ++i) edit (value[i]);
+    };
+    edit (document);
+    QCOMPARE (changed, 1);
+    const auto result= storage.commit (document);
+    QCOMPARE (result.durability, upgrade_durability::durable);
+    QCOMPARE (read_xml_v3 (get (destination)), document);
+    QCOMPARE (get (destination), *result.committed_bytes);
+  }
   void hodariumV3ReplicaRoundtrip () {
     using namespace athena::hodarium;
     QTemporaryDir temporary;

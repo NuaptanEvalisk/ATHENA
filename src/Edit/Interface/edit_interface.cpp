@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "Interface/edit_interface.hpp"
+#include "ATHENA/Data/enunciation_slots.hpp"
 #include "Interface/selection_autoscroll.hpp"
 #include "ATHENA/Data/heading_word_count.hpp"
 #include "table_commands.hpp"
@@ -1916,6 +1917,7 @@ edit_interface_rep::apply_changes () {
   //cout << "tp= " << tp << "\n";
   //cout << HRULE << "\n";
 
+  refresh_enunciation_slots ();
   update_visible ();
   rectangle new_visible= rectangle (vx1, vy1, vx2, vy2);  
 
@@ -2397,6 +2399,8 @@ edit_interface_rep::apply_changes () {
     0 ||
     ((env_change & THE_CURSOR) != 0 && (env_change & THE_TREE) == 0);
   publish_editor_command_state ();
+  refresh_enunciation_slot_geometry ();
+  athena::enunciation::title_input_changed (*this);
   env_change  = 0;
   last_change = texmacs_time ();
   pending_idle_menu_update= schedule_idle_menu_update;

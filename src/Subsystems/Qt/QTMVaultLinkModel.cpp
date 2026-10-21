@@ -158,13 +158,12 @@ vault_source_targets (const tree& body) {
       if (athena::enunciation::is_canonical (value)) {
         kind= QString::fromStdString (registry.kind_name (value));
         title= QString::fromStdString (registry.display_name (value));
-        const auto* metadata= athena::node::get (value);
-        const auto name= metadata->properties.find ("name");
-        if (name != metadata->properties.end ())
-          if (const auto* rich= std::get_if<athena::node::rich_text> (&name->second.data)) {
-            const QString text= source_excerpt (rich->content);
-            if (!text.isEmpty ()) title += ": " + text;
-          }
+        QStringList names;
+        for (const auto& name: athena::enunciation::names (value)) {
+          const QString text= source_excerpt (name);
+          if (!text.isEmpty ()) names << text;
+        }
+        if (!names.isEmpty ()) title += ": " + names.join (", ");
       }
       else if (athena_heading_level (value) > 0) {
         kind= "heading";

@@ -1519,6 +1519,12 @@ edit_typeset_rep::typeset_invalidate_presentation (path p) {
   notify_change (THE_TREE);
 }
 
+bool edit_typeset_rep::set_enunciation_editing_id (const std::string& id) {
+  if (env->editing_enunciation_id == id) return false;
+  env->editing_enunciation_id= id;
+  return true;
+}
+
 void
 edit_typeset_rep::typeset_invalidate_all () {
   //cout << "Invalidate all\n";

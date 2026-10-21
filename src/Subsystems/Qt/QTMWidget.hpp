@@ -75,6 +75,7 @@ public:
   void setPresentationTarget (QWidget* target);
   void setPresentationActive (bool active);
   bool externallyPresented () const { return presentationTarget != nullptr; }
+  QWidget* presentationSurface () const { return presentationTarget ? presentationTarget.data () : surface (); }
   bool presentationVisible () const;
   bool editorHasFocus () const;
   void focusEditor (Qt::FocusReason reason= Qt::OtherFocusReason);

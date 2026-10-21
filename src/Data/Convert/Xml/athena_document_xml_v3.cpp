@@ -241,7 +241,7 @@ class writer {
       xml.writeStartElement ("x");
       for (const auto& entry: meta->properties)
         if (!structural_property || entry.first != structural_property)
-        property (entry.second, depth + 1, &entry.first);
+          property (entry.second, depth + 1, &entry.first);
       xml.writeEndElement ();
     }
   }

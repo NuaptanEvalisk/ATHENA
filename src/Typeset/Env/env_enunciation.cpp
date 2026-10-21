@@ -10,6 +10,8 @@
 
 #include "enunciation_presentation.hpp"
 #include "convert.hpp"
+#include "ATHENA/Data/enunciation_slots.hpp"
+#include "math_tree_v3.hpp"
 #include <set>
 
 namespace {
@@ -37,7 +39,7 @@ tree append (tree left, tree right, string separator= " ") {
 
 bool presentation_primitive (tree_label label) {
   switch (label) {
-  case DOCUMENT: case CONCAT:
+  case DOCUMENT: case CONCAT: case TABLE: case ROW: case CELL:
   case FRAC: case SQRT: case RSUB: case RSUP: case LSUB: case LSUP:
   case ABOVE: case BELOW: case WIDE: case VAR_WIDE: case NEG:
   case AROUND: case VAR_AROUND: case BIG_AROUND:
@@ -61,6 +63,23 @@ tree rich (const tree& source, int depth) {
   // callers; a rejected display is not a destructive source normalization.
   if (depth > 128) return tree ("[structured title depth exceeded]");
   if (is_atomic (source)) return tree (source->label);
+  if (athena::math_v3::valid_native_math (source)) {
+    switch (L(source)) {
+    case DELIMITED: case MATH_MIDDLE: case BIG_OPERATOR: case MATH_SCRIPTS:
+    case MATH_ACCENT: case MATH_ANNOTATION: case MATH_LONG_ARROW:
+    case MATH_GRID: case MATH_BLOCK: case MATH_VARIANT: case MATH_SYMBOL: {
+      tree result (L(source), N(source));
+      if (const auto* original= node::get (source)) {
+        auto metadata= *original;
+        metadata.id.clear ();
+        node::set (result, metadata);
+      }
+      for (int i=0; i<N(source); ++i) result[i]= rich (source[i], depth+1);
+      return result;
+    }
+    default: break;
+    }
+  }
   // Label lookup is a read-only document reference, not an arbitrary macro
   // invocation supplied by a property. Keep historical proof-of references.
   if ((is_func (source, REFERENCE, 1) || is_func (source, PAGEREF, 1)) &&
@@ -128,7 +147,13 @@ tree native_enunciation_macro (edit_env_rep* env, const tree& source) {
   const auto* render= registry.rendering (source);
   const bool complete= render && render->title_mode == "complete";
   const bool subject= render && render->title_mode == "subject";
-  tree name= rich (property<node::rich_text> (source, "name")->content, 0);
+  const bool editing= en::editable_provable (source) &&
+    !env->editing_enunciation_id.empty () &&
+    env->editing_enunciation_id == node::id (source) &&
+    env->get_string (PAGE_PRINTED) != "true";
+  tree name= "";
+  for (const auto& value: en::names (source))
+    name= append (name, rich (value, 0), ", ");
   tree heading= complete ? name : label_text (env, registry, source, render);
   tree advance= "";
   const string kind= definition ? text (definition->kind) : string ("enunciation");
@@ -171,7 +196,32 @@ tree native_enunciation_macro (edit_env_rep* env, const tree& source) {
   }
   if (const auto* year= property<std::string> (source, "year"))
     details= append (details, tree (text (*year)), ", ");
-  if (details != "") heading= append (heading, tree (CONCAT, "(", details, ")"));
+  if (editing) {
+    for (const auto* key: {"name", "year", "attribution"}) {
+      auto values= en::title_fields (source, key);
+      if (values.empty ()) values.emplace_back ("");
+      const auto colors= en::title_slot_style (key);
+      for (std::size_t i=0; i<values.size (); ++i) {
+        tree content= rich (values[i], 0);
+        if (content == "" || content == tree (DOCUMENT, ""))
+          content= tree (WITH, "color", colors.foreground,
+                        "font-shape", "italic", tree (colors.label));
+        content= tree (RESIZE, content,
+          "0fn", tree (MINIMUM, "1b", "-0.5fn"), tree (MAXIMUM, "1r", "1.5fn"),
+          tree (MAXIMUM, "1t", "1.3fn"));
+        tree style (WITH, "font-series", "medium", "font-shape", "right");
+        style << "color" << "#222222" << "ornament-color" << colors.background
+              << "ornament-border" << "1px" << "ornament-hpadding" << "0.35fn"
+              << "ornament-vpadding" << "0.2fn" << "ornament-shape" << "classic"
+              << "ornament-sunny-color" << colors.foreground
+              << "ornament-shadow-color" << colors.foreground
+              << tree (ORNAMENT, content);
+        heading= append (heading, tree (LOCUS,
+          tree (ID, en::title_slot_id (node::id (source), key, i)), style));
+      }
+    }
+  }
+  else if (details != "") heading= append (heading, tree (CONCAT, "(", details, ")"));
   if (const auto* target= property<node::reference> (source, "target"))
     heading= tree (HLINK, heading, "tmfs://wikilink/" * text (target->id));
 

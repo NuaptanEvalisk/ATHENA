@@ -194,11 +194,42 @@ bool is_enunciation (const tree& source) {
   return is_compound (source) && L(source) == label ();
 }
 
+bool valid_names (const tree& source) {
+  if (property<node::rich_text> (source, "name")) return true;
+  const auto* list= property<node::property::list> (source, "name");
+  if (!list) return false;
+  for (const auto& item: *list)
+    if (!std::holds_alternative<node::rich_text> (item.data)) return false;
+  return true;
+}
+
+std::vector<tree> title_fields (const tree& source, const std::string& key) {
+  std::vector<tree> result;
+  if (const auto* single= property<node::rich_text> (source, key.c_str ()))
+    result.emplace_back (single->content);
+  else if (const auto* values= property<node::property::list> (source, key.c_str ())) {
+    for (const auto& item: *values)
+      if (const auto* rich= std::get_if<node::rich_text> (&item.data))
+        result.emplace_back (rich->content);
+  }
+  else if (const auto* text= property<std::string> (source, key.c_str ()))
+    result.emplace_back (string (text->data (), text->size ()));
+  return result;
+}
+
+std::vector<tree> names (const tree& source) { return title_fields (source, "name"); }
+
+bool editable_provable (const tree& source) {
+  const auto* kind= property<std::string> (source, "kind");
+  return is_canonical (source) && kind && (*kind == "theorem" ||
+    *kind == "lemma" || *kind == "proposition" || *kind == "corollary");
+}
+
 bool is_canonical (const tree& source) {
   const auto* kind= property<std::string> (source, "kind");
   return is_enunciation (source) && N(source) == 1 &&
     is_func (source[0], DOCUMENT) && kind && !kind->empty () &&
-    property<node::rich_text> (source, "name") &&
+    valid_names (source) &&
     property<bool> (source, "numbered") &&
     optional_property<std::string> (source, "variant") &&
     optional_property<node::reference> (source, "target");

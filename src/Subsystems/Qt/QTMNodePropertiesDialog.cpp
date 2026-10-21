@@ -138,6 +138,53 @@ private:
   }
 };
 
+class RichNames: public QWidget {
+  QVBoxLayout* rows;
+  xml::xml_format_version version;
+  std::vector<RichField*> fields;
+  node::property original;
+  std::vector<tree> initial;
+public:
+  RichNames (const tree& source, xml::xml_format_version format, QWidget* parent):
+    QWidget (parent), version (format) {
+    rows= new QVBoxLayout (this);
+    rows->setContentsMargins (0, 0, 0, 0);
+    auto* add= tool ("list-add", "Add name", this);
+    rows->addWidget (add, 0, Qt::AlignLeft);
+    auto values= en::names (source);
+    if (values.empty ()) values.emplace_back ("");
+    initial= values;
+    original= node::get (source)->properties.at ("name");
+    for (const auto& value: values) append (value);
+    connect (add, &QToolButton::clicked, this, [this] { append (tree ("")); });
+  }
+  node::property value () const {
+    node::property::list result;
+    for (auto* field: fields) result.emplace_back (node::rich_text {field->value ()});
+    bool unchanged= fields.size () == initial.size ();
+    for (std::size_t i=0; unchanged && i<fields.size (); ++i)
+      unchanged= fields[i]->value () == initial[i];
+    if (unchanged) return original;
+    return node::property (std::move (result));
+  }
+private:
+  void append (tree value) {
+    auto* row= new QWidget (this);
+    auto* layout= new QHBoxLayout (row);
+    layout->setContentsMargins (0, 0, 0, 0);
+    auto* field= new RichField (value, version, row);
+    auto* remove= tool ("list-remove", "Remove name", row);
+    layout->addWidget (field, 1); layout->addWidget (remove);
+    fields.push_back (field);
+    rows->insertWidget (rows->count ()-1, row);
+    connect (remove, &QToolButton::clicked, this, [this, row, field] {
+      if (fields.size () == 1) return;
+      fields.erase (std::find (fields.begin (), fields.end (), field));
+      delete row;
+    });
+  }
+};
+
 void inspect (QTreeWidgetItem* item, const node::property& p) {
   std::visit ([&] (const auto& v) {
     using T= std::decay_t<decltype (v)>;
@@ -173,7 +220,7 @@ class NodeDialog: public QDialog {
   xml::xml_format_version source_version;
   node_property_submit submit;
   QComboBox *kind= nullptr, *variant= nullptr;
-  RichField* name= nullptr;
+  RichNames* name= nullptr;
   QLineEdit *year= nullptr, *target= nullptr;
   QCheckBox* numbered= nullptr;
   QListWidget* authors= nullptr;
@@ -189,7 +236,7 @@ public:
     header= std::move (decoded.header);
     source_version= decoded.source_version;
     if (canonical && (!field<std::string> (header, "kind") ||
-        !field<node::rich_text> (header, "name") || !field<bool> (header, "numbered")))
+        !en::valid_names (header) || !field<bool> (header, "numbered")))
       throw std::invalid_argument ("Invalid editable node properties");
     setObjectName ("node-properties-dialog");
     setWindowTitle (canonical ? "Enunciation properties" : "Node properties");
@@ -266,7 +313,7 @@ private:
     updateVariants ();
     connect (kind, &QComboBox::currentTextChanged, this, updateVariants);
     form->addRow ("Variant:", variant);
-    name= new RichField (field<node::rich_text> (header, "name")->content, source_version, fields);
+    name= new RichNames (header, source_version, fields);
     name->setObjectName ("enunciation-name");
     form->addRow ("Name:", name);
     numbered= new QCheckBox ("Numbered", fields);
@@ -343,7 +390,7 @@ private:
       node::metadata metadata= *node::get (header);
       auto& p= metadata.properties;
       p["kind"]= node::property (utf8 (kind->currentText ()));
-      p["name"]= node::property (node::rich_text {name->value ()});
+      p["name"]= name->value ();
       p["numbered"]= node::property (numbered->isChecked ());
       const auto optionalText= [&] (const char* key, const QString& value) {
         const auto* old= field<std::string> (header, key);

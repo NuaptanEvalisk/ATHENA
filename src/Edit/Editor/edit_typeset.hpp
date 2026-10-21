@@ -64,6 +64,7 @@ public:
   edit_typeset_rep ();
   ~edit_typeset_rep ();
   void clear_local_info ();
+  bool set_enunciation_editing_id (const std::string& id) override;
   void set_data (new_data data);
   void get_data (new_data& data);
 

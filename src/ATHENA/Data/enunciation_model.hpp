@@ -26,6 +26,11 @@ tree_label label ();
 bool is_enunciation (const tree& source);
 // Structural/type validation, deliberately accepting unknown kinds/variants.
 bool is_canonical (const tree& source);
+// Older documents store one rich name; new edits store a rich-text list.
+bool valid_names (const tree& source);
+std::vector<tree> names (const tree& source);
+std::vector<tree> title_fields (const tree& source, const std::string& key);
+bool editable_provable (const tree& source);
 
 struct render_metadata {
   std::string style;

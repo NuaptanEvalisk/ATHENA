@@ -178,9 +178,11 @@ struct property_rule {
   bool required;
   // When present, every direct list member must have this type; no coercion.
   std::optional<property_type> element_type= std::nullopt;
+  std::optional<property_type> accepted_legacy_type= std::nullopt;
 };
 
-// kind:string, name:rich_text, numbered:bool are required. Optional attribution
+// kind:string, name:list<rich_text>, numbered:bool are required. A historical
+// singleton name:rich_text is also accepted. Optional attribution
 // is a list of rich_text names, never a singleton rich_text. Optional year is
 // text (including values such as "19XX"), never an integer or parsed date.
 // target:reference, variant:string and legacy-tag:string are also optional.

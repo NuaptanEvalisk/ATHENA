@@ -29,13 +29,17 @@
 #include "scheme.hpp"
 #include "scheme_execution_context.hpp"
 #include "sys_utils.hpp"
+#include "ATHENA/Data/enunciation_model.hpp"
+#include "Subsystems/Qt/QTMEnunciationSlots.hpp"
+#include "Subsystems/Qt/QTMWidget.hpp"
+#include "Subsystems/Qt/qt_actor_widget.hpp"
+#include "Subsystems/Qt/qt_widget.hpp"
 
 bool headless_mode= false;
 bool is_headless () { return false; }
 
 namespace {
 using namespace athena::document;
-
 tree document_with_math (const string& text) {
   return tree (DOCUMENT, compound ("style", tuple ("generic")),
     compound ("body", tree (DOCUMENT, compound ("math", text))));
@@ -53,7 +57,207 @@ bool contains_label (const tree& source, tree_label label) {
 class TestNativeV3InputWidget: public QObject {
   Q_OBJECT
 private slots:
+  void structuredTitleSlots () {
+    namespace en= athena::enunciation;
+    namespace node= athena::node;
+    const url master ("tmfs://aux/input-widget-master");
+    tree statement (en::label (), tree (DOCUMENT, "A statement body."));
+    node::metadata metadata;
+    metadata.id= node::new_id ();
+    metadata.properties["kind"]= node::property (std::string ("theorem"));
+    metadata.properties["numbered"]= node::property (true);
+    metadata.properties["name"]= node::property (node::rich_text {tree ("AlphaBeta")});
+    node::set (statement, metadata);
+    tree document (DOCUMENT, compound ("style", tuple ("generic")),
+      compound ("body", tree (DOCUMENT, statement, "Outside.")));
+    QVERIFY (initialize_buffer_tree (master, document, xml_format_version::v3));
+    const url window= new_window (true);
+    const url view_url= get_passive_view (master);
+    window_set_view (window, view_url, true);
+    const tm_view view= concrete_view (view_url);
+    const auto owner= view->buf->actor;
+    auto cleanup= qScopeGuard ([&] {
+      const auto close= actor_continuation_registry::instance ().store ([] {
+        current_scheme_execution_context ()->editor->open_enunciation_slot ("", 0);
+      });
+      owner->invoke (actor_command_kind::run_native_continuation, view->runtime_id,
+        ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, close);
+      qtm_enunciation_slot (nullptr, owner->id (), view->runtime_id, "");
+      const bool drained= QTest::qWaitFor ([] {
+        const auto buffers= get_all_buffers ();
+        for (int i=0; i<N(buffers); ++i)
+          if (starts (as_string (buffers[i]), "tmfs://aux/enunciation-slot-")) return false;
+        return true;
+      }, 5000);
+      delete_window (window);
+      remove_buffer (master);
+      QVERIFY (drained);
+    });
+    const auto command= [&] (const std::function<void (editor_rep&)>& action) {
+      const auto token= actor_continuation_registry::instance ().store ([action] {
+        action (*current_scheme_execution_context ()->editor);
+      });
+      return owner->invoke (actor_command_kind::run_native_continuation,
+        view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
+        SCHEME_CAPABILITY_BUFFER, token);
+    };
+    bool opened= false;
+    QVERIFY (command ([&] (editor_rep& editor) {
+      editor.go_to_end (editor.the_buffer_path () * path (0, 0, 0));
+      opened= editor.open_enunciation_slot ("name", 0);
+    }));
+    QVERIFY (opened);
+    const auto active_input= [] () -> QTMWidget* {
+      for (QWidget* widget: QApplication::allWidgets ())
+        if (widget->objectName () == "enunciation-inline-slot" && widget->isVisible () && widget->isEnabled ())
+          return widget->findChild<QTMWidget*> ();
+      return nullptr;
+    };
+    QTRY_VERIFY_WITH_TIMEOUT (active_input () != nullptr, 10000);
+    QTRY_VERIFY (active_input ()->width () > 20 && active_input ()->height () > 15);
+    const auto input_command= [&] (const std::function<void (editor_rep&)>& action) {
+      QTMWidget* input= active_input ();
+      if (!input) return false;
+      auto* proxy= dynamic_cast<qt_actor_widget_rep*> (input->tm_widget ());
+      if (!proxy) return false;
+      tm_view child= concrete_runtime_view (proxy->view_id ());
+      if (!child) return false;
+      const auto token= actor_continuation_registry::instance ().store ([action] {
+        action (*current_scheme_execution_context ()->editor);
+      });
+      return child->buf->actor->invoke (actor_command_kind::run_native_continuation,
+        child->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
+        SCHEME_CAPABILITY_BUFFER, token);
+    };
+    auto snapshot= [&] () {
+      actor_command_record reply;
+      if (!owner->invoke (actor_command_kind::snapshot_body, view->runtime_id,
+            ATHENA_NO_BLOB, ATHENA_NO_BLOB, &reply)) return tree (UNINIT);
+      return actor_tree_registry::instance ().take (reply.payload0);
+    };
+    const tree original_body= snapshot ()[0][0];
+    QVERIFY (input_command ([] (editor_rep& editor) {
+      editor.go_to (editor.the_buffer_path () * path (0, 5));
+    }));
+    QPointer<QTMWidget> previous_input= active_input ();
+    QTest::keyClick (active_input (), Qt::Key_Comma, Qt::ControlModifier);
+    QTRY_COMPARE_WITH_TIMEOUT (en::names (snapshot ()[0]).size (), size_t (2), 10000);
+    QCOMPARE (en::names (snapshot ()[0])[0], tree ("Alpha"));
+    QCOMPARE (en::names (snapshot ()[0])[1], tree ("Beta"));
+    QTRY_VERIFY (active_input () && active_input () != previous_input);
+    QTest::qWait (100);
+    QVERIFY (input_command ([] (editor_rep& editor) {
+      editor.go_to_end (editor.the_buffer_path ());
+    }));
+    const int before_comma_width= active_input ()->width ();
+    QTest::keyClick (active_input (), Qt::Key_Comma);
+    QTRY_COMPARE_WITH_TIMEOUT (en::names (snapshot ()[0])[1], tree ("Beta,"), 10000);
+    QCOMPARE (en::names (snapshot ()[0]).size (), size_t (2));
+    QTRY_VERIFY (active_input ()->width () > before_comma_width);
+    const int short_width= active_input ()->width ();
+    QPointer<QTMWidget> growing_input= active_input ();
+    QTest::keyClicks (active_input (), " extended alias");
+    QTRY_COMPARE (en::names (snapshot ()[0])[1], tree ("Beta, extended alias"));
+    QTRY_VERIFY (active_input ()->width () > short_width + 40);
+    QCOMPARE (active_input (), growing_input.data ());
+    for (int i=0; i<15; ++i) QTest::keyClick (active_input (), Qt::Key_Backspace);
+    QTRY_COMPARE (en::names (snapshot ()[0])[1], tree ("Beta,"));
+    QTRY_COMPARE (active_input ()->width (), short_width);
+    previous_input= active_input ();
+    QVERIFY (input_command ([] (editor_rep& editor) {
+      editor.go_to_end (editor.the_buffer_path ());
+      editor.handle_keypress ("C-,", texmacs_time ());
+    }));
+    QTRY_COMPARE_WITH_TIMEOUT (en::names (snapshot ()[0]).size (), size_t (3), 10000);
+    QCOMPARE (en::names (snapshot ()[0])[2], tree (""));
+    QTest::qWait (100);
+    QTRY_VERIFY (active_input () && active_input () != previous_input);
+    previous_input= active_input ();
+    QVERIFY (input_command ([] (editor_rep& editor) {
+      editor.handle_keypress ("backspace", texmacs_time ());
+    }));
+    QTRY_COMPARE_WITH_TIMEOUT (en::names (snapshot ()[0]).size (), size_t (2), 10000);
+    QTRY_VERIFY (active_input () && active_input () != previous_input);
+    QCOMPARE (snapshot ()[0][0], original_body);
+    {
+      QTMWidget* input= active_input ();
+      QVERIFY (input);
+      QVERIFY (input->surface ()->width () > 20);
+      const auto drawn= [&] {
+        const QImage image= input->grab ().toImage ();
+        int ink= 0, background= 0;
+        for (int y=2; y<image.height ()-2; ++y)
+          for (int x=2; x<image.width ()-2; ++x) {
+            const QColor pixel= image.pixelColor (x,y);
+            if (pixel.red () < 80 && pixel.green () < 80 && pixel.blue () < 80) ++ink;
+            if (pixel == QColor ("#f4e9fa")) ++background;
+          }
+        return ink > 10 && background > 100;
+      };
+      QTRY_VERIFY (drawn ());
+      QCOMPARE (QApplication::focusWidget (), input);
+      if (!qEnvironmentVariableIsEmpty ("ATHENA_TEST_SCREENSHOT"))
+        QVERIFY (input->window ()->grab ().save (qEnvironmentVariable ("ATHENA_TEST_SCREENSHOT")));
+    }
+    previous_input= active_input ();
+    QTest::keyClick (active_input (), Qt::Key_Tab);
+    QTRY_VERIFY (active_input () && active_input () != previous_input);
+    QTest::keyClicks (active_input (), "1890");
+    QTRY_COMPARE_WITH_TIMEOUT (en::title_fields (snapshot ()[0], "year"),
+      std::vector<tree> {tree ("1890")}, 10000);
+    previous_input= active_input ();
+    QTest::keyClick (active_input (), Qt::Key_Tab);
+    QTRY_VERIFY (active_input () && active_input () != previous_input);
+    QTest::keyClick (active_input (), Qt::Key_Backspace);
+    QTest::qWait (100);
+    QVERIFY (active_input ());
+    QTest::keyClicks (active_input (), "Gauss");
+    QTRY_COMPARE_WITH_TIMEOUT (en::title_fields (snapshot ()[0], "attribution"),
+      std::vector<tree> {tree ("Gauss")}, 10000);
+    previous_input= active_input ();
+    QVERIFY (input_command ([] (editor_rep& editor) {
+      editor.go_to_end (editor.the_buffer_path ());
+      editor.insert_tree (compound ("strong", compound ("math", "xy")));
+      editor.go_to (editor.the_buffer_path () * path (0, 1, 0, 0) * 1);
+      editor.handle_keypress ("C-,", texmacs_time ());
+    }));
+    QTRY_COMPARE_WITH_TIMEOUT (en::title_fields (snapshot ()[0], "attribution").size (),
+      size_t (2), 10000);
+    QCOMPARE (en::title_fields (snapshot ()[0], "attribution")[0],
+      tree (CONCAT, "Gauss", compound ("strong", compound ("math", "x"))));
+    QCOMPARE (en::title_fields (snapshot ()[0], "attribution")[1],
+      compound ("strong", compound ("math", "y")));
+    QCOMPARE (snapshot ()[0][0], original_body);
+    QTRY_VERIFY (active_input () && active_input () != previous_input);
+
+    QTMWidget* source_canvas= nullptr;
+    for (QWidget* candidate: QApplication::allWidgets ()) {
+      auto* canvas= qobject_cast<QTMWidget*> (candidate);
+      if (!canvas) continue;
+      auto* proxy= dynamic_cast<qt_actor_widget_rep*> (canvas->tm_widget ());
+      if (proxy && proxy->view_id () == view->runtime_id) source_canvas= canvas;
+    }
+    QVERIFY (source_canvas);
+    const QPoint click= source_canvas->presentationSurface ()->mapFromGlobal (
+      active_input ()->mapToGlobal (active_input ()->rect ().center ()));
+    QVERIFY (command ([] (editor_rep& editor) { editor.open_enunciation_slot ("", 0); }));
+    QTRY_VERIFY (!active_input ());
+    QTest::mouseClick (source_canvas->presentationSurface (), Qt::LeftButton, Qt::NoModifier, click);
+    QTRY_VERIFY (active_input ());
+
+    QVERIFY (command ([] (editor_rep& editor) {
+      editor.open_enunciation_slot ("", 0);
+      editor.undo (0);
+    }));
+    QTRY_VERIFY (!active_input ());
+    QTRY_COMPARE (en::title_fields (snapshot ()[0], "attribution").size (), size_t (1));
+    QCOMPARE (snapshot ()[0][0], original_body);
+  }
+
   void cleanup () {
+    const auto buffers= get_all_buffers ();
+    for (int i=0; i<N(buffers); ++i)
+      QVERIFY (!starts (as_string (buffers[i]), "tmfs://aux/enunciation-slot-"));
     QVERIFY (is_nil (concrete_buffer (url ("tmfs://aux/input-widget-query"))));
     QVERIFY (is_nil (concrete_buffer (url ("tmfs://aux/input-widget-master"))));
   }

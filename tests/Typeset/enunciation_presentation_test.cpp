@@ -173,6 +173,36 @@ bool has_link_target (box b, const AthenaArtifactRecord& record) {
 class EnunciationPresentationTest: public QObject {
   Q_OBJECT
 private slots:
+  void focusedTitleSlotsAreScreenOnly () {
+    Environment context;
+    tree t= source ();
+    auto metadata= *node::get (t);
+    node::property::list names {node::property (node::rich_text {tree ("FirstName")}),
+      node::property (node::rich_text {tree ("SecondName")})};
+    metadata.properties["name"]= node::property (names);
+    node::set (t, metadata);
+    QVERIFY (en::is_canonical (t));
+    tree normal= native_enunciation_macro (context.env.operator-> (), t);
+    QVERIFY (!has_tag (normal, ORNAMENT));
+    context.env->editing_enunciation_id= node::id (t);
+    tree focused= native_enunciation_macro (context.env.operator-> (), t);
+    QVERIFY (has_tag (focused, ORNAMENT));
+    QVERIFY (has_tag (focused, LOCUS));
+    box rendered= lazy_box (context.env, t);
+    QVERIFY (rendered->w () > 0 && rendered->h () > 0);
+    const string displayed= visible_text (rendered);
+    QVERIFY2 (occurs ("FirstName", displayed), as_charp (displayed));
+    QVERIFY (occurs ("SecondName", displayed));
+    QVERIFY (occurs ("Year", displayed));
+    QVERIFY (occurs ("Attribution", displayed));
+    context.env->write (PAGE_PRINTED, "true");
+    QCOMPARE (native_enunciation_macro (context.env.operator-> (), t), normal);
+    context.env->write (PAGE_PRINTED, "false");
+    tree definition= source ("definition");
+    context.env->editing_enunciation_id= node::id (definition);
+    QVERIFY (!has_tag (native_enunciation_macro (context.env.operator-> (), definition), ORNAMENT));
+  }
+
   void nativeDisplayStartsSeparateEnunciationParagraph () {
     tree grid (MATH_GRID,
       tree (ROW, tree (CELL, "x"), tree (CELL, "="), tree (CELL, "y")));
