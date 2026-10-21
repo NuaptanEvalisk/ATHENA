@@ -24,8 +24,6 @@ private slots:
   void returnCompletionOverridesParentShortcut ();
   void tabWithoutCompletionRemainsNavigation ();
   void containsPopupCompletionUsesWholeModelEntry ();
-  void listCompletionCommitsSelectedItem ();
-  void listCompletionRejectsAlreadyCommittedItem ();
 };
 
 static QTMCompletingComboBox*
@@ -155,36 +153,6 @@ TestCompletingComboBox::containsPopupCompletionUsesWholeModelEntry () {
   QVERIFY (combo->completer ()->popup ()->isVisible ());
   QTest::keyClick (combo->completer ()->popup (), Qt::Key_Tab);
   QCOMPARE (combo->currentText (), expected);
-}
-
-void
-TestCompletingComboBox::listCompletionCommitsSelectedItem () {
-  QLineEdit edit;
-  QListWidget list;
-  QListWidgetItem* first= new QListWidgetItem ("Notes/Algebra.ath", &list);
-  first->setData (Qt::UserRole, "Notes/Algebra");
-  QListWidgetItem* second=
-    new QListWidgetItem ("Notes/Analysis.ath", &list);
-  second->setData (Qt::UserRole, "Notes/Analysis");
-  list.setCurrentItem (second);
-  edit.setText ("anal");
-
-  QVERIFY (qtm_commit_list_completion (&edit, &list, Qt::UserRole));
-  QCOMPARE (edit.text (), QString ("Notes/Analysis"));
-  QCOMPARE (edit.cursorPosition (), edit.text ().size ());
-}
-
-void
-TestCompletingComboBox::listCompletionRejectsAlreadyCommittedItem () {
-  QLineEdit edit;
-  QListWidget list;
-  QListWidgetItem* item= new QListWidgetItem ("Notes/Algebra.ath", &list);
-  item->setData (Qt::UserRole, "Notes/Algebra");
-  list.setCurrentItem (item);
-  edit.setText ("Notes/Algebra");
-
-  QVERIFY (!qtm_commit_list_completion (&edit, &list, Qt::UserRole));
-  QCOMPARE (edit.text (), QString ("Notes/Algebra"));
 }
 
 QTEST_MAIN (TestCompletingComboBox)

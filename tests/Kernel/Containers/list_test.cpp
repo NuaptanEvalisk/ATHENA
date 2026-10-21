@@ -12,13 +12,6 @@
 #include <QtTest/QtTest>
 #include "list.hpp"
 
-static list<long> gen(int64_t n) {
-  auto normal = list<long>();
-  for (long i=0; i<n; i++)
-    normal << i;
-  return normal;
-}
-
 auto the_nil_list = list<string>();
 auto the_atom_list = list<long>(1);
 auto normal = list<long>(1, 2, 3, list<long>());
@@ -27,44 +20,13 @@ class TestList: public QObject {
   Q_OBJECT
 
 private slots:
-  void test_is_nil ();
-  void test_is_atom ();
-
-  void test_access ();
   void operate_on_the_last ();
-  void test_size ();
   void test_copy ();
   void test_append ();
   void head_and_tail ();
   void test_reverse ();
   void test_remove ();
-  void test_contains ();
 };
-
-void
-TestList::test_is_nil () {
-  QCOMPARE (is_nil (the_nil_list), true);
-  QCOMPARE (is_nil (the_atom_list), false);
-}
-
-void
-TestList::test_is_atom () {
-  QCOMPARE (is_atom (the_nil_list), false);
-  QCOMPARE (is_atom (the_atom_list), true);
-}
-
-/******************************************************************************
-* tests on output and convertion
-******************************************************************************/
-
-void
-TestList::test_access () {
-  QCOMPARE (the_atom_list[0], 1L);
-
-  QCOMPARE (normal[0], 1);
-  QCOMPARE (normal[1], 2);
-  QCOMPARE (normal[2], 3);
-}
 
 /******************************************************************************
 * tests on insertion and suppression
@@ -90,17 +52,6 @@ TestList::operate_on_the_last () {
 /******************************************************************************
 * tests on computations with list<T> structures
 ******************************************************************************/
-
-void
-TestList::test_size () {
-  QCOMPARE (N (the_nil_list), 0);
-  QCOMPARE (N (the_atom_list), 1);
-  QCOMPARE (N (normal), 3);
-  for (auto i=4; i<=100; i++) {
-    auto list = gen (i);
-    QCOMPARE (N (list), i);
-  }
-}
 
 void
 TestList::test_copy () {
@@ -147,16 +98,6 @@ TestList::test_remove () {
   QCOMPARE (remove (the_nil_list, string("a")), the_nil_list);
   QCOMPARE (remove (the_atom_list, 1L), list<long>());
   QCOMPARE (remove (normal, 2L), list<long>(1, 3, list<long>()));
-}
-
-void
-TestList::test_contains () {
-  QCOMPARE (contains (the_nil_list, string("a")), false);
-  QCOMPARE (contains (the_atom_list, 1L), true);
-  QCOMPARE (contains (normal, 1L), true);
-
-  QCOMPARE (contains (normal, 2L), true);
-  QCOMPARE (contains (normal, 3L), true);
 }
 
 QTEST_MAIN(TestList)

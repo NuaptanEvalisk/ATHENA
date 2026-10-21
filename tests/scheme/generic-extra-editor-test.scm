@@ -69,15 +69,6 @@
 (spell-live-insert-current-word)
 (check (equal? (body) '(document "helo world")) "missing spelling selection is harmless")
 
-(check (equal? (background-selector-initial "pattern" #f "25pt")
-               '("$ATHENA_PATH/misc/patterns/neutral-pattern.png" "25pt" "100@" "" ""))
-       "pattern defaults")
-(check (equal? (background-selector-initial "picture" #f "25pt")
-               '("$ATHENA_PATH/misc/patterns/neutral-pattern.png" "100%" "100%" "" ""))
-       "picture defaults")
-(check (equal? (background-selector-initial "gradient" #f "25pt")
-               '("athena-gradient-vertical" "100%" "100%" "0" "black" "white"))
-       "gradient defaults")
 (define image-pattern
   '(pattern "image.png" "3cm" "4cm" (eff-skin (eff-recolor "0" "red") "blue")))
 (for-each

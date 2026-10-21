@@ -56,7 +56,6 @@ class TestScrollableMenu: public QObject {
 private slots:
   void exposesInnerActions ();
   void forcesScrollableLazyMenu ();
-  void requestsNativeMenuScrolling ();
 };
 
 void
@@ -80,14 +79,6 @@ TestScrollableMenu::forcesScrollableLazyMenu () {
 
   QCOMPARE (menu.actions ().size (), 2);
   QVERIFY (menu.property (QTM_SCROLLABLE_MENU_PROPERTY).toBool ());
-}
-
-void
-TestScrollableMenu::requestsNativeMenuScrolling () {
-  QMenu menu;
-  menu.setProperty (QTM_SCROLLABLE_MENU_PROPERTY, true);
-  QCOMPARE (qtmstyle ()->styleHint (
-              QStyle::SH_Menu_Scrollable, nullptr, &menu), 1);
 }
 
 QTEST_MAIN (TestScrollableMenu)

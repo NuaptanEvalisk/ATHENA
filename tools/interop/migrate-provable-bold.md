@@ -56,21 +56,3 @@ earlier successful edits remain committed. After addressing the error it can be
 rerun: completed edits are no longer candidates. There is no vault-wide rollback
 or automatic backup in this script. A timeout is an unknown outcome, not proof
 that a pending operation was cancelled.
-
-## Focused Check
-
-The integration check creates a private profile/vault in `/tmp`, launches a
-separate offscreen ATHENA and connects through the real Python SDK. Optional
-`--sample /absolute/path/to/document.ath` arguments copy files read-only into
-that vault; `--style /path/to/custom.ats` copies required custom styles into its
-isolated profile. It checks dry-run nonmutation, UUID/property retention, local and
-non-provable formatting, and a second no-op run. It never loads the original
-sample's vault or copies its configuration/credentials.
-
-```sh
-build_qt6/audmap-client-venv/bin/python tests/interop/provable-bold-migration-test.py \
-  --sample /path/to/sample.ath
-```
-
-Use a Python environment containing both dependencies for this isolated check;
-changing `HOME` deliberately hides packages installed only in the user's site.

@@ -78,6 +78,35 @@ boundaries, do not patch from intuition. Debug from evidence.
   that the issue should be escalated to the Pro model, and prepare a prompt plus
   a source/log archive with all relevant context before making further fixes.
 
+## Testing And Defensive Programming Policy
+
+- Tests are not a default deliverable or a completion ritual. For changes whose
+  logic is clear from the code, do not add or run tests merely because code
+  changed. Most straightforward changes do not need a regression test.
+- Use targeted tests only for genuinely complex logic or concrete uncertainty
+  that static reasoning cannot resolve, or when the user explicitly requests
+  them. Identify the uncertainty first; an existing test suite is not itself a
+  reason to run it. Do not turn a narrow change into a broad regression run.
+- Avoid tests that repeat implementation constants, configuration tables,
+  exact registry counts, trivial setters/getters or simple forwarding logic.
+  Do not pursue test counts or coverage percentages as goals.
+- Preserve useful checks for complex ownership, concurrency, persistence,
+  recovery and representation transitions. Judge their actual assertions, not
+  their filename or length. Remove obsolete migration acceptance checks when
+  their supported workflow is retired, including registrations and instructions.
+- Updating an existing assertion that contradicts an intentional behavior
+  change does not require expanding the test suite or running it automatically.
+- Debugging from concrete evidence remains required for uncertain failures.
+  The reproduction guidance above is not a requirement to create a permanent
+  test for every fix. Building and installing a requested binary is separate
+  from running tests; do not build test targets incidentally.
+- Excessive defensive programming is prohibited. Do not add speculative guards,
+  fallback paths, repeated validation or compatibility layers for hypothetical
+  states. Keep checks required by actual input contracts, ownership boundaries
+  and data integrity; fix broken invariants at their source.
+- Report honestly what was and was not built or tested, without treating the
+  deliberate absence of unnecessary tests as unfinished work.
+
 ## Strict Commit Message Protocol
 
 - Before creating or amending any commit, read the full recent commit messages

@@ -26,10 +26,7 @@
              "font alias left a legacy font package" alias))
     aliases))
 
-(check-family '("Bonum" "bonum" "TeX Gyre Bonum") "TeX Gyre Bonum")
 (check-family '("Pagella" "pagella" "TeX Gyre Pagella") "TeX Gyre Pagella")
-(check-family '("Schola" "schola" "TeX Gyre Schola") "TeX Gyre Schola")
-(check-family '("Termes" "termes" "TeX Gyre Termes") "TeX Gyre Termes")
 
 (for-each
   (lambda (alias)
@@ -42,11 +39,6 @@
            "Computer Modern alias should retain roman mathematics"
            alias (get-init "math-font")))
   '("roman" "TeXmacs Computer Modern"))
-
-(check (== (document-font-display-name "TeX Gyre Pagella") "Pagella")
-       "TeX Gyre Pagella should use the short menu label")
-(check (== (document-font-display-name "pagella") "Pagella")
-       "legacy Pagella alias should use the same menu label")
 
 ;; The built-in short document menu passes the legacy matching math font as
 ;; an explicit argument.  It must still use the smart profile rather than

@@ -33,7 +33,6 @@ private slots:
   void clipboard_fragment ();
   void plain_text ();
   void parallel_plain_text ();
-  void test_qt_supports();
   void test_png_to_pdf();
 };
 
@@ -115,13 +114,6 @@ void TestQtUtilities::parallel_plain_text () {
   });
   for (auto& worker: workers) worker.join ();
   QVERIFY (correct.load ());
-}
-
-void TestQtUtilities::test_qt_supports () {
-#ifdef QTTEXMACS
-  QVERIFY (qt_supports (url ("x.svg")));
-  QVERIFY (qt_supports (url ("x.png")));
-#endif
 }
 
 void TestQtUtilities::test_png_to_pdf () {

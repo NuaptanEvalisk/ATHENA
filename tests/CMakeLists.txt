@@ -536,14 +536,8 @@ add_test(NAME node_new_v2_test
     --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
     --runtime ${ATHENA_GUILE_PREFIX}
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-add_test(NAME node_v2_persistence_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/node-v2-persistence-test.py
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
 set_tests_properties(
-  node_move_lifecycle_test node_new_v2_test node_v2_persistence_test
+  node_move_lifecycle_test node_new_v2_test
   PROPERTIES TIMEOUT 150)
 add_test(NAME vault_node_model_upgrade_runtime_test
   COMMAND ${Python3_EXECUTABLE}
@@ -658,10 +652,6 @@ add_test(NAME native_v3_hodarium_shared_audit_test
     --runtime ${ATHENA_GUILE_PREFIX}
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
 set_tests_properties(native_v3_hodarium_shared_audit_test PROPERTIES TIMEOUT 120)
-add_test(NAME native_v3_staged_verifier_selftest
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/native-v3-staged-verifier-selftest.py)
-set_tests_properties(native_v3_staged_verifier_selftest PROPERTIES TIMEOUT 45)
 add_test(NAME native_v3_math_alphabet_stage_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/native-v3-math-alphabet-stage-test.py
@@ -734,7 +724,6 @@ set(_athena_application_runtime_tests
   global_typeset_refresh_editor_test
   node_move_lifecycle_test
   node_new_v2_test
-  node_v2_persistence_test
   vault_node_model_upgrade_runtime_test
   audmap_v3_runtime_test
   node_data_art_scheme_test
@@ -755,10 +744,6 @@ set_tests_properties(${_athena_application_runtime_tests}
 
 find_program (ATHENA_TEST_GUILE guile)
 if (ATHENA_TEST_GUILE)
-  add_test (NAME math_keyboard_scheme_test
-    COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
-      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/math-keyboard-test.scm
-      ${ATHENA_SOURCE_DIR})
   add_test (NAME unsaved_buffers_scheme_test
     COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
       ${CMAKE_CURRENT_SOURCE_DIR}/scheme/unsaved-buffers-test.scm

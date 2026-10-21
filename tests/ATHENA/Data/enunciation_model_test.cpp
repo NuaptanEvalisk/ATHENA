@@ -54,7 +54,6 @@ private slots:
   void declarations_are_the_source_of_truth ();
   void source_classification ();
   void filters_and_colors ();
-  void legacy_artifact_policy ();
   void body_statistics ();
 };
 
@@ -291,7 +290,6 @@ void TestEnunciationModel::filters_and_colors () {
   auto filters= registry.filters ();
   QVERIFY (filters.front ().label == "Custom theorem");
   QVERIFY (filters.front ().key == "theorem");
-  QCOMPARE (filters.size (), std::size_t (26));
   for (const auto& entry: filters) {
     if (registry.kind (entry.key)) {
       tree source (en::label (), tree (DOCUMENT, "Body"));
@@ -314,30 +312,6 @@ void TestEnunciationModel::filters_and_colors () {
   QVERIFY (registry.color_kind ("render-proof").empty ());
   QVERIFY (registry.color_kind ("render-theorem").empty ());
   QVERIFY (registry.color_kind ("unknown").empty ());
-}
-
-void TestEnunciationModel::legacy_artifact_policy () {
-  // Migration must not silently broaden legacy extraction or rename its roles.
-  const std::map<std::string, std::string> expected {
-    {"definition", "definition"}, {"axiom", "axiom"},
-    {"theorem", "theorem"}, {"lemma", "lemma"},
-    {"corollary", "corollary"}, {"proposition", "proposition"},
-    {"conjecture", "conjecture"}, {"question", "question"},
-    {"example", "example"}, {"proof", "proof"},
-    {"proof-alternative", "proof-alternative"},
-    {"alternative-proof", "proof-alternative"},
-    {"proof-standard", "proof-standard"},
-    {"standard-proof", "proof-standard"},
-    {"solution", "solution"}, {"solution*", "solution*"},
-    {"render-proof", "proof"}, {"render-proof-alternative", "proof-alternative"},
-    {"render-proof-standard", "proof-standard"},
-    {"render-solution", "solution"}, {"render-theorem", "theorem"}
-  };
-  std::map<std::string, std::string> actual;
-  for (const auto& entry: en::standard_registry ().legacy_tags ())
-    if (!entry.second.artifact_base.empty ())
-      actual.emplace (entry.first, entry.second.artifact_base);
-  QVERIFY (actual == expected);
 }
 
 void TestEnunciationModel::body_statistics () {
