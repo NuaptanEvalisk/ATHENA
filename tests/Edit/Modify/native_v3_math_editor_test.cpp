@@ -552,6 +552,7 @@ private slots:
       editor->start_editing ();
       editor->make_script (false, true);
       editor->insert_tree ("i");
+      editor->go_to_end (content_path ());
       editor->make_script (true, true);
       editor->insert_tree ("n");
       editor->end_editing ();

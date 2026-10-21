@@ -517,12 +517,14 @@ edit_math_rep::make_script (bool sup, bool right, bool switch_slots) {
     if (switch_slots && find_native_scripts (et, tp, attached)) {
       const tree scripts= subtree (et, attached);
       const path relative= tp / attached;
-      // Repeating the current script command nests on its last token; the
-      // other script command switches to the companion slot of this base.
+      // Inside a script, attach to the local token rather than switching to
+      // an outer slot. Repeating a command in its empty slot stays there.
       const bool at_slot_end= N(relative) > 1 &&
         tp == end (et, attached * relative->item);
       if (N(relative) == 1 ||
-          (at_slot_end && (relative->item != slot || scripts[slot] == ""))) {
+          (at_slot_end &&
+           (relative->item == 0 ||
+            (relative->item == slot && scripts[slot] == "")))) {
         go_to_end (attached * slot);
         if (selected) insert_tree (content);
         return;
