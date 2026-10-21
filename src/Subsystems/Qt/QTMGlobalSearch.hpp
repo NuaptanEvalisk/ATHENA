@@ -11,7 +11,6 @@
 #ifndef QTMGLOBALSEARCH_HPP
 #define QTMGLOBALSEARCH_HPP
 
-#include "ATHENA/Features/athena_features.hpp"
 #include "path.hpp"
 #include "string.hpp"
 #include "tree.hpp"
@@ -81,9 +80,6 @@ private:
   tree     normalizeQuery (tree t) const;
   QString  selectedNamespace () const;
   QString  selectedEnunciation () const;
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-  QString  selectedPerson () const;
-#endif
   void     startSearch ();
   void     cancelSearch ();
   static int searchFile (tree body, url u, const tree& query,
@@ -130,9 +126,6 @@ private:
   QLabel*       previewTitle;
   QComboBox*    enunciationCombo;
   QComboBox*    modeCombo;
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-  QComboBox*    personCombo;
-#endif
   QCheckBox*    caseInsensitiveCheck;
   QCheckBox*    fuzzyCheck;
   QLineEdit*    namespaceEdit;

@@ -5251,23 +5251,6 @@
       }
     },
     {
-      "key": "vault normalize person names on save",
-      "type": "boolean",
-      "scope": "active",
-      "default": "off",
-      "ui": {
-        "category": "Knowledge",
-        "tab": "Persons",
-        "section": "Persons",
-        "order": 0,
-        "label": "Automatically tag recognized person names on save",
-        "control": "toggle",
-        "category_order": 6,
-        "tab_order": 4,
-        "section_order": 0
-      }
-    },
-    {
       "key": "google oauth client id",
       "type": "string",
       "scope": "active",

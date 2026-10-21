@@ -25,7 +25,7 @@ struct VaultSemanticHit {
 using VaultSemanticCandidates= std::map<QString, std::vector<VaultSemanticHit>>;
 
 struct VaultSearchOptions {
-  QString query, enunciation, person, root;
+  QString query, enunciation, root;
   std::string serializedQuery;
   // Absent only for the plain-text path. Fragment bytes and source version
   // travel together; readers reject missing or mismatched versions.

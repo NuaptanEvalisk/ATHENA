@@ -3,7 +3,6 @@
 #if ATHENA_PLATFORM_IPADOS
 #include "Subsystems/iOS/athena_ios.hpp"
 #endif
-#include "ATHENA/Features/athena_features.hpp"
 #include "QTMApplicationMenuPresenter.hpp"
 #include "QTMApplication.hpp"
 #include "QTMBufferSwitcher.hpp"
@@ -16,9 +15,6 @@
 #include "QTMDocumentHistoryPane.hpp"
 #include "QTMVaultExplorer.hpp"
 #include "QTMNamespaceExplorer.hpp"
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-#include "QTMPersonsExplorer.hpp"
-#endif
 #include "QTMNeighborhoodsPane.hpp"
 #include "QTMHodarium.hpp"
 #include "QTMHandwritingSymbolPane.hpp"
@@ -318,9 +314,6 @@ isPersistentAdsPane (const QString& name) {
   return name == "athena-outline-pane" ||
          name == "athena-vault-explorer" ||
          name == "athena-namespace-explorer" ||
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-         name == "athena-persons-explorer" ||
-#endif
          name == "athena-neighborhoods-pane" ||
          name == "athena-handwritten-symbol" ||
          name == "athena-global-search" ||
@@ -853,10 +846,6 @@ void QTMMainTabWindow::restoreAdsVisiblePanes() {
       vault_show_explorer ();
     else if (vault_active() && name == "athena-namespace-explorer")
       namespace_explorer_show ();
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-    else if (vault_active() && name == "athena-persons-explorer")
-      persons_explorer_show ();
-#endif
     else if (vault_active() && name == "athena-neighborhoods-pane")
       neighborhoods_pane_show ();
     else if (name == "athena-handwritten-symbol")

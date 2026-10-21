@@ -12,10 +12,6 @@
 #include "QTMDocumentIdentity.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "actor_ui_bridge.hpp"
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-#include "QTMPersonsExplorer.hpp"
-#include "ATHENA/Data/person_names.hpp"
-#endif
 #include "QTMVaultSearch.hpp"
 #include "QTMVaultSearchWorker.hpp"
 #include "QTMVaultPreviewBuilder.hpp"
@@ -244,14 +240,6 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
     enunciationCombo->addItem (entry.label, entry.tag);
   enunciationCombo->setMinimumWidth (220);
 
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-  personCombo= new QComboBox (this);
-  personCombo->setEditable (true);
-  personCombo->setInsertPolicy (QComboBox::NoInsert);
-  personCombo->setMinimumWidth (220);
-  personCombo->lineEdit ()->setPlaceholderText ("Any person");
-#endif
-
   caseInsensitiveCheck= new QCheckBox ("Case-insensitive", this);
   fuzzyCheck= new QCheckBox ("Fuzzy", this);
   modeCombo= new QComboBox (this);
@@ -287,11 +275,6 @@ QTMGlobalSearch::QTMGlobalSearch (QWidget* parent)
   buttons->addWidget (new QLabel ("Enunciation:", this));
   buttons->addWidget (enunciationCombo);
   buttons->addSpacing (12);
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-  buttons->addWidget (new QLabel ("Person:", this));
-  buttons->addWidget (personCombo);
-  buttons->addSpacing (12);
-#endif
   buttons->addStretch ();
 
   QHBoxLayout* searchActions= new QHBoxLayout ();
@@ -714,16 +697,6 @@ QTMGlobalSearch::refreshNamespaces () {
 
   if (!current.isEmpty () && !names.contains (current, Qt::CaseSensitive))
     namespaceEdit->setText (current);
-
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-  if (personCombo != nullptr) {
-    QString person= personCombo->currentText ().trimmed ();
-    personCombo->clear ();
-    personCombo->addItem ("", "");
-    personCombo->addItems (qtm_vault_person_names ());
-    personCombo->setCurrentText (person);
-  }
-#endif
 }
 
 QString
@@ -736,14 +709,6 @@ QTMGlobalSearch::selectedEnunciation () const {
   if (enunciationCombo == nullptr) return QString ();
   return enunciationCombo->currentData ().toString ().trimmed ();
 }
-
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-QString
-QTMGlobalSearch::selectedPerson () const {
-  return personCombo == nullptr ? QString () :
-    personCombo->currentText ().trimmed ();
-}
-#endif
 
 void
 QTMGlobalSearch::setIdleStatus () {
@@ -760,18 +725,10 @@ QTMGlobalSearch::setRunningStatus () {
     QString ("namespace %1").arg (ns);
   QString kind= enunciation.isEmpty () ? QString () :
     QString (" inside <%1>").arg (enunciation);
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-  QString person= selectedPerson ();
-  QString personScope= person.isEmpty () ? QString () :
-    QString (" mentioning %1").arg (person);
-#else
-  QString personScope;
-#endif
-  status->setText (QString ("Searching %1 file(s) in %2%3%4...")
+  status->setText (QString ("Searching %1 file(s) in %2%3...")
                    .arg ((int) scanFiles.size ())
                    .arg (scope)
-                   .arg (kind)
-                   .arg (personScope));
+                   .arg (kind));
   progress->setRange (0, (int) scanFiles.size ());
   progress->setValue (0);
 }
@@ -862,9 +819,6 @@ QTMGlobalSearch::startSearch () {
   options.mode= static_cast<VaultSearchMode> (modeCombo->currentData ().toInt ());
   options.root= to_qstring (as_system_string (vault_get_root ()));
   options.enunciation= selectedEnunciation ();
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-  options.person= selectedPerson ();
-#endif
   options.caseInsensitive= caseInsensitiveCheck->isChecked ();
   options.fuzzy= fuzzyCheck->isChecked ();
   std::vector<std::string> files;
@@ -923,13 +877,6 @@ QTMGlobalSearch::searchFile (tree body, url u, const tree& query,
                            const VaultSearchOptions& options,
                            std::vector<Result>& hits) {
   try {
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-    QString person= options.person;
-    if (!person.isEmpty () &&
-        !athena_tree_contains_person_text (body, from_qstring (person)))
-      return 0;
-#endif
-
     int oldMode= set_access_mode (DRD_ACCESS_SOURCE);
     std::vector<VaultContentMatch> matches;
     try {

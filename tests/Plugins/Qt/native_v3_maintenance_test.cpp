@@ -14,8 +14,6 @@
 #include <sys/resource.h>
 #endif
 #include "ATHENA/Data/enunciation_model.hpp"
-#include "ATHENA/Data/evaluation_bars.hpp"
-#include "ATHENA/Data/person_names.hpp"
 #include "ATHENA/Data/redundant_wikilinks.hpp"
 #include "ATHENA/Data/vault_file_references.hpp"
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
@@ -153,18 +151,6 @@ private slots:
       QVERIFY (rich[0] == "renamed.png");
       QVERIFY (source == before);
       QVERIFY (decode_native_xml_bytes (encode_native_xml_bytes (rewritten, version)).document == rewritten);
-
-      int wrapped= 0;
-      const tree normalized= athena_normalize_person_names (
-        old, wrapped, std::vector<string> {"Zyxwvu Exampleperson"});
-      QCOMPARE (wrapped, 2);
-      QVERIFY (normalized[2] == old[2]);
-      QVERIFY (node::equal_metadata (normalized, old));
-      QVERIFY (node::equal_metadata (normalized[1], old[1]));
-      QVERIFY (is_func (normalized[1], CONCAT, 3));
-      QVERIFY (normalized[1][0] == compound ("person", "Zyxwvu Exampleperson"));
-      QVERIFY (normalized[1][2] == compound ("person", "Zyxwvu Exampleperson"));
-      QVERIFY (source == before);
     }
   }
 
@@ -283,42 +269,6 @@ private slots:
     QCOMPARE (load (root / "native.ath"), before);
   }
 
-  void personPassLearnsNativeNamesAndPreservesMath () {
-    QTemporaryDir temporary;
-    QVERIFY (temporary.isValid ());
-    const fs::path root (temporary.path ().toStdString ());
-    const auto names= write_xml_v3 (source_document (
-      tree (DOCUMENT, compound ("person", "Zyxwvu Exampleperson"))));
-    save (root / "names.ath", names);
-    for (auto version: {xml_format_version::v2, xml_format_version::v3}) {
-      const tree source= source_fixture (version);
-      const auto file= root / (version == xml_format_version::v2 ? "old.ath" : "native.ath");
-      save (file, encode_native_xml_bytes (source, version));
-    }
-    const auto old= decode_native_xml_bytes (load (root / "old.ath"));
-    const auto native= decode_native_xml_bytes (load (root / "native.ath"));
-    VaultMaintenanceContext context;
-    context.root= root;
-    const auto result= vault_maintenance_pass_normalize_person_names (context);
-    QVERIFY2 (result.ok, result.message.c_str ());
-    QCOMPARE (context.summary.person_files_changed, size_t (2));
-    QCOMPARE (context.summary.person_names_wrapped, size_t (4));
-    QCOMPARE (load (root / "names.ath"), names);
-    for (const auto& item: std::vector<std::pair<fs::path, native_xml_read_result>> {
-        {root / "old.ath", old}, {root / "native.ath", native}}) {
-      const auto after= decode_native_xml_bytes (load (item.first));
-      QCOMPARE (after.version, item.second.version);
-      const tree before_body= extract (item.second.document, "body");
-      const tree after_body= extract (after.document, "body");
-      QVERIFY (after_body[2] == before_body[2]);
-      QVERIFY (node::equal_metadata (after_body, before_body));
-      QVERIFY (node::equal_metadata (after_body[1], before_body[1]));
-    }
-    const auto before= load (root / "native.ath");
-    QVERIFY (vault_maintenance_pass_normalize_person_names (context).ok);
-    QCOMPARE (load (root / "native.ath"), before);
-  }
-
   void enunciationDiskRewritePreservesVersionAndMath () {
     QTemporaryDir temporary;
     QVERIFY (temporary.isValid ());
@@ -347,127 +297,24 @@ private slots:
     QVERIFY_EXCEPTION_THROWN (maintenance_enunciation_bytes (unsupported, false), codec_exception);
   }
 
-  void evaluationBarsUseNativeNodesAndRetainMetadata () {
+  void malformedInputsPreventAssetWrites () {
     QTemporaryDir temporary;
     QVERIFY (temporary.isValid ());
     const fs::path root (temporary.path ().toStdString ());
-    for (auto version: {xml_format_version::v2, xml_format_version::v3}) {
-      const tree atom= identified (tree ("x|"));
-      tree expression= identified (compound ("math", atom));
-      const tree body= identified (tree (DOCUMENT, expression, math_fixture (version)));
-      const tree document= source_document (body);
-      const auto file= root / (version == xml_format_version::v2 ? "old.ath" : "native.ath");
-      save (file, encode_native_xml_bytes (document, version));
-      int count= 0;
-      const tree converted= athena_promote_evaluation_bars (atom, count, "math", version);
-      QCOMPARE (count, 1);
-      QVERIFY (node::equal_metadata (atom, converted));
-      QVERIFY (version == xml_format_version::v3 ? is_func (converted, DELIMITED, 6) :
-                                                  is_func (converted, VAR_AROUND, 3));
-      VaultMaintenanceContext context;
-      context.root= root;
-      const auto result= vault_maintenance_pass_promote_evaluation_bars (context);
-      QVERIFY2 (result.ok, result.message.c_str ());
-      const auto after= decode_native_xml_bytes (load (file));
-      QCOMPARE (after.version, version);
-      tree expected= copy (document);
-      expected[1][0][0][0]= converted;
-      QVERIFY (after.document == expected);
-      const auto bytes= load (file);
-      QVERIFY (vault_maintenance_pass_promote_evaluation_bars (context).ok);
-      QCOMPARE (load (file), bytes);
-    }
-  }
-
-  void malformedAndUnsupportedInputsPreventWrites () {
-    for (auto pass: {vault_maintenance_pass_normalize_assets,
-                    vault_maintenance_pass_normalize_person_names,
-                    vault_maintenance_pass_promote_evaluation_bars}) {
-      QTemporaryDir temporary;
-      QVERIFY (temporary.isValid ());
-      const fs::path root (temporary.path ().toStdString ());
-      vault (root);
-      save (root / "plot.png", "image");
-      tree body (DOCUMENT, tree (IMAGE, "plot.png", "", "", "", ""),
-                 "Emmy Noether", compound ("math", "x|"));
-      const auto bytes= write_xml_v3 (source_document (body));
-      save (root / "a-valid.ath", bytes);
-      save (root / "z-malformed.ath", "<a v=\"3\" k=\"d\"><n");
-      VaultMaintenanceContext context;
-      context.root= root;
-      const auto result= pass (context);
-      QVERIFY (!result.ok);
-      QVERIFY (!result.message.empty ());
-      QCOMPARE (load (root / "a-valid.ath"), bytes);
-      QCOMPARE (load (root / "plot.png"), std::string ("image"));
-    }
-    QTemporaryDir temporary;
-    QVERIFY (temporary.isValid ());
-    const fs::path root (temporary.path ().toStdString ());
-    const auto good= write_xml_v3 (source_document (tree (DOCUMENT, compound ("math", "x|"))));
-    const auto bad= write_xml_v3 (source_document (tree (DOCUMENT, compound ("math",
-      tree (CONCAT, "x", math::scripts ("|", "", "", "0", "", 'r'))))));
-    save (root / "a-good.ath", good);
-    save (root / "z-scripted.ath", bad);
+    vault (root);
+    save (root / "plot.png", "image");
+    tree body (DOCUMENT, tree (IMAGE, "plot.png", "", "", "", ""),
+               "Emmy Noether", compound ("math", "x|"));
+    const auto bytes= write_xml_v3 (source_document (body));
+    save (root / "a-valid.ath", bytes);
+    save (root / "z-malformed.ath", "<a v=\"3\" k=\"d\"><n");
     VaultMaintenanceContext context;
     context.root= root;
-    const auto result= vault_maintenance_pass_promote_evaluation_bars (context);
+    const auto result= vault_maintenance_pass_normalize_assets (context);
     QVERIFY (!result.ok);
-    QVERIFY (result.message.find ("scripted native bar") != std::string::npos);
-    QCOMPARE (load (root / "a-good.ath"), good);
-    QCOMPARE (load (root / "z-scripted.ath"), bad);
-  }
-
-  void attributedEvaluationBarsKeepOneOwnerPerUuid () {
-    const tree atom= identified (tree ("|"));
-    const tree expression= identified (tree (FRAC, "x", "y"));
-    const tree bar= identified (tree ("|"));
-    tree sequence= identified (tree (CONCAT, expression, bar));
-    ::property (sequence, "fixture:rich", node::property (node::rich_text {
-      identified (compound ("strong", "span metadata"))}));
-    for (const tree& source: {atom, sequence}) {
-      const tree before= copy (source);
-      int count= 0;
-      const tree converted= athena_promote_evaluation_bars (
-        source, count, "math", xml_format_version::v3);
-      QCOMPARE (count, 1);
-      QVERIFY (source == before);
-      tree expected;
-      if (is_atomic (source)) {
-        expected= math::delimited ("", "|", 'a', "");
-        node::copy_metadata (source, expected);
-        QVERIFY (is_func (converted, DELIMITED, 6));
-        QCOMPARE (node::id (converted), node::id (source));
-      }
-      else {
-        tree delimiter= math::delimited ("", "|", 'a', expression);
-        node::copy_metadata (bar, delimiter);
-        expected= tree (CONCAT, delimiter);
-        node::copy_metadata (source, expected);
-        QVERIFY (is_func (converted, CONCAT, 1));
-        QVERIFY (is_func (converted[0], DELIMITED, 6));
-        QCOMPARE (node::id (converted), node::id (source));
-        QCOMPARE (node::id (converted[0]), node::id (bar));
-        QVERIFY (node::id (converted) != node::id (converted[0]));
-        QVERIFY (converted[0][5] == expression);
-      }
-      QVERIFY (converted == expected);
-      // Both strict codecs reject duplicate UUIDs, including rich properties.
-      const auto bytes= write_xml_v3 (converted, xml_kind::fragment);
-      QVERIFY (read_xml_v3 (bytes, xml_kind::fragment) == converted);
-      count= 0;
-      QVERIFY (athena_promote_evaluation_bars (
-        converted, count, "math", xml_format_version::v3) == converted);
-      QCOMPARE (count, 0);
-    }
-
-    const tree unsupported= identified (tree (CONCAT, "x",
-      identified (math::scripts (identified (tree ("|")), "", "", "0", "", 'r'))));
-    const tree before= copy (unsupported);
-    int count= 0;
-    QVERIFY_EXCEPTION_THROWN (athena_promote_evaluation_bars (
-      unsupported, count, "math", xml_format_version::v3), std::runtime_error);
-    QVERIFY (unsupported == before);
+    QVERIFY (!result.message.empty ());
+    QCOMPARE (load (root / "a-valid.ath"), bytes);
+    QCOMPARE (load (root / "plot.png"), std::string ("image"));
   }
 
   void staleSnapshotsCannotPublish () {

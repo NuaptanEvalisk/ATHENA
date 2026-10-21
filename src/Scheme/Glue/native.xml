@@ -1400,7 +1400,6 @@
   <binding name="namespace-explorer-show" native="namespace_explorer_show" returns="void" dispatch="ui" />
   <binding name="open-namespace-manager" native="namespace_manager_show" returns="void" dispatch="ui" />
   <binding name="open-namespace-explorer" native="namespace_explorer_show" returns="void" dispatch="ui" />
-  <binding name="open-persons-explorer" native="persons_explorer_show" returns="void" dispatch="ui" />
   <binding name="open-quick-switcher" native="open_vault_quick_switcher" returns="void" />
   <binding name="vault-track-current-buffer-if-enabled" native="vault_track_current_buffer_if_enabled" returns="void" />
   <binding name="vault-show-explorer-and-track" native="vault_show_explorer_and_track_native" returns="void" />

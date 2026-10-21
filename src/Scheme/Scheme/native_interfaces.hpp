@@ -254,7 +254,6 @@ void
 athena_namespace_new_file_within_wizard ();
 
 void open_vault_quick_switcher ();
-void persons_explorer_show ();
 void namespace_manager_show ();
 void namespace_explorer_show ();
 void vault_track_current_buffer_if_enabled ();

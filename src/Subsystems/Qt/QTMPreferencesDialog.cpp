@@ -14,7 +14,6 @@
 #include "QTMPluginUi.hpp"
 #endif
 #include "QTMAudmap.hpp"
-#include "ATHENA/Features/athena_features.hpp"
 #include "ATHENA/Data/materials_engine.hpp"
 #include "QTMESCSymbolPicker.hpp"
 #include "QTMDocumentPersistence.hpp"
@@ -1771,13 +1770,6 @@ QTMPreferencesDialog::buildVaultCategories () {
   }
   finish_page (materials);
 
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-  QWidget* persons= make_page ();
-  QFormLayout* pn= add_section (persons, "Persons");
-  add_toggle (pn, "vault normalize person names on save");
-  finish_page (persons);
-#endif
-
   QWidget* maintenance= make_page ();
   QFormLayout* mt= add_section (maintenance, "Maintenance");
   add_combo (mt, "vault max full backups");
@@ -2219,9 +2211,6 @@ QTMPreferencesDialog::buildVaultCategories () {
                                {"Namespaces", namespaces},
                                {"Wikilinks and Transclusion", wikilinks},
                                {"Artifacts", artifacts},
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-                               {"Persons", persons},
-#endif
                                {"Anchors and Images", anchors}});
   QWidget* materialLibrary= tabbed ({{"Sources and Citations", materials}});
   return {{"Vault", vault},

@@ -10,7 +10,6 @@
 
 #include "ATHENA/Data/vault_maintenance.hpp"
 #include "athena_platform.hpp"
-#include "ATHENA/Features/athena_features.hpp"
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
 #include "ATHENA/Data/vault_maintenance_passes.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
@@ -118,14 +117,6 @@ registered_passes () {
     {{"scan-missing-images", "Scan for missing images",
       vault_maintenance_pass_scan_missing_images}, false,
       pass_always_enabled},
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-    {{"normalize-person-names", "Tag recognized person names",
-      vault_maintenance_pass_normalize_person_names}, false,
-      pass_always_enabled},
-#endif
-    {{"promote-evaluation-bars", "Promote ordinary math bars to evaluation bars",
-      vault_maintenance_pass_promote_evaluation_bars}, false,
-      pass_always_enabled, false},
     {{"build-artifacts", "Build semantic artifact indexes",
       vault_maintenance_pass_build_artifacts}, false, pass_always_enabled},
     {{"remove-redundant-block-wikilinks",

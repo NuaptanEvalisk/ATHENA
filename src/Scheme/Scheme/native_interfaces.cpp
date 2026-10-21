@@ -59,7 +59,6 @@
 #include "QTMNamespaceExplorer.hpp"
 #include "QTMNeighborhoodsPane.hpp"
 #include "QTMNamespaceNewFile.hpp"
-#include "QTMPersonsExplorer.hpp"
 #include "QTMNamespaceExport.hpp"
 #include "QTMWebsitesManager.hpp"
 #include "QTMReverseHierarchyGraph.hpp"

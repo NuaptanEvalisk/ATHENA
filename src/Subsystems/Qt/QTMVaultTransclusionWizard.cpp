@@ -10,12 +10,7 @@
 
 #include "QTMVaultTransclusionWizard.hpp"
 #include "QTMChoiceNavigation.hpp"
-#include "ATHENA/Features/athena_features.hpp"
 #include "QTMCompletingComboBox.hpp"
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-#include "QTMPersonsExplorer.hpp"
-#include "ATHENA/Data/person_names.hpp"
-#endif
 #include "QTMVaultAnchorModel.hpp"
 #include "QTMVaultArtifactPage.hpp"
 #include "QTMVaultLinkModel.hpp"
@@ -225,9 +220,6 @@ public:
   void refreshNamespaces ();
   QString selectedNamespace () const;
   QString selectedEnunciation () const;
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-  QString selectedPerson () const;
-#endif
   bool caseInsensitiveSearch () const;
   bool fuzzySearch () const;
   void startSearch ();
@@ -251,9 +243,6 @@ public:
   QLineEdit*   queryEdit;
   QComboBox*   namespaceCombo;
   QComboBox*   enunciationCombo;
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-  QComboBox*   personCombo;
-#endif
   QCheckBox*   caseInsensitiveCheck;
   QCheckBox*   fuzzyCheck;
   QCheckBox*   neighborhoodsCheck;
@@ -1198,12 +1187,6 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
   for (const WikilinkEnunciationFilterEntry& entry: wikilink_enunciation_filters ())
     enunciationCombo->addItem (entry.label, entry.tag);
   enunciationCombo->setMinimumWidth (190);
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-  personCombo= new QComboBox (this);
-  personCombo->setEditable (true);
-  personCombo->setInsertPolicy (QComboBox::NoInsert);
-  personCombo->lineEdit ()->setPlaceholderText ("Any person");
-#endif
   caseInsensitiveCheck= new QCheckBox ("Case-insensitive", this);
   caseInsensitiveCheck->setChecked (
     get_preference (transclusion_search_case_pref, "off") == "on");
@@ -1278,19 +1261,15 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
   filters->addWidget (namespaceCombo, 0, 1);
   filters->addWidget (new QLabel ("Enunciation:", this), 0, 2);
   filters->addWidget (enunciationCombo, 0, 3);
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-  filters->addWidget (new QLabel ("Person:", this), 1, 0);
-  filters->addWidget (personCombo, 1, 1);
-#endif
-  filters->addWidget (new QLabel ("Matching:", this), 2, 0);
+  filters->addWidget (new QLabel ("Matching:", this), 1, 0);
   QHBoxLayout* matching= new QHBoxLayout ();
   matching->setContentsMargins (0, 0, 0, 0);
   matching->addWidget (caseInsensitiveCheck);
   matching->addSpacing (12);
   matching->addWidget (fuzzyCheck);
   matching->addStretch ();
-  filters->addLayout (matching, 2, 1, 1, 3);
-  filters->addWidget (neighborhoodsCheck, 3, 1, 1, 3);
+  filters->addLayout (matching, 1, 1, 1, 3);
+  filters->addWidget (neighborhoodsCheck, 2, 1, 1, 3);
 
   QWidget* left= new QWidget (this);
   QVBoxLayout* leftLayout= new QVBoxLayout (left);
@@ -1322,12 +1301,7 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
   setTabOrder (queryEdit, searchButton);
   setTabOrder (searchButton, namespaceCombo);
   setTabOrder (namespaceCombo, enunciationCombo);
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-  setTabOrder (enunciationCombo, personCombo);
-  setTabOrder (personCombo, caseInsensitiveCheck);
-#else
   setTabOrder (enunciationCombo, caseInsensitiveCheck);
-#endif
   setTabOrder (caseInsensitiveCheck, fuzzyCheck);
   setTabOrder (fuzzyCheck, resultList);
 
@@ -1435,14 +1409,6 @@ TransclusionSearchPage::refreshNamespaces () {
   namespaceCombo->addItem (QString ());
   namespaceCombo->addItems (names);
   namespaceCombo->setCurrentText (current);
-
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-  QString person= personCombo->currentText ().trimmed ();
-  personCombo->clear ();
-  personCombo->addItem (QString ());
-  personCombo->addItems (qtm_vault_person_names ());
-  personCombo->setCurrentText (person);
-#endif
 }
 
 QString
@@ -1456,14 +1422,6 @@ TransclusionSearchPage::selectedEnunciation () const {
   return enunciationCombo == nullptr ? QString () :
     enunciationCombo->currentData ().toString ().trimmed ();
 }
-
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-QString
-TransclusionSearchPage::selectedPerson () const {
-  return personCombo == nullptr ? QString () :
-    personCombo->currentText ().trimmed ();
-}
-#endif
 
 bool
 TransclusionSearchPage::caseInsensitiveSearch () const {
@@ -1481,12 +1439,6 @@ TransclusionSearchPage::searchFile (
   std::vector<TransclusionSearchResult>& hits)
 {
   try {
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-    QString person= options.person;
-    if (!person.isEmpty () &&
-        !athena_tree_contains_person_text (body, from_qstring (person)))
-      return 0;
-#endif
     std::vector<TransclusionAnchorPair> pairs;
     std::vector<QString> sourceIds;
     QString tag= options.enunciation;
@@ -1657,9 +1609,6 @@ TransclusionSearchPage::startSearch () {
   options.enunciation= selectedEnunciation ();
   options.caseInsensitive= caseInsensitiveSearch ();
   options.fuzzy= fuzzySearch ();
-#if ATHENA_ENABLE_PERSON_SUBSYSTEM
-  options.person= selectedPerson ();
-#endif
   std::vector<std::string> paths;
   paths.reserve (files.size ());
   for (const url& file: files)

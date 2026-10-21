@@ -45,9 +45,6 @@ struct VaultMaintenanceSummary {
   std::vector<VaultMaintenanceMissingImage> missing_images;
   size_t health_files_scanned = 0;
   size_t health_files_failed = 0;
-  size_t person_files_scanned = 0;
-  size_t person_files_changed = 0;
-  size_t person_names_wrapped = 0;
   int maintenance_worker_processes = -1;
   size_t artifact_documents_seen = 0;
   size_t artifact_documents_changed = 0;
@@ -151,10 +148,6 @@ VaultMaintenancePassResult vault_maintenance_pass_read_policy_preferences (
 VaultMaintenancePassResult vault_maintenance_pass_normalize_assets (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_scan_missing_images (
-  VaultMaintenanceContext& ctx);
-VaultMaintenancePassResult vault_maintenance_pass_normalize_person_names (
-  VaultMaintenanceContext& ctx);
-VaultMaintenancePassResult vault_maintenance_pass_promote_evaluation_bars (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_build_artifacts (
   VaultMaintenanceContext& ctx);
