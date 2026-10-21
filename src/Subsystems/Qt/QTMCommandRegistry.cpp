@@ -142,33 +142,6 @@ QTMCommandRegistry::registerBuiltins () {
     });
 
   registerProvider (
-    "runtime-plugin-commands", QTMCommandScope::Application,
-    [this] (const QTMCommandContext& context) {
-      QVector<QTMCommandDynamicItem> out;
-      for (const QString& id: runtimePluginCommandIds_) {
-        const QTMCommandDefinition* definition= command (id);
-        if (definition == nullptr) continue;
-        QTMCommandDynamicItem item;
-        item.key= id;
-        item.group= runtimePluginGroups_.value (id);
-        item.label= definition->label;
-        item.help= definition->help;
-        item.icon= definition->icon;
-        item.state= state (id, context);
-        out.append (std::move (item));
-      }
-      return out;
-    },
-    [this] (const QString& key, const QTMCommandContext& context) {
-      return runtimePluginCommandIds_.contains (key) && execute (key, context);
-    },
-    [this] (const QTMCommandContext&) {
-      QTMCommandState state;
-      state.available= !runtimePluginCommandIds_.isEmpty ();
-      state.enabled= state.available;
-      return state;
-    });
-  registerProvider (
     "runtime-plugin-menu", QTMCommandScope::Application,
 #if ATHENA_ENABLE_PLUGINS
     [this] (const QTMCommandContext& context) {
@@ -488,7 +461,6 @@ QTMCommandRegistry::synchronizePluginCommands (QTMPluginManager* manager) {
     behaviors_.remove (id);
   }
   runtimePluginCommandIds_.clear ();
-  runtimePluginGroups_.clear ();
   runtimePluginEnabled_.clear ();
 
   if (!previous.isEmpty ()) {
@@ -520,7 +492,6 @@ QTMCommandRegistry::synchronizePluginCommands (QTMPluginManager* manager) {
       }
       const bool enabled= plugin.running && plugin.state != QStringLiteral ("Stopping");
       runtimePluginCommandIds_.append (id);
-      runtimePluginGroups_.insert (id, pluginName);
       runtimePluginEnabled_.insert (id, enabled);
 
       const std::string nativePluginId= plugin.manifest.id;

@@ -52,7 +52,7 @@ add_actions (QToolBar* toolbar, int count) {
 
 static QTMToolbarController*
 make_controller (QMainWindow& window, QToolBar*& main, QToolBar*& mode,
-                 QToolBar*& focus, QToolBar*& user) {
+                 QToolBar*& focus) {
   if (window.centralWidget () == nullptr)
     window.setCentralWidget (new QWidget (&window));
   main= window.addToolBar ("main");
@@ -60,22 +60,20 @@ make_controller (QMainWindow& window, QToolBar*& main, QToolBar*& mode,
   mode= window.addToolBar ("mode");
   window.addToolBarBreak ();
   focus= window.addToolBar ("focus");
-  window.addToolBarBreak ();
-  user= window.addToolBar ("user");
   add_actions (main, 4);
   add_actions (mode, 3);
-  return new QTMToolbarController (&window, main, mode, focus, user);
+  return new QTMToolbarController (&window, main, mode, focus);
 }
 
 void
 TestToolbarController::mergesWhenWidthAllows () {
   QMainWindow window;
-  QToolBar *main, *mode, *focus, *user;
+  QToolBar *main, *mode, *focus;
   QTMToolbarController* controller=
-    make_controller (window, main, mode, focus, user);
+    make_controller (window, main, mode, focus);
   window.resize (1600, 600);
   controller->setAutoHideEnabled (false);
-  controller->setRequestedVisibility (true, true, true, false);
+  controller->setRequestedVisibility (true, true, true);
   controller->refreshLayout ();
   QVERIFY (controller->isModeMerged ());
 }
@@ -83,12 +81,12 @@ TestToolbarController::mergesWhenWidthAllows () {
 void
 TestToolbarController::wrapsWhenWidthIsInsufficient () {
   QMainWindow window;
-  QToolBar *main, *mode, *focus, *user;
+  QToolBar *main, *mode, *focus;
   QTMToolbarController* controller=
-    make_controller (window, main, mode, focus, user);
+    make_controller (window, main, mode, focus);
   window.resize (180, 600);
   controller->setAutoHideEnabled (false);
-  controller->setRequestedVisibility (true, true, true, false);
+  controller->setRequestedVisibility (true, true, true);
   controller->refreshLayout ();
   QVERIFY (!controller->isModeMerged ());
 }
@@ -96,10 +94,10 @@ TestToolbarController::wrapsWhenWidthIsInsufficient () {
 void
 TestToolbarController::collapsesToRevealBar () {
   QMainWindow window;
-  QToolBar *main, *mode, *focus, *user;
+  QToolBar *main, *mode, *focus;
   QTMToolbarController* controller=
-    make_controller (window, main, mode, focus, user);
-  controller->setRequestedVisibility (true, true, true, false);
+    make_controller (window, main, mode, focus);
+  controller->setRequestedVisibility (true, true, true);
   controller->setAutoHideEnabled (true);
   QVERIFY (controller->isCollapsed ());
   QVERIFY (main->isHidden ());
@@ -116,12 +114,12 @@ TestToolbarController::collapsesToRevealBar () {
 void
 TestToolbarController::overlayReplacesRevealBarWithoutMovingViewport () {
   QMainWindow window;
-  QToolBar *main, *mode, *focus, *user;
+  QToolBar *main, *mode, *focus;
   QTMToolbarController* controller=
-    make_controller (window, main, mode, focus, user);
+    make_controller (window, main, mode, focus);
   window.resize (1000, 600);
   window.show ();
-  controller->setRequestedVisibility (true, true, true, false);
+  controller->setRequestedVisibility (true, true, true);
   controller->setAutoHideEnabled (true);
   QCoreApplication::processEvents ();
 
@@ -151,10 +149,10 @@ TestToolbarController::overlayReplacesRevealBarWithoutMovingViewport () {
 void
 TestToolbarController::disablingAutoHideRestoresNativeToolbars () {
   QMainWindow window;
-  QToolBar *main, *mode, *focus, *user;
+  QToolBar *main, *mode, *focus;
   QTMToolbarController* controller=
-    make_controller (window, main, mode, focus, user);
-  controller->setRequestedVisibility (true, true, true, false);
+    make_controller (window, main, mode, focus);
+  controller->setRequestedVisibility (true, true, true);
   controller->setAutoHideEnabled (true);
   controller->expand ();
   QCOMPARE (main->parentWidget (), controller->overlayWidget ());
@@ -176,12 +174,12 @@ TestToolbarController::reloadsAutoHidePreference () {
   set_user_preference ("hide toolbars when not using them", "off");
 
   QMainWindow window;
-  QToolBar *main, *mode, *focus, *user;
+  QToolBar *main, *mode, *focus;
   QTMToolbarController* controller=
-    make_controller (window, main, mode, focus, user);
+    make_controller (window, main, mode, focus);
 
   set_user_preference ("hide toolbars when not using them", "on");
-  controller->setRequestedVisibility (true, true, true, false);
+  controller->setRequestedVisibility (true, true, true);
   QVERIFY (controller->isCollapsed ());
   QVERIFY (main->isHidden ());
   QVERIFY (mode->isHidden ());

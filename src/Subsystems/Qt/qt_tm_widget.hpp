@@ -49,7 +49,6 @@ class qt_tm_widget_rep: public qt_window_widget_rep {
    main_toolbar_visibility  =  2, 
    mode_toolbar_visibility  =  4,
    focus_toolbar_visibility =  8,
-   user_toolbar_visibility  = 16,
    footer_visibility        = 32,
    bottom_tools_visibility  = 256,
    extra_tools_visibility   = 512
@@ -58,12 +57,10 @@ class qt_tm_widget_rep: public qt_window_widget_rep {
   QToolBar*      mainToolBar;
   QToolBar*      modeToolBar;
   QToolBar*     focusToolBar;
-  QToolBar*      userToolBar;
   QTMToolbarController* toolbarController;
   std::unique_ptr<QTMEditorToolbarPresenter> nativeMainToolbarPresenter;
   std::unique_ptr<QTMEditorToolbarPresenter> nativeModeToolbarPresenter;
   std::unique_ptr<QTMEditorToolbarPresenter> nativeFocusToolbarPresenter;
-  std::unique_ptr<QTMEditorToolbarPresenter> nativeUserToolbarPresenter;
 
 #ifdef Q_OS_MAC
   QToolBar*      dumbToolBar;
@@ -72,7 +69,7 @@ class qt_tm_widget_rep: public qt_window_widget_rep {
   QWidget*       rulerWidget;
 #endif
 
-  bool visibility[6];
+  bool visibility[5];
   bool full_screen;
   
   qt_widget main_widget;

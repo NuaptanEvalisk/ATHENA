@@ -21,8 +21,8 @@ void compound_document_open (url filename);
 void compound_document_create ();
 
 class QTMCompoundDocument: public QTMWindow {
-  std::array<QToolBar*, 4> toolbars_ {};
-  std::array<std::unique_ptr<QTMEditorToolbarPresenter>, 4> toolbar_presenters_;
+  std::array<QToolBar*, 3> toolbars_ {};
+  std::array<std::unique_ptr<QTMEditorToolbarPresenter>, 3> toolbar_presenters_;
   std::unique_ptr<QTMToolbarController> toolbar_controller_;
   std::unique_ptr<QTMCompoundViewport> viewport_;
 public:

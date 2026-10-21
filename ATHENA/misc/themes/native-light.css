@@ -97,10 +97,6 @@ MacosQToolBar#focusToolBar, MacosQToolBar#focusToolbar MacosQWidget {
     background: #ECECEC;
 }
 
-MacosQToolBar#userToolBar, MacosQToolBar#userToolbar MacosQWidget {
-    background: #F8F8F8;
-}
-
 MacosQStatusBar {
     background: #ECECEC;
     border-top: 1px solid #B0B0B0;
@@ -226,24 +222,24 @@ QMenuBar {
     spacing: 0px;
 }
 
-#mainToolBar, #modeToolBar, #focusToolBar, #userToolBar, #menuToolBar,
+#mainToolBar, #modeToolBar, #focusToolBar, #menuToolBar,
 #mainToolBar QWidget, #modeToolBar QWidget, #focusToolBar QWidget,
-#userToolBar QWidget, #menuToolBar QWidget,
+#menuToolBar QWidget,
 #mainToolBar QToolButton, #modeToolBar QToolButton,
-#focusToolBar QToolButton, #userToolBar QToolButton,
+#focusToolBar QToolButton,
 #menuToolBar QToolButton {
     padding: 0px;
     margin: 0px;
 }
 
 #mainToolBar QToolButton, #modeToolBar QToolButton,
-#focusToolBar QToolButton, #userToolBar QToolButton,
+#focusToolBar QToolButton,
 #menuToolBar QToolButton {
     border: 0px;
 }
 
 #mainToolBar::separator, #modeToolBar::separator,
-#focusToolBar::separator, #userToolBar::separator,
+#focusToolBar::separator,
 #menuToolBar::separator, #toolbarSeparator {
     padding: 0px;
     margin: 0px;

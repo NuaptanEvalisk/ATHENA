@@ -216,7 +216,6 @@ private:
   QVector<QTMCommandPopupDefinition> popups_;
   QPointer<QObject> pluginManager_;
   QVector<QString> runtimePluginCommandIds_;
-  QHash<QString, QString> runtimePluginGroups_;
   QHash<QString, bool> runtimePluginEnabled_;
 };
 

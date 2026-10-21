@@ -237,7 +237,6 @@ enum class editor_chrome_part {
   main_toolbar,
   mode_toolbar,
   focus_toolbar,
-  user_toolbar,
   status_bar
 };
 
@@ -262,8 +261,6 @@ editor_chrome_visible (tm_view view, editor_chrome_part part) {
     return get_mode_icons_visibility (target);
   case editor_chrome_part::focus_toolbar:
     return get_focus_icons_visibility (target);
-  case editor_chrome_part::user_toolbar:
-    return get_user_icons_visibility (target);
   case editor_chrome_part::status_bar:
     return get_footer_visibility (target);
   }
@@ -288,9 +285,6 @@ set_editor_chrome_visible (
   case editor_chrome_part::focus_toolbar:
     set_focus_icons_visibility (target, visible);
     return;
-  case editor_chrome_part::user_toolbar:
-    set_user_icons_visibility (target, visible);
-    return;
   case editor_chrome_part::status_bar:
     set_footer_visibility (target, visible);
     return;
@@ -303,7 +297,6 @@ editor_chrome_preference (editor_chrome_part part) {
   case editor_chrome_part::main_toolbar: return "main icon bar";
   case editor_chrome_part::mode_toolbar: return "mode dependent icons";
   case editor_chrome_part::focus_toolbar: return "focus dependent icons";
-  case editor_chrome_part::user_toolbar: return "user provided icons";
   case editor_chrome_part::status_bar: return "status bar";
   default: return nullptr;
   }
@@ -848,7 +841,6 @@ QTMCommandRegistry::registerApplicationCommands () {
     {"interface.main-toolbar", editor_chrome_part::main_toolbar},
     {"interface.mode-toolbar", editor_chrome_part::mode_toolbar},
     {"interface.focus-toolbar", editor_chrome_part::focus_toolbar},
-    {"interface.user-toolbar", editor_chrome_part::user_toolbar},
     {"interface.status-bar", editor_chrome_part::status_bar}
   };
   for (const auto& command: chromeCommands) {

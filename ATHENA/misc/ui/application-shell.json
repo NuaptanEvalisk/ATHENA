@@ -398,13 +398,6 @@
       "help": "Show or hide the captured editor view focus toolbar"
     },
     {
-      "id": "interface.user-toolbar",
-      "label": "User provided icons",
-      "category": "Interface",
-      "icon": "view-toolbar",
-      "help": "Show or hide the captured editor view runtime plugin toolbar"
-    },
-    {
       "id": "interface.status-bar",
       "label": "Status bar",
       "category": "Interface",
@@ -2243,7 +2236,6 @@
         { "command": "interface.main-toolbar" },
         { "command": "interface.mode-toolbar" },
         { "command": "interface.focus-toolbar" },
-        { "command": "interface.user-toolbar" },
         { "separator": true },
         { "command": "interface.status-bar" },
         { "separator": true },

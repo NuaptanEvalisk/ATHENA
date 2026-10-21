@@ -307,8 +307,7 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   visibility[1] = (mask & 2)   == 2;   // main
   visibility[2] = (mask & 4)   == 4;   // mode
   visibility[3] = (mask & 8)   == 8;   // focus
-  visibility[4] = (mask & 16)  == 16;  // user
-  visibility[5] = (mask & 32)  == 32;  // footer
+  visibility[4] = (mask & 32)  == 32;  // footer
 
   // general setup for main window
 
@@ -324,15 +323,14 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   mw->setIconSize (athena_toolbar_icon_size ());
   mw->setFocusPolicy (Qt::NoFocus);
   
-  static_cast<QTMWindow*> (mw)->editorStatus.visible= visibility[5];
+  static_cast<QTMWindow*> (mw)->editorStatus.visible= visibility[4];
  
   mainToolBar   = new QToolBar ("main toolbar", mw);
   modeToolBar   = new QToolBar ("mode toolbar", mw);
   focusToolBar  = new QToolBar ("focus toolbar", mw);
-  userToolBar   = new QToolBar ("user toolbar", mw);
 
 #if ATHENA_PLATFORM_IPADOS
-  for (QToolBar* bar: {mainToolBar, modeToolBar, focusToolBar, userToolBar}) {
+  for (QToolBar* bar: {mainToolBar, modeToolBar, focusToolBar}) {
     bar->setProperty ("athenaTouchUi", true);
     bar->setMovable (false);
     bar->setFocusPolicy (Qt::NoFocus);
@@ -346,7 +344,6 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
     mainToolBar->setIconSize (sz);
     modeToolBar->setIconSize (sz);
     focusToolBar->setIconSize (sz);
-    userToolBar->setIconSize (sz);
   }
 
   // Why we need fixed height:
@@ -361,7 +358,6 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   mainToolBar->setFixedHeight (toolbarHeight);
   modeToolBar->setFixedHeight (toolbarHeight);
   focusToolBar->setFixedHeight (toolbarHeight);
-  userToolBar->setFixedHeight (toolbarHeight);
   
   QWidget *cw= new QWidget(mw);
   cw->setObjectName("centralWidget");  // this is important for styling toolbars.
@@ -383,8 +379,6 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
       editorCanvas, modeToolBar, QStringLiteral ("editor-mode"), mainToolBar);
     nativeFocusToolbarPresenter= std::make_unique<QTMEditorToolbarPresenter> (
       editorCanvas, focusToolBar, QStringLiteral ("editor-focus"));
-    nativeUserToolbarPresenter= std::make_unique<QTMEditorToolbarPresenter> (
-      editorCanvas, userToolBar, QStringLiteral ("editor-user"));
   }
   if (nativeMainToolbarPresenter)
     (void) nativeMainToolbarPresenter->activate ();
@@ -396,15 +390,12 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
     (void) nativeFocusToolbarPresenter->activate ();
     append_native_drawing_focus_actions ();
   }
-  if (nativeUserToolbarPresenter)
-    (void) nativeUserToolbarPresenter->activate ();
   
   mw->setCentralWidget (cw);
 
   mainToolBar->setObjectName ("mainToolBar");
   modeToolBar->setObjectName ("modeToolBar");
   focusToolBar->setObjectName ("focusToolBar");
-  userToolBar->setObjectName ("userToolBar");
 #ifdef UNIFIED_TOOLBAR
 
   if (use_unified_toolbar) {
@@ -446,8 +437,7 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
     bl->insertWidget(0, modeToolBar);
     bl->insertWidget(1, rulerWidget);
     bl->insertWidget(2, focusToolBar);
-    bl->insertWidget(3, userToolBar);
-    bl->insertWidget(5, r2);
+    bl->insertWidget(4, r2);
 
     //mw->setContentsMargins (-2, -2, -2, -2);  // Why this?
     bl->setContentsMargins (0, 1, 0, 1);
@@ -459,8 +449,6 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
     mw->addToolBarBreak ();
     mw->addToolBar (focusToolBar);
     mw->addToolBarBreak ();
-    mw->addToolBar (userToolBar);
-    mw->addToolBarBreak ();
   }
 
 #else
@@ -470,15 +458,13 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   mw->addToolBarBreak ();
   mw->addToolBar (focusToolBar);
   mw->addToolBarBreak ();
-  mw->addToolBar (userToolBar);
-  mw->addToolBarBreak ();
 #endif
 
 #ifdef Q_OS_MAC
   if (!use_unified_toolbar)
 #endif
     toolbarController= new QTMToolbarController (
-      mw, mainToolBar, modeToolBar, focusToolBar, userToolBar);
+      mw, mainToolBar, modeToolBar, focusToolBar);
   all_tm_widgets.insert (this);
 
   // handles visibility
@@ -489,10 +475,9 @@ qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
   mainToolBar->setVisible (false);
   modeToolBar->setVisible (false);
   focusToolBar->setVisible (false);
-  userToolBar->setVisible (false);
   if (toolbarController != nullptr)
     toolbarController->setRequestedVisibility (
-      visibility[1] && visibility[0], false, false, false);
+      visibility[1] && visibility[0], false, false);
   else
     mainToolBar->setVisible (visibility[1] && visibility[0]);
 #if !defined(Q_OS_MAC)
@@ -865,18 +850,16 @@ qt_tm_widget_rep::update_visibility () {
   bool old_mainVisibility = mainToolBar->isVisible();
   bool old_modeVisibility = modeToolBar->isVisible();
   bool old_focusVisibility = focusToolBar->isVisible();
-  bool old_userVisibility = userToolBar->isVisible();
 
   bool new_mainVisibility = visibility[1] && visibility[0];
   bool new_modeVisibility = visibility[2] && visibility[0];
   bool new_focusVisibility = visibility[3] && visibility[0];
-  bool new_userVisibility = visibility[4] && visibility[0];
-  static_cast<QTMWindow*> (mainwindow ())->editorStatus.visible= visibility[5];
+  static_cast<QTMWindow*> (mainwindow ())->editorStatus.visible= visibility[4];
   
   if (toolbarController != nullptr)
     toolbarController->setRequestedVisibility (
       new_mainVisibility, new_modeVisibility,
-      new_focusVisibility, new_userVisibility);
+      new_focusVisibility);
   else {
     if ( XOR(old_mainVisibility,  new_mainVisibility) )
       mainToolBar->setVisible (new_mainVisibility);
@@ -884,8 +867,6 @@ qt_tm_widget_rep::update_visibility () {
       modeToolBar->setVisible (new_modeVisibility);
     if ( XOR(old_focusVisibility,  new_focusVisibility) )
       focusToolBar->setVisible (new_focusVisibility);
-    if ( XOR(old_userVisibility,  new_userVisibility) )
-      userToolBar->setVisible (new_userVisibility);
   }
 
 #if !defined(Q_OS_MAC)
@@ -1017,18 +998,11 @@ qt_tm_widget_rep::send (slot s, blackbox val) {
       update_visibility();
     }
       break;
-    case SLOT_USER_ICONS_VISIBILITY:
-    {
-      check_type<bool>(val, s);
-      visibility[4] = open_box<bool> (val);
-      update_visibility();
-    }
-      break;
 
     case SLOT_FOOTER_VISIBILITY:
     {
       check_type<bool>(val, s);
-      visibility[5] = open_box<bool> (val);
+      visibility[4] = open_box<bool> (val);
       update_visibility();
     }
       break;
@@ -1146,13 +1120,10 @@ qt_tm_widget_rep::query (slot s, int type_id) {
       check_type_id<bool> (type_id, s);
       return close_box<bool> (visibility[3]);      
 
-    case SLOT_USER_ICONS_VISIBILITY:
-      check_type_id<bool> (type_id, s);
-      return close_box<bool> (visibility[4]);
       
     case SLOT_FOOTER_VISIBILITY:
       check_type_id<bool> (type_id, s);
-      return close_box<bool> (visibility[5]);
+      return close_box<bool> (visibility[4]);
 
     case SLOT_POSITION:
     {
@@ -1205,7 +1176,6 @@ qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
       nativeMainToolbarPresenter->setCanvas (canvas ());
       nativeModeToolbarPresenter->setCanvas (canvas ());
       nativeFocusToolbarPresenter->setCanvas (canvas ());
-      nativeUserToolbarPresenter->setCanvas (canvas ());
       append_native_drawing_mode_actions ();
       append_native_drawing_focus_actions ();
       update_visibility ();
@@ -1300,7 +1270,6 @@ qt_tm_embedded_widget_rep::send (slot s, blackbox val) {
     case SLOT_MAIN_ICONS_VISIBILITY:    
     case SLOT_MODE_ICONS_VISIBILITY:
     case SLOT_FOCUS_ICONS_VISIBILITY:
-    case SLOT_USER_ICONS_VISIBILITY:
     case SLOT_FOOTER_VISIBILITY:
     case SLOT_LEFT_FOOTER:
     case SLOT_RIGHT_FOOTER:
@@ -1356,7 +1325,6 @@ qt_tm_embedded_widget_rep::query (slot s, int type_id) {
     case SLOT_MAIN_ICONS_VISIBILITY:
     case SLOT_MODE_ICONS_VISIBILITY:
     case SLOT_FOCUS_ICONS_VISIBILITY:
-    case SLOT_USER_ICONS_VISIBILITY:
     case SLOT_FOOTER_VISIBILITY:
       check_type_id<bool> (type_id, s);
       return close_box<bool> (false);

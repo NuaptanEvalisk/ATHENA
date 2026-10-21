@@ -1688,12 +1688,12 @@ QTMCompoundDocument::QTMCompoundDocument (
   std::vector<athena::avd::member> members): QTMWindow (nullptr) {
   setWindowTitle (QFileInfo (filename).fileName ());
   setWindowIcon (tmapp ()->icon_manager ().getDocumentIcon (filename));
-  const std::array<QString, 4> definitions {
+  const std::array<QString, 3> definitions {
     QStringLiteral ("editor-main"), QStringLiteral ("editor-mode"),
-    QStringLiteral ("editor-focus"), QStringLiteral ("editor-user")};
-  const std::array<QString, 4> names {
+    QStringLiteral ("editor-focus")};
+  const std::array<QString, 3> names {
     QStringLiteral ("mainToolBar"), QStringLiteral ("modeToolBar"),
-    QStringLiteral ("focusToolBar"), QStringLiteral ("userToolBar")};
+    QStringLiteral ("focusToolBar")};
   for (std::size_t i= 0; i < toolbars_.size (); ++i) {
     auto* bar= new QToolBar (definitions[i], this);
     bar->setObjectName (names[i]);
@@ -1716,7 +1716,7 @@ QTMCompoundDocument::QTMCompoundDocument (
       nullptr, bar, definitions[i], i == 1 ? toolbars_[0] : nullptr);
   }
   toolbar_controller_= std::make_unique<QTMToolbarController> (
-    this, toolbars_[0], toolbars_[1], toolbars_[2], toolbars_[3]);
+    this, toolbars_[0], toolbars_[1], toolbars_[2]);
   viewport_= std::make_unique<QTMCompoundViewport> (
     *this, std::move (filename), std::move (descriptor), std::move (members));
   setCentralWidget (viewport_.get ());
@@ -1744,8 +1744,7 @@ void QTMCompoundDocument::refreshToolbars () {
   toolbar_controller_->setRequestedVisibility (
     enabled && get_preference ("main icon bar") == "on",
     enabled && get_preference ("mode dependent icons") == "on",
-    enabled && get_preference ("focus dependent icons") == "on",
-    enabled && get_preference ("user provided icons") == "on");
+    enabled && get_preference ("focus dependent icons") == "on");
 }
 
 bool QTMCompoundDocument::invokeCommand (const QString& id) { return viewport_->invokeCommand (id); }

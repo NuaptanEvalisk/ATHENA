@@ -22,11 +22,10 @@ class QWidget;
 class QTMToolbarController: public QObject {
 public:
   QTMToolbarController (QMainWindow* window, QToolBar* mainToolbar,
-                        QToolBar* modeToolbar, QToolBar* focusToolbar,
-                        QToolBar* userToolbar);
+                        QToolBar* modeToolbar, QToolBar* focusToolbar);
 
   void setRequestedVisibility (bool mainVisible, bool modeVisible,
-                               bool focusVisible, bool userVisible);
+                               bool focusVisible);
   void refreshPreference ();
   void setAutoHideEnabled (bool enabled);
   void refreshLayout ();
@@ -56,7 +55,6 @@ private:
   QPointer<QToolBar> mainToolbar;
   QPointer<QToolBar> modeToolbar;
   QPointer<QToolBar> focusToolbar;
-  QPointer<QToolBar> userToolbar;
   QPointer<QToolBar> reveal;
   QPointer<QWidget> overlay;
   QPointer<QLabel> dots;
@@ -65,7 +63,6 @@ private:
   bool requestedMain= false;
   bool requestedMode= false;
   bool requestedFocus= false;
-  bool requestedUser= false;
   bool autoHide= false;
   bool collapsed= false;
   bool modeMerged= false;

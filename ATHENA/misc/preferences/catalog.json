@@ -624,13 +624,6 @@
       "callback": "icon-bar"
     },
     {
-      "key": "user provided icons",
-      "type": "string",
-      "scope": "active",
-      "default": "off",
-      "callback": "icon-bar"
-    },
-    {
       "key": "status bar",
       "type": "string",
       "scope": "active",

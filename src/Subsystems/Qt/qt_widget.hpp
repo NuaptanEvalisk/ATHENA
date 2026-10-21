@@ -296,7 +296,6 @@ public:
     case SLOT_MAIN_ICONS_VISIBILITY:
     case SLOT_MODE_ICONS_VISIBILITY:
     case SLOT_FOCUS_ICONS_VISIBILITY:
-    case SLOT_USER_ICONS_VISIBILITY:
     case SLOT_FOOTER_VISIBILITY:
       check_type_id<bool> (type_id, s);
       return close_box<bool> (false);

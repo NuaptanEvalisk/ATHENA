@@ -41,10 +41,9 @@ contains_global_point (const QWidget* widget, const QPoint& point) {
 
 QTMToolbarController::QTMToolbarController (
   QMainWindow* _window, QToolBar* _mainToolbar, QToolBar* _modeToolbar,
-  QToolBar* _focusToolbar, QToolBar* _userToolbar)
+  QToolBar* _focusToolbar)
   : QObject (_window), window (_window), mainToolbar (_mainToolbar),
-    modeToolbar (_modeToolbar), focusToolbar (_focusToolbar),
-    userToolbar (_userToolbar) {
+    modeToolbar (_modeToolbar), focusToolbar (_focusToolbar) {
   reveal= new QToolBar (QObject::tr ("Reveal toolbars"), _window);
   reveal->setObjectName ("toolbarRevealBar");
   reveal->setMovable (false);
@@ -92,7 +91,6 @@ QTMToolbarController::QTMToolbarController (
                           static_cast<QObject*> (_mainToolbar),
                           static_cast<QObject*> (_modeToolbar),
                           static_cast<QObject*> (_focusToolbar),
-                          static_cast<QObject*> (_userToolbar),
                           static_cast<QObject*> (reveal.data ()),
                           static_cast<QObject*> (overlay.data ()),
                           static_cast<QObject*> (overlayParent),
@@ -104,12 +102,11 @@ QTMToolbarController::QTMToolbarController (
 
 void
 QTMToolbarController::setRequestedVisibility (
-  bool mainVisible, bool modeVisible, bool focusVisible, bool userVisible) {
+  bool mainVisible, bool modeVisible, bool focusVisible) {
   refreshPreference ();
   requestedMain= mainVisible;
   requestedMode= modeVisible;
   requestedFocus= focusVisible;
-  requestedUser= userVisible;
   applyVisibility ();
 }
 
@@ -162,18 +159,17 @@ void
 QTMToolbarController::applyVisibility () {
   if (applying || window == nullptr || mainToolbar == nullptr ||
       modeToolbar == nullptr || focusToolbar == nullptr ||
-      userToolbar == nullptr || reveal == nullptr)
+      reveal == nullptr)
     return;
   applying= true;
   ensureJoinSeparator ();
 
   const bool anyRequested= requestedMain || requestedMode ||
-                           requestedFocus || requestedUser;
+                           requestedFocus;
   const bool showTools= !autoHide || !collapsed;
   mainToolbar->setVisible (showTools && requestedMain);
   modeToolbar->setVisible (showTools && requestedMode);
   focusToolbar->setVisible (showTools && requestedFocus);
-  userToolbar->setVisible (showTools && requestedUser);
   reveal->setVisible (autoHide && anyRequested);
   if (dots != nullptr) dots->setVisible (autoHide && collapsed && anyRequested);
   if (overlay != nullptr)
@@ -210,7 +206,7 @@ QTMToolbarController::enterOverlayMode () {
   if (overlayMode || window == nullptr || overlay == nullptr) return;
   overlayMode= true;
   for (QToolBar* toolbar: { mainToolbar.data (), modeToolbar.data (),
-                           focusToolbar.data (), userToolbar.data () }) {
+                           focusToolbar.data () }) {
     if (toolbar == nullptr) continue;
     window->removeToolBar (toolbar);
     toolbar->setParent (overlay);
@@ -223,7 +219,7 @@ QTMToolbarController::leaveOverlayMode () {
   if (!overlayMode || window == nullptr) return;
   if (overlay != nullptr) overlay->hide ();
   for (QToolBar* toolbar: { mainToolbar.data (), modeToolbar.data (),
-                           focusToolbar.data (), userToolbar.data () }) {
+                           focusToolbar.data () }) {
     if (toolbar == nullptr) continue;
     toolbar->hide ();
     toolbar->setParent (window);
@@ -231,7 +227,6 @@ QTMToolbarController::leaveOverlayMode () {
   }
   if (modeToolbar != nullptr) window->insertToolBarBreak (modeToolbar);
   if (focusToolbar != nullptr) window->insertToolBarBreak (focusToolbar);
-  if (userToolbar != nullptr) window->insertToolBarBreak (userToolbar);
   overlayMode= false;
 }
 
@@ -275,7 +270,6 @@ QTMToolbarController::positionOverlay () {
     y= positionOverlayToolbar (modeToolbar, y, width);
   }
   y= positionOverlayToolbar (focusToolbar, y, width);
-  y= positionOverlayToolbar (userToolbar, y, width);
 
   overlay->setGeometry (origin.x (), origin.y (), width, y);
   if (overlay->isVisible ()) overlay->raise ();
@@ -292,7 +286,6 @@ QTMToolbarController::pointerOverToolbar () const {
   return contains_global_point (mainToolbar, point) ||
          contains_global_point (modeToolbar, point) ||
          contains_global_point (focusToolbar, point) ||
-         contains_global_point (userToolbar, point) ||
          contains_global_point (overlay, point) ||
          contains_global_point (reveal, point);
 }

@@ -228,7 +228,6 @@ QTMCommandRegistry::loadPresentation () {
   for (const char* extensionResource: {
          "$ATHENA_PATH/misc/ui/editor-mode-toolbar.json",
          "$ATHENA_PATH/misc/ui/editor-focus-toolbar.json",
-         "$ATHENA_PATH/misc/ui/editor-user-toolbar.json",
          "$ATHENA_PATH/misc/ui/editor-document-insert.json",
          "$ATHENA_PATH/misc/ui/editor-format-commands.json"}) {
     string extensionText;
