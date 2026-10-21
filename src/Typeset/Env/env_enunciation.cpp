@@ -210,7 +210,8 @@ tree native_enunciation_macro (edit_env_rep* env, const tree& source) {
           "0fn", tree (MINIMUM, "1b", "-0.5fn"), tree (MAXIMUM, "1r", "1.5fn"),
           tree (MAXIMUM, "1t", "1.3fn"));
         tree style (WITH, "font-series", "medium", "font-shape", "right");
-        style << "color" << "#222222" << "ornament-color" << colors.background
+        style << "athena-radioactive-links-suppressed" << "true"
+              << "color" << "#222222" << "ornament-color" << colors.background
               << "ornament-border" << "1px" << "ornament-hpadding" << "0.35fn"
               << "ornament-vpadding" << "0.2fn" << "ornament-shape" << "classic"
               << "ornament-sunny-color" << colors.foreground

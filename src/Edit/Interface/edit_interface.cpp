@@ -379,6 +379,7 @@ static SI absval (SI x) { return max (x, -x); }
 void
 edit_interface_rep::cursor_visible () {
   if (table_resize_active) return;
+  if (athena::enunciation::title_input_active (*this)) return;
   path sp= find_innermost_scroll (eb, tp);
   cursor cu= get_cursor ();
   if (selection_active_any ()) {
@@ -1976,6 +1977,7 @@ edit_interface_rep::apply_changes () {
   // time_t t1= texmacs_time ();
   
   // cout << "Handling automatic resizing\n";
+  const bool title_input= athena::enunciation::title_input_active (*this);
   int sb= 1;
   actor_viewport_snapshot viewport= ui_viewport ();
   if (viewport.attached) {
@@ -2003,7 +2005,8 @@ edit_interface_rep::apply_changes () {
       bool layout_changed= wx != cur_wx || new_zoom != old_zoom;
       if (layout_changed) {
         cur_wx= wx; cur_wy= wy;
-        init_env (PAGE_SCREEN_WIDTH, as_string ((SI) (wx/magf)) * "tmpt");
+        if (!title_input)
+          init_env (PAGE_SCREEN_WIDTH, as_string ((SI) (wx/magf)) * "tmpt");
         init_env (PAGE_SCREEN_HEIGHT, as_string ((SI) (wy/magf)) * "tmpt");
       }
       else cur_wy= wy;
@@ -2066,6 +2069,14 @@ edit_interface_rep::apply_changes () {
   }
   
   // cout << "Handling environment\n";
+  if (title_input && (env_change & (THE_TREE | THE_ENVIRONMENT)))
+    athena::enunciation::title_input_layout (*this, [this] (tree content) {
+      const SI width= typeset_enunciation_slot_width (content);
+      // Layout the current value at its natural width, never at the previous
+      // GUI viewport width. Otherwise typing first wraps and then unwraps it.
+      init_env (PAGE_SCREEN_WIDTH, as_string (width) * "tmpt");
+      return int (std::ceil (width * magf / PIXEL));
+    });
   if (env_change & THE_ENVIRONMENT)
     typeset_invalidate_all ();
 
@@ -2105,7 +2116,7 @@ edit_interface_rep::apply_changes () {
   // Capture before publishing extents: changing the anchor also changes the
   // leading/trailing space needed to keep the first and last lines suspended.
   const auto follow_viewport= ui_viewport ();
-  if (follow_viewport.cursor_follow && follow_viewport.focused) {
+  if (!title_input && follow_viewport.cursor_follow && follow_viewport.focused) {
     const string mode= get_user_preference ("typewriter mode", "off");
     const auto follow= follow_viewport.cursor_follow;
     follow->configure (mode == "hanging" ? viewport_follow_mode::hanging :
@@ -2158,7 +2169,7 @@ edit_interface_rep::apply_changes () {
       if (medium == "papyrus" || medium == "automatic")
         ey1= ey2 - h;
     }
-    if (!extents_viewport.externally_presented &&
+    if (!title_input && !extents_viewport.externally_presented &&
         (medium == "papyrus" || medium == "automatic") && h > 0) {
       const string mode= get_user_preference ("typewriter mode", "off");
       if (mode == "on") ey1 -= h >> 1;

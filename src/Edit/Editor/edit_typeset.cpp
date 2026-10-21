@@ -1544,3 +1544,15 @@ void
 edit_typeset_rep::typeset_refresh_radioactive_links () {
   if (refresh_radioactive_links (ttt)) notify_change (THE_TREE);
 }
+
+SI
+edit_typeset_rep::typeset_enunciation_slot_width (tree content) {
+  // Match unhyphenated table cells: measure the native inline box without
+  // constraining it to the previous viewport width.
+  typeset_prepare ();
+  env->patch_env (init);
+  env->update ();
+  box natural= typeset_as_concat (env, content, path (DECORATION));
+  return max (natural->w (), env->as_length ("1.5fn")) +
+    env->as_length ("0.7fn") + env->as_length ("2px");
+}

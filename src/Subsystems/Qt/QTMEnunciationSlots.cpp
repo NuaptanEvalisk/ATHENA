@@ -95,6 +95,7 @@ struct input_session {
   bool navigating= false;
   bool empty= false;
   std::function<void (bool)> show_placeholder;
+  std::function<void (int)> resize_input;
 };
 std::mutex sessions_mutex;
 std::unordered_map<athena_actor_id, std::shared_ptr<input_session>> sessions;
@@ -207,6 +208,7 @@ void submit_value (const std::shared_ptr<input_session>& session, tree value,
 
 class SlotInput: public QWidget {
   QPointer<QTMWidget> owner;
+  QPointer<QTMWidget> editor_canvas;
   widget input;
   athena_actor_id input_actor= ATHENA_NO_ACTOR;
   athena_view_id input_view= ATHENA_NO_VIEW;
@@ -215,6 +217,7 @@ class SlotInput: public QWidget {
   QLabel* placeholder= nullptr;
   std::string node_id, field;
   int field_index= 0;
+  int natural_width= 0;
 public:
   SlotInput (QTMWidget* canvas, athena_actor_id actor, athena_view_id view,
              const json& request): QWidget (canvas->presentationSurface ()), owner (canvas) {
@@ -244,6 +247,9 @@ public:
     setPalette (palette);
     tree doc (WITH, "font", native (request.at ("font").get<std::string> ()));
     doc << "font-base-size" << native (request.at ("font-size").get<std::string> ());
+    doc << "athena-radioactive-links-suppressed" << "true"
+        << "font-series" << "medium" << "font-shape" << "right"
+        << "par-mode" << "left" << "scroll-bars" << "false";
     doc << "bg-color" << colors.background << "color" << "#222222"
         << "page-screen-left" << "4px" << "page-screen-right" << "4px"
         << tree (DOCUMENT, value);
@@ -257,6 +263,11 @@ public:
     QTMWidget* native_input= qobject_cast<QTMWidget*> (content);
     if (!native_input) native_input= content->findChild<QTMWidget*> ();
     if (!native_input) throw std::runtime_error ("No native title editor");
+    editor_canvas= native_input;
+    native_input->viewport ()->layout ()->setAlignment (
+      native_input->surface (), Qt::AlignLeft | Qt::AlignTop);
+    native_input->setHorizontalScrollBarPolicy (Qt::ScrollBarAlwaysOff);
+    native_input->setVerticalScrollBarPolicy (Qt::ScrollBarAlwaysOff);
     auto* proxy= dynamic_cast<qt_actor_widget_rep*> (native_input->tm_widget ());
     if (!proxy) throw std::runtime_error ("No title BufferActor");
     placeholder= new QLabel (colors.label, this);
@@ -273,6 +284,13 @@ public:
     placeholder->setVisible (session->empty);
     session->show_placeholder= [hint= QPointer<QLabel> (placeholder)] (bool empty) {
       qt_post_to_main_thread ([hint, empty] { if (hint) hint->setVisible (empty); });
+    };
+    session->resize_input= [guard= QPointer<SlotInput> (this)] (int width) {
+      qt_post_to_main_thread ([guard, width] {
+        if (!guard || guard->closing) return;
+        guard->natural_width= width;
+        guard->place ();
+      });
     };
     input_actor= proxy->actor_id (); input_view= proxy->view_id ();
     {
@@ -362,8 +380,20 @@ private:
   void place () {
     if (!owner || !owner->presentationVisible ()) { finish (); return; }
     QRect geometry= document_rect;
+    if (natural_width > 0) geometry.setWidth (natural_width);
     geometry.moveTopLeft (owner->contentsToViewport (document_rect.topLeft ()));
+    const bool resized= geometry.size () != size ();
     setGeometry (geometry);
+    if (resized && editor_canvas) {
+      layout ()->activate ();
+      editor_canvas->surface ()->setMinimumSize (editor_canvas->viewport ()->size ());
+      editor_canvas->viewport ()->layout ()->activate ();
+      // The generic canvas debounces window resizes for 100ms. An inline
+      // editor must publish its actual viewport in the same GUI update.
+      editor_canvas->tm_widget ()->handle_notify_resize (
+        editor_canvas->viewport ()->width () * PIXEL,
+        editor_canvas->viewport ()->height () * PIXEL);
+    }
     if (placeholder) placeholder->setGeometry (rect ().adjusted (6, 2, -3, -2));
   }
 };
@@ -416,14 +446,28 @@ void qtm_enunciation_slot (QTMWidget* canvas, athena_actor_id actor,
 }
 
 namespace athena::enunciation {
+bool title_input_active (editor_rep& editor) {
+  return bool (input_for (editor));
+}
+
+void title_input_layout (editor_rep& editor, const std::function<int (tree)>& measure) {
+  auto session= input_for (editor);
+  if (!session || session->navigating) return;
+  const tree value= inline_value (editor.the_buffer ());
+  const auto colors= title_slot_style (session->field);
+  tree content= value == "" ? tree (WITH, "font-shape", "italic", tree (colors.label)) : value;
+  session->resize_input (measure (content));
+}
+
 void title_input_changed (editor_rep& editor) {
   auto session= input_for (editor);
   if (!session || session->navigating) return;
   const auto* context= current_scheme_execution_context ();
   const auto epoch= context->actor->source_epoch ();
   if (session->epoch == epoch) return;
+  const tree value= inline_value (editor.the_buffer ());
+  const bool empty= value == "";
   session->epoch= epoch;
-  const bool empty= inline_value (editor.the_buffer ()) == "";
   if (empty != session->empty) {
     session->empty= empty;
     session->show_placeholder (empty);

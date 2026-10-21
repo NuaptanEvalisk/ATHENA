@@ -1,6 +1,7 @@
 #pragma once
 #include "tree.hpp"
 #include <string>
+#include <functional>
 
 class editor_rep;
 namespace athena::enunciation {
@@ -18,5 +19,7 @@ inline string title_slot_id (const std::string& node, const std::string& field, 
 }
 // Called on the input BufferActor, not on the GUI thread.
 bool title_input_key (editor_rep&, const string& key);
+bool title_input_active (editor_rep&);
+void title_input_layout (editor_rep&, const std::function<int (tree)>& measure);
 void title_input_changed (editor_rep&);
 }

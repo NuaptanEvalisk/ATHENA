@@ -153,6 +153,7 @@ public:
   void     typeset_invalidate_presentation (path p);
   void     typeset_invalidate_all ();
   void     typeset_refresh_radioactive_links ();
+  SI       typeset_enunciation_slot_width (tree content) override;
   bool     heading_fold_toggle ();
   bool     heading_fold_current ();
   bool     heading_unfold_current ();

@@ -115,6 +115,8 @@ private slots:
     };
     QTRY_VERIFY_WITH_TIMEOUT (active_input () != nullptr, 10000);
     QTRY_VERIFY (active_input ()->width () > 20 && active_input ()->height () > 15);
+    QCOMPARE (active_input ()->horizontalScrollBarPolicy (), Qt::ScrollBarAlwaysOff);
+    QCOMPARE (active_input ()->verticalScrollBarPolicy (), Qt::ScrollBarAlwaysOff);
     const auto input_command= [&] (const std::function<void (editor_rep&)>& action) {
       QTMWidget* input= active_input ();
       if (!input) return false;
@@ -136,6 +138,11 @@ private slots:
       return actor_tree_registry::instance ().take (reply.payload0);
     };
     const tree original_body= snapshot ()[0][0];
+    bool suppress_links= false;
+    QVERIFY (input_command ([&] (editor_rep& editor) {
+      suppress_links= editor.get_init_string ("athena-radioactive-links-suppressed") == "true";
+    }));
+    QVERIFY (suppress_links);
     QVERIFY (input_command ([] (editor_rep& editor) {
       editor.go_to (editor.the_buffer_path () * path (0, 5));
     }));
@@ -156,11 +163,37 @@ private slots:
     QTRY_VERIFY (active_input ()->width () > before_comma_width);
     const int short_width= active_input ()->width ();
     QPointer<QTMWidget> growing_input= active_input ();
-    QTest::keyClicks (active_input (), " extended alias");
+    SI line_y= 0, previous_x= 0;
+    QVERIFY (input_command ([&] (editor_rep& editor) {
+      previous_x= editor.get_cursor_x (); line_y= editor.get_cursor_y ();
+    }));
+    for (char key: std::string (" extended alias")) {
+      QTest::keyClicks (active_input (), QString (QChar (key)));
+      QTest::qWait (20);
+      SI x= 0, y= 0;
+      QVERIFY (input_command ([&] (editor_rep& editor) {
+        x= editor.get_cursor_x (); y= editor.get_cursor_y ();
+      }));
+      QCOMPARE (y, line_y);
+      QVERIFY (x >= previous_x);
+      previous_x= x;
+      QCOMPARE (active_input ()->origin (), QPoint ());
+    }
     QTRY_COMPARE (en::names (snapshot ()[0])[1], tree ("Beta, extended alias"));
     QTRY_VERIFY (active_input ()->width () > short_width + 40);
     QCOMPARE (active_input (), growing_input.data ());
-    for (int i=0; i<15; ++i) QTest::keyClick (active_input (), Qt::Key_Backspace);
+    for (int i=0; i<15; ++i) {
+      QTest::keyClick (active_input (), Qt::Key_Backspace);
+      QTest::qWait (20);
+      SI x= 0, y= 0;
+      QVERIFY (input_command ([&] (editor_rep& editor) {
+        x= editor.get_cursor_x (); y= editor.get_cursor_y ();
+      }));
+      QCOMPARE (y, line_y);
+      QVERIFY (x <= previous_x);
+      previous_x= x;
+      QCOMPARE (active_input ()->origin (), QPoint ());
+    }
     QTRY_COMPARE (en::names (snapshot ()[0])[1], tree ("Beta,"));
     QTRY_COMPARE (active_input ()->width (), short_width);
     previous_input= active_input ();
