@@ -464,6 +464,21 @@ QTMMainTabWindow::QTMMainTabWindow()
       });
     });
   mAdsBaseStyleSheet= mDockManager->styleSheet ();
+  connect (mDockManager, &ads::CDockManager::dockWidgetAdded, this,
+    [] (ads::CDockWidget* dock) {
+      if (isDocumentWidget (dock->widget ()) || !dock->icon ().isNull ()) return;
+      QIcon icon;
+      for (const auto& command: QTMCommandRegistry::instance ().commands ()) {
+        if (!command.dockObjectName.isEmpty () &&
+            command.dockObjectName == dock->objectName ()) {
+          icon= tmapp ()->icon_manager ().getPresentationIcon (command.icon);
+          break;
+        }
+      }
+      if (icon.isNull ())
+        icon= tmapp ()->icon_manager ().getPresentationIcon ("applications-system");
+      dock->setIcon (icon);
+    });
 #if ATHENA_PLATFORM_IPADOS
   connect (mDockManager, &ads::CDockManager::dockWidgetAdded, this,
     [] (ads::CDockWidget* dock) {
@@ -980,6 +995,9 @@ void QTMMainTabWindow::showWidget(QWidget *widget, bool isDocument) {
     dockWidget->setObjectName (
       QString ("athena-document-%1").arg (++gAdsDocumentDockCounter));
     dockWidget->setWidget(widget);
+    dockWidget->setIcon (widget->windowIcon ());
+    connect (widget, &QWidget::windowIconChanged,
+             dockWidget, &ads::CDockWidget::setIcon);
 
     // Let the TeXmacs close sequence decide whether a document may close.
     dockWidget->setFeature(ads::CDockWidget::DockWidgetDeleteOnClose, false);

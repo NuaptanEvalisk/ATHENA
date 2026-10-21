@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "QTMCompoundDocument.hpp"
+#include "QTMApplication.hpp"
 #include "athena_platform.hpp"
 #include "QTMWidget.hpp"
 #include "QTMMainTabWindow.hpp"
@@ -1686,6 +1687,7 @@ QTMCompoundDocument::QTMCompoundDocument (
   QString filename, athena::avd::descriptor_file descriptor,
   std::vector<athena::avd::member> members): QTMWindow (nullptr) {
   setWindowTitle (QFileInfo (filename).fileName ());
+  setWindowIcon (tmapp ()->icon_manager ().getDocumentIcon (filename));
   const std::array<QString, 4> definitions {
     QStringLiteral ("editor-main"), QStringLiteral ("editor-mode"),
     QStringLiteral ("editor-focus"), QStringLiteral ("editor-user")};

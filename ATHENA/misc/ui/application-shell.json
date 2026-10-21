@@ -154,6 +154,7 @@
     },
     {
       "id": "workspace.namespace-explorer",
+      "dock": "athena-namespace-explorer",
       "label": "Namespace Explorer",
       "category": "Workspace",
       "icon": "view-list-tree",
@@ -161,6 +162,7 @@
     },
     {
       "id": "view.error-messages",
+      "dock": "athena-error-messages",
       "label": "Error messages",
       "category": "View",
       "icon": "dialog-error",
@@ -168,6 +170,7 @@
     },
     {
       "id": "view.artifacts",
+      "dock": "athena-artifacts",
       "label": "Artifacts",
       "category": "View",
       "icon": "view-list-details",
@@ -175,6 +178,7 @@
     },
     {
       "id": "view.outline",
+      "dock": "athena-outline-pane",
       "label": "Outline",
       "category": "View",
       "icon": "view-list-tree",
@@ -182,6 +186,7 @@
     },
     {
       "id": "view.neighborhoods",
+      "dock": "athena-neighborhoods-pane",
       "label": "Neighborhoods",
       "category": "View",
       "icon": "view-list-icons",
@@ -189,6 +194,7 @@
     },
     {
       "id": "view.document-history",
+      "dock": "athena-document-history",
       "label": "Document History",
       "category": "View",
       "icon": "document-open-recent",
@@ -196,6 +202,7 @@
     },
     {
       "id": "application.hodarium",
+      "dock": "athena-hodarium",
       "label": "Hodarium",
       "category": "Workspace",
       "icon": "folder-sync",
@@ -203,6 +210,7 @@
     },
     {
       "id": "workspace.global-search",
+      "dock": "athena-global-search",
       "label": "Global search",
       "category": "Edit",
       "icon": "edit-find",
@@ -232,6 +240,7 @@
     },
     {
       "id": "workspace.namespace-manager",
+      "dock": "athena-namespace-manager",
       "label": "Namespace Manager",
       "category": "Workspace",
       "icon": "view-list-tree",
@@ -239,6 +248,7 @@
     },
     {
       "id": "workspace.websites-manager",
+      "dock": "athena-websites-manager",
       "build_feature": "website-export",
       "label": "Websites manager",
       "category": "Workspace",
@@ -247,6 +257,7 @@
     },
     {
       "id": "workspace.materials-manager",
+      "dock": "athena-materials-manager",
       "label": "Materials manager",
       "category": "Workspace",
       "icon": "folder-documents",
@@ -254,6 +265,7 @@
     },
     {
       "id": "workspace.custom-styles-manager",
+      "dock": "athena-custom-styles-manager",
       "label": "Custom styles manager",
       "category": "Workspace",
       "icon": "preferences-desktop-theme",
@@ -261,6 +273,7 @@
     },
     {
       "id": "workspace.audmap-repl",
+      "dock": "athena-audmap-repl",
       "build_feature": "audmap-repl",
       "label": "AUDMAP REPL",
       "category": "Workspace",
@@ -315,6 +328,7 @@
     },
     {
       "id": "workspace.vault-explorer",
+      "dock": "athena-vault-explorer",
       "label": "Vault Explorer",
       "category": "Workspace",
       "icon": "folder",

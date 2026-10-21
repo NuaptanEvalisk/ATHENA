@@ -369,6 +369,7 @@ QTMCommandRegistry::loadPresentation () {
     definition.id= id;
     definition.label= label;
     definition.icon= object.value ("icon").toString ().trimmed ();
+    definition.dockObjectName= object.value ("dock").toString ().trimmed ();
     definition.category= category;
     definition.help= object.value ("help").toString ().trimmed ();
     definition.shortcut= shortcut;

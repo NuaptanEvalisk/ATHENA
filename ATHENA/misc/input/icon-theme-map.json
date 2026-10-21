@@ -40,6 +40,10 @@
       "theme": ["applications-internet"],
       "libreoffice": ["cmd/32/browseview.svg"]
     },
+    "applications-system": {
+      "theme": ["applications-system", "configure"],
+      "libreoffice": ["cmd/32/configuredialog.svg"]
+    },
     "code-context": {
       "theme": ["code-context"],
       "libreoffice": ["cmd/32/scriptorganizer.svg"]

@@ -49,6 +49,7 @@ struct QTMCommandDefinition {
   QString id;
   QString label;
   QString icon;
+  QString dockObjectName;
   QString category;
   QString help;
   QKeySequence shortcut;
