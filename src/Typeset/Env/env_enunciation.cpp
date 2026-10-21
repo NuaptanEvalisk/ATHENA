@@ -147,7 +147,7 @@ tree native_enunciation_macro (edit_env_rep* env, const tree& source) {
   const auto* render= registry.rendering (source);
   const bool complete= render && render->title_mode == "complete";
   const bool subject= render && render->title_mode == "subject";
-  const bool editing= en::editable_provable (source) &&
+  const bool editing= en::editable_title (source) &&
     !env->editing_enunciation_id.empty () &&
     env->editing_enunciation_id == node::id (source) &&
     env->get_string (PAGE_PRINTED) != "true";

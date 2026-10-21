@@ -30,7 +30,7 @@ bool is_canonical (const tree& source);
 bool valid_names (const tree& source);
 std::vector<tree> names (const tree& source);
 std::vector<tree> title_fields (const tree& source, const std::string& key);
-bool editable_provable (const tree& source);
+bool editable_title (const tree& source);
 
 struct render_metadata {
   std::string style;

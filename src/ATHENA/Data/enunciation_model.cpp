@@ -219,10 +219,11 @@ std::vector<tree> title_fields (const tree& source, const std::string& key) {
 
 std::vector<tree> names (const tree& source) { return title_fields (source, "name"); }
 
-bool editable_provable (const tree& source) {
+bool editable_title (const tree& source) {
   const auto* kind= property<std::string> (source, "kind");
   return is_canonical (source) && kind && (*kind == "theorem" ||
-    *kind == "lemma" || *kind == "proposition" || *kind == "corollary");
+    *kind == "lemma" || *kind == "proposition" || *kind == "corollary" ||
+    *kind == "definition");
 }
 
 bool is_canonical (const tree& source) {

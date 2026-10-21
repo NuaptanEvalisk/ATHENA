@@ -67,7 +67,7 @@ void edit_interface_rep::refresh_enunciation_slots () {
   path selected;
   if (buf && !buf->read_only)
     for (path p= path_up (tp); rp <= p; p= path_up (p)) {
-      if (has_subtree (et, p) && en::editable_provable (subtree (et, p))) {
+      if (has_subtree (et, p) && en::editable_title (subtree (et, p))) {
         selected= p; break;
       }
       if (p == rp) break;
@@ -102,7 +102,7 @@ bool edit_interface_rep::open_enunciation_slot (string field, int index,
   if (is_nil (enunciation_slots_path_) || !has_subtree (et, enunciation_slots_path_) ||
       !buf || buf->read_only) return false;
   const tree& source= subtree (et, enunciation_slots_path_);
-  if (!en::editable_provable (source)) return false;
+  if (!en::editable_title (source)) return false;
   const std::string key (field.data (), N(field));
   auto values= en::title_fields (source, key);
   if (values.empty ()) values.emplace_back ("");

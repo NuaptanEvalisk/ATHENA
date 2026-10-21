@@ -200,7 +200,7 @@ private slots:
     context.env->write (PAGE_PRINTED, "false");
     tree definition= source ("definition");
     context.env->editing_enunciation_id= node::id (definition);
-    QVERIFY (!has_tag (native_enunciation_macro (context.env.operator-> (), definition), ORNAMENT));
+    QVERIFY (has_tag (native_enunciation_macro (context.env.operator-> (), definition), ORNAMENT));
   }
 
   void nativeDisplayStartsSeparateEnunciationParagraph () {

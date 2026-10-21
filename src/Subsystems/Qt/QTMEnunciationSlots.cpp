@@ -137,7 +137,7 @@ void submit_value (const std::shared_ptr<input_session>& session, tree value,
         for (int step: where) location= location * step;
         if (!has_subtree (scope, location)) throw std::runtime_error ("Title node has moved");
         const tree& source= subtree (scope, location);
-        if (node::id (source) != id || !en::editable_provable (source))
+        if (node::id (source) != id || !en::editable_title (source))
           throw std::runtime_error ("Title node has changed");
         auto values= en::title_fields (source, field);
         if (values.empty ()) values.emplace_back ("");
