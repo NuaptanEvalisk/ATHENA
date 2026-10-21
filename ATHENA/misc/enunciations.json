@@ -57,7 +57,7 @@
     },
     {
       "kind": "definition", "display_name": "Definition", "role": "statement", "category": "definition",
-      "render": {"style": "render-theorem", "counter": "theorem-env", "title_mode": "direct", "qed": false},
+      "render": {"style": "render-definition", "counter": "theorem-env", "title_mode": "direct", "qed": false},
       "legacy": [{"tag": "definition", "numbered": true, "starred_tag": "definition*", "artifact_base": "definition"}]
     },
     {

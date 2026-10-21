@@ -218,6 +218,13 @@ athena_resolve_macro_argument (edit_env env, tree t) {
   return t;
 }
 
+static inline bool
+athena_enunciation_separate_title (edit_env env, tree body) {
+  return (env->provides ("enunciation-title-block") &&
+          env->get_string ("enunciation-title-block") == "true") ||
+         athena_enunciation_starts_display (env, body);
+}
+
 static inline tree
 athena_shallow_copy (tree t) {
   tree out (t, N(t));
@@ -341,7 +348,7 @@ athena_enunciation_surround_rewrite (edit_env env, tree t) {
   tree left = t[d];
   tree right= t[d + 1];
   tree body = t[d + 2];
-  bool display= athena_enunciation_starts_display (env, body);
+  bool display= athena_enunciation_separate_title (env, body);
   if (display) {
     tree title_line= tree (WITH, "par-mode", "left",
                            tree (CONCAT, tree (NO_INDENT), left));

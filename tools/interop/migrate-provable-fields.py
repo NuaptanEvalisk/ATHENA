@@ -141,7 +141,7 @@ class Layout:
                 result["children"][indices[0]] = parts[0]
             # Historical bold is not title evidence, nor a desired title style.
             if tag == "strong":
-                result["tag"] = "with"
+                result["tag"] = "concat"
             elif tag in WITH:
                 bindings = result["children"][:-1]
                 kept = []
@@ -284,13 +284,25 @@ def remove_duplicate_metadata(node, seen):
 
 
 def compact(node):
-    """Collapse only anonymous inert envelopes, keeping persistent identities."""
+    """Semantic fields belong to their enunciation, not to title formatting IDs."""
+    node = deepcopy(node)
+    for item in all_nodes(node):
+        item.pop("id", None)
+        if "properties" in item:
+            item["properties"] = [p for p in item["properties"]
+                                  if p["name"] != "athena:artifact-bindings"]
+            if not item["properties"]:
+                del item["properties"]
+    return compact_envelopes(node)
+
+
+def compact_envelopes(node):
     indices = visible_children(node)
     if indices is None:
         return node
     node = {**node, "children": list(children(node))}
     for i in indices:
-        node["children"][i] = compact(node["children"][i])
+        node["children"][i] = compact_envelopes(node["children"][i])
     if (set(node) == {"tag", "children"} and len(children(node)) == 1
             and node["tag"] in {"concat", "with"}):
         return children(node)[0]
@@ -390,13 +402,8 @@ def plan_document(document, relative, config):
                     {"type": "rich_tree", "value": author} for author in authors]))
             if years:
                 updates.append(prop("year", "string", years[0]))
-            # Splitting a title must not discard existing node identities or
-            # duplicate a paragraph/formatting ID across name and remaining body.
             after_ids = identities(remaining) + identities(updates)
-            missing = set(identities(body)) - set(after_ids)
-            if missing:
-                raise Review("Prefix contains identities not retained by extracted fields: "
-                             + ", ".join(sorted(missing)))
+            retired = set(identities(body)) - set(after_ids)
             if len(after_ids) != len(set(after_ids)):
                 raise Review("Extraction would duplicate a persistent identity")
             changes.append({"path": list(path), "command": "update_properties",
@@ -404,6 +411,7 @@ def plan_document(document, relative, config):
             checks.append({"path": list(path), "tree": node})
             edits.extend(changes)
             expected[node["id"]] = {p["name"]: p["value"] for p in updates}
+            config.setdefault("_redirects", {}).update({old: node["id"] for old in retired})
             records.append({**record, "status": "planned",
                             "name": Layout(concat(joined)).text,
                             "attribution": [Layout(a).text for a in authors],
@@ -459,8 +467,8 @@ class Progress:
             print(file=sys.stderr, flush=True)
 
 
-def backup_vault(root, progress):
-    destination = Path(tempfile.mkdtemp(prefix="athena-provable-fields-", dir="/tmp"))
+def backup_vault(root, progress, prefix="athena-provable-fields-"):
+    destination = Path(tempfile.mkdtemp(prefix=prefix, dir="/tmp"))
     backup = destination / "vault"
     print(f"Backup directory: {backup}", flush=True)
     print("Backup excludes directories: " + ", ".join(sorted(BACKUP_EXCLUDED)), flush=True)
@@ -611,7 +619,7 @@ class Session:
             return self.call(ticket, handle, command, parameters)
 
 
-def migrate_file(session, vault, relative, config, apply):
+def migrate_file(session, vault, relative, config, apply, planner=plan_document):
     selector = vault + "/filesystem" + "".join(
         "/" + json.dumps(part, ensure_ascii=False) for part in relative.parts)
     if session.one(selector, "buffers"):
@@ -619,8 +627,12 @@ def migrate_file(session, vault, relative, config, apply):
                  "reason": "Skipped open document; close it and rerun"}]
     with session.select(selector + "/saved") as (ticket, handle):
         snapshot = session.call(ticket, handle)["tree"]
-        plan = plan_document(snapshot, relative, config)
+        plan = planner(snapshot, relative, config)
         if plan.edits and apply:
+            if config.get("_redirects"):
+                config["_redirect_path"].write_text(
+                    json.dumps({"aliases": config["_redirects"]}, indent=2) + "\n",
+                    encoding="utf-8")
             if "batch" not in session.call(ticket, handle, "inspect"):
                 raise RuntimeError("This ATHENA binary lacks saved-document batch editing; "
                                    "restart using the updated binary")
@@ -644,16 +656,24 @@ def migrate_file(session, vault, relative, config, apply):
         return plan.records
 
 
-def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
+def validate_provable_config(config):
+    if set(config["scope"]) != KINDS:
+        raise ValueError("Configuration scope must be the four provable kinds")
+
+
+def main(argv=None, *, planner=plan_document, migration="provable-fields",
+         client_name="Provable field migration", description=__doc__,
+         config_file="provable-attribution-fields.json",
+         validate_config=validate_provable_config):
+    parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--binary", type=Path, default=Path(__file__).resolve().parents[2] /
                         "ATHENA/bin/ATHENA.bin", help="ATHENA.bin to launch after backup")
     parser.add_argument("--vault", required=True, help="Vault name to load")
     parser.add_argument("--expect-root", required=True, type=Path, help="Physical vault directory to back up")
     parser.add_argument("--identity", type=Path, default=Path.home() /
-                        ".config/athena-audmap/provable-fields-migration.json")
-    parser.add_argument("--config", type=Path, default=Path(__file__).with_name(
-        "provable-attribution-fields.json"))
+                        f".config/athena-audmap/{migration}-migration.json")
+    parser.add_argument("--config", type=Path,
+                        default=Path(__file__).with_name(config_file) if config_file else None)
     parser.add_argument("--apply", action="store_true", help="Commit; otherwise only report proposed changes")
     args = parser.parse_args(argv)
     root = args.expect_root.expanduser().resolve(strict=True)
@@ -661,9 +681,10 @@ def main(argv=None):
         parser.error("--expect-root must be a vault directory")
     binary = args.binary.expanduser().resolve(strict=True)
     require_no_athena(binary)
-    config = json.loads(args.config.read_text(encoding="utf-8"))
-    if set(config["scope"]) != KINDS:
-        parser.error("Configuration scope must be the four provable kinds")
+    config = json.loads(args.config.read_text(encoding="utf-8")) if args.config else {}
+    config["_root"] = root
+    if validate_config:
+        validate_config(config)
     sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "clients/python/src"))
     try:
         from athena_audmap import Client
@@ -673,7 +694,13 @@ def main(argv=None):
 
     summary = Counter()
     with Progress() as progress:
-        destination, files = backup_vault(root, progress)
+        destination, files = backup_vault(root, progress, prefix=f"athena-{migration}-")
+        config["_redirect_path"] = destination / "redirects.json"
+        if config.get("aliases"):
+            config["_redirect_path"].write_text(
+                json.dumps({"aliases": config["aliases"]}, indent=2) + "\n", encoding="utf-8")
+        if "_files" in config:
+            files = [f for f in files if str(f) in config["_files"]]
         report_path = destination / "migration.jsonl"
         print(f"Report: {report_path}\nMode: {'APPLY' if args.apply else 'DRY RUN'}", flush=True)
         vault = "@/vaults/" + json.dumps(args.vault, ensure_ascii=False)
@@ -683,7 +710,7 @@ def main(argv=None):
                   flush=True)
             progress.update("Connecting / waiting for authorization")
             with Client(endpoint=endpoint, identity=str(args.identity),
-                name="Provable field migration") as client:
+                name=client_name) as client:
                 session = Session(client)
                 progress.update("Waiting for vault to load")
                 deadline = time.monotonic() + 60
@@ -700,7 +727,7 @@ def main(argv=None):
                 for number, relative in enumerate(files):
                     progress.update("Migrating" if args.apply else "Scanning", number, len(files), str(relative))
                     try:
-                        records = migrate_file(session, vault, relative, config, args.apply)
+                        records = migrate_file(session, vault, relative, config, args.apply, planner)
                     except Exception as error:
                         record = {"file": str(relative), "status": "error", "reason": str(error)}
                         report.write(json.dumps(record, ensure_ascii=False) + "\n")
@@ -715,6 +742,22 @@ def main(argv=None):
                                   f"{record['reason']}", file=sys.stderr, flush=True)
                     report.flush()
                     summary["files"] += 1
+                if apply_redirects := config.get("_redirects"):
+                    # Run after extraction so references in any document can be
+                    # redirected even when their target was migrated later.
+                    import runpy
+                    repair = runpy.run_path(str(Path(__file__).with_name("repair-enunciation-fields.py")))
+                    redirect_config = {"aliases": apply_redirects, "clean_fields": False}
+                    for number, relative in enumerate(files):
+                        progress.update("Retargeting references", number, len(files), str(relative))
+                        if not repair["mentions_alias"](root / relative, apply_redirects):
+                            continue
+                        records = migrate_file(session, vault, relative, redirect_config,
+                                               args.apply, repair["plan_document"])
+                        for record in records:
+                            summary["reference_" + record["status"]] += 1
+                            report.write(json.dumps(record, ensure_ascii=False) + "\n")
+                        report.flush()
         progress.update("Complete", len(files), len(files))
         summary_path = destination / "summary.json"
         summary_path.write_text(json.dumps(dict(summary), indent=2) + "\n", encoding="utf-8")

@@ -145,6 +145,7 @@ tree native_enunciation_macro (edit_env_rep* env, const tree& source) {
   const auto& registry= en::standard_registry ();
   const auto* definition= registry.definition (source);
   const auto* render= registry.rendering (source);
+  const bool definition_title= definition && definition->kind == "definition";
   const bool complete= render && render->title_mode == "complete";
   const bool subject= render && render->title_mode == "subject";
   const bool editing= en::editable_title (source) &&
@@ -194,10 +195,17 @@ tree native_enunciation_macro (edit_env_rep* env, const tree& source) {
     }
     details= append (details, names, "; ");
   }
-  if (const auto* year= property<std::string> (source, "year"))
-    details= append (details, tree (text (*year)), ", ");
+  if (const auto* year= property<std::string> (source, "year")) {
+    if (definition_title) {
+      if (!year->empty ())
+        details= append (details, tree (CONCAT, "(", text (*year), ")"));
+    }
+    else details= append (details, tree (text (*year)), ", ");
+  }
   if (editing) {
-    for (const auto* key: {"name", "year", "attribution"}) {
+    const char* keys[]= {"name", definition_title ? "attribution" : "year",
+                        definition_title ? "year" : "attribution"};
+    for (const auto* key: keys) {
       auto values= en::title_fields (source, key);
       if (values.empty ()) values.emplace_back ("");
       const auto colors= en::title_slot_style (key);
@@ -221,7 +229,8 @@ tree native_enunciation_macro (edit_env_rep* env, const tree& source) {
       }
     }
   }
-  else if (details != "") heading= append (heading, tree (CONCAT, "(", details, ")"));
+  else if (details != "")
+    heading= append (heading, definition_title ? details : tree (CONCAT, "(", details, ")"));
   if (const auto* target= property<node::reference> (source, "target"))
     heading= tree (HLINK, heading, "tmfs://wikilink/" * text (target->id));
 

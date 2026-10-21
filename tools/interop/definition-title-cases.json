@@ -1,0 +1,439 @@
+{
+  "status": "Migration rules from the read-only title scan. Shared-noun and review cases are not automatically converted.",
+  "vault": "/home/felix/data/Notes",
+  "scope": "Definition title paragraph only. Preserve all following body paragraphs, including bold formatting.",
+  "scan": {
+    "ath_files": 840,
+    "definitions": 2042,
+    "all_bold_titles": 1975,
+    "bold_names_with_plain_comma_separators": 2,
+    "mixed_titles": 64,
+    "empty_titles": 1,
+    "xml_read_errors": 0
+  },
+  "general_rules": [
+    "Extract rich-text names from the first title paragraph only; remove title-level bold wrappers, not body formatting.",
+    "Split ordinary name lists at text commas outside parentheses and math nodes, whether the comma is bold or plain.",
+    "Keep mathematical trees intact. A comma within math, such as d(x,y), is not a name separator.",
+    "Keep notation attached to its name. There are 59 mixed titles consisting of bold text plus plain whitespace and math, and 162 titles containing math overall.",
+    "Do not split names merely because the title contains 'and' or 'or'.",
+    "Recognize both strong and with(font-series,bold,...). Fourteen title wrappers contain a one-paragraph document; treat this as the same title, not extra body text.",
+    "Preserve the two existing hlinks in title text as rich text; do not discard their targets.",
+    "Only the explicitly listed parentheses below are attribution or alias fields. Other parentheses remain part of the name.",
+    "Cases needing interpretation are listed separately; no body-based inference is authorized."
+  ],
+  "attribution_cases": [
+    {
+      "node_id": "2fc5273b-e77a-1c80-7fe3-7b9c2ea63845",
+      "title": "Derivative (Bolzano, 1876)",
+      "attribution": [
+        "Bolzano"
+      ],
+      "year": "1876",
+      "action": "Remove the trailing attribution/year parentheses from the rich-text name",
+      "file": "Notes Root/Sources/Lecture Notes/Analysis I/ANI Lecture Notes VI.ath",
+      "expected_layout_text": "Derivative (Bolzano, 1876)"
+    },
+    {
+      "node_id": "3d8d611a-6782-6c2e-1808-d4fd7e4fffd2",
+      "title": "Abelian Category (Buchsbaum, 1955)",
+      "attribution": [
+        "Buchsbaum"
+      ],
+      "year": "1955",
+      "action": "Remove the trailing attribution/year parentheses from the rich-text name",
+      "file": "Notes Root/Sources/Reading/An Introduction to Homological Algebra (Weibel)/IHAW 01 Abelian Categories.ath",
+      "expected_layout_text": "Abelian Category (Buchsbaum, 1955)"
+    },
+    {
+      "node_id": "1aadabe0-ddd0-2393-52c3-b4aff6663db4",
+      "title": "δ-Functors (Grothendieck, 1957)",
+      "attribution": [
+        "Grothendieck"
+      ],
+      "year": "1957",
+      "action": "Remove the trailing attribution/year parentheses; preserve the mathematical delta node in the name",
+      "file": "Notes Root/Sources/Reading/An Introduction to Homological Algebra (Weibel)/IHAW 02 Derived Functors.ath",
+      "expected_layout_text": "￼-Functors (Grothendieck, 1957)"
+    },
+    {
+      "node_id": "a08b08d8-6f14-d8ba-2b4b-aefc50979e33",
+      "title": "Effaceable and Coeffaceable Functors (Grothendieck)",
+      "attribution": [
+        "Grothendieck"
+      ],
+      "year": "",
+      "action": "Remove the trailing attribution parentheses; retain one name containing 'and'",
+      "file": "Notes Root/Sources/Reading/An Introduction to Homological Algebra (Weibel)/IHAW 02 Derived Functors.ath",
+      "expected_layout_text": "Effaceable and Coeffaceable Functors (Grothendieck)"
+    },
+    {
+      "node_id": "2a282c3c-4238-790f-88e2-84da297f53b7",
+      "title": "Complete Expansion of Determinants (Leibniz)",
+      "attribution": [
+        "Leibniz"
+      ],
+      "year": "",
+      "action": "Remove the trailing attribution parentheses",
+      "file": "Notes Root/Sources/Reading/Introduction to Algebra (Kostrikin)/IALG 04 Determinants.ath",
+      "expected_layout_text": "Complete Expansion of Determinants (Leibniz)"
+    },
+    {
+      "node_id": "90b61f79-cbac-8cf7-c174-d38968098e61",
+      "title": "Limit of Function (Cauchy)",
+      "attribution": [
+        "Cauchy"
+      ],
+      "year": "",
+      "action": "Remove the trailing attribution parentheses",
+      "file": "Notes Root/Sources/Reading/Mathematical Analysis (Zorich)/MANZ 03 Limits of Functions.ath",
+      "expected_layout_text": "Limit of Function (Cauchy)"
+    },
+    {
+      "node_id": "90cbc346-80f9-056a-7d85-943730479b32",
+      "title": "Ordered Pair (x,y) (Kuratowski)",
+      "attribution": [
+        "Kuratowski"
+      ],
+      "year": "",
+      "action": "Remove only the final textual parentheses; retain the mathematical ordered pair in the name",
+      "file": "Notes Root/Sources/Reading/Methods of Algebra (Li)/MALG 01 Zermelo-Fraenkel-Choice Set Theory.ath",
+      "expected_layout_text": "Ordered Pair ￼ (Kuratowski)"
+    },
+    {
+      "node_id": "3683a4ac-c0a1-855e-8080-3dec71e9f862",
+      "title": "Well-Ordered Sets (Cantor)",
+      "attribution": [
+        "Cantor"
+      ],
+      "year": "",
+      "action": "Remove the trailing attribution parentheses",
+      "file": "Notes Root/Sources/Reading/Methods of Algebra (Li)/MALG 02 Ordered Structure.ath",
+      "expected_layout_text": "Well-Ordered Sets (Cantor)"
+    },
+    {
+      "node_id": "2d284a7f-d6f4-a195-cc8a-471c5a34a00c",
+      "title": "Ordinal (von Neumann)",
+      "attribution": [
+        "von Neumann"
+      ],
+      "year": "",
+      "action": "Remove the trailing attribution parentheses; keep the multiword attribution as one entry",
+      "file": "Notes Root/Sources/Reading/Methods of Algebra (Li)/MALG 02 Ordered Structure.ath",
+      "expected_layout_text": "Ordinal (von Neumann)"
+    },
+    {
+      "node_id": "1f51dfb8-a596-f024-6efb-3d6bb6a8c89d",
+      "title": "Regular Cardinals (Hausdorff, 1908)",
+      "attribution": [
+        "Hausdorff"
+      ],
+      "year": "1908",
+      "action": "Remove the trailing attribution/year parentheses",
+      "file": "Notes Root/Sources/Reading/Methods of Algebra (Li)/MALG 03 Cardinals.ath",
+      "expected_layout_text": "Regular Cardinals (Hausdorff, 1908)"
+    },
+    {
+      "node_id": "2af3fec4-3e7a-cd21-0938-ede4771a3c05",
+      "title": "(Daniël Kan, 1958) Adjunction Pair",
+      "attribution": [
+        "Daniël Kan"
+      ],
+      "year": "1958",
+      "action": "Remove the leading attribution/year parentheses",
+      "file": "Notes Root/Sources/Reading/Methods of Algebra (Li)/MALG 10 Adjoint Functors.ath",
+      "expected_layout_text": "(Daniël Kan, 1958) Adjunction Pair"
+    }
+  ],
+  "parenthetical_alias_cases": [
+    {
+      "node_id": "09561d75-ecec-5587-a64b-108571115d9a",
+      "title": "Satisfiability (SAT)",
+      "names": [
+        "Satisfiability",
+        "SAT"
+      ],
+      "file": "Notes Root/Sources/Lecture Notes/Graph Theory and Combinatorial Number Theory/GTCN Lecture Notes III.ath",
+      "expected_layout_text": "Satisfiability (SAT)"
+    },
+    {
+      "node_id": "b362ff2c-0ee6-fcca-5552-e63298582cad",
+      "title": "Linear Subspaces (Subspaces)",
+      "names": [
+        "Linear Subspaces",
+        "Subspaces"
+      ],
+      "file": "Notes Root/Sources/Lecture Notes/Linear Algebra I/LAI Lecture Notes IV.ath",
+      "expected_layout_text": "Linear Subspaces (Subspaces)"
+    },
+    {
+      "node_id": "4d542f88-058c-881b-c673-dadcfa0f1745",
+      "title": "Principal Ideal Domain (PID)",
+      "names": [
+        "Principal Ideal Domain",
+        "PID"
+      ],
+      "file": "Notes Root/Sources/Reading/Algebra (Artin)/ALGA 02 Rings.ath",
+      "expected_layout_text": "Principal Ideal Domain (PID)"
+    },
+    {
+      "node_id": "499681e8-765f-e6aa-c1d9-ba5b45a5dea1",
+      "title": "Unique Factorization Domain (UFD)",
+      "names": [
+        "Unique Factorization Domain",
+        "UFD"
+      ],
+      "file": "Notes Root/Sources/Reading/Algebra (Artin)/ALGA 02 Rings.ath",
+      "expected_layout_text": "Unique Factorization Domain (UFD)"
+    },
+    {
+      "node_id": "7b1cbb23-a04d-24a8-3b77-519bddc3b782",
+      "title": "Euclidean Neighborhood Retract (ENR)",
+      "names": [
+        "Euclidean Neighborhood Retract",
+        "ENR"
+      ],
+      "file": "Notes Root/Sources/Reading/Algebraic Topology (Hatcher)/ATHA 11 More Features of Homotopy.ath",
+      "expected_layout_text": "Euclidean Neighborhood Retract (ENR)"
+    },
+    {
+      "node_id": "7d5dd573-0a7a-79ba-892b-c9a6c703afe1",
+      "title": "Invariant Basis Number Property (IBN)",
+      "names": [
+        "Invariant Basis Number Property",
+        "IBN"
+      ],
+      "file": "Notes Root/Sources/Reading/Leavitt Path Algebras (Abrams)/LVPA 01 Leavitt Path Algebras.ath",
+      "expected_layout_text": "Invariant Basis Number Property (IBN)"
+    },
+    {
+      "node_id": "3ad0f875-479d-caec-604b-918b78cf74fa",
+      "title": "Leavitt Path Algebra (LPA)",
+      "names": [
+        "Leavitt Path Algebra",
+        "LPA"
+      ],
+      "file": "Notes Root/Sources/Reading/Leavitt Path Algebras (Abrams)/LVPA 01 Leavitt Path Algebras.ath",
+      "expected_layout_text": "Leavitt Path Algebra (LPA)"
+    },
+    {
+      "node_id": "63b2a79f-4a6f-c588-423f-42a1d152ba71",
+      "title": "Cohn Path Algebra (CPA)",
+      "names": [
+        "Cohn Path Algebra",
+        "CPA"
+      ],
+      "file": "Notes Root/Sources/Reading/Leavitt Path Algebras (Abrams)/LVPA 01 Leavitt Path Algebras.ath",
+      "expected_layout_text": "Cohn Path Algebra (CPA)"
+    },
+    {
+      "node_id": "c3ad8bea-ae20-41a3-b17a-8b895f4d7353",
+      "title": "Poset (Partially Ordered Set)",
+      "names": [
+        "Poset",
+        "Partially Ordered Set"
+      ],
+      "file": "Notes Root/Sources/Reading/Methods of Algebra (Li)/MALG 02 Ordered Structure.ath",
+      "expected_layout_text": "Poset (Partially Ordered Set)"
+    }
+  ],
+  "keep_parentheses_in_name": [
+    {
+      "node_id": "6e378e0c-5bc8-410b-9e71-b64c5549cc72",
+      "title": "Mapping (Classical)",
+      "note": "This definition has only the title paragraph; retain an empty valid body after extraction",
+      "file": "Notes Root/Sources/Lecture Notes/Analysis I/ANI Lecture Notes I.ath",
+      "expected_layout_text": "Mapping (Classical)"
+    },
+    {
+      "node_id": "39b2a24b-891f-b316-3ce9-564c2574d4d0",
+      "title": "Neighborhood (in ℝ^{m})",
+      "file": "Notes Root/Sources/Lecture Notes/Analysis I/ANI Lecture Notes XV.ath",
+      "expected_layout_text": "Neighborhood (in ￼)"
+    },
+    {
+      "node_id": "26ffc3e4-3aa5-d033-59ad-7a41260e871a",
+      "title": "(General) Cauchy Sequence",
+      "file": "Notes Root/Sources/Lecture Notes/Analysis I/ANI Lecture Notes XVI.ath",
+      "expected_layout_text": "(General) Cauchy Sequence"
+    },
+    {
+      "node_id": "2bbb176a-f5e7-049f-a157-744b1e41840a",
+      "title": "Amplitude (Generalized)",
+      "file": "Notes Root/Sources/Lecture Notes/Analysis II/ANII Lecture Notes I.ath",
+      "expected_layout_text": "Amplitude (Generalized)"
+    },
+    {
+      "node_id": "30109e6d-f9f6-b764-4e5a-7c4a13c13196",
+      "title": "Local Extrema (Multivariate)",
+      "file": "Notes Root/Sources/Lecture Notes/Analysis II/ANII Lecture Notes III.ath",
+      "expected_layout_text": "Local Extrema (Multivariate)"
+    },
+    {
+      "node_id": "22c237fa-214d-93bd-91cc-a521b3f53745",
+      "title": "Quadratic Form (Alternative Definition)",
+      "file": "Notes Root/Sources/Lecture Notes/Linear Algebra II/LAII Lecture Notes IV.ath",
+      "expected_layout_text": "Quadratic Form (Alternative Definition)"
+    },
+    {
+      "node_id": "345df887-f054-64a9-0dfc-010183a5de50",
+      "title": "Determinants (Recursive Definition)",
+      "file": "Notes Root/Sources/Lecture Notes/Mechanics/MEC Lecture Notes I.ath",
+      "expected_layout_text": "Determinants (Recursive Definition)"
+    },
+    {
+      "node_id": "3b377839-4c56-78f9-f902-f623be427eca",
+      "title": "Differential Manifold (Alternative Definition)",
+      "file": "Notes Root/Sources/Reading/Basic Concepts in Geometry and Topology (Gu)/BCGT 01 Differential Manifolds.ath",
+      "expected_layout_text": "Differential Manifold (Alternative Definition)"
+    },
+    {
+      "node_id": "c804ab32-c9b3-e661-6526-ba7e49db06fc",
+      "title": "Elementary Matrices (Type I, II, III)",
+      "note": "The commas inside the parentheses do not split names",
+      "file": "Notes Root/Sources/Reading/Introduction to Algebra (Kostrikin)/IALG 03 Algebra of Matrices.ath",
+      "expected_layout_text": "Elementary Matrices (Type I, II, III)"
+    },
+    {
+      "node_id": "61a2fb9b-93d6-f005-e9f4-8b2b63eda9f0",
+      "title": "Module Type of a Ring (Original)",
+      "file": "Notes Root/Sources/Reading/Leavitt Path Algebras (Abrams)/LVPA 01 Leavitt Path Algebras.ath",
+      "expected_layout_text": "Module Type of a Ring (Original)"
+    },
+    {
+      "node_id": "a3478fd0-e3d8-f79f-2119-e722d225da97",
+      "title": "(Extended) Cartesian Product ∏_{i=1}^{n}X_{i}",
+      "file": "Notes Root/Sources/Reading/Methods of Algebra (Li)/MALG 01 Zermelo-Fraenkel-Choice Set Theory.ath",
+      "expected_layout_text": "(Extended) Cartesian Product ￼"
+    },
+    {
+      "node_id": "24ff0195-f564-5977-7e5e-b8540538870b",
+      "title": "Isomorphism (morphism version)",
+      "file": "Notes Root/Sources/Reading/Methods of Algebra (Li)/MALG 06 Categories and Morphisms.ath",
+      "expected_layout_text": "Isomorphism (morphism version)"
+    },
+    {
+      "node_id": "6a0886e1-e480-9464-2d25-bac0b252c163",
+      "title": "Groupoid (Categorically)",
+      "file": "Notes Root/Sources/Reading/Methods of Algebra (Li)/MALG 06 Categories and Morphisms.ath",
+      "expected_layout_text": "Groupoid (Categorically)"
+    }
+  ],
+  "keep_comma_in_single_name": [
+    {
+      "node_id": "068d898c-0186-1d94-f60b-820187f340d4",
+      "title": "Fourier Transform, n-Dimensional Version",
+      "file": "Notes Root/Sources/Lecture Notes/Analysis III/ANIII Lecture Notes XV.ath",
+      "expected_layout_text": "Fourier Transform, ￼-Dimensional Version"
+    },
+    {
+      "node_id": "0343cf83-eae1-baab-1ff3-457fe1847947",
+      "title": "Orientable Manifold, Homological Definition",
+      "file": "Notes Root/Sources/Reading/Algebraic Topology (Hatcher)/ATHA 05 Poincare Duality and Applications.ath",
+      "expected_layout_text": "Orientable Manifold, Homological Definition"
+    },
+    {
+      "node_id": "3517fb70-ab3c-8d9b-4b5d-7e80046b6a39",
+      "title": "Relative Homotopy Groups, Alternative Version",
+      "file": "Notes Root/Sources/Reading/Algebraic Topology Homotopy and Homology (Switzer)/ATHH 01 Setting up the Stage.ath",
+      "expected_layout_text": "Relative Homotopy Groups, Alternative Version"
+    }
+  ],
+  "shared_noun_cases_for_review": [
+    {
+      "node_id": "318a9c43-65aa-4abe-c703-f78521bb909c",
+      "title": "Self-Reduced, Canonical Gröbner Bases",
+      "proposed_names": [
+        "Self-Reduced Gröbner Bases",
+        "Canonical Gröbner Bases"
+      ],
+      "file": "Notes Root/Sources/Lecture Notes/Introduction to Computational Algebraic Geometry/ICALG Lecture Notes IV.ath",
+      "expected_layout_text": "Self-Reduced, Canonical Gröbner Bases"
+    },
+    {
+      "node_id": "22926aa8-b6d7-55b6-a8d6-b32919170216",
+      "title": "ν-Positive, Negative and Zero Sets",
+      "proposed_names": [
+        "ν-Positive Sets",
+        "ν-Negative Sets",
+        "ν-Zero Sets"
+      ],
+      "note": "Preserve the existing mathematical nu node, not a plain-text replacement",
+      "file": "Notes Root/Sources/Lecture Notes/Real Analysis/REAL Lecture Notes XV.ath",
+      "expected_layout_text": "￼-Positive, Negative and Zero Sets"
+    },
+    {
+      "node_id": "49f90699-6e35-956f-61ab-c01279ab3678",
+      "title": "Cyclic, Abelian, Solvable Extensions",
+      "proposed_names": [
+        "Cyclic Extensions",
+        "Abelian Extensions",
+        "Solvable Extensions"
+      ],
+      "file": "Notes Root/Sources/Reading/Fields and Galois Theory (Milne)/FAGT 01 The Galois Correspondence.ath",
+      "expected_layout_text": "Cyclic, Abelian, Solvable Extensions"
+    },
+    {
+      "node_id": "cb2614cd-3985-abe7-f359-b4c8f40bc2b8",
+      "title": "Injective, Surjective Morphisms of Sheaves",
+      "proposed_names": [
+        "Injective Morphisms of Sheaves",
+        "Surjective Morphisms of Sheaves"
+      ],
+      "file": "Notes Root/Sources/Reading/Manifolds, Sheaves and Cohomology (Wedhorn)/MSCO 01 Sheaf Theory.ath",
+      "expected_layout_text": "Injective, Surjective Morphisms of Sheaves"
+    }
+  ],
+  "other_cases": [
+    {
+      "node_id": "2e4ca301-5e8a-568e-7c97-c7f83b7ae8b0",
+      "title": "sinh, cosh.",
+      "names": [
+        "sinh",
+        "cosh"
+      ],
+      "action": "Remove the final prose full stop and split the two names",
+      "file": "Notes Root/Sources/Lecture Notes/Analysis I/ANI Lecture Notes VII.ath",
+      "expected_layout_text": "￼, ￼.",
+      "rule": "strip_final_stop"
+    },
+    {
+      "node_id": "442907c8-f43d-c23d-297d-de9aeea6bebf",
+      "title": "k-Transitivity",
+      "action": "Keep the plain mathematical k, plain hyphen and bold Transitivity together in one rich-text name",
+      "file": "Notes Root/Sources/Reading/The Geometry of the Classical Groups (Taylor)/GCGT 01 Linear Groups.ath",
+      "expected_layout_text": "￼-Transitivity",
+      "rule": "keep_rich_name"
+    },
+    {
+      "node_id": "6977cb10-1064-c362-d191-8c3556712298",
+      "title": "(Francis William Lawvere, 1937-2023) Comma Category",
+      "action": "Review the date range separately; do not silently treat it as a definition year or discard it",
+      "proposed_name": "Comma Category",
+      "proposed_attribution": [
+        "Francis William Lawvere"
+      ],
+      "unresolved_date_text": "1937-2023",
+      "file": "Notes Root/Sources/Reading/Methods of Algebra (Li)/MALG 09 Universal Properties.ath",
+      "expected_layout_text": "(Francis William Lawvere, 1937-2023) Comma Category",
+      "rule": "review"
+    },
+    {
+      "node_id": "1d48aa19-7c11-b93e-ebff-aa2e1e4311f2",
+      "title": "",
+      "action": "Skip: the first paragraph is only a right-flush node; do not infer a title from the following body paragraph",
+      "file": "Notes Root/Sources/Lecture Notes/Complex Analysis/COMA Lecture Notes I.ath",
+      "expected_layout_text": "￼",
+      "rule": "review"
+    },
+    {
+      "node_id": "5711a611-0e24-531c-9859-b3d99166a545",
+      "title": "ATHENA, i.e. the Advanced Typesetting and Hypertext Environment for Notes and Archives, is ...",
+      "action": "Skip: the only paragraph is website introduction prose, not an independent title; preserve it including bold and ATHENA/TeXmacs macros",
+      "file": "Notes Root/Sites/ATHENA/ATHENA - Home.ath",
+      "expected_layout_text": "￼, i.e. the Advanced Typesetting and Hypertext Environment for Notes and Archives, is a math-centered knowledge workstation derived from GNU ￼, combining structured WYSIWYG typesetting with vault-based knowledge organization and inter-connectivity needed by large mathematical note collections.",
+      "rule": "review"
+    }
+  ],
+  "display_text_note": "Titles in this list are human-readable labels. Migration must slice original rich-text trees, never reconstruct math or hyperlinks from these labels."
+}

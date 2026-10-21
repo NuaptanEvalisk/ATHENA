@@ -32,7 +32,7 @@ static bool
 athena_enunciation_surround_display (edit_env env, tree st) {
   if (!athena_is_enunciation_surround (st)) return false;
   int d= athena_enunciation_surround_delta (st);
-  return athena_enunciation_starts_display (env, st[d + 2]);
+  return athena_enunciation_separate_title (env, st[d + 2]);
 }
 
 static path

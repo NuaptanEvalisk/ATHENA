@@ -1,9 +1,9 @@
 # Provable Field Migration
 
 One-off migration of `theorem`, `proposition`, `corollary` and `lemma`.
-No LLM and no theorem-name keyword list. All document reads and mutations use
-AUDMAP. Direct filesystem access copies the backup, reads startup configuration
-and writes reports.
+No LLM and no theorem-name keyword list. Document mutations use AUDMAP. Direct
+filesystem access also scans reference candidates, copies the backup, reads
+startup configuration and writes reports.
 
 ## Run
 
@@ -92,10 +92,11 @@ The script does not terminate unrelated processes.
 - Preserve mathematical subtrees exactly, including wrappers inside mathematics.
   Remove historical bold from extracted heading text, not from the remaining
   statement. This script does not replace the separate whole-body bold migration.
-- Remove the old parenthetical prefix from the statement. Preserve enunciation,
-  remaining body and transferred mathematical identities. Splits cannot duplicate
-  an existing identity. If a prefix identity cannot be retained, leave the node
-  unchanged and report it.
+- Remove the old parenthetical prefix from the statement. Preserve the
+  enunciation UUID and remaining body. Extracted semantic fields do not retain
+  internal formatting/text UUIDs or empty `with` wrappers. Redirect links and
+  transclusions targeting retired title UUIDs to the owning enunciation;
+  discard obsolete generated reference-cache entries.
 - The configured `Product Rule for d/dt` UUID is the sole missing-parenthesis
   exception. Require its exact prefix, derivative structure and `. If ` boundary;
   retain the original derivative tree and start the body at `If`.
@@ -105,6 +106,26 @@ The script does not terminate unrelated processes.
 
 The existing native enunciation renderer displays `name`, `attribution` and
 `year` in its heading; this migration supplies those properties.
+
+## Repair Previously Migrated Fields
+
+`repair-enunciation-fields.py` repairs existing `name` and `attribution` fields
+without rerunning title extraction or changing body formatting. It removes
+internal UUIDs, unwraps empty `with` and single-child `concat` envelopes, and
+preserves mathematical content and effective style bindings. Incoming wikilinks,
+transclusions and typed references are redirected to the owning enunciation.
+
+```sh
+/usr/bin/python3 tools/interop/repair-enunciation-fields.py \
+  --vault nIKIS --expect-root /home/felix/data/Notes \
+  --identity ~/.config/athena-audmap/definition-fields-migration.json --apply
+```
+
+The same backup, progress reporting and owned ATHENA lifecycle apply. The scan
+excludes `.athena`, `.cache`, `.backup` and `.git`.
+`redirects.json` records retired UUIDs and their enunciations before writing.
+After an interrupted extraction, pass that file to the repair script with
+`--config /tmp/athena-.../redirects.json` to finish redirecting incoming links.
 
 ## Commit And Recovery
 
@@ -139,5 +160,5 @@ The runtime test supplies a temporary test environment and a synthetic v3 vault
 so it does not touch desktop data; this is only test setup, not the migration's
 normal startup behavior. It exercises process detection, backup exclusions,
 backup-before-startup ordering, dry run, real AUDMAP migration, repeated runs,
-UUID preservation, stale preconditions and rollback after a late batch failure.
+retired UUID accounting, stale preconditions and rollback after a late batch failure.
 It also checks that every launched test ATHENA exits.

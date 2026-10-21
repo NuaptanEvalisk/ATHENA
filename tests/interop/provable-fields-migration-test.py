@@ -94,7 +94,8 @@ class MigrationTests(unittest.TestCase):
         plan = m.plan_document(source, "Synthetic.ath", CONFIG)
         self.assertEqual([r["status"] for r in plan.records], ["planned"], plan.records)
         result = apply_edits(source, plan.edits)
-        self.assertEqual(set(m.identities(source)), set(m.identities(result)))
+        retired = set(m.identities(source)) - set(m.identities(result))
+        self.assertLessEqual(retired, CONFIG.get("_redirects", {}).keys())
         self.assertEqual(len(m.identities(result)), len(set(m.identities(result))))
         again = m.plan_document(result, "Synthetic.ath", CONFIG)
         self.assertEqual(again.records[0]["status"], "already_structured")
@@ -408,7 +409,8 @@ def runtime_test():
         assert not repeated["summary"].get("migrated")
         assert path.read_bytes() == current
         after_ids = [element.get("i") for element in ET.fromstring(current).iter() if element.get("i")]
-        assert set(m.identities(source)).issubset(set(after_ids))
+        redirects = json.loads((Path(applied["backup"]).parent / "redirects.json").read_text())["aliases"]
+        assert (set(m.identities(source)) - set(after_ids)).issubset(redirects)
         assert len(after_ids) == len(set(after_ids))
         print(f"PASS managed startup / backup exclusions / migration / idempotence / shutdown: {root}")
     finally:
