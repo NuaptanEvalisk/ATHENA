@@ -1412,6 +1412,8 @@ QTMWidget::handleNativeGestureEvent (QNativeGestureEvent* event) {
       logGesture ("native-begin", "native-view", event->value(), focal);
       return false;
     case Qt::ZoomNativeGesture:
+      if (!viewPinchActive)
+        beginViewPinchZoom (focal, "native-view");
       updateViewPinchZoom (viewPinchScale * (1.0 + event->value()), focal,
                            "native-view");
       event->accept();
