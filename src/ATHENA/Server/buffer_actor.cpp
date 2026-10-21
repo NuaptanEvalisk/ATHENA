@@ -2051,7 +2051,7 @@ buffer_actor::dispatch (actor_command_record& command) {
       if (saved.durability == athena::document::upgrade_durability::durable)
       {
 #ifdef QTTEXMACS
-        if (impl_->state.storage_version == athena::document::xml_storage_version::v2) {
+        if (impl_->state.storage_version == athena::document::xml_storage_version::v3) {
           try {
             qtm_hodarium_saved (path,
               athena::node::id (subtree (impl_->state.document, impl_->state.root_path)),

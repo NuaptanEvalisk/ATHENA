@@ -434,7 +434,10 @@ void sync_worker::inventory_step () {
             if (e.code () != std::errc::no_such_file_or_directory) throw;
             scanned.retry= true; continue;
           }
-          saved (scanning->root / source.path, source.object, {}, *source.bytes, true);
+          if (!saved (scanning->root / source.path, source.object, {}, *source.bytes, true)) {
+            scanned.retry= true;
+            continue;
+          }
           scanned.cache.at (source.path).published= true;
         }
         catch (const std::exception& e) {
@@ -605,9 +608,9 @@ void sync_worker::update_capture () {
   if (capture_enabled_changed) capture_enabled_changed (enabled);
 }
 
-void sync_worker::saved (const std::filesystem::path& path, const std::string& object,
+bool sync_worker::saved (const std::filesystem::path& path, const std::string& object,
     const std::optional<std::string>& predecessor, const std::string& bytes, bool inventory) {
-  if (!settings) return;
+  if (!settings) return true;
   for (const auto& profile: settings->profiles ()) {
     if (profile.member.empty ()) continue;
     for (const auto& binding: settings->vaults (profile.pin.group)) {
@@ -649,11 +652,16 @@ void sync_worker::saved (const std::filesystem::path& path, const std::string& o
       // Identical imported replicas share a deterministic genesis revision.
       // Actual editor saves retain their member provenance.
       if (inventory && !expected) snapshot.origin_member= "saved-source-baseline-v1";
-      if (!journal->capture_saved (std::move (snapshot), expected, predecessor))
-        throw std::runtime_error ("Hodarium saved predecessor differs from the applied revision: " + relative.generic_u8string ());
-      return;
+      if (!journal->capture_saved (std::move (snapshot), expected, predecessor)) {
+        // Another capture/application can advance the shared journal while this
+        // snapshot is queued. Rescan durable bytes instead of replaying it.
+        schedule_inventory (binding);
+        return false;
+      }
+      return true;
     }
   }
+  return true;
 }
 
 void sync_worker::add_session (const client_profile& profile) {

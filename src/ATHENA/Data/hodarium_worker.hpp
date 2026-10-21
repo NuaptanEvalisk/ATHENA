@@ -126,7 +126,8 @@ public:
   void reset_recovered_journal (const std::string& group);
   void update_capture ();
 
-  void saved (const std::filesystem::path& path, const std::string& object,
+  // False means a concurrent revision won; a fresh inventory is queued.
+  bool saved (const std::filesystem::path& path, const std::string& object,
     const std::optional<std::string>& predecessor, const std::string& bytes, bool inventory= false);
 
   void add_session (const client_profile& profile);

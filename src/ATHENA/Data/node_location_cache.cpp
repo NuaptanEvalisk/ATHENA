@@ -221,6 +221,7 @@ public:
     files_= lmdb::dbi::open (txn, "files", MDB_CREATE);
     nodes_= lmdb::dbi::open (txn, "nodes", MDB_CREATE | MDB_DUPSORT);
     file_nodes_= lmdb::dbi::open (txn, "file_nodes", MDB_CREATE | MDB_DUPSORT);
+    errors_= lmdb::dbi::open (txn, "errors", MDB_CREATE);
     std::string_view existing;
     const std::string schema_key= "schema";
     if (!meta_.get (txn, schema_key, existing)) {
@@ -237,8 +238,19 @@ public:
         meta_.put (txn, "bootstrap", std::string (1, '\0'));
       }
     }
+    // All instances share this transactional set, not process-local counters.
+    errors_.drop (txn);
+    {
+      auto cursor= lmdb::cursor::open (txn, files_);
+      std::string_view key, value;
+      if (cursor.get (key, value, MDB_FIRST)) do {
+        fs::metadata revision; std::uint64_t nodes= 0; bool error= false;
+        if (!decode_revision (value, revision, nodes, error) || error)
+          errors_.put (txn, key, std::string_view {});
+        key= {}; value= {};
+      } while (cursor.get (key, value, MDB_NEXT));
+    }
     txn.commit ();
-    refresh_counters ();
   }
 
   persistent_lookup lookup (const std::vector<std::string>& ids) {
@@ -258,7 +270,7 @@ public:
     std::string_view bootstrap;
     result.bootstrap_complete= meta_.get (txn, "bootstrap", bootstrap) &&
       bootstrap.size () == 1 && bootstrap[0] != 0;
-    result.errors= error_count_.load (std::memory_order_relaxed);
+    result.errors= errors_.size (txn);
     auto cursor= lmdb::cursor::open (txn, nodes_);
     for (const auto& id: ids) {
       if (result.locations.count (id)) continue;
@@ -335,11 +347,12 @@ public:
 
   void replace_file (const std::string& path, const fs::metadata& revision,
                      const census& nodes, bool error= false) {
-    const file_record previous= file (path);
     std::set<std::string> affected;
     auto txn= lmdb::txn::begin (env_);
     erase_file_rows (txn, path, &affected);
     files_.put (txn, path, encode_revision (revision, nodes.size (), error));
+    if (error) errors_.put (txn, path, std::string_view {});
+    else errors_.del (txn, path);
     if (!error) for (const auto& node: nodes) {
       std::string key;
       if (!uuid_binary (node.id, key)) continue;
@@ -348,29 +361,16 @@ public:
       file_nodes_.put (txn, path, file_node_value (node.id, node.where));
     }
     txn.commit ();
-    if (!previous.found) file_count_.fetch_add (1, std::memory_order_relaxed);
-    const auto old_nodes= previous.found ? previous.nodes : 0;
-    if (nodes.size () >= old_nodes)
-      node_count_.fetch_add (nodes.size () - old_nodes, std::memory_order_relaxed);
-    else node_count_.fetch_sub (old_nodes - nodes.size (), std::memory_order_relaxed);
-    if ((!previous.found || !previous.error) && error)
-      error_count_.fetch_add (1, std::memory_order_relaxed);
-    else if (previous.found && previous.error && !error)
-      error_count_.fetch_sub (1, std::memory_order_relaxed);
     changed (affected);
   }
 
   void erase_file (const std::string& path) {
-    const file_record previous= file (path);
-    if (!previous.found) return;
     std::set<std::string> affected;
     auto txn= lmdb::txn::begin (env_);
     erase_file_rows (txn, path, &affected);
     files_.del (txn, path);
+    errors_.del (txn, path);
     txn.commit ();
-    file_count_.fetch_sub (1, std::memory_order_relaxed);
-    node_count_.fetch_sub (previous.nodes, std::memory_order_relaxed);
-    if (previous.error) error_count_.fetch_sub (1, std::memory_order_relaxed);
     changed (affected);
   }
 
@@ -382,12 +382,13 @@ public:
   }
 
   std::pair<std::size_t,std::size_t> totals () {
-    return {file_count_.load (std::memory_order_relaxed),
-            node_count_.load (std::memory_order_relaxed)};
+    auto txn= lmdb::txn::begin (env_, nullptr, MDB_RDONLY);
+    return {files_.size (txn), nodes_.size (txn)};
   }
 
   std::size_t errors () {
-    return error_count_.load (std::memory_order_relaxed);
+    auto txn= lmdb::txn::begin (env_, nullptr, MDB_RDONLY);
+    return errors_.size (txn);
   }
 
   std::uint64_t generation () const {
@@ -406,25 +407,6 @@ private:
     }
     hot_.emplace (key, hot_entry {locations});
     hot_order_.push_back (key);
-  }
-
-  void refresh_counters () {
-    auto txn= lmdb::txn::begin (env_, nullptr, MDB_RDONLY);
-    file_count_.store (files_.size (txn), std::memory_order_relaxed);
-    node_count_.store (nodes_.size (txn), std::memory_order_relaxed);
-    error_count_.store (error_count (txn), std::memory_order_relaxed);
-  }
-
-  std::size_t error_count (MDB_txn* txn) {
-    std::size_t errors= 0;
-    auto cursor= lmdb::cursor::open (txn, files_);
-    std::string_view key, value;
-    if (cursor.get (key, value, MDB_FIRST)) do {
-      fs::metadata revision; std::uint64_t nodes= 0; bool error= false;
-      if (!decode_revision (value, revision, nodes, error) || error) ++errors;
-      key= {}; value= {};
-    } while (cursor.get (key, value, MDB_NEXT));
-    return errors;
   }
 
   void erase_file_rows (MDB_txn* txn, const std::string& path,
@@ -460,11 +442,8 @@ private:
 
   stdfs::path root_;
   lmdb::env env_;
-  lmdb::dbi meta_, files_, nodes_, file_nodes_;
+  lmdb::dbi meta_, files_, nodes_, file_nodes_, errors_;
   std::atomic<std::uint64_t> generation_ {1};
-  std::atomic<std::size_t> file_count_ {0};
-  std::atomic<std::size_t> node_count_ {0};
-  std::atomic<std::size_t> error_count_ {0};
   std::mutex hot_lock_;
   std::unordered_map<std::string,hot_entry> hot_;
   std::deque<std::string> hot_order_;
@@ -537,6 +516,14 @@ bool index_one (const vault_context_handle& vault, const std::shared_ptr<store>&
     index->replace_file (path, revision, nodes, false);
     return true;
   }
+  catch (const std::system_error& e) {
+    if (e.code () == std::errc::resource_unavailable_try_again ||
+        e.code () == std::errc::no_such_file_or_directory) {
+      error= "source changed while indexing";
+      return false;
+    }
+    error= e.what ();
+  }
   catch (const std::exception& e) { error= e.what (); }
   catch (const string& e) { error.assign (e.data (), N(e)); }
   catch (...) { error= "unknown indexing failure"; }
@@ -557,6 +544,7 @@ void worker_main (vault_context_handle vault, std::shared_ptr<store> index,
     background::source_watch watch;
     std::uint64_t scanned_revision= 0;
     bool requested= true;
+    bool retry= false;
     bool first= true;
     for (;;) {
       {
@@ -575,7 +563,8 @@ void worker_main (vault_context_handle vault, std::shared_ptr<store> index,
             !vault_context_is_current (vault)) return;
       }
       const auto revision= watch.revision ();
-      if (!requested && revision == scanned_revision && !index->errors ()) continue;
+      if (!requested && !retry && revision == scanned_revision && !index->errors ()) continue;
+      retry= false;
       auto files= background::inventory (vault->root, &manager.stopping, &watch);
       scanned_revision= revision;
       if (bootstrap) {
@@ -590,6 +579,7 @@ void worker_main (vault_context_handle vault, std::shared_ptr<store> index,
           }
           std::string error;
           (void) index_one (vault, index, files[i].path, error);
+          retry= retry || error == "source changed while indexing";
           publish_status (persistent_phase::bootstrap, i+1, files.size (), index,
             error.empty () || error == "source changed while indexing" ? "" : files[i].path + ": " + error);
         }
@@ -622,6 +612,7 @@ void worker_main (vault_context_handle vault, std::shared_ptr<store> index,
             if (!present.count (changed[i])) index->erase_file (changed[i]);
             else {
               (void) index_one (vault, index, changed[i], error);
+              retry= retry || error == "source changed while indexing";
             }
             publish_status (persistent_phase::work, i+1, changed.size (), index,
               error.empty () || error == "source changed while indexing" ? "" : changed[i] + ": " + error);
