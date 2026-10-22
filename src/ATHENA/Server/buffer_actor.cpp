@@ -1442,7 +1442,8 @@ buffer_actor::dispatch (actor_command_record& command) {
         qtm_begin_render_recording (
           found->second.render_connection, width, height,
           viewport.render_pixel_ratio, 0xff808080U,
-          found->second.buffer_generation, frame_generation, damage);
+          found->second.buffer_generation, frame_generation, damage,
+          viewport.render_origin_x, viewport.render_origin_y);
       if (recording == nullptr) break;
 
       QPainter painter;

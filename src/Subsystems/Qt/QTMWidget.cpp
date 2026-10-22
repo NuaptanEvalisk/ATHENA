@@ -223,7 +223,8 @@ QTMWidget::QTMWidget (QWidget* _parent, qt_widget _tmwid)
   surface ()->setMouseTracking (true);
   proofTrack= std::make_unique<QTMProofTrack> (surface ());
   proofTrack->navigate= [this] (const QTMProofEndpoint& endpoint) {
-    const QPoint destination= endpoint.position.toPoint () + origin ();
+    const QPoint destination=
+      (endpoint.position + proofTrackDisplayedOrigin).toPoint ();
     verticalScrollBar ()->setValue (destination.y ()-surface ()->height ()/3);
   };
   surface ()->setAcceptDrops (true);
@@ -1099,8 +1100,16 @@ QTMWidget::paintContent (QPainter& p, const QRegion& region) {
   drawNativeDrawingSelection (p);
   if (!externallyPresented () && !isEmbedded () &&
       !viewPinchActive && !viewPinchCommitPending) {
+    // The RenderService presents completed frames asynchronously. Use the
+    // camera origin recorded WITH the visible image, not the live scrollbar
+    // origin (which may have advanced to the next frame already).
+    proofTrackDisplayedOrigin= renderedFrame
+      ? QPointF (to_qpoint (coord2 (
+          -renderedFrame.renderOriginX (), -renderedFrame.renderOriginY ())))
+      : QPointF (tm_widget ()->backing_pos);
     auto endpoints= proofTrack->endpoints;
-    for (auto& endpoint: endpoints) endpoint.position-= origin ();
+    for (auto& endpoint: endpoints)
+      endpoint.position-= proofTrackDisplayedOrigin;
     proofTrack->paint (p, std::move (endpoints));
   }
 }

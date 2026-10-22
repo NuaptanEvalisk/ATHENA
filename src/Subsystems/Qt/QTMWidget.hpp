@@ -177,6 +177,7 @@ private:
   QPoint viewPinchStartOrigin;
   QPixmap viewPinchPreview;
   QTMSharedFrame renderedFrame;
+  QPointF proofTrackDisplayedOrigin;
   std::uint64_t renderedBufferGeneration= 0;
   std::uint64_t renderedFrameGeneration= 0;
   bool neighborhoodTapCandidate = false;

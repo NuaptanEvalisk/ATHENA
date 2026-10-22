@@ -51,6 +51,9 @@ public:
   const QImage& image () const noexcept;
   std::uint64_t bufferGeneration () const noexcept;
   std::uint64_t frameGeneration () const noexcept;
+  // TeXmacs y-up renderer origin captured with the displayed image.
+  std::int64_t renderOriginX () const noexcept;
+  std::int64_t renderOriginY () const noexcept;
   render_damage damage () const noexcept;
 
 private:
@@ -77,7 +80,8 @@ public:
   std::unique_ptr<QTMRenderRecording> beginRecording (
     int pixelWidth, int pixelHeight, double devicePixelRatio,
     std::uint32_t backgroundArgb, std::uint64_t bufferGeneration,
-    std::uint64_t frameGeneration, render_damage damage);
+    std::uint64_t frameGeneration, render_damage damage,
+    std::int64_t originX= 0, std::int64_t originY= 0);
   QTMSharedFrame acquireLatestFrame ();
   void retire () noexcept;
 
@@ -102,6 +106,6 @@ std::unique_ptr<QTMRenderRecording> qtm_begin_render_recording (
   athena_resource_id connectionId, int pixelWidth, int pixelHeight,
   double devicePixelRatio, std::uint32_t backgroundArgb,
   std::uint64_t bufferGeneration, std::uint64_t frameGeneration,
-  render_damage damage);
+  render_damage damage, std::int64_t originX= 0, std::int64_t originY= 0);
 
 #endif // defined QTM_RENDER_SERVICE_HPP

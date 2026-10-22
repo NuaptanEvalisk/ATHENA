@@ -29,7 +29,7 @@
 namespace {
 
 constexpr std::uint32_t stream_magic= 0x41544852; // ATHR
-constexpr std::uint16_t stream_version= 5;
+constexpr std::uint16_t stream_version= 6;
 constexpr std::uint32_t no_gradient= std::numeric_limits<std::uint32_t>::max ();
 constexpr std::size_t frame_slot_count= 3;
 
@@ -65,6 +65,8 @@ struct frame_begin_command {
   std::uint32_t height;
   double pixel_ratio;
   std::uint32_t background_argb;
+  std::int64_t origin_x;
+  std::int64_t origin_y;
 };
 
 struct transform_record { double value[9]; };
@@ -219,6 +221,8 @@ struct QTMRenderConnection::processor_state final: render_processor {
     int height= 0;
     int stride= 0;
     double pixel_ratio= 1.0;
+    std::int64_t origin_x= 0;
+    std::int64_t origin_y= 0;
     std::uint64_t buffer_generation= 0;
     std::uint64_t frame_generation= 0;
     render_damage damage;
@@ -327,6 +331,8 @@ struct QTMRenderConnection::processor_state final: render_processor {
     frame.height= static_cast<int> (begin.height);
     frame.stride= static_cast<int> (stride);
     frame.pixel_ratio= begin.pixel_ratio;
+    frame.origin_x= begin.origin_x;
+    frame.origin_y= begin.origin_y;
     active_frame= slot;
     active_buffer_generation= descriptor.buffer_generation;
     active_frame_generation= descriptor.frame_generation;
@@ -1152,7 +1158,8 @@ struct QTMRenderRecording::implementation {
     std::shared_ptr<QTMRenderConnection::processor_state> processor,
     int width, int height, double pixel_ratio,
     std::uint32_t background_argb, std::uint64_t buffer_generation,
-    std::uint64_t frame_generation, render_damage damage):
+    std::uint64_t frame_generation, render_damage damage,
+    std::int64_t origin_x, std::int64_t origin_y):
     writer (std::move (connection), std::move (processor), buffer_generation,
             frame_generation, damage),
     device (writer, width, height, pixel_ratio) {
@@ -1161,7 +1168,8 @@ struct QTMRenderRecording::implementation {
     if (payload != nullptr) {
       frame_begin_command begin {
         stream_magic, stream_version, 0, static_cast<std::uint32_t> (width),
-        static_cast<std::uint32_t> (height), pixel_ratio, background_argb};
+        static_cast<std::uint32_t> (height), pixel_ratio, background_argb,
+        origin_x, origin_y};
       std::memcpy (payload, &begin, sizeof (begin));
     }
   }
@@ -1237,6 +1245,16 @@ QTMSharedFrame::frameGeneration () const noexcept {
     impl_->processor->frames[impl_->slot].frame_generation;
 }
 
+std::int64_t
+QTMSharedFrame::renderOriginX () const noexcept {
+  return impl_ == nullptr ? 0 : impl_->processor->frames[impl_->slot].origin_x;
+}
+
+std::int64_t
+QTMSharedFrame::renderOriginY () const noexcept {
+  return impl_ == nullptr ? 0 : impl_->processor->frames[impl_->slot].origin_y;
+}
+
 render_damage
 QTMSharedFrame::damage () const noexcept {
   return impl_ == nullptr ? render_damage {} :
@@ -1282,13 +1300,15 @@ std::unique_ptr<QTMRenderRecording>
 QTMRenderConnection::beginRecording (
   int pixelWidth, int pixelHeight, double devicePixelRatio,
   std::uint32_t backgroundArgb, std::uint64_t bufferGeneration,
-  std::uint64_t frameGeneration, render_damage damage) {
+  std::uint64_t frameGeneration, render_damage damage,
+  std::int64_t originX, std::int64_t originY) {
   if (connection_ == nullptr || pixelWidth <= 0 || pixelHeight <= 0 ||
       !std::isfinite (devicePixelRatio) || devicePixelRatio <= 0.0)
     return nullptr;
   auto impl= std::make_unique<QTMRenderRecording::implementation> (
     connection_, processor_, pixelWidth, pixelHeight, devicePixelRatio,
-    backgroundArgb, bufferGeneration, frameGeneration, damage);
+    backgroundArgb, bufferGeneration, frameGeneration, damage,
+    originX, originY);
   return std::unique_ptr<QTMRenderRecording> (
     new QTMRenderRecording (std::move (impl)));
 }
@@ -1351,9 +1371,9 @@ qtm_begin_render_recording (
   athena_resource_id connectionId, int pixelWidth, int pixelHeight,
   double devicePixelRatio, std::uint32_t backgroundArgb,
   std::uint64_t bufferGeneration, std::uint64_t frameGeneration,
-  render_damage damage) {
+  render_damage damage, std::int64_t originX, std::int64_t originY) {
   auto connection= QTMRenderConnection::lookup (connectionId);
   return connection == nullptr ? nullptr : connection->beginRecording (
     pixelWidth, pixelHeight, devicePixelRatio, backgroundArgb,
-    bufferGeneration, frameGeneration, damage);
+    bufferGeneration, frameGeneration, damage, originX, originY);
 }

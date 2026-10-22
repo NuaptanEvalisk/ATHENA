@@ -127,8 +127,11 @@ TestQTMRenderService::rendersDisplayListOffTheProducerThread () {
   QVERIFY (connection != nullptr);
 
   render_damage damage {4, 5, 12, 12};
+  // The camera origin must stay attached to its frame even when the
+  // scrollbar moves again before the render worker finishes.
   auto recording= connection->beginRecording (
-    20, 20, 1.0, qRgba (255, 255, 255, 255), 3, 9, damage);
+    20, 20, 1.0, qRgba (255, 255, 255, 255), 3, 9, damage,
+    -4096, 2048);
   QVERIFY (recording != nullptr);
   QPainter painter (recording->device ());
   painter.fillRect (QRect (4, 5, 8, 7), QColor (10, 120, 230));
@@ -145,6 +148,8 @@ TestQTMRenderService::rendersDisplayListOffTheProducerThread () {
   QVERIFY (static_cast<bool> (frame));
   QCOMPARE (frame.bufferGeneration (), std::uint64_t (3));
   QCOMPARE (frame.frameGeneration (), std::uint64_t (9));
+  QCOMPARE (frame.renderOriginX (), std::int64_t (-4096));
+  QCOMPARE (frame.renderOriginY (), std::int64_t (2048));
   QCOMPARE (frame.image ().size (), QSize (20, 20));
   QCOMPARE (frame.image ().pixelColor (6, 7), QColor (10, 120, 230));
   QCOMPARE (frame.image ().pixelColor (0, 0), QColor (255, 255, 255));
