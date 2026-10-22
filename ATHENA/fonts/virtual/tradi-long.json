@@ -78,14 +78,24 @@
       [
         "glue",
         "leftarrow",
-        "righthook"
+        [
+          "part",
+          "#21A9",
+          "0.5",
+          "*"
+        ]
       ]
     ],
     [
       "hookrightarrow",
       [
         "glue",
-        "lefthook",
+        [
+          "part",
+          "#21AA",
+          "*",
+          "0.5"
+        ],
         "rightarrow"
       ]
     ],
@@ -117,14 +127,24 @@
           "leftarrow",
           "minus"
         ],
-        "righthook"
+        [
+          "part",
+          "#21A9",
+          "0.5",
+          "*"
+        ]
       ]
     ],
     [
       "longhookrightarrow",
       [
         "glue",
-        "lefthook",
+        [
+          "part",
+          "#21AA",
+          "*",
+          "0.5"
+        ],
         [
           "glue",
           "minus",
@@ -426,7 +446,7 @@
         "glue",
         [
           "part",
-          "Lleftarrow",
+          "#21DA",
           "*",
           "0.7"
         ],
@@ -435,7 +455,7 @@
           "0",
           [
             "part",
-            "Rrightarrow",
+            "#21DB",
             "0.3",
             "*"
           ]
@@ -1623,7 +1643,12 @@
       [
         "0",
         "0.78",
-        "cmex-int-1"
+        [
+          "magnify",
+          "#222B",
+          "1.5",
+          "1.5"
+        ]
       ]
     ],
     [
@@ -1631,7 +1656,12 @@
       [
         "0",
         "1.343",
-        "cmex-int-2"
+        [
+          "magnify",
+          "#222B",
+          "2.2",
+          "2.2"
+        ]
       ]
     ],
     [

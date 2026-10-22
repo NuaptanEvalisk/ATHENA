@@ -556,8 +556,8 @@ profile_face_family (string profile, string variant, string series,
   array<string> variant_parts= tokenize (variant, "-");
   string math_role;
   for (int i=0; i<N(variant_parts); i++) {
-    if (variant_parts[i] == "cal" || variant_parts[i] == "frak" ||
-        variant_parts[i] == "bbb") {
+    if (variant_parts[i] == "math" || variant_parts[i] == "cal" ||
+        variant_parts[i] == "frak" || variant_parts[i] == "bbb") {
       requested << variant_parts[i];
       if (math_role == "") math_role= variant_parts[i];
     }
@@ -2163,7 +2163,10 @@ physical_font_source math_font_source (font source, math_alphabet alphabet) {
       physical.horizontal_dpi= smart->hdpi;
       physical.vertical_dpi= smart->dpi;
     }
-    string role= smart->variant;
+    // Native Unicode Math symbols need the explicit math= profile face.
+    // The text-role variant (usually rm) would instead select the document
+    // text face, often lacking integral, arrow and relation glyphs.
+    string role= "math";
     string weight= "medium";
     switch (alphabet) {
     case math_alphabet::bold_script: weight= "bold"; [[fallthrough]];

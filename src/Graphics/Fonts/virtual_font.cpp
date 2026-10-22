@@ -12,6 +12,7 @@
 
 #include "font.hpp"
 #include "font_domain.hpp"
+#include "math_font.hpp"
 #include "translator.hpp"
 #include "analyze.hpp"
 #include "frame.hpp"
@@ -25,6 +26,8 @@ int get_utf8_code (string c);
 
 struct virtual_font_rep: font_rep {
   font         base_fn;
+  font         unicode_math_fn;
+  bool         unicode_math_checked= false;
   string       fn_name;
   translator   virt;
   int          size;
@@ -47,6 +50,10 @@ struct virtual_font_rep: font_rep {
   bool use_base (string s) {
     return !(prefer_recipes && virt->dict->contains (s)) && base_fn->supports (s);
   }
+  // A legacy virtual recipe can explicitly specify a Unicode mathematical
+  // glyph (<#HEX>). Fetch it from the document's actual OpenType Math face,
+  // not from the text fallback used by the smart font for unresolved tokens.
+  font unicode_math_glyph (string s);
   scheme_tree exec (scheme_tree t);
   bool   supported (scheme_tree t, bool svg);
   bool   supported (string c, bool svg);
@@ -98,6 +105,29 @@ virtual_font_rep::virtual_font_rep (
   copy_math_pars (base_fn);
   hunit= ((size*hdpi)/72)*PIXEL;
   vunit= ((size*vdpi)/72)*PIXEL;
+}
+
+// Keep the physical Math face lazy: most recipes only need the ordinary base.
+font
+virtual_font_rep::unicode_math_glyph (string s) {
+  if (!starts (s, "<#") || !ends (s, ">")) return font ();
+  if (!unicode_math_checked) {
+    unicode_math_checked= true;
+    try {
+      auto physical= athena::text::math_font_source (
+        base_fn, athena::text::math_alphabet::normal);
+      if (!physical.file.file_utf8.empty ()) {
+        const std::string& filename= physical.file.file_utf8;
+        unicode_math_fn= unicode_font (
+          string (filename.data (), filename.size ()),
+          physical.file, size, hdpi, vdpi);
+      }
+    }
+    catch (...) {} // No dedicated Math face: retain the original base fallback.
+  }
+  if (!is_nil (unicode_math_fn) && unicode_math_fn->supports (s))
+    return unicode_math_fn;
+  return font ();
 }
 
 /******************************************************************************
@@ -273,6 +303,7 @@ virtual_font_rep::supported (scheme_tree t, bool svg) {
     if (r == "#28") r= "(";
     if (r == "#29") r= ")";
     if (N(r)>1) r= "<" * r * ">";
+    if (!is_nil (unicode_math_glyph (r))) return true;
     if (!extend || use_base (r) || !virt->dict->contains (r))
       return base_fn->supports (r);
     if (!virt->dict->contains (r)) return false;
@@ -486,7 +517,12 @@ virtual_font_rep::compile_bis (scheme_tree t, metric& ex) {
     if (r == "#29") r= ")";
     if (N(r)>1) r= "<" * r * ">";
     glyph gl;
-    if (!extend || use_base (r) || !virt->dict->contains (r)) {
+    font math= unicode_math_glyph (r);
+    if (!is_nil (math)) {
+      math->get_extents (r, ex);
+      gl= math->get_glyph (r);
+    }
+    else if (!extend || use_base (r) || !virt->dict->contains (r)) {
       base_fn->get_extents (r, ex);
       gl= base_fn->get_glyph (r);
     }
@@ -1208,7 +1244,10 @@ virtual_font_rep::draw_tree (renderer ren, scheme_tree t, SI x, SI y) {
     if (r == "#28") r= "(";
     if (r == "#29") r= ")";
     if (N(r)>1) r= "<" * r * ">";
-    if (!extend || use_base (r) || !virt->dict->contains (r))
+    font math= unicode_math_glyph (r);
+    if (!is_nil (math))
+      math->draw (ren, r, x, y);
+    else if (!extend || use_base (r) || !virt->dict->contains (r))
       base_fn->draw (ren, r, x, y);
     else {
       scheme_tree u= virt->virt_def [virt->dict [r]];

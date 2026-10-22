@@ -488,8 +488,8 @@ QTMIconManager::prewarmMathIcons (
         std_warning << "math icon cache: could not commit manifest" << LF;
     }
   }
-  std_warning << "math icon cache: " << total << " loaded, "
-              << regenerated << " built during startup" << LF;
+  io_info << "math icon cache: " << total << " loaded, "
+          << regenerated << " built during startup" << LF;
 }
 
 QIcon
