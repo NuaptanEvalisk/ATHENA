@@ -1,4 +1,5 @@
 #include "prooftrack.hpp"
+#include "prooftrack_kinds.hpp"
 #include "background_workers.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include "node_metadata.hpp"
@@ -32,7 +33,14 @@ json revision (const fs::metadata& m) {
     m.modified.nanoseconds, m.changed.seconds, m.changed.nanoseconds});
 }
 
-void collect (const tree& t, json& nodes) {
+void collect (const tree& t, json& nodes, bool paragraph= false) {
+  // A paragraph is a direct DOCUMENT/PARA child, not an arbitrary nested
+  // formula, formatting span, or synthetic display node. It may be atomic.
+  if (paragraph && !is_compound (t, "enunciation")) {
+    const auto* meta= node::get (t);
+    if (meta && !meta->id.empty ())
+      nodes.push_back (json::array ({meta->id, ""}));
+  }
   if (is_atomic (t)) return;
   if (is_compound (t, "enunciation")) {
     const auto* meta= node::get (t);
@@ -40,8 +48,7 @@ void collect (const tree& t, json& nodes) {
       const auto k= meta->properties.find ("kind");
       const auto* kind= k == meta->properties.end () ? nullptr :
         std::get_if<std::string> (&k->second.data);
-      if (kind && (*kind == "proof" || *kind == "theorem" ||
-          *kind == "proposition" || *kind == "lemma" || *kind == "corollary")) {
+      if (kind && endpoint_kind (*kind)) {
         std::string target;
         const auto p= meta->properties.find ("target");
         if (*kind == "proof" && p != meta->properties.end ())
@@ -51,7 +58,10 @@ void collect (const tree& t, json& nodes) {
       }
     }
   }
-  for (int i=0; i<N(t); ++i) collect (t[i], nodes);
+  const bool children_are_paragraphs= is_func (t, DOCUMENT) ||
+                                      is_func (t, PARA);
+  for (int i=0; i<N(t); ++i)
+    collect (t[i], nodes, children_are_paragraphs);
 }
 
 class store {

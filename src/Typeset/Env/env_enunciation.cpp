@@ -14,6 +14,7 @@
 #include "math_tree_v3.hpp"
 #include "observer.hpp"
 #include "prooftrack_presentation.hpp"
+#include "ATHENA/Data/prooftrack_kinds.hpp"
 #include <set>
 
 namespace {
@@ -237,8 +238,8 @@ tree native_enunciation_macro (edit_env_rep* env, const tree& source) {
     heading= tree (HLINK, heading, "tmfs://wikilink/" * text (target->id));
 
   if (prooftrack_screen_scope::active () && env->get_string (PAGE_PRINTED) != "true" &&
-      (kind == "proof" || kind == "theorem" || kind == "proposition" ||
-       kind == "lemma" || kind == "corollary")) {
+      athena::prooftrack::endpoint_kind (
+        std::string_view (kind.data (), N(kind)))) {
     const auto* target= property<node::reference> (source, "target");
     auto id= node::id (source);
     if (id.empty ())
