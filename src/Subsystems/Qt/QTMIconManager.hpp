@@ -18,6 +18,7 @@
 #include <QMap>
 #include <QSet>
 #include <QStringList>
+#include <functional>
 #include "url.hpp"
 #include "gui.hpp"
 
@@ -33,6 +34,10 @@ public:
   
   QIcon getIcon (url file_name);
   QIcon getPresentationIcon (const QString& value);
+  // Eagerly load/compile the complete registry palette. Runtime icon painting
+  // must never call the TeXmacs math typesetter or virtual font compiler.
+  void prewarmMathIcons (
+    const std::function<void (int, int)>& progress= {});
   QIcon getDocumentIcon (const QString& filename);
 
   static bool is_dark_mode ();

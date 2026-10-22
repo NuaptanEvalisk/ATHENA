@@ -229,10 +229,11 @@ box_widget_rep::handle_mouse (string kind, SI x, SI y, int m, time_t t,
 ******************************************************************************/
 
 widget
-box_widget (box b, bool tr) {
+box_widget (box b, bool tr, SI padding) {
   color col= light_grey;
   double zoom= 5.0/6.0;
-  return widget (tm_new<box_widget_rep> (b, col, tr, zoom, 3*PIXEL, 3*PIXEL));
+  return widget (tm_new<box_widget_rep> (
+    b, col, tr, zoom, padding-2*PIXEL, padding-2*PIXEL));
 }
 
 static box

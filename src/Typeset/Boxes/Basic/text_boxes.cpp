@@ -1004,7 +1004,10 @@ virtual_recipe_box (path ip, string virtual_font_name, string definition,
                     font base, pencil pen) {
   int hdpi= (72 * base->wpt + (PIXEL/2)) / PIXEL;
   int vdpi= (72 * base->hpt + (PIXEL/2)) / PIXEL;
-  font vfn= virtual_font (base, virtual_font_name, base->size, hdpi, vdpi, true);
+  // This is an explicit recipe, not a fallback font. A smart font reports
+  // supports() for every token, including recipe names absent from all faces.
+  font vfn= virtual_font (base, virtual_font_name, base->size, hdpi, vdpi,
+                         true, true);
   string token= N(definition) == 1 ? definition : "<" * definition * ">";
   return text_box (ip, 0, token, vfn, pen);
 }

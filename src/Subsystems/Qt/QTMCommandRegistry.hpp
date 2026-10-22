@@ -55,6 +55,9 @@ struct QTMCommandDefinition {
   QKeySequence shortcut;
   QTMCommandScope scope= QTMCommandScope::Application;
   bool showInPalette= true;
+  QString actionLabel () const {
+    return icon.startsWith (QStringLiteral ("math:")) ? QString () : label;
+  }
 };
 
 struct QTMCommandMenuItem {

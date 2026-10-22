@@ -53,7 +53,12 @@ QTMEditorToolbarPresenter::makeCommandAction (
     QTMCommandRegistry::instance ().command (commandId);
   if (command == nullptr) return nullptr;
   QIcon icon= tmapp ()->icon_manager ().getPresentationIcon (command->icon);
-  QAction* action= new QAction (icon, command->label, parent);
+  QAction* action= new QAction (icon, command->actionLabel (), parent);
+  if (command->icon.startsWith (QStringLiteral ("math:"))) {
+    action->setIconVisibleInMenu (true);
+    if (auto* menu= qobject_cast<QMenu*> (parent))
+      menu->setToolTipsVisible (true);
+  }
   action->setToolTip (command->help);
   action->setStatusTip (command->help);
   action->setWhatsThis (command->help);

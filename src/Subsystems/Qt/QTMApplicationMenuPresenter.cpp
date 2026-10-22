@@ -38,7 +38,7 @@ belongs_to (QWidget* child, QWidget* ancestor) {
 
 QString
 menu_action_text (const QTMCommandDefinition& command) {
-  QString text= command.label;
+  QString text= command.actionLabel ();
   if (!command.shortcut.isEmpty ())
     text += "\t" + command.shortcut.toString (QKeySequence::NativeText);
   return text;
@@ -319,6 +319,11 @@ QTMApplicationMenuPresenter::build_menu (
       QIcon icon= tmapp ()->icon_manager ().getPresentationIcon (command->icon);
       QAction* action=
         new QAction (icon, menu_action_text (*command), menu);
+      if (command->icon.startsWith (QStringLiteral ("math:"))) {
+        action->setIconVisibleInMenu (true);
+        menu->setToolTipsVisible (true);
+      }
+      action->setToolTip (command->help);
       action->setStatusTip (command->help);
       action->setWhatsThis (command->help);
       action->setProperty ("athena.shortcut", command->shortcut);

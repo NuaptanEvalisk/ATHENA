@@ -31,6 +31,7 @@ struct virtual_font_rep: font_rep {
   int          hdpi;
   int          vdpi;
   bool         extend;
+  bool         prefer_recipes;
   int          last;
   font_metric  fnm;
   font_glyphs  fng;
@@ -42,7 +43,10 @@ struct virtual_font_rep: font_rep {
   hashmap<string,bool> sup_svg;
 
   virtual_font_rep (string name, font base, string vname, int size,
-                    int hdpi, int vdpi, bool extend);
+                    int hdpi, int vdpi, bool extend, bool prefer_recipes);
+  bool use_base (string s) {
+    return !(prefer_recipes && virt->dict->contains (s)) && base_fn->supports (s);
+  }
   scheme_tree exec (scheme_tree t);
   bool   supported (scheme_tree t, bool svg);
   bool   supported (string c, bool svg);
@@ -80,10 +84,11 @@ struct virtual_font_rep: font_rep {
 
 virtual_font_rep::virtual_font_rep (
   string name, font base, string vname, int size2,
-  int hdpi2, int vdpi2, bool extend2):
+  int hdpi2, int vdpi2, bool extend2, bool prefer_recipes2):
     font_rep (name, base), base_fn (base), fn_name (vname),
     virt (load_translator (vname)), size (size2),
     hdpi (hdpi2), vdpi (vdpi2), extend (extend2),
+    prefer_recipes (prefer_recipes2),
     last (N(virt->virt_def)),
     fnm (std_font_metric (name, tm_new_array<metric> (last), 0, last-1)),
     fng (std_font_glyphs (name, tm_new_array<glyph> (last), 0, last-1)),
@@ -268,7 +273,7 @@ virtual_font_rep::supported (scheme_tree t, bool svg) {
     if (r == "#28") r= "(";
     if (r == "#29") r= ")";
     if (N(r)>1) r= "<" * r * ">";
-    if (!extend || base_fn->supports (r) || !virt->dict->contains (r))
+    if (!extend || use_base (r) || !virt->dict->contains (r))
       return base_fn->supports (r);
     if (!virt->dict->contains (r)) return false;
     return supported (virt->virt_def [virt->dict [r]], svg);
@@ -481,7 +486,7 @@ virtual_font_rep::compile_bis (scheme_tree t, metric& ex) {
     if (r == "#29") r= ")";
     if (N(r)>1) r= "<" * r * ">";
     glyph gl;
-    if (!extend || base_fn->supports (r) || !virt->dict->contains (r)) {
+    if (!extend || use_base (r) || !virt->dict->contains (r)) {
       base_fn->get_extents (r, ex);
       gl= base_fn->get_glyph (r);
     }
@@ -1203,7 +1208,7 @@ virtual_font_rep::draw_tree (renderer ren, scheme_tree t, SI x, SI y) {
     if (r == "#28") r= "(";
     if (r == "#29") r= ")";
     if (N(r)>1) r= "<" * r * ">";
-    if (!extend || base_fn->supports (r) || !virt->dict->contains (r))
+    if (!extend || use_base (r) || !virt->dict->contains (r))
       base_fn->draw (ren, r, x, y);
     else {
       scheme_tree u= virt->virt_def [virt->dict [r]];
@@ -1867,13 +1872,13 @@ virtual_font_rep::get_tree (string s) {
 
 bool
 virtual_font_rep::supports (string s) {
-  if (extend && base_fn->supports (s)) return true;
+  if (extend && use_base (s)) return true;
   return supported (s, false);
 }
 
 void
 virtual_font_rep::get_extents (string s, metric& ex) {
-  if (extend && base_fn->supports (s)) {
+  if (extend && use_base (s)) {
     base_fn->get_extents (s, ex); return; }
   font_metric cfnm;
   font_glyphs cfng;
@@ -1904,7 +1909,7 @@ virtual_font_rep::get_xpositions (string s, SI* xpos, bool lit) {
 
 void
 virtual_font_rep::get_xpositions (string s, SI* xpos, SI xk) {
-  if (extend && base_fn->supports (s)) {
+  if (extend && use_base (s)) {
     base_fn->get_xpositions (s, xpos, xk); return; }
   metric ex;
   get_extents (s, ex);
@@ -1916,7 +1921,7 @@ virtual_font_rep::get_xpositions (string s, SI* xpos, SI xk) {
 
 void
 virtual_font_rep::draw_fixed (renderer ren, string s, SI x, SI y) {
-  if (extend && base_fn->supports (s))
+  if (extend && use_base (s))
     base_fn->draw_fixed (ren, s, x, y);
   else if (ren->is_screen || !supported (s, true)) {
     font_metric cfnm;
@@ -1939,7 +1944,7 @@ font
 virtual_font_rep::magnify (double zoomx, double zoomy) {
   return virtual_font (base_fn->magnify (zoomx, zoomy), fn_name, size,
                        (int) tm_round (hdpi * zoomx),
-                       (int) tm_round (vdpi * zoomy), extend);
+                       (int) tm_round (vdpi * zoomy), extend, prefer_recipes);
 }
 
 void
@@ -1949,7 +1954,7 @@ virtual_font_rep::advance_glyph (string s, int& pos, bool ligf) {
 
 glyph
 virtual_font_rep::get_glyph (string s) {
-  if (extend && base_fn->supports (s))
+  if (extend && use_base (s))
     return base_fn->get_glyph (s);
   font_metric cfnm;
   font_glyphs cfng;
@@ -1961,7 +1966,7 @@ virtual_font_rep::get_glyph (string s) {
 int
 virtual_font_rep::index_glyph (string s, font_metric& cfnm,
                                          font_glyphs& cfng) {
-  if (extend && base_fn->supports (s))
+  if (extend && use_base (s))
     return base_fn->index_glyph (s, cfnm, cfng);
   return get_char (s, cfnm, cfng);
 }
@@ -1972,7 +1977,7 @@ virtual_font_rep::index_glyph (string s, font_metric& cfnm,
 
 double
 virtual_font_rep::get_left_slope (string s) {
-  if (extend && base_fn->supports (s))
+  if (extend && use_base (s))
     return base_fn->get_left_slope (s);
   tree t= get_tree (s);
   if (is_tuple (t, "italic", 3))
@@ -1982,7 +1987,7 @@ virtual_font_rep::get_left_slope (string s) {
 
 double
 virtual_font_rep::get_right_slope (string s) {
-  if (extend && base_fn->supports (s))
+  if (extend && use_base (s))
     return base_fn->get_right_slope (s);
   tree t= get_tree (s);
   if (is_tuple (t, "italic", 3))
@@ -1992,7 +1997,7 @@ virtual_font_rep::get_right_slope (string s) {
 
 SI
 virtual_font_rep::get_right_correction (string s) {
-  if (extend && base_fn->supports (s))
+  if (extend && use_base (s))
     return base_fn->get_right_correction (s);
   tree t= get_tree (s);
   if (is_tuple (t, "italic", 3))
@@ -2002,7 +2007,7 @@ virtual_font_rep::get_right_correction (string s) {
 
 SI
 virtual_font_rep::get_lsub_correction (string s) {
-  if (extend && base_fn->supports (s))
+  if (extend && use_base (s))
     return base_fn->get_lsub_correction (s);
   SI r= -get_left_correction (s);
   if (lsub_correct->contains (s)) r += (SI) (lsub_correct[s] * wfn);
@@ -2011,7 +2016,7 @@ virtual_font_rep::get_lsub_correction (string s) {
 
 SI
 virtual_font_rep::get_lsup_correction (string s) {
-  if (extend && base_fn->supports (s))
+  if (extend && use_base (s))
     return base_fn->get_lsup_correction (s);
   SI r= get_right_correction (s);
   if (lsup_correct->contains (s)) r += (SI) (lsup_correct[s] * wfn);
@@ -2020,7 +2025,7 @@ virtual_font_rep::get_lsup_correction (string s) {
 
 SI
 virtual_font_rep::get_rsub_correction (string s) {
-  if (extend && base_fn->supports (s))
+  if (extend && use_base (s))
     return base_fn->get_rsub_correction (s);
   if (!rsub_correct->contains (s)) return 0;
   else return (SI) (rsub_correct[s] * wfn);
@@ -2028,7 +2033,7 @@ virtual_font_rep::get_rsub_correction (string s) {
 
 SI
 virtual_font_rep::get_rsup_correction (string s) {
-  if (extend && base_fn->supports (s))
+  if (extend && use_base (s))
     return base_fn->get_rsup_correction (s);
   SI r= get_right_correction (s);
   if (rsup_correct->contains (s)) r += (SI) (rsup_correct[s] * wfn);
@@ -2037,7 +2042,7 @@ virtual_font_rep::get_rsup_correction (string s) {
 
 SI
 virtual_font_rep::get_wide_correction (string s, int mode) {
-  if (extend && base_fn->supports (s))
+  if (extend && use_base (s))
     return base_fn->get_wide_correction (s, mode);
   if (mode > 0 && above_correct->contains (s))
     return (SI) (above_correct[s] * wfn);
@@ -2077,12 +2082,13 @@ virtually_defined (string c, string name) {
 
 font
 virtual_font (font base, string name, int size,
-              int hdpi, int vdpi, bool extend) {
+              int hdpi, int vdpi, bool extend, bool prefer_recipes) {
   string full_name=
     base->res_name * (extend? string ("#enhance-"): string ("#virtual-")) *
     name * as_string (size) * "@" * as_string (hdpi);
   if (vdpi != hdpi) full_name << "x" << vdpi;
+  if (prefer_recipes) full_name << "#recipes";
   return make (font, full_name,
                tm_new<virtual_font_rep> (full_name, base, name, size,
-                                         hdpi, vdpi, extend));
+                                         hdpi, vdpi, extend, prefer_recipes));
 }

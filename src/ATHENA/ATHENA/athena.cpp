@@ -1338,6 +1338,12 @@ TeXmacs_main (int argc, char** argv) {
       startup_progress (94, "Building application workspace");
       bench_start ("show application shell");
       qt_wait_for_font_fallback_warmup ();
+      // The math icon renderer uses the GUI helper to create a transient
+      // QAction. Prewarm after gui_open() has initialized that helper, but
+      // before showing menus or starting the normal event loop.
+      bench_start ("prewarm math icon cache");
+      qtmapp->prewarmMathIcons ();
+      bench_cumul ("prewarm math icon cache");
       qtmapp->mainTabWindow ().showShell ();
       bench_cumul ("show application shell");
       bench_cumul ("startup to application shell");

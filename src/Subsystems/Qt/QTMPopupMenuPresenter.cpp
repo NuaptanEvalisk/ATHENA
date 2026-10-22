@@ -22,7 +22,7 @@ namespace {
 
 QString
 command_text (const QTMCommandDefinition& command) {
-  QString text= command.label;
+  QString text= command.actionLabel ();
   if (!command.shortcut.isEmpty ())
     text += QStringLiteral ("\t") +
             command.shortcut.toString (QKeySequence::NativeText);
@@ -174,6 +174,10 @@ add_menu_items (
       if (!state.available) continue;
       QAction* action= menu->addAction (
         tmapp ()->icon_manager ().getPresentationIcon (command->icon), command_text (*command));
+      if (command->icon.startsWith (QStringLiteral ("math:"))) {
+        action->setIconVisibleInMenu (true);
+        menu->setToolTipsVisible (true);
+      }
       action->setToolTip (command->help);
       action->setStatusTip (command->help);
       action->setWhatsThis (command->help);
@@ -231,6 +235,11 @@ qtm_create_popup_menu (
       if (!state.available) continue;
       QAction* action= root->addAction (
         tmapp ()->icon_manager ().getPresentationIcon (command->icon), command_text (*command));
+      if (command->icon.startsWith (QStringLiteral ("math:"))) {
+        action->setIconVisibleInMenu (true);
+        root->setToolTipsVisible (true);
+      }
+      action->setToolTip (command->help);
       action->setEnabled (state.enabled);
       action->setCheckable (state.checkable);
       if (state.checkable) action->setChecked (state.checked);

@@ -176,7 +176,8 @@ string default_cjk_font_name ();
 string default_cjk_font_name_for_range (string range);
 
 font error_font (font fn);
-font virtual_font (font base, string fam, int sz, int hdpi, int vdpi, bool ext);
+font virtual_font (font base, string fam, int sz, int hdpi, int vdpi, bool ext,
+                   bool prefer_recipes= false);
 font virtual_enhance_font (font base, string virt);
 font tt_font (string family, int size, int dpi);
 font unicode_font (string family, int size, int dpi);

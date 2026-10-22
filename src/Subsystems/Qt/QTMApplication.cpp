@@ -161,6 +161,16 @@ void QTMApplication::load() {
 }
   
 
+void QTMApplication::prewarmMathIcons () {
+  // Startup barrier after ATHENA_init_font: menus must not compile fonts.
+  set_splash_busy ("Preparing mathematical menu icons");
+  mIconManager.prewarmMathIcons ([this] (int done, int total) {
+    if (mStartupWindow != nullptr)
+      set_splash_busy ("Preparing mathematical menu icons " *
+                      as_string (done) * "/" * as_string (total));
+  });
+}
+
 void QTMApplication::init_theme () {
 #if defined(OS_MINGW64)
   setStyle(QStyleFactory::create("Windows"));
