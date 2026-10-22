@@ -677,6 +677,22 @@ private slots:
     QVERIFY (occurs ("BodyToken", visible_text (b)));
   }
 
+  void proofTargetDoesNotTurnHeadingIntoLink () {
+    Environment context;
+    tree proof= source ("proof", false);
+    auto metadata= *node::get (proof);
+    const std::string target= "22222222-2222-4222-8222-222222222222";
+    metadata.properties["target"]= node::property (node::reference {target});
+    node::set (proof, metadata);
+    tree plan= native_enunciation_macro (context.env.operator-> (), proof);
+    QVERIFY (!has_tag (plan, HLINK));
+    QVERIFY (has_tag (plan, ARG));
+    const auto* linked= std::get_if<node::reference> (
+      &node::get (proof)->properties.at ("target").data);
+    QVERIFY (linked != nullptr);
+    QCOMPARE (linked->id, target);
+  }
+
   void actualTypesettingAndIncrementalProperties () {
     Environment context;
     edit_env env= context.env;

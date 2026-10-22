@@ -234,8 +234,12 @@ tree native_enunciation_macro (edit_env_rep* env, const tree& source) {
   }
   else if (details != "")
     heading= append (heading, definition_title ? details : tree (CONCAT, "(", details, ")"));
-  if (const auto* target= property<node::reference> (source, "target"))
-    heading= tree (HLINK, heading, "tmfs://wikilink/" * text (target->id));
+  // proof.target is a semantic association for the margin track, not a
+  // hyperlink on the visible "Proof." label. Other explicitly targeted
+  // enunciations retain their existing title navigation behavior.
+  if (kind != "proof")
+    if (const auto* target= property<node::reference> (source, "target"))
+      heading= tree (HLINK, heading, "tmfs://wikilink/" * text (target->id));
 
   if (prooftrack_screen_scope::active () && env->get_string (PAGE_PRINTED) != "true" &&
       athena::prooftrack::endpoint_kind (
