@@ -1,6 +1,14 @@
 #include "QTMProofTrack.hpp"
 #include "native_interfaces.hpp"
 #include "boot.hpp"
+#include "buffer_actor.hpp"
+#include "actor_ui_bridge.hpp"
+#include <QApplication>
+#include <QDrag>
+#include <QDropEvent>
+#include <QMimeData>
+#include <QPointer>
+#include <QCursor>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QToolTip>
@@ -9,8 +17,37 @@
 #include <algorithm>
 #include <cmath>
 #include <set>
+#include <limits>
+#include <QLineF>
+
+namespace {
+constexpr const char* prooftrack_mime= "application/x-athena-prooftrack";
+QPointF handle_position (const QTMProofEndpoint& p) {
+  return QPointF (std::max (10.0, p.position.x ()-20), p.position.y ());
+}
+QTMProofEndpoint drag_endpoint (const QMimeData* mime) {
+  const auto bytes= mime->data (prooftrack_mime);
+  const auto json= nlohmann::json::parse (bytes.constData (), bytes.constData ()+bytes.size ());
+  QTMProofEndpoint p;
+  p.id= QString::fromStdString (json.at ("id").get<std::string> ());
+  p.target= QString::fromStdString (json.at ("target").get<std::string> ());
+  p.proof= json.at ("proof").get<bool> ();
+  p.writable= json.at ("writable").get<bool> ();
+  p.actor= json.at ("actor").get<athena_actor_id> ();
+  p.view= json.at ("view").get<athena_view_id> ();
+  return p;
+}
+}
 
 QTMProofTrack::QTMProofTrack (QWidget* surface): QObject (surface), surface_ (surface) {
+  surface_->installEventFilter (this);
+  drag_scroll_.setInterval (40);
+  connect (&drag_scroll_, &QTimer::timeout, this, [this] {
+    if (!shown_ || !incoming_ || !scroll) return;
+    const double y= drop_position_.y ();
+    const int step= y < 32 ? -16 : (y > surface_->height ()-32 ? 16 : 0);
+    if (step) scroll (step);
+  });
   index_= athena::prooftrack::read ();
   auto refresh= [this] {
     auto index= athena::prooftrack::read ();
@@ -18,7 +55,10 @@ QTMProofTrack::QTMProofTrack (QWidget* surface): QObject (surface), surface_ (su
     bool transclusions= get_user_preference ("prooftrack in transclusions", "off") == "on";
     if (index != index_ || shown != shown_ || transclusions != transclusions_) {
       index_= std::move (index); shown_= shown; transclusions_= transclusions;
-      if (!shown_) { tracks_.clear (); leave (); }
+      if (!shown_) {
+        tracks_.clear (); visible_.clear (); handle_pressed_= false;
+        incoming_.reset (); drag_scroll_.stop (); leave ();
+      }
       surface_->update ();
     }
   };
@@ -39,6 +79,15 @@ void QTMProofTrack::accept (const std::string& bytes) {
     endpoint.position= QPointF (p.at ("x").get<double> (), p.at ("y").get<double> ());
     endpoint.proof= p.at ("proof").get<bool> ();
     endpoint.transclusion= p.at ("transclusion").get<bool> ();
+    endpoint.linkable= p.value ("linkable", false);
+    endpoint.writable= p.value ("writable", false);
+    endpoint.actor= actor; endpoint.view= view;
+    if (p.contains ("bounds")) {
+      const auto& r= p.at ("bounds");
+      endpoint.bounds= QRectF (r[0].get<double> (), r[1].get<double> (),
+                              r[2].get<double> (), r[3].get<double> ());
+    }
+    else endpoint.bounds= QRectF (endpoint.position-QPointF (0, 12), QSizeF (160, 24));
     endpoints.push_back (std::move (endpoint));
   }
   surface_->update ();
@@ -47,10 +96,13 @@ void QTMProofTrack::accept (const std::string& bytes) {
 void QTMProofTrack::paint (QPainter& painter, std::vector<QTMProofEndpoint> points,
                          const std::map<std::string, QTMProofMember>& members) {
   tracks_.clear ();
+  visible_.clear ();
   if (!shown_) return;
   points.erase (std::remove_if (points.begin (), points.end (), [this] (const auto& p) {
     return p.transclusion && !transclusions_;
   }), points.end ());
+  visible_= points;
+  if (incoming_) drop_= dropHit (drop_position_, *incoming_);
   if (points.empty ()) return;
   std::map<QString, std::vector<QTMProofEndpoint>> by_id;
   for (const auto& p: points) by_id[p.id].push_back (p);
@@ -147,7 +199,94 @@ void QTMProofTrack::paint (QPainter& painter, std::vector<QTMProofEndpoint> poin
       }
     }
   }
+  handle_= handleHit (surface_->mapFromGlobal (QCursor::pos ()));
+  for (int i=0; i<int (visible_.size ()); ++i) {
+    const auto& endpoint= visible_[i];
+    if (i == drop_) {
+      painter.setPen (QPen (QColor ("#9951c8"), 2));
+      painter.setBrush (QColor (153, 81, 200, 24));
+      painter.drawRect (endpoint.bounds.adjusted (-3, -2, 3, 2));
+    }
+    if (i == handle_ || i == drop_) {
+      painter.setPen (QPen (QColor ("#9951c8"), 2));
+      painter.setBrush (Qt::white);
+      painter.drawEllipse (handle_position (endpoint), 7, 7);
+      painter.setBrush (QColor ("#9951c8"));
+      painter.drawEllipse (handle_position (endpoint), 2, 2);
+    }
+  }
   painter.restore ();
+}
+
+int QTMProofTrack::handleHit (QPointF p) const {
+  int best= -1;
+  double distance= 20;
+  for (int i=0; i<int (visible_.size ()); ++i) {
+    const auto& endpoint= visible_[i];
+    if (!endpoint.linkable || (endpoint.proof && !endpoint.writable) ||
+        p.x () < 0 || p.x () >= endpoint.position.x ()) continue;
+    const double dy= std::abs (p.y ()-endpoint.position.y ());
+    if (dy < distance && p.x () >= handle_position (endpoint).x ()-20) {
+      distance= dy; best= i;
+    }
+  }
+  return best;
+}
+
+int QTMProofTrack::dropHit (QPointF p, const QTMProofEndpoint& source) const {
+  int best= -1;
+  double area= std::numeric_limits<double>::max ();
+  for (int i=0; i<int (visible_.size ()); ++i) {
+    const auto& endpoint= visible_[i];
+    if (!endpoint.linkable || endpoint.proof == source.proof || endpoint.id == source.id ||
+        (endpoint.proof ? !endpoint.writable : !source.writable)) continue;
+    auto bounds= endpoint.bounds.adjusted (-28, -5, 5, 5);
+    if (bounds.contains (p) && bounds.width ()*bounds.height () < area) {
+      best= i; area= bounds.width ()*bounds.height ();
+    }
+  }
+  return best;
+}
+
+bool QTMProofTrack::eventFilter (QObject*, QEvent* event) {
+  if (event->type () == QEvent::DragLeave) {
+    incoming_.reset (); drag_scroll_.stop ();
+    drop_= -1; surface_->update (); return false;
+  }
+  if (event->type () != QEvent::DragEnter && event->type () != QEvent::DragMove &&
+      event->type () != QEvent::Drop) return false;
+  auto* drop= static_cast<QDropEvent*> (event);
+  if (!drop->mimeData ()->hasFormat (prooftrack_mime)) return false;
+  drop->ignore ();
+  if (!shown_) return true;
+  const auto source= drag_endpoint (drop->mimeData ());
+  incoming_= source; drop_position_= drop->position ();
+  drag_scroll_.start ();
+  drop_= dropHit (drop->position (), source);
+  if (event->type () == QEvent::DragEnter || drop_ >= 0) {
+    drop->setDropAction (Qt::CopyAction); drop->accept ();
+  }
+  if (event->type () == QEvent::Drop && drop_ >= 0) {
+    const auto& destination= visible_[drop_];
+    const auto& proof= source.proof ? source : destination;
+    const auto& statement= source.proof ? destination : source;
+    const auto bytes= nlohmann::json {{"op", "prooftrack-link"},
+      {"proof", proof.id.toStdString ()}, {"target", statement.id.toStdString ()},
+      {"previous", proof.target.toStdString ()}}.dump ();
+    const auto payload= actor_text_from_string (string (bytes.data (), bytes.size ()));
+    if (!buffer_actor::try_submit_to (proof.actor, actor_command_kind::native_editor_action_json,
+          proof.view, payload, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+          0, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY)) {
+      actor_text_registry::instance ().discard (payload);
+      drop->ignore ();
+    }
+    drop_= -1;
+  }
+  if (event->type () == QEvent::Drop) {
+    incoming_.reset (); drag_scroll_.stop ();
+  }
+  surface_->update ();
+  return true;
 }
 
 int QTMProofTrack::hit (QPointF p) const {
@@ -172,6 +311,50 @@ int QTMProofTrack::hit (QPointF p) const {
 
 bool QTMProofTrack::mouse (QMouseEvent* event) {
   if (!shown_) return false;
+  if (handle_pressed_ && event->type () == QEvent::MouseMove) {
+    if ((event->position ()-press_position_).manhattanLength () < QApplication::startDragDistance ())
+      return true;
+    handle_pressed_= false;
+    const auto& p= drag_source_;
+    const auto bytes= nlohmann::json {{"id", p.id.toStdString ()},
+      {"target", p.target.toStdString ()}, {"proof", p.proof}, {"writable", p.writable},
+      {"actor", p.actor}, {"view", p.view}}.dump ();
+    auto* mime= new QMimeData;
+    mime->setData (prooftrack_mime, QByteArray (bytes.data (), bytes.size ()));
+    QPointer<QDrag> drag= new QDrag (surface_);
+    drag->setMimeData (mime);
+    QPixmap icon (24, 24); icon.fill (Qt::transparent);
+    QPainter painter (&icon);
+    painter.setRenderHint (QPainter::Antialiasing);
+    painter.setPen (QPen (QColor ("#9951c8"), 2)); painter.setBrush (Qt::white);
+    painter.drawEllipse (QPointF (12, 12), 7, 7); painter.end ();
+    drag->setPixmap (icon); drag->setHotSpot (QPoint (12, 12));
+    QToolTip::hideText ();
+    QPointer<QTMProofTrack> guard (this);
+    // Wayland has no LinkAction; copy the association request, not document content.
+    drag->exec (Qt::CopyAction);
+    if (drag) drag->deleteLater ();
+    if (guard) {
+      incoming_.reset (); drag_scroll_.stop (); drop_= -1; leave ();
+    }
+    return true;
+  }
+  if (handle_pressed_ && event->type () == QEvent::MouseButtonRelease) {
+    handle_pressed_= false; return true;
+  }
+  const int handle= handleHit (event->position ());
+  if (event->type () == QEvent::MouseMove && event->buttons () == Qt::NoButton && handle >= 0) {
+    handle_= handle; hovered_.clear ();
+    surface_->setCursor (Qt::OpenHandCursor); surface_->update ();
+    QToolTip::showText (event->globalPosition ().toPoint (), tr ("Drag to link proof and statement"), surface_);
+    return true;
+  }
+  if (event->type () == QEvent::MouseButtonPress && event->button () == Qt::LeftButton &&
+      handle >= 0 && QLineF (event->position (), handle_position (visible_[handle])).length () <= 10) {
+    drag_source_= visible_[handle]; handle_pressed_= true; press_position_= event->position ();
+    pressed_.clear (); return true;
+  }
+  if (handle_ >= 0 && handle < 0) { handle_= -1; leave (); surface_->update (); }
   const int index= hit (event->position ());
   if (event->type () == QEvent::MouseMove && event->buttons () == Qt::NoButton) {
     const auto key= index < 0 ? QString () : tracks_[index].key;
@@ -212,6 +395,6 @@ bool QTMProofTrack::mouse (QMouseEvent* event) {
 }
 
 void QTMProofTrack::leave () {
-  if (hovered_.isEmpty ()) return;
+  handle_= -1;
   hovered_.clear (); surface_->unsetCursor (); QToolTip::hideText (); surface_->update ();
 }

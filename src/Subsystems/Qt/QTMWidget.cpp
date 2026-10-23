@@ -17,6 +17,7 @@
 #include "tm_window.hpp"
 #include "qt_utilities.hpp"
 #include "qt_simple_widget.hpp"
+#include "qt_actor_widget.hpp"
 #include "converter.hpp"
 #include "boot.hpp"
 #include "scheme.hpp"
@@ -222,10 +223,17 @@ QTMWidget::QTMWidget (QWidget* _parent, qt_widget _tmwid)
   setInputMethodHints (Qt::ImhMultiLine);
   surface ()->setMouseTracking (true);
   proofTrack= std::make_unique<QTMProofTrack> (surface ());
+  if (auto* proxy= dynamic_cast<qt_actor_widget_rep*> (tm_widget ())) {
+    proofTrack->actor= proxy->actor_id ();
+    proofTrack->view= proxy->view_id ();
+  }
   proofTrack->navigate= [this] (const QTMProofEndpoint& endpoint) {
     const QPoint destination=
       (endpoint.position + proofTrackDisplayedOrigin).toPoint ();
     verticalScrollBar ()->setValue (destination.y ()-surface ()->height ()/3);
+  };
+  proofTrack->scroll= [this] (int delta) {
+    verticalScrollBar ()->setValue (verticalScrollBar ()->value ()+delta);
   };
   surface ()->setAcceptDrops (true);
   setAttribute (Qt::WA_AcceptTouchEvents);
@@ -1108,8 +1116,10 @@ QTMWidget::paintContent (QPainter& p, const QRegion& region) {
           -renderedFrame.renderOriginX (), -renderedFrame.renderOriginY ())))
       : QPointF (tm_widget ()->backing_pos);
     auto endpoints= proofTrack->endpoints;
-    for (auto& endpoint: endpoints)
+    for (auto& endpoint: endpoints) {
       endpoint.position-= proofTrackDisplayedOrigin;
+      endpoint.bounds.translate (-proofTrackDisplayedOrigin);
+    }
     proofTrack->paint (p, std::move (endpoints));
   }
 }

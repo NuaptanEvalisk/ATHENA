@@ -259,6 +259,10 @@ tree native_enunciation_macro (edit_env_rep* env, const tree& source) {
       tree attached= source;
       const string occurrence= as_string (obtain_ip (attached));
       endpoint["occurrence"]= std::string (occurrence.data (), N(occurrence));
+      endpoint["path"]= nlohmann::json::array ();
+      if (ip_attached (obtain_ip (attached)))
+        for (path p= reverse (obtain_ip (attached)); !is_nil (p); p= p->next)
+          endpoint["path"].push_back (p->item);
       if (name != "") {
         string title= tree_as_string (name);
         endpoint["title"]= std::string (title.data (), N(title));

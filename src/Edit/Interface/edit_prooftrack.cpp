@@ -84,6 +84,21 @@ void edit_interface_rep::refresh_prooftrack_geometry () {
     auto item= json::parse (point.marker);
     item["x"]= double (point.x)*magf/PIXEL;
     item["y"]= -double (point.y)*magf/PIXEL;
+    item["linkable"]= true;
+    item["writable"]= !editor_command_state_snapshot ().read_only () &&
+                       !item.value ("transclusion", false);
+    path source;
+    for (const auto& component: item.at ("path")) source= source * component.get<int> ();
+    if (rp <= source && has_subtree (et, source) &&
+        athena::node::id (subtree (et, source)) == item.at ("id").get<std::string> ()) {
+      selection area= eb->find_check_selection (start (et, source), end (et, source));
+      if (area->valid && !is_nil (area->rs)) {
+        rectangle r= least_upper_bound (area->rs);
+        item["bounds"]= {double (r->x1)*magf/PIXEL, -double (r->y2)*magf/PIXEL,
+                         double (r->x2-r->x1)*magf/PIXEL, double (r->y2-r->y1)*magf/PIXEL};
+      }
+    }
+    item.erase ("path");
     payload.push_back (std::move (item));
   }
   // Existing native Enunciation markers provide proof.target immediately,

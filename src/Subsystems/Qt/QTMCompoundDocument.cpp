@@ -1566,6 +1566,7 @@ protected:
         for (auto endpoint: canvas->proofTrack->endpoints) {
           endpoint.member= int (i);
           endpoint.position+= QPointF (-horizontalScrollBar ()->value (), top);
+          endpoint.bounds.translate (-horizontalScrollBar ()->value (), top);
           endpoints.push_back (std::move (endpoint));
         }
       }
@@ -1645,6 +1646,7 @@ public:
     counters_ (members_, QByteArrayLiteral ("ATHENA counter executor 3 native row policy"), descriptor_.value.checkpoints),
     views_ (members_.size ()) {
     prooftrack_= std::make_unique<QTMProofTrack> (viewport ());
+    prooftrack_->scroll= [this] (int delta) { updateRange (offset ()+delta); arrange (); };
     prooftrack_->navigate= [this] (const QTMProofEndpoint& endpoint) {
       const auto i= std::size_t (endpoint.member);
       if (i >= members_.size ()) return;
@@ -1662,6 +1664,7 @@ public:
     };
     setVerticalScrollBar (new MemberScrollBar (layout_));
     viewport ()->installEventFilter (this);
+    viewport ()->installEventFilter (prooftrack_.get ());
     installEventFilter (this);
     setFocusPolicy (Qt::StrongFocus);
     setAttribute (Qt::WA_InputMethodEnabled);
