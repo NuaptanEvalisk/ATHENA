@@ -21,6 +21,7 @@
 #include "QTMDocumentHistoryPane.hpp"
 #include "QTMErrorMessagesPane.hpp"
 #include "QTMGlobalSearch.hpp"
+#include "QTMHandwritingSymbolPane.hpp"
 #include "QTMHodarium.hpp"
 #include "QTMGoogleTasksPane.hpp"
 #include "QTMMaterialsManager.hpp"
@@ -633,6 +634,12 @@ QTMCommandRegistry::registerApplicationCommands () {
     "view.outline", QTMCommandScope::Application,
     [] (const QTMCommandContext&) {
       outline_pane_show ();
+      return true;
+    });
+  registerBehavior (
+    "application.handwriting-symbol", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      handwriting_symbol_pane_show ();
       return true;
     });
   registerBehavior (

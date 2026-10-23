@@ -2,6 +2,13 @@
   "version": 3,
   "commands": [
     {
+      "id": "application.handwriting-symbol",
+      "label": "Insert handwritten symbol...",
+      "category": "Insert",
+      "icon": "tm_native_pen",
+      "help": "Recognize a handwritten symbol and insert a candidate into the document"
+    },
+    {
       "id": "workspace.new-compound-document",
       "label": "New compound document...",
       "category": "Workspace",
@@ -1214,6 +1221,7 @@
           ],
           "icon": "tm_math"
         },
+        { "command": "application.handwriting-symbol" },
         {
           "submenu": "menubar-insert-table",
           "label": "Insert a table",
