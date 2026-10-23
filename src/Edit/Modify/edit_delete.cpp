@@ -17,6 +17,12 @@
 bool is_empty_cell (tree t);
 
 static bool
+is_math_symbol_atom (const tree& t) {
+  return L(t) == MATH_MIDDLE || L(t) == MATH_SYMBOL ||
+         L(t) == BIG_OPERATOR || L(t) == NAMED_SYMBOL;
+}
+
+static bool
 is_content_empty (const tree& t) {
   if (is_atomic (t)) return t->label == "";
   if (!is_document (t) && !is_concat (t)) return false;
@@ -101,6 +107,13 @@ edit_text_rep::remove_text_sub (bool forward) {
   for (path variant_path= path_up (tp); rp < variant_path;
        variant_path= path_up (variant_path)) {
     tree variant= subtree (et, variant_path);
+    // Symbol descriptors are not editable text. Also allow deleting an atom
+    // exposed by an earlier generic macro deletion, even if it is incomplete.
+    if (!in_source () && is_math_symbol_atom (variant) &&
+        is_func (subtree (et, path_up (variant_path)), INACTIVE, 1)) {
+      back_monolithic (path_up (variant_path));
+      return;
+    }
     if (L(variant) != MATH_VARIANT) continue;
     if (N(variant) == 2 && !is_content_empty (variant[1])) continue;
     if (N(variant) != 1 && N(variant) != 2) continue;
@@ -241,6 +254,8 @@ edit_text_rep::remove_text_sub (bool forward) {
     switch (L(t)) {
     case RAW_DATA:
     case NAMED_SYMBOL:
+    case MATH_SYMBOL:
+    case MATH_MIDDLE:
     case HSPACE:
     case VAR_VSPACE:
     case VSPACE:
@@ -290,6 +305,11 @@ edit_text_rep::remove_text_sub (bool forward) {
     case ARG:
     case QUOTE_ARG:
       if (N(t) == 1) back_monolithic (p);
+      else back_general (p, forward);
+      return;
+    case INACTIVE:
+      if (!in_source () && N(t) == 1 && is_math_symbol_atom (t[0]))
+        back_monolithic (p);
       else back_general (p, forward);
       return;
     default:

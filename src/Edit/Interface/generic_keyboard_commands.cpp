@@ -19,6 +19,7 @@
 #include "server.hpp"
 #include "scheme.hpp"
 #include "math_tree_v3.hpp"
+#include "node_metadata.hpp"
 #include "Subsystems/Qt/QTMESCSymbolPicker.hpp"
 
 #include <QByteArray>
@@ -133,11 +134,57 @@ bool json_keyboard_argument (QJsonValue value, string capture, object& result) {
 
 bool execute_json_keyboard_action (QJsonObject descriptor, string capture= "") {
   string kind= keyboard_native_string (descriptor.value ("kind").toString ());
-  if (kind == "tree") {
+  if (kind == "tree" || kind == "scripts" || kind == "accent") {
     tree inserted;
     ASSERT (json_keyboard_tree (descriptor.value ("value"), capture, inserted),
             "invalid tree keyboard action descriptor");
+    if (kind == "scripts") {
+      const string placement= keyboard_native_string (
+        descriptor.value ("placement").toString ());
+      ASSERT (is_func (inserted, MATH_SCRIPTS, 5) &&
+              athena::math_v3::valid_scripts_policy (placement),
+              "invalid scripts keyboard action descriptor");
+      inserted= athena::math_v3::scripts (
+        inserted[0], inserted[1], inserted[2], inserted[3], inserted[4],
+        placement[0]);
+    }
+    else if (kind == "accent") {
+      ASSERT (is_func (inserted, MATH_ACCENT, 3) &&
+              descriptor.value ("stretch").isBool (),
+              "invalid accent keyboard action descriptor");
+      athena::node::metadata meta;
+      meta.properties["math:accent-stretch"]= athena::node::property (
+        descriptor.value ("stretch").toBool ());
+      athena::node::set (inserted, meta);
+    }
     get_current_editor ()->insert_tree (inserted);
+    return true;
+  }
+  if (kind == "superscript") {
+    tree content;
+    ASSERT (json_keyboard_tree (descriptor.value ("value"), capture, content),
+            "invalid superscript keyboard action descriptor");
+    editor ed= get_current_editor ();
+    if (ed->selection_active_small ()) {
+      const tree base= ed->selection_get_cut ();
+      ed->insert_tree (athena::math_v3::scripts (base, "", "", "", content));
+    }
+    else {
+      ed->make_script (true, true);
+      const path script= ed->search_upwards (MATH_SCRIPTS);
+      ed->insert_tree (content);
+      ed->go_to (script * 1);
+    }
+    return true;
+  }
+  if (kind == "variant") {
+    editor ed= get_current_editor ();
+    const tree body= ed->selection_active_small () ? ed->selection_get_cut () : tree ("");
+    tree value (MATH_VARIANT,
+      keyboard_native_string (descriptor.value ("value").toString ()), body);
+    ASSERT (athena::math_v3::valid_native_math (value),
+            "invalid variant keyboard action descriptor");
+    ed->insert_tree (value, path (1, end (body)));
     return true;
   }
   if (kind == "text") {
@@ -524,8 +571,7 @@ void generic_kbd_remove (tree t, bool forwards) {
   if (!admits_edit_observer (t)) { outward (t, "kbd-remove", forwards); return; }
   editor ed= get_current_editor ();
   if (ed->selection_active_any ()) {
-    ed->selection_cut ("nowhere");
-    ed->selection_clear ("nowhere");
+    ed->selection_cut ("none");
   }
   else ed->remove_text (forwards);
 }

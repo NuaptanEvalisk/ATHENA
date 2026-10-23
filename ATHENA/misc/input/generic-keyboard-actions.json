@@ -38,81 +38,74 @@
       ]
     },
     "tree:inv": {
-      "kind": "tree",
-      "value": [
-        "rsup",
-        "-1"
-      ]
+      "kind": "superscript",
+      "value": "-1"
     },
     "tree:op": {
-      "kind": "tree",
+      "kind": "superscript",
       "value": [
-        "rsup",
-        [
-          "math-up",
-          "op"
-        ]
+        "math-variant",
+        "rm",
+        "op"
       ]
     },
     "tree:id": {
       "kind": "tree",
       "value": [
-        "math-up",
+        "math-variant",
+        "rm",
         "id"
       ]
     },
     "tree:const": {
       "kind": "tree",
       "value": [
-        "math-up",
+        "math-variant",
+        "rm",
         "const"
       ]
     },
     "tree:varinjlim": {
-      "kind": "tree",
+      "kind": "accent",
+      "stretch": true,
       "value": [
-        "wide*",
-        "lim",
-        [
-          "with",
-          "math-accent-stretch",
-          "true",
-          "⃗"
-        ]
+        "math-accent",
+        "⃗",
+        "u",
+        "lim"
       ]
     },
     "tree:varprojlim": {
-      "kind": "tree",
+      "kind": "accent",
+      "stretch": true,
       "value": [
-        "wide*",
-        "lim",
-        [
-          "with",
-          "math-accent-stretch",
-          "true",
-          "⃖"
-        ]
+        "math-accent",
+        "⃖",
+        "u",
+        "lim"
       ]
     },
     "tree:bij": {
       "kind": "tree",
       "value": [
-        "above",
+        "math-annotation",
         [
           "named-symbol",
           "texmacs:longrightarrow"
         ],
+        "",
         "1:1"
       ]
     },
     "tree:simto": {
       "kind": "tree",
       "value": [
-        "above",
+        "math-annotation",
         [
           "named-symbol",
           "texmacs:longrightarrow"
         ],
+        "",
         [
           "named-symbol",
           "texmacs:sim"
@@ -120,13 +113,14 @@
       ]
     },
     "tree:lim-n-infty": {
-      "kind": "tree",
+      "kind": "scripts",
+      "placement": "d",
       "value": [
-        "concat",
+        "scripts",
         "lim",
+        "",
+        "",
         [
-          "rsub",
-          [
           "concat",
           "n",
           [
@@ -137,8 +131,8 @@
             "named-symbol",
             "texmacs:infty"
           ]
-        ]
-      ]
+        ],
+        ""
       ]
     },
     "tree:varphi": {
@@ -179,46 +173,24 @@
       ]
     },
     "tree:math-ss": {
-      "kind": "scheme-call",
-      "function": "make",
-      "args": [
-        {
-          "symbol": "math-ss"
-        }
-      ]
+      "kind": "variant",
+      "value": "ss"
     },
     "tree:math-bf": {
-      "kind": "scheme-call",
-      "function": "make",
-      "args": [
-        {
-          "symbol": "math-bf"
-        }
-      ]
+      "kind": "variant",
+      "value": "bf"
     },
     "tree:math-boldsymbol": {
-      "kind": "scheme-call",
-      "function": "make-with",
-      "args": [
-        "math-font-series",
-        "bold"
-      ]
+      "kind": "variant",
+      "value": "mbf"
     },
     "tree:math-frak": {
-      "kind": "scheme-call",
-      "function": "make-with",
-      "args": [
-        "math-font",
-        "Euler"
-      ]
+      "kind": "variant",
+      "value": "frak"
     },
     "tree:math-scr": {
-      "kind": "scheme-call",
-      "function": "make-with",
-      "args": [
-        "math-font",
-        "cal*"
-      ]
+      "kind": "variant",
+      "value": "cal"
     },
     "tree:q3": {
       "kind": "tree",
@@ -265,7 +237,8 @@
       "action": {
         "kind": "tree",
         "value": [
-          "math-up",
+          "math-variant",
+          "rm",
           {
             "capture": "suffix"
           }

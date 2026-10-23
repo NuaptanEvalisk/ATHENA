@@ -695,7 +695,7 @@
   <binding name="kbd-alternate-enter" native="generic_kbd_alternate_enter" returns="void">
     <arg type="tree" /><arg type="bool" />
   </binding>
-  <binding name="kbd-remove" native="generic_kbd_remove" returns="void">
+  <binding name="kbd-remove" native="generic_kbd_remove" returns="void" exceptions="scheme">
     <arg type="tree" /><arg type="bool" />
   </binding>
   <binding name="kbd-variant" native="generic_kbd_variant" returns="void">
