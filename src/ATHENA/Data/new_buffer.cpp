@@ -1225,10 +1225,11 @@ export_tree (tree doc, url u, string fm, url source) {
 
 bool
 export_tree_with_options (tree doc, url u, string fm, url source,
-                          const conversion_options& options) {
+                          const conversion_options& options,
+                          editor_rep* rendering_editor) {
   if (fm == "generic") fm= "verbatim";
   object converted= conversion_execute (object (doc), "texmacs-tree", fm * "-document",
-    conversion_options_to_scheme (options), source, u);
+    conversion_options_to_scheme (options), source, u, rendering_editor);
   if (!is_string (converted)) return true;
   string serialized= as_string (converted);
   return ends (as_string (u), "~") ?

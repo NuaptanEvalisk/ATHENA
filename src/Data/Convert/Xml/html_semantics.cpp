@@ -25,7 +25,9 @@
 #include <algorithm>
 #include <stdexcept>
 #include <map>
+#include <set>
 #include <vector>
+#include <filesystem>
 #include <nlohmann/json.hpp>
 
 namespace {
@@ -1281,11 +1283,30 @@ using export_environment= std::map<std::string, tree>;
 
 class html_exporter {
   url target;
+  editor_rep* rendering_editor;
   string stylesheet;
   url image_root;
   string image_name;
   int image_serial= 0;
   hashmap<tree, tree> pictures {UNINIT};
+  std::set<std::string> included_sources;
+
+  static std::string source_identity (url source) {
+    string file= concretize (source);
+    std::filesystem::path path (std::string (file.data (), N(file)));
+    return std::filesystem::weakly_canonical (path).string ();
+  }
+
+  struct include_guard {
+    std::set<std::string>& active;
+    std::string identity;
+    include_guard (std::set<std::string>& active, url source):
+      active (active), identity (source_identity (source)) {
+      if (!active.insert (identity).second)
+        throw std::runtime_error ("HTML export: cyclic include: " + identity);
+    }
+    ~include_guard () { active.erase (identity); }
+  };
 
   std::pair<url, string> image_names (string extension) {
     string postfix= "-" * as_string (++image_serial) * "." * extension;
@@ -1307,8 +1328,11 @@ class html_exporter {
     if (contains_math (source))
       throw std::runtime_error ("Unsupported XML v3 HTML export: raster fallback would discard native mathematics");
     if (pictures->contains (source)) return pictures[source];
+    if (rendering_editor == nullptr)
+      throw std::runtime_error (
+        "HTML export: graphics require an editor owned by the exporting BufferActor");
     auto [destination, location]= image_names ("png");
-    array<SI> rendered= get_current_editor ()->print_snippet (
+    array<SI> rendered= rendering_editor->print_snippet (
       destination, scheme_tree_to_tree (source), true);
     if (!exists (destination))
       throw std::runtime_error ("HTML export: rendered picture was not produced");
@@ -1414,7 +1438,9 @@ class html_exporter {
   }
 
 public:
-  html_exporter (url destination, const conversion_options& options): target (destination) {
+  html_exporter (url destination, url source, const conversion_options& options,
+                 editor_rep* owner): target (destination), rendering_editor (owner) {
+    if (!is_none (source)) included_sources.insert (source_identity (source));
     auto css= options.find ("texmacs->html:css-stylesheet");
     stylesheet= css == options.end () ? string ("---") : string (css->second.c_str ());
     string extension= suffix (target);
@@ -1430,6 +1456,14 @@ public:
     if (is_atomic (source)) return html_export_text (atom (source), env.at ("preformatted") == tree ("#t"));
     if (!is_tuple (source) || !N(source))
       throw std::runtime_error ("HTML export: invalid source node");
+    // Document metadata may contain definitions, but executable macro code
+    // exposed directly in the body is not display content. Never drop it
+    // silently during a canonical v3 export.
+    for (const char* tag: {"macro", "xmacro", "arg", "quote-arg", "assign",
+         "provides", "drd-props", "eval", "eval-args", "map-args", "if",
+         "if*", "case", "while", "for-each", "extern", "use-package"})
+      if (head (source, tag))
+        throw std::runtime_error (std::string ("Unsupported HTML export: bare macro code: ") + tag);
     if (head (source, "document") || head (source, "para")) {
       tree plan= html_export_sequence_plan (source, env.at ("preformatted") == tree ("#t"));
       return html_export_sequence_output (plan, children (plan[0], env));
@@ -1491,6 +1525,7 @@ public:
     if (head (source, "graphics") || head (source, "tree")) return request ("picture", source, env);
     if (head (source, "include")) {
       tree included= request ("include", source, env);
+      include_guard guard (included_sources, url (atom (included[0])));
       export_environment local= env;
       local["source-url"]= included[0];
       return run (included[1], local);
@@ -1538,15 +1573,25 @@ public:
 };
 }
 
-scheme_tree html_export_convert (scheme_tree source, object options, url source_url, url target) {
+scheme_tree html_export_convert (scheme_tree source, object options, url source_url,
+                                 url target, editor_rep* rendering_editor) {
   source= html_export_prepare_source (source);
   export_environment env= {{"source-url", quoted (as_string (source_url))}, {"math", tree ("#f")},
     {"math-display", tree ("#f")}, {"preformatted", tree ("#f")}, {"mag", quoted ("1")},
     {"left-margin", tree ("0")}, {"right-margin", tree ("0")}};
-  return html_exporter (target, conversion_options_from_scheme (options)).run (source, env);
+  return html_exporter (target, source_url, conversion_options_from_scheme (options),
+                        rendering_editor).run (source, env);
 }
 
-scheme_tree html_export_document (object input, object options, url origin, url target) {
+// Retain the established generated Scheme entry point. Its arguments contain
+// no editor handle; it can render non-graphical HTML without an actor view.
+scheme_tree html_export_convert (scheme_tree source, object options,
+                                 url source_url, url target) {
+  return html_export_convert (source, options, source_url, target, nullptr);
+}
+
+scheme_tree html_export_document (object input, object options, url origin,
+                                  url target, editor_rep* rendering_editor) {
   tree source= is_tree (input) ? latex_export_prepare_v3_source (as_tree (input))
                                 : as_scheme_tree (input);
   source= html_export_prepare_source (source);
@@ -1570,6 +1615,7 @@ scheme_tree html_export_document (object input, object options, url origin, url 
       source= tuple ("!file", body, style);
     }
   }
-  return html_export_finalize (html_export_convert (source, options, origin, target),
+  return html_export_finalize (html_export_convert (
+                                 source, options, origin, target, rendering_editor),
                                head (source, "!file"));
 }

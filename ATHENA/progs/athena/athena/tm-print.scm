@@ -256,9 +256,7 @@
   (node-reference-with-export (lambda () (preview-buffer-ready))))
 
 (define (preview-buffer-ready)
-  (with file (url-append (url-temp-dir)
-                         (if (== (printer-file-format) "pdf")
-                             "preview.pdf" "preview.ps"))
+  (with file (url-append (url-temp-dir) "preview.pdf")
     (data-art-print-to-file file)
     (preview-file file)))
 

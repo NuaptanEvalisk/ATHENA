@@ -2143,7 +2143,9 @@ buffer_actor::dispatch (actor_command_record& command) {
       export_editor=
         impl_->views.begin ()->second.instance.operator -> ();
     bool failed= export_editor == nullptr;
-    if (!failed && (format == "postscript" || format == "pdf")) {
+    if (!failed && format == "postscript")
+      throw std::runtime_error ("PostScript export is not supported; use PDF");
+    if (!failed && format == "pdf") {
       int old_stamp= last_modified (dest, false);
       export_editor->print_to_file (dest);
       int new_stamp= last_modified (dest, false);
@@ -2191,7 +2193,8 @@ buffer_actor::dispatch (actor_command_record& command) {
       tree links= as_tree (call (
         "get-link-locations", object (impl_->state.name), object (body)));
       if (N (links) != 0) document << compound ("links", links);
-      failed= export_tree_with_options (document, dest, format, impl_->state.name, request.options);
+      failed= export_tree_with_options (document, dest, format, impl_->state.name,
+                                       request.options, export_editor);
     }
     command.argument[0]= failed ? 1 : 0;
     break;

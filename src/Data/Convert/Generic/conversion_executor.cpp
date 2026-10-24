@@ -24,12 +24,13 @@
 #include <stdexcept>
 
 namespace {
-struct request_context { url source, target; };
+struct request_context { url source, target; editor_rep* rendering_editor; };
 thread_local const request_context* active_request= nullptr;
 struct request_scope {
   request_context context;
   const request_context* previous;
-  request_scope (url source, url target): context {source, target}, previous (active_request) {
+  request_scope (url source, url target, editor_rep* rendering_editor):
+    context {source, target, rendering_editor}, previous (active_request) {
     active_request= &context;
   }
   ~request_scope () { active_request= previous; }
@@ -54,6 +55,26 @@ bool v3_math (tree value) {
   for (int i=0; i<N(value); ++i) if (v3_math (value[i])) return true;
   return false;
 }
+void check_latex_properties (const tree& source) {
+  if (const auto* metadata= athena::node::get (source)) {
+    for (const auto& [name, value]: metadata->properties) {
+      const bool supported=
+        (L(source) == MATH_SCRIPTS && name == "math:scripts-policy") ||
+        (L(source) == MATH_ACCENT && name == "math:accent-stretch") ||
+        (L(source) == MATH_BLOCK && name == "math:block-numbered") ||
+        (L(source) == MATH_GRID && name == "math:grid-kind") ||
+        (L(source) == ROW &&
+          (name == "math:row-numbering" || name == "math:row-tag")) ||
+        (L(source) == CELL && name == "math:cell-format");
+      if (!supported)
+        throw std::runtime_error (
+          "LaTeX export cannot preserve native node metadata: " + name);
+    }
+  }
+  // XML v3 source UUIDs are identities, not LaTeX output properties. Their
+  // omission is intrinsic to exporting to a different document format.
+  for (int i=0; i<N(source); ++i) check_latex_properties (source[i]);
+}
 void check_latex (tree value) {
   if (value == tree ("#f")) throw std::runtime_error ("XML v3 LaTeX export failed: no output");
   if (!is_tuple (value)) return;
@@ -66,6 +87,9 @@ void check_latex (tree value) {
 
 url conversion_source_url () { return active_request ? active_request->source : url_none (); }
 url conversion_target_url () { return active_request ? active_request->target : url_none (); }
+editor_rep* conversion_rendering_editor () {
+  return active_request ? active_request->rendering_editor : nullptr;
+}
 
 namespace {
 url input_source (object input, string from) {
@@ -103,6 +127,7 @@ object conversion_file (url source, url target, object options) {
 }
 
 string conversion_latex_document (tree input, object options, url source, url target) {
+  check_latex_properties (input);
   tree prepared= latex_export_prepare_v3_source (input);
   tree output= latex_export_convert_top (prepared, options, source, target);
   if (v3_math (prepared)) check_latex (output);
@@ -111,7 +136,8 @@ string conversion_latex_document (tree input, object options, url source, url ta
 
 static object execute_step (object input, const conversion_edge& edge,
     object ordered, const conversion_options& values, url source, url target,
-    url destination, bool last, temporary_files& temporary) {
+    url destination, bool last, temporary_files& temporary,
+    editor_rep* rendering_editor) {
   const auto& action= edge.executor;
   string from (edge.from.c_str ()), to (edge.to.c_str ());
   auto option= [&] (const char* name, const char* fallback) {
@@ -167,9 +193,9 @@ static object execute_step (object input, const conversion_edge& edge,
   if (action == "write-verbatim-document" || action == "write-verbatim-snippet") {
     string encoding= option ("texmacs->verbatim:encoding", "auto");
     if (encoding == "cork") encoding= "utf-8";
-    if (action == "write-verbatim-snippet" && has_current_view ()) {
-      editor ed= get_current_editor ();
-      if (ed->get_env_string ("mode") == "prog" || ed->get_env_string ("font-family") == "tt")
+    if (action == "write-verbatim-snippet" && rendering_editor != nullptr) {
+      if (rendering_editor->get_env_string ("mode") == "prog" ||
+          rendering_editor->get_env_string ("font-family") == "tt")
         return object (replace (tree_to_verbatim (native (input), false, encoding),
                                 tree_to_verbatim (tree ("`"), false, encoding), "`"));
     }
@@ -181,10 +207,11 @@ static object execute_step (object input, const conversion_edge& edge,
   if (action == "import-html-tree") return object (html_import_document (as_scheme_tree (input)));
   if (action == "import-html-stree") return serial (html_import_document_serial (as_scheme_tree (input)));
   if (action == "export-html" || action == "export-html-document") {
-    tree html= html_export_document (input, ordered, source, target);
+    tree html= html_export_document (input, ordered, source, target, rendering_editor);
     return action == "export-html" ? serial (html) : object (serialize_html (html));
   }
   if (action == "export-latex" || action == "export-latex-document") {
+    if (is_tree (input)) check_latex_properties (as_tree (input));
     tree prepared= is_tree (input) ? latex_export_prepare_v3_source (as_tree (input)) : as_scheme_tree (input);
     bool structured= v3_math (prepared);
     if (action == "export-latex-document" && !structured)
@@ -208,10 +235,21 @@ static object execute_step (object input, const conversion_edge& edge,
 }
 
 object conversion_execute (object input, string from, string to,
-                           object options, url source, url target) {
+                           object options, url source, url target,
+                           editor_rep* rendering_editor) {
+  // A direct Scheme request may already belong to an editor. Passive actor
+  // exports supply their actual rendering editor explicitly instead.
+  if (rendering_editor == nullptr) {
+    const auto* owner= current_scheme_execution_context ();
+    if (owner && owner->editor && owner->has (SCHEME_CAPABILITY_BUFFER))
+      rendering_editor= owner->editor;
+  }
   auto path= conversion_graph_path ({from.data (), std::size_t (N(from))},
                                     {to.data (), std::size_t (N(to))});
-  if (!path) return object (false);
+  if (!path)
+    throw std::runtime_error ("Unsupported native conversion route: " +
+                              std::string (from.data (), N(from)) + " -> " +
+                              std::string (to.data (), N(to)));
   object settings= null_object ();
   url destination= url_none ();
   bool have_destination= false;
@@ -227,12 +265,16 @@ object conversion_execute (object input, string from, string to,
   auto values= conversion_options_from_scheme (ordered);
   for (const auto& entry: conversion_options_snapshot ()) values.emplace (entry);
   ordered= conversion_options_to_scheme (values);
-  request_scope scope (source, target);
+  // (convert ... '(dest . URL)) has no separate target argument. Its resource
+  // writers still need that destination, just as convert-to-file does.
+  url effective_target= is_none (target) ? destination : target;
+  request_scope scope (source, effective_target, rendering_editor);
   temporary_files temporary;
   object result= input;
   for (std::size_t i=0; i<path->size (); ++i)
-    result= execute_step (result, (*path)[i], ordered, values, source, target,
-                          destination, i+1 == path->size (), temporary);
+    result= execute_step (result, (*path)[i], ordered, values, source, effective_target,
+                          destination, i+1 == path->size (), temporary,
+                          rendering_editor);
   if (is_url (result)) {
     url output= as_url (result);
     if (!is_none (destination) && output != destination) {

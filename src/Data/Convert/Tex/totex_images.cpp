@@ -7,6 +7,7 @@
 *******************************************************************************/
 
 #include "totex_internal.hpp"
+#include "Data/Convert/Generic/conversion_executor.hpp"
 #include "editor.hpp"
 #include "file.hpp"
 #include "new_view.hpp"
@@ -222,11 +223,15 @@ render_image_native (scheme_tree source) {
   }
 
   latex_export_add_latex_extra_package ("graphicx");
+  editor_rep* owner= conversion_rendering_editor ();
+  if (owner == nullptr)
+    throw std::runtime_error (
+      "LaTeX graphics export requires an editor owned by the exporting BufferActor");
   GeneratedImageName generated= generated_image_name ();
-  array<SI> extents= get_current_editor ()->print_snippet (
+  array<SI> extents= owner->print_snippet (
     generated.file, scheme_tree_to_tree (source), true);
   if (N(extents) < 10 || extents[9] == 0)
-    return stree_string ("");
+    throw std::runtime_error ("LaTeX graphics export produced invalid extents");
 
   double unit= (1.0 / 60984.0) * (600.0 / (double) extents[9]);
   double x3= unit * (double) extents[0];
