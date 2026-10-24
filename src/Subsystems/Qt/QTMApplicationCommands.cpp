@@ -45,6 +45,8 @@
 #include "QTMVaultMaintenanceDialog.hpp"
 #include "QTMWebsitesManager.hpp"
 #include "boot.hpp"
+#include "Data/Convert/Generic/conversion_graph.hpp"
+#include "Data/Convert/Generic/conversion_registry.hpp"
 #include "editor.hpp"
 #include "file.hpp"
 #include "message.hpp"
@@ -579,17 +581,15 @@ QTMCommandRegistry::registerApplicationCommands () {
     "file-import-formats", QTMCommandScope::Application,
     [] (const QTMCommandContext&) {
       QVector<QTMCommandDynamicItem> out;
-      try {
-        QVector<QString> data= scheme_string_vector (
-          call ("native-import-format-provider-data"));
-        for (int i= 0; i + 2 < data.size (); i += 3) {
-          QTMCommandDynamicItem item= enabled_dynamic_item (
-            data[i], QObject::tr ("Import %1").arg (data[i + 1]));
-          item.help= data[i + 2];
-          out.append (std::move (item));
-        }
+      tree formats= conversion_menu_formats ("texmacs-file", "-file", false, true);
+      for (int i=0; i<N(formats); ++i) {
+        string id= scm_unquote (formats[i]->label);
+        string name= scm_unquote (conversion_format_name (id)->label);
+        QTMCommandDynamicItem item= enabled_dynamic_item (
+          to_qstring (id), QObject::tr ("Import %1").arg (to_qstring (name)));
+        item.help= to_qstring (conversion_format_default_suffix (id));
+        out.append (std::move (item));
       }
-      catch (...) {}
       return out;
     },
     [] (const QString& key, const QTMCommandContext& context) {

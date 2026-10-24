@@ -17,6 +17,9 @@
 #include "boot.hpp"
 #include "document_persistence.hpp"
 #include "new_buffer.hpp"
+#include "Data/Convert/Generic/conversion_graph.hpp"
+#include "Data/Convert/Generic/conversion_registry.hpp"
+#include "Data/Convert/Generic/conversion_executor.hpp"
 #include "sys_utils.hpp"
 
 #include <KSyntaxHighlighting/Definition>
@@ -141,20 +144,20 @@ enum class selection_menu_kind {
   export_preference
 };
 
-const char*
-selection_format_provider (selection_menu_kind kind) {
+tree
+selection_menu_formats (selection_menu_kind kind) {
   switch (kind) {
   case selection_menu_kind::copy:
   case selection_menu_kind::cut:
-    return "native-selection-export-format-provider-data";
+    return conversion_menu_formats ("texmacs-snippet", "-snippet", true, false);
   case selection_menu_kind::paste:
-    return "native-selection-import-format-provider-data";
+    return conversion_menu_formats ("texmacs-snippet", "-snippet", true, true);
   case selection_menu_kind::import_preference:
-    return "native-selection-import-preference-provider-data";
+    return conversion_menu_formats ("texmacs-file", "-file", false, true);
   case selection_menu_kind::export_preference:
-    return "native-selection-export-preference-provider-data";
+    return conversion_menu_formats ("texmacs-file", "-file", false, false);
   }
-  return "";
+  return tree (TUPLE);
 }
 
 QTMCommandState
@@ -173,19 +176,16 @@ selection_menu_items (
   QVector<QTMCommandDynamicItem> out;
   QTMCommandState state= selection_menu_state (context, kind);
   if (!state.available) return out;
-  try {
-    QVector<QString> values=
-      scheme_string_vector (call (selection_format_provider (kind)));
-    for (int i= 0; i + 1 < values.size (); i += 2) {
-      QTMCommandDynamicItem item=
-        enabled_dynamic_item (
-          QStringLiteral ("format/") + values[i], values[i + 1]);
-      item.group= QObject::tr ("Formats");
-      item.state.enabled= state.enabled;
-      out.append (std::move (item));
-    }
+  tree formats= selection_menu_formats (kind);
+  for (int i=0; i<N(formats); ++i) {
+    string id= scm_unquote (formats[i]->label);
+    string name= scm_unquote (conversion_format_name (id)->label);
+    QTMCommandDynamicItem item= enabled_dynamic_item (
+      QStringLiteral ("format/") + to_qstring (id), to_qstring (name));
+    item.group= QObject::tr ("Formats");
+    item.state.enabled= state.enabled;
+    out.append (std::move (item));
   }
-  catch (...) {}
   if (kind == selection_menu_kind::copy ||
       kind == selection_menu_kind::cut ||
       kind == selection_menu_kind::paste) {
@@ -690,17 +690,15 @@ QTMCommandRegistry::registerEditorCommands () {
     [] (const QTMCommandContext& context) {
       QVector<QTMCommandDynamicItem> out;
       if (is_none (frozen_document_url (context))) return out;
-      try {
-        QVector<QString> data= scheme_string_vector (
-          call ("native-export-format-provider-data"));
-        for (int i= 0; i + 2 < data.size (); i += 3) {
-          QTMCommandDynamicItem item= enabled_dynamic_item (
-            data[i], QObject::tr ("Export as %1").arg (data[i + 1]));
-          item.help= data[i + 2];
-          out.append (std::move (item));
-        }
+      tree formats= conversion_menu_formats ("texmacs-file", "-file", false, false);
+      for (int i=0; i<N(formats); ++i) {
+        string id= scm_unquote (formats[i]->label);
+        string name= scm_unquote (conversion_format_name (id)->label);
+        QTMCommandDynamicItem item= enabled_dynamic_item (
+          to_qstring (id), QObject::tr ("Export as %1").arg (to_qstring (name)));
+        item.help= to_qstring (conversion_format_default_suffix (id));
+        out.append (std::move (item));
       }
-      catch (...) {}
       return out;
     },
     [] (const QString& key, const QTMCommandContext& context) {
@@ -739,16 +737,17 @@ QTMCommandRegistry::registerEditorCommands () {
           (!snapshot.selection_active () &&
            !snapshot.graphics_selection_active ()))
         return out;
-      try {
-        QVector<QString> data= scheme_string_vector (
-          call ("native-selection-image-format-provider-data"));
-        for (int i= 0; i + 2 < data.size (); i += 3) {
-          QTMCommandDynamicItem item= enabled_dynamic_item (
-            data[i], data[i + 1], data[i + 2]);
-          out.append (std::move (item));
-        }
+      tree formats= conversion_image_formats ();
+      for (int i=0; i<N(formats); ++i) {
+        string id= scm_unquote (formats[i]->label);
+        string suffix= conversion_format_default_suffix (id);
+        if (suffix == "" || !conversion_file_available (
+              url ("x.pdf"), url ("y." * suffix))) continue;
+        out.append (enabled_dynamic_item (
+          to_qstring (id),
+          to_qstring (scm_unquote (conversion_format_name (id)->label)),
+          to_qstring (suffix)));
       }
-      catch (...) {}
       return out;
     },
     [] (const QString& key, const QTMCommandContext& context) {

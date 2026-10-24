@@ -15,7 +15,7 @@
   (:use (athena athena tm-server)
         (athena athena tm-view)
         (athena athena tm-print)
-        (kernel athena tm-convert)
+        (kernel athena tm-document)
         (kernel athena tm-dialogue)
         (utils library cursor)))
 (import-from (kernel athena tm-preferences))
@@ -171,47 +171,6 @@
                  (url->system (url-tail u))
                  (url->system u)))
          (recent-file-list nr))))
-
-(tm-define (native-import-format-provider-data)
-  (apply append
-    (map (lambda (fm)
-           (list fm (format-get-name fm) (format-default-suffix fm)))
-         (converters-to-special "texmacs-file" "-file" #f))))
-
-(tm-define (native-export-format-provider-data)
-  (apply append
-    (map (lambda (fm)
-           (list fm (format-get-name fm) (format-default-suffix fm)))
-         (converters-from-special "texmacs-file" "-file" #f))))
-
-(tm-define (native-selection-export-format-provider-data)
-  (apply append
-    (map (lambda (fm) (list fm (format-get-name fm)))
-         (converters-from-special "texmacs-snippet" "-snippet" #t))))
-
-(tm-define (native-selection-import-format-provider-data)
-  (apply append
-    (map (lambda (fm) (list fm (format-get-name fm)))
-         (converters-to-special "texmacs-snippet" "-snippet" #t))))
-
-(tm-define (native-selection-export-preference-provider-data)
-  (apply append
-    (map (lambda (fm) (list fm (format-get-name fm)))
-         (converters-from-special "texmacs-file" "-file" #f))))
-
-(tm-define (native-selection-import-preference-provider-data)
-  (apply append
-    (map (lambda (fm) (list fm (format-get-name fm)))
-         (converters-to-special "texmacs-file" "-file" #f))))
-
-(tm-define (native-selection-image-format-provider-data)
-  (apply append
-    (map (lambda (fm)
-           (list fm (upcase-first fm) (format-default-suffix fm)))
-         (filter
-           (lambda (fm)
-             (file-converter-exists? "x.pdf" (string-append "y." fm)))
-           (image-formats)))))
 
 (tm-define (buffer-notify-recent name)
   (when (not (autosave-file? name))
@@ -545,10 +504,7 @@
       ;; we want to open links to directories via the default OS handler,
       ;; but we need a silent test which does not call concretize
       (url-rooted-protocol? u "mailto")
-      (file-of-format? u "image")
-      (file-of-format? u "pdf")
-      (file-of-format? u "postscript")
-      (file-of-format? u "generic")))
+      (format-image? (format-from-suffix (url-suffix u)))))
 
 (tm-define (default-open)
   (cond ((os-macos?) "open")
@@ -778,9 +734,7 @@
                   (cons (url-relative (current-buffer) name) opt-after-open)))
           ((or (url-rooted-web? name) (url-rooted-tmfs? name))
            (linked-file-load-native name after-open))
-          ((or (file-of-format? name "image")
-               (file-of-format? name "pdf")
-               (file-of-format? name "postscript"))
+          ((format-image? (format-from-suffix (url-suffix name)))
            (load-external name))
           ((== (file-format name) "texmacs-file")
            (linked-file-load-native name after-open))

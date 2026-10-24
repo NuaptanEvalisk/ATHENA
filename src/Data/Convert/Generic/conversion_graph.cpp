@@ -135,3 +135,28 @@ tree conversion_graph_reachable (tree sources, bool backwards) {
   for (const auto& id: seen) result << tree (scm_quote (text (id)));
   return result;
 }
+
+tree conversion_menu_formats (string source, string suffix,
+                              bool include_texmacs, bool backwards) {
+  tree origins (TUPLE);
+  origins << tree (scm_quote (source));
+  tree reachable= conversion_graph_reachable (origins, backwards);
+  const std::string ending= bytes (suffix);
+  std::vector<std::pair<std::string, std::string>> named;
+  for (int i=0; i<N(reachable); ++i) {
+    std::string id= bytes (scm_unquote (reachable[i]->label));
+    if (id.size () < ending.size () ||
+        id.compare (id.size ()-ending.size (), ending.size (), ending) != 0)
+      continue;
+    id.resize (id.size ()-ending.size ());
+    if ((!include_texmacs && id == "texmacs") ||
+        conversion_format_hidden (text (id))) continue;
+    tree name= conversion_format_name (text (id));
+    named.emplace_back (bytes (scm_unquote (name->label)), std::move (id));
+  }
+  std::sort (named.begin (), named.end ());
+  tree result (TUPLE);
+  for (const auto& [name, id]: named)
+    result << tree (scm_quote (text (id)));
+  return result;
+}

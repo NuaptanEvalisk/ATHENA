@@ -26,6 +26,7 @@
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include "Data/Convert/Xml/document_upgrade_file.hpp"
 #include "convert.hpp"
+#include "Data/Convert/Generic/conversion_executor.hpp"
 #include "drd_std.hpp"
 #include "file.hpp"
 #include "scheme.hpp"
@@ -506,8 +507,8 @@ std::string latex_for_tree (const tree& t) {
   if (headless_mode)
     return to_std (tree_to_texmacs (semantic));
   try {
-    return to_std (as_string (call ("convert", semantic, "texmacs-tree",
-                                    "latex-snippet")));
+    return to_std (as_string (conversion_dispatch (
+      object (semantic), "texmacs-tree", "latex-snippet", null_object ())));
   }
   catch (...) {
     return to_std (tree_to_texmacs (semantic));

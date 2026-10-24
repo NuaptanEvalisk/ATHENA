@@ -53,7 +53,7 @@
                  (kernel athena tm-dialogue)
                  (kernel athena tm-preferences) (kernel athena tm-modes)
                  (kernel athena tm-secure)
-                 (kernel athena tm-convert)
+                 (kernel athena tm-document)
                  (kernel athena tm-language) (kernel athena tm-file-system)
                  (kernel athena tm-states))
 (inherit-modules (kernel gui gui-markup)
@@ -100,12 +100,7 @@
              toggle-snap-to-pages schedule-persistent-fit-width)
 (lazy-define (athena athena tm-files)
              buffer-missing-style? buffer-set-default-style command-line-convert
-             native-recent-file-provider-data
-             native-import-format-provider-data native-export-format-provider-data
-             native-selection-export-format-provider-data
-             native-selection-import-format-provider-data
-             native-selection-export-preference-provider-data
-             native-selection-import-preference-provider-data)
+             native-recent-file-provider-data)
 (lazy-define (athena athena tm-codex)
              codex-ai-completion codex-ai-completion-new-buffer
              codex-ai-completion-custom)

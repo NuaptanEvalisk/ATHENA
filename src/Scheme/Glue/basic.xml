@@ -33,6 +33,10 @@
     <arg type="scheme_tree" />
     <arg type="bool" />
   </binding>
+  <binding name="native-conversion-menu-formats" native="conversion_menu_formats" returns="scheme_tree" exceptions="scheme">
+    <arg type="string" /><arg type="string" />
+    <arg type="bool" /><arg type="bool" />
+  </binding>
   <binding name="parse-html-snippet" native="parse_html_snippet" returns="scheme_tree" exceptions="scheme">
     <arg type="string" />
   </binding>
@@ -92,6 +96,9 @@
     <arg type="string" />
   </binding>
   <binding name="format-hidden?" native="conversion_format_hidden" returns="bool" exceptions="scheme">
+    <arg type="string" />
+  </binding>
+  <binding name="format-image?" native="conversion_format_image" returns="bool" exceptions="scheme">
     <arg type="string" />
   </binding>
   <binding name="format-get-suffixes*" native="conversion_format_suffixes" returns="scheme_tree" exceptions="scheme">

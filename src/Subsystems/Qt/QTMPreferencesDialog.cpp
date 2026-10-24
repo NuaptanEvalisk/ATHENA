@@ -40,6 +40,7 @@
 #include "vault.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include "convert.hpp"
+#include "Data/Convert/Generic/conversion_executor.hpp"
 
 #include <QApplication>
 #include <QAbstractItemView>
@@ -835,8 +836,8 @@ apply_enunciation_preset (const QString& name) {
 
 static bool
 file_converter_exists (const QString& from, const QString& to) {
-  return as_bool (call ("file-converter-exists?", from_qstring_pref (from),
-                        from_qstring_pref (to)));
+  return conversion_file_available (url (from_qstring_pref (from)),
+                                    url (from_qstring_pref (to)));
 }
 
 static QString
