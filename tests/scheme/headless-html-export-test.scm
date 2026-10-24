@@ -2,7 +2,6 @@
 (set-preference "document save mode" "manual")
 (define (check condition message)
   (unless condition (error message)))
-(use-modules (convert html htmltm))
 (define (contains-node? expected value)
   (or (equal? expected value)
       (and (pair? value)
@@ -97,6 +96,15 @@
                (n (@ (t "image")) (t (v "asset.svg"))
                   (t (v "20px")) (t (v "30px")) (t (v "")) (t (v "")))))))))
   source)
+(let* ((xml (string-load source))
+       (format (format-determine xml "unknown"))
+       (document (convert xml (string-append format "-document") "texmacs-tree"))
+       (saved (convert document "texmacs-tree" "texmacs-document")))
+  ;; Exercise the codec roundtrip before the actor-owned export preparation below.
+  (string-save saved source))
+(check (equal? (format-determine "<?xml version='1.0'?><!--header--><html><body>x</body></html>" "unknown")
+               "html")
+       "HTML format detection failed after an inline XML declaration/comment")
 (check (not (current-buffer)) "fixture unexpectedly selected a buffer")
 (check (not (buffer-load source))
        (string-append "load explicit export buffer: " (string-load source)))
@@ -112,8 +120,15 @@
   '("Native semantic title" "1827" "Semantic body remains visible."
     "athena-math-block" "\\begin{gather" "mathjax@3"))
 (check (not (current-buffer)) "export selected a UI buffer")
+(check (not (buffer-export-with-options source target "html"
+               '(("texmacs->html:css-stylesheet" . "request-only.css"))))
+       "explicit export options failed across BufferActor")
+(check (string-contains? (string-load target) "request-only.css")
+       "HTML resources ignored the request option snapshot")
 (check (not (buffer-export source target "html"))
        "reusing a passive view required an active view")
+(check (not (string-contains? (string-load target) "request-only.css"))
+       "export options leaked into a subsequent request")
 (define image-output-dir (url-relative source "export"))
 (system-mkdir image-output-dir)
 (string-save "wrong destination asset" (url-append image-output-dir "asset.svg"))
@@ -184,39 +199,33 @@
           '(*TOP* (div (@ (h:custom "h:value")) "h:text")
                    (svg:svg (svg:path (@ (d "M0 0"))))))
   "HTML finalization rewrote attributes/text or foreign namespace names")
-(use-modules (convert html htmlout))
-(use-modules (convert html html-export))
-(let ((previous-source current-save-source)
-      (previous-target current-save-target)
-      (data (bytes-load (url-relative source "asset.svg"))))
-  (dynamic-wind
-    (lambda ()
-      (set! current-save-source source)
-      (set! current-save-target (url-relative source "embedded.html")))
-    (lambda ()
+(define (export-html-tree source options)
+  (apply convert source "texmacs-tree" "html-stree" options))
+(let ((data (bytes-load (url-relative source "asset.svg"))))
       (for-each
         (lambda (identifier)
           (let ((output (serialize-html
-                          (texmacs->html
+                          (native-convert
                             `(image (tuple (raw-data ,data) ,identifier)
-                                    "20px" "30px" "" "") '()))))
+                                    "20px" "30px" "" "")
+                            "texmacs-tree" "html-stree" '() source
+                            (url-relative source "embedded.html")))))
             (check (string-contains? output "embedded-1.svg")
                    "embedded web image was rasterized or lost its suffix")
             (check (equal? data (bytes-load (url-relative source "embedded-1.svg")))
                    "embedded image bytes changed across native conversion")))
         '("svg" "asset.svg")))
-    (lambda ()
-      (set! current-save-source previous-source)
-      (set! current-save-target previous-target))))
 (for-each
   (lambda (source)
     (catch #t
       (lambda ()
         (let* ((native (html->texmacs-tree (parse-html-snippet source)))
+               (fragment (convert native "texmacs-tree" "texmacs-snippet"))
+               (restored (convert fragment "texmacs-snippet" "texmacs-tree"))
                (validated (catch #t
-                            (lambda () (latex-export-prepare-v3-source native))
+                            (lambda () (latex-export-prepare-v3-source restored))
                             (lambda args (error "invalid before HTML export" args))))
-               (html (convert native "texmacs-tree" "html-snippet")))
+               (html (convert restored "texmacs-tree" "html-snippet")))
           (check (or (string-contains? html "\\(")
                      (string-contains? html "\\[")
                      (string-contains? html "athena-math-block"))
@@ -264,7 +273,7 @@
        "cell-local formatting did not override outer table formatting")
 (define native-markup-html
   (serialize-html
-    (texmacs->html
+    (export-html-tree
       '(document
          (section "Native heading")
          (html-class "second" (html-class "first" (strong "A & B")))
@@ -295,13 +304,13 @@
     "if (x < y) f('&');"))
 (check (catch #t
          (lambda ()
-           (texmacs->html '(unsupported-html-fixture "must not disappear") '())
+           (export-html-tree '(unsupported-html-fixture "must not disappear") '())
            #f)
          (lambda args #t))
        "unknown HTML markup was silently discarded")
 (check (catch #t
          (lambda ()
-           (texmacs->html '(specific "image" (math "x")) '())
+           (export-html-tree '(specific "image" (math "x")) '())
            #f)
          (lambda args
            (string-contains? (object->string args) "raster fallback")))

@@ -14,311 +14,34 @@
 (texmacs-module (kernel athena tm-convert)
   (:use (kernel athena tm-define) (kernel athena tm-modes)))
 (import-from (kernel athena tm-preferences))
-(use-modules (ice-9 threads))
 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Lazy formats
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define lazy-format-todo '())
-
-(define-public (lazy-format-register module)
-  (set! lazy-format-todo (cons module lazy-format-todo)))
-
-(define-public-macro (lazy-format module . ignored)
-  `(begin
-     (lazy-format-register ',module)
-     (delayed (:idle 2000) (import-from ,module))))
-
-(define (lazy-format-force)
-  (if (nnull? lazy-format-todo)
-      (eval (cons 'import-from lazy-format-todo)))
-  (set! lazy-format-todo '()))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Adding new converters
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define converter-forward (make-ahash-table))
-(define converter-backward (make-ahash-table))
-(define converter-function (make-ahash-table))
-(define converter-options (make-ahash-table))
-(define converter-option-for (make-ahash-table))
-;; Each source maps to a completed, immutable table of destination paths.
-(define converter-path (make-ahash-table))
-(define converter-path-mutex (make-mutex))
-
-(define (converter-set-penalty from to penalty)
-  (if (not (ahash-ref converter-forward from))
-      (ahash-set! converter-forward from (make-ahash-table)))
-  (ahash-set! (ahash-ref converter-forward from) to penalty)
-  (if (not (ahash-ref converter-backward to))
-      (ahash-set! converter-backward to (make-ahash-table)))
-  (ahash-set! (ahash-ref converter-backward to) from penalty))
-
-(define (converter-remove from to)
-  (converter-set-penalty from to #f)
-  (ahash-remove! (ahash-ref converter-forward from) to)
-  (ahash-remove! (ahash-ref converter-backward to) from))
-
-(define (converter-change-option from to option val)
-  (with key (list from to)
-    (if (not (ahash-ref converter-options key))
-        (ahash-set! converter-options key '()))
-    (ahash-set! converter-options key
-                (assoc-set! (ahash-ref converter-options key) option val))))
-
-(define (converter-set-option option val)
-  (with key (ahash-ref converter-option-for option)
-    (if key (converter-change-option (car key) (cadr key) option val))))
-
-(define (converter-define-option from to option val)
-  (with key (list from to)
-    (ahash-set! converter-option-for option key)
-    (converter-change-option from to option val)
-    (register-preference-default option val)
-    (register-preference-callback option 'converter-set-option)
-    (notify-preference option)))
-
-(define-public (converter-cmd from to cmd)
-  "Helper routine for converter macro"
-  (cond ((func? cmd :penalty 1)
-         (converter-set-penalty from to (second cmd)))
-;;        ((func? cmd :require 1) ;; already handled earlier now 
-;;       (if (not ((second cmd))) (converter-remove from to)))
-        ((func? cmd :option 2)
-         (converter-define-option from to (second cmd) (third cmd)))
-        ((func? cmd :function 1)
-         (ahash-set! converter-function (list from to)
-                     (lambda (x opts) ((second cmd) x))))
-        ((func? cmd :function-with-options 1)
-         (ahash-set! converter-function (list from to) (second cmd)))
-        ((func? cmd :shell)
-         (if (not (url-exists-in-path? (second cmd)))
-             (converter-remove from to))
-         (ahash-set! converter-function (list from to)
-                     (lambda (what opts)
-                       (converter-shell (cdr cmd) what to opts))))))
-
-(define-public (converter-sub cmd)
-  "Helper routine for converter macro"
-  (cond ((and (list? cmd) (= (length cmd) 2)
-              (in? (car cmd) '(:function :function-with-options)))
-         (list (car cmd) (list 'unquote (cadr cmd))))
-        ((and (list? cmd) (= (length cmd) 2)
-              (in? (car cmd) '(:require)))
-         (list (car cmd) (list 'unquote `(lambda () ,(cadr cmd)))))
-        (else cmd)))
-
-(define (converter-requirements-satisfied? options)
-  (let loop ((rest options))
-    (cond ((null? rest) #t)
-          ((func? (car rest) :require 1)
-           (and ((second (car rest))) (loop (cdr rest))))
-          (else (loop (cdr rest))))))
-
-(define-public (converter-register from to options)
-  (with-mutex converter-path-mutex
-    (set! converter-path (make-ahash-table)))
-  (when (converter-requirements-satisfied? options)
-    (converter-set-penalty from to 1.0)
-    (for-each (lambda (cmd) (converter-cmd from to cmd)) options)))
-
-(define-public-macro (converter from* to* . options)
-  "Declare a converter between @from@ and @to* according to @options"
-  (let* ((from (if (string? from*) from* (symbol->string from*)))
-         (to (if (string? to*) to* (symbol->string to*))))
-    `(converter-register
-       ,from ,to ,(list 'quasiquote (map converter-sub options)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Special converters
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (converter-shell-cmd l from to)
-  (with x (car l)
-    (string-append (if (or (os-win32?) (os-mingw?)) 
-                     (escape-shell (url-concretize (url-resolve-in-path x))) x) " "
-      (converter-shell-cmd-args (cdr l) from to))))
-
-(define (converter-shell-cmd-args l from to)
-  (if (null? l) ""
-      (with x (car l)
-        (string-append (cond ((== x 'from) (escape-shell (url-concretize from)))
-                             ((== x 'to) (escape-shell (url-concretize to)))
-                             (else x))
-                       (cond ((and (string? x) (string-ends? x "=")) "")
-                             (else " "))
-                       (converter-shell-cmd-args (cdr l) from to)))))
-
-(define (converter-shell l from to-format opts)
-  ;;(display* "converter-shell " l ", " from ", " to-format ", " opts "\n")
-  (let* ((last? (assoc-ref opts 'last?))
-         (dest (assoc-ref opts 'dest))
-         (dsuf (format-default-suffix to-format))
-         (suf (if (and dsuf (!= dsuf "")) (string-append "." dsuf) ""))
-         (to (if (and last? dest) dest (url-glue (url-temp) suf)))
-         (cmd (if (or (os-win32?) (os-mingw?)) (escape-shell (converter-shell-cmd l from to))
-             (converter-shell-cmd l from to))))
-    ;;(display* "shell: " cmd "\n")
-    (system cmd)
-    (if (url-exists? to) to #f)))
-
-(define-public (converter-save s opts)
-  "Helper routine for define-format macro"
-  (let* ((last? (assoc-ref opts 'last?))
-         (dest (assoc-ref opts 'dest))
-         (to (if (and last? dest) dest (url-temp))))
-    (string-save s to)
-    (if (url-exists? to) to #f)))
-
-(define-public (converter-load u opts)
-  "Helper routine for define-format macro"
-  (string-load u))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Finding converters from and to a format
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (converters-sub l h p)
-  (cond ((null? l) (map car (ahash-table->list h)))
-        ((ahash-ref h (car l)) (converters-sub (cdr l) h p))
-        (else (let* ((hn (ahash-ref p (car l)))
-                     (next (if hn (map car (ahash-table->list hn)) '())))
-                (ahash-set! h (car l) #t)
-                (converters-sub (append next (cdr l)) h p)))))
-
 (define-public (converters-from . from)
-  (lazy-format-force)
-  (converters-sub from (make-ahash-table) converter-forward))
+  (native-conversion-reachable from #f))
 
 (define-public (converters-to . to)
-  (lazy-format-force)
-  (converters-sub to (make-ahash-table) converter-backward))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Finding the shortest path
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (converter-insert distances paths to penalty path)
-  (if (ahash-ref distances to) #f
-      (begin
-        (ahash-set! distances to penalty)
-        (ahash-set! paths to path)
-        #t)))
-
-(define (converter-walk distances paths l*)
-  ;;(display* "convert-walk " from ", " l* "\n")
-  (if (nnull? l*)
-      (let* ((l (list-sort l* (lambda (x y) (< (cadr x) (cadr y)))))
-             (aux (caar l))
-             (d (cadar l))
-             (path (caddar l)))
-        (if (converter-insert distances paths aux d (reverse path))
-            (let* ((hn (ahash-ref converter-forward aux))
-                   (next (if hn (ahash-table->list hn) '()))
-                   (r (map (lambda (x) (list (car x)
-                                             (+ d (cdr x))
-                                             (cons (car x) path)))
-                           next)))
-              (converter-walk distances paths (append (cdr l) r)))
-            (converter-walk distances paths (cdr l))))))
-
-(define-public (converter-search from to)
-  (lazy-format-force)
-  ;; Never expose Dijkstra's working set to another BufferActor. Capture the
-  ;; cache generation so registration invalidation also discards late results.
-  (let* ((state (with-mutex converter-path-mutex
-                  (cons converter-path (ahash-ref converter-path from))))
-         (cache (car state))
-         (cached (cdr state)))
-    (if cached (ahash-ref cached to)
-        (let ((distances (make-ahash-table))
-              (paths (make-ahash-table)))
-          (converter-walk distances paths (list (list from 0.0 (list from))))
-          (with-mutex converter-path-mutex
-            (ahash-set! cache from paths))
-          (ahash-ref paths to)))))
+  (native-conversion-reachable to #t))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Actual conversion
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define-public (std-converter-options from to)
-  (or (ahash-ref converter-options (list from to)) '()))
-
-(define-public (with-converter-option from to option val thunk)
-  (lazy-format-force)
-  (let* ((key (list from to))
-         (old (ahash-ref converter-options key)))
-    (dynamic-wind
-      (lambda () (converter-change-option from to option val))
-      thunk
-      (lambda ()
-        (if old
-            (ahash-set! converter-options key old)
-            (ahash-remove! converter-options key))))))
-
-(define (convert-via what from path options)
-  ;;(display* "convert-via " what ", " from ", " path ", " options "\n")
-  (if (null? path)
-      (with dest (assoc-ref options 'dest)
-        (when (and dest (url? what) (url? dest) (!= dest what))
-          (system-copy what dest))
-        what)
-      (with fun (ahash-ref converter-function (list from (car path)))
-        (if fun
-            (let* ((last? (null? (cdr path)))
-                   (opts1 (acons 'last? last? options))
-                   (opts2 (std-converter-options from (car path)))
-                   (what* (fun what (append opts1 opts2)))
-                   ;; Failure is a value, not input for the next converter.
-                   (result (and what*
-                             (convert-via what* (car path) (cdr path) options))))
-              (if (and what* (not last?)
-                       (string-ends? (car path) "-file"))
-                  (system-remove what*))
-              result)
-            #f))))
-
-(define-public (convert what from to . options)
-  ;;(display* "convert " what ", " from ", " to ", " options "\n")
-  (lazy-format-force)
-  (with path (converter-search from to)
-    (if path
-        (convert-via what from (cdr path) options)
-        #f)))
-
-(define-public (convert-to-file what from to dest . options)
-  (apply convert (cons* what from to (acons 'dest dest options))))
-
-(define-public (image->postscript name)
-  (let* ((suffix (locase-all (url-suffix name)))
-         (fm (string-append (format-from-suffix suffix) "-file"))
-         (s (convert name fm "postscript-document")))
-    (if (string? s) s "")))
-
-(define-public (texmacs->generic doc fm)
-  (with r (convert doc "texmacs-tree" fm)
-    (if r r "Error: bad format or data")))
-
-(define-public (generic->texmacs s fm)
-  (with r (convert s fm "texmacs-tree")
-    (if r r (stree->tree '(error "bad format or data")))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Setting up conversion menus
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (format<=? fm1 fm2)
-  (string<=? (ahash-ref format-name fm1) (ahash-ref format-name fm2)))
+  (string<=? (format-get-name fm1) (format-get-name fm2)))
 
 (define-public (converters-from-special* fm suf tm?)
   (let* ((l1 (converters-from fm))
          (l2 (list-filter l1 (lambda (s) (string-ends? s suf))))
          (l3 (map (lambda (s) (string-drop-right s (string-length suf))) l2))
-         (l3 (list-filter l3 (lambda (s) (not (ahash-ref format-hidden s)))))
+         (l3 (list-filter l3 (lambda (s) (not (format-hidden? s)))))
          (l4 (if tm? l3 (list-filter l3 (lambda (s) (!= s "texmacs"))))))
     (list-sort l4 format<=?)))
 
@@ -326,7 +49,7 @@
   (let* ((l1 (converters-to fm))
          (l2 (list-filter l1 (lambda (s) (string-ends? s suf))))
          (l3 (map (lambda (s) (string-drop-right s (string-length suf))) l2))
-         (l3 (list-filter l3 (lambda (s) (not (ahash-ref format-hidden s)))))
+         (l3 (list-filter l3 (lambda (s) (not (format-hidden? s)))))
          (l4 (if tm? l3 (list-filter l3 (lambda (s) (!= s "texmacs"))))))
     (list-sort l4 format<=?)))
 
@@ -411,160 +134,11 @@
           (else "english"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Adding new formats
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define format-name (make-ahash-table))
-(define format-suffixes (make-ahash-table))
-(define format-hidden (make-ahash-table))
-(define format-mime (make-ahash-table))
-(define format-recognize (make-ahash-table))
-(define format-must-recognize (make-ahash-table))
-
-(define-public (format-cmd name cmd)
-  "Helper routine for define-format"
-  (cond ((func? cmd :name 1)
-         (ahash-set! format-name name (second cmd)))
-        ((func? cmd :suffix)
-         (ahash-set! format-suffixes name (cdr cmd))
-         (for-each (lambda (s) (ahash-set! format-mime s name)) (cdr cmd)))
-        ((func? cmd :hidden)
-         (ahash-set! format-hidden name #t))
-        ((func? cmd :recognize 1)
-         (ahash-set! format-recognize name (second cmd)))
-        ((func? cmd :must-recognize 1)
-         (ahash-set! format-recognize name (second cmd))
-         (ahash-set! format-must-recognize name #t))))
-
-(define-public (format-sub cmd)
-  "Helper routine for define-format"
-  (if (and (list? cmd) (= (length cmd) 2)
-           (in? (car cmd) '(:recognize :must-recognize)))
-      (list (car cmd) (list 'unquote (cadr cmd)))
-      cmd))
-
-(define-public-macro (define-format name* . options)
-  "Declare data format @name* according to @options"
-  (let* ((name (if (string? name*) name* (symbol->string name*)))
-         (name-document (string-append name "-document"))
-         (name-file (string-append name "-file")))
-    `(begin
-       (converter ,name-document ,name-file
-         (:function-with-options converter-save))
-       (converter ,name-file ,name-document
-         (:function-with-options converter-load))
-       (for-each (lambda (x) (format-cmd ,name x))
-                 ,(list 'quasiquote (map format-sub options))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Useful routines for format recognition
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define-public (format-skip-spaces s pos)
-  (cond ((>= pos (string-length s)) pos)
-        ((tm-char-whitespace? (string-ref s pos))
-         (format-skip-spaces s (+ pos 1)))
-        (else pos)))
-
-(define-public (format-skip-line s pos)
-  (cond ((>= pos (string-length s)) pos)
-        ((in? (string-ref s pos) '(#\newline #\cr)) (+ pos 1))
-        (else (format-skip-line s (+ pos 1)))))
-
-(define-public (format-test? s pos what)
-  (with end (+ pos (string-length what))
-    (and (>= (string-length s) end)
-         (== (string-downcase (substring s pos end)) what))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Getting suffix information
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (format-get-suffixes-sub fm)
-  (with l (ahash-ref format-suffixes fm)
-    (if l l '())))
-
-(define (format-image-suffixes)
-  (with l (converters-to-special "postscript-file" "-file" #f)
-    (apply append (map format-get-suffixes-sub l))))
-
-(define (format-get-suffixes fm)
-  (cond ((and (== fm "image") (os-win32?))
-         '("ps" "eps" "bmp" "gif" "ico" "tga" "pcx" "wbmp" "wmf" "jpg"
-           "jpeg" "png" "tif" "jbig" "ras" "pnm" "jp2" "jpc" "pgx"
-           "cut" "iff" "lbm" "jng" "koa" "mng" "pbm" "pcd" "pcx"
-           "pgm" "ppm" "psd" "tga" "tiff" "xbm"))
-        ((== fm "image") (format-image-suffixes))
-        (else (format-get-suffixes-sub fm))))
-
-(define-public (format-get-suffixes* fm)
-  (lazy-format-force)
-  (cons 'tuple (format-get-suffixes fm)))
-
-(define-public (format-default-suffix fm)
-  (lazy-format-force)
-  (with l (ahash-ref format-suffixes fm)
-    (cond ((== fm "image") "png")
-          ((or (not l) (null? l))
-           (if (string-ends? fm "-file")
-               (format-default-suffix (string-drop-right fm 5))
-               ""))
-          (else (car l)))))
-
-(define-public (image-formats)
-  (let* ((suffixes (format-image-suffixes))
-         (formats (map format-from-suffix suffixes)))
-    (sort (list-remove-duplicates formats) string<=?)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Automatic determination of the format
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define-public (format? fm)
-  (lazy-format-force)
-  (not (not (ahash-ref format-name fm))))
-
-(define-public (format-get-name fm)
-  (lazy-format-force)
-  (ahash-ref format-name fm))
-
-(define-public (format-recognizes? doc fm)
-  (lazy-format-force)
-  (with pred? (ahash-ref format-recognize fm)
-    (and pred? (pred? doc))))
-
-(define-public (format-from-suffix suffix)
-  (lazy-format-force)
-  (with fm (ahash-ref format-mime (locase-all suffix))
-    (if fm fm "generic")))
-
-(define-public (format-determine body suffix)
-  (lazy-format-force)
-  (with p (list-find (ahash-table->list format-recognize)
-                     (lambda (p) ((cdr p) body)))
-    (if p (car p)
-        (with fm (ahash-ref format-mime (locase-all suffix))
-          (cond ((not fm) "verbatim")
-                ((ahash-ref format-must-recognize fm) "verbatim")
-                (else fm))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Utilities for file conversions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define-public (file-of-format? u fm)
-  (in? (url-suffix u) (format-get-suffixes fm)))
-
-(define-public (file-format u)
-  (string-append (format-from-suffix (url-suffix u)) "-file"))
-
-(define-public (file-converter-exists? what dest)
-  (nnot (converter-search (file-format what) (file-format dest))))
-
-(define-public (file-convert what dest . options)
-  (let* ((from (file-format what))
-         (to   (file-format dest)))
-    (apply convert (cons* what from to (acons 'dest dest options)))))
+  (in? (url-suffix u) (cdr (format-get-suffixes* fm))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Viewers
@@ -587,6 +161,3 @@
 ;;       (set! viewer-table (list->ahash-table (load-object u))))))
 
 ;; (retrieve-viewers)
-
-(register-preference-callback-procedures
-  (list converter-set-option))

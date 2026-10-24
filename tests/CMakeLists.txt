@@ -768,10 +768,6 @@ if (ATHENA_TEST_GUILE)
     COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
       ${CMAKE_CURRENT_SOURCE_DIR}/scheme/link-navigation-ownership-test.scm
       ${ATHENA_SOURCE_DIR})
-  add_test (NAME converter_search_scheme_test
-    COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
-      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/converter-search-test.scm
-      ${ATHENA_SOURCE_DIR})
   add_test (NAME aux_buffer_permissions_scheme_test
     COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
       ${CMAKE_CURRENT_SOURCE_DIR}/scheme/aux-buffer-permissions-test.scm

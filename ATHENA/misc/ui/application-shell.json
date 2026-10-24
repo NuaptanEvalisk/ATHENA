@@ -612,13 +612,6 @@
       "help": "Export the active document through the print pipeline as PDF"
     },
     {
-      "id": "editor.export-postscript",
-      "label": "Export as PostScript",
-      "category": "File",
-      "icon": "document-export",
-      "help": "Export the active document through the print pipeline as PostScript"
-    },
-    {
       "id": "editor.close-window",
       "label": "Close window",
       "category": "File",
@@ -830,7 +823,6 @@
             { "separator": true },
             { "command": "editor.export-pdf" },
             { "command": "editor.export-pdf-embedded" },
-            { "command": "editor.export-postscript" },
             {
               "submenu": "file-export-selection-image",
               "label": "Export selection as image",
@@ -2433,7 +2425,6 @@
             { "provider": "file-export-formats" },
             { "separator": true },
             { "command": "editor.export-pdf" },
-            { "command": "editor.export-postscript" },
             {
               "submenu": "editor-main-selection-image",
               "label": "Export selection as image",

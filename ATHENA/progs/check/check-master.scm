@@ -12,9 +12,7 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(texmacs-module (check check-master)
-  (:use (convert tools tmlength-test)
-        (convert tools environment-test)))
+(texmacs-module (check check-master))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Test LaTeX export
@@ -42,7 +40,6 @@
   (with latex-file (url-glue (url-unglue tm-file 3) ".tex")
     (with-aux tm-file
       (system-remove latex-file)
-      (if (url? latex-file) (set! current-save-target latex-file))
       (export-buffer-main (current-buffer) latex-file
                           "latex" (list :overwrite))
       (display* "Checking LaTeX on " (url->string latex-file) "...\n")
@@ -72,8 +69,3 @@
 
 (tm-define (run-checks)
   (check-latex-export "$ATHENA_CHECKS/latex-export"))
-
-(tm-define (run-all-tests)
-  (regtest-tmlength)
-  (regtest-environment)
-)

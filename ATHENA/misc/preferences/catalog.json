@@ -3,6 +3,12 @@
   "version": 1,
   "preferences": [
     {
+      "key": "texmacs->latex:portable",
+      "type": "boolean",
+      "scope": "active",
+      "default": "off"
+    },
+    {
       "key": "profile",
       "type": "string",
       "scope": "active",
@@ -4577,29 +4583,25 @@
       "key": "texmacs->latex:source-tracking",
       "type": "string",
       "scope": "active",
-      "default": "off",
-      "callback": "converter-option"
+      "default": "off"
     },
     {
       "key": "texmacs->latex:conservative",
       "type": "string",
       "scope": "active",
-      "default": "on",
-      "callback": "converter-option"
+      "default": "on"
     },
     {
       "key": "texmacs->latex:transparent-source-tracking",
       "type": "string",
       "scope": "active",
-      "default": "on",
-      "callback": "converter-option"
+      "default": "on"
     },
     {
       "key": "texmacs->latex:attach-tracking-info",
       "type": "boolean",
       "scope": "active",
       "default": "on",
-      "callback": "converter-option",
       "ui": {
         "category": "Convert",
         "tab": "LaTeX",
@@ -4617,7 +4619,6 @@
       "type": "boolean",
       "scope": "active",
       "default": "on",
-      "callback": "converter-option",
       "ui": {
         "category": "Convert",
         "tab": "LaTeX",
@@ -4635,7 +4636,6 @@
       "type": "boolean",
       "scope": "active",
       "default": "on",
-      "callback": "converter-option",
       "ui": {
         "category": "Convert",
         "tab": "LaTeX",
@@ -4653,7 +4653,6 @@
       "type": "boolean",
       "scope": "active",
       "default": "off",
-      "callback": "converter-option",
       "ui": {
         "category": "Convert",
         "tab": "LaTeX",
@@ -4671,7 +4670,6 @@
       "type": "boolean",
       "scope": "active",
       "default": "on",
-      "callback": "converter-option",
       "ui": {
         "category": "Convert",
         "tab": "LaTeX",
@@ -4689,7 +4687,6 @@
       "type": "choice",
       "scope": "active",
       "default": "utf-8",
-      "callback": "converter-option",
       "ui": {
         "category": "Convert",
         "tab": "LaTeX",
@@ -4874,7 +4871,6 @@
       "type": "boolean",
       "scope": "active",
       "default": "off",
-      "callback": "converter-option",
       "ui": {
         "category": "Convert",
         "tab": "Verbatim",
@@ -4892,7 +4888,6 @@
       "type": "choice",
       "scope": "active",
       "default": "auto",
-      "callback": "converter-option",
       "ui": {
         "category": "Convert",
         "tab": "Verbatim",
@@ -4928,7 +4923,6 @@
       "type": "boolean",
       "scope": "active",
       "default": "on",
-      "callback": "converter-option",
       "ui": {
         "category": "Convert",
         "tab": "Verbatim",
@@ -4946,7 +4940,6 @@
       "type": "choice",
       "scope": "active",
       "default": "auto",
-      "callback": "converter-option",
       "ui": {
         "category": "Convert",
         "tab": "Verbatim",
@@ -5052,83 +5045,10 @@
       }
     },
     {
-      "key": "image->texmacs:svg-prefer-inkscape",
-      "type": "boolean",
-      "scope": "active",
-      "default": "off",
-      "callback": "converter-option",
-      "ui": {
-        "category": "Convert",
-        "tab": "Image",
-        "section": "Image → ATHENA",
-        "order": 1,
-        "label": "Use Inkscape for conversion from SVG",
-        "control": "toggle",
-        "category_order": 4,
-        "tab_order": 4,
-        "section_order": 1
-      }
-    },
-    {
-      "key": "texmacs->html:css",
-      "type": "boolean",
-      "scope": "active",
-      "default": "on",
-      "callback": "converter-option",
-      "ui": {
-        "category": "Convert",
-        "tab": "Html",
-        "section": "ATHENA → HTML",
-        "order": 0,
-        "label": "Use CSS for more advanced formatting",
-        "control": "toggle",
-        "category_order": 4,
-        "tab_order": 0,
-        "section_order": 0
-      }
-    },
-    {
-      "key": "texmacs->html:mathjax",
-      "type": "boolean",
-      "scope": "active",
-      "default": "off",
-      "callback": "converter-option",
-      "ui": {
-        "category": "Convert",
-        "tab": "Html",
-        "section": "ATHENA → HTML",
-        "order": 1,
-        "label": "Export mathematical formulas as MathJax",
-        "control": "toggle",
-        "category_order": 4,
-        "tab_order": 0,
-        "section_order": 0
-      }
-    },
-    {
-      "key": "texmacs->html:images",
-      "type": "boolean",
-      "scope": "active",
-      "default": "on",
-      "callback": "converter-option",
-      "ui": {
-        "category": "Convert",
-        "tab": "Html",
-        "section": "ATHENA → HTML",
-        "order": 2,
-        "label": "Export mathematical formulas as images",
-        "control": "toggle",
-        "category_order": 4,
-        "tab_order": 0,
-        "section_order": 0
-      }
-    },
-    {
       "key": "texmacs->html:css-stylesheet",
       "type": "string",
       "scope": "active",
-      "default": "---",
-      "callback": "converter-option"
+      "default": "---"
     },
     {
       "key": "mathml->texmacs:latex-annotations",
@@ -5152,7 +5072,6 @@
       "type": "boolean",
       "scope": "active",
       "default": "off",
-      "callback": "converter-option",
       "ui": {
         "category": "Convert",
         "tab": "LaTeX",

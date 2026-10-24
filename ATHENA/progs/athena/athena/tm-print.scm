@@ -298,8 +298,5 @@
 (tm-define (native-export-pdf-dialog)
   (choose-file wrapped-print-to-file "Save pdf file" "pdf"))
 
-(tm-define (native-export-postscript-dialog)
-  (choose-file wrapped-print-to-file "Save postscript file" "postscript"))
-
 (register-preference-callback-procedures
   (list notify-paper-type notify-preview-command notify-printer-dpi notify-printing-command))

@@ -1,0 +1,36 @@
+;; Process argv, intermediate destinations, and failed output publication.
+(use-modules (rnrs bytevectors))
+(define (check condition message) (unless condition (error message)))
+(define source (string->url (string-append (getenv "HOME") "/source ' with spaces.svg")))
+(define target (url-relative source "converted result.pnm"))
+(string-save
+  "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"30\"><rect width=\"20\" height=\"30\" fill=\"red\"/></svg>"
+  source)
+(check (converter-search "svg-file" "pnm-file")
+       "This check requires rsvg-convert and ImageMagick")
+(check (equal? (convert-to-file source "svg-file" "pnm-file" target) target)
+       "Multi-step image conversion did not publish its final destination")
+(let ((output (bytes-load target)))
+  (check (and (> (bytevector-length output) 2)
+              (= (bytevector-u8-ref output 0) 80)
+              (memv (bytevector-u8-ref output 1) '(49 50 51 52 53 54)))
+         "Intermediate PNG was incorrectly published as the final PNM"))
+(let* ((png (native-convert-image "svg" "png" source (url-none) "150"))
+       (pdf (native-convert-image "png" "pdf" png
+              (url-relative source "native result.pdf") "150"))
+       (output (bytes-load pdf)))
+  (check (and (> (bytevector-length output) 4)
+              (equal? (map (lambda (i) (bytevector-u8-ref output i)) '(0 1 2 3))
+                      '(37 80 68 70)))
+         "Native PNG to PDF conversion did not produce a PDF")
+  (system-remove png))
+(define failed-target (url-relative source "existing output.png"))
+(string-save "preserve destination" failed-target)
+(string-save "not an SVG" source)
+(check
+  (catch #t
+    (lambda () (native-convert-image "svg" "png" source failed-target "150") #f)
+    (lambda args #t))
+  "External converter failure was silently accepted")
+(check (equal? (string-load failed-target) "preserve destination")
+       "Failed image conversion overwrote an existing destination")

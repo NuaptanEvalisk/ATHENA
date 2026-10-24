@@ -51,6 +51,7 @@
 #include "ATHENA/Data/new_buffer.hpp"
 #include "Kernel/Types/node_metadata.hpp"
 #include "convert.hpp"
+#include "Data/Convert/Generic/conversion_executor.hpp"
 #include "Scheme/Scheme/object.hpp"
 #include "file.hpp"
 #include "web_files.hpp"
@@ -58,6 +59,15 @@
 bool headless_mode= true;
 bool is_headless () { return true; }
 static server_rep* test_server= nullptr;
+
+static object latex_document_for_test (object source, object options) {
+  return conversion_execute (source, "texmacs-tree", "latex-document", options,
+                             url_none (), url_none ());
+}
+static object html_document_for_test (object source, object options) {
+  return conversion_execute (source, "texmacs-tree", "html-document", options,
+                             url_none (), url_none ());
+}
 
 class InlineRenderProbe: public qt_renderer_rep {
 public:
@@ -1012,13 +1022,13 @@ private slots:
     QCOMPARE (search_metadata (doc, "author"),
               string ("Fran\xc3\xa7ois \xce\xb1"));
 
-    eval ("(module-provide '(convert rewrite init-rewrite))");
     QCOMPARE (as_string (eval (
-      "(texmacs->code (tm->tree \"caf\303\251 \344\270\255\") \"cork\")")),
+      "(convert (tm->tree \"caf\303\251 \344\270\255\") \"texmacs-tree\" \"verbatim-snippet\""
+      " '(\"texmacs->verbatim:encoding\" . \"cork\"))")),
       string ("caf\xc3\xa9 \xe4\xb8\xad"));
     QVERIFY (as_bool (eval (
-      "(begin (verbatim->texmacs \"caf\303\251\" "
-      " (acons \"verbatim->texmacs:encoding\" \"cork\" '())) #t)")));
+      "(begin (convert \"caf\303\251\" \"verbatim-document\" \"texmacs-tree\" "
+      " '(\"verbatim->texmacs:encoding\" . \"cork\")) #t)")));
   }
 
   void unicodeMathLanguage () {
@@ -2273,7 +2283,6 @@ private slots:
       latex_export_prepare_v3_source (styled));
   }
   void nativeV3LatexEndToEndSerializationKeepsOriginalV2Behavior () {
-    eval ("(use-modules (convert latex init-latex))");
     object options= eval ("'()");
     const tree baseline (DOCUMENT,
       compound ("style", "generic"),
@@ -2281,10 +2290,11 @@ private slots:
         "Control paragraph.",
         compound ("math", tree (CONCAT, "x", tree (RSUP, "2"))))));
     object old_style_stree= call ("tree->stree", object (baseline));
-    object old_style_tex_tree= call ("texmacs->latex", old_style_stree, options);
+    object old_style_tex_tree= call ("latex-export-convert-top", old_style_stree,
+      options, object (url_none ()), object (url_none ()));
     const string expected= as_string (call ("serialize-latex", old_style_tex_tree));
     const string actual= as_string (
-      call ("texmacs->latex-document", object (baseline), options));
+      latex_document_for_test (object (baseline), options));
     QCOMPARE (actual, expected);
 
     tree scripts= athena::math_v3::scripts (
@@ -2299,7 +2309,7 @@ private slots:
       compound ("style", "generic"),
       compound ("body", tree (DOCUMENT, formula)));
     const string latex= as_string (
-      call ("texmacs->latex-document", object (document), options));
+      latex_document_for_test (object (document), options));
     QVERIFY (occurs ("\\begin{equation}", latex));
     QVERIFY (occurs ("\\sum", latex));
     QVERIFY (occurs ("\\limits", latex));
@@ -2325,7 +2335,7 @@ private slots:
       compound ("style", "generic"),
       compound ("body", tree (DOCUMENT, grid_block)));
     const string grid_latex= as_string (
-      call ("texmacs->latex-document", object (grid_document), options));
+      latex_document_for_test (object (grid_document), options));
     QVERIFY (occurs ("\\begin{eqnarray*}", grid_latex));
     QVERIFY (occurs ("\\end{eqnarray*}", grid_latex));
     QVERIFY (!occurs ("ATHENA-DATA cmd=\"object\"", grid_latex));
@@ -2343,7 +2353,7 @@ private slots:
     const tree matrix_doc (DOCUMENT, compound ("style", "generic"),
       compound ("body", tree (DOCUMENT, matrix_block)));
     const string matrix_latex= as_string (
-      call ("texmacs->latex-document", object (matrix_doc), options));
+      latex_document_for_test (object (matrix_doc), options));
     QVERIFY (occurs ("\\begin{equation}", matrix_latex));
     QVERIFY (occurs ("\\begin{matrix}", matrix_latex));
     QVERIFY (occurs ("\\end{matrix}", matrix_latex));
@@ -2361,7 +2371,7 @@ private slots:
       compound ("body", tree (DOCUMENT,
         compound ("math", tree (CONCAT, standalone, tree (";"), grouped)))));
     const string groups_latex= as_string (
-      call ("texmacs->latex-document", object (scripts_doc), options));
+      latex_document_for_test (object (scripts_doc), options));
     // The regular text-token converter turns `op` into \operatorname{op}
     // and places spaces around the binary +. Check the essential TeX groups
     // rather than reimplementing the pre-existing lexical normalization.
@@ -2386,8 +2396,6 @@ private slots:
     QVERIFY (as_bool (call (run, object (test_path))));
   }
   void nativeV3HtmlMathJaxKeepsMathBlockAndScriptMetadata () {
-    eval ("(use-modules (convert html init-html) (convert html html-export) "
-          "(convert html htmlout))");
     object options= eval ("'((\"texmacs->html:mathjax\" . \"on\") "
                           "(\"texmacs->html:css\" . \"on\") "
                           "(\"texmacs->html:images\" . \"off\"))");
@@ -2395,9 +2403,9 @@ private slots:
       compound ("style", "generic"),
       compound ("body", tree (DOCUMENT, "HTML baseline text.")));
     const string before= as_string (call ("serialize-html",
-      call ("texmacs->html", call ("tree->stree", object (baseline)), options)));
-    const string after= as_string (call ("texmacs->html-document",
-                                          object (baseline), options));
+      call ("native-html-export-document", call ("tree->stree", object (baseline)),
+        options, object (url_none ()), object (url_none ()))));
+    const string after= as_string (html_document_for_test (object (baseline), options));
     QVERIFY (!before.empty ());
     QCOMPARE (after, before);
     object direct_mathjax= eval (
@@ -2416,7 +2424,7 @@ private slots:
     athena::node::set (block, numbered);
     const tree doc (DOCUMENT, compound ("style", "generic"),
       compound ("body", tree (DOCUMENT, "HTML v3 mathematics:", block)));
-    const string html= as_string (call ("texmacs->html-document", object (doc), options));
+    const string html= as_string (html_document_for_test (object (doc), options));
     QVERIFY (!html.empty ());
     QVERIFY (occurs ("mathjax@3", html));
     QVERIFY (occurs ("athena-math-block", html));
@@ -2435,7 +2443,7 @@ private slots:
       compound ("body", tree (DOCUMENT,
         tree (CONCAT, "Compare ", compound ("math", inline_scripts), "."))));
     const string inline_html= as_string (
-      call ("texmacs->html-document", object (inline_doc), options));
+      html_document_for_test (object (inline_doc), options));
     QVERIFY (occurs ("\\(", inline_html));
     QVERIFY (occurs ("_i", inline_html));
     QVERIFY (occurs ("^2", inline_html));
@@ -2450,8 +2458,7 @@ private slots:
     const tree delimiters_doc (DOCUMENT, compound ("style", "generic"),
       compound ("body", tree (DOCUMENT,
         tree (CONCAT, "Delimiter: ", compound ("math", bracketed)))));
-    const string delimiter_html= as_string (call (
-      "texmacs->html-document", object (delimiters_doc), options));
+    const string delimiter_html= as_string (html_document_for_test (object (delimiters_doc), options));
     QVERIFY (occurs ("\\(", delimiter_html));
     QVERIFY (occurs ("\\left(", delimiter_html));
     QVERIFY (occurs ("\\middle|", delimiter_html));
@@ -2473,8 +2480,7 @@ private slots:
     athena::node::set (grid_block, unnumbered);
     const tree grid_doc (DOCUMENT, compound ("style", "generic"),
       compound ("body", tree (DOCUMENT, grid_block)));
-    const string grid_html= as_string (call (
-      "texmacs->html-document", object (grid_doc), options));
+    const string grid_html= as_string (html_document_for_test (object (grid_doc), options));
     QVERIFY (occurs ("athena-math-block", grid_html));
     QVERIFY (occurs ("\\begin{eqnarray*}", grid_html));
     QVERIFY (occurs ("\\end{eqnarray*}", grid_html));
@@ -2486,8 +2492,7 @@ private slots:
       "'((\"texmacs->html:mathjax\" . \"off\") "
         "(\"texmacs->html:css\" . \"on\") "
         "(\"texmacs->html:images\" . \"off\"))");
-    const scheme_tree refused= as_scheme_tree (call (
-      "texmacs->html-document", object (doc), without_mathjax));
+    const scheme_tree refused= as_scheme_tree (html_document_for_test (object (doc), without_mathjax));
     QVERIFY (is_func (refused, TUPLE));
     QCOMPARE (refused[0], tree ("misc-error"));
   }

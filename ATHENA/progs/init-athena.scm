@@ -232,8 +232,6 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting programming modes\n")
-(lazy-format (prog code-format) cpp julia scala java json csv)
-(lazy-format (prog python-format) python)
 (lazy-keyboard (utils edit selections) in-prog?)
 (lazy-keyboard (prog dot-edit) in-prog?)
 (lazy-keyboard (prog java-edit) in-prog?)
@@ -309,21 +307,6 @@
 (define-secure-symbols tmdoc-include)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
-;(display "Booting converters\n")
-(lazy-format (convert rewrite init-rewrite) texmacs verbatim)
-(lazy-format (convert latex init-latex) latex)
-(lazy-format (convert html init-html) html)
-(lazy-format (convert mathml init-mathml) mathml-v3)
-(lazy-format (convert markdown init-markdown) markdown)
-(lazy-format (convert images init-images)
-             postscript pdf xmgrace svg jpeg ppm gif png pnm)
-(lazy-define (convert images tmimage)
-             export-selection-as-graphics clipboard-copy-image
-             native-export-selection-as-image-dialog)
-(lazy-define (convert rewrite init-rewrite) texmacs->code texmacs->verbatim)
-(lazy-define (convert html tmhtml-expand) tmhtml-env-patch)
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
-
 ;(display "Booting linking facilities\n")
 (lazy-define (link locus-edit) create-unique-id)
 (lazy-define (link link-navigate) link-active-upwards link-active-ids
@@ -358,7 +341,7 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting regression testing\n")
-(lazy-define (check check-master) check-all run-checks run-all-tests)
+(lazy-define (check check-master) check-all run-checks)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "------------------------------------------------------\n")

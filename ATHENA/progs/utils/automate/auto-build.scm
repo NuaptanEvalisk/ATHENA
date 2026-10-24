@@ -64,7 +64,7 @@
         (else #f)))
 
 (define (build-scheme* t)
-  (let* ((expr (string->object (texmacs->code t "iso-8859-1")))
+  (let* ((expr (string->object (cpp-texmacs->verbatim (tm->tree t) #f "iso-8859-1")))
          (decls (map (lambda (p) (list (car p) (list 'quote (cdr p))))
                      current-variables))
          (expr* `(let ,decls ,expr)))

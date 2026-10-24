@@ -15,8 +15,7 @@
   (:use (utils library tree)
 	(utils library cursor)
 	(math math-drd)
-        (math math-stats)
-        (convert tools tmconcat)))
+        (math math-stats)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Some drd properties, which should go into table-drd.scm later on

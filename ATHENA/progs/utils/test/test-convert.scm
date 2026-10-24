@@ -220,10 +220,8 @@
       (when (should-update? tm-file pdf-file)
         (with-aux tm-file
           (display* "ATHENA]   Exporting " x " to Pdf\n")
-          (set! current-save-target pdf-file)
           (export-buffer-main (current-buffer) pdf-file "pdf" opts)
           (display* "ATHENA]   Exporting " x " to LaTeX\n")
-          (set! current-save-target tex-file)
           (export-buffer-main (current-buffer) tex-file "latex" opts))))))
 
 (define (has-documentclass? u)
@@ -256,7 +254,6 @@
             (update-current-buffer)
             (update-forced)
             (display* "ATHENA]   Exporting " x " to Pdf\n")
-            (set! current-save-target pdf-file)
             (export-buffer-main (current-buffer) pdf-file "pdf" opts)))))))
 
 (define (test-arxiv-file x dir)

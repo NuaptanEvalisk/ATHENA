@@ -143,21 +143,6 @@
 ;; Saving buffers
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define current-save-source (url-none))
-
-(tm-define (convert-export-document document source target format)
-  (let ((previous-source current-save-source)
-        (previous-target current-save-target))
-    (dynamic-wind
-      (lambda ()
-        (set! current-save-source source)
-        (set! current-save-target target))
-      (lambda () (convert document "texmacs-tree" format))
-      (lambda ()
-        (set! current-save-source previous-source)
-        (set! current-save-target previous-target)))))
-(tm-define current-save-target (url-none))
-
 (tm-define (autosave-file? name)
   (and (url? name)
        (not (url-rooted-tmfs? name))
@@ -296,8 +281,6 @@
 (define (save-buffer-check-permissions name opts)
   ;;(display* "save-buffer-check-permissions " name "\n")
   (save-buffer-preserve-current-viewport name)
-  (set! current-save-source name)
-  (set! current-save-target name)
   (with vname `(verbatim ,(url->system name))
     (cond ((url-scratch? name)
            (choose-file
@@ -406,10 +389,8 @@
   ;;(display* "export-buffer-export " name ", " to ", " fm "\n")
   (with vto `(verbatim ,(url->system to))
     (if (if (and (== fm "latex") (in? :latex-portable opts))
-            (with-converter-option
-             "texmacs-stree" "latex-document"
-             "texmacs->latex:portable" "on"
-             (lambda () (buffer-export name to fm)))
+            (buffer-export-with-options name to fm
+              '(("texmacs->latex:portable" . "on")))
             (buffer-export name to fm))
         (set-message `(concat "Could not save " ,vto) "Export file")
         (set-message `(concat "Exported to " ,vto) "Export file"))))
@@ -434,8 +415,6 @@
     (set! to (string-replace to ":" "-"))
     (set! to (string-replace to ";" "-"))
     (set! to (url-relative (buffer-get-master name) to)))
-  (if (url? name) (set! current-save-source name))
-  (if (url? to) (set! current-save-target to))
   (export-buffer-check-permissions name to fm opts))
 
 (tm-define (export-buffer to)
@@ -454,8 +433,6 @@
         (when (buffer-load name)
           (display* "ATHENA: could not load " from "\n")
           (primitive-exit 1))
-        (set! current-save-source name)
-        (set! current-save-target dest)
         (when (buffer-export name dest (if (== fm "generic") "verbatim" fm))
           (display* "ATHENA: could not export " from " to " to "\n")
           (primitive-exit 1))

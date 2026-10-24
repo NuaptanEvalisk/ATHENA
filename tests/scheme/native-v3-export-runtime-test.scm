@@ -1,13 +1,16 @@
 ;; Load in the centralized ATHENA runtime test process. No source documents,
 ;; buffers, vaults or files are read or written by this test.
-(use-modules (convert latex init-latex) (convert html init-html)
-             (convert html html-export) (convert rewrite tmtm-brackets))
+(define (export-latex source options)
+  (apply convert source "texmacs-tree" "latex-document" options))
+(define (export-html source options)
+  (apply convert source "texmacs-tree" "html-document" options))
 (define (check value message)
   (unless value (error "Native v3 export regression" message)))
 (define (expect-error thunk reason)
   (let ((caught (catch #t (lambda () (thunk) #f) (lambda args args))))
     (check (and caught (string-contains? (object->string caught) reason))
-           (string-append "missing explicit failure: " reason))))
+           (string-append "missing explicit failure: " reason "; got "
+                          (object->string caught)))))
 (define (property! tree key value)
   (check (eq? (car (tree-update-node-properties!
                     tree (list (list key value)) '())) 'ok)
@@ -21,7 +24,19 @@
 (property! scripts "math:scripts-policy" '(string "o"))
 (define native (tree-rebuild (stree->tree '(math)) (list scripts)))
 (define before (tree-node-properties scripts))
-(define options '(("texmacs->html:mathjax" . "on")))
+(define mixed (list "prefix" '(concat "suffix") native))
+(define joined (apply tmconcat mixed))
+(check (and (equal? (cadr joined) "prefixsuffix")
+            (eq? (caddr joined) native)
+            (equal? joined (apply tmconcat* (tmconcat-simplify mixed))))
+       "native concatenation lost a metadata-bearing input node")
+(define options '())
+
+(for-each
+  (lambda (target)
+    (expect-error (lambda () (convert native "texmacs-tree" target))
+                  "cannot preserve native node metadata"))
+  '("stm-document" "stm-snippet" "texmacs-stree"))
 
 ;; Exercise the real registered routes used for documents and clipboard output.
 (for-each
@@ -31,11 +46,6 @@
   '("latex-document" "latex-snippet"))
 (for-each
   (lambda (target)
-    (expect-error
-      (lambda () (convert native "texmacs-tree" target
-                   '("texmacs->html:mathjax" . "off")
-                   '("texmacs->html:images" . "on")))
-      "image fallback is disabled")
     (check (clean? (apply convert native "texmacs-tree" target options))
            "MathJax route returned preservation output"))
   '("html-document" "html-snippet"))
@@ -46,21 +56,21 @@
 ;; keyboard and Math toolbar's shared arrow/operator action. Exercise the real
 ;; LaTeX route as an integration check, independent of the editor QTest build.
 (check (string-contains?
-         (texmacs->latex-document '(math (math-long-arrow "→" "i" "n")) '())
+         (export-latex '(math (math-long-arrow "→" "i" "n")) '())
          "\\xrightarrow[i]{n}")
        "native long-arrow lower/upper slots were transposed during export")
 (check (string-contains?
-         (texmacs->latex-document '(math (math-long-arrow "→" "" "")) '())
+         (export-latex '(math (math-long-arrow "→" "" "")) '())
          "\\xrightarrow{}")
        "empty native long-arrow annotation slots were lost")
 (check (string-contains?
-         (texmacs->latex-document '(math (big-operator "∑" "0")) '())
+         (export-latex '(math (big-operator "∑" "0")) '())
          "\\sum")
        "native big operator glyph failed the real export route")
 (for-each
   (lambda (kind command)
     (check (string-contains?
-             (texmacs->latex-document `(math (math-variant ,kind "A")) '())
+             (export-latex `(math (math-variant ,kind "A")) '())
              command)
            "native math alphabet variant failed the real export route"))
   '("bf" "bb" "cal")
@@ -68,7 +78,7 @@
 (for-each
   (lambda (kind command)
     (check (string-contains?
-             (texmacs->latex-document `(math (math-variant ,kind "A")) '())
+             (export-latex `(math (math-variant ,kind "A")) '())
              command)
            "mathematical alphabet export changed its original font semantics"))
   '("mbf" "mbfu" "frak")
@@ -76,10 +86,10 @@
 ;; Verify dependencies as well as visible commands. Bare LaTeX does not
 ;; define boldsymbol/mathfrak; these are real package requirements, not
 ;; cosmetic formatting differences.
-(texmacs->latex-document '(math (math-variant "mbf" "A")) '())
+(export-latex '(math (math-variant "mbf" "A")) '())
 (check (member "amsmath" (latex-export-latex-extra-packages))
        "mathematical bold export omitted its amsmath dependency")
-(texmacs->latex-document '(math (math-variant "frak" "A")) '())
+(export-latex '(math (math-variant "frak" "A")) '())
 (check (member "amsfonts" (latex-export-latex-extra-packages))
        "Fraktur export omitted its amsfonts dependency")
 
@@ -87,7 +97,7 @@
 (property! block "math:block-numbered" '(boolean #t))
 (define block-source (latex-export-prepare-v3-source block))
 (define numbered
-  (texmacs->html-document
+  (export-html
     `(document (style "generic") (body (document ,block-source))) options))
 (check (string-contains? numbered "\\begin{equation}")
        "numbered MathBlock lost its equation environment")
@@ -101,13 +111,13 @@
 ;; Preservation output nested under a supported native node must fail too.
 (define unsupported
   '(math (scripts "o" (unknown "cannot export") "" "" "i" "n")))
-(expect-error (lambda () (texmacs-stree->latex-document unsupported '()))
+(expect-error (lambda () (export-latex unsupported '()))
               "placeholder")
-(expect-error (lambda () (texmacs->html-document unsupported options))
-              "placeholder")
+(expect-error (lambda () (export-html unsupported options))
+              "preservation/nonconverted")
 (expect-error
-  (lambda () (texmacs->html-document `(unknown-envelope ,block-source) options))
-  "unknown enclosing markup")
+  (lambda () (export-html `(unknown-envelope ,block-source) options))
+  "Unsupported HTML export markup: unknown-envelope")
 
 ;; A supported native node with an unsupported upright integral must raise
 ;; misc-error at the generated binding, retaining the original native reason.
@@ -133,9 +143,9 @@
       latex-export-leave)))
 (do ((attempt 0 (+ attempt 1))) ((= attempt 3))
   (expect-native-error
-    (lambda () (texmacs->latex-document rejected-native '())) "big-operator")
+    (lambda () (export-latex rejected-native '())) "big-operator")
   (check-export-depth #f)
-  (check (clean? (texmacs->latex-document native '()))
+  (check (clean? (export-latex native '()))
          "successful export after failure did not recover")
   (check-export-depth #f))
 (expect-native-error
@@ -152,7 +162,7 @@
 (expect-native-error
   (lambda () (latex-export-prepare-v3-source malformed-arrow))
   "malformed")
-(check (clean? (texmacs->latex-document native '()))
+(check (clean? (export-latex native '()))
        "failed malformed-arrow validation poisoned a later native export")
 
 ;; The compact XML v3 codec represents these physical descriptors as parent
@@ -170,7 +180,7 @@
 (do ((slot 0 (+ slot 1))) ((= slot 5))
   (reject-attributed-descriptor
     (stree->tree '(delimited "(" ")" "m" "1" "2" "x")) slot))
-(check (clean? (texmacs->latex-document native '()))
+(check (clean? (export-latex native '()))
        "descriptor metadata rejection damaged a later native export")
 
 ;; The native MathGrid model must reject an unknown cell height mode before
@@ -197,74 +207,4 @@
       "Unsupported MathGrid cell formatting"))
   '("auto" "exact" "min" "max"))
 
-;; Exercise the real Scheme callback boundary inside a running C++ export.
-;; Restore the callback before recursion; no test binding is installed in C++.
-(define callback-slot (module-variable (current-module) 'tmtm-match-brackets))
-(check callback-slot "export callback was not imported")
-(define saved-callback (variable-ref callback-slot))
-(define callback-ran? #f)
-(define nested-checked? #f)
-(dynamic-wind
-  (lambda ()
-    (variable-set! callback-slot
-      (lambda (source)
-        (variable-set! callback-slot saved-callback)
-        (set! callback-ran? #t)
-        (expect-native-error
-          (lambda () (texmacs->latex-document rejected-native '()))
-          "big-operator")
-        (check-export-depth #t)
-        (set! nested-checked? #t)
-        (saved-callback source))))
-  (lambda () (texmacs->latex-document native '()))
-  (lambda () (variable-set! callback-slot saved-callback)))
-(check callback-ran? "nested native failure did not reach the callback")
-(check nested-checked? "nested failure assertions did not complete")
-(check-export-depth #f)
-
-;; A continuation escape bypasses C++ destructors. The driver dynwind handler
-;; must still leave once, and the abandoned stack callback cannot be reentered.
-(define abandoned-continuation #f)
-(define continuation-stage 'capture)
-;; Guile unwinds the invoking context before validating the target frames.
-;; A catch installed only around reentry would already be gone when Guile
-;; rejects it. Keep the handler in the common ancestor of both continuations.
-(define rejected-reentry
-  (dynamic-wind
-    (lambda () #t)
-    (lambda ()
-      (catch 'misc-error
-        (lambda ()
-          (let ((escaped
-                  (call-with-current-continuation
-                    (lambda (escape)
-                      (dynamic-wind
-                        (lambda ()
-                          (variable-set! callback-slot
-                            (lambda (source)
-                              (call-with-current-continuation
-                                (lambda (inside)
-                                  (set! abandoned-continuation inside)
-                                  (escape 'escaped-native-export))))))
-                        (lambda () (texmacs->latex-document native '()))
-                        (lambda ()
-                          (variable-set! callback-slot saved-callback)))))))
-            (check (eq? escaped 'escaped-native-export)
-                   "native export did not escape")
-            (check-export-depth #f)
-            (set! continuation-stage 'reentry)
-            (abandoned-continuation 'resume)
-            #f))
-        (lambda args args)))
-    (lambda () (variable-set! callback-slot saved-callback))))
-(check (and (eq? continuation-stage 'reentry)
-            rejected-reentry
-            (equal? (cadr rejected-reentry) "scm_dynstack_wind_1")
-            (string-contains? (object->string rejected-reentry)
-                              "cannot invoke continuation"))
-       "abandoned native continuation was not rejected at the frame boundary")
-(check-export-depth #f)
-(check (clean? (texmacs->latex-document native '()))
-       "export did not recover after rejected continuation reentry")
-(check-export-depth #f)
 (display "PASS: native v3 runtime export routes and numbered MathJax configuration\n")
