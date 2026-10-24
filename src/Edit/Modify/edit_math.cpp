@@ -1231,7 +1231,10 @@ edit_math_rep::math_bracket_close (string right, string left, int large_mode) {
         continue;
       }
       const bool at_end= tp == end (et, body_path);
-      if (glyph == expression[1] && at_end) {
+      if (at_end && athena::math_v3::glyph (glyph, true) &&
+          (glyph != "" || expression[0] != "")) {
+        // The inserted mate is a default, not a restriction on intervals.
+        if (glyph != expression[1]) assign (enclosed * 1, tree (glyph));
         go_to_end (enclosed);
         return;
       }
