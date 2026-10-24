@@ -69,6 +69,18 @@ is_equation_array (tree t) {
   return is_compound (t, "eqnarray", 1) || is_compound (t, "eqnarray*", 1);
 }
 
+static bool
+native_math_grid_row (tree document, path p) {
+  return !is_nil (p) && is_func (subtree (document, p), ROW) &&
+         is_func (subtree (document, path_up (p)), MATH_GRID);
+}
+
+static bool
+native_math_grid_cell (tree document, path p) {
+  return !is_nil (p) && is_func (subtree (document, p), CELL, 1) &&
+         native_math_grid_row (document, path_up (p));
+}
+
 static path
 equation_array_owner (tree document, path format) {
   while (!is_nil (format)) {
@@ -432,6 +444,20 @@ edit_select_rep::compute_selection (path p1, path p2) {
     //cout << "Find " << p1 << " -- " << p2 << "\n";
     selection_correct (p1, p2, p_start, p_end);
     //cout << "Find " << p_start << " -- " << p_end << "\n";
+    const path row= common (p_start, p_end);
+    if (native_math_grid_row (et, row)) {
+      // The table box contains cells directly; there is no separate row box.
+      // Resolve the row through its cells instead of nonexistent row borders.
+      rectangles rs;
+      tree source= subtree (et, row);
+      for (int j=0; j<N(source); ++j) {
+        const path cell= row * j;
+        selection part= eb->find_check_selection (cell * 0, cell * 1);
+        if (part->valid) rs << part->rs;
+      }
+      return selection (is_nil (rs) ? rs : rectangles (least_upper_bound (rs)),
+                        p_start, p_end);
+    }
     selection sel= eb->find_check_selection (p_start, p_end);
     path tf1= selection_table_path (et, p1);
     path tf2= selection_table_path (et, p2);
@@ -528,6 +554,26 @@ edit_select_rep::selection_var_get_end () {
 static tree
 selection_compute_without_source_root_identity (
     tree document, path root, path p1, path p2) {
+  const path selected= common (p1, p2);
+  if (native_math_grid_cell (document, selected))
+    return copy (subtree (document, selected)[0]);
+  if (native_math_grid_row (document, selected)) {
+    // A row needs its native layout and numbering context on the clipboard.
+    tree grid= subtree (document, path_up (selected));
+    tree result (MATH_GRID, copy (subtree (document, selected)));
+    auto metadata= *athena::node::get (grid);
+    metadata.id.clear ();
+    athena::node::set (result, metadata);
+    const path owner= path_up (selected, 2);
+    tree block= subtree (document, owner);
+    if (is_func (block, MATH_BLOCK, 1)) {
+      result= tree (MATH_BLOCK, result);
+      auto block_metadata= *athena::node::get (block);
+      block_metadata.id.clear ();
+      athena::node::set (result, block_metadata);
+    }
+    return result;
+  }
   if (!is_nil (root) && has_subtree (document, root) &&
       p1 == start (document, root) && p2 == end (document, root)) {
     tree source= copy (subtree (document, root));
@@ -1044,6 +1090,22 @@ edit_select_rep::raw_cut (path p1, path p2) {
   int  i1= p1[n];
   int  i2= p2[n];
 
+  if (native_math_grid_cell (et, p)) {
+    assign (p * 0, "");
+    return;
+  }
+  if (native_math_grid_row (et, p)) {
+    const path grid_path= path_up (p);
+    if (N(subtree (et, grid_path)) > 1) remove (p, 1);
+    else {
+      // A MathGrid must retain at least one rectangular row.
+      tree empty (ROW, N(t));
+      for (int j=0; j<N(t); ++j) empty[j]= tree (CELL, "");
+      assign (p, empty);
+    }
+    return;
+  }
+
   if (is_document (t) || is_concat (t)) {
     path q1= copy (p); q1 << path (i1, end (t[i1]));
     path q2= copy (p); q2 << path (i2, start (t[i2]));
@@ -1167,6 +1229,7 @@ edit_select_rep::selection_cut (string key) {
       // deleted and may reattach to the wrong side of an adjacent math
       // operator.  Its right boundary belongs to the first surviving child.
       const path complete_object=
+        (native_math_grid_row (et, p) || native_math_grid_cell (et, p)) ? path () :
         complete_identified_selection_path (et, p1, p2, rp);
       if (key != "none") {
         tree sel= selection_compute_without_source_root_identity (et, rp, p1, p2);

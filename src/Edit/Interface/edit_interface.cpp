@@ -615,7 +615,7 @@ edit_interface_rep::compute_env_rects (path p, rectangles& rs, bool recurse,
   if (p == rp) return;
   tree pt= subtree (et, path_up (p));
   tree st= subtree (et, p);
-  if ((is_func (st, TABLE) || is_func (st, SUBTABLE)) &&
+  if ((is_func (st, TABLE) || is_func (st, SUBTABLE) || is_func (st, MATH_GRID)) &&
       recurse && get_preference ("show table cells") == "on") {
     rectangles rl;
     for (int i=0; i<N(st); i++) {

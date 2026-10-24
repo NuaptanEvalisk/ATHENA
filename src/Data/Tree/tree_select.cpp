@@ -303,7 +303,11 @@ path
 table_search_format (tree t, path p) {
   tree st= subtree (t, p);
   if (is_func (st, TFORMAT) && is_func (st[N(st)-1], TABLE)) return p;
-  while ((!is_nil (p)) && (!is_func (subtree (t, p), TABLE))) p= path_up (p);
+  while ((!is_nil (p)) && (!is_func (subtree (t, p), TABLE))) {
+    // ROW/CELL are shared with MathGrid, whose owner is not a legacy table.
+    if (is_func (subtree (t, p), MATH_GRID)) return path ();
+    p= path_up (p);
+  }
   if ((!is_nil (p)) && (is_func (subtree (t, path_up (p)), TFORMAT)))
     p= path_up (p);
   return p;
@@ -354,9 +358,17 @@ is_table_selection (tree et, path p1, path p2, bool strict) {
   path p= common (p1, p2);
   if ((p == p1 || p == p2) && !is_nil (p)) p= path_up (p);
   tree t= subtree (et, p);
+  if (is_func (t, ROW) || is_func (t, CELL)) {
+    while (!is_nil (p)) {
+      p= path_up (p);
+      tree owner= subtree (et, p);
+      if (is_func (owner, MATH_GRID)) return false;
+      if (is_func (owner, TABLE)) return true;
+    }
+    return false;
+  }
   return
     is_func (t, TFORMAT) || is_func (t, TABLE) ||
-    is_func (t, ROW) || is_func (t, CELL) ||
     (!strict && is_compound (t) && N(t) == 1 && is_func (t[0], TFORMAT));
 }
 

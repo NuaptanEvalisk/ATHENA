@@ -103,6 +103,54 @@ class NativeV3MathEditorTest: public QObject {
   }
 
 private slots:
+  void nativeGridRowSelectionKeepsNativeOwnership () {
+    SchemeExecutionContext context (nullptr, editor, &editor->drd,
+      &buffer->document, 0, 0, 0, SCHEME_CAPABILITY_BUFFER);
+    SchemeExecutionScope scope (context);
+    tree grid (MATH_GRID,
+      tree (ROW, tree (CELL, "a"), tree (CELL, "="), tree (CELL, "b")),
+      tree (ROW, tree (CELL, "c"), tree (CELL, "="), tree (CELL, "def")));
+    athena::node::metadata meta;
+    meta.properties["math:grid-kind"]= athena::node::property (std::string ("eqnarray"));
+    athena::node::set (grid, meta);
+    meta= athena::node::metadata ();
+    meta.id= athena::node::new_id ();
+    athena::node::set (grid[1], meta);
+    reset (grid);
+    editor->typeset_forced ();
+    const path row= content_path () * 1;
+    // The core dump crossed cells 1 and 2 within a native row. It was
+    // misclassified as a legacy table and used uninitialized coordinates.
+    editor->selection_set_paths (row * path (1, 0, 1), row * path (2, 0, 2));
+    QVERIFY (!editor->selection_active_table ());
+    selection selected;
+    editor->selection_get (selected);
+    QVERIFY (selected->valid);
+    QVERIFY (!is_nil (selected->rs));
+    path first, last;
+    editor->selection_get (first, last);
+    QCOMPARE (common (first, last), row);
+    const tree copied= editor->selection_get ();
+    QVERIFY (is_func (copied, MATH_BLOCK, 1));
+    QVERIFY (is_func (copied[0], MATH_GRID, 1));
+    QCOMPARE (copied[0][0], grid[1]);
+    const tree copied_document (DOCUMENT, copied);
+    QCOMPARE (athena::document::read_xml_v3 (
+      athena::document::write_xml_v3 (copied_document)), copied_document);
+
+    editor->clear_undo_history ();
+    editor->archive_state ();
+    editor->start_editing ();
+    editor->selection_cut ("none");
+    editor->end_editing ();
+    QCOMPARE (N(content ()), 1);
+    QCOMPARE (content ()[0], grid[0]);
+    verify_roundtrip ();
+    editor->undo (0);
+    QCOMPARE (content (), grid);
+
+  }
+
   void nativeGridEnterAddsRow_data () {
     QTest::addColumn<QString> ("kind");
     QTest::addColumn<int> ("columns");
