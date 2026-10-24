@@ -630,10 +630,10 @@
     <arg type="string" />
   </binding>
   <binding name="cpp-nr-pages" native="nr_pages" returns="int" />
-  <binding name="print-to-file" native="print_to_file" returns="void">
+  <binding name="print-to-file" native="print_to_file" returns="void" exceptions="scheme">
     <arg type="url" />
   </binding>
-  <binding name="print-pages-to-file" native="print_to_file" returns="void">
+  <binding name="print-pages-to-file" native="print_to_file" returns="void" exceptions="scheme">
     <arg type="url" />
     <arg type="string" />
     <arg type="string" />
@@ -643,21 +643,13 @@
     <arg type="string" />
     <arg type="string" />
   </binding>
-  <binding name="print-snippet" native="print_snippet" returns="array_SI">
+  <binding name="print-snippet" native="print_snippet" returns="array_SI" exceptions="scheme">
     <arg type="url" />
     <arg type="content" />
     <arg type="bool" />
   </binding>
   <binding name="graphics-file-to-clipboard" native="graphics_file_to_clipboard" returns="bool">
     <arg type="url" />
-  </binding>
-  <binding name="export-postscript" native="export_ps" returns="void">
-    <arg type="url" />
-  </binding>
-  <binding name="export-pages-postscript" native="export_ps" returns="void">
-    <arg type="url" />
-    <arg type="string" />
-    <arg type="string" />
   </binding>
   <binding name="texmacs-exec" native="texmacs_exec" returns="tree">
     <arg type="content" />

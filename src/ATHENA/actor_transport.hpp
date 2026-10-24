@@ -70,7 +70,6 @@ enum class native_editor_command_id: std::uint32_t {
   print_page_selection,
   print_page_selection_to_file,
   export_pdf,
-  export_postscript,
   export_selection_image,
   focus_traverse_first,
   focus_traverse_previous,

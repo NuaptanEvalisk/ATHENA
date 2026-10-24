@@ -69,7 +69,6 @@ preference_callback_name (const QString& id) {
   static const callback_definition callbacks[]= {
     {"autosave", "notify-autosave"},
     {"bidirectional-navigation", "notify-bidirectional-navigation"},
-    {"converter-option", "converter-set-option"},
     {"cpp-pref", "notify-cpp-pref"},
     {"cursor-color", "notify-cursor-color"},
     {"debug-backtrace", "notify-debug-backtrace"},

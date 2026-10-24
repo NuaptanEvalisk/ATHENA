@@ -541,7 +541,7 @@ execute_business_id (editor ed, const QString& id) {
   else if (id == "editor-ai-completion-custom")
     (void) call ("codex-ai-completion-custom");
   else if (id == "editor-copy-image")
-    (void) call ("clipboard-copy-image", object (string ("")));
+    clipboard_copy_image ();
   else if (id == "document-flatten-transclusions")
     (void) call ("vault-flatten-document");
   else if (id == "focus-transclusion-before")

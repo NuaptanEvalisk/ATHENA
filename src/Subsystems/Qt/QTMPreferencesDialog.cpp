@@ -1445,30 +1445,6 @@ QTMPreferencesDialog::buildRenderingPage () {
 QWidget*
 QTMPreferencesDialog::buildConversionPage () {
   QWidget* html= make_page ();
-  QFormLayout* h1= add_section (html, "ATHENA → HTML");
-  add_toggle (h1, "texmacs->html:css");
-  QCheckBox* mathjax= add_toggle (h1, "texmacs->html:mathjax");
-  QCheckBox* images= add_toggle (h1, "texmacs->html:images");
-  auto exclusiveHtml= [mathjax, images] (QCheckBox* active,
-                                         const char* key, bool on) {
-    set_bool_pref (key, on);
-    if (!on) return;
-    for (QCheckBox* box: {mathjax, images}) {
-      if (box == active) continue;
-      QSignalBlocker block (box);
-      box->setChecked (false);
-    }
-    if (active != mathjax) set_bool_pref ("texmacs->html:mathjax", false);
-    if (active != images) set_bool_pref ("texmacs->html:images", false);
-  };
-  QObject::connect (mathjax, &QCheckBox::toggled,
-                    [=] (bool on) { exclusiveHtml (mathjax,
-                                                   "texmacs->html:mathjax",
-                                                   on); });
-  QObject::connect (images, &QCheckBox::toggled,
-                    [=] (bool on) { exclusiveHtml (images,
-                                                   "texmacs->html:images",
-                                                   on); });
   QFormLayout* h2= add_section (html, "HTML → ATHENA");
   add_toggle (h2, "mathml->texmacs:latex-annotations");
   finish_page (html);
@@ -1543,7 +1519,6 @@ QTMPreferencesDialog::buildConversionPage () {
   add_dynamic_combo (im1, "texmacs->image:format", formats);
   QFormLayout* im2= add_section (image, "Image → ATHENA");
   add_toggle (im2, "image auto remove background");
-  add_toggle (im2, "image->texmacs:svg-prefer-inkscape");
   finish_page (image);
 
   return tabbed ({{"Html", html}, {"LaTeX", latex},

@@ -1578,7 +1578,7 @@ protected:
 public:
   bool commandsEnabled (const QString& id) const {
     // These operations require a single persistent document, not an AVD view.
-    if (id == "editor.export-pdf-embedded" || id == "editor.export-postscript" ||
+    if (id == "editor.export-pdf-embedded" ||
         id == "editor.print-page-selection" || id == "editor.print-page-selection-to-file" ||
         id == "editor.revert") return false;
     return !edit_pending_ && !io_pending_;
@@ -1596,7 +1596,7 @@ public:
     return canvas;
   }
   bool ownsCommand (const QString& id) const {
-    if (id == "editor.export-pdf-embedded" || id == "editor.export-postscript" ||
+    if (id == "editor.export-pdf-embedded" ||
         id == "editor.print-page-selection" || id == "editor.print-page-selection-to-file" ||
         id == "editor.revert") return true;
     if (id == "editor.select-all" || id == "editor.save" || id == "editor.save-as" || id == "editor.close-document" || id == "editor.close-window" ||

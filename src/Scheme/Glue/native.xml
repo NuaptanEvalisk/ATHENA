@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="export-selection-as-graphics" native="export_selection_as_graphics" returns="void" exceptions="scheme">
+    <arg type="url" />
+  </binding>
+  <binding name="clipboard-copy-image" native="clipboard_copy_image" returns="void" exceptions="scheme" />
+  <binding name="native-export-selection-as-image-dialog" native="native_export_selection_as_image_dialog" returns="void" exceptions="scheme">
+    <arg type="string" />
+  </binding>
   <binding name="node-reference-with-export" native="athena_node_reference_with_export" returns="bool">
     <arg type="procedure" />
   </binding>

@@ -29,6 +29,7 @@
 #include "file.hpp"
 #include "convert.hpp"
 #include "image_files.hpp"
+#include "Data/Convert/Generic/image_conversion.hpp"
 #include "web_files.hpp"
 #include "sys_utils.hpp"
 #include "analyze.hpp"
@@ -347,7 +348,7 @@ image_to_eps (url image, url eps, int w_pt, int h_pt, int dpi) {
   // translate svg we could at no additional cost allow other
   // vector formats supported by inkscape : ai, svgz, cdr, wmf ...
   if ((s == "pdf" || (s == "svg" && !wrap_qt_supports (image))) &&
-      (call_scm_converter (image, eps))) return;
+      (conversion_image_file (image, eps))) return;
   
 #ifdef USE_GS
   if (gs_supports (image)) {
@@ -363,7 +364,7 @@ image_to_eps (url image, url eps, int w_pt, int h_pt, int dpi) {
     qt_image_to_eps (image, eps, w_pt, h_pt, dpi);
     return;
   }
-  // if ((s != "svg") && (s != "pnm") && call_scm_converter(image, eps)) return;
+  // if ((s != "svg") && (s != "pnm") && conversion_image_file(image, eps)) return;
   // if s is in {"jpg","jpeg","tif","gif","png","pnm"} then scheme converters
   // would return the call here (see init_images.scm) causing an infinite loop.
   // Except pnm,the others are treated by qt. NO LONGER TRUE with QT5 (depends on qt plugins) -- disabling this dangerous call
@@ -397,7 +398,7 @@ image_to_pdf (url image, url pdf, int w_pt, int h_pt, int dpi) {
   string s= suffix (image);
   // First try to preserve "vectorialness"
   if ((s == "svg") && !wrap_qt_supports (image) &&
-      call_scm_converter (image, pdf)) return;
+      conversion_image_file (image, pdf)) return;
 #ifdef USE_GS
   if (gs_supports (image)) {
     if (DEBUG_CONVERT) debug_convert << " using gs "<<LF;
@@ -413,7 +414,7 @@ image_to_pdf (url image, url pdf, int w_pt, int h_pt, int dpi) {
     return;
   }
 #endif
-  if ((s != "svg") && call_scm_converter (image, pdf)) return;
+  if ((s != "svg") && conversion_image_file (image, pdf)) return;
   call_imagemagick_convert(image, pdf, w_pt, h_pt, dpi);
 
   if (!exists (pdf)) {
@@ -453,28 +454,12 @@ image_to_png (url image, url png, int w, int h) {// IN PIXEL UNITS!
     if (gs_to_png (image, png, w, h)) return;
   }
 #endif
-  if (call_scm_converter(image, png)) return;
+  if (conversion_image_file(image, png)) return;
   call_imagemagick_convert (image, png, w, h);
   if (! exists(png)) {
     convert_error << image << " could not be converted to png" <<LF;
     copy("$ATHENA_PATH/misc/pixmaps/unknown.png",png);
   }
-}
-
-bool
-call_scm_converter(url image, url dest) {
-  if (DEBUG_CONVERT) debug_convert << " using scm" <<LF;
-  if (as_bool (call ("file-converter-exists?",
-                     "x." * suffix (image),
-                     "x." * suffix (dest)))) {
-    call ("file-convert", object (image), object (dest));
-    bool success= exists (dest);
-    if (success && DEBUG_CONVERT)
-      debug_convert << "scm file-convert " << concretize (image)
-                    << " -> " << concretize (dest) << LF;
-    return success;
-  }
-  return false;
 }
 
 /******************************************************************************

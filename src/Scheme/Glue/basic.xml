@@ -1,5 +1,120 @@
 <?xml version='1.0' encoding='utf-8'?>
 <glue version="1" prefix="" initializer="initialize_glue_basic">
+  <binding name="convert" native="conversion_dispatch" returns="object" exceptions="scheme">
+    <arg type="object" /><arg type="string" /><arg type="string" />
+    <arg type="object" rest="true" />
+  </binding>
+  <binding name="convert-to-file" native="conversion_to_file" returns="object" exceptions="scheme">
+    <arg type="object" /><arg type="string" /><arg type="string" /><arg type="url" />
+    <arg type="object" rest="true" />
+  </binding>
+  <binding name="file-format" native="conversion_file_format" returns="string" exceptions="scheme">
+    <arg type="url" />
+  </binding>
+  <binding name="file-converter-exists?" native="conversion_file_available" returns="bool" exceptions="scheme">
+    <arg type="url" /><arg type="url" />
+  </binding>
+  <binding name="file-convert" native="conversion_file" returns="object" exceptions="scheme">
+    <arg type="url" /><arg type="url" /><arg type="object" rest="true" />
+  </binding>
+  <binding name="native-convert" native="conversion_execute" returns="object" exceptions="scheme">
+    <arg type="object" />
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="object" />
+    <arg type="url" />
+    <arg type="url" />
+  </binding>
+  <binding name="converter-search" native="conversion_graph_search" returns="scheme_tree" exceptions="scheme">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="native-conversion-reachable" native="conversion_graph_reachable" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="bool" />
+  </binding>
+  <binding name="parse-html-snippet" native="parse_html_snippet" returns="scheme_tree" exceptions="scheme">
+    <arg type="string" />
+  </binding>
+  <binding name="parse-html-document" native="parse_html_document" returns="scheme_tree" exceptions="scheme">
+    <arg type="string" />
+  </binding>
+  <binding name="html-&gt;texmacs-tree" native="html_import_document" returns="tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="html-&gt;texmacs" native="html_import_document_serial" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="serialize-html" native="serialize_html" returns="string" exceptions="scheme">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="tmconcat" native="conversion_concat" returns="object" exceptions="scheme">
+    <arg type="object" rest="true" />
+  </binding>
+  <binding name="tmconcat*" native="conversion_concat_raw" returns="object" exceptions="scheme">
+    <arg type="object" rest="true" />
+  </binding>
+  <binding name="tmconcat-simplify" native="conversion_concat_simplify" returns="object" exceptions="scheme">
+    <arg type="object" />
+  </binding>
+  <binding name="native-image-conversion-routes" native="conversion_image_routes" returns="scheme_tree" exceptions="scheme" />
+  <binding name="native-convert-image" native="conversion_image_run" returns="url" exceptions="scheme">
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="url" />
+    <arg type="url" />
+    <arg type="string" />
+  </binding>
+  <binding name="std-converter-options" native="conversion_standard_options" returns="object" exceptions="scheme">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="native-conversion-options-snapshot" native="conversion_options_snapshot_scheme" returns="object" exceptions="scheme" />
+  <binding name="buffer-export-with-options" native="buffer_export_with_options" returns="bool" exceptions="scheme">
+    <arg type="url" />
+    <arg type="url" />
+    <arg type="string" />
+    <arg type="object" />
+  </binding>
+  <binding name="native-conversion-read-document" native="conversion_read_document" returns="tree" exceptions="scheme">
+    <arg type="string" />
+  </binding>
+  <binding name="native-conversion-read-fragment" native="conversion_read_fragment" returns="tree" exceptions="scheme">
+    <arg type="string" />
+  </binding>
+  <binding name="native-conversion-write-document" native="conversion_write_document" returns="string" exceptions="scheme">
+    <arg type="tree" />
+  </binding>
+  <binding name="native-conversion-write-fragment" native="conversion_write_fragment" returns="string" exceptions="scheme">
+    <arg type="tree" />
+  </binding>
+  <binding name="format-get-name" native="conversion_format_name" returns="scheme_tree" exceptions="scheme">
+    <arg type="string" />
+  </binding>
+  <binding name="format-hidden?" native="conversion_format_hidden" returns="bool" exceptions="scheme">
+    <arg type="string" />
+  </binding>
+  <binding name="format-get-suffixes*" native="conversion_format_suffixes" returns="scheme_tree" exceptions="scheme">
+    <arg type="string" />
+  </binding>
+  <binding name="image-formats" native="conversion_image_formats" returns="scheme_tree" exceptions="scheme" />
+  <binding name="format-from-suffix" native="conversion_format_from_suffix" returns="string" exceptions="scheme">
+    <arg type="string" />
+  </binding>
+  <binding name="format?" native="conversion_format_exists" returns="bool" exceptions="scheme">
+    <arg type="string" />
+  </binding>
+  <binding name="format-default-suffix" native="conversion_format_default_suffix" returns="string" exceptions="scheme">
+    <arg type="string" />
+  </binding>
+  <binding name="format-recognizes?" native="conversion_format_recognizes" returns="bool" exceptions="scheme">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
+  <binding name="format-determine" native="conversion_format_determine" returns="string" exceptions="scheme">
+    <arg type="string" />
+    <arg type="string" />
+  </binding>
   <binding name="open-auxiliary-document" native="athena_open_auxiliary_document" returns="void">
     <arg type="string" />
     <arg type="content" />
@@ -2090,8 +2205,15 @@
   </binding>
   <binding name="native-html-convert" native="html_export_convert" returns="scheme_tree" exceptions="scheme">
     <arg type="scheme_tree" />
-    <arg type="procedure" />
-    <arg type="string" />
+    <arg type="object" />
+    <arg type="url" />
+    <arg type="url" />
+  </binding>
+  <binding name="native-html-export-document" native="html_export_document" returns="scheme_tree" exceptions="scheme">
+    <arg type="object" />
+    <arg type="object" />
+    <arg type="url" />
+    <arg type="url" />
   </binding>
   <binding name="native-html-import-element" native="html_import_element" returns="scheme_tree" exceptions="scheme">
     <arg type="string" />
@@ -2117,7 +2239,6 @@
   </binding>
   <binding name="native-html-import-convert" native="html_import_convert" returns="tree" exceptions="scheme">
     <arg type="scheme_tree" />
-    <arg type="procedure" />
   </binding>
   <binding name="native-parse-html-import" native="parse_html_import" returns="scheme_tree" exceptions="scheme">
     <arg type="string" />
@@ -2486,10 +2607,6 @@
     <arg type="array_string" />
   </binding>
   <binding name="picture-cache-reset" native="picture_cache_reset" returns="void" />
-  <binding name="set-file-focus" native="set_file_focus" returns="void">
-    <arg type="url" />
-  </binding>
-  <binding name="get-file-focus" native="get_file_focus" returns="url" />
   <binding name="persistent-set" native="persistent_set" returns="void">
     <arg type="url" />
     <arg type="string" />

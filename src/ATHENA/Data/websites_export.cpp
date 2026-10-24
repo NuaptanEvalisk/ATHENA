@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "ATHENA/Data/websites_internal.hpp"
+#include "ATHENA/Data/buffer_export.hpp"
 #include "ATHENA/Data/transclusion_cache.hpp"
 #include "ATHENA/Data/data_art.hpp"
 #include "ATHENA/Data/new_window.hpp"
@@ -23,31 +24,6 @@
 #include <QTemporaryDir>
 
 namespace athena_websites {
-
-namespace {
-
-struct HtmlExportPreferenceScope {
-  std::map<string,string> saved;
-
-  HtmlExportPreferenceScope () {
-    set ("texmacs->html:css", "on");
-    set ("texmacs->html:mathjax", "on");
-    set ("texmacs->html:images", "on");
-    set ("texmacs->html:css-stylesheet", "---");
-  }
-
-  ~HtmlExportPreferenceScope () {
-    for (const auto& item: saved)
-      set_user_preference (item.first, item.second);
-  }
-
-  void set (string key, string value) {
-    saved[key]= get_user_preference (key, "");
-    set_user_preference (key, value);
-  }
-};
-
-} // namespace
 
 bool
 path_begins_with_parent (const fs::path& path) {
@@ -687,14 +663,6 @@ rewrite_static_links (tree t, const std::string& source_rel,
 }
 
 
-void
-set_current_save_urls (const fs::path& source, const fs::path& target) {
-  eval ("(set! current-save-source (string->url " *
-        std_to_tm (scheme_quote (source.string ())) * "))");
-  eval ("(set! current-save-target (string->url " *
-        std_to_tm (scheme_quote (target.string ())) * "))");
-}
-
 std::string
 document_site_root (const std::string& output_rel) {
   std::string root = relative_href (output_rel, "index.html");
@@ -837,8 +805,8 @@ export_document_html (const MaintenanceDocument& snapshot, tree doc,
             ec.message ();
     return false;
   }
-  set_current_save_urls (source, target);
-  HtmlExportPreferenceScope html_scope;
+  auto export_options= conversion_options_snapshot ();
+  export_options["texmacs->html:css-stylesheet"]= "---";
 
   QTemporaryDir temp_dir;
   if (!temp_dir.isValid ()) {
@@ -867,8 +835,8 @@ export_document_html (const MaintenanceDocument& snapshot, tree doc,
   bool failed;
   try {
     set_master_buffer (source_buffer, url_system (std_to_tm (source.string ())));
-    failed= buffer_export (
-      source_buffer, url_system (std_to_tm (target.string ())), "html");
+    failed= buffer_export_request (
+      source_buffer, url_system (std_to_tm (target.string ())), "html", export_options);
   }
   catch (...) {
     kill_buffer (source_buffer);

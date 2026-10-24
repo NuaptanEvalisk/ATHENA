@@ -77,7 +77,6 @@ public:
   void print_doc (url ps_name, bool to_file, int first, int last);
   void print_to_file (url ps_name, string first="1", string last="1000000");
   void print_buffer (string first="1", string last="1000000");
-  void export_ps (url ps_name, string first="1", string last="1000000");
   array<SI> print_snippet (url u, tree t, bool conserve_preamble);
   bool graphics_file_to_clipboard (url output);
   tree the_line ();

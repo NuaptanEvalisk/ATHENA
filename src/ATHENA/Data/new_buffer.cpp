@@ -12,6 +12,8 @@
 #include "tm_data.hpp"
 #include "tm_server.hpp"
 #include "buffer_actor.hpp"
+#include "buffer_export.hpp"
+#include "Data/Convert/Generic/conversion_executor.hpp"
 #include "buffer_state.hpp"
 #include "buffer_name_catalog.hpp"
 #include "scheme_execution_context.hpp"
@@ -1004,7 +1006,6 @@ static tree
 import_loaded_tree_with_format (
     string s, url u, string fm,
     std::optional<athena::document::document_source_format>* format) {
-  set_file_focus (u);
   if (s == "" && suffix (u) == "ath") {
     tree doc (DOCUMENT);
     doc << compound ("style", "generic")
@@ -1036,7 +1037,11 @@ import_loaded_tree_with_format (
     }
     catch (const std::exception& e) { return tree (_ERROR, string (e.what ())); }
   }
-  else t= generic_to_tree (s, fm * "-document");
+  else {
+    object result= conversion_execute (object (s), fm * "-document", "texmacs-tree",
+                                      null_object (), u, url_none ());
+    t= is_tree (result) ? as_tree (result) : tree (_ERROR, "Unsupported import format");
+  }
   tree links= extract (t, "links");
   if (N (links) != 0)
     (void) call ("register-link-locations", object (u), object (links));
@@ -1061,7 +1066,6 @@ import_tree (url u, string fm, std::string* storage_sha256) {
   if (storage_sha256 != nullptr)
     *storage_sha256= athena::document::storage_bytes_fingerprint (
       std::string_view (as_charp (s), (std::size_t) N(s)));
-  set_file_focus (r);
   return import_loaded_tree (s, r, fm);
 }
 
@@ -1079,7 +1083,6 @@ import_tree_with_format (
   if (storage_sha256 != nullptr)
     *storage_sha256= athena::document::storage_bytes_fingerprint (
       std::string_view (as_charp (s), (std::size_t) N(s)));
-  set_file_focus (r);
   return import_loaded_tree_with_format (s, r, fm, &format);
 }
 
@@ -1217,11 +1220,15 @@ export_tree (tree doc, url u, string fm) {
 
 bool
 export_tree (tree doc, url u, string fm, url source) {
+  return export_tree_with_options (doc, u, fm, source, conversion_options_snapshot ());
+}
+
+bool
+export_tree_with_options (tree doc, url u, string fm, url source,
+                          const conversion_options& options) {
   if (fm == "generic") fm= "verbatim";
-  // convert returns #f on failure. texmacs->generic turns that failure into
-  // printable text; it is not a serialization API and must not feed a writer.
-  object converted= call ("convert-export-document", object (doc), object (source),
-                          object (u), object (fm * "-document"));
+  object converted= conversion_execute (object (doc), "texmacs-tree", fm * "-document",
+    conversion_options_to_scheme (options), source, u);
   if (!is_string (converted)) return true;
   string serialized= as_string (converted);
   return ends (as_string (u), "~") ?
@@ -1229,7 +1236,7 @@ export_tree (tree doc, url u, string fm, url source) {
 }
 
 bool
-buffer_export (url name, url dest, string fm) {
+buffer_export_request (url name, url dest, string fm, const conversion_options& options) {
   athena_view_id view_id= ATHENA_NO_VIEW;
   buffer_actor* actor= current_buffer_actor (name, view_id);
   if (actor == nullptr) {
@@ -1252,7 +1259,7 @@ buffer_export (url name, url dest, string fm) {
     }
   }
   athena_blob_id destination= actor_text_from_string (as_string (dest));
-  athena_blob_id format= actor_text_from_string (copy (fm));
+  athena_blob_id format= actor_text_from_string (encode_conversion_export_request ({fm, options}));
   if (auto frozen= athena::node_reference::current_export_references ();
       frozen && !actor->is_owner_thread ()) {
     // DataArt and slide exports use another actor. Transfer only the immutable
@@ -1286,6 +1293,19 @@ buffer_export (url name, url dest, string fm) {
     return true;
   }
   return result.argument[0] != 0;
+}
+
+bool
+buffer_export (url name, url dest, string fm) {
+  return buffer_export_request (name, dest, fm, conversion_options_snapshot ());
+}
+
+bool
+buffer_export_with_options (url name, url dest, string fm, object overrides) {
+  auto options= conversion_options_snapshot ();
+  for (const auto& entry: conversion_options_from_scheme (overrides))
+    options.insert_or_assign (entry.first, entry.second);
+  return buffer_export_request (name, dest, fm, options);
 }
 
 tree

@@ -17,6 +17,7 @@
 #include "Edit/Interface/generic_editor_commands.hpp"
 #include "Edit/Interface/document_commands.hpp"
 #include "Edit/Interface/document_style_commands.hpp"
+#include "Edit/Interface/selection_image_export.hpp"
 
 void athena_dispatch_ui (void (*function) ());
 void athena_open_auxiliary_document (string name, tree document, url master);

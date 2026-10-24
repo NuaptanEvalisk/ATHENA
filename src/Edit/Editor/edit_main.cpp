@@ -20,7 +20,9 @@
 #include "drd_std.hpp"
 #include "message.hpp"
 #include <setjmp.h>
+#include <stdexcept>
 #include "image_files.hpp"
+#include "Data/Convert/Generic/image_conversion.hpp"
 #include "iterator.hpp"
 #include "actor_ui_bridge.hpp"
 #include "scheme_execution_context.hpp"
@@ -326,6 +328,8 @@ edit_main_rep::probe_print_references () {
 
 void
 edit_main_rep::print_doc (url name, bool conform, int first, int last) {
+  if (suffix (name) == "ps" || suffix (name) == "eps")
+    throw std::runtime_error ("PostScript export is not supported; use PDF");
   athena::node_reference::verify_export_origin ();
   athena::node_reference::export_reference_scope references;
   box the_box= layout_print_document (conform);
@@ -412,10 +416,9 @@ edit_main_rep::print_box (url name, box the_box, bool conform, int first, int la
 
 void
 edit_main_rep::print_to_file (url name, string first, string last) {
-  bool wait= (suffix (name) == "pdf" || suffix (name) == "ps");
+  bool wait= suffix (name) == "pdf";
   if (wait)
-    system_wait (suffix (name) == "pdf"? "Exporting PDF": "Exporting PostScript",
-                 as_string (tail (name)));
+    system_wait ("Exporting PDF", as_string (tail (name)));
   try {
     print_doc (name, false, as_int (first), as_int (last));
   }
@@ -437,13 +440,10 @@ edit_main_rep::print_buffer (string first, string last) {
   ::remove (target);
 }
 
-void
-edit_main_rep::export_ps (url name, string first, string last) {
-  print_doc (name, true, as_int (first), as_int (last));
-}
-
 array<SI>
 edit_main_rep::print_snippet (url name, tree t, bool conserve_preamble) {
+  if (suffix (name) == "ps" || suffix (name) == "eps")
+    throw std::runtime_error ("PostScript export is not supported; use PDF or SVG");
   athena::node_reference::verify_export_origin ();
   athena::node_reference::export_reference_scope references;
   athena::node_reference::export_node_destination_scope destinations_scope;
@@ -455,7 +455,7 @@ edit_main_rep::print_snippet (url name, tree t, bool conserve_preamble) {
   string s= suffix (name);
   bool bitmap=
     (s == "png" || s == "jpg" || s == "jpeg" || s == "tif" || s == "tiff");
-  bool ps= (s == "ps" || s == "eps" || s == "pdf");
+  bool pdf= s == "pdf";
 
   typeset_prepare ();
   int dpi= as_int (printing_dpi);
@@ -480,17 +480,15 @@ edit_main_rep::print_snippet (url name, tree t, bool conserve_preamble) {
   };
   if (b->x4 - b->x3 >= 5*PIXEL && b->y4 - b->y3 >= 5*PIXEL) {
     if (bitmap) make_raster_image (name, b, 5.0);
-    else if (ps) make_eps (name, b, dpi, resolve_link);
+    else if (pdf) make_eps (name, b, dpi, resolve_link);
     else {
       url temp= url_temp (".pdf");
       make_eps (temp, b, dpi, resolve_link);
-      ::remove (name);
-      if (!call_scm_converter (temp, name)) {
-        call_imagemagick_convert (temp, name);
-        if (!exists (name))
-          convert_error << "could not convert snippet " << temp
-                        << " into :" << name << "\n";
+      try {
+        if (!conversion_image_file (temp, name))
+          throw std::runtime_error ("No native image conversion route for snippet output");
       }
+      catch (...) { ::remove (temp); throw; }
       ::remove (temp);
     }
   }

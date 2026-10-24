@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "buffer_actor.hpp"
+#include "ATHENA/Data/buffer_export.hpp"
 #include "ATHENA/Data/document_persistence.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "ATHENA/Data/node_reference.hpp"
@@ -28,6 +29,7 @@
 #include "object.hpp"
 #include "outline_snapshot.hpp"
 #include "native_editor_actions.hpp"
+#include "Edit/Interface/selection_image_export.hpp"
 #include "structured_commands.hpp"
 #include "new_style.hpp"
 #include "Data/interop_document_source.hpp"
@@ -174,7 +176,6 @@ run_native_editor_command (editor_rep* editor,
   case native_editor_command_id::print_page_selection:
   case native_editor_command_id::print_page_selection_to_file:
   case native_editor_command_id::export_pdf:
-  case native_editor_command_id::export_postscript:
     break;
   default:
     return false;
@@ -277,12 +278,8 @@ run_native_editor_command (editor_rep* editor,
     case native_editor_command_id::export_pdf:
       (void) call ("native-export-pdf-dialog");
       break;
-    case native_editor_command_id::export_postscript:
-      (void) call ("native-export-postscript-dialog");
-      break;
     case native_editor_command_id::export_selection_image:
-      (void) call ("native-export-selection-as-image-dialog",
-                   object (argument));
+      native_export_selection_as_image_dialog (argument);
       break;
     case native_editor_command_id::focus_traverse_first:
       generic_traverse_first ();
@@ -2136,7 +2133,9 @@ buffer_actor::dispatch (actor_command_record& command) {
     command.argument[0]= 1;
     string destination=
       actor_text_registry::instance ().take (command.payload0);
-    string format= actor_text_registry::instance ().take (command.payload1);
+    auto request= decode_conversion_export_request (
+      actor_text_registry::instance ().take (command.payload1));
+    string format= request.format;
     url dest (std::move (destination));
     editor_rep* export_editor= editor;
     if (export_editor == nullptr && command.view_id == ATHENA_NO_VIEW &&
@@ -2192,7 +2191,7 @@ buffer_actor::dispatch (actor_command_record& command) {
       tree links= as_tree (call (
         "get-link-locations", object (impl_->state.name), object (body)));
       if (N (links) != 0) document << compound ("links", links);
-      failed= export_tree (document, dest, format, impl_->state.name);
+      failed= export_tree_with_options (document, dest, format, impl_->state.name, request.options);
     }
     command.argument[0]= failed ? 1 : 0;
     break;

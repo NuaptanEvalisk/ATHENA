@@ -208,6 +208,25 @@ bool athena_node_reference_with_export (object action) {
 void athena_node_reference_with_native_export (
   std::function<void(editor_rep&)> action, std::function<void(std::string)> completion) {
   const auto* context= current_scheme_execution_context ();
+  if (!context || !context->actor || !context->editor)
+    throw std::runtime_error ("Selection export requires an owning editor");
+  if (ref::current_export_references ()) {
+    action (*context->editor);
+    completion ({});
+    return;
+  }
+  auto seeds= ref::export_selections (context->actor->current_source (context->view_id));
+  if (seeds.empty ()) {
+    ref::export_reference_scope probe (std::make_shared<const ref::prepared_references> ());
+    context->editor->probe_print_references ();
+    seeds= probe.missing ();
+    if (seeds.empty ()) {
+      action (*context->editor);
+      probe.require_ready ();
+      completion ({});
+      return;
+    }
+  }
   auto job= std::make_shared<request> ();
   job->actor= context->actor_id; job->view= context->view_id;
   job->capabilities= context->capabilities; job->epoch= ref::source_epoch ();
@@ -222,6 +241,5 @@ void athena_node_reference_with_native_export (
   job->locator= athena::node_location::for_vault (job->vault);
   job->native_action= std::move (action);
   job->completion= std::move (completion);
-  auto seeds= ref::export_selections (context->actor->current_source (context->view_id));
   resume_preparation (job, std::move (seeds));
 }

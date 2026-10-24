@@ -311,8 +311,6 @@ editor_command_id (const QString& id) {
     return native_editor_command_id::print_page_selection_to_file;
   if (id == "editor.export-pdf")
     return native_editor_command_id::export_pdf;
-  if (id == "editor.export-postscript")
-    return native_editor_command_id::export_postscript;
   if (id == "editor.focus.first-similar")
     return native_editor_command_id::focus_traverse_first;
   if (id == "editor.focus.previous-similar")
@@ -445,7 +443,6 @@ native_editor_command_state (const QString& id,
     result.enabled= result.available;
     break;
   case native_editor_command_id::export_pdf:
-  case native_editor_command_id::export_postscript:
     result.enabled= true;
     break;
   case native_editor_command_id::focus_traverse_first:
@@ -1138,8 +1135,7 @@ QTMCommandRegistry::registerEditorCommands () {
     "editor.print-to-file",
     "editor.print-page-selection",
     "editor.print-page-selection-to-file",
-    "editor.export-pdf",
-    "editor.export-postscript"
+    "editor.export-pdf"
   };
   for (const QString& id: editorCommands)
     registerBehavior (
