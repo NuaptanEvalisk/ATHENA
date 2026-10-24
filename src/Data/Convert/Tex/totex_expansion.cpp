@@ -21,7 +21,7 @@ const char* always_expand_names[]= {
   "algorithm", "algorithm*", "named-algorithm", "named-algorithm-old",
   "specified-algorithm", "specified-algorithm*", "named-specified-algorithm",
   "algorithm-body", "numbered",
-  "tmdoc-title", "icon", "shortcut", "key", "prefix",
+  "icon", "shortcut", "prefix",
   "menu", "render-menu", "submenu", "subsubmenu", "subsubsubmenu",
   "markup", "tmstyle", "tmpackage", "tmdtd", "def-index",
   "src-arg", "src-var", "scm-arg", "scm-args",

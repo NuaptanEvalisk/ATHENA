@@ -10,10 +10,31 @@
 ******************************************************************************/
 
 #include "convert.hpp"
+#include "conversion_registry.hpp"
+#include "conversion_executor.hpp"
+#include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "file.hpp"
 #include "scheme.hpp"
 
-static url current_file_focus= url_none ();
+tree conversion_read_document (string source) {
+  return athena::document::read_xml_v3 (
+    std::string_view (source.data (), N(source)), athena::document::xml_kind::document);
+}
+
+tree conversion_read_fragment (string source) {
+  return athena::document::read_xml_v3 (
+    std::string_view (source.data (), N(source)), athena::document::xml_kind::fragment);
+}
+
+string conversion_write_document (tree source) {
+  const auto result= athena::document::write_xml_v3 (source, athena::document::xml_kind::document);
+  return string (result.data (), result.size ());
+}
+
+string conversion_write_fragment (tree source) {
+  const auto result= athena::document::write_xml_v3 (source, athena::document::xml_kind::fragment);
+  return string (result.data (), result.size ());
+}
 
 bool
 is_snippet (tree doc) {
@@ -26,42 +47,36 @@ is_snippet (tree doc) {
   return true;
 }
 
-url
-get_file_focus () {
-  return current_file_focus;
-}
-
-void
-set_file_focus (url u) {
-  current_file_focus= u;
-}
-
 string
 suffix_to_format (string suffix) {
-  return as_string (call ("format-from-suffix", suffix));
+  return conversion_format_from_suffix (suffix);
 }
 
 string
 format_to_suffix (string fm) {
-  return as_string (call ("format-default-suffix", fm));
+  return conversion_format_default_suffix (fm);
 }
 
 string
 get_format (string s, string suffix) {
-  return as_string (call ("format-determine", s, suffix));
+  return conversion_format_determine (s, suffix);
 }
 
 bool
 format_exists (string format) {
-  return as_bool (call ("format?", format));
+  return conversion_format_exists (format);
 }
 
 tree
 generic_to_tree (string s, string fm) {
-  return as_tree (call ("generic->texmacs", s, fm));
+  object result= conversion_execute (object (s), fm, "texmacs-tree", null_object (),
+                                    conversion_source_url (), conversion_target_url ());
+  return is_tree (result) ? as_tree (result) : compound ("error", "bad format or data");
 }
 
 string
 tree_to_generic (tree doc, string fm) {
-  return as_string (call ("texmacs->generic", doc, fm));
+  object result= conversion_execute (object (doc), "texmacs-tree", fm, null_object (),
+                                    conversion_source_url (), conversion_target_url ());
+  return is_string (result) ? as_string (result) : string ("Error: bad format or data");
 }

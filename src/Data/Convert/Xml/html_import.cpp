@@ -8,15 +8,13 @@
 ******************************************************************************/
 
 #include "convert.hpp"
+#include "html_import.hpp"
 #include "analyze.hpp"
 #include "colors.hpp"
 #include "svg_colors.hpp"
 #include "math_tree_v3.hpp"
 #include "math_source_normalization.hpp"
 #include "node_metadata.hpp"
-#include "scheme.hpp"
-#include "Scheme/Scheme/glue.hpp"
-#include "Scheme/Scheme/object.hpp"
 #include <cctype>
 #include <stdexcept>
 #include <vector>
@@ -491,7 +489,6 @@ bool one_of (string name, std::initializer_list<const char*> names) {
 }
 
 class html_importer {
-  object resources;
 
   void metadata_to_serial (tree native, tree& serial) {
     if (const auto* meta= athena::node::get (native)) athena::node::set (serial, *meta);
@@ -520,11 +517,8 @@ class html_importer {
   }
 
   tree latex (string source) {
-    object reply= call (resources, object (source));
-    if (!as_bool (car (reply)))
-      throw std::runtime_error ("HTML import: LaTeX conversion failed: " +
-                               std::string (as_string (cadr (reply)).c_str ()));
-    return structured (athena::document::normalize_imported_math (as_tree (cadr (reply))));
+    return structured (athena::document::normalize_imported_math (
+      latex_to_tree (parse_latex (source))));
   }
 
   tree content (tree children, bool preserve, string mode, string parent) {
@@ -563,7 +557,6 @@ class html_importer {
   }
 
 public:
-  explicit html_importer (object adapter): resources (adapter) {}
   tree convert (tree source) { return materialize (run (source)); }
 
   tree run (tree source, bool preserve=false, string parent="") {
@@ -658,6 +651,25 @@ public:
 };
 }
 
-tree html_import_convert (scheme_tree source, object resources) {
-  return html_importer (resources).convert (source);
+tree html_import_convert (scheme_tree source) {
+  return html_importer ().convert (source);
+}
+
+tree html_import_document (scheme_tree source) {
+  if (!is_tuple (source, "!file", 1)) return html_import_convert (source);
+  tree body= html_import_convert (source[1]);
+  if (!is_document (body)) body= tree (DOCUMENT, body);
+  return tree (DOCUMENT, compound ("body", body), compound ("style", "generic"));
+}
+
+scheme_tree html_import_document_serial (scheme_tree source) {
+  return tree_to_scheme_tree (html_import_document (source));
+}
+
+scheme_tree parse_html_document (string source) {
+  return tuple ("!file", parse_html_import (source, false));
+}
+
+scheme_tree parse_html_snippet (string source) {
+  return parse_html_import (source, true);
 }

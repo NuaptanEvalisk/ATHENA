@@ -21,8 +21,6 @@ class object;
 bool   is_snippet (tree doc);
 // Transitional old-format writer boundary; removed when XML saves are enabled.
 tree   legacy_serialization_document (tree doc);
-void   set_file_focus (url u);
-url    get_file_focus ();
 
 /*** Generic ***/
 string suffix_to_format (string suffix);
@@ -322,13 +320,12 @@ scheme_tree html_export_text (string source, bool preformatted);
 scheme_tree html_export_image_output (scheme_tree source, string location);
 scheme_tree html_export_picture_output (scheme_tree source, string location,
                                         scheme_tree extents, double scale);
-scheme_tree html_export_convert (scheme_tree source, object resources, string source_url);
+scheme_tree html_export_convert (scheme_tree source, object options, url source_url, url target);
 scheme_tree html_import_element (string tag, scheme_tree attrs, scheme_tree body);
 scheme_tree html_import_whitespace (string mode, scheme_tree nodes, bool preserve);
 scheme_tree html_import_serial (scheme_tree source, bool preserve);
 scheme_tree html_import_table (scheme_tree attrs, scheme_tree cells, scheme_tree spans);
 scheme_tree html_import_table_plan (scheme_tree source);
-tree html_import_convert (scheme_tree source, object resources);
 scheme_tree parse_html_import (string source, bool fragment);
 scheme_tree html_export_markup_output (scheme_tree source, scheme_tree children);
 scheme_tree html_export_math_output (scheme_tree latex, bool display, bool block);
@@ -336,6 +333,7 @@ scheme_tree html_export_enunciation_plan (scheme_tree source);
 scheme_tree html_export_enunciation_output (scheme_tree plan, scheme_tree title,
                                           scheme_tree body, string color);
 scheme_tree html_export_enunciation_tags ();
+tree html_export_environment_patch ();
 scheme_tree html_export_document_plan (scheme_tree source, scheme_tree styles,
     string css, string stylesheet, string generator, bool mathjax);
 scheme_tree html_export_document_output (scheme_tree plan, scheme_tree title,

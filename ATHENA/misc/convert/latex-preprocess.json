@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "inline_environments": [
+    "verbatim", "code", "center", "indent", "description", "itemize",
+    "itemize-minus", "itemize-dot", "itemize-arrow", "enumerate",
+    "enumerate-numeric", "enumerate-roman", "enumerate-Roman",
+    "enumerate-alpha", "enumerate-Alpha", "equation", "equation*"
+  ],
+  "sectional": [
+    "part", "chapter", "appendix", "section", "subsection", "subsubsection",
+    "paragraph", "subparagraph", "part*", "chapter*", "appendix*", "section*",
+    "subsection*", "subsubsection*", "paragraph*", "subparagraph*"
+  ],
+  "theorem_environments": [
+    "theorem", "proposition", "lemma", "corollary", "axiom", "definition",
+    "notation", "conjecture", "remark", "note", "example", "warning",
+    "convention", "acknowledgments", "exercise", "theorem*", "proposition*",
+    "lemma*", "corollary*", "axiom*", "definition*", "notation*", "conjecture*",
+    "remark*", "note*", "example*", "warning*", "convention*", "acknowledgments*", "exercise*"
+  ]
+}

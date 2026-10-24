@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "Tex/convert_tex.hpp"
+#include "Data/Convert/Generic/conversion_executor.hpp"
 #include "converter.hpp"
 #include "wencoding.hpp"
 #include "Scheme/scheme.hpp"
@@ -1908,7 +1909,7 @@ latex_parser::parse (string s, int change) {
         for (int j= 0; j < N(names); j++) {
           string name= names[j];
           if (!ends (name, suffix)) name= name * suffix;
-          url incl= relative (get_file_focus (), name);
+          url incl= relative (conversion_source_url (), name);
           string body;
           if (!exists (incl) ||
               skip_expansion (incl) ||

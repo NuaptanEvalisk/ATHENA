@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "preserve": [
+    "TeXmacs", "TeX", "LaTeX", "ATHENA", "athena", "shown", "hrule", "item",
+    "chapter-title", "section-title", "subsection-title", "subsubsection-title",
+    "paragraph-title", "subparagraph-title",
+    "itemize", "itemize-minus", "itemize-dot", "itemize-arrow",
+    "enumerate", "enumerate-numeric", "enumerate-roman", "enumerate-Roman",
+    "enumerate-alpha", "enumerate-Alpha",
+    "description", "description-compact", "description-dash", "description-aligned",
+    "description-long", "description-paragraphs", "item*",
+    "strong", "em", "dfn", "code*", "samp", "kbd", "var", "abbr", "acronym",
+    "verbatim", "code", "tt", "underline", "overline", "strike-through",
+    "deleted", "marked", "fill-out", "hidden-title", "doc-title-block",
+    "ornament", "ornamented", "equation*", "equation-lab", "equations-base",
+    "wide-float", "html-tag", "html-attr", "html-div-style", "html-div-class",
+    "html-style", "html-class", "html-javascript", "html-javascript-src", "html-video",
+    "web-title", "tmdoc-title", "tmdoc-title*", "tmdoc-title**",
+    "tmdoc-license", "tmdoc-copyright", "hlink", "action", "hyper-link",
+    "mouse-over-balloon", "mouse-over-balloon*", "hover-balloon", "hover-balloon*",
+    "popup-balloon", "popup-balloon*", "render-big-figure", "render-small-figure",
+    "render-big-table", "render-small-table",
+    "shrink-inline", "binom", "tbinom", "dbinom", "choose", "ontop",
+    "tfrac", "dfrac", "cfrac", "bmod", "pmod", "pod"
+  ]
+}

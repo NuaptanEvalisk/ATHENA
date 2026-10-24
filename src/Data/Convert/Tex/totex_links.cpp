@@ -7,6 +7,15 @@
 *******************************************************************************/
 
 #include "totex_internal.hpp"
+#include "Edit/Interface/generic_editor_commands.hpp"
+#include "ATHENA/Data/vault.hpp"
+#include "ATHENA/Data/vault_map_sqlite.hpp"
+#include "ATHENA/Data/transclusion_cache.hpp"
+#include "Data/Convert/Generic/conversion_registry.hpp"
+#include "file.hpp"
+#include "converter.hpp"
+#include <set>
+#include <stdexcept>
 
 namespace {
 
@@ -83,8 +92,8 @@ empty_cardlink_body (scheme_tree body) {
 
 scheme_tree
 cardlink_default_body (scheme_tree destination) {
-  return as_scheme_tree (
-    call ("latex-native-cardlink-default-body", stree_object (destination)));
+  return stree_string (generic_cardlink_default_link_body (
+    scheme_tree_to_tree (destination)));
 }
 
 scheme_tree
@@ -99,13 +108,77 @@ cardlink_output (scheme_tree args) {
     source, tmtex_convert (source_apply ("hlink", link_args)));
 }
 
+// Each recursive transclusion chain owns its database connection and ancestry.
+// No editor cache or native tree is shared with another export thread.
+struct transclusion_request {
+  vault_context_handle vault= vault_capture_context ();
+  AthenaVaultMapSqlite index;
+  std::set<std::string> ancestry;
+  transclusion_request () {
+    if (!vault) throw std::runtime_error ("LaTeX transclusion export: no vault is open");
+    std::string error;
+    if (!index.open_read_only (vault->map_db, error))
+      throw std::runtime_error ("LaTeX transclusion export: " + error);
+  }
+};
+thread_local transclusion_request* active_transclusion= nullptr;
+
+void
+prepare_transcluded_content (tree& content, url directory) {
+  if (is_atomic (content)) return;
+  if (is_func (content, LABEL)) { content= tree (CONCAT); return; }
+  if (is_func (content, IMAGE) && N(content) && is_atomic (content[0])) {
+    string name= content[0]->label;
+    if (name != "" && !starts (name, "/") && !starts (name, "~") &&
+        !starts (name, "$") && !occurs ("://", name))
+      content[0]= as_system_string (directory * url_unix (name));
+  }
+  for (int i=0; i<N(content); ++i) prepare_transcluded_content (content[i], directory);
+}
+
+scheme_tree
+transclude_resolved (scheme_tree args, transclusion_request& request) {
+  string id= atom_text (args[0]);
+  std::string uuid (id.data (), N(id));
+  if (!request.ancestry.insert (uuid).second)
+    throw std::runtime_error ("LaTeX export: cyclic transclusion " + uuid);
+  struct ancestry_scope {
+    std::set<std::string>& values;
+    std::string id;
+    ~ancestry_scope () { values.erase (id); }
+  } scope {request.ancestry, uuid};
+  AthenaVaultMapNode location;
+  bool found= false;
+  std::string error;
+  if (!request.index.get_node (uuid, location, found, error))
+    throw std::runtime_error ("LaTeX transclusion export: " + error);
+  if (!found) throw std::runtime_error ("LaTeX export: unresolved transclusion " + uuid);
+  auto path= request.vault->root / location.path;
+  url file= url_system (path.string ().c_str ());
+  string data;
+  if (load_string (file, data, false))
+    throw std::runtime_error ("LaTeX export: cannot read transclusion source " + path.string ());
+  tree document= conversion_read_document (data);
+  tree content= athena_transclusion_source_range (extract (document, "body"),
+    string (location.anchor_begin.c_str ()), string (location.anchor_end.c_str ()));
+  if (content == UNINIT)
+    throw std::runtime_error ("LaTeX export: transclusion anchors not found for " + uuid);
+  prepare_transcluded_content (content, head (file));
+  scheme_tree resolved= latex_export_prepare_v3_source (content);
+  return latex_export_athena_data_wrap (
+    source_apply ("transclude", args), tmtex_convert (resolved));
+}
+
 scheme_tree
 transclude_output (scheme_tree args) {
   if (!stree_list (args) || N(args) != 4) return tree ("#f");
-  scheme_tree source= source_apply ("transclude", args);
-  scheme_tree resolved= as_scheme_tree (
-    call ("latex-native-transclude-fallback", stree_object (args)));
-  return latex_export_athena_data_wrap (source, tmtex_convert (resolved));
+  if (active_transclusion) return transclude_resolved (args, *active_transclusion);
+  transclusion_request request;
+  struct request_scope {
+    request_scope (transclusion_request& request) { active_transclusion= &request; }
+    ~request_scope () { active_transclusion= nullptr; }
+  } scope (request);
+  return transclude_resolved (args, request);
 }
 
 scheme_tree

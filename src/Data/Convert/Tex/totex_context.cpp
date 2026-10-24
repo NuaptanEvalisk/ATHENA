@@ -8,6 +8,7 @@
 
 #include "convert.hpp"
 #include "totex_internal.hpp"
+#include "latex_preprocess.hpp"
 #include "converter.hpp"
 #include "analyze.hpp"
 #include "colors.hpp"
@@ -1213,7 +1214,9 @@ transform_style_native (scheme_tree style) {
   if (!string_atom (style))
     return latex_export_context.replace_style ? tree ("#f") : style;
   string name= atom_text (style);
-  if (name == "generic" || name == "tmarticle" || name == "tmdoc")
+  if (name == "tmdoc")
+    throw std::runtime_error ("LaTeX export does not support the tmdoc document style");
+  if (name == "generic" || name == "tmarticle")
     return stree_string ("article");
   if (name == "book" || name == "tmbook" || name == "tmmanual")
     return stree_string ("book");
@@ -1433,9 +1436,7 @@ scheme_tree
 convert_nonfile_native (scheme_tree value, object options) {
   scheme_tree filtered= discard_experimental_warning (value);
   tree normalized= eqnumber_to_nonumber (scheme_tree_to_tree (filtered));
-  scheme_tree rewritten= tree_to_scheme_tree (normalized);
-  rewritten= as_scheme_tree (call ("tmtm-match-brackets", stree_object (rewritten)));
-  rewritten= as_scheme_tree (call ("tmpre-produce", stree_object (rewritten)));
+  scheme_tree rewritten= tree_to_scheme_tree (latex_preprocess_source (normalized));
   rewritten= discard_experimental_warning (rewritten);
 
   latex_export_initialize (options);
@@ -3551,6 +3552,9 @@ convert_node_native (scheme_tree value) {
     return stree_string ("");
 
   string key= value[0]->label;
+  if (starts (key, "tmdoc-") || key == "key" || key == "key*")
+    throw std::runtime_error ("LaTeX export does not support tmdoc markup: " +
+                              std::string (key.data (), N(key)));
   scheme_tree args (TUPLE);
   for (int i=1; i<N(value); ++i) args << value[i];
 
@@ -3573,15 +3577,6 @@ convert_node_native (scheme_tree value) {
     if (latex_export_internal::publisher_dispatch (key, args, publisher))
       return publisher;
     return style_dependent_default_native (key, args);
-  }
-
-  // Keyboard markup belongs to the documentation subsystem.  Keep that
-  // rewrite as a narrow callback, then resume native conversion immediately.
-  if (key == "key" || key == "key*") {
-    scheme_tree source= N(args) > 0 ? args[0] : stree_string ("");
-    scheme_tree rewritten= as_scheme_tree (
-      call ("latex-native-key-rewrite", object (key), stree_object (source)));
-    return convert_node_native (rewritten);
   }
 
   if (key == "quote" || key == "quasiquote" || key == "unquote")

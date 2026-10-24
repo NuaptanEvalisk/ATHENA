@@ -8,6 +8,7 @@
 ******************************************************************************/
 
 #include "convert.hpp"
+#include "html_export.hpp"
 #include "file.hpp"
 #include "analyze.hpp"
 #include "named_symbol.hpp"
@@ -15,10 +16,17 @@
 #include "Scheme/Scheme/glue.hpp"
 #include "Scheme/Scheme/object.hpp"
 #include "ATHENA/Data/enunciation_model.hpp"
+#include "Data/Convert/Generic/conversion_options.hpp"
+#include "Data/Convert/Generic/conversion_registry.hpp"
+#include "System/Boot/boot.hpp"
+#include "editor.hpp"
+#include "new_view.hpp"
+#include "config.h"
 #include <algorithm>
 #include <stdexcept>
 #include <map>
 #include <vector>
+#include <nlohmann/json.hpp>
 
 namespace {
 bool head (scheme_tree t, const char* name) {
@@ -734,6 +742,31 @@ scheme_tree html_export_enunciation_tags () {
   return result;
 }
 
+tree html_export_environment_patch () {
+  static const std::vector<string> preserved= [] {
+    string source;
+    if (load_string (url ("$ATHENA_PATH/misc/convert/html-expansion.json"), source, false))
+      throw std::runtime_error ("Cannot load HTML expansion registry");
+    auto data= nlohmann::json::parse (source.data (), source.data () + N(source));
+    if (data.at ("version").get<int> () != 1)
+      throw std::runtime_error ("Unsupported HTML expansion registry version");
+    std::vector<string> result;
+    for (const auto& name: data.at ("preserve"))
+      result.emplace_back (name.get<std::string> ().c_str ());
+    return result;
+  } ();
+  tree result (COLLECTION);
+  // Preserve unsupported source tags too, so export rejects them instead of
+  // silently accepting their style-expanded presentation.
+  auto preserve= [&] (string name) {
+    result << tree (ASSOCIATE, name, tree (XMACRO, "x", tree (EVAL_ARGS, "x")));
+  };
+  for (const auto& name: preserved) preserve (name);
+  for (const auto& [tag, definition]: athena::enunciation::standard_registry ().legacy_tags ())
+    preserve (text (tag));
+  return result;
+}
+
 scheme_tree html_export_document_plan (scheme_tree source, scheme_tree styles,
     string css, string stylesheet, string generator, bool mathjax) {
   check_export_source (source, "body");
@@ -1247,18 +1280,125 @@ namespace {
 using export_environment= std::map<std::string, tree>;
 
 class html_exporter {
-  object resources;
+  url target;
+  string stylesheet;
+  url image_root;
+  string image_name;
+  int image_serial= 0;
+  hashmap<tree, tree> pictures {UNINIT};
+
+  std::pair<url, string> image_names (string extension) {
+    string postfix= "-" * as_string (++image_serial) * "." * extension;
+    return {glue (image_root, postfix), image_name * postfix};
+  }
+
+  static bool contains_math (tree source) {
+    if (!is_tuple (source)) return false;
+    for (const char* tag: {"math", "math-block", "math-grid", "scripts", "math-accent",
+         "math-annotation", "math-long-arrow", "math-middle", "math-symbol",
+         "math-variant", "delimited", "big-operator"})
+      if (head (source, tag)) return true;
+    for (int i=0; i<N(source); ++i)
+      if (contains_math (source[i])) return true;
+    return false;
+  }
+
+  tree picture (tree source) {
+    if (contains_math (source))
+      throw std::runtime_error ("Unsupported XML v3 HTML export: raster fallback would discard native mathematics");
+    if (pictures->contains (source)) return pictures[source];
+    auto [destination, location]= image_names ("png");
+    array<SI> rendered= get_current_editor ()->print_snippet (
+      destination, scheme_tree_to_tree (source), true);
+    if (!exists (destination))
+      throw std::runtime_error ("HTML export: rendered picture was not produced");
+    tree extents (TUPLE);
+    for (int i=0; i<N(rendered); ++i) extents << tree (as_string (rendered[i]));
+    double scale= starts (as_string (tail (url (stylesheet))), "web-") ? 19000.0 : 20625.0;
+    tree output= html_export_picture_output (source, location, extents, scale);
+    pictures(source)= output;
+    return output;
+  }
+
+  tree image (tree source, url source_url) {
+    tree name= source[1];
+    string extension;
+    if (is_atomic (name)) extension= suffix (url_unix (atom (name)));
+    else if (is_tuple (name, "tuple", 2) && is_atomic (name[2])) {
+      extension= suffix (url_unix (atom (name[2])));
+      if (extension == "") extension= atom (name[2]);
+    }
+    if (extension != "gif" && extension != "jpg" && extension != "jpeg" &&
+        extension != "png" && extension != "bmp" && extension != "svg")
+      return picture (source);
+    if (is_tuple (name, "tuple", 2) && is_tuple (name[1], "raw-data", 1)) {
+      auto [destination, location]= image_names (extension);
+      if (save_string (destination, atom (name[1][1]), false))
+        throw std::runtime_error ("HTML export: could not write embedded image");
+      tree output= copy (source);
+      output[1]= quoted (location);
+      return html_export_image_output (output, location);
+    }
+    if (!is_atomic (name)) return picture (source);
+    string location= atom (name);
+    url relative_name= url_unix (location);
+    if (!is_rooted_web (relative_name)) {
+      url original= relative (source_url, relative_name);
+      if (!exists (original))
+        throw std::runtime_error ("HTML export: image source does not exist: " +
+                                 std::string (as_string (original).c_str ()));
+      if (original != relative (target, relative_name)) {
+        auto names= image_names (extension);
+        copy (original, names.first);
+        location= names.second;
+      }
+    }
+    return html_export_image_output (source, location);
+  }
+
+  static string preference_color (string key, string fallback) {
+    string value= get_user_preference (key);
+    return value == "" || value == "default" ? fallback : value;
+  }
 
   tree request (const char* operation, tree source, const export_environment& env) {
-    // The resource adapter catches Scheme throws before returning across C++.
-    object argument= tmscm_to_object (scheme_tree_to_tmscm (source));
-    tree reply= as_scheme_tree (call (resources, object (string (operation)), argument,
-                                     object (atom (env.at ("source-url")))));
-    if (!is_tuple (reply) || N(reply) != 2)
-      throw std::runtime_error ("HTML export: invalid resource adapter response");
-    if (reply[0] != tree ("#t"))
-      throw std::runtime_error (std::string ("HTML export resource failure: ") + atom (reply[1]).c_str ());
-    return reply[1];
+    string op (operation);
+    url source_url= url (atom (env.at ("source-url")));
+    if (op == "math")
+      return latex_export_convert_top (source[0], conversion_options_to_scheme (
+        {{"texmacs->latex:mathjax", "on"}}), source_url, target);
+    if (op == "picture") return picture (source);
+    if (op == "image") return image (source, source_url);
+    if (op == "include") {
+      url included= relative (source_url, url_unix (atom (source[1])));
+      string bytes;
+      if (load_string (included, bytes, false))
+        throw std::runtime_error ("HTML export: included source could not be read");
+      tree document= conversion_read_document (bytes);
+      tree body= extract (document, "body");
+      return tuple (quoted (as_string (included)),
+        html_export_prepare_source (latex_export_prepare_v3_source (body)));
+    }
+    if (op == "document-plan") {
+      auto color= [] (string key, string fallback) {
+        return html_export_color (quoted (preference_color (key, fallback)), false);
+      };
+      string css= html_export_stylesheet (color ("locus-color", "#404080"),
+        color ("visited-color", "#702070"), color ("gui selection color", "red"),
+        color ("white document background override color", "#f7f3e8"),
+        get_user_preference ("override white document background") == "on");
+      tree styles (TUPLE);
+      for (int i=1; i<N(source[2]); ++i) styles << source[2][i];
+      return html_export_document_plan (source[1], styles, css, stylesheet,
+                                       "ATHENA " * string (ATHENA_VERSION), true);
+    }
+    if (op == "enunciation-color") {
+      string color= get_user_preference ("vault " * atom (source[0]) * " color");
+      if (color == "" || color == "none")
+        color= get_user_preference ("vault " * atom (source[1]) * " color");
+      return quoted (color == "" || color == "none" ? atom (source[2]) : color);
+    }
+    throw std::runtime_error ("Unknown HTML resource operation: " + std::string (operation));
   }
 
   tree children (tree inputs, const export_environment& env) {
@@ -1274,7 +1414,14 @@ class html_exporter {
   }
 
 public:
-  explicit html_exporter (object adapter): resources (adapter) {}
+  html_exporter (url destination, const conversion_options& options): target (destination) {
+    auto css= options.find ("texmacs->html:css-stylesheet");
+    stylesheet= css == options.end () ? string ("---") : string (css->second.c_str ());
+    string extension= suffix (target);
+    image_root= extension == "html" || extension == "htm"
+      ? unglue (target, N(extension)+1) : url_unix ("image");
+    image_name= as_string (tail (image_root));
+  }
 
   tree run (tree source, const export_environment& env) {
     if (head (source, "math-block")) return mathematics (source, true, true, env);
@@ -1391,10 +1538,38 @@ public:
 };
 }
 
-scheme_tree html_export_convert (scheme_tree source, object resources, string source_url) {
+scheme_tree html_export_convert (scheme_tree source, object options, url source_url, url target) {
   source= html_export_prepare_source (source);
-  export_environment env= {{"source-url", quoted (source_url)}, {"math", tree ("#f")},
+  export_environment env= {{"source-url", quoted (as_string (source_url))}, {"math", tree ("#f")},
     {"math-display", tree ("#f")}, {"preformatted", tree ("#f")}, {"mag", quoted ("1")},
     {"left-margin", tree ("0")}, {"right-margin", tree ("0")}};
-  return html_exporter (resources).run (source, env);
+  return html_exporter (target, conversion_options_from_scheme (options)).run (source, env);
+}
+
+scheme_tree html_export_document (object input, object options, url origin, url target) {
+  tree source= is_tree (input) ? latex_export_prepare_v3_source (as_tree (input))
+                                : as_scheme_tree (input);
+  source= html_export_prepare_source (source);
+  if (head (source, "document")) {
+    tree body= tree ("#f"), style= tuple ("tuple"), initial= tuple ("collection");
+    for (int i=1; i<N(source); ++i) {
+      tree field= source[i];
+      if (head (field, "body") && N(field) == 2) body= field[1];
+      if (head (field, "style") && N(field) == 2)
+        style= head (field[1], "tuple") ? field[1] : tuple ("tuple", field[1]);
+      if (head (field, "initial") && N(field) == 2) initial= field[1];
+    }
+    if (body != tree ("#f")) {
+      for (const char* key: {"font", "math-font", "font-family"})
+        for (int i=1; i<N(initial); ++i)
+          if (is_tuple (initial[i], "associate", 2) && initial[i][1] == quoted (key)) {
+            tree value= initial[i][2];
+            if (value != quoted ("")) body= tuple ("with", quoted (key), value, body);
+            break;
+          }
+      source= tuple ("!file", body, style);
+    }
+  }
+  return html_export_finalize (html_export_convert (source, options, origin, target),
+                               head (source, "!file"));
 }

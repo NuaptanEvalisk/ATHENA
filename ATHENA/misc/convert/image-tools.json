@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "tools": {
+    "rsvg": [{"program": "rsvg-convert"}],
+    "cairo": [{"program": "pdftocairo"}],
+    "pdf2svg": [{"program": "pdf2svg"}],
+    "imagemagick": [{"program": "magick"}, {"program": "convert", "platform": "unix"}]
+  },
+  "routes": [
+    {"from": "svg", "to": "png", "tool": "rsvg", "output": "output.png",
+     "args": ["-f", "png", "-d", "{dpi}", "-o", "{output}", "{source}"]},
+    {"from": "svg", "to": "pdf", "tool": "rsvg", "output": "output.pdf",
+     "args": ["-f", "pdf", "-o", "{output}", "{source}"]},
+    {"from": "png", "to": "pdf", "native": "image-pdf", "output": "output.pdf"},
+    {"from": "pdf", "to": "svg", "tool": "cairo", "output": "output.svg",
+     "args": ["-svg", "{source}", "{output}"]},
+    {"from": "pdf", "to": "svg", "tool": "pdf2svg", "output": "output.svg",
+     "args": ["{source}", "{output}"]},
+    {"from": "jpeg", "to": "pnm", "tool": "imagemagick", "output": "output.pnm",
+     "args": ["{source}", "{output}"]},
+    {"from": "tif", "to": "png", "tool": "imagemagick", "output": "output.png",
+     "args": ["{source}", "{output}"]},
+    {"from": "ppm", "to": "gif", "tool": "imagemagick", "output": "output.gif",
+     "args": ["{source}", "{output}"]},
+    {"from": "gif", "to": "pnm", "tool": "imagemagick", "output": "output.pnm",
+     "args": ["{source}", "{output}"]},
+    {"from": "png", "to": "pnm", "tool": "imagemagick", "output": "output.pnm",
+     "args": ["{source}", "{output}"]},
+    {"from": "pdf", "to": "png", "tool": "cairo", "output": "output.png",
+     "args": ["-singlefile", "-transp", "-png", "-r", "{dpi}", "{source}", "{prefix}"]},
+    {"from": "pdf", "to": "jpeg", "tool": "cairo", "output": "output.jpg",
+     "args": ["-singlefile", "-jpeg", "-r", "{dpi}", "{source}", "{prefix}"]},
+    {"from": "pdf", "to": "tif", "tool": "cairo", "output": "output.tif",
+     "args": ["-singlefile", "-tiff", "-r", "{dpi}", "{source}", "{prefix}"]}
+  ]
+}

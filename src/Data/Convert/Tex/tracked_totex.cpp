@@ -17,6 +17,7 @@
 #include "iterator.hpp"
 #include "fast_search.hpp"
 #include "file.hpp"
+#include "Data/Convert/Generic/conversion_executor.hpp"
 
 tree latex_expand (tree doc);
 
@@ -154,8 +155,7 @@ latex_check_transparency (string ums, string s,
 
 string
 tree_to_latex_document (tree d, object opts) {
-  eval ("(use-modules (convert latex init-latex))");
-  return as_string (call ("texmacs->latex-document", object (d), opts));
+  return conversion_latex_document (d, opts, conversion_source_url (), conversion_target_url ());
 }
 
 static tree

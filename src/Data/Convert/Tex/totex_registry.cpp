@@ -7,17 +7,46 @@
 *******************************************************************************/
 
 #include "totex_internal.hpp"
+#include "file.hpp"
+#include <nlohmann/json.hpp>
+#include <stdexcept>
 
 namespace {
 
 using namespace latex_export_internal;
 
-// Native LaTeX registry data.  This snapshot was imported from the legacy
-// Scheme DRD/smart tables during the native converter migration and is now the
-// runtime/source-of-truth database for both LaTeX export and import metadata.
-static const char registry_blob[]=
-#include "totex_registry_data.inc"
-;
+using json= nlohmann::json;
+
+scheme_tree
+registry_tree (const json& value) {
+  if (value.is_array ()) {
+    scheme_tree result (TUPLE);
+    for (const auto& child: value) result << registry_tree (child);
+    return result;
+  }
+  if (value.is_string ()) {
+    const auto text= value.get<std::string> ();
+    return stree_string (string (text.data (), text.size ()));
+  }
+  if (value.is_boolean ()) return tree (value.get<bool> () ? "#t" : "#f");
+  if (value.is_number_integer ()) return tree (as_string (value.get<int> ()));
+  if (value.is_object () && value.size () == 1 && value.contains ("symbol")) {
+    const auto text= value.at ("symbol").get<std::string> ();
+    return tree (string (text.data (), text.size ()));
+  }
+  throw std::runtime_error ("Invalid LaTeX registry template value");
+}
+
+json
+load_registry () {
+  string source;
+  if (load_string (url ("$ATHENA_PATH/misc/convert/latex-registry.json"), source, false))
+    throw std::runtime_error ("Cannot load LaTeX conversion registry");
+  auto data= json::parse (source.data (), source.data () + N(source));
+  if (data.at ("version").get<int> () != 1)
+    throw std::runtime_error ("Unsupported LaTeX conversion registry version");
+  return data;
+}
 
 bool
 true_stree (scheme_tree value) {
@@ -30,14 +59,6 @@ integer_stree (scheme_tree value, int fallback) {
   if (!is_atomic (value) || is_quoted (value->label) ||
       !is_int (value->label)) return fallback;
   return as_int (value->label);
-}
-
-scheme_tree
-field_value (scheme_tree root, string name) {
-  if (!stree_list (root)) return tree ("#f");
-  for (int i=1; i<N(root); ++i)
-    if (head_is (root[i], name) && N(root[i]) > 1) return root[i][1];
-  return tree ("#f");
 }
 
 LatexRegistryInfo
@@ -103,15 +124,15 @@ struct RegistryData {
     needs (array<string> ()), symbols (false), operators (false),
     import_types ("undefined"), import_arities (0),
     paper_opts ("undefined"), paper_types ("undefined") {
-    scheme_tree root= string_to_scheme_tree (string (registry_blob));
-    load_state (field_value (root, "base"), base);
-    load_state (field_value (root, "article"), article);
-    load_state (field_value (root, "letter"), letter);
-    load_state (field_value (root, "amsthm"), amsthm);
-    load_state (field_value (root, "article-amsthm"), article_amsthm);
-    load_state (field_value (root, "letter-amsthm"), letter_amsthm);
+    const auto root= load_registry ();
+    load_state (registry_tree (root.at ("base")), base);
+    load_state (registry_tree (root.at ("article")), article);
+    load_state (registry_tree (root.at ("letter")), letter);
+    load_state (registry_tree (root.at ("amsthm")), amsthm);
+    load_state (registry_tree (root.at ("article-amsthm")), article_amsthm);
+    load_state (registry_tree (root.at ("letter-amsthm")), letter_amsthm);
 
-    scheme_tree need_values= field_value (root, "needs");
+    scheme_tree need_values= registry_tree (root.at ("needs"));
     if (stree_list (need_values))
       for (int i=0; i<N(need_values); ++i) {
         scheme_tree entry= need_values[i];
@@ -123,12 +144,12 @@ struct RegistryData {
         needs (atom_text (entry[0]))= packages;
       }
 
-    scheme_tree tags= field_value (root, "tags");
+    scheme_tree tags= registry_tree (root.at ("tags"));
     if (stree_list (tags))
       for (int i=0; i<N(tags); ++i)
         if (string_atom (tags[i])) tag_names << atom_text (tags[i]);
 
-    scheme_tree import_values= field_value (root, "import-tags");
+    scheme_tree import_values= registry_tree (root.at ("import-tags"));
     if (stree_list (import_values))
       for (int i=0; i<N(import_values); ++i) {
         scheme_tree entry= import_values[i];
@@ -140,7 +161,7 @@ struct RegistryData {
         import_arities (name)= integer_stree (entry[2], 0);
       }
 
-    scheme_tree paper_opt_values= field_value (root, "paper-opts");
+    scheme_tree paper_opt_values= registry_tree (root.at ("paper-opts"));
     if (stree_list (paper_opt_values))
       for (int i=0; i<N(paper_opt_values); ++i) {
         scheme_tree entry= paper_opt_values[i];
@@ -154,7 +175,7 @@ struct RegistryData {
         if (paper_opts[option] == "undefined") paper_opts (option)= source;
       }
 
-    scheme_tree paper_type_values= field_value (root, "paper-types");
+    scheme_tree paper_type_values= registry_tree (root.at ("paper-types"));
     if (stree_list (paper_type_values))
       for (int i=0; i<N(paper_type_values); ++i) {
         scheme_tree entry= paper_type_values[i];
@@ -165,7 +186,7 @@ struct RegistryData {
         if (paper_types[option] == "undefined") paper_types (option)= source;
       }
 
-    scheme_tree symbol_values= field_value (root, "symbols");
+    scheme_tree symbol_values= registry_tree (root.at ("symbols"));
     if (stree_list (symbol_values))
       for (int i=0; i<N(symbol_values); ++i)
         if (string_atom (symbol_values[i])) {
@@ -174,7 +195,7 @@ struct RegistryData {
           symbols (name)= true;
         }
 
-    scheme_tree operator_values= field_value (root, "operators");
+    scheme_tree operator_values= registry_tree (root.at ("operators"));
     if (stree_list (operator_values))
       for (int i=0; i<N(operator_values); ++i)
         if (string_atom (operator_values[i])) operators (atom_text (operator_values[i]))= true;

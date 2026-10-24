@@ -13,6 +13,7 @@
 #include "scheme.hpp"
 
 #include <cmath>
+#include <stdexcept>
 
 namespace {
 
@@ -62,13 +63,7 @@ clean_include_name (string name) {
 
 url
 resolve_image_url (string name) {
-  url plain= url_unix (name);
-  url target= relative (save_target_url (), plain);
-  url source= relative (save_source_url (), plain);
-  if (exists (target)) return target;
-  if (exists (source)) return source;
-  if (exists (plain)) return plain;
-  return target;
+  return relative (save_source_url (), url_unix (name));
 }
 
 string
@@ -124,7 +119,7 @@ include_image_file (string original_name, url source) {
   if (latex_export_portable ()) include_name= portable_image_copy (source);
   else {
     url target_relative= relative (save_target_url (), url_unix (original_name));
-    include_name= exists (target_relative) ? original_name : as_system_string (source);
+    include_name= target_relative == source ? original_name : as_system_string (source);
     include_name= clean_include_name (include_name);
   }
   scheme_tree out= stree_apply ("includegraphics");
@@ -133,21 +128,16 @@ include_image_file (string original_name, url source) {
 }
 
 scheme_tree
-image_as_eps (string name) {
+linked_image (string name) {
   url source= resolve_image_url (name);
-  if (exists (source)) return include_image_file (name, source);
-
-  GeneratedImageName generated= generated_image_name ();
-  if (starts (name, "..")) source= relative (save_source_url (), url_unix (name));
-  string from= as_string (call ("format-from-suffix", object (suffix (source)))) * "-file";
-  string to= suffix (generated.file) == "pdf" ? "pdf-file" : "postscript-file";
-  array<object> argv;
-  argv << object (source) << object (from) << object (to) << object (generated.file);
-  (void) call ("convert-to-file", argv);
-  latex_export_add_latex_extra_package ("graphicx");
-  scheme_tree out= stree_apply ("includegraphics");
-  out << stree_string (quote_include_name (generated.latex_name));
-  return out;
+  string extension= locase_all (suffix (source));
+  if (extension == "ps" || extension == "eps")
+    throw std::runtime_error ("LaTeX export does not support PostScript images: " +
+                             std::string (name.c_str ()));
+  if (!exists (source))
+    throw std::runtime_error ("LaTeX export: image source does not exist: " +
+                             std::string (as_string (source).c_str ()));
+  return include_image_file (name, source);
 }
 
 string
@@ -202,7 +192,7 @@ image_output (scheme_tree args) {
 
   latex_export_add_latex_extra_package ("graphicx");
   scheme_tree width= args[1], height= args[2];
-  scheme_tree fig= image_as_eps (atom_text (args[0]));
+  scheme_tree fig= linked_image (atom_text (args[0]));
   string horizontal= image_length (width), vertical= image_length (height);
   double mh= 0.0, mv= 0.0;
   bool has_mh= image_magnification (width, mh);

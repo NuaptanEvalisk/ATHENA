@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "groups": {
+    "latex-export": [
+      "texmacs->latex:source-tracking",
+      "texmacs->latex:conservative",
+      "texmacs->latex:transparent-source-tracking",
+      "texmacs->latex:attach-tracking-info",
+      "texmacs->latex:replace-style",
+      "texmacs->latex:expand-macros",
+      "texmacs->latex:expand-user-macros",
+      "texmacs->latex:use-macros",
+      "texmacs->latex:encoding",
+      "texmacs->latex:portable"
+    ],
+    "latex-import": [
+      "latex->texmacs:fallback-on-pictures",
+      "latex->texmacs:source-tracking",
+      "latex->texmacs:conservative",
+      "latex->texmacs:transparent-source-tracking"
+    ],
+    "html-export": ["texmacs->html:css-stylesheet"],
+    "image-export": ["texmacs->image:raster-resolution"],
+    "text-export": ["texmacs->verbatim:wrap", "texmacs->verbatim:encoding"],
+    "text-import": ["verbatim->texmacs:wrap", "verbatim->texmacs:encoding"]
+  },
+  "routes": [
+    {"from": ["texmacs-tree", "texmacs-stree"], "to": ["latex-stree", "latex-document"], "group": "latex-export"},
+    {"from": ["latex-document"], "to": ["texmacs-tree"], "group": "latex-import"},
+    {"from": ["texmacs-tree", "texmacs-stree"], "to": ["html-stree", "html-document"], "group": "html-export"},
+    {"from": ["texmacs-tree"], "to": ["verbatim-document", "verbatim-snippet"], "group": "text-export"},
+    {"from": ["verbatim-document", "verbatim-snippet"], "to": ["texmacs-tree"], "group": "text-import"}
+  ]
+}

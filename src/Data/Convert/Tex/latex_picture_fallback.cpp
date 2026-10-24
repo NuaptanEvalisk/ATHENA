@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "Tex/latex_picture_fallback.hpp"
+#include "Data/Convert/Generic/conversion_executor.hpp"
 #include "Ghostscript/gs_utilities.hpp"
 #include "Tex/convert_tex.hpp"
 #include "analyze.hpp"
@@ -288,7 +289,7 @@ render_picture_fallbacks (string s, tree t) {
   mkdir (wdir);
   bool dvips= false;
   install_picture_fallback_preamble (s, t, wdir, dvips);
-  string document_root= as_string (head (get_file_focus ()));
+  string document_root= as_string (head (conversion_source_url ()));
   string cmdln= "cd " * document_root;
   cmdln << "; " << latex_command
         << " -interaction nonstopmode -halt-on-error -file-line-error "
