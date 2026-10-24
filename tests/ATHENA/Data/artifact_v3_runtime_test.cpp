@@ -483,6 +483,55 @@ private slots:
     QCOMPARE (matches[0].link.uuids, std::vector<std::string> {"artifact"});
   }
 
+  void attributionAliasesReachMatcherThroughStorage () {
+    using namespace athena;
+    fixture f (3);
+    auto& source= f.original[0][0][0];
+    auto metadata= *node::get (source);
+    metadata.properties["kind"]= node::property (std::string ("lemma"));
+    metadata.properties["name"]= node::property (node::rich_text {tree ("")});
+    metadata.properties["attribution"]= node::property (node::property::list {
+      node::property (node::rich_text {tree ("Gauss")}),
+      node::property (node::rich_text {tree (CONCAT, tree ("Bon"), tree ("net"))})});
+    metadata.properties["year"]= node::property (std::string ("1827"));
+    node::set (source, metadata);
+    save (f.root / "Source.ath", write_xml_v3 (f.original));
+    AthenaArtifactsBuildResult built;
+    QVERIFY2 (f.build (built), f.error.c_str ());
+    std::vector<AthenaArtifactRecord> records;
+    QVERIFY2 (f.query (records), f.error.c_str ());
+    const auto& lemma= records.front ();
+    QCOMPARE (lemma.display_text, std::string ("A theorem body"));
+    AthenaArtifactRadioactiveMatcher matcher ({lemma});
+    for (const auto* query: {"Gauss's lemma", "Gauss\xe2\x80\x99s lemma",
+                            "Bonnet lemma", "Gauss-Bonnet lemma",
+                            "Gauss\xe2\x80\x93" "Bonnet lemma", "Gauss and Bonnet's lemma"}) {
+      const auto matches= matcher.matches (string (query));
+      QCOMPARE (matches.size (), std::size_t (1));
+      QCOMPARE (matches[0].start, 0);
+      QCOMPARE (matches[0].end, N(string (query)));
+      QCOMPARE (matches[0].uuids, std::vector<std::string> {lemma.uuid});
+    }
+    QVERIFY (matcher.matches ("Gauss in 1827").empty ());
+
+    auto duplicate= lemma;
+    duplicate.uuid= "another-lemma";
+    AthenaArtifactRadioactiveMatcher ambiguous ({lemma, duplicate});
+    const auto matches= ambiguous.matches ("Gauss's lemma");
+    QCOMPARE (matches.size (), std::size_t (1));
+    QCOMPARE (matches[0].uuids.size (), std::size_t (2));
+
+    metadata.properties["attribution"]= node::property (node::property::list {
+      node::property (node::rich_text {tree ("Euler")})});
+    node::set (source, metadata);
+    save (f.root / "Source.ath", write_xml_v3 (f.original));
+    QVERIFY2 (f.build (built), f.error.c_str ());
+    QVERIFY2 (f.query (records), f.error.c_str ());
+    AthenaArtifactRadioactiveMatcher updated ({records.front ()});
+    QVERIFY (updated.matches ("Gauss's lemma").empty ());
+    QCOMPARE (updated.matches ("Euler's lemma").size (), std::size_t (1));
+  }
+
   void structuredFilterLookupDoesNotDowngradeNativeCandidate () {
     auto filter= athena_artifact_title_filter_defaults ();
     athena_artifact_title_filter_add (filter, compound ("math", tree ("legacy")));

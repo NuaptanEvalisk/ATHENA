@@ -379,6 +379,37 @@ void structured_enunciation_name (
   }
 }
 
+void structured_enunciation_attribution_names (
+  const tree& source, AthenaArtifactRecord& record, xml_format_version version) {
+  const auto* kind= athena::enunciation::standard_registry ().definition (source);
+  if (!kind || record.type == "completion") return;
+  std::vector<tree> authors;
+  for (const auto& author: athena::enunciation::title_fields (source, "attribution"))
+    if (!collapse_spaces (definition_name_text (author)).empty ())
+      authors.push_back (author);
+  auto add= [&] (const tree& author) {
+    tree name= simplify_concat (tree (CONCAT,
+      athena::node::content_projection (author), tree (to_tm ("'s " + kind->display_name))));
+    const auto text= collapse_spaces (definition_name_text (name));
+    if (std::find (record.semantic_names.begin (), record.semantic_names.end (), text) !=
+        record.semantic_names.end ()) return;
+    record.semantic_names.push_back (text);
+    record.semantic_name_trees.push_back (fragment_bytes (name, version));
+  };
+  for (const auto& author: authors) add (author);
+  if (authors.size () > 1) {
+    // Preserve attribution order and rich text; never infer surnames from prose.
+    for (const auto* separator: {"-", "\xe2\x80\x93", " and "}) {
+      tree joined (CONCAT);
+      for (const auto& author: authors) {
+        if (N(joined)) joined << tree (separator);
+        joined << author;
+      }
+      add (joined);
+    }
+  }
+}
+
 std::string enunciation_type (const std::string& original,
                               std::string& base_tag) {
   const auto& registry= athena::enunciation::standard_registry ();
@@ -618,6 +649,8 @@ void scan_enunciations (const tree& parent, const std::string& rel,
       if (!record.semantic_names.empty ())
         record.display_text= record.semantic_names.front () +
           (display.empty () ? "" : ". " + display);
+      // Matching aliases must not replace the explicit title in previews.
+      structured_enunciation_attribution_names (child, record, version);
       record.keyword_tree= base;
       record.identity_focus= identity_fingerprint (child, version);
       record.identity_before= identity_neighbor (parent, i - 1, -1, version);
@@ -2795,7 +2828,7 @@ athena_artifacts_build (
   if (!athena_artifact_title_filter_read (root, title_filter, error))
     return false;
   const std::string complete_contract= std::string (source_locator_contract) +
-    ":structured-enunciation-names=1:title-filter=" +
+    ":structured-enunciation-names=2:title-filter=" +
     athena_artifact_title_filter_fingerprint (title_filter);
   const std::string extraction_contract= complete_contract +
     (options.structural_only ? ":structural" : "");
