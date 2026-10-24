@@ -144,6 +144,18 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (tm-define current-save-source (url-none))
+
+(tm-define (convert-export-document document source target format)
+  (let ((previous-source current-save-source)
+        (previous-target current-save-target))
+    (dynamic-wind
+      (lambda ()
+        (set! current-save-source source)
+        (set! current-save-target target))
+      (lambda () (convert document "texmacs-tree" format))
+      (lambda ()
+        (set! current-save-source previous-source)
+        (set! current-save-target previous-target)))))
 (tm-define current-save-target (url-none))
 
 (tm-define (autosave-file? name)

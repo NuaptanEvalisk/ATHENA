@@ -26,57 +26,77 @@
     "category": "Retains existing artifact categories where classified; other kinds receive descriptive categories.",
     "extensions": "Unknown declaration fields and unknown node properties remain intact. Unknown canonical kinds are opaque source content."
   },
+  "html_groups": {
+    "theorem": "#e5e9f0",
+    "definition": "#f0e4d8",
+    "remark": "#e8eadc",
+    "exercise": "#dfece0"
+  },
   "kinds": [
     {
       "kind": "theorem", "display_name": "Theorem", "role": "statement", "category": "provable",
+      "html": {"group": "theorem"},
       "render": {"style": "render-bold-theorem", "counter": "theorem-env", "title_mode": "parenthesized", "qed": false},
       "legacy": [
         {"tag": "theorem", "numbered": true, "starred_tag": "theorem*", "artifact_base": "theorem"},
-        {"tag": "render-theorem", "numbered": false, "layout": "title-body", "artifact_base": "theorem"}
+        {"tag": "render-theorem", "numbered": false, "layout": "title-body", "artifact_base": "theorem"},
+        {"tag": "render-bold-theorem", "numbered": false, "layout": "title-body", "artifact_base": "theorem"}
       ]
     },
     {
       "kind": "proposition", "display_name": "Proposition", "role": "statement", "category": "provable",
+      "html": {"group": "theorem"},
       "render": {"style": "render-bold-theorem", "counter": "theorem-env", "title_mode": "parenthesized", "qed": false},
       "legacy": [{"tag": "proposition", "numbered": true, "starred_tag": "proposition*", "artifact_base": "proposition"}]
     },
     {
       "kind": "lemma", "display_name": "Lemma", "role": "statement", "category": "provable",
+      "html": {"group": "theorem"},
       "render": {"style": "render-bold-theorem", "counter": "theorem-env", "title_mode": "parenthesized", "qed": false},
       "legacy": [{"tag": "lemma", "numbered": true, "starred_tag": "lemma*", "artifact_base": "lemma"}]
     },
     {
       "kind": "corollary", "display_name": "Corollary", "role": "statement", "category": "provable",
+      "html": {"group": "theorem"},
       "render": {"style": "render-bold-theorem", "counter": "theorem-env", "title_mode": "parenthesized", "qed": false},
       "legacy": [{"tag": "corollary", "numbered": true, "starred_tag": "corollary*", "artifact_base": "corollary"}]
     },
     {
       "kind": "axiom", "display_name": "Axiom", "role": "statement", "category": "axiom",
+      "html": {"group": "theorem"},
       "render": {"style": "render-theorem", "counter": "theorem-env", "title_mode": "direct", "qed": false},
       "legacy": [{"tag": "axiom", "numbered": true, "starred_tag": "axiom*", "artifact_base": "axiom"}]
     },
     {
       "kind": "definition", "display_name": "Definition", "role": "statement", "category": "definition",
+      "html": {"group": "definition"},
       "render": {"style": "render-definition", "counter": "theorem-env", "title_mode": "direct", "qed": false},
-      "legacy": [{"tag": "definition", "numbered": true, "starred_tag": "definition*", "artifact_base": "definition"}]
+      "legacy": [
+        {"tag": "definition", "numbered": true, "starred_tag": "definition*", "artifact_base": "definition"},
+        {"tag": "render-definition", "numbered": false, "layout": "title-body", "artifact_base": "definition"}
+      ]
     },
     {
       "kind": "notation", "display_name": "Notation", "role": "statement", "category": "notation",
+      "html": {"group": "definition"},
       "render": {"style": "render-theorem", "counter": "theorem-env", "title_mode": "direct", "qed": false},
       "legacy": [{"tag": "notation", "numbered": true, "starred_tag": "notation*"}]
     },
     {
       "kind": "conjecture", "display_name": "Conjecture", "role": "statement", "category": "provable",
+      "html": {"group": "theorem"},
       "render": {"style": "render-theorem", "counter": "theorem-env", "title_mode": "parenthesized", "qed": false},
       "legacy": [{"tag": "conjecture", "numbered": true, "starred_tag": "conjecture*", "artifact_base": "conjecture"}]
     },
     {
       "kind": "law", "display_name": "Law", "role": "statement", "category": "law",
+      "html": {"group": "theorem"},
       "render": {"style": "render-theorem", "counter": "theorem-env", "title_mode": "direct", "qed": false},
       "legacy": [{"tag": "law", "numbered": true, "starred_tag": "law*"}]
     },
     {
       "kind": "remark", "display_name": "Remark", "role": "supporting", "category": "remark",
+      "html": {"group": "remark"},
       "render": {"style": "render-remark", "counter": "theorem-env", "title_mode": "direct", "qed": false},
       "legacy": [
         {"tag": "remark", "numbered": true, "starred_tag": "remark*"},
@@ -85,36 +105,43 @@
     },
     {
       "kind": "example", "display_name": "Example", "role": "statement", "category": "provable",
+      "html": {"group": "remark"},
       "render": {"style": "render-remark", "counter": "theorem-env", "title_mode": "direct", "qed": false},
       "legacy": [{"tag": "example", "numbered": true, "starred_tag": "example*", "artifact_base": "example"}]
     },
     {
       "kind": "note", "display_name": "Note", "role": "supporting", "category": "remark",
+      "html": {"group": "remark"},
       "render": {"style": "render-remark", "counter": "theorem-env", "title_mode": "direct", "qed": false},
       "legacy": [{"tag": "note", "numbered": true, "starred_tag": "note*"}]
     },
     {
       "kind": "warning", "display_name": "Warning", "role": "supporting", "category": "remark",
+      "html": {"group": "remark"},
       "render": {"style": "render-remark", "counter": "theorem-env", "title_mode": "direct", "qed": false},
       "legacy": [{"tag": "warning", "numbered": true, "starred_tag": "warning*"}]
     },
     {
       "kind": "disambiguation", "display_name": "Disambiguation", "role": "supporting", "category": "remark",
+      "html": {"group": "remark"},
       "render": {"style": "render-remark", "counter": "theorem-env", "title_mode": "direct", "qed": false},
       "legacy": [{"tag": "disambiguation", "numbered": true, "starred_tag": "disambiguation*"}]
     },
     {
       "kind": "convention", "display_name": "Convention", "role": "statement", "category": "convention",
+      "html": {"group": "definition"},
       "render": {"style": "render-remark", "counter": "theorem-env", "title_mode": "direct", "qed": false},
       "legacy": [{"tag": "convention", "numbered": true, "starred_tag": "convention*"}]
     },
     {
       "kind": "acknowledgments", "display_name": "Acknowledgments", "role": "supporting", "category": "remark",
+      "html": {"group": "remark"},
       "render": {"style": "render-remark", "counter": "theorem-env", "title_mode": "direct", "qed": false},
       "legacy": [{"tag": "acknowledgments", "numbered": true, "starred_tag": "acknowledgments*"}]
     },
     {
       "kind": "exercise", "display_name": "Exercise", "role": "statement", "category": "exercise",
+      "html": {"group": "exercise"},
       "render": {"style": "render-exercise", "counter": "exercise-env", "title_mode": "direct", "qed": false, "counter_scope": "individual"},
       "legacy": [
         {"tag": "exercise", "numbered": true, "starred_tag": "exercise*"},
@@ -125,16 +152,19 @@
     },
     {
       "kind": "problem", "display_name": "Problem", "role": "statement", "category": "exercise",
+      "html": {"group": "exercise"},
       "render": {"style": "render-exercise", "counter": "exercise-env", "title_mode": "direct", "qed": false, "counter_scope": "individual"},
       "legacy": [{"tag": "problem", "numbered": true, "starred_tag": "problem*"}]
     },
     {
       "kind": "question", "display_name": "Question", "role": "statement", "category": "provable",
+      "html": {"group": "exercise"},
       "render": {"style": "render-remark", "counter": "question", "title_mode": "parenthesized", "qed": false, "counter_scope": "individual"},
       "legacy": [{"tag": "question", "numbered": true, "starred_tag": "question*", "artifact_base": "question"}]
     },
     {
       "kind": "answer", "display_name": "Answer", "role": "completion", "category": "completion",
+      "html": {"group": "exercise"},
       "render": {"style": "render-answer", "counter": "answer", "title_mode": "direct", "qed": false, "counter_scope": "individual"},
       "legacy": [
         {"tag": "answer", "numbered": true, "starred_tag": "answer*", "render_style": "render-remark"},
@@ -145,6 +175,7 @@
     },
     {
       "kind": "proof", "display_name": "Proof", "role": "completion", "category": "completion",
+      "html": {"group": "exercise"},
       "render": {"style": "render-proof", "title_mode": "none", "qed": true},
       "variants": {
         "alternative": {"display_name": "Proof (Alternative)", "render_style": "render-proof-alternative", "text": "proof-alternative-text"},
@@ -164,6 +195,7 @@
     },
     {
       "kind": "solution", "display_name": "Solution", "role": "completion", "category": "completion",
+      "html": {"group": "exercise"},
       "render": {"style": "render-solution", "counter": "exercise-env", "title_mode": "direct", "qed": false, "counter_scope": "individual", "number_format": "solution-title"},
       "legacy": [
         {"tag": "solution", "numbered": true, "numbering_preference": "number solutions", "starred_tag": "solution*", "artifact_base": "solution", "starred_artifact_base": "solution*"},
@@ -175,11 +207,13 @@
     },
     {
       "kind": "quote-env", "display_name": "Quote", "role": "quotation", "category": "quotation",
+      "html": {"group": "remark", "class": "quote"},
       "render": {"style": "quote-env", "title_mode": "direct", "qed": false, "body_only": true},
       "legacy": [{"tag": "quote-env", "numbered": false}]
     },
     {
       "kind": "enunciation", "display_name": "Enunciation", "role": "supporting", "category": "enunciation",
+      "html": {"group": "remark"},
       "render": {"style": "render-enunciation", "title_mode": "direct", "qed": false},
       "legacy": [{"tag": "render-enunciation", "numbered": false, "layout": "title-body"}]
     }

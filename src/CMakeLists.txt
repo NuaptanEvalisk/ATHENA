@@ -135,6 +135,7 @@ function (athena_configure_body_target target_name)
     ${ADS_LIBRARIES}
     rapidfuzz::rapidfuzz
     athena_snowball_english
+    lexbor_static
     ncnn
     KF6::SyntaxHighlighting
     ${ATHENA_KF_COMPLETION_LIBRARY}

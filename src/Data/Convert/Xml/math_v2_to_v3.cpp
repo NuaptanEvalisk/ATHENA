@@ -1,11 +1,12 @@
 /******************************************************************************
 * MODULE     : math_v2_to_v3.cpp
-* DESCRIPTION: Offline-only mathematical AST conversion for XML v3
+* DESCRIPTION: Mathematical AST normalization and offline v2 migration
 * COPYRIGHT  : (C) 2026 ATHENA contributors
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
 ******************************************************************************/
 #include "math_v2_to_v3.hpp"
+#include "math_source_normalization.hpp"
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
 #include "tree_analyze.hpp"
@@ -1446,6 +1447,12 @@ class converter {
 public:
   explicit converter (bool strict): strict_ (strict) {}
 
+  tree import (const tree& source) {
+    tree result= walk (source, false, {});
+    rewrite_nested_metadata (result, {});
+    return result;
+  }
+
   math_v3_migration migrate (const tree& source) {
     report_.document= walk (source, false, {});
     // Rich trees in typed metadata are source objects too, even when nested
@@ -1470,6 +1477,10 @@ public:
 
 math_v3_migration migrate_math_v2_tree (const tree& source, bool strict) {
   return converter (strict).migrate (source);
+}
+
+tree normalize_imported_math (const tree& source) {
+  return converter (true).import (source);
 }
 
 void validate_cold_v3_migration (const tree& source) {

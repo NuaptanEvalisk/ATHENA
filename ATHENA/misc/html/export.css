@@ -1,0 +1,32 @@
+body { text-align: justify; }
+h5, h6 { display: inline; padding-right: 1em; }
+table { border-collapse: collapse; }
+td { padding: 0.2em; vertical-align: baseline; }
+dt { float: left; min-width: 1.75em; text-align: right; padding-right: 0.75em; font-weight: bold; }
+dd { margin-left: 2.75em; padding-bottom: 0.25em; }
+dd p { padding-top: 0; }
+.title-block { width: 100%; text-align: center; }
+.title-block p { margin: 0; }
+.compact-block p { margin-top: 0; margin-bottom: 0; }
+.left-tab { text-align: left; }
+.center-tab { text-align: center; }
+.right-tab { float: right; position: relative; top: -1em; }
+.balloon-anchor { border-bottom: 1px dotted #000; outline: none; cursor: help; position: relative; }
+.balloon-anchor [hidden] { margin-left: -999em; position: absolute; display: none; }
+.balloon-anchor:hover [hidden] { position: absolute; left: 1em; top: 2em; z-index: 99; margin-left: 0; width: 500px; display: inline-block; }
+.ornament { border-width: 1px; border-style: solid; border-color: black; display: inline-block; padding: 0.2em; }
+.enunciation { margin: 0.8em 0; padding: 0.55em 0.75em; border: 1px solid #888; }
+.enunciation-title { font-weight: bold; margin-bottom: 0.25em; }
+.enunciation p { margin-top: 0.25em; margin-bottom: 0.25em; }
+.figure { margin: 0.8em 0; text-align: center; }
+.figure-body { text-align: center; }
+.figure img { max-width: 100%; height: auto; }
+.figure-caption { margin-top: 0.35em; font-size: 90%; }
+.figure-caption-label { font-weight: bold; }
+.verbatim, tt, code, kbd, samp, pre { font-family: TeX Gyre Cursor, Courier New, Courier, monospace; font-size: 100%; }
+.no-breaks { white-space: nowrap; }
+.underline { text-decoration: underline; }
+.overline { text-decoration: overline; }
+.strike-through { text-decoration: line-through; }
+del { text-decoration: line-through wavy red; }
+.fill-out { text-decoration: underline dotted; }

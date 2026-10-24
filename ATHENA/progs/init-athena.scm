@@ -321,8 +321,6 @@
              export-selection-as-graphics clipboard-copy-image
              native-export-selection-as-image-dialog)
 (lazy-define (convert rewrite init-rewrite) texmacs->code texmacs->verbatim)
-(lazy-define (convert html tmhtml) ext-tmhtml-eqnarray*)
-(define-secure-symbols ext-tmhtml-eqnarray*)
 (lazy-define (convert html tmhtml-expand) tmhtml-env-patch)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 

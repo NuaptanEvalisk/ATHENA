@@ -362,7 +362,7 @@
 ;; step 2 generate output according to desired output format
 
     (extents (print-snippet myurl (stree->tree tm-fragment-formatted) #t)); scale))
-;; compute relative position of baseline from returned box dimensions  see tmhtml.scm
+;; compute relative position of baseline from returned box dimensions
     (height (- (fourth extents) (second extents)))
     (relbaseline (if needbaseline (number->string (exact->inexact (/ (- (sixth extents)) height))) "0.0"))
            ); end of let* defs

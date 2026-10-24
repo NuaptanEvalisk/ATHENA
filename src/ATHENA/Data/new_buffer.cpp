@@ -1212,11 +1212,16 @@ save_autosave_string (url dest, string contents) {
 
 bool
 export_tree (tree doc, url u, string fm) {
+  return export_tree (doc, u, fm, url_none ());
+}
+
+bool
+export_tree (tree doc, url u, string fm, url source) {
   if (fm == "generic") fm= "verbatim";
   // convert returns #f on failure. texmacs->generic turns that failure into
   // printable text; it is not a serialization API and must not feed a writer.
-  object converted= call ("convert", object (doc), object ("texmacs-tree"),
-                          object (fm * "-document"));
+  object converted= call ("convert-export-document", object (doc), object (source),
+                          object (u), object (fm * "-document"));
   if (!is_string (converted)) return true;
   string serialized= as_string (converted);
   return ends (as_string (u), "~") ?

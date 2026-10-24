@@ -1985,8 +1985,181 @@
   <binding name="parse-xml" native="parse_xml" returns="scheme_tree">
     <arg type="string" />
   </binding>
-  <binding name="parse-html" native="parse_html" returns="scheme_tree">
+  <binding name="parse-html" native="parse_html" returns="scheme_tree" exceptions="scheme">
     <arg type="string" />
+  </binding>
+  <binding name="parse-html-fragment" native="parse_html_fragment" returns="scheme_tree" exceptions="scheme">
+    <arg type="string" />
+  </binding>
+  <binding name="native-serialize-html" native="serialize_html" returns="string" exceptions="scheme">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="native-html-blockify" native="html_export_blockify" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="native-html-list-items" native="html_export_list_items" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="native-html-concat-output" native="html_export_concat_output" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="native-html-normalize-document" native="html_export_normalize_document" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="bool" />
+  </binding>
+  <binding name="native-html-simplify-nodes" native="html_export_simplify_nodes" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="native-html-finalize" native="html_export_finalize" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="bool" />
+  </binding>
+  <binding name="native-html-math-plan" native="html_export_math_plan" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="bool" />
+    <arg type="bool" />
+  </binding>
+  <binding name="native-html-markup-plan" native="html_export_markup_plan" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="native-html-prepare-source" native="html_export_prepare_source" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="native-html-stylesheet" native="html_export_stylesheet" returns="string" exceptions="scheme">
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="bool" />
+  </binding>
+  <binding name="native-html-length" native="html_export_length" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="string" />
+  </binding>
+  <binding name="native-html-color" native="html_export_color" returns="string" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="bool" />
+  </binding>
+  <binding name="native-html-table-plan" native="html_export_table_plan" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="native-html-ornament" native="html_export_ornament" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="native-html-table-output" native="html_export_table_output" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="native-html-finish-body" native="html_export_finish_body" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="bool" />
+  </binding>
+  <binding name="native-html-paragraph" native="html_export_paragraph" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="native-html-style-plan" native="html_export_style_plan" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="double" />
+    <arg type="double" />
+  </binding>
+  <binding name="native-html-style-output" native="html_export_style_output" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="native-html-sequence-plan" native="html_export_sequence_plan" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="bool" />
+  </binding>
+  <binding name="native-html-concat-plan" native="html_export_concat_plan" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="native-html-sequence-output" native="html_export_sequence_output" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="native-html-text" native="html_export_text" returns="scheme_tree" exceptions="scheme">
+    <arg type="string" />
+    <arg type="bool" />
+  </binding>
+  <binding name="native-html-image-output" native="html_export_image_output" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="string" />
+  </binding>
+  <binding name="native-html-convert" native="html_export_convert" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="procedure" />
+    <arg type="string" />
+  </binding>
+  <binding name="native-html-import-element" native="html_import_element" returns="scheme_tree" exceptions="scheme">
+    <arg type="string" />
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="native-html-import-whitespace" native="html_import_whitespace" returns="scheme_tree" exceptions="scheme">
+    <arg type="string" />
+    <arg type="scheme_tree" />
+    <arg type="bool" />
+  </binding>
+  <binding name="native-html-import-serial" native="html_import_serial" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="bool" />
+  </binding>
+  <binding name="native-html-import-table" native="html_import_table" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="native-html-import-table-plan" native="html_import_table_plan" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="native-html-import-convert" native="html_import_convert" returns="tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="procedure" />
+  </binding>
+  <binding name="native-parse-html-import" native="parse_html_import" returns="scheme_tree" exceptions="scheme">
+    <arg type="string" />
+    <arg type="bool" />
+  </binding>
+  <binding name="native-html-picture-output" native="html_export_picture_output" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="string" />
+    <arg type="scheme_tree" />
+    <arg type="double" />
+  </binding>
+  <binding name="native-html-markup-output" native="html_export_markup_output" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="native-html-math-output" native="html_export_math_output" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="bool" />
+    <arg type="bool" />
+  </binding>
+  <binding name="native-html-enunciation-plan" native="html_export_enunciation_plan" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="native-html-enunciation-output" native="html_export_enunciation_output" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
+    <arg type="string" />
+  </binding>
+  <binding name="native-html-enunciation-tags" native="html_export_enunciation_tags" returns="scheme_tree" exceptions="scheme" />
+  <binding name="native-html-document-plan" native="html_export_document_plan" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="string" />
+    <arg type="bool" />
+  </binding>
+  <binding name="native-html-document-output" native="html_export_document_output" returns="scheme_tree" exceptions="scheme">
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
+    <arg type="scheme_tree" />
   </binding>
   <binding name="clean-html" native="clean_html" returns="tree">
     <arg type="content" />
@@ -2002,9 +2175,6 @@
   </binding>
   <binding name="native-mathml-xml-&gt;tree-v3" native="mathml_xml_to_tree_v3" returns="tree" exceptions="scheme">
     <arg type="string" />
-  </binding>
-  <binding name="retrieve-mathjax" native="retrieve_mathjax" returns="tree">
-    <arg type="int" />
   </binding>
   <binding name="aofm-markdown-&gt;texmacs" native="aofm_markdown_to_tree" returns="tree">
     <arg type="string" />

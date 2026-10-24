@@ -1,7 +1,7 @@
 ;; Load in the centralized ATHENA runtime test process. No source documents,
 ;; buffers, vaults or files are read or written by this test.
 (use-modules (convert latex init-latex) (convert html init-html)
-             (convert html tmhtml) (convert rewrite tmtm-brackets))
+             (convert html html-export) (convert rewrite tmtm-brackets))
 (define (check value message)
   (unless value (error "Native v3 export regression" message)))
 (define (expect-error thunk reason)

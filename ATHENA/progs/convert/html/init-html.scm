@@ -42,8 +42,9 @@
 (lazy-define (convert html htmltm) parse-html-snippet)
 (lazy-define (convert html htmltm) parse-html-document)
 (lazy-define (convert html htmltm) html->texmacs)
+(lazy-define (convert html htmltm) html->texmacs-tree)
 (lazy-define (convert html htmlout) serialize-html)
-(lazy-define (convert html tmhtml) texmacs->html)
+(lazy-define (convert html html-export) texmacs->html)
 
 (converter html-document html-stree
   (:function parse-html-document))
@@ -60,11 +61,11 @@
 (converter html-stree texmacs-stree
   (:function html->texmacs))
 
+(converter html-stree texmacs-tree
+  (:function html->texmacs-tree))
+
 (converter texmacs-stree html-stree
   (:function-with-options texmacs->html)
-  (:option "texmacs->html:css" "on")
-  (:option "texmacs->html:mathjax" "off")
-  (:option "texmacs->html:images" "on")
   (:option "texmacs->html:css-stylesheet" "---"))
 
 ;; Keep typed metadata for selections as well as complete documents. Option
@@ -86,7 +87,4 @@
 ;; alternate representation is introduced inside the XML v3 reader.
 (converter texmacs-tree html-document
   (:function-with-options texmacs->html-document)
-  (:option "texmacs->html:css" "on")
-  (:option "texmacs->html:mathjax" "off")
-  (:option "texmacs->html:images" "on")
   (:option "texmacs->html:css-stylesheet" "---"))

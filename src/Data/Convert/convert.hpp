@@ -291,8 +291,55 @@ tree   parse_xml (string s);
 // Explicit v3 MathML source parser: preserve the lexical difference between
 // a named mathematical entity and an escaped literal ampersand in token text.
 tree   parse_xml_mathml_v3 (string s);
-tree   parse_plain_html (string s);
 tree   parse_html (string s);
+tree   parse_html_fragment (string s);
+string serialize_html (tree t);
+scheme_tree html_export_blockify (scheme_tree source);
+scheme_tree html_export_normalize_document (scheme_tree source, bool preserve_block);
+scheme_tree html_export_simplify_nodes (scheme_tree nodes);
+scheme_tree html_export_list_items (scheme_tree source);
+scheme_tree html_export_concat_output (scheme_tree nodes);
+scheme_tree html_export_concat_plan (scheme_tree source);
+scheme_tree html_export_finalize (scheme_tree source, bool document);
+scheme_tree html_export_math_plan (scheme_tree source, bool display, bool block);
+scheme_tree html_export_markup_plan (scheme_tree source);
+scheme_tree html_export_prepare_source (scheme_tree source);
+string html_export_stylesheet (string link, string visited, string selection,
+                               string background, bool override_background);
+scheme_tree html_export_length (scheme_tree source, string mode);
+string html_export_color (scheme_tree source, bool background);
+scheme_tree html_export_table_plan (scheme_tree source);
+scheme_tree html_export_table_output (scheme_tree plan, scheme_tree children);
+scheme_tree html_export_ornament (scheme_tree source, scheme_tree body,
+                                 scheme_tree environment);
+scheme_tree html_export_finish_body (scheme_tree nodes, bool css);
+scheme_tree html_export_paragraph (scheme_tree source, scheme_tree body);
+scheme_tree html_export_style_plan (scheme_tree source, double left, double right);
+scheme_tree html_export_style_output (scheme_tree plan, scheme_tree children);
+scheme_tree html_export_sequence_plan (scheme_tree source, bool preformatted);
+scheme_tree html_export_sequence_output (scheme_tree plan, scheme_tree children);
+scheme_tree html_export_text (string source, bool preformatted);
+scheme_tree html_export_image_output (scheme_tree source, string location);
+scheme_tree html_export_picture_output (scheme_tree source, string location,
+                                        scheme_tree extents, double scale);
+scheme_tree html_export_convert (scheme_tree source, object resources, string source_url);
+scheme_tree html_import_element (string tag, scheme_tree attrs, scheme_tree body);
+scheme_tree html_import_whitespace (string mode, scheme_tree nodes, bool preserve);
+scheme_tree html_import_serial (scheme_tree source, bool preserve);
+scheme_tree html_import_table (scheme_tree attrs, scheme_tree cells, scheme_tree spans);
+scheme_tree html_import_table_plan (scheme_tree source);
+tree html_import_convert (scheme_tree source, object resources);
+scheme_tree parse_html_import (string source, bool fragment);
+scheme_tree html_export_markup_output (scheme_tree source, scheme_tree children);
+scheme_tree html_export_math_output (scheme_tree latex, bool display, bool block);
+scheme_tree html_export_enunciation_plan (scheme_tree source);
+scheme_tree html_export_enunciation_output (scheme_tree plan, scheme_tree title,
+                                          scheme_tree body, string color);
+scheme_tree html_export_enunciation_tags ();
+scheme_tree html_export_document_plan (scheme_tree source, scheme_tree styles,
+    string css, string stylesheet, string generator, bool mathjax);
+scheme_tree html_export_document_output (scheme_tree plan, scheme_tree title,
+                                        scheme_tree body);
 tree   clean_html (tree t);
 tree   upgrade_mathml (tree t);
 string serialize_xml (scheme_tree t);
@@ -300,7 +347,6 @@ tree   mathml_to_tree (scheme_tree t);
 // Explicit strict Presentation MathML -> native v3 AST entry; no v2 normalization.
 tree   mathml_to_tree_v3 (scheme_tree t);
 tree   mathml_xml_to_tree_v3 (string raw_xml);
-tree   retrieve_mathjax (int id);
 
 tree   find_first_element_by_name (tree t, string name);
 string get_attr_from_element (tree t, string name, string default_value);

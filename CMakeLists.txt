@@ -407,6 +407,26 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(luau)
 
+### --------------------------------------------------------------------
+### HTML5 DOM, parser and serializer (Lexbor 3.0.1, Apache-2.0)
+### --------------------------------------------------------------------
+set(LEXBOR_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+set(LEXBOR_BUILD_STATIC ON CACHE BOOL "" FORCE)
+set(LEXBOR_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(LEXBOR_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(LEXBOR_BUILD_UTILS OFF CACHE BOOL "" FORCE)
+set(LEXBOR_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
+set(LEXBOR_INSTALL_HEADERS OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+  lexbor
+  GIT_REPOSITORY https://github.com/lexbor/lexbor.git
+  GIT_TAG        7e278c0188489bfce6b71ced0cc900cbb31e6244
+)
+FetchContent_MakeAvailable(lexbor)
+set_property(DIRECTORY "${lexbor_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL TRUE)
+set_target_properties(lexbor_static PROPERTIES
+  AUTOMOC OFF POSITION_INDEPENDENT_CODE ON)
+
 
 ### --------------------------------------------------------------------
 ### Check for standard functionalities

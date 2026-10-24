@@ -18,8 +18,6 @@
         (if (eof-object? form) (reverse result)
             (loop (cons form result) (read port)))))))
 (define latex (read-forms "ATHENA/progs/convert/latex/init-latex.scm"))
-(define html-init (read-forms "ATHENA/progs/convert/html/init-html.scm"))
-(define html (read-forms "ATHENA/progs/convert/html/tmhtml.scm"))
 (define (load-definitions forms names)
   (for-each
     (lambda (form)
@@ -36,8 +34,7 @@
          (function (assoc-ref (cdddr registration) ':function-with-options)))
     ((module-ref (current-module) (car function)) source opts)))
 (define (std-converter-options from to)
-  (if (equal? to "html-stree") '(("texmacs->html:mathjax" . "off"))
-      '(("texmacs->latex:encoding" . "utf-8"))))
+  '(("texmacs->latex:encoding" . "utf-8")))
 
 (define tree? vector?)
 (define prepared-count 0)
@@ -54,7 +51,6 @@
   (set! seen-options opts)
   (if (procedure? output) (output) output))
 (define serialize-latex identity)
-(define serialize-html identity)
 (define conservative-count 0)
 (define (conservative-texmacs->latex x opts)
   (set! conservative-count (+ conservative-count 1)) 'legacy-output)
@@ -62,7 +58,6 @@
   '(latex-native-v3-math? latex-native-v3-check-output texmacs->latex-checked
     texmacs-tree->latex-stree texmacs->latex-document
     texmacs-tree->latex-document texmacs-stree->latex-document))
-(load-definitions html-init '(texmacs-tree->html-stree texmacs->html-document))
 
 (for-each
   (lambda (to)
@@ -76,7 +71,6 @@
        "prepared stree document bypassed checked export")
 (check (equal? (invoke latex 'texmacs-stree 'latex-document '(math "x") '())
                'legacy-output) "v2 conservative path changed")
-(check (edge html-init 'texmacs-tree 'html-stree) "HTML selection route missing")
 (invoke latex 'texmacs-tree 'latex-stree native
         '(("texmacs->latex:encoding" . "ascii")))
 (check (equal? (assoc-ref seen-options "texmacs->latex:encoding") "ascii")
@@ -106,46 +100,4 @@
 (check (= conservative-count 1) "error retried through legacy exporter")
 (set! output '(!concat "valid"))
 
-(define tmhtml-mathjax? #f)
-(define tmhtml-site-version "2")
-(define initialized 0)
-(define (tmhtml-initialize opts) (set! initialized (+ initialized 1)))
-(define (tmfile? x) #f)
-(define tmhtml-root identity)
-(define tmhtml-finalize-selection identity)
-(define tmhtml-finalize-document identity)
-(define (tmhtml-dispatch table source) #f)
-(load-definitions html
-  '(tmhtml-prepare-source texmacs->html tmhtml-png tmhtml-implicit-compound
-    tmhtml-native-v3-math-block))
-(for-each
-  (lambda (options)
-    (expect-error (lambda () (texmacs->html native options)) "mathjax=on")
-    (expect-error (lambda () (texmacs->html source options)) "mathjax=on"))
-  '(() (("texmacs->html:images" . "on"))))
-(check (= initialized 0) "HTML failure happened after initialization")
-(expect-error (lambda () (tmhtml-png source)) "raster fallback")
-(expect-error (lambda () (tmhtml-implicit-compound `(unknown ,source)))
-              "unknown enclosing markup")
-(define mj-options '(("texmacs->html:mathjax" . "on")))
-(check (equal? (invoke html-init 'texmacs-tree 'html-stree native mj-options) source)
-       "HTML selection lost typed preparation or explicit MathJax option")
-(check (equal? (texmacs->html-document native mj-options) source)
-       "HTML document lost typed preparation")
-(set! tmhtml-mathjax? #t)
-(set! output '(!concat (nonconverted "unsupported")))
-(expect-error (lambda () (tmhtml-native-v3-math-block '("1" "x")))
-              "nonconverted")
-
-;; Execute the actual loader/configuration branch, not a duplicated JS fixture.
-(define (locate-config form)
-  (and (pair? form)
-       (if (and (eq? (car form) 'if) (eq? (cadr form) 'tmhtml-mathjax?))
-           form (any locate-config form))))
-(define xhead '())
-(eval (any locate-config html) (current-module))
-(check (= (length xhead) 2) "MathJax config/loader pair missing")
-(check (string-contains (cadar xhead) "window.MathJax.tex.tags = 'ams'")
-       "AMS numbering is not enabled before the loader")
-(check (equal? (caadr xhead) 'h:script) "loader must follow configuration")
-(display "PASS: native v3 export routes, fail-closed dispatch and MathJax AMS config\n")
+(display "PASS: native v3 LaTeX routes and fail-closed dispatch\n")

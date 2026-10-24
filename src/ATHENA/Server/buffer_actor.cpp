@@ -2192,7 +2192,7 @@ buffer_actor::dispatch (actor_command_record& command) {
       tree links= as_tree (call (
         "get-link-locations", object (impl_->state.name), object (body)));
       if (N (links) != 0) document << compound ("links", links);
-      failed= export_tree (document, dest, format);
+      failed= export_tree (document, dest, format, impl_->state.name);
     }
     command.argument[0]= failed ? 1 : 0;
     break;

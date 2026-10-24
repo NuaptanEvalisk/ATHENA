@@ -861,11 +861,3 @@ parse_xml_mathml_v3 (string s) {
   parser.preserve_mathml_literal_amp= true;
   return parser.parse (s);
 }
-
-tree
-parse_plain_html (string s) {
-  xml_html_parser parser;
-  parser.html= true;
-  tree t= parser.parse (s);
-  return t;
-}

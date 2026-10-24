@@ -29,6 +29,7 @@
   ;; FIXME: we should use the DRD here
   `(collection
     ,@(map tmhtml-env-macro
+           (append
 	   '(TeXmacs TeX LaTeX ATHENA athena shown hrule item
 	     chapter-title section-title subsection-title subsubsection-title
 	     paragraph-title subparagraph-title
@@ -54,17 +55,8 @@
              hover-balloon hover-balloon*
              popup-balloon popup-balloon*
              render-big-figure render-small-figure
-             render-big-table render-small-table
-             theorem theorem* proposition proposition* lemma lemma*
-             corollary corollary* axiom axiom* conjecture conjecture*
-             law law* definition definition* notation notation*
-             convention convention* remark remark* note note* example
-             example* warning warning* disambiguation disambiguation*
-             acknowledgments acknowledgments* exercise exercise* problem
-             problem* question question* solution solution* answer answer*
-             proof proof-alternative proof-standard proof-of
-             render-theorem render-remark render-exercise render-solution
-             render-proof render-proof-alternative render-proof-standard))
+             render-big-table render-small-table)
+           (native-html-enunciation-tags)))
     ;; FIXME: should apply 'filter_style' to the environment
     ;; in an appropriate way to avoid adding the primitives below
     ,@(map tmhtml-env-macro

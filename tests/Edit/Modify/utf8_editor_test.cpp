@@ -2386,7 +2386,7 @@ private slots:
     QVERIFY (as_bool (call (run, object (test_path))));
   }
   void nativeV3HtmlMathJaxKeepsMathBlockAndScriptMetadata () {
-    eval ("(use-modules (convert html init-html) (convert html tmhtml) "
+    eval ("(use-modules (convert html init-html) (convert html html-export) "
           "(convert html htmlout))");
     object options= eval ("'((\"texmacs->html:mathjax\" . \"on\") "
                           "(\"texmacs->html:css\" . \"on\") "

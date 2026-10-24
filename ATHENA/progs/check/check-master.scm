@@ -13,10 +13,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (check check-master)
-  (:use (convert html htmltm-test)
-        (convert html tmhtml-test)
-        (convert tools xmltm-test)
-        (convert tools tmlength-test)
+  (:use (convert tools tmlength-test)
         (convert tools environment-test)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -77,9 +74,6 @@
   (check-latex-export "$ATHENA_CHECKS/latex-export"))
 
 (tm-define (run-all-tests)
-  (regtest-htmltm)
-  (regtest-xmltm)
   (regtest-tmlength)
   (regtest-environment)
-  (regtest-tmhtml)
 )
