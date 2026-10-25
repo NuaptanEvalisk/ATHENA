@@ -53,6 +53,7 @@ public:
   void make_style_with (string var, string val);
 
   void make_hybrid ();
+  void make_native_math_block (bool grid);
   bool hybrid_name_context ();
   bool hybrid_keypress (string key);
   bool prepare_hybrid ();

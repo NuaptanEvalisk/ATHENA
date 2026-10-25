@@ -544,8 +544,6 @@ public:
   virtual void math_separator (string separator, int large_mode) = 0;
   virtual void math_kbd_select_enlarge () = 0;
   virtual void math_evaluation_bar () = 0;
-  virtual void equation_to_eqnarray (tree_label equation_tag) = 0;
-  virtual void eqnarray_to_equation () = 0;
 
   /* public routines from edit_table */
   virtual void   make_table (int nr_rows=1, int nr_cols=1) = 0;
@@ -598,6 +596,7 @@ public:
   virtual void make_mod_active (tree_label l) = 0;
   virtual void make_style_with (string var, string val) = 0;
   virtual void make_hybrid () = 0;
+  virtual void make_native_math_block (bool grid) = 0;
   virtual bool hybrid_name_context () = 0;
   virtual bool hybrid_keypress (string key) = 0;
   virtual bool prepare_hybrid () = 0;

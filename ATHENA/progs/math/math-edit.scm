@@ -107,21 +107,6 @@
   (go-end-of 'math)
   (insert-return))
 
-(tm-define (kbd-enter t shift?)
-  (:require (tree-is? t 'equation))
-  (go-end-of 'equation)
-  (insert-return))
-
-(tm-define (kbd-enter t shift?)
-  (:require (tree-is? t 'equation*))
-  (go-end-of 'equation*)
-  (insert-return))
-
-(tm-define (label-insert t)
-  (:require (tree-is? t 'eqnarray*))
-  (go-end-line)
-  (make 'label))
-
 (tm-define (math-make-math)
   (if (inside? 'math)
       (go-end-of 'math)
@@ -129,137 +114,9 @@
 		   (string-append "make 'math'"))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Subroutines for moving punctuation symbols around
+;; Mathematical editing helpers
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (string-ref-nspace? s i)
-  (!= (string-ref s i) #\space))
-
-(define (string-ref-npunct? s i)
-  (nin? (string-ref s i) '(#\space #\. #\, #\: #\;)))
-
-(define (string-search-forwards s i n pred?)
-  (cond ((>= i n) i)
-	((pred? s i) i)
-	(else (string-search-forwards s (+ i 1) n pred?))))
-
-(define (string-search-backwards s i b pred?)
-  (cond ((<= i b) i)
-	((pred? s (- i 1)) i)
-	(else (string-search-backwards s (- i 1) b pred?))))
-
-(define (atomic-cut-left-until t pred?)
-  (if (atomic-tree? t)
-      (let* ((s (tree->string t))
-	     (n (string-length s))
-	     (i (string-search-forwards s 0 n pred?)))
-	(if (> i 0)
-	    (with ss (substring s 0 i)
-	      (tree-remove! t 0 i)
-	      (tree-correct-upwards t)
-	      ss)
-	    ""))
-      ""))
-
-(define (atomic-cut-right-until t pred?)
-  (if (atomic-tree? t)
-      (let* ((s (tree->string t))
-	     (n (string-length s))
-	     (i (string-search-backwards s n 0 pred?)))
-	(if (< i n)
-	    (with ss (substring s i n)
-	      (tree-remove! t i (- n i))
-	      (tree-correct-upwards t)
-	      ss)
-	    ""))
-      ""))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Switching between inlined and displayed equations
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define-macro (concat-isolate! t)
-  `(cond ((not (tree-is? t :up 'concat)) (noop))
-	 ((not (tree-is? t :up :up 'document)) (noop))
-	 ((= (tree-arity (tree-up t)) 1) (tree-set! t :up t))
-	 ((< (tree-index t) (- (tree-arity (tree-up t)) 1))
-	  (tree-split (tree-up t 2)
-		      (tree-index (tree-up t))
-		      (+ (tree-index t) 1))
-	  (concat-isolate! t))
-	 (else
-	  (tree-split (tree-up t 2)
-		      (tree-index (tree-up t))
-		      (tree-index t))
-	  (concat-isolate! t))))
-
-(define (math->equation* t)
-  (let* ((c (and (tree-is? t :up 'concat) (tree-is? t :up :up 'document)))
-         (r (and c (atomic-cut-left-until (tree-ref t :next)
-                                          string-ref-npunct?)))
-         (l (and c (atomic-cut-right-until (tree-ref t :previous)
-                                           string-ref-nspace?))))
-    (concat-isolate! t)
-    (if (tree-is? t :up 'document)
-        (begin
-          (if (not r) (set! r ""))
-          (if (not l) (set! l ""))
-          (tree-set! t `(equation* (document ,(tree-ref t 0))))
-          (while (string-ends? r " ")
-            (set! r (string-drop-right r 1)))
-          (with-cursor (tree->path t 0 0 :end)
-            (insert r))))))
-
-(define (equation*->math t)
-  (if (or (not (tree-is? t 0 'document))
-          (= (tree-arity (tree-ref t 0)) 1))
-      (begin
-        (if (tree-is? t 0 'document)
-            (tree-set! t 0 (tree-ref t 0 0)))
-        (tree-set! t `(math ,(tree-ref t 0)))
-        (with r (atomic-cut-right-until (tree-end (tree-ref t 0))
-                                        string-ref-npunct?)
-          (with-cursor (tree->path t :start)
-            (kbd-backspace)
-            (if (and (!= (cursor-path) (cursor-after (go-start-paragraph)))
-                     (!= (cursor-path) (cursor-after (go-end-paragraph))))
-                (insert " ")))
-          (with-cursor (tree->path t :end)
-            (insert r)
-            (kbd-delete)
-            (if (and (!= (cursor-path) (cursor-after (go-start-paragraph)))
-                     (!= (cursor-path) (cursor-after (go-end-paragraph))))
-                (insert " ")))))))
-
-(define (with-math-context? t)
-  (match? t '(with "mode" "math" :%1)))
-
-(tm-define (variant-circulate t forward?)
-  (:require (with-math-context? t))
-  (tree-set! t `(math ,(tree-ref t 2)))
-  (math->equation* t))
-
-(tm-define (variant-circulate t forward?)
-  (:require (tree-is? t 'math))
-  (math->equation* t))
-
-(tm-define (variant-circulate t forward?)
-  (:require (tree-in? t '(equation equation*)))
-  (equation*->math t))
-
-(tm-define (variant-formula t)
-  (with-innermost t '(math equation equation*)
-    (when (tree-in? t '(equation equation*))
-      (equation*->math t))))
-
-(tm-define (variant-equation t)
-  (with-innermost t '(math equation equation*)
-    (when (tree-in? t '(math))
-      (math->equation* t))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Switching between displayed equations and equation arrays
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (search-labels t)
   (tree-search t (lambda (l) (tree-in? l (label-tag-list)))))
@@ -742,7 +599,7 @@
                    (for (c (tree-children t)) (insert c))))))))))
 
 (tm-define (standard-options l)
-  (:require (in? l '(math equation equation* eqnarray eqnarray*)))
+  (:require (== l 'math))
   (list :recurse "number-long-article" "math-check"))
 
 (tm-define (standard-options l)
@@ -752,22 +609,6 @@
 (tm-define (focus-tag-name l)
   (:require (== l 'math))
   "Inline formula")
-
-(tm-define (focus-tag-name l)
-  (:require (in? l '(equation equation*)))
-  "Displayed formula")
-
-(tm-define (focus-tag-name l)
-  (:require (in? l '(eqnarray eqnarray*)))
-  "Equations")
-
-(tm-define (focus-variants-of t)
-  (:require (tree-in? t '(math equation equation*)))
-  '(formula equation))
-
-(tm-define (focus-variants-of t)
-  (:require (tree-in? t '(eqnarray eqnarray*)))
-  '(eqnarray*))
 
 (tm-define (focus-can-insert-remove? t)
   (:require (script-context? t))

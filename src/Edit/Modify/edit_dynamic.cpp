@@ -98,37 +98,10 @@ contains_table_format (tree t, tree var) {
   }
 }
 
-static tree
-native_eqnarray (tree body) {
-  if (is_func (body, DOCUMENT, 1)) body= body[0];
-  tree grid (MATH_GRID,
-    tree (ROW, tree (CELL, body), tree (CELL, ""), tree (CELL, "")));
-  athena::node::metadata grid_meta;
-  grid_meta.properties["math:grid-kind"]= athena::node::property (
-    std::string ("eqnarray"));
-  athena::node::set (grid, grid_meta);
-  tree block (MATH_BLOCK, grid);
-  athena::node::metadata block_meta;
-  // Both shipped eqnarray macros default to unnumbered rows.
-  block_meta.properties["math:block-numbered"]= athena::node::property (false);
-  athena::node::set (block, block_meta);
-  return block;
-}
-
 void
 edit_dynamic_rep::make_compound (tree_label l, int n= -1) {
   //cout << "Make compound " << as_string (l) << ", " << n << "\n";
   const string tag= as_string (l);
-  if ((tag == "eqnarray" || tag == "eqnarray*") &&
-      (n == -1 || n == 1) &&
-      buf->storage_version == athena::document::xml_storage_version::v3 &&
-      !in_source () && !inside ("show-preamble")) {
-    if (selection_active_any () && !selection_active_small ()) return;
-    tree body= selection_active_small () ? selection_get_cut () : tree ("");
-    tree block= native_eqnarray (body);
-    insert_tree (block, path (0, 0, 0, 0) * end (block[0][0][0][0]));
-    return;
-  }
   const auto* declaration= athena::enunciation::standard_registry ().legacy (
     std::string (tag.data (), N(tag)));
   if (declaration && !in_source () && !inside ("show-preamble")) {
@@ -594,6 +567,57 @@ edit_dynamic_rep::make_hybrid () {
 }
 
 void
+edit_dynamic_rep::make_native_math_block (bool grid) {
+  path hp= search_upwards (HYBRID);
+  if (buf->storage_version != athena::document::xml_storage_version::v3 ||
+      (is_nil (hp) && in_source ()) || inside ("show-preamble")) {
+    set_message ("Math insertion requires XML v3 content mode", "mathematics");
+    return;
+  }
+  if (is_nil (hp) && selection_active_any () && !selection_active_small ()) return;
+  tree body ("");
+  if (!is_nil (hp)) {
+    tree input= subtree (et, hp);
+    if (N(input) == 2) body= copy (input[1]);
+    if (is_func (subtree (et, path_up (hp)), INACTIVE)) hp= path_up (hp);
+    assign (hp, "");
+    go_to (hp * 0);
+    correct (path_up (hp));
+  }
+  else if (selection_active_small ()) body= selection_get_cut ();
+  if (is_func (body, DOCUMENT)) {
+    if (N(body) != 1) {
+      set_message ("Math insertion requires a single selected expression", "mathematics");
+      return;
+    }
+    if (athena::node::get (body)) {
+      tree envelope (CONCAT, body[0]);
+      athena::node::copy_metadata (body, envelope);
+      body= envelope;
+    }
+    else body= body[0];
+  }
+  tree content= body;
+  if (grid) {
+    content= tree (MATH_GRID,
+      tree (ROW, tree (CELL, body), tree (CELL, ""), tree (CELL, "")));
+    athena::node::metadata properties;
+    properties.properties["math:grid-kind"]= athena::node::property (
+      std::string ("eqnarray"));
+    athena::node::set (content, properties);
+  }
+  tree block (MATH_BLOCK, content);
+  athena::node::metadata properties;
+  properties.properties["math:block-numbered"]= athena::node::property (false);
+  athena::node::set (block, properties);
+  if (grid)
+    insert_tree (block, path (0, 0, 0, 0) * end (block[0][0][0][0]));
+  else insert_tree (block, path (0) * end (block[0]));
+  ensure_trailing_proof_paragraph ();
+  if (!is_nil (hp)) finish_hybrid (true);
+}
+
+void
 edit_dynamic_rep::finish_hybrid (bool accepted) {
   if (hybrid_mark != 0) {
     interrupt_shortcut ();
@@ -823,20 +847,6 @@ edit_dynamic_rep::activate_hybrid (bool with_args_hint) {
         return;
       }
       tree result (label, A(input[1]));
-      if ((input[0] == "eqnarray" || input[0] == "eqnarray*") &&
-          N(input[1]) == 1 &&
-          buf->storage_version == athena::document::xml_storage_version::v3 &&
-          !in_source () && !inside ("show-preamble")) {
-        if (is_func (subtree (et, path_up (hp)), INACTIVE)) hp= path_up (hp);
-        tree block= native_eqnarray (copy (input[1][0]));
-        assign (hp, "");
-        go_to (hp * 0);
-        correct (path_up (hp));
-        insert_tree (block, path (0, 0, 0, 0) * end (block[0][0][0][0]));
-        ensure_trailing_proof_paragraph ();
-        finish_hybrid (true);
-        return;
-      }
       const auto* declaration= athena::enunciation::standard_registry ().legacy (
         std::string (input[0]->label.data (), N(input[0]->label)));
       if (declaration && !in_source ()) {

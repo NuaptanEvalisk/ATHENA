@@ -23746,45 +23746,6 @@
           ]
         }
       ]
-    },
-    {
-      "context": "inside:equation*",
-      "bindings": [
-        {
-          "key": "C-&",
-          "actions": [
-            {
-              "op": "equation-to-eqnarray"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "context": "inside:equation",
-      "bindings": [
-        {
-          "key": "C-&",
-          "actions": [
-            {
-              "op": "equation-to-eqnarray"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "context": "inside:eqnarray*",
-      "bindings": [
-        {
-          "key": "C-&",
-          "actions": [
-            {
-              "op": "eqnarray-to-equation"
-            }
-          ]
-        }
-      ]
     }
   ]
 }

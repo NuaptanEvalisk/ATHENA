@@ -296,7 +296,7 @@
       (and (tree-up t) (tree-is? (tree-up t) 'document))))
 
 (define (math-context? t)
-  (tree-in? t '(equation equation* eqnarray eqnarray*)))
+  (tree-in? t '(math-block math-grid)))
 
 (define (uncell t)
   (if (tm-func? t 'cell 1) (tm-ref t 0) t))
@@ -310,9 +310,7 @@
          (with l (symbol-append (tm-label t) '*)
            `(,l ,@(tm-children t))))
         ((tm-in? t '(label item item* bibitem bibitem* eq-number)) "")
-        ((or (tm-func? t 'equation 1) (tm-func? t 'equation* 1))
-         `(equation* ,(clean-preview (tm-ref t 0))))
-        ((tm-in? t '(eqnarray eqnarray* tformat table row cell))
+        ((tm-in? t '(tformat table row cell))
          `(,(tm-label t) ,@(map clean-preview (tm-children t))))
         (else t)))
 

@@ -716,6 +716,8 @@
     <arg type="string" />
   </binding>
   <binding name="hybrid-kbd-curly-left" native="generic_hybrid_kbd_curly_left" returns="void" />
+  <binding name="insert-native-math-block" native="generic_insert_native_math_block" returns="void" />
+  <binding name="insert-native-math-grid" native="generic_insert_native_math_grid" returns="void" />
   <binding name="hybrid-kbd-curly-right" native="generic_hybrid_kbd_curly_right" returns="void" />
   <binding name="hybrid-kbd-backslash" native="generic_hybrid_kbd_backslash" returns="void" />
   <binding name="hybrid-kbd-sub" native="generic_hybrid_kbd_sub" returns="void" />

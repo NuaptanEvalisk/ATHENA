@@ -43,8 +43,6 @@ public:
   void math_separator (string separator, int large_mode);
   void math_kbd_select_enlarge ();
   void math_evaluation_bar ();
-  void equation_to_eqnarray (tree_label equation_tag);
-  void eqnarray_to_equation ();
   bool math_select_before_cursor_unit ();
   void back_around (tree t, path p, bool forward);
   void back_prime (tree t, path p, bool forward);

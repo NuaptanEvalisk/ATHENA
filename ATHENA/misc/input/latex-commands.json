@@ -4883,38 +4883,7 @@
       "help": "Insert equation",
       "actions": [
         {
-          "op": "make-equation-like",
-          "tag": "equation*"
-        }
-      ]
-    },
-    {
-      "command": "equation",
-      "help": "Insert numbered equation",
-      "actions": [
-        {
-          "op": "make-equation-like",
-          "tag": "equation"
-        }
-      ]
-    },
-    {
-      "command": "eqnarray",
-      "help": "Insert equation array",
-      "actions": [
-        {
-          "op": "make-equation-like",
-          "tag": "eqnarray"
-        }
-      ]
-    },
-    {
-      "command": "eqnarray*",
-      "help": "Insert equation array",
-      "actions": [
-        {
-          "op": "make-equation-like",
-          "tag": "eqnarray*"
+          "op": "insert-native-math-block"
         }
       ]
     },

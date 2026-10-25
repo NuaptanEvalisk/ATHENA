@@ -296,13 +296,6 @@ void execute_action (const QJsonObject& action) {
   else if (op == "separator")
     ed->math_separator (native_string (action.value ("value")),
                         native_large_mode (action.value ("large")));
-  else if (op == "equation-to-eqnarray") {
-    ASSERT (ed->inside ("equation") || ed->inside ("equation*"),
-            "equation conversion outside equation");
-    ed->equation_to_eqnarray (ed->inside ("equation*") ?
-      make_tree_label ("equation*") : make_tree_label ("equation"));
-  }
-  else if (op == "eqnarray-to-equation") ed->eqnarray_to_equation ();
   else FAILED ("unknown native math keyboard action");
 }
 

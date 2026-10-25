@@ -614,8 +614,11 @@ void generic_hybrid_kbd_formula_open (string bracket) {
   if (!hybrid_command (p, command, atomic)) return;
   editor ed= get_current_editor ();
   if (atomic && command == "") {
-    assign (p * 0, tree (bracket));
-    ed->activate_hybrid (false);
+    if (bracket == "[") ed->make_native_math_block (false);
+    else {
+      assign (p * 0, tree (bracket));
+      ed->activate_hybrid (false);
+    }
   }
   else ed->insert_tree (tree (bracket));
 }
@@ -627,8 +630,7 @@ void generic_hybrid_kbd_curly_left () {
   if (!hybrid_command (p, command, atomic)) return;
   editor ed= get_current_editor ();
   if (atomic && command == "") {
-    assign (p * 0, tree ("eqnarray"));
-    ed->activate_hybrid (false);
+    ed->make_native_math_block (true);
   }
   else if (!atomic || command == "begin") ed->insert_tree (tree ("{"));
   else if (command == "left\\" || command == "right\\") {
@@ -636,6 +638,14 @@ void generic_hybrid_kbd_curly_left () {
     ed->activate_hybrid (false);
   }
   else ed->activate_hybrid (false);
+}
+
+void generic_insert_native_math_block () {
+  get_current_editor ()->make_native_math_block (false);
+}
+
+void generic_insert_native_math_grid () {
+  get_current_editor ()->make_native_math_block (true);
 }
 
 void generic_hybrid_kbd_curly_right () {

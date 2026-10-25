@@ -14,6 +14,7 @@
 #include "Editor/edit_main.hpp"
 #include "Interface/auto_close.hpp"
 #include "Interface/generic_keyboard_commands.hpp"
+#include "Interface/native_latex_commands.hpp"
 #include "Graphics/Gui/gui.hpp"
 #include "boot.hpp"
 #include "buffer_state.hpp"
@@ -103,6 +104,16 @@ class NativeV3MathEditorTest: public QObject {
   }
 
 private slots:
+  void removedDisplayCommandsAreUnknown () {
+    for (const char* name: {"equation", "equation*", "eqnarray", "eqnarray*"}) {
+      string help;
+      command result;
+      QVERIFY2 (!native_latex_get_command (name, help, result), name);
+    }
+    string help;
+    command inline_formula;
+    QVERIFY (native_latex_get_command ("(", help, inline_formula));
+  }
   void nativeGridRowSelectionKeepsNativeOwnership () {
     SchemeExecutionContext context (nullptr, editor, &editor->drd,
       &buffer->document, 0, 0, 0, SCHEME_CAPABILITY_BUFFER);
@@ -222,23 +233,21 @@ private slots:
     QCOMPARE (content ()[row + 2][0][0], tree ("Y"));
     verify_roundtrip ();
   }
-  void eqnarrayInsertionUsesNativeGrid_data () {
+  void displayInsertionDirectNative_data () {
     QTest::addColumn<QString> ("entry");
-    QTest::addColumn<QString> ("name");
+    QTest::addColumn<bool> ("grid");
     QTest::addColumn<bool> ("selected");
-    for (const QString entry: {QString ("compound"), QString ("hybrid"),
-                               QString ("prepared"), QString ("curly")})
-      for (const QString name: {QString ("eqnarray"), QString ("eqnarray*")})
+    for (const QString entry: {QString ("direct"), QString ("hybrid")})
+      for (bool grid: {false, true})
         for (bool selected: {false, true}) {
-          if (entry == "curly" && name != "eqnarray") continue;
-          const QByteArray row= (entry + "-" + name +
-            (selected ? "-selection" : "-empty")).toUtf8 ();
-          QTest::newRow (row.constData ()) << entry << name << selected;
+          const QByteArray name= (entry + (grid ? "-grid" : "-block") +
+                                  (selected ? "-selected" : "-empty")).toUtf8 ();
+          QTest::newRow (name.constData ()) << entry << grid << selected;
         }
   }
-  void eqnarrayInsertionUsesNativeGrid () {
+  void displayInsertionDirectNative () {
     QFETCH (QString, entry);
-    QFETCH (QString, name);
+    QFETCH (bool, grid);
     QFETCH (bool, selected);
     SchemeExecutionContext context (nullptr, editor, &editor->drd,
       &buffer->document, 0, 0, 0, SCHEME_CAPABILITY_BUFFER);
@@ -251,43 +260,46 @@ private slots:
     if (selected)
       editor->selection_set_paths (start (current_document_tree (), paragraph),
                                     end (current_document_tree (), paragraph));
-    const string command (name.toUtf8 ().constData ());
     editor->start_editing ();
-    if (entry == "compound") editor->make_compound (make_tree_label (command), -1);
+    if (entry == "direct") editor->make_native_math_block (grid);
     else {
       editor->make_hybrid ();
-      if (entry == "curly") generic_hybrid_kbd_curly_left ();
-      else {
-        editor->insert_tree (command);
-        if (entry == "prepared") QVERIFY (editor->prepare_hybrid ());
-        editor->activate_hybrid (false);
-      }
+      if (grid) generic_hybrid_kbd_curly_left ();
+      else generic_hybrid_kbd_formula_open ("[");
     }
     editor->end_editing ();
     const tree block= subtree (current_document_tree (), paragraph);
     QVERIFY (is_func (block, MATH_BLOCK, 1));
     QVERIFY (athena::math_v3::valid_native_math (block));
-    const tree grid= block[0];
-    QVERIFY (is_func (grid, MATH_GRID, 1));
-    QVERIFY (athena::math_v3::valid_native_math (grid));
-    QCOMPARE (std::get<std::string> (athena::node::get (grid)->properties.at (
-      "math:grid-kind").data), std::string ("eqnarray"));
     QVERIFY (!std::get<bool> (athena::node::get (block)->properties.at (
       "math:block-numbered").data));
-    QCOMPARE (grid[0], tree (ROW, tree (CELL, body), tree (CELL, ""), tree (CELL, "")));
-    QVERIFY (editor->the_path () == end (current_document_tree (),
-      paragraph * path (0, 0, 0, 0)));
+    if (grid) {
+      const tree cells= block[0];
+      QVERIFY (is_func (cells, MATH_GRID, 1));
+      QVERIFY (athena::math_v3::valid_native_math (cells));
+      QCOMPARE (std::get<std::string> (athena::node::get (cells)->properties.at (
+        "math:grid-kind").data), std::string ("eqnarray"));
+      QCOMPARE (cells[0], tree (ROW, tree (CELL, body), tree (CELL, ""), tree (CELL, "")));
+      QVERIFY (editor->the_path () == end (current_document_tree (),
+        paragraph * path (0, 0, 0, 0)));
+    }
+    else {
+      QCOMPARE (block[0], body);
+      QVERIFY (editor->the_path () == end (current_document_tree (), paragraph * 0));
+    }
     verify_roundtrip ();
     editor->typeset_forced ();
     QVERIFY (editor->eb->find_check_cursor (editor->the_path ())->valid);
     editor->insert_tree ("Y");
-    QCOMPARE (subtree (current_document_tree (), paragraph * path (0, 0, 0, 0)),
+    QCOMPARE (subtree (current_document_tree (),
+                      grid ? paragraph * path (0, 0, 0, 0) : paragraph * 0),
               tree (selected ? "XY" : "Y"));
     verify_roundtrip ();
-    generic_kbd_return ();
-    QVERIFY (is_func (subtree (current_document_tree (), paragraph * 0), MATH_GRID, 2));
-    QVERIFY (editor->the_path () == paragraph * path (0, 1, 0, 0) * 0);
-    verify_roundtrip ();
+    if (grid) {
+      generic_kbd_return ();
+      QVERIFY (is_func (subtree (current_document_tree (), paragraph * 0), MATH_GRID, 2));
+      verify_roundtrip ();
+    }
   }
   void escapePickerBracketsAreNative_data () {
     QTest::addColumn<QString> ("action");

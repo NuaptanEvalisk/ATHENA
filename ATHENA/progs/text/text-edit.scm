@@ -546,41 +546,6 @@
 ;; Formulas
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (make-equation)
-  (:applicable (not (selection-active-non-small?)))
-  (make 'equation)
-  (ensure-trailing-proof-paragraph))
-
-(tm-define (make-equation*)
-  (:applicable (not (selection-active-non-small?)))
-  (make 'equation*)
-  (ensure-trailing-proof-paragraph))
-
-(tm-define (make-eqnarray)
-  (:applicable (not (selection-active-non-small?)))
-  (make 'eqnarray)
-  (ensure-trailing-proof-paragraph))
-
-(tm-define (make-eqnarray*)
-  (:applicable (not (selection-active-non-small?)))
-  (make 'eqnarray*)
-  (ensure-trailing-proof-paragraph))
-
-(tm-define (focus-label t)
-  (:require (tree-is? t 'equation))
-  (focus-list-search-label (tree-children t)))
-
-(define (down-to-row t)
-  (cond ((not (tree? t)) #f)
-        ((tree-is? t 'row) t)
-        ((tree-in? t '(document tformat table)) (down-to-row (tree-down t)))
-        (else #f)))
-
-(tm-define (focus-label t)
-  (:require (tree-in? t '(eqnarray eqnarray*)))
-  (and-with row (down-to-row (tree-down t))
-    (focus-search-label row)))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Routines for inserting miscellaneous content
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

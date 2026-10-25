@@ -49,12 +49,6 @@ void make_section (editor ed, string tag) {
   if (!ed->make_return_after ()) ed->make_compound (as_tree_label (tag));
 }
 
-void make_equation_like (editor ed, string tag) {
-  if (ed->selection_active_any () && !ed->selection_active_small ()) return;
-  ed->make_compound (as_tree_label (tag));
-  ed->ensure_trailing_proof_paragraph ();
-}
-
 void make_doc_data (editor ed) {
   if (ed->selection_active_any () && !ed->selection_active_small ()) return;
   tree value (as_tree_label ("doc-data"),
@@ -174,8 +168,7 @@ void execute_action (const QJsonObject& action) {
   else if (op == "make-neg") ed->make_neg ();
   else if (op == "make-section")
     make_section (ed, native_string (action.value ("tag")));
-  else if (op == "make-equation-like")
-    make_equation_like (ed, native_string (action.value ("tag")));
+  else if (op == "insert-native-math-block") ed->make_native_math_block (false);
   else if (op == "make-doc-data") make_doc_data (ed);
   else if (op == "make-abstract-data") make_abstract_data (ed);
   else if (op == "make-aux")

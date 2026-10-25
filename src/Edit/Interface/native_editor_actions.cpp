@@ -575,13 +575,6 @@ make_section (editor ed, string tag) {
 }
 
 void
-make_equation_like (editor ed, string tag) {
-  if (ed->selection_active_any () && !ed->selection_active_small ()) return;
-  ed->make_compound (as_tree_label (tag));
-  ed->ensure_trailing_proof_paragraph ();
-}
-
-void
 make_aux (editor ed, string env, string var, string fallback) {
   string aux= ed->defined_at_cursor (var) ? ed->get_env_string (var) : fallback;
   if (ed->make_return_after ()) return;
@@ -939,7 +932,6 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
                error, "focus-slide-switch requires nonnegative index");
   if (op == "make-section" || op == "make-unnamed-section" ||
       op == "make-header" || op == "tmdoc-branch" ||
-      op == "make-equation-like" ||
       op == "make-tmlist" || op == "make-toggle" ||
       op == "make-switch" || op == "make-unroll" ||
       op == "make-overlays" || op == "make-overlay" ||
@@ -1794,8 +1786,8 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     (void) call (
       "tmdoc-make-branch",
       symbol_object (native_action_string (action.value ("tag"))));
-  else if (op == "make-equation-like")
-    make_equation_like (ed, native_action_string (action.value ("tag")));
+  else if (op == "insert-native-math-block") ed->make_native_math_block (false);
+  else if (op == "insert-native-math-grid") ed->make_native_math_block (true);
   else if (op == "make-tmlist")
     (void) call (
       "make-tmlist", symbol_object (native_action_string (action.value ("tag"))));

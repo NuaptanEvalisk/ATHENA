@@ -254,8 +254,8 @@
     {
       "mode": "in-std-text?",
       "bindings": [
-        {"key": "text $", "commands": [{"call": "make-equation*", "args": []}]},
-        {"key": "text &", "commands": [{"call": "make-eqnarray*", "args": []}]},
+        {"key": "text $", "commands": [{"call": "insert-native-math-block", "args": []}]},
+        {"key": "text &", "commands": [{"call": "insert-native-math-grid", "args": []}]},
         {"key": "text a", "commands": [{"call": "make", "args": [{"symbol": "abbr"}]}]},
         {"key": "text d", "commands": [{"call": "make-tmlist", "args": [{"symbol": "description"}]}]},
         {"key": "text e", "commands": [{"call": "make-tmlist", "args": [{"symbol": "enumerate"}]}]},
