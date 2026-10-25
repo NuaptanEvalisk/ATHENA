@@ -964,6 +964,7 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
   if (op == "make-fraction" || op == "make-sqrt" ||
       op == "make-var-sqrt" || op == "make-neg" ||
       op == "make-above" || op == "make-below" ||
+      op == "insert-native-math-block" || op == "insert-native-math-grid" ||
       op == "make-screens" || op == "make-label" ||
       op == "make-balloon" || op == "make-marginal-note" ||
       op == "make-note-ref" || op == "make-note-inline" ||

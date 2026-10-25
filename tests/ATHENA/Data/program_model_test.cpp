@@ -33,6 +33,7 @@ private slots:
   void native_presentation_uses_language_environment ();
   void kde_catalog_is_available ();
   void editor_action_requires_language ();
+  void native_display_math_actions_are_presentable ();
 };
 
 void
@@ -120,6 +121,16 @@ TestProgramModel::editor_action_requires_language () {
   QJsonObject empty= valid;
   empty.insert (QStringLiteral ("language"), QStringLiteral ("   "));
   QVERIFY (!native_editor_action_validate (empty, &error));
+}
+
+void
+TestProgramModel::native_display_math_actions_are_presentable () {
+  for (const QString& op: {QStringLiteral ("insert-native-math-block"),
+                          QStringLiteral ("insert-native-math-grid")}) {
+    QString error;
+    QVERIFY2 (native_editor_action_validate ({{"op", op}}, &error),
+              qPrintable (error));
+  }
 }
 
 QTEST_MAIN (TestProgramModel)
