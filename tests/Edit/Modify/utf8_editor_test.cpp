@@ -103,6 +103,14 @@ count_node_identity (const tree& source, const std::string& identity) {
   return count;
 }
 
+static bool
+tree_contains_literal (const tree& source, string expected) {
+  if (is_atomic (source)) return occurs (expected, source->label);
+  for (int i=0; i<N(source); ++i)
+    if (tree_contains_literal (source[i], expected)) return true;
+  return false;
+}
+
 class Utf8TestEditor: public edit_main_rep {
 public:
   Utf8TestEditor (server_rep* server, buffer_document_state* buffer):
@@ -1251,6 +1259,46 @@ private slots:
     editor->selection_clear ("primary");
     QApplication::clipboard ()->clear ();
     QVERIFY (!::get_selection ("primary", imported, bytes, "default"));
+  }
+  void webpageClipboardReadsHtmlWithoutConfusingHtmlSource () {
+    QScopedValueRollback<bool> graphical_clipboard (headless_mode, false);
+    const QByteArray markup= "<h2>Rich heading</h2><p><strong>bold</strong> "
+                             "<em>italic</em></p>";
+    auto* offer= new QMimeData;
+    offer->setHtml (QString::fromUtf8 (markup));
+    offer->setText ("<p>Plain HTML source</p>");
+    QApplication::clipboard ()->setMimeData (offer);
+
+    tree webpage;
+    string content;
+    QVERIFY (::get_selection ("primary", webpage, content, "webpage"));
+    QVERIFY (is_tuple (webpage, "extern", 1));
+    QCOMPARE (as_string (webpage[1]), string (markup.constData (), markup.size ()));
+    const tree imported= generic_to_tree (as_string (webpage[1]), "webpage-snippet");
+    QVERIFY (!is_atomic (imported));
+    QVERIFY (tree_contains_literal (imported, "Rich heading"));
+    QVERIFY (tree_contains_literal (imported, "bold"));
+    QVERIFY (!tree_contains_literal (imported, "Plain HTML source"));
+
+    const string mathml_webpage=
+      "<p>Formula <span class='katex'>"
+      "<span class='katex-mathml'>"
+      "<math xmlns='http://www.w3.org/1998/Math/MathML'>"
+      "<mi>x</mi></math></span>"
+      "<span class='katex-html' aria-hidden='true'>duplicated visual glyphs"
+      "</span></span></p>";
+    const tree mathematical= generic_to_tree (mathml_webpage, "webpage-snippet");
+    QVERIFY (tree_contains_literal (mathematical, "Formula"));
+    QVERIFY (!tree_contains_literal (mathematical, "duplicated visual glyphs"));
+
+    tree source;
+    QVERIFY (::get_selection ("primary", source, content, "html"));
+    QCOMPARE (as_string (source[1]), string ("<p>Plain HTML source</p>"));
+    auto* plain= new QMimeData;
+    plain->setText ("Only plain text");
+    QApplication::clipboard ()->setMimeData (plain);
+    QVERIFY (!::get_selection ("primary", webpage, content, "webpage"));
+    QApplication::clipboard ()->clear ();
   }
   void nativeClipboardPreservesFormatAndDuplicatesIdentity () {
     using namespace athena::document;

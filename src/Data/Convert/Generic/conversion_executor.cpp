@@ -230,7 +230,6 @@ static object execute_step (object input, const conversion_edge& edge,
   if (action == "import-mathml-xml") return object (mathml_xml_to_tree_v3 (as_string (input)));
   if (action == "import-mathml-stree") return object (mathml_to_tree_v3 (as_scheme_tree (input)));
   if (action == "import-markdown") return object (aofm_markdown_to_tree (as_string (input)));
-  if (action == "import-chatgpt") return object (aofm_chatgpt_to_tree (as_string (input)));
   throw std::runtime_error ("Unknown native conversion executor: " + action);
 }
 

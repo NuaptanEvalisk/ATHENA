@@ -17,7 +17,7 @@
      "signatures": ["<html", "<xhtml", "<body", "<title", "<!doctype html", "<math"]},
     {"id": "mathml-v3", "name": "MathML (native v3)"},
     {"id": "markdown", "name": "Markdown", "suffixes": ["md"]},
-    {"id": "chatgpt", "name": "ChatGPT"},
+    {"id": "webpage", "name": "Paste from Webpage"},
     {"id": "pdf", "name": "PDF", "suffixes": ["pdf"], "image": true},
     {"id": "svg", "name": "SVG", "suffixes": ["svg"], "image": true},
     {"id": "jpeg", "name": "JPEG", "suffixes": ["jpg", "jpeg"], "image": true},

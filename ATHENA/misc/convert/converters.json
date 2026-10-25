@@ -25,6 +25,7 @@
     ["html-document", "html-stree", "parse-html-document"],
     ["html-stree", "html-document", "serialize-html"],
     ["html-snippet", "html-stree", "parse-html-snippet"],
+    ["webpage-snippet", "html-stree", "parse-html-snippet"],
     ["html-stree", "html-snippet", "serialize-html"],
     ["html-stree", "texmacs-stree", "import-html-stree"],
     ["html-stree", "texmacs-tree", "import-html-tree"],
@@ -46,7 +47,6 @@
     ["mathml-v3-document", "texmacs-tree", "import-mathml-xml"],
     ["mathml-v3-stree", "texmacs-tree", "import-mathml-stree"],
     ["markdown-snippet", "texmacs-tree", "import-markdown"],
-    ["markdown-document", "texmacs-tree", "import-markdown"],
-    ["chatgpt-snippet", "texmacs-tree", "import-chatgpt"]
+    ["markdown-document", "texmacs-tree", "import-markdown"]
   ]
 }

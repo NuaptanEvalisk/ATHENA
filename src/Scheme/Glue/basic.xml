@@ -2307,9 +2307,6 @@
   <binding name="aofm-markdown-&gt;texmacs" native="aofm_markdown_to_tree" returns="tree">
     <arg type="string" />
   </binding>
-  <binding name="aofm-chatgpt-&gt;texmacs" native="aofm_chatgpt_to_tree" returns="tree">
-    <arg type="string" />
-  </binding>
   <binding name="compute-keys-string" native="compute_keys" returns="array_string">
     <arg type="string" />
     <arg type="string" />

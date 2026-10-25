@@ -66,6 +66,17 @@ bool html_space (char c) {
   return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f';
 }
 
+bool has_class (tree attrs, string name) {
+  string classes= attribute (attrs, "class");
+  for (int i=0; i<N(classes);) {
+    while (i<N(classes) && html_space (classes[i])) ++i;
+    int start=i;
+    while (i<N(classes) && !html_space (classes[i])) ++i;
+    if (classes(start,i) == name) return true;
+  }
+  return false;
+}
+
 bool string_node (tree t) {
   return is_atomic (t) && is_quoted (t->label);
 }
@@ -569,6 +580,10 @@ public:
         "form", "input", "button", "select", "optgroup", "option", "textarea",
         "isindex", "label", "fieldset", "legend"})) return text ("");
     tree attrs= html_attributes (source), children= element_content (source);
+    // KaTeX and similar webpage renderers expose semantic MathML alongside
+    // aria-hidden visual glyphs. Import the MathML once, not the duplicate
+    // presentation-only subtree.
+    if (attribute (attrs, "aria-hidden") == "true") return text ("");
     if (tag == "math")
       return structured (athena::document::normalize_imported_math (mathml_to_tree (source)));
     if (tag == "mathjax") {
@@ -585,8 +600,12 @@ public:
         N(children) && element_name (children[0]) == "span")
       return run (children[0], preserve, tag);
     if (tag == "table") return table (source, preserve);
-    if (tag == "br") return one_of (parent, {"ul", "ol", "dl", "menu", "dir"})
-      ? text ("") : tuple ("next-line");
+    if (tag == "br") {
+      // Browser clipboard boundary markers are not authored line breaks.
+      if (has_class (attrs, "Apple-interchange-newline") ||
+          one_of (parent, {"ul", "ol", "dl", "menu", "dir"})) return text ("");
+      return tuple ("next-line");
+    }
     if (tag == "hr") return block (label (attrs, tuple ("hrule")));
 
     bool list= one_of (tag, {"ul", "ol", "dl", "menu", "dir"});

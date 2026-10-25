@@ -93,9 +93,11 @@
   <section|Interoperability>
 
   <menu|Edit|Paste from|Markdown> converts clipboard Markdown through the AOFM
-  parser. <menu|Edit|Paste from|ChatGPT> first repairs the formula delimiters
-  and multiline mathematics commonly lost when copying a ChatGPT response,
-  then uses the same structured Markdown conversion.
+  parser. <menu|Edit|Paste from|Formats|Paste from Webpage> imports rich HTML copied
+  from webpages (including ChatGPT) using the clipboard's HTML representation.
+  <menu|Edit|Paste from|Formats|HTML> instead parses HTML source code stored as plain
+  text in the clipboard. Webpage paste requires a rich HTML clipboard offer;
+  it does not guess missing mathematics from plain-text parentheses.
 
   When a link opens a non-native local file, <ATHENA> asks whether to convert
   it into an <ATHENA> document, edit it as plain text, or use the system

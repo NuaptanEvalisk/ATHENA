@@ -644,7 +644,9 @@ convert_semantics (scheme_tree t) {
       array<scheme_tree> body= content (c[i]);
       if (N(body) != 1 || !scheme_string (body[0])) continue;
       string source= "$" * scheme_text (body[0]) * "$";
-      return latex_to_tree (parse_latex (source));
+      tree parsed= latex_to_tree (parse_latex (source));
+      // SEMANTICS supplies a math body; the enclosing MATH owns inline/display.
+      return is_compound (parsed, "math", 1) ? parsed[0] : parsed;
     }
   }
   return convert_mathml (c[0]);

@@ -414,6 +414,12 @@ qt_gui_rep::get_selection (string key, tree& t, string& s, string format) {
   
   const QMimeData *md = cb->mimeData (mode);
   bool empty_offer= md == nullptr || md->formats ().isEmpty ();
+  // An explicit webpage paste requires the browser's rich HTML offer. The
+  // text/plain representation is not HTML source and must not be parsed as it.
+  if (format == "webpage" && (empty_offer || !md->hasHtml ())) {
+    std_warning << "Paste from Webpage requires clipboard text/html" << LF;
+    return false;
+  }
   if (!empty_offer && mode == QClipboard::Clipboard)
     refresh_external_clipboard_cache ();
   QByteArray buf;
@@ -548,6 +554,14 @@ qt_gui_rep::get_selection (string key, tree& t, string& s, string format) {
   }
   else if (format == "verbatim")
     buf = md->text().toUtf8 ();
+  else if (format == "webpage") {
+    buf= md->html ().toUtf8 ();
+    if (seems_buggy_html_paste (string (buf.constData (), buf.size ()))) {
+      string repaired= correct_buggy_html_paste (
+        string (buf.constData (), buf.size ()));
+      buf= QByteArray (repaired.data (), N(repaired));
+    }
+  }
   else {
     if (md->hasFormat ("plain/text")) buf = md->data ("plain/text");
     else buf = md->text().toUtf8 ();
