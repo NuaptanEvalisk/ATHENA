@@ -230,12 +230,6 @@
   <binding name="set-latex-command" native="set_latex_command" returns="void">
     <arg type="string" />
   </binding>
-  <binding name="number-latex-errors" native="number_latex_errors" returns="int">
-    <arg type="url" />
-  </binding>
-  <binding name="number-latex-pages" native="number_latex_pages" returns="int">
-    <arg type="url" />
-  </binding>
   <binding name="math-symbol-group" native="math_symbol_group" returns="string">
     <arg type="content" />
   </binding>
@@ -2638,15 +2632,6 @@
     <arg type="string" />
   </binding>
   <binding name="sql-quote" native="sql_quote" returns="string">
-    <arg type="string" />
-  </binding>
-  <binding name="supports-gnutls?" native="gnutls_present" returns="bool" />
-  <binding name="gnutls-random-number" native="gnutls_random_int" returns="int">
-    <arg type="uint" />
-  </binding>
-  <binding name="gnutls-generate-salt" native="gnutls_generate_salt" returns="string" />
-  <binding name="hash-password-pbkdf2" native="hash_password_pbkdf2" returns="string">
-    <arg type="string" />
     <arg type="string" />
   </binding>
   <binding name="generate-self-signed-certificate" native="generate_self_signed" returns="bool">

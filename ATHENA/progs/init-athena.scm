@@ -335,10 +335,6 @@
 (tm-property (open-document-font-selector) (:interactive #t))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
-;(display "Booting regression testing\n")
-(lazy-define (check check-master) check-all run-checks)
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
-
 ;(display "------------------------------------------------------\n")
 (delayed (:idle 10000) (autosave-delayed))
 (texmacs-banner)

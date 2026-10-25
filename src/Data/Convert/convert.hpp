@@ -273,8 +273,6 @@ scheme_tree latex_tex_concat_strings (scheme_tree t);
 scheme_tree latex_tmtex_concat_sep (scheme_tree t);
 scheme_tree latex_tmtex_concat_Sep (scheme_tree t);
 tree   conservative_latex_to_texmacs (string s, bool as_pic);
-int    number_latex_errors (url log);
-int    number_latex_pages (url log);
 tree   postprocess_metadata (tree t);
 
 /*** Xml / Html / Mathml ***/

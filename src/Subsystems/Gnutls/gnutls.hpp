@@ -59,11 +59,6 @@
     } \
   } while (0)
 
-// see Password Storage/PBKDF2 in https://cheatsheetseries.owasp.org
-#define MAC_SHA256_ITER_COUNT 600000
-#define MAC_SHA256_BYTE_SIZE 32
-#define SALT_SIZE 32
-
 #define PRIVKEY_ALGO GNUTLS_PK_EDDSA_ED25519
 #define PRIVKEY_SEC_PARAM GNUTLS_SEC_PARAM_HIGH
 #define PRIVKEY_OUTPUT_BUFSIZE 65536
@@ -76,18 +71,6 @@
 #define GNUTLS_X509_ORGANIZATIONAL_UNIT_NAME_SIZE 255
 #define GNUTLS_X509_LOCALITY_NAME_SIZE 255
 #define GNUTLS_X509_STATE_OR_PROVINCE_NAME_SIZE 255
-
-/******************************************************************************
-* Test if GnuTLS is present
-******************************************************************************/
-
-bool gnutls_present ();
-
-/******************************************************************************
- * GnuTLS utilities
- ******************************************************************************/
-
-int gnutls_random_int (uint32_t limit);
 
 /******************************************************************************
  * X.509 authentication
@@ -109,20 +92,5 @@ void disable_certificate_time_checks ();
 
 tm_contact make_tls_server_contact (array<array<string> > args);
 tm_contact make_tls_client_contact (string host, array<array<string> > args);
-
-/******************************************************************************
-* PBKDF2 password hash
-******************************************************************************/
-
-string gnutls_generate_salt ();
-
-/**
- * @brief generates a password hash using GnuTLS' PBKDF2 utility
- *
- * @param passwd the password to hash
- * @param salt the b64 encoded salt data
- * @return the hashed password
- */
-string hash_password_pbkdf2 (string passwd, string salt);
 
 #endif // GNUTLS_HPP
