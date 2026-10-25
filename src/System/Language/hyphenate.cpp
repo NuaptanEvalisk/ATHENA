@@ -75,7 +75,7 @@ load_hyphen_tables (string file_name,
   file_name= string ("hyphen.") * file_name;
   load_string (url ("$ATHENA_PATH/langs/natural/hyphen", file_name), s, true);
   if (DEBUG_VERBOSE)
-    debug_automatic << "ATHENA] Loading " << file_name << "\n";
+    debug_automatic << "Loading " << file_name << "\n";
 
   athena::text::require_utf8 (
     std::string_view (s.data (), static_cast<std::size_t> (N(s))));

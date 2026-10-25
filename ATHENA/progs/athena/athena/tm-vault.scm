@@ -360,7 +360,7 @@
          (prefs-rel (vault-preferences-json-path rel)))
     (if (not prefs-rel)
         (begin
-          (display* "ATHENA] Vault preferences must use a .json path: " rel "\n")
+           (display* "std-warning, Vault preferences must use a .json path: " rel "\n")
           #f)
         (let ((prefs-file (vault-preferences-url dir prefs-rel)))
           (when (string-null? rel)

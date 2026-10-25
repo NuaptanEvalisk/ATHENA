@@ -36,6 +36,7 @@
 #include "Subsystems/RAG/rag_realtime_generation.hpp"
 #include "tm_buffer.hpp"
 #include "tm_window.hpp"
+#include "tm_ostream.hpp"
 
 #ifdef QTTEXMACS
 #include "QTMNodePropertiesDialog.hpp"
@@ -423,11 +424,15 @@ report_unhandled_actor_exception (std::exception_ptr failure) noexcept {
     if (failure != nullptr) std::rethrow_exception (failure);
   }
   catch (const std::exception& error) {
-    std::fprintf (stderr, "ATHENA] buffer actor command failed: %s\n",
-                  error.what ());
+    try {
+      athena_spdlog_error (std::string ("buffer actor command failed: ") +
+                           error.what ());
+    }
+    catch (...) {}
   }
   catch (...) {
-    std::fprintf (stderr, "ATHENA] buffer actor command failed\n");
+    try { athena_spdlog_error ("buffer actor command failed"); }
+    catch (...) {}
   }
 }
 
@@ -2214,8 +2219,8 @@ buffer_actor::dispatch (actor_command_record& command) {
     break;
   }
   default:
-    std::fprintf (stderr, "ATHENA] unimplemented buffer actor command %u\n",
-                  static_cast<unsigned int> (command.kind));
+    athena_spdlog_error ("unimplemented buffer actor command " +
+      std::to_string (static_cast<unsigned int> (command.kind)));
     break;
   }
 

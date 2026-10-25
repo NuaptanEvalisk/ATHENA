@@ -48,7 +48,7 @@ editor_rep::editor_rep ():
   runtime_view_id (ATHENA_NO_VIEW), ui_endpoint (nullptr),
   drd ("virtual"), et (current_document_tree ()), rp (),
   progressive_typeset_pending (false), progressive_typeset_continue (false) {
-  cout << "ATHENA] warning, this virtual constructor should never be called\n";
+  std_warning << "warning, this virtual constructor should never be called\n";
 }
 
 editor_rep::editor_rep (server_rep* sv2, buffer_document_state* buf2):

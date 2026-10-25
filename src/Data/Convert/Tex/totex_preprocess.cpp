@@ -535,7 +535,7 @@ large_decode_text (scheme_tree value) {
   static const char* direct[]= {"(", ")", "[", "]", "|", "/"};
   if (one_of (s, direct, 6)) return s;
   if (s == "{" || s == "}") return "\\" * s;
-  cout << "ATHENA] non converted bracket: " << s << "\n";
+  convert_warning << "non converted bracket: " << s << "\n";
   return "";
 }
 

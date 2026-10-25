@@ -815,7 +815,7 @@ tt_font_cache_warmup () {
   cache_save (TT_FONT_PATH_CACHE);
   cache_save (TT_FONT_FILE_INDEX_CACHE);
   bench_cumul ("tt font file index");
-  cout << "ATHENA] font cache: warmed font file index"
+  cout << "font cache: warmed font file index"
        << ", directories=" << N(dirs)
        << ", new-files=" << indexed << LF;
 

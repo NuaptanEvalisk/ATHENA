@@ -1763,7 +1763,7 @@ wide_accent_output (scheme_tree args, bool below) {
       return one_arg_command ("underbrace", arg);
     if (acc == "⏞" || acc == "⏜" || acc == "⎴")
       return brace_fill_output (args[0], true);
-    cout << "ATHENA] non converted accent below: " << acc << "\n";
+    convert_warning << "non converted accent below: " << acc << "\n";
     return arg;
   }
 
@@ -1795,7 +1795,7 @@ wide_accent_output (scheme_tree args, bool below) {
     return one_arg_command ("overbrace", arg);
   if (acc == "⏟" || acc == "⏝" || acc == "⎵")
     return brace_fill_output (args[0], false);
-  cout << "ATHENA] non converted accent: " << acc << "\n";
+  convert_warning << "non converted accent: " << acc << "\n";
   return arg;
 }
 

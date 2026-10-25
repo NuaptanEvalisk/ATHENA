@@ -122,7 +122,7 @@
 	(with t (tree->stree (tree-import cur "texmacs"))
 	  (if (not (and (pair? t) (list? (cdr t)) (forall? pair? (cdr t))))
 	      (begin
-		(display* "ATHENA] bad link or file " cur "\n")
+		(display* "std-warning, bad link or file " cur "\n")
 		'(document ""))
 	      (with u (cadr (assoc 'body (cdr t)))
 		(cons 'document

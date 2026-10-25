@@ -737,7 +737,7 @@ make_lazy_impl (edit_env env, tree t, path ip) {
   /*
   if (is_accessible (ip)) {
     if (obtain_ip (t) != ip)
-      cout << "ATHENA] Wrong ip: " << t << "\n";
+      cout << "Wrong ip: " << t << "\n";
   }
   */
 

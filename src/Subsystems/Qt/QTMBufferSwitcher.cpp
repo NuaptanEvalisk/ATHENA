@@ -325,13 +325,13 @@ void
 runVisualBufferSwitcher () {
   QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
   if (win == nullptr) {
-    debug_qt << "ATHENA] buffer switcher: no top tab window" << LF;
+    debug_qt << "buffer switcher: no top tab window" << LF;
     return;
   }
 
   QList<QWidget*> docs= win->documentWidgets ();
   QWidget* current= win->currentDocumentWidget ();
-  debug_qt << "ATHENA] buffer switcher: invoked, documents="
+  debug_qt << "buffer switcher: invoked, documents="
            << docs.size ();
   if (current != nullptr)
     debug_qt << ", current=\""
@@ -339,7 +339,7 @@ runVisualBufferSwitcher () {
   debug_qt << LF;
 
   if (docs.size () <= 1) {
-    debug_qt << "ATHENA] buffer switcher: not showing, need at least two "
+    debug_qt << "buffer switcher: not showing, need at least two "
              << "document buffers" << LF;
     return;
   }
@@ -361,11 +361,11 @@ runVisualBufferSwitcher () {
 
 string
 runVisualBufferSwitcherChoose (array<string> entries) {
-  debug_qt << "ATHENA] buffer switcher: invoked, session entries="
+  debug_qt << "buffer switcher: invoked, session entries="
            << (N(entries) / 3) << LF;
 
   if (N(entries) <= 3) {
-    debug_qt << "ATHENA] buffer switcher: not showing, need at least two "
+    debug_qt << "buffer switcher: not showing, need at least two "
              << "session buffers" << LF;
     return "";
   }

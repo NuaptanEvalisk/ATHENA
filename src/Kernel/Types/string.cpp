@@ -632,11 +632,11 @@ void
 system_wait (const string& message, const string& argument, int level) {
   if (the_wait_handler == NULL) {
     if (DEBUG_AUTO) {
-      if (message == "") cout << "ATHENA] Done" << LF;
+      if (message == "") cout << "Done" << LF;
       else {
-	if (argument == "") cout << "ATHENA] " << message << LF;
-	else cout << "ATHENA] " << message << " " << argument << LF;
-	cout << "ATHENA] Please wait..." << LF;
+	if (argument == "") cout << message << LF;
+	else cout << message << " " << argument << LF;
+	cout << "Please wait..." << LF;
       }
     }
   }

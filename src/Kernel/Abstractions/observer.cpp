@@ -572,7 +572,7 @@ set_cursor (path p, tree data) {
   if (is_inside (current_document_tree (), p))
     set_cursor (subtree (current_document_tree (), path_up (p)), last_item (p), data);
   else
-    cout << "ATHENA] warning: invalid cursor position " << p << "\n";
+    std_warning << "warning: invalid cursor position " << p << "\n";
 }
 
 void

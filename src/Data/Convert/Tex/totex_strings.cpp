@@ -163,7 +163,7 @@ latex_token_piece (string name, bool group, bool math_mode) {
   scheme_tree command;
   if (symbol_name == "space") command= stree_apply ("tmxspace");
   else if (!latex_export_internal::registry_symbol_known (symbol_name)) {
-    cout << "ATHENA] non converted symbol: " << name << "\n";
+    convert_warning << "non converted symbol: " << name << "\n";
     command= stree_apply ("nonconverted");
     command << stree_string (symbol_name);
   }
@@ -460,14 +460,14 @@ tt_native (scheme_tree x) {
     return tt_native (x[1]) * tt_native (x[3]) * tt_native (x[2]);
   if (func_is (x, "hgroup", 1) || func_is (x, "vgroup", 1)) return tt_native (x[1]);
   if (head_is (x, "with")) {
-    cout << "ATHENA] lost <with> in verbatim content: " << scheme_tree_to_tree (x) << "\n";
+    convert_warning << "lost <with> in verbatim content: " << scheme_tree_to_tree (x) << "\n";
     return N(x) > 1 ? tt_native (x[N(x)-1]) : string ("");
   }
   if (head_is (x, "math")) {
-    cout << "ATHENA] lost <math> in verbatim content: " << scheme_tree_to_tree (x) << "\n";
+    convert_warning << "lost <math> in verbatim content: " << scheme_tree_to_tree (x) << "\n";
     return N(x) > 1 ? tt_native (x[N(x)-1]) : string ("");
   }
-  cout << "ATHENA] non converted verbatim content: " << scheme_tree_to_tree (x) << "\n";
+  convert_warning << "non converted verbatim content: " << scheme_tree_to_tree (x) << "\n";
   return "";
 }
 

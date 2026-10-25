@@ -1002,7 +1002,7 @@ resolve_in_path (url u) {
              (!occurs ("bin/which: ", which)) &&
              (!starts (which, "which: ")) &&
              (!starts (which, "no ")))
-      cout << "ATHENA] " << which << "\n";
+      cout << which << "\n";
   }
 #if defined(OS_MINGW)
   return resolve ((url_path ("$ATHENA_PATH/bin") | url_path ("$PATH")) * u, "x");

@@ -117,7 +117,7 @@ sql_exec (url db_name, string cmd) {
   if (!sqlite3_initialized)
     tm_sqlite3_initialize ();
   if (sqlite3_error) {
-    cout << "ATHENA] ERROR: SQLite support not properly configured.\n";
+    std_error << "ERROR: SQLite support not properly configured.\n";
     return tree (TUPLE);
   }
   string name= concretize (db_name);
@@ -130,7 +130,7 @@ sql_exec (url db_name, string cmd) {
       sqlite3_connections (name) = (void*) db;
   }
   if (!sqlite3_connections->contains (name)) {
-    cout << "ATHENA] SQL error: database " << name << " could not be opened\n";
+    std_error << "SQL error: database " << name << " could not be opened\n";
     return tree (TUPLE);
   }
   tree ret (TUPLE);
@@ -153,8 +153,8 @@ sql_exec (url db_name, string cmd) {
 
   if (status != SQLITE_OK) {
     // TODO: improve error handling
-    cout << "ATHENA] SQL error\n";
-    if (err != NULL) cout << "ATHENA] " << err << "\n";
+    std_error << "SQL error\n";
+    if (err != NULL) std_error << err << "\n";
   }
 
   for (int r=0; r<=rows; r++) {

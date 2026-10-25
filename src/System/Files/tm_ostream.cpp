@@ -55,15 +55,6 @@ athena_console_log_pattern () {
   return "%^[%Y-%m-%d %H:%M:%S.%e] [%l] %v%$";
 }
 
-std::string
-athena_normalize_log_line (const std::string& line) {
-  const std::string athena_prefix= "ATHENA] ";
-  if (line.compare (0, athena_prefix.size (), athena_prefix) == 0)
-    return line.substr (athena_prefix.size ());
-  if (line == "ATHENA]") return "";
-  return line;
-}
-
 bool
 athena_log_line_starts (const std::string& line, const std::string& prefix) {
   return line.compare (0, prefix.size (), prefix) == 0;
@@ -105,9 +96,7 @@ athena_level_for_log_line (spdlog::level::level_enum base,
 void
 athena_log_line (const std::shared_ptr<spdlog::logger>& logger,
                  spdlog::level::level_enum base, const std::string& line) {
-  std::string normalized= athena_normalize_log_line (line);
-  logger->log (athena_level_for_log_line (base, normalized), "{}",
-               normalized);
+  logger->log (athena_level_for_log_line (base, line), "{}", line);
 }
 
 std::filesystem::path

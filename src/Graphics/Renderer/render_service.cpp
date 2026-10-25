@@ -10,6 +10,7 @@
 
 #include "render_service.hpp"
 #include "System/Misc/crash_report.hpp"
+#include "tm_ostream.hpp"
 
 #include <cstdio>
 #include <exception>
@@ -184,11 +185,15 @@ render_connection::drain () {
     if (!is_retired () && process_) {
       try { process_->process (descriptor, arena_.payload (descriptor.slot)); }
       catch (const std::exception& error) {
-        std::fprintf (stderr, "ATHENA] RenderService processor failed: %s\n",
-                      error.what ());
+        try {
+          athena_spdlog_error (std::string ("RenderService processor failed: ") +
+                               error.what ());
+        }
+        catch (...) {}
       }
       catch (...) {
-        std::fprintf (stderr, "ATHENA] RenderService processor failed\n");
+        try { athena_spdlog_error ("RenderService processor failed"); }
+        catch (...) {}
       }
     }
     (void) arena_.complete (descriptor.slot);

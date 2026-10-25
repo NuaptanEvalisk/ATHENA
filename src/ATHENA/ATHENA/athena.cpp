@@ -453,7 +453,7 @@ supported_qt_platform (string value) {
 
 static void
 print_available_qt_platforms () {
-  cerr << "ATHENA] Available platform plugins are: ";
+  cerr << "Available platform plugins are: ";
 #if defined (Q_OS_MAC)
   cerr << "cocoa, ";
 #endif
@@ -472,7 +472,7 @@ reject_qt_platform (string source, string value) {
     exit (0);
   }
   if (unsupported_qt_platform (value) || !supported_qt_platform (value)) {
-    cerr << "ATHENA] unsupported Qt platform plugin in " << source << ": "
+    cerr << "unsupported Qt platform plugin in " << source << ": "
          << value << "\n";
     print_available_qt_platforms ();
     exit (1);
@@ -1571,7 +1571,7 @@ immediate_options (int argc, char** argv) {
       char* log_file = argv[i];
       tm_ostream logf (log_file);
       if (!logf->is_writable ())
-        cerr << "ATHENA] Error: could not open " << log_file << "\n";
+        cerr << "Error: could not open " << log_file << "\n";
       cout.redirect (logf);
       cerr.redirect (logf);
     }
@@ -1789,11 +1789,11 @@ athena_restart_after_startup_refresh (int argc, char** argv,
 #ifdef OS_MINGW
   (void) argc; (void) argv; (void) reason;
 #else
-  cout << "ATHENA] startup refresh: restarting after " << reason << LF;
+  cout << "startup refresh: restarting after " << reason << LF;
   auto watchdog_restart= athena_watchdog_request_restart ();
   if (watchdog_restart == AthenaWatchdogRestartResult::Requested) _exit (0);
   if (watchdog_restart == AthenaWatchdogRestartResult::Failed) {
-    cerr << "ATHENA] startup refresh: watchdog restart request failed" << LF;
+    cerr << "startup refresh: watchdog restart request failed" << LF;
     return;
   }
   char** exec_argv= tm_new_array<char*> (argc + 1);
@@ -1801,7 +1801,7 @@ athena_restart_after_startup_refresh (int argc, char** argv,
   exec_argv[argc]= NULL;
   execvp (argv[0], exec_argv);
   tm_delete_array (exec_argv);
-  cerr << "ATHENA] startup refresh: restart failed; continuing current process"
+  cerr << "startup refresh: restart failed; continuing current process"
        << LF;
 #endif
 }
@@ -1833,12 +1833,12 @@ athena_refresh_cache_if_sources_changed (int argc, char** argv) {
     return;
   }
 
-  cout << "ATHENA] cache refresh: source fingerprint changed; clearing cache"
+  cout << "cache refresh: source fingerprint changed; clearing cache"
        << LF;
   remove (cache_dir * url_wildcard ("*"));
   if (!is_directory (cache_dir)) mkdir (cache_dir);
   if (!athena_write_source_fingerprint (fingerprint_file, current)) {
-    cerr << "ATHENA] cache refresh: could not store source fingerprint; "
+    cerr << "cache refresh: could not store source fingerprint; "
          << "continuing without restart" << LF;
     return;
   }
@@ -2538,7 +2538,7 @@ texmacs_entrypoint (int argc, char** argv) {
 #ifdef MACOSX_EXTENSIONS
   // Reset TeXmacs if Alt is pressed during startup
   if (mac_alternate_startup()) {
-    cout << "ATHENA] Performing setup (Alt on startup)" << LF; 
+    cout << "Performing setup (Alt on startup)" << LF;
     remove (url ("$ATHENA_HOME_PATH/system/sys_state.json"));
     remove (url ("$ATHENA_HOME_PATH/system/setup.scm"));
     remove (url ("$ATHENA_HOME_PATH/system/cache") * url_wildcard ("*"));

@@ -576,7 +576,7 @@ rubber_stix_font_rep::index_glyph (string s, font_metric& fnm,
   SI dy;
   string ltype;
   font fn= search_font (s, dy, ltype);
-  if (dy != 0) cout << "ATHENA] warning: glyph offset ignored\n";
+  if (dy != 0) std_warning << "warning: glyph offset ignored\n";
   return fn->index_glyph (s, fnm, fng);
 }
 

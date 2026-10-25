@@ -623,7 +623,7 @@ remove_marker_bis (patch archive, double m) {
 #else
     if (nr_redo (archive) != 0) {
       // NOTE: temporary fix: turn fatal error into warning
-      cout << "ATHENA] warning, cannot remove marker\n";
+      std_warning << "warning, cannot remove marker\n";
       return make_compound (0);
     }
 #endif
@@ -642,7 +642,7 @@ remove_marker (patch archive, double m) {
   archive= compress (archive);
   if (!has_marker (archive, m)) {
     // NOTE: temporary fix of bug #60743: turn fatal error into warning
-    cout << "ATHENA] warning, marker not found\n";
+    std_warning << "warning, marker not found\n";
     return make_compound (0);
   }
   return remove_marker_bis (compress (archive), m);

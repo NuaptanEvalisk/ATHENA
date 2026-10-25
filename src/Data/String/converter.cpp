@@ -117,7 +117,7 @@ void
 converter_rep::load () {
   // to handle each case individually seems unelegant, but there is simply more
   // to be done here than just loading a file.
-  // cout << "ATHENA] load converter " << from << " -> " << to << "\n";
+  // cout << "load converter " << from << " -> " << to << "\n";
   if (from=="Cork" && to=="UTF-8" ) {
     hashtree<char,string> dic;
     hashtree_from_dictionary (dic,"corktounicode", BIT2BIT, UTF8, false);
@@ -318,7 +318,7 @@ convert_utf8_to_LaTeX (string input) {
         if (code == 10) output << "-";
         else {
           output << r;
-          cout << "ATHENA] non ascii character <#"
+          convert_warning << "non ascii character <#"
                << as_hexadecimal (code) << "> on output: "
                << unicode << "\nLaTeX output may not compile.\n";
           //output << "(error)";

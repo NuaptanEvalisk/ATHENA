@@ -196,7 +196,7 @@ concater_rep::typeset_impl (tree t, path ip) {
 
   /*
   if (obtain_ip (t) != ip)
-    cout << "ATHENA] Wrong ip: " << t << "\n"
+    cout << "Wrong ip: " << t << "\n"
 	 << "       ] " << obtain_ip (t) << " -> " << ip << "\n";
   */
 

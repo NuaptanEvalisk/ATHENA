@@ -30,7 +30,7 @@
   (for-each display-err l))
 
 (define-public (tm-display-error . l)
-  (apply display-err* `("ATHENA] " ,@l "\n")))
+  (apply display-err* (append l '("\n"))))
 
 (define-public (write* . l)
   "Write all objects in @l to standard output."

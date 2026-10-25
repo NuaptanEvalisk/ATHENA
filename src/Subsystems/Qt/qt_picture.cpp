@@ -329,7 +329,7 @@ get_image_for_real (url u, int w, int h, tree eff, SI pixel) {
   // Error Handling
   if (pm == NULL || pm->isNull ()) {
       if (pm != NULL) delete pm;
-      cout << "ATHENA] warning: cannot render " << concretize (u) << "\n";
+      std_warning << "warning: cannot render " << concretize (u) << "\n";
       return NULL;
   }
 

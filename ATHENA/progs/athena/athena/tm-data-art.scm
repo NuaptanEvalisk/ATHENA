@@ -127,7 +127,7 @@
         cover
         (begin
           (when (url-exists? cover) (system-remove cover))
-          (display* "ATHENA] data-art warning: cover generation failed"
+           (display* "std-warning, data-art cover generation failed"
                     (if (== error "") "" (string-append ": " error)) "\n")
           #f))))
 

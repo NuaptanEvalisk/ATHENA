@@ -77,7 +77,7 @@ class AuditTests(unittest.TestCase):
 
     def test_native_actor_failure_does_not_wait_for_timeout(self):
         self.args.timeout = 10
-        entry = self.run_fake('print("ATHENA] buffer actor command failed: probe", flush=True)\n'
+        entry = self.run_fake('print("[2026-10-25 10:30:00.000] [error] buffer actor command failed: probe", flush=True)\n'
                               'time.sleep(30)\n')
         self.assertEqual(entry['status'], 'FAILED')
         self.assertLess(entry['seconds'], 3)
