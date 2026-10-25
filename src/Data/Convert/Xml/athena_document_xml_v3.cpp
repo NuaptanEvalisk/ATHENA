@@ -51,6 +51,13 @@ bool v3_core_math_label (tree_label label) {
   }
 }
 
+bool deprecated_display_tag (string tag) {
+  // Historical display environments belong exclusively to the one-time
+  // offline Vault upgrader, not the normal XML v3 reader or writer.
+  return tag == "equation" || tag == "equation*" ||
+         tag == "eqnarray" || tag == "eqnarray*";
+}
+
 constexpr const char* grid_kind_property= "math:grid-kind";
 constexpr const char* block_numbered_property= "math:block-numbered";
 
@@ -351,6 +358,9 @@ class writer {
                                std::string (as_string (L (value)).data (),
                                             std::size_t (N (as_string (L (value))))));
       string tag= as_string (L (value));
+      if (deprecated_display_tag (tag))
+        throw codec_exception (codec_error::invalid_structure,
+                               "Historical display math is not XML v3 content");
       // Do not serialize an unregistered native label as the placeholder '?'.
       if (!existing_tree_label (tag) || as_tree_label (tag) != L (value) || N (tag) == 0)
         throw codec_exception (codec_error::invalid_structure, "Unregistered document tag");
@@ -720,6 +730,9 @@ class reader {
     string tag= native (decode (xml.attributes ().value ("t").toString (),
                                 base64, false));
     if (N (tag) == 0) fail (codec_error::invalid_structure, "Empty document tag");
+    if (deprecated_display_tag (tag))
+      fail (codec_error::invalid_structure,
+            "Historical display math is not XML v3 content");
     tree_label label= as_tree_label (tag);
     if (label <= TMSTRING || label == UNKNOWN ||
         label == DELIMITED || label == BIG_OPERATOR || label == MATH_MIDDLE)
