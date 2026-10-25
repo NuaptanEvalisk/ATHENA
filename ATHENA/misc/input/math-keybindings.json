@@ -15380,7 +15380,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "0"
               ]
             }
@@ -15392,7 +15392,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "1"
               ]
             }
@@ -15404,7 +15404,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "2"
               ]
             }
@@ -15416,7 +15416,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "3"
               ]
             }
@@ -15428,7 +15428,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "4"
               ]
             }
@@ -15440,7 +15440,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "5"
               ]
             }
@@ -15452,7 +15452,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "6"
               ]
             }
@@ -15464,7 +15464,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "7"
               ]
             }
@@ -15476,7 +15476,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "8"
               ]
             }
@@ -15488,7 +15488,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "9"
               ]
             }
@@ -15500,7 +15500,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "a"
               ]
             }
@@ -15512,7 +15512,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "b"
               ]
             }
@@ -15524,7 +15524,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "c"
               ]
             }
@@ -15536,7 +15536,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "d"
               ]
             }
@@ -15548,7 +15548,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "e"
               ]
             }
@@ -15560,7 +15560,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "f"
               ]
             }
@@ -15572,7 +15572,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "g"
               ]
             }
@@ -15584,7 +15584,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "h"
               ]
             }
@@ -15596,7 +15596,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "i"
               ]
             }
@@ -15608,7 +15608,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "j"
               ]
             }
@@ -15620,7 +15620,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "k"
               ]
             }
@@ -15632,7 +15632,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "l"
               ]
             }
@@ -15644,7 +15644,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "m"
               ]
             }
@@ -15656,7 +15656,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "n"
               ]
             }
@@ -15668,7 +15668,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "o"
               ]
             }
@@ -15680,7 +15680,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "p"
               ]
             }
@@ -15692,7 +15692,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "q"
               ]
             }
@@ -15704,7 +15704,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "r"
               ]
             }
@@ -15716,7 +15716,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "s"
               ]
             }
@@ -15728,7 +15728,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "t"
               ]
             }
@@ -15740,7 +15740,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "u"
               ]
             }
@@ -15752,7 +15752,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "v"
               ]
             }
@@ -15764,7 +15764,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "w"
               ]
             }
@@ -15776,7 +15776,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "x"
               ]
             }
@@ -15788,7 +15788,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "y"
               ]
             }
@@ -15800,7 +15800,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "z"
               ]
             }
@@ -15812,7 +15812,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "A"
               ]
             }
@@ -15824,7 +15824,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "B"
               ]
             }
@@ -15836,7 +15836,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "C"
               ]
             }
@@ -15848,7 +15848,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "D"
               ]
             }
@@ -15860,7 +15860,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "E"
               ]
             }
@@ -15872,7 +15872,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "F"
               ]
             }
@@ -15884,7 +15884,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "G"
               ]
             }
@@ -15896,7 +15896,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "H"
               ]
             }
@@ -15908,7 +15908,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "I"
               ]
             }
@@ -15920,7 +15920,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "J"
               ]
             }
@@ -15932,7 +15932,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "K"
               ]
             }
@@ -15944,7 +15944,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "L"
               ]
             }
@@ -15956,7 +15956,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "M"
               ]
             }
@@ -15968,7 +15968,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "N"
               ]
             }
@@ -15980,7 +15980,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "O"
               ]
             }
@@ -15992,7 +15992,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "P"
               ]
             }
@@ -16004,7 +16004,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Q"
               ]
             }
@@ -16016,7 +16016,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "R"
               ]
             }
@@ -16028,7 +16028,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "S"
               ]
             }
@@ -16040,7 +16040,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "T"
               ]
             }
@@ -16052,7 +16052,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "U"
               ]
             }
@@ -16064,7 +16064,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "V"
               ]
             }
@@ -16076,7 +16076,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "W"
               ]
             }
@@ -16088,7 +16088,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "X"
               ]
             }
@@ -16100,7 +16100,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Y"
               ]
             }
@@ -16112,7 +16112,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Z"
               ]
             }
@@ -16124,7 +16124,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ι"
               ]
             }
@@ -16136,7 +16136,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "θ"
               ]
             }
@@ -16148,7 +16148,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "λ"
               ]
             }
@@ -16188,7 +16188,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "α"
               ]
             }
@@ -16200,7 +16200,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "β"
               ]
             }
@@ -16212,7 +16212,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "γ"
               ]
             }
@@ -16224,7 +16224,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "δ"
               ]
             }
@@ -16236,7 +16236,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ε"
               ]
             }
@@ -16248,7 +16248,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ϵ"
               ]
             }
@@ -16260,7 +16260,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "϶"
               ]
             }
@@ -16272,7 +16272,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ζ"
               ]
             }
@@ -16284,7 +16284,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "η"
               ]
             }
@@ -16296,7 +16296,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "θ"
               ]
             }
@@ -16308,7 +16308,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ϑ"
               ]
             }
@@ -16320,7 +16320,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ι"
               ]
             }
@@ -16332,7 +16332,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "κ"
               ]
             }
@@ -16344,7 +16344,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ϰ"
               ]
             }
@@ -16356,7 +16356,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "λ"
               ]
             }
@@ -16368,7 +16368,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "μ"
               ]
             }
@@ -16380,7 +16380,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ν"
               ]
             }
@@ -16392,7 +16392,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ξ"
               ]
             }
@@ -16404,7 +16404,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ο"
               ]
             }
@@ -16416,7 +16416,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "π"
               ]
             }
@@ -16428,7 +16428,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ϖ"
               ]
             }
@@ -16440,7 +16440,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ρ"
               ]
             }
@@ -16452,7 +16452,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ϱ"
               ]
             }
@@ -16464,7 +16464,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "σ"
               ]
             }
@@ -16476,7 +16476,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ς"
               ]
             }
@@ -16488,7 +16488,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ς"
               ]
             }
@@ -16500,7 +16500,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "σ"
               ]
             }
@@ -16512,7 +16512,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "τ"
               ]
             }
@@ -16524,7 +16524,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "υ"
               ]
             }
@@ -16536,7 +16536,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ψ"
               ]
             }
@@ -16548,7 +16548,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "χ"
               ]
             }
@@ -16560,7 +16560,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ω"
               ]
             }
@@ -16572,7 +16572,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "℧"
               ]
             }
@@ -16584,7 +16584,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ϕ"
               ]
             }
@@ -16596,7 +16596,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "φ"
               ]
             }
@@ -16608,7 +16608,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "φ"
               ]
             }
@@ -16620,7 +16620,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ϕ"
               ]
             }
@@ -16632,7 +16632,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Α"
               ]
             }
@@ -16644,7 +16644,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Β"
               ]
             }
@@ -16656,7 +16656,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Γ"
               ]
             }
@@ -16668,7 +16668,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Δ"
               ]
             }
@@ -16680,7 +16680,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Ε"
               ]
             }
@@ -16692,7 +16692,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 [
                   "named-symbol",
                   "texmacs:Backepsilon"
@@ -16707,7 +16707,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Ζ"
               ]
             }
@@ -16719,7 +16719,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Η"
               ]
             }
@@ -16731,7 +16731,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Θ"
               ]
             }
@@ -16743,7 +16743,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Ι"
               ]
             }
@@ -16755,7 +16755,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Κ"
               ]
             }
@@ -16767,7 +16767,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Λ"
               ]
             }
@@ -16779,7 +16779,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Μ"
               ]
             }
@@ -16791,7 +16791,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Ν"
               ]
             }
@@ -16803,7 +16803,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Ξ"
               ]
             }
@@ -16815,7 +16815,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Ο"
               ]
             }
@@ -16827,7 +16827,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Π"
               ]
             }
@@ -16839,7 +16839,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Ρ"
               ]
             }
@@ -16851,7 +16851,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Σ"
               ]
             }
@@ -16863,7 +16863,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 [
                   "named-symbol",
                   "texmacs:Backsigma"
@@ -16878,7 +16878,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Σ"
               ]
             }
@@ -16890,7 +16890,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Τ"
               ]
             }
@@ -16902,7 +16902,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Υ"
               ]
             }
@@ -16914,7 +16914,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Ψ"
               ]
             }
@@ -16926,7 +16926,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Χ"
               ]
             }
@@ -16938,7 +16938,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Ω"
               ]
             }
@@ -16950,7 +16950,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "℧"
               ]
             }
@@ -16962,7 +16962,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Φ"
               ]
             }
@@ -16974,7 +16974,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Φ"
               ]
             }
@@ -16986,7 +16986,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "α"
               ]
             }
@@ -16998,7 +16998,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "β"
               ]
             }
@@ -17010,7 +17010,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ς"
               ]
             }
@@ -17022,7 +17022,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "σ"
               ]
             }
@@ -17034,7 +17034,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "δ"
               ]
             }
@@ -17046,7 +17046,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ε"
               ]
             }
@@ -17058,7 +17058,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ϵ"
               ]
             }
@@ -17070,7 +17070,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "϶"
               ]
             }
@@ -17082,7 +17082,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "γ"
               ]
             }
@@ -17094,7 +17094,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "η"
               ]
             }
@@ -17106,7 +17106,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ι"
               ]
             }
@@ -17118,7 +17118,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ı"
               ]
             }
@@ -17130,7 +17130,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "θ"
               ]
             }
@@ -17142,7 +17142,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ȷ"
               ]
             }
@@ -17154,7 +17154,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ϑ"
               ]
             }
@@ -17166,7 +17166,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "κ"
               ]
             }
@@ -17178,7 +17178,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ϰ"
               ]
             }
@@ -17190,7 +17190,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "λ"
               ]
             }
@@ -17202,7 +17202,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ℓ"
               ]
             }
@@ -17214,7 +17214,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "μ"
               ]
             }
@@ -17226,7 +17226,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ν"
               ]
             }
@@ -17238,7 +17238,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ο"
               ]
             }
@@ -17250,7 +17250,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "π"
               ]
             }
@@ -17262,7 +17262,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ϖ"
               ]
             }
@@ -17274,7 +17274,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "χ"
               ]
             }
@@ -17286,7 +17286,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ρ"
               ]
             }
@@ -17298,7 +17298,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ϱ"
               ]
             }
@@ -17310,7 +17310,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "σ"
               ]
             }
@@ -17322,7 +17322,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ς"
               ]
             }
@@ -17334,7 +17334,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "τ"
               ]
             }
@@ -17346,7 +17346,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "υ"
               ]
             }
@@ -17358,7 +17358,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ϕ"
               ]
             }
@@ -17370,7 +17370,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "φ"
               ]
             }
@@ -17382,7 +17382,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "φ"
               ]
             }
@@ -17394,7 +17394,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ϕ"
               ]
             }
@@ -17406,7 +17406,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ω"
               ]
             }
@@ -17418,7 +17418,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "℧"
               ]
             }
@@ -17430,7 +17430,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ξ"
               ]
             }
@@ -17442,7 +17442,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ψ"
               ]
             }
@@ -17454,7 +17454,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "ζ"
               ]
             }
@@ -17466,7 +17466,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Α"
               ]
             }
@@ -17478,7 +17478,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Β"
               ]
             }
@@ -17490,7 +17490,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Σ"
               ]
             }
@@ -17502,7 +17502,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Δ"
               ]
             }
@@ -17514,7 +17514,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Ε"
               ]
             }
@@ -17526,7 +17526,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 [
                   "named-symbol",
                   "texmacs:Backepsilon"
@@ -17541,7 +17541,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Γ"
               ]
             }
@@ -17553,7 +17553,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Η"
               ]
             }
@@ -17565,7 +17565,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Ι"
               ]
             }
@@ -17577,7 +17577,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Θ"
               ]
             }
@@ -17589,7 +17589,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Κ"
               ]
             }
@@ -17601,7 +17601,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Λ"
               ]
             }
@@ -17613,7 +17613,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Μ"
               ]
             }
@@ -17625,7 +17625,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Ν"
               ]
             }
@@ -17637,7 +17637,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Ο"
               ]
             }
@@ -17649,7 +17649,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Π"
               ]
             }
@@ -17661,7 +17661,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Χ"
               ]
             }
@@ -17673,7 +17673,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Ρ"
               ]
             }
@@ -17685,7 +17685,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Σ"
               ]
             }
@@ -17697,7 +17697,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 [
                   "named-symbol",
                   "texmacs:Backsigma"
@@ -17712,7 +17712,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Τ"
               ]
             }
@@ -17724,7 +17724,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Υ"
               ]
             }
@@ -17736,7 +17736,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Φ"
               ]
             }
@@ -17748,7 +17748,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Φ"
               ]
             }
@@ -17760,7 +17760,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Ω"
               ]
             }
@@ -17772,7 +17772,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "℧"
               ]
             }
@@ -17784,7 +17784,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Ξ"
               ]
             }
@@ -17796,7 +17796,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Ψ"
               ]
             }
@@ -17808,7 +17808,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold",
+                "math-variant", "mbf",
                 "Ζ"
               ]
             }
@@ -17820,7 +17820,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "a"
               ]
             }
@@ -17832,7 +17832,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "b"
               ]
             }
@@ -17844,7 +17844,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "c"
               ]
             }
@@ -17856,7 +17856,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "d"
               ]
             }
@@ -17868,7 +17868,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "e"
               ]
             }
@@ -17880,7 +17880,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "f"
               ]
             }
@@ -17892,7 +17892,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "g"
               ]
             }
@@ -17904,7 +17904,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "h"
               ]
             }
@@ -17916,7 +17916,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "i"
               ]
             }
@@ -17928,7 +17928,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "j"
               ]
             }
@@ -17940,7 +17940,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "k"
               ]
             }
@@ -17952,7 +17952,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "l"
               ]
             }
@@ -17964,7 +17964,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "m"
               ]
             }
@@ -17976,7 +17976,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "n"
               ]
             }
@@ -17988,7 +17988,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "o"
               ]
             }
@@ -18000,7 +18000,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "p"
               ]
             }
@@ -18012,7 +18012,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "q"
               ]
             }
@@ -18024,7 +18024,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "r"
               ]
             }
@@ -18036,7 +18036,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "s"
               ]
             }
@@ -18048,7 +18048,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "t"
               ]
             }
@@ -18060,7 +18060,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "u"
               ]
             }
@@ -18072,7 +18072,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "v"
               ]
             }
@@ -18084,7 +18084,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "w"
               ]
             }
@@ -18096,7 +18096,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "x"
               ]
             }
@@ -18108,7 +18108,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "y"
               ]
             }
@@ -18120,7 +18120,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "z"
               ]
             }
@@ -18132,7 +18132,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "A"
               ]
             }
@@ -18144,7 +18144,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "B"
               ]
             }
@@ -18156,7 +18156,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "C"
               ]
             }
@@ -18168,7 +18168,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "D"
               ]
             }
@@ -18180,7 +18180,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "E"
               ]
             }
@@ -18192,7 +18192,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "F"
               ]
             }
@@ -18204,7 +18204,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "G"
               ]
             }
@@ -18216,7 +18216,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "H"
               ]
             }
@@ -18228,7 +18228,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "I"
               ]
             }
@@ -18240,7 +18240,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "J"
               ]
             }
@@ -18252,7 +18252,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "K"
               ]
             }
@@ -18264,7 +18264,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "L"
               ]
             }
@@ -18276,7 +18276,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "M"
               ]
             }
@@ -18288,7 +18288,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "N"
               ]
             }
@@ -18300,7 +18300,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "O"
               ]
             }
@@ -18312,7 +18312,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "P"
               ]
             }
@@ -18324,7 +18324,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "Q"
               ]
             }
@@ -18336,7 +18336,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "R"
               ]
             }
@@ -18348,7 +18348,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "S"
               ]
             }
@@ -18360,7 +18360,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "T"
               ]
             }
@@ -18372,7 +18372,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "U"
               ]
             }
@@ -18384,7 +18384,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "V"
               ]
             }
@@ -18396,7 +18396,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "W"
               ]
             }
@@ -18408,7 +18408,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "X"
               ]
             }
@@ -18420,7 +18420,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "Y"
               ]
             }
@@ -18432,7 +18432,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "Z"
               ]
             }
@@ -18444,7 +18444,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "α"
               ]
             }
@@ -18456,7 +18456,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "β"
               ]
             }
@@ -18468,7 +18468,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "ς"
               ]
             }
@@ -18480,7 +18480,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "σ"
               ]
             }
@@ -18492,7 +18492,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "δ"
               ]
             }
@@ -18504,7 +18504,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "ε"
               ]
             }
@@ -18516,7 +18516,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "ϵ"
               ]
             }
@@ -18528,7 +18528,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "γ"
               ]
             }
@@ -18540,7 +18540,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "η"
               ]
             }
@@ -18552,7 +18552,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "ι"
               ]
             }
@@ -18564,7 +18564,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "ı"
               ]
             }
@@ -18576,7 +18576,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "θ"
               ]
             }
@@ -18588,7 +18588,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "ȷ"
               ]
             }
@@ -18600,7 +18600,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "ϑ"
               ]
             }
@@ -18612,7 +18612,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "κ"
               ]
             }
@@ -18624,7 +18624,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "ϰ"
               ]
             }
@@ -18636,7 +18636,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "λ"
               ]
             }
@@ -18648,7 +18648,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "ℓ"
               ]
             }
@@ -18660,7 +18660,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "μ"
               ]
             }
@@ -18672,7 +18672,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "ν"
               ]
             }
@@ -18684,7 +18684,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "ο"
               ]
             }
@@ -18696,7 +18696,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "π"
               ]
             }
@@ -18708,7 +18708,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "ϖ"
               ]
             }
@@ -18720,7 +18720,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "χ"
               ]
             }
@@ -18732,7 +18732,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "ρ"
               ]
             }
@@ -18744,7 +18744,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "ϱ"
               ]
             }
@@ -18756,7 +18756,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "σ"
               ]
             }
@@ -18768,7 +18768,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "ς"
               ]
             }
@@ -18780,7 +18780,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "τ"
               ]
             }
@@ -18792,7 +18792,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "υ"
               ]
             }
@@ -18804,7 +18804,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "ϕ"
               ]
             }
@@ -18816,7 +18816,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "φ"
               ]
             }
@@ -18828,7 +18828,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "φ"
               ]
             }
@@ -18840,7 +18840,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "ϕ"
               ]
             }
@@ -18852,7 +18852,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "ω"
               ]
             }
@@ -18864,7 +18864,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "ξ"
               ]
             }
@@ -18876,7 +18876,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "ψ"
               ]
             }
@@ -18888,7 +18888,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-up",
+                "math-variant", "rm",
                 "ζ"
               ]
             }
@@ -18900,7 +18900,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "a"
               ]
             }
@@ -18912,7 +18912,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "b"
               ]
             }
@@ -18924,7 +18924,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "c"
               ]
             }
@@ -18936,7 +18936,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "d"
               ]
             }
@@ -18948,7 +18948,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "e"
               ]
             }
@@ -18960,7 +18960,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "f"
               ]
             }
@@ -18972,7 +18972,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "g"
               ]
             }
@@ -18984,7 +18984,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "h"
               ]
             }
@@ -18996,7 +18996,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "i"
               ]
             }
@@ -19008,7 +19008,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "j"
               ]
             }
@@ -19020,7 +19020,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "k"
               ]
             }
@@ -19032,7 +19032,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "l"
               ]
             }
@@ -19044,7 +19044,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "m"
               ]
             }
@@ -19056,7 +19056,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "n"
               ]
             }
@@ -19068,7 +19068,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "o"
               ]
             }
@@ -19080,7 +19080,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "p"
               ]
             }
@@ -19092,7 +19092,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "q"
               ]
             }
@@ -19104,7 +19104,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "r"
               ]
             }
@@ -19116,7 +19116,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "s"
               ]
             }
@@ -19128,7 +19128,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "t"
               ]
             }
@@ -19140,7 +19140,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "u"
               ]
             }
@@ -19152,7 +19152,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "v"
               ]
             }
@@ -19164,7 +19164,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "w"
               ]
             }
@@ -19176,7 +19176,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "x"
               ]
             }
@@ -19188,7 +19188,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "y"
               ]
             }
@@ -19200,7 +19200,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "z"
               ]
             }
@@ -19212,7 +19212,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "A"
               ]
             }
@@ -19224,7 +19224,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "B"
               ]
             }
@@ -19236,7 +19236,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "C"
               ]
             }
@@ -19248,7 +19248,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "D"
               ]
             }
@@ -19260,7 +19260,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "E"
               ]
             }
@@ -19272,7 +19272,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "F"
               ]
             }
@@ -19284,7 +19284,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "G"
               ]
             }
@@ -19296,7 +19296,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "H"
               ]
             }
@@ -19308,7 +19308,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "I"
               ]
             }
@@ -19320,7 +19320,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "J"
               ]
             }
@@ -19332,7 +19332,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "K"
               ]
             }
@@ -19344,7 +19344,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "L"
               ]
             }
@@ -19356,7 +19356,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "M"
               ]
             }
@@ -19368,7 +19368,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "N"
               ]
             }
@@ -19380,7 +19380,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "O"
               ]
             }
@@ -19392,7 +19392,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "P"
               ]
             }
@@ -19404,7 +19404,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "Q"
               ]
             }
@@ -19416,7 +19416,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "R"
               ]
             }
@@ -19428,7 +19428,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "S"
               ]
             }
@@ -19440,7 +19440,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "T"
               ]
             }
@@ -19452,7 +19452,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "U"
               ]
             }
@@ -19464,7 +19464,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "V"
               ]
             }
@@ -19476,7 +19476,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "W"
               ]
             }
@@ -19488,7 +19488,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "X"
               ]
             }
@@ -19500,7 +19500,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "Y"
               ]
             }
@@ -19512,7 +19512,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "Z"
               ]
             }
@@ -19524,7 +19524,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "α"
               ]
             }
@@ -19536,7 +19536,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "β"
               ]
             }
@@ -19548,7 +19548,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "ς"
               ]
             }
@@ -19560,7 +19560,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "σ"
               ]
             }
@@ -19572,7 +19572,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "δ"
               ]
             }
@@ -19584,7 +19584,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "ε"
               ]
             }
@@ -19596,7 +19596,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "ϵ"
               ]
             }
@@ -19608,7 +19608,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "γ"
               ]
             }
@@ -19620,7 +19620,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "η"
               ]
             }
@@ -19632,7 +19632,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "ι"
               ]
             }
@@ -19644,7 +19644,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "ı"
               ]
             }
@@ -19656,7 +19656,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "θ"
               ]
             }
@@ -19668,7 +19668,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "ȷ"
               ]
             }
@@ -19680,7 +19680,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "ϑ"
               ]
             }
@@ -19692,7 +19692,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "κ"
               ]
             }
@@ -19704,7 +19704,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "ϰ"
               ]
             }
@@ -19716,7 +19716,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "λ"
               ]
             }
@@ -19728,7 +19728,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "ℓ"
               ]
             }
@@ -19740,7 +19740,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "μ"
               ]
             }
@@ -19752,7 +19752,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "ν"
               ]
             }
@@ -19764,7 +19764,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "ο"
               ]
             }
@@ -19776,7 +19776,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "π"
               ]
             }
@@ -19788,7 +19788,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "ϖ"
               ]
             }
@@ -19800,7 +19800,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "χ"
               ]
             }
@@ -19812,7 +19812,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "ρ"
               ]
             }
@@ -19824,7 +19824,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "ϱ"
               ]
             }
@@ -19836,7 +19836,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "σ"
               ]
             }
@@ -19848,7 +19848,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "ς"
               ]
             }
@@ -19860,7 +19860,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "τ"
               ]
             }
@@ -19872,7 +19872,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "υ"
               ]
             }
@@ -19884,7 +19884,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "ϕ"
               ]
             }
@@ -19896,7 +19896,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "φ"
               ]
             }
@@ -19908,7 +19908,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "φ"
               ]
             }
@@ -19920,7 +19920,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "ϕ"
               ]
             }
@@ -19932,7 +19932,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "ω"
               ]
             }
@@ -19944,7 +19944,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "ξ"
               ]
             }
@@ -19956,7 +19956,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "ψ"
               ]
             }
@@ -19968,7 +19968,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-up",
+                "math-variant", "mbfu",
                 "ζ"
               ]
             }
@@ -19980,7 +19980,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "a"
               ]
             }
@@ -19992,7 +19992,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "b"
               ]
             }
@@ -20004,7 +20004,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "c"
               ]
             }
@@ -20016,7 +20016,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "d"
               ]
             }
@@ -20028,7 +20028,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "e"
               ]
             }
@@ -20040,7 +20040,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "f"
               ]
             }
@@ -20052,7 +20052,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "g"
               ]
             }
@@ -20064,7 +20064,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "h"
               ]
             }
@@ -20076,7 +20076,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "i"
               ]
             }
@@ -20088,7 +20088,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "j"
               ]
             }
@@ -20100,7 +20100,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "k"
               ]
             }
@@ -20112,7 +20112,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "l"
               ]
             }
@@ -20124,7 +20124,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "m"
               ]
             }
@@ -20136,7 +20136,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "n"
               ]
             }
@@ -20148,7 +20148,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "o"
               ]
             }
@@ -20160,7 +20160,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "p"
               ]
             }
@@ -20172,7 +20172,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "q"
               ]
             }
@@ -20184,7 +20184,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "r"
               ]
             }
@@ -20196,7 +20196,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "s"
               ]
             }
@@ -20208,7 +20208,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "t"
               ]
             }
@@ -20220,7 +20220,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "u"
               ]
             }
@@ -20232,7 +20232,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "v"
               ]
             }
@@ -20244,7 +20244,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "w"
               ]
             }
@@ -20256,7 +20256,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "x"
               ]
             }
@@ -20268,7 +20268,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "y"
               ]
             }
@@ -20280,7 +20280,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "z"
               ]
             }
@@ -20292,7 +20292,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "A"
               ]
             }
@@ -20304,7 +20304,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "B"
               ]
             }
@@ -20316,7 +20316,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "C"
               ]
             }
@@ -20328,7 +20328,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "D"
               ]
             }
@@ -20340,7 +20340,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "E"
               ]
             }
@@ -20352,7 +20352,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "F"
               ]
             }
@@ -20364,7 +20364,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "G"
               ]
             }
@@ -20376,7 +20376,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "H"
               ]
             }
@@ -20388,7 +20388,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "I"
               ]
             }
@@ -20400,7 +20400,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "J"
               ]
             }
@@ -20412,7 +20412,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "K"
               ]
             }
@@ -20424,7 +20424,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "L"
               ]
             }
@@ -20436,7 +20436,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "M"
               ]
             }
@@ -20448,7 +20448,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "N"
               ]
             }
@@ -20460,7 +20460,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "O"
               ]
             }
@@ -20472,7 +20472,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "P"
               ]
             }
@@ -20484,7 +20484,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "Q"
               ]
             }
@@ -20496,7 +20496,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "R"
               ]
             }
@@ -20508,7 +20508,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "S"
               ]
             }
@@ -20520,7 +20520,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "T"
               ]
             }
@@ -20532,7 +20532,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "U"
               ]
             }
@@ -20544,7 +20544,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "V"
               ]
             }
@@ -20556,7 +20556,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "W"
               ]
             }
@@ -20568,7 +20568,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "X"
               ]
             }
@@ -20580,7 +20580,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "Y"
               ]
             }
@@ -20592,7 +20592,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-cal",
+                "math-variant", "cal",
                 "Z"
               ]
             }
@@ -20604,9 +20604,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "a"
-              ]
+              ]]
             }
           ]
         },
@@ -20616,9 +20616,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "b"
-              ]
+              ]]
             }
           ]
         },
@@ -20628,9 +20628,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "c"
-              ]
+              ]]
             }
           ]
         },
@@ -20640,9 +20640,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "d"
-              ]
+              ]]
             }
           ]
         },
@@ -20652,9 +20652,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "e"
-              ]
+              ]]
             }
           ]
         },
@@ -20664,9 +20664,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "f"
-              ]
+              ]]
             }
           ]
         },
@@ -20676,9 +20676,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "g"
-              ]
+              ]]
             }
           ]
         },
@@ -20688,9 +20688,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "h"
-              ]
+              ]]
             }
           ]
         },
@@ -20700,9 +20700,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "i"
-              ]
+              ]]
             }
           ]
         },
@@ -20712,9 +20712,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "j"
-              ]
+              ]]
             }
           ]
         },
@@ -20724,9 +20724,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "k"
-              ]
+              ]]
             }
           ]
         },
@@ -20736,9 +20736,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "l"
-              ]
+              ]]
             }
           ]
         },
@@ -20748,9 +20748,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "m"
-              ]
+              ]]
             }
           ]
         },
@@ -20760,9 +20760,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "n"
-              ]
+              ]]
             }
           ]
         },
@@ -20772,9 +20772,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "o"
-              ]
+              ]]
             }
           ]
         },
@@ -20784,9 +20784,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "p"
-              ]
+              ]]
             }
           ]
         },
@@ -20796,9 +20796,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "q"
-              ]
+              ]]
             }
           ]
         },
@@ -20808,9 +20808,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "r"
-              ]
+              ]]
             }
           ]
         },
@@ -20820,9 +20820,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "s"
-              ]
+              ]]
             }
           ]
         },
@@ -20832,9 +20832,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "t"
-              ]
+              ]]
             }
           ]
         },
@@ -20844,9 +20844,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "u"
-              ]
+              ]]
             }
           ]
         },
@@ -20856,9 +20856,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "v"
-              ]
+              ]]
             }
           ]
         },
@@ -20868,9 +20868,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "w"
-              ]
+              ]]
             }
           ]
         },
@@ -20880,9 +20880,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "x"
-              ]
+              ]]
             }
           ]
         },
@@ -20892,9 +20892,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "y"
-              ]
+              ]]
             }
           ]
         },
@@ -20904,9 +20904,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "z"
-              ]
+              ]]
             }
           ]
         },
@@ -20916,9 +20916,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "A"
-              ]
+              ]]
             }
           ]
         },
@@ -20928,9 +20928,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "B"
-              ]
+              ]]
             }
           ]
         },
@@ -20940,9 +20940,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "C"
-              ]
+              ]]
             }
           ]
         },
@@ -20952,9 +20952,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "D"
-              ]
+              ]]
             }
           ]
         },
@@ -20964,9 +20964,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "E"
-              ]
+              ]]
             }
           ]
         },
@@ -20976,9 +20976,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "F"
-              ]
+              ]]
             }
           ]
         },
@@ -20988,9 +20988,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "G"
-              ]
+              ]]
             }
           ]
         },
@@ -21000,9 +21000,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "H"
-              ]
+              ]]
             }
           ]
         },
@@ -21012,9 +21012,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "I"
-              ]
+              ]]
             }
           ]
         },
@@ -21024,9 +21024,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "J"
-              ]
+              ]]
             }
           ]
         },
@@ -21036,9 +21036,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "K"
-              ]
+              ]]
             }
           ]
         },
@@ -21048,9 +21048,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "L"
-              ]
+              ]]
             }
           ]
         },
@@ -21060,9 +21060,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "M"
-              ]
+              ]]
             }
           ]
         },
@@ -21072,9 +21072,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "N"
-              ]
+              ]]
             }
           ]
         },
@@ -21084,9 +21084,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "O"
-              ]
+              ]]
             }
           ]
         },
@@ -21096,9 +21096,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "P"
-              ]
+              ]]
             }
           ]
         },
@@ -21108,9 +21108,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "Q"
-              ]
+              ]]
             }
           ]
         },
@@ -21120,9 +21120,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "R"
-              ]
+              ]]
             }
           ]
         },
@@ -21132,9 +21132,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "S"
-              ]
+              ]]
             }
           ]
         },
@@ -21144,9 +21144,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "T"
-              ]
+              ]]
             }
           ]
         },
@@ -21156,9 +21156,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "U"
-              ]
+              ]]
             }
           ]
         },
@@ -21168,9 +21168,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "V"
-              ]
+              ]]
             }
           ]
         },
@@ -21180,9 +21180,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "W"
-              ]
+              ]]
             }
           ]
         },
@@ -21192,9 +21192,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "X"
-              ]
+              ]]
             }
           ]
         },
@@ -21204,9 +21204,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "Y"
-              ]
+              ]]
             }
           ]
         },
@@ -21216,9 +21216,9 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bold-cal",
+                "math-variant", "mbf", ["math-variant", "cal",
                 "Z"
-              ]
+              ]]
             }
           ]
         },
@@ -21228,7 +21228,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "a"
               ]
             }
@@ -21240,7 +21240,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "b"
               ]
             }
@@ -21252,7 +21252,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "c"
               ]
             }
@@ -21264,7 +21264,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "d"
               ]
             }
@@ -21276,7 +21276,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "e"
               ]
             }
@@ -21288,7 +21288,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "f"
               ]
             }
@@ -21300,7 +21300,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "g"
               ]
             }
@@ -21312,7 +21312,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "h"
               ]
             }
@@ -21324,7 +21324,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "i"
               ]
             }
@@ -21336,7 +21336,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "ı"
               ]
             }
@@ -21348,7 +21348,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "j"
               ]
             }
@@ -21360,7 +21360,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "ȷ"
               ]
             }
@@ -21372,7 +21372,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "k"
               ]
             }
@@ -21384,7 +21384,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "l"
               ]
             }
@@ -21396,7 +21396,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "m"
               ]
             }
@@ -21408,7 +21408,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "n"
               ]
             }
@@ -21420,7 +21420,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "o"
               ]
             }
@@ -21432,7 +21432,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "p"
               ]
             }
@@ -21444,7 +21444,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "q"
               ]
             }
@@ -21456,7 +21456,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "r"
               ]
             }
@@ -21468,7 +21468,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "s"
               ]
             }
@@ -21480,7 +21480,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "t"
               ]
             }
@@ -21492,7 +21492,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "u"
               ]
             }
@@ -21504,7 +21504,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "v"
               ]
             }
@@ -21516,7 +21516,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "w"
               ]
             }
@@ -21528,7 +21528,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "x"
               ]
             }
@@ -21540,7 +21540,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "y"
               ]
             }
@@ -21552,7 +21552,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "z"
               ]
             }
@@ -21564,7 +21564,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "A"
               ]
             }
@@ -21576,7 +21576,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "B"
               ]
             }
@@ -21588,7 +21588,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "C"
               ]
             }
@@ -21600,7 +21600,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "D"
               ]
             }
@@ -21612,7 +21612,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "E"
               ]
             }
@@ -21624,7 +21624,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "F"
               ]
             }
@@ -21636,7 +21636,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "G"
               ]
             }
@@ -21648,7 +21648,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "H"
               ]
             }
@@ -21660,7 +21660,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "I"
               ]
             }
@@ -21672,7 +21672,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "J"
               ]
             }
@@ -21684,7 +21684,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "K"
               ]
             }
@@ -21696,7 +21696,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "L"
               ]
             }
@@ -21708,7 +21708,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "M"
               ]
             }
@@ -21720,7 +21720,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "N"
               ]
             }
@@ -21732,7 +21732,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "O"
               ]
             }
@@ -21744,7 +21744,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "P"
               ]
             }
@@ -21756,7 +21756,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "Q"
               ]
             }
@@ -21768,7 +21768,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "R"
               ]
             }
@@ -21780,7 +21780,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "S"
               ]
             }
@@ -21792,7 +21792,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "T"
               ]
             }
@@ -21804,7 +21804,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "U"
               ]
             }
@@ -21816,7 +21816,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "V"
               ]
             }
@@ -21828,7 +21828,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "W"
               ]
             }
@@ -21840,7 +21840,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "X"
               ]
             }
@@ -21852,7 +21852,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "Y"
               ]
             }
@@ -21864,7 +21864,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-frak",
+                "math-variant", "frak",
                 "Z"
               ]
             }
@@ -21876,7 +21876,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "0"
               ]
             }
@@ -21888,7 +21888,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "1"
               ]
             }
@@ -21900,7 +21900,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "2"
               ]
             }
@@ -21912,7 +21912,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "3"
               ]
             }
@@ -21924,7 +21924,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "4"
               ]
             }
@@ -21936,7 +21936,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "5"
               ]
             }
@@ -21948,7 +21948,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "6"
               ]
             }
@@ -21960,7 +21960,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "7"
               ]
             }
@@ -21972,7 +21972,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "8"
               ]
             }
@@ -21984,7 +21984,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "9"
               ]
             }
@@ -21996,7 +21996,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "a"
               ]
             }
@@ -22008,7 +22008,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "b"
               ]
             }
@@ -22020,7 +22020,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "c"
               ]
             }
@@ -22032,7 +22032,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "d"
               ]
             }
@@ -22044,7 +22044,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "e"
               ]
             }
@@ -22056,7 +22056,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "f"
               ]
             }
@@ -22068,7 +22068,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "g"
               ]
             }
@@ -22080,7 +22080,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "h"
               ]
             }
@@ -22092,7 +22092,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "i"
               ]
             }
@@ -22104,7 +22104,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "j"
               ]
             }
@@ -22116,7 +22116,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "k"
               ]
             }
@@ -22128,7 +22128,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "l"
               ]
             }
@@ -22140,7 +22140,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "m"
               ]
             }
@@ -22152,7 +22152,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "n"
               ]
             }
@@ -22164,7 +22164,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "o"
               ]
             }
@@ -22176,7 +22176,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "p"
               ]
             }
@@ -22188,7 +22188,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "q"
               ]
             }
@@ -22200,7 +22200,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "r"
               ]
             }
@@ -22212,7 +22212,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "s"
               ]
             }
@@ -22224,7 +22224,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "t"
               ]
             }
@@ -22236,7 +22236,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "u"
               ]
             }
@@ -22248,7 +22248,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "v"
               ]
             }
@@ -22260,7 +22260,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "w"
               ]
             }
@@ -22272,7 +22272,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "x"
               ]
             }
@@ -22284,7 +22284,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "y"
               ]
             }
@@ -22296,7 +22296,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "z"
               ]
             }
@@ -22308,7 +22308,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "A"
               ]
             }
@@ -22320,7 +22320,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "B"
               ]
             }
@@ -22332,7 +22332,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "C"
               ]
             }
@@ -22344,7 +22344,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "D"
               ]
             }
@@ -22356,7 +22356,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "E"
               ]
             }
@@ -22368,7 +22368,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "F"
               ]
             }
@@ -22380,7 +22380,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "G"
               ]
             }
@@ -22392,7 +22392,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "H"
               ]
             }
@@ -22404,7 +22404,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "I"
               ]
             }
@@ -22416,7 +22416,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "J"
               ]
             }
@@ -22428,7 +22428,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "K"
               ]
             }
@@ -22440,7 +22440,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "L"
               ]
             }
@@ -22452,7 +22452,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "M"
               ]
             }
@@ -22464,7 +22464,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "N"
               ]
             }
@@ -22476,7 +22476,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "O"
               ]
             }
@@ -22488,7 +22488,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "P"
               ]
             }
@@ -22500,7 +22500,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "Q"
               ]
             }
@@ -22512,7 +22512,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "R"
               ]
             }
@@ -22524,7 +22524,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "S"
               ]
             }
@@ -22536,7 +22536,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "T"
               ]
             }
@@ -22548,7 +22548,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "U"
               ]
             }
@@ -22560,7 +22560,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "V"
               ]
             }
@@ -22572,7 +22572,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "W"
               ]
             }
@@ -22584,7 +22584,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "X"
               ]
             }
@@ -22596,7 +22596,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "Y"
               ]
             }
@@ -22608,7 +22608,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "Z"
               ]
             }
@@ -22625,7 +22625,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "A"
               ]
             }
@@ -22637,7 +22637,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "B"
               ]
             }
@@ -22649,7 +22649,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "C"
               ]
             }
@@ -22661,7 +22661,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "D"
               ]
             }
@@ -22673,7 +22673,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "E"
               ]
             }
@@ -22685,7 +22685,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "F"
               ]
             }
@@ -22697,7 +22697,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "G"
               ]
             }
@@ -22709,7 +22709,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "H"
               ]
             }
@@ -22721,7 +22721,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "I"
               ]
             }
@@ -22733,7 +22733,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "J"
               ]
             }
@@ -22745,7 +22745,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "K"
               ]
             }
@@ -22757,7 +22757,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "L"
               ]
             }
@@ -22769,7 +22769,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "M"
               ]
             }
@@ -22781,7 +22781,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "N"
               ]
             }
@@ -22793,7 +22793,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "O"
               ]
             }
@@ -22805,7 +22805,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "P"
               ]
             }
@@ -22817,7 +22817,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "Q"
               ]
             }
@@ -22829,7 +22829,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "R"
               ]
             }
@@ -22841,7 +22841,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "S"
               ]
             }
@@ -22853,7 +22853,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "T"
               ]
             }
@@ -22865,7 +22865,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "U"
               ]
             }
@@ -22877,7 +22877,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "V"
               ]
             }
@@ -22889,7 +22889,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "W"
               ]
             }
@@ -22901,7 +22901,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "X"
               ]
             }
@@ -22913,7 +22913,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "Y"
               ]
             }
@@ -22925,7 +22925,7 @@
             {
               "op": "insert-tree",
               "value": [
-                "math-alpha-bbb",
+                "math-variant", "bb",
                 "Z"
               ]
             }
