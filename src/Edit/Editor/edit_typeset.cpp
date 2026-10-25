@@ -833,6 +833,9 @@ edit_typeset_rep::exec_html (tree t, path p) {
   hashmap<string,tree> P (UNINIT, patch);
   H->join (P);
   prefix_specific (H, "tmhtml-");
+  // Native enunciation counters must advance during HTML expansion, but their
+  // executed ASSIGN trees are effects, not visible HTML source nodes.
+  H ("html-export")= tree ("true");
   tree w (WITH);
   tree doc_title= search_doc_title (t);
   if (doc_title != "")

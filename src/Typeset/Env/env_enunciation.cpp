@@ -287,6 +287,14 @@ tree native_enunciation_macro (edit_env_rep* env, const tree& source) {
     if (env->provides (style)) presented= compound (style, heading, body);
     else presented= tree (SURROUND, append (heading, tree (" "), "."), "", body);
   }
-  if (advance != "") presented= tree (SURROUND, advance, "", presented);
+  if (advance != "" && env->get_string ("html-export") == "true") {
+    // exec_assign returns the assignment it just performed. During HTML
+    // expansion this would leak an executable tree into the visible body and
+    // be (correctly) rejected by the strict HTML converter. Perform the
+    // counter effect here, retaining the increment for the following title,
+    // without manufacturing a visible ASSIGN output node.
+    (void) env->exec (advance);
+  }
+  else if (advance != "") presented= tree (SURROUND, advance, "", presented);
   return tree (MACRO, "body", tree (DOCUMENT, presented));
 }

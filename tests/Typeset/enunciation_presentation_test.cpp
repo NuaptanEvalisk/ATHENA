@@ -616,6 +616,21 @@ private slots:
     QCOMPARE (t, before);
   }
 
+  void htmlExpansionAdvancesCounterWithoutEmittingAssignments () {
+    Environment context;
+    edit_env env= context.env;
+    const tree original= source ("theorem", true);
+    const tree before= copy (original);
+    env->write ("html-export", "true");
+    tree expanded= env->exec (original);
+    QVERIFY (!has_tag (expanded, ASSIGN));
+    QCOMPARE (env->exec (compound ("the-theorem")), tree ("1"));
+    QCOMPARE (original, before);
+
+    env->exec (source ("theorem", false));
+    QCOMPARE (env->exec (compound ("the-theorem")), tree ("1"));
+  }
+
   void selectiveBoldBodyCursorEnvironment () {
     struct Case { const char* kind; const char* series; };
     const Case cases[]= {
