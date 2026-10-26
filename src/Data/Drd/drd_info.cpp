@@ -18,6 +18,7 @@
 #include "Data/NodeContracts/node_group_scope.hpp"
 #include "Data/NodeContracts/macro_analysis.hpp"
 #include "Data/NodeContracts/contract_declaration.hpp"
+#include "Data/NodeContracts/native_fields.hpp"
 
 /******************************************************************************
 * Constructors and basic operations
@@ -548,6 +549,10 @@ drd_info_rep::get_child_long_name (tree_label l, int nr) {
 
 string
 drd_info_rep::get_child_name (tree t, int i) {
+  if (const auto* native= athena::contracts::native_fields (L(t))) {
+    const auto* field= native->child (i, N(t));
+    return field ? string (field->name.data (), field->name.size ()) : string ("");
+  }
   const auto& ti= descriptor_for (*this, t);
   int index= ti.layout.index (i, N(t));
   if ((index<0) || (index>=int(ti.fields.size ()))) return "";
@@ -556,6 +561,10 @@ drd_info_rep::get_child_name (tree t, int i) {
 
 string
 drd_info_rep::get_child_long_name (tree t, int i) {
+  if (const auto* native= athena::contracts::native_fields (L(t))) {
+    const auto* field= native->child (i, N(t));
+    return field ? string (field->name.data (), field->name.size ()) : string ("");
+  }
   const auto& ti= descriptor_for (*this, t);
   int index= ti.layout.index (i, N(t));
   if ((index<0) || (index>=int(ti.fields.size ()))) return "";
@@ -621,6 +630,15 @@ drd_info_rep::get_env_child (tree t, int i, tree env) {
   if (L(t) == WITH && i == N(t)-1)
     return drd_env_merge (env, t (0, N(t)-1));
   else {
+    if (const auto* native= athena::contracts::native_fields (L(t))) {
+      const auto* field= native->child (i, N(t));
+      if (!field) return "";
+      tree local (ATTR);
+      for (const auto& [key, value]: field->environment)
+        local << string (key.data (), key.size ()) <<
+                 string (value.data (), value.size ());
+      return drd_env_merge (env, local);
+    }
     /* makes cursor movement (is_accessible_cursor) slow for large preambles
     if (L(t) == DOCUMENT && N(t) > 0 &&
         (is_compound (t[0], "hide-preamble", 1) ||
