@@ -9,6 +9,7 @@
 #include "ATHENA/Data/enunciation_model.hpp"
 #include "ATHENA/Data/enunciation_slots.hpp"
 #include "ATHENA/Data/document_node_model.hpp"
+#include "Data/NodeContracts/native_fields.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "buffer_state.hpp"
 #include "buffer_actor.hpp"
@@ -96,7 +97,6 @@ bool edit_interface_rep::open_enunciation_slot (string field, int index,
     (void) publish_ui (actor_command_kind::ui_focus_view);
     return true;
   }
-  if (field != "name" && field != "year" && field != "attribution") return false;
   apply_changes ();
   if (expected_request && expected_request != enunciation_slot_request_) return false;
   if (is_nil (enunciation_slots_path_) || !has_subtree (et, enunciation_slots_path_) ||
@@ -104,6 +104,10 @@ bool edit_interface_rep::open_enunciation_slot (string field, int index,
   const tree& source= subtree (et, enunciation_slots_path_);
   if (!en::editable_title (source)) return false;
   const std::string key (field.data (), N(field));
+  const auto* fields= athena::contracts::native_fields (L(source));
+  const auto* property= fields ? fields->property (key) : nullptr;
+  if (!property || property->editor != athena::contracts::property_editor::title_slot)
+    return false;
   auto values= en::title_fields (source, key);
   if (values.empty ()) values.emplace_back ("");
   if (index < 0 || index >= int (values.size ())) return false;

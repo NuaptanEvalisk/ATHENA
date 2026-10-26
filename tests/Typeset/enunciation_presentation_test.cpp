@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include <QApplication>
+#include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -28,6 +29,8 @@
 #include "convert.hpp"
 #include "enunciation_presentation.hpp"
 #include "enunciation_surround.hpp"
+#include "Data/NodeContracts/contract_declaration.hpp"
+#include "Typeset/Env/local_environment.hpp"
 #include "formatter.hpp"
 #include "Format/format.hpp"
 #include "ATHENA/Data/vault.hpp"
@@ -173,6 +176,110 @@ bool has_link_target (box b, const AthenaArtifactRecord& record) {
 class EnunciationPresentationTest: public QObject {
   Q_OBJECT
 private slots:
+  void cachedContractReadsTrackReferenceAndAttachmentProviders () {
+    using namespace athena::contracts;
+    Environment context;
+    edit_env env= context.env;
+    context.h2 ("external-reference")= tree (TUPLE, "initial", "1");
+    context.h6 ("external-attachment")= "attachment-one";
+    const auto capture= [&] (auto reader) {
+      contract_event_log log;
+      contract_event_capture records (env->contract_events, log, &context.drd->contracts);
+      reader ();
+      records.commit ();
+      return log;
+    };
+    auto reads= capture ([&] {
+      QCOMPARE (env->exec (tree (GET_BINDING, "external-reference")), tree ("initial"));
+      QCOMPARE (env->exec (tree (GET_ATTACHMENT, "external-attachment")),
+                tree ("attachment-one"));
+      // Identical provider reads need just one receipt per name and source.
+      (void) env->exec (tree (GET_BINDING, "external-reference"));
+      (void) env->exec (tree (GET_ATTACHMENT, "external-attachment"));
+    });
+    QVERIFY (reads && reads->records.size () == 2);
+    QVERIFY (env->can_replay_events (reads));
+    context.h1 ("external-reference")= context.h2["external-reference"];
+    QVERIFY (!env->can_replay_events (reads)); // Same value, new provider.
+    context.h1->reset ("external-reference");
+    context.h6 ("external-attachment")= "attachment-two";
+    QVERIFY (!env->can_replay_events (reads));
+    context.h6 ("external-attachment")= "attachment-one";
+    QVERIFY (env->can_replay_events (reads));
+
+    const auto missing= capture ([&] {
+      QCOMPARE (env->exec (tree (GET_BINDING, "absent-reference")), tree (UNINIT));
+    });
+    context.h2 ("absent-reference")= tree (TUPLE, "now-present", "2");
+    QVERIFY (!env->can_replay_events (missing));
+
+    // SET_BINDING also changes touched/redefinition state, which the current
+    // contract-only replay cannot publish. A cached block containing it must
+    // therefore not be admitted as a pure variable/declaration effect replay.
+    const auto modified= capture ([&] {
+      (void) env->exec (tree (SET_BINDING, "external-reference", "rebound"));
+    });
+    QVERIFY (!env->can_replay_events (modified));
+  }
+  void withPackageEvaluatesNestedDeclarationsAndRestoresOnlyItsWrites () {
+    Environment context;
+    QTemporaryDir root;
+    QVERIFY (root.isValid ());
+    const QString child= root.filePath ("child.ats");
+    const QString parent= root.filePath ("parent.ats");
+    const auto document= [] (const QByteArray& body) {
+      return QByteArray ("<?xml version='1.0'?><athena-document version='1' text-model='utf-8'>"
+        "<node tag='document'><node tag='body'><node tag='document'>") + body +
+        "</node></node></node></athena-document>";
+    };
+    const auto save= [] (const QString& name, const QByteArray& content) {
+      QFile file (name);
+      return file.open (QIODevice::WriteOnly) && file.write (content) == content.size ();
+    };
+    QVERIFY (save (child, document (
+      "<node tag='assign'><text>package-child</text><node tag='macro'>"
+      "<text>x</text><node tag='arg'><text>x</text></node></node></node>")));
+    QVERIFY (save (parent, document (
+      "<node tag='use-package'><text>" + child.toUtf8 () + "</text></node>"
+      "<node tag='assign'><text>package-parent</text><text>scoped</text></node>"
+      "<node tag='drd-props'><text>package-child</text><text>name</text>"
+      "<text>Nested child</text></node>"
+      "<node tag='with'><text>internal-only</text><text>temporary</text>"
+      "<text>invisible</text></node>")));
+    const string package (parent.toUtf8 ().constData ());
+    context.env->write ("package-parent", "outside");
+    const auto child_label= make_tree_label ("package-child");
+    athena::contracts::contract_event_log cached;
+    {
+      athena::contracts::contract_event_capture record (
+        context.env->contract_events, cached, &context.drd->contracts);
+      scoped_package_environment scope (*context.env.operator-> (), tree (package));
+      QCOMPARE (context.env->read ("package-parent"), tree ("scoped"));
+      QVERIFY (context.drd->contracts.definition (child_label));
+      QVERIFY (context.drd->contracts.declaration_history (child_label));
+      scope.finish ();
+      record.commit ();
+    }
+    QCOMPARE (context.env->read ("package-parent"), tree ("outside"));
+    QVERIFY (!context.drd->contracts.definition (child_label));
+    QVERIFY (!context.drd->contracts.declaration_history (child_label));
+    QVERIFY (context.env->can_replay_events (cached));
+    const tree result= context.env->exec (tree (WITH_PACKAGE, package,
+      tree (DOCUMENT,
+        tree (ASSIGN, "outside-write", "preserved"),
+        tree (ASSIGN, "internal-only", "body-write"),
+        tree (VALUE, "package-parent"))));
+    QVERIFY (is_document (result));
+    QCOMPARE (result[2], tree ("scoped"));
+    QCOMPARE (context.env->read ("package-parent"), tree ("outside"));
+    QCOMPARE (context.env->read ("outside-write"), tree ("preserved"));
+    QCOMPARE (context.env->read ("internal-only"), tree ("body-write"));
+    QVERIFY (!context.drd->contracts.definition (child_label));
+    QVERIFY (save (child, document (
+      "<node tag='assign'><text>package-child</text><node tag='macro'>"
+      "<text>x</text><text>changed nested package</text></node></node>")));
+    QVERIFY (!context.env->can_replay_events (cached));
+  }
   void focusedTitleSlotsAreScreenOnly () {
     Environment context;
     tree t= source ();

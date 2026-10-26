@@ -11,9 +11,7 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(texmacs-module (various poster-edit)
-  (:use (various poster-drd)
-        (generic document-edit)))
+(texmacs-module (various poster-edit) (:use (generic document-edit)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Page size and orientation
@@ -56,14 +54,17 @@
 ;; Blocks
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (poster-block-context? t)
-  (tree-in? t (poster-block-tag-list)))
+(tm-define
+ (poster-block-context? t)
+ (tree-in? t (node-group-members "poster-block-tag")))
 
-(tm-define (titled-block-context? t)
-  (tree-in? t (titled-block-tag-list)))
+(tm-define
+ (titled-block-context? t)
+ (tree-in? t (node-group-members "titled-block-tag")))
 
-(tm-define (untitled-block-context? t)
-  (tree-in? t (untitled-block-tag-list)))
+(tm-define
+ (untitled-block-context? t)
+ (tree-in? t (node-group-members "untitled-block-tag")))
 
 (tm-define (parameter-choice-list l)
   (:require (in? l (list "framed-shape" "alternate-shape")))

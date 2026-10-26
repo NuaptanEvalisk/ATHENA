@@ -11,142 +11,13 @@
 
 #include "tag_info.hpp"
 #include "drd_info.hpp"
-#include "hashmap.hpp"
 
-#include <mutex>
-
-#define get_bits(which,nr) which=i&((1<<nr)-1);i=i>>nr
-#define set_bits(which,nr) i+=((int)which)<<offset;offset+=nr
-
-/******************************************************************************
-* Compact representation for environment changes
-******************************************************************************/
-
-namespace {
-
-struct drd_environment_table {
-  hashmap<tree,int> encode;
-  hashmap<int,tree> decode;
-
-  drd_environment_table (): encode (-1), decode (tree ()) {}
-};
-
-// Stable numeric ids are process-wide, but legacy tree handles must never be
-// shared between actor threads: their reference counts are intentionally not
-// atomic.  The global table is only touched on a thread-local cache miss and
-// owns deep copies of its keys and values.
-std::mutex drd_environment_lock;
-hashmap<tree,int> shared_encode_table (-1);
-array<tree> shared_decode_table;
-thread_local drd_environment_table local_environment_table;
-
-} // namespace
-
-int
-drd_encode (tree t) {
-  if (local_environment_table.encode->contains (t))
-    return local_environment_table.encode[t];
-
-  int id;
-  tree local= copy (t);
-  {
-    std::lock_guard<std::mutex> guard (drd_environment_lock);
-    if (shared_encode_table->contains (t)) id= shared_encode_table[t];
-    else {
-      id= N (shared_decode_table);
-      ASSERT (id < (1 << 16), "drd_encode overflow");
-      tree shared= copy (t);
-      shared_encode_table (shared)= id;
-      shared_decode_table << shared;
-    }
-  }
-  local_environment_table.encode (local)= id;
-  local_environment_table.decode (id)= local;
-  return id;
-}
-
-tree
-drd_decode (int i) {
-  if (local_environment_table.decode->contains (i))
-    return local_environment_table.decode[i];
-
-  tree local;
-  {
-    std::lock_guard<std::mutex> guard (drd_environment_lock);
-    ASSERT (i >= 0 && i < N (shared_decode_table), "out of range");
-    local= copy (shared_decode_table[i]);
-  }
-  local_environment_table.encode (local)= i;
-  local_environment_table.decode (i)= local;
-  return local;
-}
-
-/******************************************************************************
-* Names for drd types
-******************************************************************************/
-
-string
-drd_decode_type (int i) {
-  switch (i) {
-  case TYPE_REGULAR: return "regular";
-  case TYPE_ADHOC: return "adhoc";
-  case TYPE_VARIABLE: return "variable";
-  case TYPE_ARGUMENT: return "argument";
-  case TYPE_BOOLEAN: return "boolean";
-  case TYPE_INTEGER: return "integer";
-  case TYPE_STRING: return "string";
-  case TYPE_LENGTH: return "length";
-  case TYPE_NUMERIC: return "numeric";
-  case TYPE_CODE: return "code";
-  case TYPE_IDENTIFIER: return "identifier";
-  case TYPE_URL: return "url";
-  case TYPE_COLOR: return "color";
-  case TYPE_GRAPHICAL: return "graphical";
-  case TYPE_POINT: return "point";
-  case TYPE_CONSTRAINT: return "constraint";
-  case TYPE_GRAPHICAL_ID: return "graphical-id";
-  case TYPE_EFFECT: return "effect";
-  case TYPE_DURATION: return "duration";
-  case TYPE_FONT_SIZE: return "font-size";
-  case TYPE_OBSOLETE: return "obsolete";
-  case TYPE_UNKNOWN: return "unknown";
-  case TYPE_ERROR: return "error";
-  default: return "unknown";
-  }
-}
-
-int
-drd_encode_type (string s) {
-  if (s == "regular") return TYPE_REGULAR;
-  else if (s == "adhoc") return TYPE_ADHOC;
-  else if (s == "variable") return TYPE_VARIABLE;
-  else if (s == "argument") return TYPE_ARGUMENT;
-  else if (s == "boolean") return TYPE_BOOLEAN;
-  else if (s == "integer") return TYPE_INTEGER;
-  else if (s == "string") return TYPE_STRING;
-  else if (s == "length") return TYPE_LENGTH;
-  else if (s == "numeric") return TYPE_NUMERIC;
-  else if (s == "code") return TYPE_CODE;
-  else if (s == "identifier") return TYPE_IDENTIFIER;
-  else if (s == "url") return TYPE_URL;
-  else if (s == "color") return TYPE_COLOR;
-  else if (s == "graphical") return TYPE_GRAPHICAL;
-  else if (s == "point") return TYPE_POINT;
-  else if (s == "constraint") return TYPE_CONSTRAINT;
-  else if (s == "graphical-id") return TYPE_GRAPHICAL_ID;
-  else if (s == "effect") return TYPE_EFFECT;
-  else if (s == "duration") return TYPE_DURATION;
-  else if (s == "font-size") return TYPE_FONT_SIZE;
-  else if (s == "unknown") return TYPE_UNKNOWN;
-  else if (s == "error") return TYPE_ERROR;
-  else return -1;
-}
 
 /******************************************************************************
 * Properties of the tag
 ******************************************************************************/
 
-parent_info::parent_info (int a, int x, int am, int cm, bool frozen) {
+parent_info::parent_info (int a, int x, int am, int cm, bool native) {
   type             = TYPE_REGULAR;
   arity_mode       = am;
   arity_base       = a;
@@ -156,51 +27,38 @@ parent_info::parent_info (int a, int x, int am, int cm, bool frozen) {
   block            = BLOCK_NO;
   with_like        = false;
   var_type         = VAR_MACRO;
-  freeze_arity     = frozen;
-  freeze_border    = frozen;
-  freeze_block     = frozen;
-  freeze_with      = frozen;
-  freeze_var_type  = frozen;
+  type_origin= arity_origin= border_origin= block_origin=
+    with_origin= var_type_origin= native ? property_authority::builtin :
+                                          property_authority::inferred;
 }
 
 parent_info::parent_info (tree t) {
-  long int i= as_long_int (t);
-  get_bits (type            , 5);
-  get_bits (arity_mode      , 2);
-  get_bits (arity_base      , 6);
-  get_bits (arity_extra     , 4);
-  get_bits (child_mode      , 2);
-  get_bits (border_mode     , 2);
-  get_bits (block           , 2);
-  get_bits (with_like       , 1);
-  get_bits (var_type        , 2);
-  get_bits (freeze_type     , 1);
-  get_bits (freeze_arity    , 1);
-  get_bits (freeze_border   , 1);
-  get_bits (freeze_block    , 1);
-  get_bits (freeze_with     , 1);
-  get_bits (freeze_var_type , 1);
+  ASSERT (is_func (t, TUPLE, 15), "invalid node contract record");
+  type= as_int (t[0]);
+  arity_mode= as_int (t[1]);
+  arity_base= as_int (t[2]);
+  arity_extra= as_int (t[3]);
+  child_mode= as_int (t[4]);
+  border_mode= as_int (t[5]);
+  block= as_int (t[6]);
+  with_like= as_int (t[7]) != 0;
+  var_type= as_int (t[8]);
+  type_origin= (property_authority) as_int (t[9]);
+  arity_origin= (property_authority) as_int (t[10]);
+  border_origin= (property_authority) as_int (t[11]);
+  block_origin= (property_authority) as_int (t[12]);
+  with_origin= (property_authority) as_int (t[13]);
+  var_type_origin= (property_authority) as_int (t[14]);
 }
 
 parent_info::operator tree () {
-  long int i=0;
-  int offset=0;
-  set_bits (type            , 5);
-  set_bits (arity_mode      , 2);
-  set_bits (arity_base      , 6);
-  set_bits (arity_extra     , 4);
-  set_bits (child_mode      , 2);
-  set_bits (border_mode     , 2);
-  set_bits (block           , 2);
-  set_bits (with_like       , 1);
-  set_bits (var_type        , 2);
-  set_bits (freeze_type     , 1);
-  set_bits (freeze_arity    , 1);
-  set_bits (freeze_border   , 1);
-  set_bits (freeze_block    , 1);
-  set_bits (freeze_with     , 1);
-  set_bits (freeze_var_type , 1);
-  return as_string (i);
+  tree result (TUPLE);
+  for (int value: {type, arity_mode, arity_base, arity_extra, child_mode,
+                  border_mode, block, (int) with_like, var_type,
+                  (int) type_origin, (int) arity_origin, (int) border_origin,
+                  (int) block_origin, (int) with_origin, (int) var_type_origin})
+    result << as_string (value);
+  return result;
 }
 
 bool
@@ -215,11 +73,12 @@ parent_info::operator == (const parent_info& pi) {
     (block            == pi.block           ) &&
     (with_like        == pi.with_like       ) &&
     (var_type         == pi.var_type        ) &&
-    (freeze_arity     == pi.freeze_arity    ) &&
-    (freeze_border    == pi.freeze_border   ) &&
-    (freeze_block     == pi.freeze_block    ) &&
-    (freeze_with      == pi.freeze_with     ) &&
-    (freeze_var_type  == pi.freeze_var_type );
+    (type_origin     == pi.type_origin     ) &&
+    (arity_origin    == pi.arity_origin    ) &&
+    (border_origin   == pi.border_origin   ) &&
+    (block_origin    == pi.block_origin    ) &&
+    (with_origin     == pi.with_origin     ) &&
+    (var_type_origin == pi.var_type_origin );
 }
 
 bool
@@ -236,47 +95,37 @@ operator << (tm_ostream& out, parent_info pi) {
 * Properties of the children of the tag
 ******************************************************************************/
 
-child_info::child_info (bool frozen) {
+child_info::child_info (bool native) {
   type               = TYPE_ADHOC;
   accessible         = ACCESSIBLE_NEVER;
   writability        = WRITABILITY_NORMAL;
   block              = 0;
-  env                = drd_encode (tree (WITH));
-  freeze_type        = frozen;
-  freeze_accessible  = frozen;
-  freeze_writability = frozen;
-  freeze_block       = frozen;
-  freeze_env         = frozen;
+  env= tree (WITH);
+  type_origin= accessible_origin= writability_origin= block_origin=
+    env_origin= native ? property_authority::builtin : property_authority::inferred;
 }
 
 child_info::child_info (tree t) {
-  int i= as_int (is_atomic (t)? t: t[N(t)-1]);
-  get_bits (type              ,  5);
-  get_bits (accessible        ,  2);
-  get_bits (writability       ,  2);
-  get_bits (block             ,  2);
-  get_bits (freeze_type       ,  1);
-  get_bits (freeze_accessible ,  1);
-  get_bits (freeze_writability,  1);
-  get_bits (freeze_block      ,  1);
-  get_bits (freeze_env        ,  1);
-  if (is_atomic (t)) env= drd_encode (tree (WITH));
-  else env= drd_encode (t (0, N(t)-1));
+  ASSERT (is_func (t, TUPLE, 10), "invalid field contract record");
+  type= as_int (t[0]);
+  accessible= as_int (t[1]);
+  writability= as_int (t[2]);
+  block= as_int (t[3]);
+  env= t[4];
+  type_origin= (property_authority) as_int (t[5]);
+  accessible_origin= (property_authority) as_int (t[6]);
+  writability_origin= (property_authority) as_int (t[7]);
+  block_origin= (property_authority) as_int (t[8]);
+  env_origin= (property_authority) as_int (t[9]);
 }
 
 child_info::operator tree () {
-  int i=0, offset=0;
-  set_bits (type              ,  5);
-  set_bits (accessible        ,  2);
-  set_bits (writability       ,  2);
-  set_bits (block             ,  2);
-  set_bits (freeze_type       ,  1);
-  set_bits (freeze_accessible ,  1);
-  set_bits (freeze_writability,  1);
-  set_bits (freeze_block      ,  1);
-  set_bits (freeze_env        ,  1);
-  if (drd_decode (env) == tree (WITH)) return as_string (i);
-  else return drd_decode (env) * tree (WITH, as_string (i));
+  tree result (TUPLE, as_string (type), as_string (accessible),
+               as_string (writability), as_string (block), env);
+  for (auto origin: {type_origin, accessible_origin, writability_origin,
+                    block_origin, env_origin})
+    result << as_string ((int) origin);
+  return result;
 }
 
 bool
@@ -287,11 +136,11 @@ child_info::operator == (const child_info& ci) {
     (writability        == ci.writability       ) &&
     (block              == ci.block             ) &&
     (env                == ci.env               ) &&
-    (freeze_type        == ci.freeze_type       ) &&
-    (freeze_accessible  == ci.freeze_accessible ) &&
-    (freeze_writability == ci.freeze_writability) &&
-    (freeze_block       == ci.freeze_block      ) &&
-    (freeze_env         == ci.freeze_env        );
+    (type_origin        == ci.type_origin       ) &&
+    (accessible_origin  == ci.accessible_origin ) &&
+    (writability_origin == ci.writability_origin) &&
+    (block_origin       == ci.block_origin      ) &&
+    (env_origin         == ci.env_origin        );
 }
 
 bool
@@ -434,7 +283,7 @@ tag_info
 tag_info_rep::locals (int i, string var, string val) {
   if (i < 0 || i >= N(ci)) cout << i << " out of " << N(ci) << "\n";
   ASSERT (i >= 0 && i<N(ci), "index out of range");
-  ci[i].env= drd_encode (drd_env_write (drd_decode (ci[i].env), var, val));
+  ci[i].env= drd_env_write (ci[i].env, var, val);
   return tag_info (pi, ci, extra);
 }
 
@@ -488,36 +337,8 @@ tag_info_rep::long_name (int i, string s) {
 }
 
 int
-tag_info_rep::get_index (int child, int n) {
-  int r= 0;
-  switch (pi.child_mode) {
-  case CHILD_UNIFORM:
-    r= 0;
-    break;
-  case CHILD_BIFORM:
-    if (pi.arity_mode != ARITY_VAR_REPEAT) {
-      if (child < ((int) pi.arity_base)) r= 0;
-      else r= 1;
-    }
-    else {
-      if (child < (n-((int) pi.arity_base))) r= 0;
-      else r= 1;
-    }
-    break;
-  case CHILD_DETAILED:
-    if (((int) pi.arity_mode) <= ARITY_OPTIONS)
-      r= child;
-    else if (pi.arity_mode == ARITY_REPEAT) {
-      if (child < ((int) pi.arity_base)) r= child;
-      else r= (child - pi.arity_base) % pi.arity_extra + pi.arity_base;
-    }
-    else {
-      if (child < (n-((int) pi.arity_base))) r= child % pi.arity_extra;
-      else r= pi.arity_base + pi.arity_extra + child - n;
-    }
-    break;
-  }
-  return r;
+tag_info_rep::get_index (int child, int n) const {
+  return pi.layout ().index (child, n);
 }
 
 child_info&
@@ -561,4 +382,73 @@ operator == (tag_info ti1, tag_info ti2) {
 bool
 operator != (tag_info ti1, tag_info ti2) {
   return !(ti1 == ti2);
+}
+
+athena::contracts::node_contract
+freeze_descriptor (tag_info ti) {
+  using namespace athena::contracts;
+  node_contract result;
+  const auto& parent= ti->pi;
+  result.layout= parent.layout ();
+  result.type= parent.type;
+  result.border= parent.border_mode;
+  result.block= parent.block;
+  result.with_like= parent.with_like;
+  result.variable_type= parent.var_type;
+  result.type_origin= parent.type_origin;
+  result.layout_origin= parent.arity_origin;
+  result.border_origin= parent.border_origin;
+  result.block_origin= parent.block_origin;
+  result.with_origin= parent.with_origin;
+  result.variable_type_origin= parent.var_type_origin;
+  for (int i=0; i<N(ti->ci); ++i) {
+    const auto& child= ti->ci[i];
+    result.fields.push_back ({child.type, child.accessible, child.writability,
+      child.block, athena::node::frozen_tree (child.env), child.type_origin,
+      child.accessible_origin, child.writability_origin, child.block_origin,
+      child.env_origin});
+  }
+  if (is_func (ti->extra, ATTR))
+    for (int i=0; i+1<N(ti->extra); i+=2) {
+      const string& key= ti->extra[i]->label;
+      result.attributes.emplace (std::string (key.data (), N(key)),
+        athena::node::frozen_tree (ti->extra[i+1]));
+    }
+  return result;
+}
+
+tag_info
+descriptor_builder (const athena::contracts::node_contract& value) {
+  parent_info parent (value.layout.base, value.layout.extra,
+    static_cast<int> (value.layout.arity), static_cast<int> (value.layout.mapping));
+  parent.type= value.type;
+  parent.border_mode= value.border;
+  parent.block= value.block;
+  parent.with_like= value.with_like;
+  parent.var_type= value.variable_type;
+  parent.type_origin= value.type_origin;
+  parent.arity_origin= value.layout_origin;
+  parent.border_origin= value.border_origin;
+  parent.block_origin= value.block_origin;
+  parent.with_origin= value.with_origin;
+  parent.var_type_origin= value.variable_type_origin;
+  array<child_info> children (value.fields.size ());
+  for (int i=0; i<N(children); ++i) {
+    const auto& field= value.fields[i];
+    auto& child= children[i];
+    child.type= field.type;
+    child.accessible= field.accessible;
+    child.writability= field.writability;
+    child.block= field.block;
+    child.env= tree (field.environment);
+    child.type_origin= field.type_origin;
+    child.accessible_origin= field.accessible_origin;
+    child.writability_origin= field.writability_origin;
+    child.block_origin= field.block_origin;
+    child.env_origin= field.environment_origin;
+  }
+  tree attributes (ATTR);
+  for (const auto& [key, val]: value.attributes)
+    attributes << string (key.data (), key.size ()) << tree (val);
+  return tag_info (parent, children, attributes);
 }

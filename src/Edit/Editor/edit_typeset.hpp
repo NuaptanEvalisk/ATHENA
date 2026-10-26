@@ -18,12 +18,14 @@
 #include "heading_word_count.hpp"
 
 class document_rep;
+class evaluation_environment_checkpoint;
+struct cursor_environment_checkpoint;
 class edit_typeset_rep: virtual public editor_rep {
 protected:
   tree the_style;                         // document style
-  hashmap<path,hashmap<string,tree> > cur; // environment at different paths
-  hashmap<string,tree> stydef;            // environment after styles
-  hashmap<string,tree> pre;               // environment after styles and init
+  hashmap<path,std::shared_ptr<const cursor_environment_checkpoint>> cur;
+  std::shared_ptr<const cursor_environment_checkpoint> prepared_cursor;
+  std::unique_ptr<evaluation_environment_checkpoint> pre; // styles/init state
   hashmap<string,tree> init;              // environment changes w.r.t. style
   hashmap<string,tree> fin;               // environment changes w.r.t. doc
   hashmap<string,tree> grefs;             // global references
@@ -64,6 +66,7 @@ public:
   edit_typeset_rep ();
   ~edit_typeset_rep ();
   void clear_local_info ();
+  void prepare_cursor_environment () override;
   bool set_enunciation_editing_id (const std::string& id) override;
   void set_data (new_data data);
   void get_data (new_data& data);

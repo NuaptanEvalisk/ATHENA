@@ -12,36 +12,45 @@
 #ifndef DRD_INFO_H
 #define DRD_INFO_H
 #include "tree.hpp"
-#include "rel_hashmap.hpp"
+#include "hashmap.hpp"
+#include "path.hpp"
 #include "tag_info.hpp"
+#include "Data/NodeContracts/contract_scope.hpp"
+#include <memory>
+
+namespace athena::contracts {
+class macro_analysis;
+class evaluation_input_snapshot;
+}
 
 class drd_info;
 class drd_info_rep: concrete_struct {
 public:
   string name;
-  rel_hashmap<tree_label,tag_info> info;
+  athena::contracts::contract_scope contracts;
   hashmap<string,tree> env;
+  std::unique_ptr<athena::contracts::macro_analysis> analysis;
 
 public:
   drd_info_rep (string name);
   drd_info_rep (string name, drd_info base);
-  tree get_locals ();
-  bool set_locals (tree t);
+  ~drd_info_rep ();
   bool contains (string l);
+  const athena::contracts::node_contract& describe (tree_label label);
 
   /* Properties of the tag itself */
-  void set_type (tree_label tag, int tp);
+  void set_type (tree_label tag, int tp,
+                 property_authority source= property_authority::inferred);
   int  get_type (tree_label tag);
-  void freeze_type (tree_label tag);
   int  get_type (tree t);
 
-  void set_arity (tree_label tag, int arity, int extra, int am, int cm);
+  void set_arity (tree_label tag, int arity, int extra, int am, int cm,
+                  property_authority source= property_authority::inferred);
   int  get_arity_mode (tree_label tag);
   int  get_arity_base (tree_label tag);
   int  get_arity_extra (tree_label tag);
   int  get_child_mode (tree_label tag);
   int  get_nr_indices (tree_label tag);
-  void freeze_arity (tree_label tag);
   int  get_old_arity (tree_label l);
   int  get_minimal_arity (tree_label l);
   int  get_maximal_arity (tree_label l);
@@ -49,25 +58,24 @@ public:
   bool insert_point (tree_label l, int i, int n);
   bool is_dynamic (tree t, bool hack= true);
 
-  void set_border (tree_label tag, int mode);
+  void set_border (tree_label tag, int mode,
+                   property_authority source= property_authority::inferred);
   int  get_border (tree_label tag);
-  void freeze_border (tree_label tag);
   bool is_child_enforcing (tree t);
   bool is_parent_enforcing (tree t);
   bool var_without_border (tree_label tag);
 
   void set_block (tree_label tag, int is_block);
   int  get_block (tree_label tag);
-  void freeze_block (tree_label tag);
 
-  void set_with_like (tree_label tag, bool is_with_like);
+  void set_with_like (tree_label tag, bool is_with_like,
+                      property_authority source= property_authority::inferred);
   bool get_with_like (tree_label tag);
-  void freeze_with_like (tree_label tag);
   bool is_with_like (tree t);
 
-  void set_var_type (tree_label tag, int vt);
+  void set_var_type (tree_label tag, int vt,
+                     property_authority source= property_authority::inferred);
   int  get_var_type (tree_label tag);
-  void freeze_var_type (tree_label tag);
 
   void set_attribute (tree_label tag, string which, tree val);
   tree get_attribute (tree_label tag, string which);
@@ -80,31 +88,30 @@ public:
   tree   get_syntax (tree t, path p= path (-1));
 
   /* Properties of the children of the tag */
-  void set_type (tree_label tag, int nr, int tp);
+  void set_type (tree_label tag, int nr, int tp,
+                 property_authority source= property_authority::inferred);
   int  get_type (tree_label tag, int nr);
-  void freeze_type (tree_label tag, int nr);
   int  get_type_child (tree t, int child);
 
-  void set_accessible (tree_label tag, int nr, int access_mode);
+  void set_accessible (tree_label tag, int nr, int access_mode,
+                       property_authority source= property_authority::inferred);
   int  get_accessible (tree_label tag, int nr);
-  void freeze_accessible (tree_label tag, int nr);
   bool all_accessible (tree_label tag);
   bool none_accessible (tree_label tag);
   bool is_accessible_child (tree t, int child);
   bool is_accessible_path (tree t, path p);
 
-  void set_writability (tree_label tag, int nr, int writability);
+  void set_writability (tree_label tag, int nr, int writability,
+                        property_authority source= property_authority::inferred);
   int  get_writability (tree_label tag, int nr);
-  void freeze_writability (tree_label tag, int nr);
   int  get_writability_child (tree t, int child);
 
   void set_block (tree_label tag, int nr, int require_block);
   int  get_block (tree_label tag, int nr);
-  void freeze_block (tree_label tag, int nr);
 
-  void set_env (tree_label tag, int nr, tree env);
+  void set_env (tree_label tag, int nr, tree env,
+                property_authority source= property_authority::inferred);
   tree get_env (tree_label tag, int nr);
-  void freeze_env (tree_label tag, int nr);
   tree get_env_child (tree t, int child, tree env);
   tree get_env_child (tree t, int child, string var, tree val);
   tree get_env_descendant (tree t, path p, tree env);
@@ -117,15 +124,11 @@ public:
   string get_child_name (tree t, int child);
   string get_child_long_name (tree t, int child);
 
-  /* Heuristic initialization */
+  /* Declaration analysis; queries never invoke this boundary. */
   void set_environment (hashmap<string,tree> env);
-  tree arg_access (tree t, tree arg, tree env, int& type, bool& found);
-  bool heuristic_with_like (tree t, tree arg);
-  bool heuristic_init_macro (string var, tree macro);
-  bool heuristic_init_xmacro (string var, tree xmacro);
-  bool heuristic_init_parameter (string var, string val);
-  bool heuristic_init_parameter (string var, tree val);
-  void heuristic_init (hashmap<string,tree> env);
+  void analyze_environment (const athena::contracts::evaluation_input_snapshot& inputs,
+                            hashmap<string,tree> env);
+  void declaration_changed (tree_label tag);
 
   friend class drd_info;
   friend tm_ostream& operator << (tm_ostream& out, drd_info drd);

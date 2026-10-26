@@ -631,8 +631,8 @@ decode_alpha (string s) {
 void
 edit_env_rep::update_color () {
   alpha= decode_alpha (get_string (OPACITY));
-  tree pc= env [COLOR];
-  tree fc= env [FILL_COLOR];
+  tree pc= read (COLOR);
+  tree fc= read (FILL_COLOR);
   if (pc == "none") pen= pencil (false);
   else {
     if (L(pc) == _PATTERN) pc= exec (pc);
@@ -649,16 +649,16 @@ void
 edit_env_rep::update_pattern_mode () {
   no_patterns= (get_string (NO_PATTERNS) == "true");
   if (no_patterns) {
-    tree c= env[COLOR];
-    if (is_func (c, _PATTERN, 4)) env (COLOR)= exec (c);
-    c= env[BG_COLOR];
-    if (is_func (c, _PATTERN, 4)) env (BG_COLOR)= exec (c);
-    c= env[FILL_COLOR];
-    if (is_func (c, _PATTERN, 4)) env (FILL_COLOR)= exec (c);
-    c= env[ORNAMENT_COLOR];
-    if (is_func (c, _PATTERN, 4)) env (ORNAMENT_COLOR)= exec (c);
-    c= env[ORNAMENT_EXTRA_COLOR];
-    if (is_func (c, _PATTERN, 4)) env (ORNAMENT_EXTRA_COLOR)= exec (c);
+    tree c= read (COLOR);
+    if (is_func (c, _PATTERN, 4)) write (COLOR, exec (c));
+    c= read (BG_COLOR);
+    if (is_func (c, _PATTERN, 4)) write (BG_COLOR, exec (c));
+    c= read (FILL_COLOR);
+    if (is_func (c, _PATTERN, 4)) write (FILL_COLOR, exec (c));
+    c= read (ORNAMENT_COLOR);
+    if (is_func (c, _PATTERN, 4)) write (ORNAMENT_COLOR, exec (c));
+    c= read (ORNAMENT_EXTRA_COLOR);
+    if (is_func (c, _PATTERN, 4)) write (ORNAMENT_EXTRA_COLOR, exec (c));
     update_color ();
   }
 }
@@ -705,7 +705,7 @@ edit_env_rep::update_language () {
 
 void
 edit_env_rep::update_geometry () {
-  tree t= env [GR_GEOMETRY];
+  tree t= read (GR_GEOMETRY);
   gw= as_length ("1par");
   gh= as_length ("0.6par");
   gvalign= as_string ("center");
@@ -722,7 +722,7 @@ edit_env_rep::update_geometry () {
 
 void
 edit_env_rep::update_frame () {
-  tree t= env [GR_FRAME];
+  tree t= read (GR_FRAME);
   SI yinc= gvalign == "top"    ? - gh
 	 : gvalign == "bottom" ? 0
          : gvalign == "axis" ? - (gh/2) + as_length ("1yfrac")
@@ -760,7 +760,7 @@ edit_env_rep::update_frame () {
 
 void
 edit_env_rep::update_src_style () {
-  string s= as_string (env [SRC_STYLE]);
+  string s= as_string (read (SRC_STYLE));
   if (s == "angular") src_style= STYLE_ANGULAR;
   else if (s == "scheme") src_style= STYLE_SCHEME;
   else if (s == "latex") src_style= STYLE_LATEX;
@@ -769,7 +769,7 @@ edit_env_rep::update_src_style () {
 
 void
 edit_env_rep::update_src_special () {
-  string s= as_string (env [SRC_SPECIAL]);
+  string s= as_string (read (SRC_SPECIAL));
   if (s == "raw") src_special= SPECIAL_RAW;
   else if (s == "format") src_special= SPECIAL_FORMAT;
   else if (s == "normal") src_special= SPECIAL_NORMAL;
@@ -778,7 +778,7 @@ edit_env_rep::update_src_special () {
 
 void
 edit_env_rep::update_src_compact () {
-  string s= as_string (env [SRC_COMPACT]);
+  string s= as_string (read (SRC_COMPACT));
   if (s == "all") src_compact= COMPACT_ALL;
   else if (s == "inline args") src_compact= COMPACT_INLINE_ARGS;
   else if (s == "normal") src_compact= COMPACT_INLINE_START;
@@ -788,7 +788,7 @@ edit_env_rep::update_src_compact () {
 
 void
 edit_env_rep::update_src_close () {
-  string s= as_string (env [SRC_CLOSE]);
+  string s= as_string (read (SRC_CLOSE));
   if (s == "minimal") src_close= CLOSE_MINIMAL;
   else if (s == "compact") src_close= CLOSE_COMPACT;
   else if (s == "long") src_close= CLOSE_LONG;
@@ -797,7 +797,7 @@ edit_env_rep::update_src_close () {
 
 void
 edit_env_rep::update_dash_style () {
-  tree t= env [DASH_STYLE];
+  tree t= read (DASH_STYLE);
   dash_style= array<bool> (0);
   dash_motif= array<point> (0);
   if (is_string (t)) {
@@ -958,8 +958,8 @@ edit_env_rep::update_line_arrows () {
   line_arrows= array<tree> (2);
   string l= get_string (ARROW_LENGTH);
   string h= get_string (ARROW_HEIGHT);
-  line_arrows[0]= decode_arrow (env [ARROW_BEGIN], l, h);
-  line_arrows[1]= decode_arrow (env [ARROW_END], l, h);
+  line_arrows[0]= decode_arrow (read (ARROW_BEGIN), l, h);
+  line_arrows[1]= decode_arrow (read (ARROW_END), l, h);
   if (line_arrows[0] != "")
     line_arrows[0]= tree (WITH, LINE_PORTION, "1", line_arrows[0]);
   if (line_arrows[1] != "")
@@ -979,8 +979,8 @@ edit_env_rep::update () {
   vert_pos       = get_int (MATH_VPOS);
   nesting_level  = get_int (MATH_NESTING_LEVEL);
   preamble       = get_bool (PREAMBLE);
-  spacing_policy = get_spacing_id (env[SPACING_POLICY]);
-  math_font_sizes= env[MATH_FONT_SIZES];
+  spacing_policy = get_spacing_id (read (SPACING_POLICY));
+  math_font_sizes= read (MATH_FONT_SIZES);
   size_cache     = array<array<int> > ();
 
   update_mode ();
@@ -1014,7 +1014,7 @@ edit_env_rep::update () {
 
   frac_max   = get_length (MATH_FRAC_LIMIT);
   table_max  = get_length (MATH_TABLE_LIMIT);
-  flatten_pen= pencil (env[MATH_FLATTEN_COLOR], alpha, get_length (LINE_WIDTH));
+  flatten_pen= pencil (read (MATH_FLATTEN_COLOR), alpha, get_length (LINE_WIDTH));
 }
 
 /******************************************************************************
@@ -1063,7 +1063,7 @@ edit_env_rep::update (string s) {
     update_font ();
     break;
   case Env_Font_Sizes:
-    math_font_sizes= env[MATH_FONT_SIZES];
+    math_font_sizes= read (MATH_FONT_SIZES);
     size_cache= array<array<int> > ();
     update_font ();
     break;
@@ -1086,7 +1086,7 @@ edit_env_rep::update (string s) {
   case Env_Math_Width:
     frac_max= get_length (MATH_FRAC_LIMIT);
     table_max= get_length (MATH_TABLE_LIMIT);
-    flatten_pen= pencil (env[MATH_FLATTEN_COLOR], alpha, get_length (LINE_WIDTH));
+    flatten_pen= pencil (read (MATH_FLATTEN_COLOR), alpha, get_length (LINE_WIDTH));
     break;
   case Env_Color:
     update_color ();
@@ -1095,7 +1095,7 @@ edit_env_rep::update (string s) {
     update_pattern_mode ();
     break;
   case Env_Spacing:
-    spacing_policy= get_spacing_id (env[SPACING_POLICY]);
+    spacing_policy= get_spacing_id (read (SPACING_POLICY));
     break;
   case Env_Paragraph:
     break;

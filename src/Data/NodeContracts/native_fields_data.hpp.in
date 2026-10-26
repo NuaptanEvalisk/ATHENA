@@ -1,0 +1,5 @@
+// Generated from the authoritative core node field declarations.
+#pragma once
+inline constexpr const char athena_native_fields_json[]= R"ATHENA_FIELDS(
+@ATHENA_NATIVE_FIELDS_JSON@
+)ATHENA_FIELDS";

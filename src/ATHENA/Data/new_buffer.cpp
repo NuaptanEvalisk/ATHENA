@@ -1149,42 +1149,29 @@ document_publication_mutex () {
   return gate;
 }
 
+// Source inspection for the Scheme macro editor. Evaluated package state is
+// prepared by the environment and is not derived from this syntax cache.
 thread_local hashmap<string,tree> style_tree_cache ("");
 static thread_local std::uint64_t style_tree_generation= 0;
 
 tree
 load_style_tree (string package) {
-  std::uint64_t generation= style_cache_generation ();
+  const std::uint64_t generation= style_cache_generation ();
   if (style_tree_generation != generation) {
     style_tree_cache= hashmap<string,tree> ("");
     style_tree_generation= generation;
   }
   if (style_tree_cache->contains (package))
-    return style_tree_cache [package];
+    return style_tree_cache[package];
   url name= resolve_style_file (package, "$ATHENA_STYLE_PATH", true);
-  if (!is_none (name)) {
-    tree doc= load_style_body (name);
-    if (is_func (doc, _ERROR)) std_warning << doc[0] << LF;
-    style_tree_cache (package)= doc;
-    return doc;
+  if (is_none (name)) {
+    style_tree_cache (package)= "";
+    return "";
   }
-  style_tree_cache (package)= "";
-  return "";
-}
-
-tree
-with_package_definitions (string package, tree body) {
-  // FIXME: it would be more robust to execute the package
-  // yet an alternative idea is to fetch the complete environment of
-  // a style using get_style_env.
-  tree w (WITH);
-  tree doc= load_style_tree (package);
-  if (!is_func (doc, DOCUMENT)) return body;
-  for (int i=0; i<N(doc); i++)
-    if (is_func (doc[i], ASSIGN, 2))
-      w << doc[i][0] << doc[i][1];
-  w << body;
-  return w;
+  tree document= load_style_body (name);
+  if (is_func (document, _ERROR)) std_warning << document[0] << LF;
+  style_tree_cache (package)= document;
+  return document;
 }
 
 /******************************************************************************

@@ -14,6 +14,7 @@
 #include "utf8_edit.hpp"
 #include "language.hpp"
 #include "math_tree_v3.hpp"
+#include "Data/NodeContracts/native_fields.hpp"
 #include "tree_analyze.hpp"
 #include "converter.hpp"
 #include "node_metadata.hpp"
@@ -510,7 +511,9 @@ edit_math_rep::make_script (bool sup, bool right) {
 void
 edit_math_rep::make_script (bool sup, bool right, bool switch_slots) {
   if (native_v3_math_context (buf)) {
-    const int slot= right ? (sup ? 4 : 3) : (sup ? 2 : 1);
+    const int slot= athena::contracts::native_field_index (MATH_SCRIPTS,
+      right ? (sup ? "right-superscript" : "right-subscript") :
+              (sup ? "left-superscript" : "left-subscript"));
     const bool selected= selection_active_small ();
     const tree content= selected ? selection_get_cut () : tree ("");
     path attached;
@@ -619,12 +622,15 @@ edit_math_rep::make_script (bool sup, bool right, bool switch_slots) {
 
 void
 edit_math_rep::make_fraction () {
+  using athena::contracts::native_field_index;
   if (selection_active_small ()) {
-    insert_tree (tree (FRAC, selection_get_cut (), ""), path (1, 0));
+    insert_tree (tree (FRAC, selection_get_cut (), ""),
+                 path (native_field_index (FRAC, "denominator"), 0));
     set_status_hint ("type denominator, move right", "fraction");
   }
   else {
-    insert_tree (tree (FRAC, "", ""), path (0, 0));
+    insert_tree (tree (FRAC, "", ""),
+                 path (native_field_index (FRAC, "numerator"), 0));
     set_status_hint ("type numerator, move down, type denominator", "fraction");
   }
 }
@@ -634,21 +640,24 @@ edit_math_rep::make_sqrt () {
   if (selection_active_small ())
     insert_tree (tree (SQRT, selection_get_cut ()));
   else {
-    insert_tree (tree (SQRT, ""), path (0, 0));
+    insert_tree (tree (SQRT, ""),
+                 path (athena::contracts::native_field_index (SQRT, "radicand"), 0));
     set_status_hint ("move to the right when finished", "square root");
   }
 }
 
 void
 edit_math_rep::make_var_sqrt () {
+  using athena::contracts::native_field_index;
   if (selection_active_small ()) {
     tree t= selection_get_cut ();
+    path index (native_field_index (SQRT, "index"), 0);
     if (is_func (t, SQRT, 1))
-      insert_tree (tree (SQRT, t[0], ""), path (1, 0));
-    else insert_tree (tree (SQRT, t, ""), path (1, 0));
+      insert_tree (tree (SQRT, t[native_field_index (SQRT, "radicand")], ""), index);
+    else insert_tree (tree (SQRT, t, ""), index);
   }
   else {
-    insert_tree (tree (SQRT, "", ""), path (0, 0));
+    insert_tree (tree (SQRT, "", ""), path (native_field_index (SQRT, "radicand"), 0));
     set_status_hint (concat (kbd ("left"), ": set n",
                             kbd ("right"), ": when finished"),
                      "n-th root");

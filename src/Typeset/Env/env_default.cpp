@@ -11,8 +11,11 @@
 
 #include "env.hpp"
 #include "scheme.hpp"
+#include "iterator.hpp"
 
 thread_local hashmap<string,tree> default_env (UNINIT);
+thread_local athena::contracts::definition_entries default_definitions;
+thread_local athena::contracts::evaluation_input_snapshot default_inputs;
 
 /*static*/ void
 initialize_default_env () {
@@ -526,4 +529,16 @@ initialize_default_env () {
 		tree (ASSIGN,
 		      tree (MERGE, tree (ARG, "drd"), "-dtd"),
 		      tree (ARG, "drd-version"))));
+
+  std::set<std::string> names;
+  iterator<string> keys= iterate (env);
+  while (keys->busy ()) {
+    const string name= keys->next ();
+    names.emplace (name.data (), N(name));
+    const tree value= env[name];
+    if (!is_func (value, MACRO) && !is_func (value, XMACRO)) continue;
+    auto binding= athena::contracts::capture_definition (name, value);
+    default_definitions.emplace (binding->target, std::move (binding));
+  }
+  default_inputs= athena::contracts::evaluation_input_snapshot::baseline (std::move (names));
 }

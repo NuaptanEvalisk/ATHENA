@@ -13,6 +13,8 @@
 #define ENV_H
 #include "vars.hpp"
 #include "drd_info.hpp"
+#include "Data/NodeContracts/contract_declaration.hpp"
+#include "Data/NodeContracts/evaluation_inputs.hpp"
 #include "gui.hpp"
 #include "font.hpp"
 #include "language.hpp"
@@ -123,14 +125,23 @@
 ******************************************************************************/
 
 class edit_env;
+class source_occurrence_capture;
+struct source_occurrence_block;
+using source_occurrence_log= std::shared_ptr<const source_occurrence_block>;
 class ornament_parameters;
 class art_box_parameters;
 class edit_env_rep: public concrete_struct {
+  friend class temporary_environment_scope;
+  friend class evaluation_environment_transaction;
+  friend class evaluation_environment_checkpoint;
+  friend class style_environment;
 public:
   drd_info&                    drd;
 private:
   hashmap<string,tree>         env;
   hashmap<string,tree>         back;
+  athena::contracts::evaluation_inputs inputs;
+  void write_value (string name, tree value, bool monitored, bool refresh);
 public:
   hashmap<string,path>         src;
   list<hashmap<string,tree> >  macro_arg;
@@ -140,6 +151,7 @@ public:
   hashmap<string,int>&         var_type;
   url                          base_file_name;
   url                          cur_file_name;
+  athena::contracts::package_inclusion_handle package_origin;
   bool                         secure;
   bool                         scheme_modules_enabled;
   hashmap<string,tree>&        local_ref;
@@ -439,6 +451,18 @@ public:
   /* execution of trees and setting environment variables */
   tree   exec (tree t);
   void   exec_until (tree t, path p);
+  athena::contracts::contract_event_capture* contract_events= nullptr;
+  source_occurrence_capture* source_occurrences= nullptr;
+  void apply_contract_event (const athena::contracts::contract_event&, bool record);
+  void track_definition (string name, const tree& value);
+  void synchronize_definition_value (string name, const tree& value);
+  void initialize_value_inputs ();
+  void analyze_contracts ();
+  // Admission failure leaves the live environment and capture unchanged.
+  bool replay_contract_events (const athena::contracts::contract_event_log&, bool record);
+  bool can_replay_events (const athena::contracts::contract_event_log&);
+  bool external_input_matches (const athena::contracts::external_query&) const;
+  bool package_input_matches (const athena::contracts::package_source_query&) const;
   bool   exec_until (tree t, path p, string var, int level);
   string exec_string (tree t);        /* should be inline */
   tree   expand (tree t, bool search_accessible= false);
@@ -446,38 +470,40 @@ public:
   tree   rewrite (tree t);
 
   inline void monitored_write (string s, tree t) {
-    back->write_back (s, env); env (s)= t; }
+    write_value (s, t, true, false); }
   inline void monitored_write_update (string s, tree t) {
-    tree& val= env (s);
-    if (val != t) {
-      back->write_back (s, env); val= t; update (s); }
-  }
-  inline void write (string s, tree t) { env (s)= t; }
+    write_value (s, t, true, true); }
+  inline void write (string s, tree t) {
+    write_value (s, t, false, false); }
   inline void write_update (string s, tree t) {
-    tree& val= env (s);
-    if (val != t) { val= t; update (s); }
-  }
+    write_value (s, t, false, true); }
   inline string normalize_legacy_math_font_variable (string s, tree t) {
+    if (contract_events) (void) read (MODE);
     if (mode == 2 && s == FONT && t == "cal") return MATH_FONT;
     return s;
   }
   inline tree local_begin (string s, tree t) {
-    tree& val= env (s); tree r (val);
-    if (val != t) { val= t; update (s); }
+    tree r= read (s);
+    write_update (s, t);
     return r; }
   inline void local_end (string s, tree t) {
-    tree& val= env (s);
-    if (val != t) { val= t; update (s); }
-  }
+    write_update (s, t); }
   inline tree local_begin_script () {
     return local_begin (MATH_LEVEL, as_string (index_level+1)); }
   inline void local_end_script (tree t) {
     local_end (MATH_LEVEL, t); }
-  inline void assign (string s, tree t) {
-    tree& val= env (s); t= exec(t); if (val != t) {
-      back->write_back (s, env); val= t; update (s); } }
-  inline bool provides (string s) { return env->contains (s); }
-  inline tree read (string s) { return env [s]; }
+  void assign (string name, tree expression);
+  inline bool provides (string s) {
+    const bool present= env->contains (s);
+    if (contract_events) contract_events->read_variable (s, present);
+    return present;
+  }
+  inline tree read (string s) {
+    tree value= env[s];
+    if (contract_events) contract_events->read_variable (s, env->contains (s), &value);
+    return value;
+  }
+  void restore_local_value (string name, tree value, bool previously_present);
   tree local_begin_extents (box b);
   void local_end_extents (tree t);
 
@@ -549,29 +575,29 @@ public:
 
   /* retrieving environment variables */
   inline bool get_bool (string var) {
-    tree t= env [var];
+    tree t= read (var);
     if (is_compound (t)) return false;
     return as_bool (t->label); }
   inline int get_int (string var) {
-    tree t= env [var];
+    tree t= read (var);
     if (is_compound (t)) return 0;
     return as_int (t->label); }
   inline double get_double (string var) {
-    tree t= env [var];
+    tree t= read (var);
     if (is_compound (t)) return 0.0;
     return as_double (t->label); }
   inline string get_string (string var) {
-    tree t= env [var];
+    tree t= read (var);
     if (is_compound (t)) return "";
     return t->label; }
   inline SI get_length (string var) {
-    tree t= env [var];
+    tree t= read (var);
     return as_length (t); }
   inline space get_vspace (string var) {
-    tree t= env [var];
+    tree t= read (var);
     return as_vspace (t); }
   inline color get_color (string var) {
-    tree t= env [var];
+    tree t= read (var);
     return named_color (as_string (t), alpha); }
 
   friend class edit_env;

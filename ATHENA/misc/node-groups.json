@@ -1,0 +1,1542 @@
+{
+  "version": 1,
+  "license": "GPL-3.0-or-later",
+  "groups": {
+    "numbered-tag": [
+      {
+        "group": "section-tag"
+      },
+      {
+        "group": "theorem-tag"
+      },
+      {
+        "group": "definition-tag"
+      },
+      {
+        "group": "remark-tag"
+      },
+      {
+        "group": "exercise-tag"
+      },
+      {
+        "group": "solution-tag"
+      },
+      {
+        "group": "figure-tag"
+      },
+      {
+        "group": "equation-tag"
+      }
+    ],
+    "alternate-tag": [
+      {
+        "group": "alternate-first-tag"
+      },
+      {
+        "group": "alternate-second-tag"
+      }
+    ],
+    "alternate-first-tag": [
+      "wide",
+      "around",
+      "picture-mixed",
+      "folded-reverse",
+      "folded",
+      "folded-plain",
+      "folded-std",
+      "folded-explain",
+      "folded-env",
+      "folded-documentation",
+      "folded-grouped",
+      "summarized",
+      "summarized-plain",
+      "summarized-std",
+      "summarized-env",
+      "summarized-documentation",
+      "summarized-grouped",
+      "summarized-raw",
+      "summarized-tiny",
+      "summarized-algorithm"
+    ],
+    "alternate-second-tag": [
+      "wide*",
+      "around*",
+      "source-mixed",
+      "unfolded-reverse",
+      "unfolded",
+      "unfolded-plain",
+      "unfolded-std",
+      "unfolded-explain",
+      "unfolded-env",
+      "unfolded-documentation",
+      "unfolded-grouped",
+      "detailed",
+      "detailed-plain",
+      "detailed-std",
+      "detailed-env",
+      "detailed-documentation",
+      "detailed-grouped",
+      "detailed-raw",
+      "detailed-tiny",
+      "detailed-algorithm"
+    ],
+    "variant-tag": [
+      {
+        "group": "argument-tag"
+      },
+      {
+        "group": "value-tag"
+      },
+      {
+        "group": "quote-tag"
+      },
+      {
+        "group": "binary-operation-tag"
+      },
+      {
+        "group": "binary-compare-tag"
+      },
+      {
+        "group": "label-tag"
+      },
+      {
+        "group": "unary-reference-tag"
+      },
+      {
+        "group": "n-ary-citation-tag"
+      },
+      {
+        "group": "vspace-tag"
+      },
+      {
+        "group": "indent-tag"
+      },
+      {
+        "group": "new-page-tag"
+      },
+      {
+        "group": "page-break-tag"
+      },
+      {
+        "group": "move-tag"
+      },
+      {
+        "group": "resize-tag"
+      },
+      {
+        "group": "smash-tag"
+      },
+      {
+        "group": "inflate-tag"
+      },
+      {
+        "group": "reduce-by-tag"
+      },
+      {
+        "group": "font-effect-tag"
+      },
+      {
+        "group": "eff-tag"
+      },
+      {
+        "group": "basic-effect-tag"
+      },
+      {
+        "group": "color-effect-tag"
+      },
+      {
+        "group": "gaussian-effect-tag"
+      },
+      {
+        "group": "oval-effect-tag"
+      },
+      {
+        "group": "rectangular-effect-tag"
+      },
+      {
+        "group": "motion-effect-tag"
+      },
+      {
+        "group": "section-tag"
+      },
+      {
+        "group": "list-tag"
+      },
+      {
+        "group": "figure-tag"
+      },
+      {
+        "group": "enunciation-tag"
+      },
+      {
+        "group": "prominent-tag"
+      },
+      {
+        "group": "alignment-tag"
+      },
+      {
+        "group": "compression-tag"
+      },
+      {
+        "group": "frame-tag"
+      },
+      {
+        "group": "frame-titled-tag"
+      },
+      {
+        "group": "textual-tag"
+      },
+      {
+        "group": "code-tag"
+      },
+      {
+        "group": "ornament-tag"
+      },
+      {
+        "group": "balloon-tag"
+      },
+      {
+        "group": "fraction-tag"
+      },
+      {
+        "group": "vertical-script-tag"
+      },
+      {
+        "group": "textual-operator-tag"
+      },
+      {
+        "group": "combinatorial-number-tag"
+      },
+      {
+        "group": "math-table-tag"
+      },
+      {
+        "group": "folded-tag"
+      },
+      {
+        "group": "unfolded-tag"
+      },
+      {
+        "group": "summarized-tag"
+      },
+      {
+        "group": "detailed-tag"
+      },
+      {
+        "group": "unroll-tag"
+      },
+      {
+        "group": "std-overlays-tag"
+      },
+      {
+        "group": "nullary-overlay-tag"
+      },
+      {
+        "group": "unary-overlay-tag"
+      },
+      {
+        "group": "binary-overlay-tag"
+      },
+      {
+        "group": "hidden-tag"
+      },
+      {
+        "group": "assign-tag"
+      },
+      {
+        "group": "titled-block-tag"
+      },
+      {
+        "group": "untitled-block-tag"
+      },
+      {
+        "group": "tmdoc-traversal-tag"
+      },
+      {
+        "group": "tmdoc-menu-tag"
+      },
+      {
+        "group": "tmdoc-annotation-tag"
+      },
+      {
+        "group": "tmdoc-style-annotation-tag"
+      },
+      {
+        "group": "tmdoc-small-box-tag"
+      },
+      {
+        "group": "tmdoc-big-box-tag"
+      },
+      {
+        "group": "tmdoc-if-ref-tag"
+      },
+      {
+        "group": "tmdoc-link-tag"
+      },
+      {
+        "group": "implied-tag"
+      }
+    ],
+    "similar-tag": [
+      {
+        "group": "label-tag"
+      },
+      {
+        "group": "reference-tag"
+      },
+      {
+        "group": "citation-tag"
+      },
+      {
+        "group": "vspace-tag"
+      },
+      {
+        "group": "indent-tag"
+      },
+      {
+        "group": "new-page-tag"
+      },
+      {
+        "group": "page-break-tag"
+      },
+      {
+        "group": "move-tag"
+      },
+      {
+        "group": "resize-tag"
+      },
+      {
+        "group": "smash-tag"
+      },
+      {
+        "group": "inflate-tag"
+      },
+      {
+        "group": "reduce-by-tag"
+      },
+      {
+        "group": "font-effect-tag"
+      },
+      {
+        "group": "eff-tag"
+      },
+      {
+        "group": "basic-effect-tag"
+      },
+      {
+        "group": "color-effect-tag"
+      },
+      {
+        "group": "gaussian-effect-tag"
+      },
+      {
+        "group": "oval-effect-tag"
+      },
+      {
+        "group": "rectangular-effect-tag"
+      },
+      {
+        "group": "motion-effect-tag"
+      },
+      {
+        "group": "section-tag"
+      },
+      {
+        "group": "list-tag"
+      },
+      {
+        "group": "figure-tag"
+      },
+      {
+        "group": "enunciation-tag"
+      },
+      {
+        "group": "prominent-tag"
+      },
+      {
+        "group": "alignment-tag"
+      },
+      {
+        "group": "compression-tag"
+      },
+      {
+        "group": "frame-tag"
+      },
+      {
+        "group": "frame-titled-tag"
+      },
+      {
+        "group": "textual-tag"
+      },
+      {
+        "group": "code-tag"
+      },
+      {
+        "group": "equation-tag"
+      },
+      {
+        "group": "ornament-tag"
+      },
+      {
+        "group": "balloon-tag"
+      },
+      {
+        "group": "math-table-tag"
+      },
+      {
+        "group": "folded-tag"
+      },
+      {
+        "group": "unfolded-tag"
+      },
+      {
+        "group": "summarized-tag"
+      },
+      {
+        "group": "detailed-tag"
+      },
+      {
+        "group": "unroll-tag"
+      },
+      {
+        "group": "std-overlays-tag"
+      },
+      {
+        "group": "nullary-overlay-tag"
+      },
+      {
+        "group": "unary-overlay-tag"
+      },
+      {
+        "group": "binary-overlay-tag"
+      },
+      {
+        "group": "hidden-tag"
+      },
+      {
+        "group": "assign-tag"
+      },
+      {
+        "group": "tmdoc-traversal-tag"
+      },
+      {
+        "group": "tmdoc-menu-tag"
+      },
+      {
+        "group": "tmdoc-annotation-tag"
+      },
+      {
+        "group": "tmdoc-style-annotation-tag"
+      },
+      {
+        "group": "tmdoc-small-box-tag"
+      },
+      {
+        "group": "tmdoc-big-box-tag"
+      },
+      {
+        "group": "tmdoc-if-ref-tag"
+      },
+      {
+        "group": "tmdoc-link-tag"
+      },
+      {
+        "group": "implied-tag"
+      }
+    ],
+    "hidden-tag": [
+      "hidden",
+      "hidden*",
+      "hidden-deleted",
+      "hidden-invisible",
+      "hidden-greyed"
+    ],
+    "argument-tag": [
+      "arg",
+      "quote-arg"
+    ],
+    "value-tag": [
+      "value",
+      "quote-value"
+    ],
+    "quote-tag": [
+      "quote",
+      "quasi",
+      "quasiquote"
+    ],
+    "binary-operation-tag": [
+      "plus",
+      "minus",
+      "times",
+      "over",
+      "minimum",
+      "maximum",
+      "or",
+      "and"
+    ],
+    "binary-compare-tag": [
+      "equal",
+      "unequal",
+      "less",
+      "lesseq",
+      "greater",
+      "greatereq"
+    ],
+    "label-tag": [
+      "label"
+    ],
+    "unary-reference-tag": [
+      "reference",
+      "pageref",
+      "eqref"
+    ],
+    "reference-tag": [
+      "reference",
+      "pageref",
+      "eqref",
+      "smart-ref"
+    ],
+    "n-ary-citation-tag": [
+      "cite",
+      "nocite"
+    ],
+    "citation-tag": [
+      "cite",
+      "nocite",
+      "cite-detail"
+    ],
+    "mini-flow-tag": [
+      "table",
+      "graphics",
+      "ornament",
+      "ornamented",
+      "tree",
+      {
+        "group": "frame-tag"
+      },
+      {
+        "group": "frame-titled-tag"
+      },
+      {
+        "group": "ornament-tag"
+      }
+    ],
+    "make-inline-tag": [
+      {
+        "group": "basic-effect-tag"
+      }
+    ],
+    "make-wrapped-tag": [
+      "wide-tabular",
+      "wide-block",
+      "footnote"
+    ],
+    "vspace-tag": [
+      "vspace",
+      "vspace*"
+    ],
+    "indent-tag": [
+      "no-indent",
+      "no-indent*",
+      "yes-indent",
+      "yes-indent*"
+    ],
+    "new-page-tag": [
+      "new-page",
+      "new-page*",
+      "new-dpage",
+      "new-dpage*"
+    ],
+    "page-break-tag": [
+      "page-break",
+      "page-break*",
+      "no-break-here",
+      "no-break-here*"
+    ],
+    "move-tag": [
+      "move",
+      "shift"
+    ],
+    "resize-tag": [
+      "resize",
+      "extend",
+      "clipped"
+    ],
+    "smash-tag": [
+      "smash",
+      "smash-bottom",
+      "smash-top"
+    ],
+    "inflate-tag": [
+      "inflate",
+      "inflate-bottom",
+      "inflate-top"
+    ],
+    "reduce-by-tag": [
+      "reduce-by",
+      "reduce-bottom-by",
+      "reduce-top-by"
+    ],
+    "font-effect-tag": [
+      "embold",
+      "embbb",
+      "slanted",
+      "hmagnified",
+      "vmagnified",
+      "condensed",
+      "extended",
+      "degraded",
+      "distorted",
+      "gnawed"
+    ],
+    "eff-tag": [
+      "eff-blur",
+      "eff-outline",
+      "eff-thicken",
+      "eff-erode"
+    ],
+    "basic-effect-tag": [
+      "blur",
+      "outline",
+      "thicken",
+      "erode",
+      "shadow",
+      "engrave",
+      "emboss",
+      "shadowed-raise",
+      "outlined-engrave",
+      "outlined-emboss",
+      "degrade",
+      "distort",
+      "gnaw"
+    ],
+    "color-effect-tag": [
+      "make-transparent",
+      "make-opaque",
+      "recolor",
+      "skin"
+    ],
+    "pen-effect-tag": [
+      "blur",
+      "outline",
+      "thicken",
+      "erode",
+      {
+        "group": "gaussian-effect-tag"
+      },
+      {
+        "group": "oval-effect-tag"
+      },
+      {
+        "group": "rectangular-effect-tag"
+      },
+      {
+        "group": "motion-effect-tag"
+      }
+    ],
+    "gaussian-effect-tag": [
+      "gaussian-blur",
+      "gaussian-outline",
+      "gaussian-thicken",
+      "gaussian-erode"
+    ],
+    "oval-effect-tag": [
+      "oval-blur",
+      "oval-outline",
+      "oval-thicken",
+      "oval-erode"
+    ],
+    "rectangular-effect-tag": [
+      "rectangular-blur",
+      "rectangular-outline",
+      "rectangular-thicken",
+      "rectangular-erode"
+    ],
+    "motion-effect-tag": [
+      "motion-blur",
+      "motion-outline",
+      "motion-thicken",
+      "motion-erode"
+    ],
+    "titled-tag": [
+      {
+        "group": "auto-titled-tag"
+      },
+      {
+        "group": "render-titled-tag"
+      }
+    ],
+    "auto-titled-tag": [
+      {
+        "group": "enunciation-tag"
+      },
+      "proof",
+      "proof-alternative",
+      "proof-standard",
+      {
+        "group": "figure-tag"
+      }
+    ],
+    "render-titled-tag": [
+      {
+        "group": "render-enunciation-tag"
+      },
+      "render-proof",
+      "render-proof-alternative",
+      "render-proof-standard",
+      {
+        "group": "render-figure-tag"
+      }
+    ],
+    "section-tag": [
+      "part",
+      "chapter",
+      "appendix",
+      "section",
+      "subsection",
+      "subsubsection",
+      "paragraph",
+      "subparagraph"
+    ],
+    "section*-tag": [
+      "part*",
+      "chapter*",
+      "appendix*",
+      "section*",
+      "subsection*",
+      "subsubsection*",
+      "paragraph*",
+      "subparagraph*"
+    ],
+    "special-section-tag": [
+      "prologue",
+      "epilogue"
+    ],
+    "automatic-section-tag": [
+      "table-of-contents",
+      "the-index",
+      "the-glossary",
+      "list-of-figures",
+      "list-of-tables"
+    ],
+    "long-principal-section-tag": [
+      "part",
+      "part*",
+      "chapter",
+      "chapter*",
+      "appendix",
+      "appendix*",
+      {
+        "group": "special-section-tag"
+      },
+      {
+        "group": "automatic-section-tag"
+      }
+    ],
+    "short-principal-section-tag": [
+      "section",
+      "section*",
+      {
+        "group": "long-principal-section-tag"
+      }
+    ],
+    "list-tag": [
+      {
+        "group": "itemize-tag"
+      },
+      {
+        "group": "enumerate-tag"
+      },
+      {
+        "group": "description-tag"
+      },
+      {
+        "group": "todo-tag"
+      },
+      {
+        "group": "new-list-tag"
+      }
+    ],
+    "itemize-tag": [
+      "itemize",
+      "itemize-minus",
+      "itemize-dot",
+      "itemize-arrow"
+    ],
+    "todo-tag": [
+      "todo-list",
+      "cloud-todo-list"
+    ],
+    "enumerate-tag": [
+      "enumerate",
+      "enumerate-numeric",
+      "enumerate-roman",
+      "enumerate-Roman",
+      "enumerate-alpha",
+      "enumerate-Alpha"
+    ],
+    "description-tag": [
+      "description",
+      "description-compact",
+      "description-aligned",
+      "description-dash",
+      "description-long",
+      "description-paragraphs"
+    ],
+    "new-list-tag": [],
+    "doc-title-tag": [
+      {
+        "group": "doc-title-active-tag"
+      },
+      {
+        "group": "doc-title-inactive-tag"
+      },
+      "doc-title-options"
+    ],
+    "doc-title-active-tag": [
+      "doc-title",
+      "doc-subtitle",
+      "doc-author",
+      "doc-date",
+      "doc-misc",
+      "doc-note"
+    ],
+    "doc-title-inactive-tag": [
+      "doc-running-title",
+      "doc-running-author"
+    ],
+    "doc-author-tag": [
+      "author-data"
+    ],
+    "author-data-tag": [
+      "author-name",
+      "author-affiliation",
+      "author-email",
+      "author-homepage",
+      "author-misc",
+      "author-note"
+    ],
+    "abstract-data-tag": [
+      "abstract",
+      "abstract-acm",
+      "abstract-arxiv",
+      "abstract-pacs",
+      "abstract-msc",
+      "abstract-keywords"
+    ],
+    "enunciation-tag": [
+      {
+        "group": "theorem-tag"
+      },
+      {
+        "group": "definition-tag"
+      },
+      {
+        "group": "remark-tag"
+      },
+      {
+        "group": "exercise-tag"
+      },
+      {
+        "group": "solution-tag"
+      }
+    ],
+    "theorem-tag": [
+      "theorem",
+      "proposition",
+      "lemma",
+      "corollary",
+      "conjecture",
+      "law"
+    ],
+    "definition-tag": [
+      "definition",
+      "axiom",
+      "notation"
+    ],
+    "remark-tag": [
+      "remark",
+      "note",
+      "example",
+      "convention",
+      "warning",
+      "disambiguation",
+      "acknowledgments"
+    ],
+    "exercise-tag": [
+      "exercise",
+      "problem",
+      "question"
+    ],
+    "solution-tag": [
+      "solution",
+      "answer"
+    ],
+    "render-enunciation-tag": [
+      "render-theorem",
+      "render-remark",
+      "render-exercise",
+      "render-solution"
+    ],
+    "prominent-tag": [
+      "quote-env",
+      "quotation",
+      "verse"
+    ],
+    "compression-tag": [
+      "ultra-compact",
+      "compact",
+      "compressed",
+      "amplified"
+    ],
+    "alignment-tag": [
+      "padded-center",
+      "padded-left-aligned",
+      "padded-right-aligned"
+    ],
+    "frame-tag": [
+      "padded",
+      "overlined",
+      "underlined",
+      "bothlined",
+      "leftlined",
+      "rightlined",
+      "verticallined",
+      "framed",
+      "ornamented"
+    ],
+    "frame-titled-tag": [
+      "padded-titled",
+      "overlined-titled",
+      "underlined-titled",
+      "bothlined-titled",
+      "leftlined-titled",
+      "rightlined-titled",
+      "verticallined-titled",
+      "framed-titled",
+      "ornamented-titled"
+    ],
+    "textual-tag": [
+      {
+        "group": "strong-tag"
+      },
+      {
+        "group": "name-tag"
+      },
+      {
+        "group": "monospaced-tag"
+      },
+      {
+        "group": "size-tag"
+      },
+      {
+        "group": "opacity-tag"
+      },
+      {
+        "group": "decorated-tag"
+      }
+    ],
+    "strong-tag": [
+      "strong",
+      "em",
+      "dfn",
+      "underline"
+    ],
+    "name-tag": [
+      "name",
+      "person",
+      "cite*"
+    ],
+    "monospaced-tag": [
+      "kbd",
+      "code*",
+      "var"
+    ],
+    "size-tag": [
+      "really-tiny",
+      "tiny",
+      "very-small",
+      "small",
+      "normal-size",
+      "large",
+      "very-large",
+      "huge",
+      "really-huge"
+    ],
+    "opacity-tag": [
+      "pastel",
+      "greyed",
+      "light"
+    ],
+    "decorated-tag": [
+      "deleted",
+      "marked",
+      "stressed",
+      "fill-out",
+      "fill-out*"
+    ],
+    "figure-tag": [
+      {
+        "group": "small-figure-tag"
+      },
+      {
+        "group": "big-figure-tag"
+      }
+    ],
+    "small-figure-tag": [
+      "small-figure",
+      "small-table"
+    ],
+    "big-figure-tag": [
+      "big-figure",
+      "big-table"
+    ],
+    "render-figure-tag": [
+      "render-small-figure",
+      "render-big-figure"
+    ],
+    "equation-tag": [
+      "equation",
+      "eqnarray"
+    ],
+    "algorithm-tag": [
+      "algorithm",
+      "algorithm*",
+      "named-algorithm",
+      "specified-algorithm",
+      "specified-algorithm*",
+      "named-specified-algorithm"
+    ],
+    "code-tag": [
+      {
+        "group": "inline-code-tag"
+      },
+      {
+        "group": "block-code-tag"
+      }
+    ],
+    "inline-code-tag": [
+      "verbatim",
+      "scm",
+      "cpp",
+      "fortran",
+      "octave",
+      "python",
+      "julia",
+      "java",
+      "javascript",
+      "json",
+      "scala",
+      "shell"
+    ],
+    "block-code-tag": [
+      "verbatim-code",
+      "scm-code",
+      "cpp-code",
+      "dot-code",
+      "fortran-code",
+      "octave-code",
+      "python-code",
+      "julia-code",
+      "java-code",
+      "javascript-code",
+      "json-code",
+      "scala-code",
+      "shell-code"
+    ],
+    "ornament-tag": [
+      "manila-paper",
+      "rough-paper",
+      "ridged-paper",
+      "pine",
+      "granite",
+      "metal"
+    ],
+    "balloon-tag": [
+      "hover-balloon",
+      "hover-balloon*",
+      "popup-balloon",
+      "popup-balloon*",
+      "focus-balloon",
+      "help-balloon"
+    ],
+    "detached-note-tag": [
+      {
+        "group": "auto-note-tag"
+      },
+      {
+        "group": "custom-note-tag"
+      }
+    ],
+    "auto-note-tag": [
+      "note-ref",
+      "note-inline",
+      "note-wide",
+      "note-footnote"
+    ],
+    "custom-note-tag": [
+      "note-ref*",
+      "note-inline*",
+      "note-wide*",
+      "note-footnote*"
+    ],
+    "fraction-tag": [
+      "frac",
+      "tfrac",
+      "dfrac",
+      "frac*",
+      "cfrac"
+    ],
+    "vertical-script-tag": [
+      "below",
+      "above"
+    ],
+    "textual-operator-tag": [
+      "math-up",
+      "math-ss",
+      "math-tt",
+      "math-bf",
+      "math-it",
+      "math-sl"
+    ],
+    "combinatorial-number-tag": [
+      "binom",
+      "stirling-first",
+      "stirling-second"
+    ],
+    "math-annotation-tag": [
+      "math-separator",
+      "math-quantifier",
+      "math-imply",
+      "math-or",
+      "math-and",
+      "math-not",
+      "math-relation",
+      "math-union",
+      "math-intersection",
+      "math-exclude",
+      "math-plus",
+      "math-minus",
+      "math-times",
+      "math-over",
+      "math-big",
+      "math-prefix",
+      "math-postfix",
+      "math-open",
+      "math-close",
+      "math-ordinary",
+      "math-ignore"
+    ],
+    "math-table-tag": [
+      "matrix",
+      "det",
+      "bmatrix",
+      "Bmatrix"
+    ],
+    "toggle-tag": [
+      {
+        "group": "folded-tag"
+      },
+      {
+        "group": "unfolded-tag"
+      },
+      {
+        "group": "toggle-first-tag"
+      },
+      {
+        "group": "toggle-second-tag"
+      }
+    ],
+    "toggle-first-tag": [
+      {
+        "group": "folded-tag"
+      },
+      "picture-mixed",
+      "folded-reverse",
+      {
+        "group": "summarized-tag"
+      },
+      "summarized-algorithm"
+    ],
+    "toggle-second-tag": [
+      {
+        "group": "unfolded-tag"
+      },
+      "source-mixed",
+      "unfolded-reverse",
+      {
+        "group": "detailed-tag"
+      },
+      "detailed-algorithm"
+    ],
+    "folded-tag": [
+      "folded",
+      "folded-plain",
+      "folded-std",
+      "folded-explain",
+      "folded-env",
+      "folded-documentation",
+      "folded-grouped"
+    ],
+    "unfolded-tag": [
+      "unfolded",
+      "unfolded-plain",
+      "unfolded-std",
+      "unfolded-explain",
+      "unfolded-env",
+      "unfolded-documentation",
+      "unfolded-grouped"
+    ],
+    "summarized-tag": [
+      "summarized",
+      "summarized-plain",
+      "summarized-std",
+      "summarized-env",
+      "summarized-documentation",
+      "summarized-grouped",
+      "summarized-raw",
+      "summarized-tiny"
+    ],
+    "detailed-tag": [
+      "detailed",
+      "detailed-plain",
+      "detailed-std",
+      "detailed-env",
+      "detailed-documentation",
+      "detailed-grouped",
+      "detailed-raw",
+      "detailed-tiny"
+    ],
+    "switch-tag": [
+      {
+        "group": "alternative-tag"
+      },
+      {
+        "group": "unroll-tag"
+      },
+      {
+        "group": "expanded-tag"
+      }
+    ],
+    "big-switch-tag": [
+      {
+        "group": "big-alternative-tag"
+      },
+      {
+        "group": "unroll-tag"
+      },
+      {
+        "group": "expanded-tag"
+      }
+    ],
+    "alternative-tag": [
+      {
+        "group": "big-alternative-tag"
+      },
+      "tiny-switch"
+    ],
+    "big-alternative-tag": [
+      "switch",
+      "screens"
+    ],
+    "unroll-tag": [
+      "unroll",
+      "unroll-compressed",
+      "unroll-phantoms",
+      "unroll-greyed"
+    ],
+    "expanded-tag": [
+      "expanded",
+      "slides"
+    ],
+    "overlays-tag": [
+      {
+        "group": "std-overlays-tag"
+      },
+      "gr-overlays"
+    ],
+    "std-overlays-tag": [
+      "overlays",
+      "overlays-compressed",
+      "overlays-phantoms",
+      "overlays-greyed"
+    ],
+    "overlay-tag": [
+      {
+        "group": "nullary-overlay-tag"
+      },
+      {
+        "group": "unary-overlay-tag"
+      },
+      {
+        "group": "binary-overlay-tag"
+      }
+    ],
+    "nullary-overlay-tag": [
+      "show-always",
+      "show-from",
+      "show-until",
+      "show-this",
+      "show-other"
+    ],
+    "unary-overlay-tag": [
+      "overlay-from",
+      "overlay-until",
+      "overlay-this",
+      "overlay-other"
+    ],
+    "binary-overlay-tag": [
+      "alternate-from",
+      "alternate-until",
+      "alternate-this",
+      "alternate-other"
+    ],
+    "graphical-atomic-tag": [
+      "point"
+    ],
+    "graphical-open-curve-tag": [
+      "line",
+      "spline",
+      "bezier",
+      "smooth",
+      "arc"
+    ],
+    "graphical-closed-curve-tag": [
+      "cline",
+      "cspline",
+      "cbezier",
+      "csmooth",
+      "carc"
+    ],
+    "graphical-curve-tag": [
+      {
+        "group": "graphical-open-curve-tag"
+      },
+      {
+        "group": "graphical-closed-curve-tag"
+      }
+    ],
+    "graphical-short-text-tag": [
+      "text-at",
+      "math-at"
+    ],
+    "graphical-long-text-tag": [
+      "document-at"
+    ],
+    "graphical-text-tag": [
+      {
+        "group": "graphical-short-text-tag"
+      },
+      {
+        "group": "graphical-long-text-tag"
+      }
+    ],
+    "graphical-penscript-tag": [
+      "penscript"
+    ],
+    "graphical-contains-curve-tag": [
+      {
+        "group": "graphical-curve-tag"
+      }
+    ],
+    "graphical-contains-text-tag": [
+      {
+        "group": "graphical-text-tag"
+      }
+    ],
+    "graphical-non-group-tag": [
+      {
+        "group": "graphical-curve-tag"
+      },
+      {
+        "group": "graphical-atomic-tag"
+      },
+      {
+        "group": "graphical-text-tag"
+      }
+    ],
+    "graphical-group-tag": [
+      "gr-group"
+    ],
+    "graphical-tag": [
+      {
+        "group": "graphical-non-group-tag"
+      },
+      {
+        "group": "graphical-group-tag"
+      }
+    ],
+    "assign-tag": [
+      "assign",
+      "provide"
+    ],
+    "titled-block-tag": [
+      "plain-titled-block",
+      "framed-titled-block",
+      "alternate-titled-block"
+    ],
+    "untitled-block-tag": [
+      "plain-block",
+      "framed-block",
+      "alternate-block"
+    ],
+    "poster-block-tag": [
+      {
+        "group": "titled-block-tag"
+      },
+      {
+        "group": "untitled-block-tag"
+      }
+    ],
+    "tmdoc-traversal-tag": [
+      "branch",
+      "extra-branch",
+      "continue",
+      "optional-branch"
+    ],
+    "tmdoc-menu-tag": [
+      "menu",
+      "submenu",
+      "subsubmenu",
+      "subsubsubmenu",
+      "subsubsubsubmenu"
+    ],
+    "tmdoc-annotation-tag": [
+      "markup",
+      "src-arg",
+      "src-var",
+      "src-length",
+      "src-tt",
+      "src-numeric",
+      "src-textual"
+    ],
+    "tmdoc-style-annotation-tag": [
+      "tmstyle",
+      "tmpackage",
+      "tmdtd"
+    ],
+    "tmdoc-small-box-tag": [
+      "small-focus",
+      "small-envbox"
+    ],
+    "tmdoc-big-box-tag": [
+      "big-focus",
+      "big-envbox"
+    ],
+    "tmdoc-if-ref-tag": [
+      "tmdoc-if-ref",
+      "tmdoc-if-ref*",
+      "tmdoc-if-nref",
+      "tmdoc-if-nref*"
+    ],
+    "tmdoc-link-tag": [
+      "tmdoc-link",
+      "tmdoc-link*"
+    ],
+    "implied-tag": [
+      "implied-generic",
+      "implied-verbatim",
+      "implied-scm",
+      "implied-cpp",
+      "implied-python",
+      "implied-julia",
+      "implied-shell"
+    ],
+    "auto-block-tag": [
+      "block-if",
+      "block-for",
+      "block-while",
+      "block-assign",
+      "block-intersperse"
+    ],
+    "auto-inline-tag": [
+      "inline-if",
+      "inline-for",
+      "inline-while",
+      "inline-assign",
+      "inline-intersperse"
+    ]
+  },
+  "alternates": [
+    [
+      "wide",
+      "wide*"
+    ],
+    [
+      "around",
+      "around*"
+    ],
+    [
+      "picture-mixed",
+      "source-mixed"
+    ],
+    [
+      "folded-reverse",
+      "unfolded-reverse"
+    ],
+    [
+      "folded",
+      "unfolded"
+    ],
+    [
+      "folded-plain",
+      "unfolded-plain"
+    ],
+    [
+      "folded-std",
+      "unfolded-std"
+    ],
+    [
+      "folded-explain",
+      "unfolded-explain"
+    ],
+    [
+      "folded-env",
+      "unfolded-env"
+    ],
+    [
+      "folded-documentation",
+      "unfolded-documentation"
+    ],
+    [
+      "folded-grouped",
+      "unfolded-grouped"
+    ],
+    [
+      "summarized",
+      "detailed"
+    ],
+    [
+      "summarized-plain",
+      "detailed-plain"
+    ],
+    [
+      "summarized-std",
+      "detailed-std"
+    ],
+    [
+      "summarized-env",
+      "detailed-env"
+    ],
+    [
+      "summarized-documentation",
+      "detailed-documentation"
+    ],
+    [
+      "summarized-grouped",
+      "detailed-grouped"
+    ],
+    [
+      "summarized-raw",
+      "detailed-raw"
+    ],
+    [
+      "summarized-tiny",
+      "detailed-tiny"
+    ],
+    [
+      "summarized-algorithm",
+      "detailed-algorithm"
+    ]
+  ]
+}

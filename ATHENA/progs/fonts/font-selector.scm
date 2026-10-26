@@ -10,9 +10,9 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(texmacs-module (fonts font-selector)
-  (:use (generic format-drd) (generic generic-edit)
-        (generic document-edit)))
+(texmacs-module
+ (fonts font-selector)
+ (:use (generic generic-edit) (generic document-edit)))
 
 (define (initial-font-data getter)
   (let* ((fam (font-family-main (getter "font")))

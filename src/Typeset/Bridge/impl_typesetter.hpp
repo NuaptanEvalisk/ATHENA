@@ -55,6 +55,8 @@ public:
   void determine_page_references (box b);
   box  typeset ();
   box  typeset (SI& x1, SI& y1, SI& x2, SI& y2);
+private:
+  box typeset_pass ();
 };
 
 #endif // defined IMPL_TYPESETTER_H

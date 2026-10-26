@@ -13,8 +13,10 @@
 #define NEW_STYLE_H
 #include "drd_std.hpp"
 #include "scheme.hpp"
+#include "Data/NodeContracts/evaluation_inputs.hpp"
 #include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <string>
 
 tree preprocess_style (tree st, url name);
@@ -34,11 +36,22 @@ bool install_style_file (const std::filesystem::path& source,
 
 void style_invalidate_cache ();
 std::uint64_t style_cache_generation ();
-void style_set_cache (tree style, hashmap<string,tree> H, tree t);
-void style_get_cache (tree style, hashmap<string,tree>& H, tree& t, bool& f);
+class edit_env_rep;
 
-bool compute_env_and_drd (tree style);
-hashmap<string,tree> get_style_env (tree style);
+// Owner-thread package state. Values and evaluated bindings are restored as
+// one unit; a package snapshot never owns a live analyzer or editor context.
+class style_environment {
+  hashmap<string,tree> values;
+  athena::contracts::evaluation_input_snapshot inputs;
+  athena::contracts::contract_snapshot contracts;
+public:
+  explicit style_environment (edit_env_rep&);
+  void restore (edit_env_rep&) const;
+  drd_info descriptor (string name) const;
+};
+using style_environment_ptr= std::shared_ptr<const style_environment>;
+style_environment_ptr get_style_environment (tree style, url source_name,
+                                             bool scheme_modules);
 drd_info get_style_drd (tree style);
 tree get_document_preamble (tree t);
 drd_info get_document_drd (tree doc);

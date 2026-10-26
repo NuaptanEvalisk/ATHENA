@@ -25,6 +25,7 @@
 #include "basic.hpp"
 #include "hashmap.hpp"
 #include "native_interfaces.hpp"
+#include "native_node_groups.hpp"
 #include "node_metadata.hpp"
 
 namespace {
@@ -639,7 +640,7 @@ generic_focus_open_search_tool (tree) {
 
 bool
 generic_mini_flow_context (tree t) {
-  return tree_label_in_scheme_list (t, call ("mini-flow-tag-list"));
+  return native_node_group_contains ("mini-flow-tag", symbol_object (as_string (L (t))));
 }
 
 bool
@@ -668,7 +669,7 @@ generic_in_main_flow () {
 
 bool
 generic_balloon_context (tree t) {
-  return tree_label_in_scheme_list (t, call ("balloon-tag-list"));
+  return native_node_group_contains ("balloon-tag", symbol_object (as_string (L (t))));
 }
 
 bool
@@ -1371,7 +1372,7 @@ generic_parameter_value (object value) {
 
 object
 generic_focus_variants_of (tree t) {
-  return call ("variants-of", symbol_object (as_string (L (t))));
+  return native_node_variants (symbol_object (as_string (L (t))));
 }
 
 string

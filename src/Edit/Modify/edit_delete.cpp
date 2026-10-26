@@ -13,6 +13,7 @@
 #include "tree_traverse.hpp"
 #include "analyze.hpp"
 #include "utf8_edit.hpp"
+#include "Data/NodeContracts/node_groups.hpp"
 
 bool is_empty_cell (tree t);
 
@@ -92,8 +93,9 @@ static bool
 is_multi_paragraph_or_sectional (tree t) {
   if (is_atomic (t)) return false;
   if (is_multi_paragraph (t)) return true;
-  eval ("(use-modules (utils library tree) (text text-drd))");
-  return as_bool (call ("tree-in?", t, call ("section-tag-list")));
+  string label= as_string (L (t));
+  return athena::contracts::standard_node_groups ().contains (
+    "section-tag", std::string_view (label.data (), N (label)));
 }
 
 void

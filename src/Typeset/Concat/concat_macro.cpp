@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "concater.hpp"
+#include "Env/local_environment.hpp"
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
 #include "ATHENA/Data/transclusion_cache.hpp"
 #include "ATHENA/Data/node_reference.hpp"
@@ -73,37 +74,27 @@ concater_rep::typeset_provide (tree t, path ip) {
 
 void
 concater_rep::typeset_with (tree t, path ip) {
-  int i, n= N(t), k= (n-1)>>1; // is k=0 allowed ?
-  if ((n&1) != 1) { typeset_error (t, ip); return; }
-
-  STACK_NEW_ARRAY(vars,string,k);
-  STACK_NEW_ARRAY(oldv,tree,k);
-  STACK_NEW_ARRAY(newv,tree,k);
-  for (i=0; i<k; i++) {
-    tree var_t= env->exec (t[i<<1]);
-    if (is_atomic (var_t)) {
-      string var= var_t->label;
-      newv[i]= env->exec (t[(i<<1)+1]);
-      vars[i]= env->normalize_legacy_math_font_variable (var, newv[i]);
-      oldv[i]= env->read (vars[i]);
-    }
-    else {
-      STACK_DELETE_ARRAY(vars);
-      STACK_DELETE_ARRAY(oldv);
-      STACK_DELETE_ARRAY(newv);
-      return;
-    }
+  local_environment_bindings bindings;
+  if (!evaluate_local_environment (*env.operator-> (), t, bindings)) {
+    typeset_error (t, ip);
+    return;
   }
 
   marker (descend (ip, 0));
-  // for (i=0; i<k; i++) env->monitored_write_update (vars[i], newv[i]);
-  for (i=0; i<k; i++) env->write_update (vars[i], newv[i]);
-  typeset (t[n-1], descend (ip, n-1));
-  for (i=k-1; i>=0; i--) env->write_update (vars[i], oldv[i]);
+  local_environment_scope scope (*env.operator-> (), bindings);
+  typeset (t[N(t)-1], descend (ip, N(t)-1));
+  scope.finish ();
   marker (descend (ip, 1));
-  STACK_DELETE_ARRAY(vars);
-  STACK_DELETE_ARRAY(oldv);
-  STACK_DELETE_ARRAY(newv);
+}
+
+void
+concater_rep::typeset_with_package (tree t, path ip) {
+  if (N(t) != 2) { typeset_error (t, ip); return; }
+  scoped_package_environment scope (*env.operator-> (), t[0]);
+  marker (descend (ip, 0));
+  typeset (t[1], descend (ip, 1));
+  scope.finish ();
+  marker (descend (ip, 1));
 }
 
 void
@@ -266,7 +257,8 @@ concater_rep::typeset_include (tree t, path ip) {
 
 void
 concater_rep::typeset_drd_props (tree t, path ip) {
-  (void) env->exec (t);
+  tree result= env->exec (t);
+  if (is_func (result, _ERROR)) { typeset_error (result, ip); return; }
   flag ("drd-properties", ip, brown);
   control (t, ip);
 }

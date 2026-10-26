@@ -1,7 +1,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
-;; MODULE      : graphics-drd.scm
+;; MODULE      : graphics-properties.scm
 ;; DESCRIPTION : properties of the graphical tags
 ;; COPYRIGHT   : (C) 2011  Joris van der Hoeven
 ;;
@@ -11,62 +11,25 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(texmacs-module (graphics graphics-drd)
-  (:use (utils library cursor)
-        (utils library tree)
-        (utils edit variants)))
+(texmacs-module
+ (graphics graphics-properties)
+ (:use (utils library cursor) (utils library tree) (utils edit variants)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Properties of the graphical tags
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define-group graphical-atomic-tag
-  point)
+(tm-define
+ (graphical-context? t)
+ (tm-in? t (node-group-members "graphical-tag")))
 
-(define-group graphical-open-curve-tag
-  line spline bezier smooth arc)
+(tm-define
+ (graphical-text-context? t)
+ (tm-in? t (node-group-members "graphical-text-tag")))
 
-(define-group graphical-closed-curve-tag
-  cline cspline cbezier csmooth carc)
-
-(define-group graphical-curve-tag
-  (graphical-open-curve-tag) (graphical-closed-curve-tag))
-
-(define-group graphical-short-text-tag
-  text-at math-at)
-
-(define-group graphical-long-text-tag
-  document-at)
-
-(define-group graphical-text-tag
-  (graphical-short-text-tag) (graphical-long-text-tag))
-
-(define-group graphical-penscript-tag
-  penscript)
-
-(define-group graphical-contains-curve-tag
-  (graphical-curve-tag))
-
-(define-group graphical-contains-text-tag
-  (graphical-text-tag))
-
-(define-group graphical-non-group-tag
-  (graphical-curve-tag) (graphical-atomic-tag) (graphical-text-tag))
-
-(define-group graphical-group-tag
-  gr-group)
-
-(define-group graphical-tag
-  (graphical-non-group-tag) (graphical-group-tag))
-
-(tm-define (graphical-context? t)
-  (tm-in? t (graphical-tag-list)))
-
-(tm-define (graphical-text-context? t)
-  (tm-in? t (graphical-text-tag-list)))
-
-(tm-define (graphical-long-text-context? t)
-  (tm-in? t (graphical-long-text-tag-list)))
+(tm-define
+ (graphical-long-text-context? t)
+ (tm-in? t (node-group-members "graphical-long-text-tag")))
 
 (tm-define (graphical-text-at-context? t)
   (and (graphical-text-context? t) (>= (tm-arity t) 2)))
@@ -84,11 +47,14 @@
         (tree-accessible-child? t i)))))
 
 (tm-define gr-tags-user      (list))
-(tm-define gr-tags-all       (graphical-tag-list))
-(tm-define gr-tags-curves    (graphical-curve-tag-list))
-(tm-define gr-tags-noncurves (append (graphical-atomic-tag-list)
-                                     (graphical-text-tag-list)
-                                     (graphical-group-tag-list)))
+(tm-define gr-tags-all (node-group-members "graphical-tag"))
+(tm-define gr-tags-curves (node-group-members "graphical-curve-tag"))
+(tm-define
+ gr-tags-noncurves
+ (append
+  (node-group-members "graphical-atomic-tag")
+  (node-group-members "graphical-text-tag")
+  (node-group-members "graphical-group-tag")))
 
 (tm-define (graphical-user-tag? l)
   (in? l gr-tags-user))
@@ -184,49 +150,83 @@
   (append (graphics-common-attributes)
           '("fill-color" "point-style" "point-size" "point-border")))
 
-(tm-define (graphics-attributes tag)
-  (:require (or (graphical-curve-tag? tag) (graphical-user-tag? tag)))
-  (append (graphics-common-attributes)
-          '("fill-color"
-            "line-width" "line-join" "line-caps" "line-effects" "line-portion"
-            "dash-style" "dash-style-unit"
-            "arrow-begin" "arrow-end" "arrow-length" "arrow-height")))
+(tm-define
+ (graphics-attributes tag)
+ (:require
+  (or (node-group-contains? "graphical-curve-tag" tag)
+      (graphical-user-tag? tag)))
+ (append
+  (graphics-common-attributes)
+  '("fill-color"
+    "line-width"
+    "line-join"
+    "line-caps"
+    "line-effects"
+    "line-portion"
+    "dash-style"
+    "dash-style-unit"
+    "arrow-begin"
+    "arrow-end"
+    "arrow-length"
+    "arrow-height")))
 
-(tm-define (graphics-attributes tag)
-  (:require (graphical-text-tag? tag))
-  (append (graphics-common-attributes)
-          '("text-at-halign" "text-at-valign"
-            "text-at-repulse" "text-at-snapping")))
+(tm-define
+ (graphics-attributes tag)
+ (:require (node-group-contains? "graphical-text-tag" tag))
+ (append
+  (graphics-common-attributes)
+  '("text-at-halign" "text-at-valign" "text-at-repulse" "text-at-snapping")))
 
-(tm-define (graphics-attributes tag)
-  (:require (graphical-long-text-tag? tag))
-  (append (graphics-common-attributes)
-          '("text-at-halign" "doc-at-valign"
-            "text-at-repulse" "text-at-snapping"
-            "fill-color" "doc-at-width" "doc-at-hmode"
-            "doc-at-ppsep" "doc-at-border" "doc-at-padding")))
+(tm-define
+ (graphics-attributes tag)
+ (:require (node-group-contains? "graphical-long-text-tag" tag))
+ (append
+  (graphics-common-attributes)
+  '("text-at-halign"
+    "doc-at-valign"
+    "text-at-repulse"
+    "text-at-snapping"
+    "fill-color"
+    "doc-at-width"
+    "doc-at-hmode"
+    "doc-at-ppsep"
+    "doc-at-border"
+    "doc-at-padding")))
 
-(tm-define (graphics-attributes tag)
-  (:require (graphical-penscript-tag? tag))
-  (append (graphics-common-attributes)
-          '("pen-enhance"
-            "line-width" "line-join" "line-caps" "line-effects" "line-portion"
-            "dash-style" "dash-style-unit"
-            "arrow-begin" "arrow-end" "arrow-length" "arrow-height")))
+(tm-define
+ (graphics-attributes tag)
+ (:require (node-group-contains? "graphical-penscript-tag" tag))
+ (append
+  (graphics-common-attributes)
+  '("pen-enhance"
+    "line-width"
+    "line-join"
+    "line-caps"
+    "line-effects"
+    "line-portion"
+    "dash-style"
+    "dash-style-unit"
+    "arrow-begin"
+    "arrow-end"
+    "arrow-length"
+    "arrow-height")))
 
-(tm-define (graphics-attributes tag)
-  (:require (graphical-group-tag? tag))
-  (graphics-all-attributes))
+(tm-define
+ (graphics-attributes tag)
+ (:require (node-group-contains? "graphical-group-tag" tag))
+ (graphics-all-attributes))
 
 (tm-define (graphics-attribute? tag attr)
   (in? attr (graphics-attributes tag)))
 
-(tm-define (graphics-valign-var t)
-  (cond ((in? t (graphical-short-text-tag-list)) "text-at-valign")
-        ((in? t (graphical-long-text-tag-list)) "doc-at-valign")
-        ((tree? t) (graphics-valign-var (tree-label t)))
-        ((pair? t) (graphics-valign-var (car t)))
-        (else "text-at-valign")))
+(tm-define
+ (graphics-valign-var t)
+ (cond
+   ((in? t (node-group-members "graphical-short-text-tag")) "text-at-valign")
+   ((in? t (node-group-members "graphical-long-text-tag")) "doc-at-valign")
+   ((tree? t) (graphics-valign-var (tree-label t)))
+   ((pair? t) (graphics-valign-var (car t)))
+   (else "text-at-valign")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Attributes for editing modes
@@ -244,9 +244,6 @@
       (and (native-graphics-edit-props-active?)
            (native-graphics-selection-supports-property? attr))
       (in? attr (graphics-mode-attributes mode))))
-
-
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Refined properties concerning arity and types of children

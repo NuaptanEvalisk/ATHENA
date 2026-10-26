@@ -8,8 +8,7 @@
   init (_ERROR, "error", fixed (1));
   init (RAW_DATA, "raw-data", fixed (1) -> raw (0));
 
-  init (DOCUMENT, "document",
-        repeat (1, 1) -> inner_border () -> accessible (0));
+  init (DOCUMENT, "document", native_contract (DOCUMENT));
   // File-envelope fields must exist before reading the first native document.
   // Their declarations cannot depend on a previous legacy import registering them.
   init (make_tree_label ("style"), "style", fixed (1) -> regular (0));
@@ -20,9 +19,9 @@
   init (make_tree_label ("auxiliary"), "auxiliary", fixed (1) -> regular (0));
   init (make_tree_label ("attachments"), "attachments", fixed (1) -> regular (0));
   init (make_tree_label ("enunciation"), "enunciation",
-        fixed (1) -> accessible (0) -> name (0, "body"));
+        native_contract (as_tree_label ("enunciation")));
   init (make_tree_label ("program"), "program",
-        fixed (1) -> accessible (0) -> name (0, "body"));
+        native_contract (as_tree_label ("program")));
   // Native environment and namespace-page placeholders exist without styles.
   init (make_tree_label (TABULAR), TABULAR, fixed (1) -> accessible (0));
   init (make_tree_label ("ns-name"), "ns-name", fixed (0));
@@ -33,12 +32,10 @@
   init (make_tree_label ("ns-parents"), "ns-parents", fixed (0));
   init (make_tree_label ("ns-filename-template"), "ns-filename-template", fixed (0));
   init (make_tree_label ("ns-summary-link"), "ns-summary-link", fixed (0));
-  init (PARA, "para",
-        repeat (1, 1) -> inner_border () -> accessible (0) ->
-        name ("paragraph"));
-  init (SURROUND, "surround", fixed (3) -> accessible (0));
-  init (CONCAT, "concat", repeat (1, 1) -> inner_border () -> accessible (0));
-  init (RIGID, "rigid", fixed (1) -> accessible (0));
+  init (PARA, "para", native_contract (PARA));
+  init (SURROUND, "surround", native_contract (SURROUND));
+  init (CONCAT, "concat", native_contract (CONCAT));
+  init (RIGID, "rigid", native_contract (RIGID));
   init (HGROUP, "hgroup", options (1, 1) -> accessible (0));
   init (HIDDEN, "hidden", fixed (1) -> inner_border () -> hidden (0));
   init (FREEZE, "freeze",
@@ -147,47 +144,26 @@
   init (MID, "mid", options (1, 2));
   init (RIGHT, "right", options (1, 2));
   init (BIG, "big", fixed (1));
-  // v3 nodes: descriptor children are data; only authored mathematics may be
-  // traversed/edited as source. Fixed arity is part of the native contract.
-  init (DELIMITED, "delimited", fixed (6, 0, DETAILED) ->
-        string_type (0) -> string_type (1) -> string_type (2) ->
-        string_type (3) -> string_type (4) ->
-        accessible (5) -> name (5, "expression"));
-  init (MATH_MIDDLE, "math-middle", fixed (1) -> string_type (0));
-  init (BIG_OPERATOR, "big-operator", fixed (2) -> string_type (0));
-  init (MATH_SCRIPTS, "scripts", fixed (5, 0, DETAILED) ->
-        accessible (0) -> name (0, "base") ->
-        accessible (1) -> name (1, "left subscript") ->
-        accessible (2) -> name (2, "left superscript") ->
-        accessible (3) -> name (3, "right subscript") ->
-        accessible (4) -> name (4, "right superscript"));
-  init (MATH_ACCENT, "math-accent", fixed (3, 0, DETAILED) ->
-        string_type (0) -> string_type (1) ->
-        accessible (2) -> name (2, "expression"));
-  init (MATH_ANNOTATION, "math-annotation", fixed (3, 0, DETAILED) ->
-        accessible (0) -> name (0, "expression") ->
-        accessible (1) -> name (1, "below") ->
-        accessible (2) -> name (2, "above"));
-  init (MATH_LONG_ARROW, "math-long-arrow", fixed (3, 0, DETAILED) ->
-        regular (0) ->
-        accessible (1) -> name (1, "below") ->
-        accessible (2) -> name (2, "above"));
-  init (MATH_GRID, "math-grid", repeat (1, 1) -> accessible (0) ->
-        locals (0, "mode", "math"));
-  init (MATH_BLOCK, "math-block", fixed (1) -> accessible (0) ->
-        locals (0, "mode", "math") -> locals (0, "math-display", "true"));
-  init (MATH_VARIANT, "math-variant", fixed (2, 0, DETAILED) ->
-        string_type (0) ->
-        accessible (1) -> name (1, "expression"));
-  init (MATH_SYMBOL, "math-symbol", fixed (1) -> string_type (0));
+  // v3 field layout and roles are shared with validation and indexing.
+  init (DELIMITED, "delimited", native_contract (DELIMITED));
+  init (MATH_MIDDLE, "math-middle", native_contract (MATH_MIDDLE));
+  init (BIG_OPERATOR, "big-operator", native_contract (BIG_OPERATOR));
+  init (MATH_SCRIPTS, "scripts", native_contract (MATH_SCRIPTS));
+  init (MATH_ACCENT, "math-accent", native_contract (MATH_ACCENT));
+  init (MATH_ANNOTATION, "math-annotation", native_contract (MATH_ANNOTATION));
+  init (MATH_LONG_ARROW, "math-long-arrow", native_contract (MATH_LONG_ARROW));
+  init (MATH_GRID, "math-grid", native_contract (MATH_GRID));
+  init (MATH_BLOCK, "math-block", native_contract (MATH_BLOCK));
+  init (MATH_VARIANT, "math-variant", native_contract (MATH_VARIANT));
+  init (MATH_SYMBOL, "math-symbol", native_contract (MATH_SYMBOL));
   init (LONG_ARROW, "long-arrow",
         options (2, 1, DETAILED) -> name ("long arrow") ->
         accessible (1) -> name (1, "superscript") ->
         accessible (2) -> name (2, "subscript"));
   init (LPRIME, "lprime", fixed (1) -> name ("left prime"));
   init (RPRIME, "rprime", fixed (1) -> name ("right prime"));
-  init (BELOW, "below", fixed (2) -> accessible (0));
-  init (ABOVE, "above", fixed (2) -> accessible (0));
+  init (BELOW, "below", native_contract (BELOW));
+  init (ABOVE, "above", native_contract (ABOVE));
   init (LSUB, "lsub",
         fixed (1) -> name ("left subscript") ->
         accessible (0) -> locals (0, "math-display", "false"));
@@ -200,26 +176,15 @@
   init (RSUP, "rsup",
         fixed (1) -> name ("superscript") ->
         accessible (0) -> locals (0, "math-display", "false"));
-  init (FRAC, "frac",
-        fixed (2) -> name ("fraction") ->
-        accessible (0) -> locals (0, "math-display", "false"));
-  init (SQRT, "sqrt", options (1, 1) -> accessible (0) -> name ("root"));
-  init (WIDE, "wide", fixed (1, 1, BIFORM) ->
-        accessible (0) ->
-        name (1, "accent"));
-  init (VAR_WIDE, "wide*", fixed (1, 1, BIFORM) ->
-        accessible (0) -> name ("wide under") ->
-        name (1, "accent"));
-  init (NEG, "neg", fixed (1) -> accessible (0) -> name ("negation"));
-  init (TREE, "tree", repeat (2, 1) -> accessible (0));
-  init (SYNTAX, "syntax", fixed (1, 1, BIFORM) ->        
-        accessible (0) -> name (0, "body") ->
-        regular (1) -> name (1, "syntax"));
+  init (FRAC, "frac", native_contract (FRAC));
+  init (SQRT, "sqrt", native_contract (SQRT));
+  init (WIDE, "wide", native_contract (WIDE));
+  init (VAR_WIDE, "wide*", native_contract (VAR_WIDE));
+  init (NEG, "neg", native_contract (NEG));
+  init (TREE, "tree", native_contract (TREE));
+  init (SYNTAX, "syntax", native_contract (SYNTAX));
 
-  init (TFORMAT, "tformat",
-        var_repeat (1, 1, BIFORM) -> inner_border () ->
-        accessible (1) ->
-        name ("table format"));
+  init (TFORMAT, "tformat", native_contract (TFORMAT));
   init (TWITH, "twith",
         fixed (2) -> returns_adhoc () ->
         accessible (0) -> binding (0) ->
@@ -230,10 +195,10 @@
         accessible (1) -> binding (1) ->
         name ("cell property"));
   init (TMARKER, "tmarker", fixed (0) -> name ("table marker"));
-  init (TABLE, "table", repeat (1, 1) -> inner_border () -> accessible (0));
-  init (ROW, "row", repeat (1, 1) -> inner_border () -> accessible (0));
-  init (CELL, "cell", fixed (1) -> inner_border () -> accessible (0));
-  init (SUBTABLE, "subtable", fixed (1) -> inner_border () -> accessible (0));
+  init (TABLE, "table", native_contract (TABLE));
+  init (ROW, "row", native_contract (ROW));
+  init (CELL, "cell", native_contract (CELL));
+  init (SUBTABLE, "subtable", native_contract (SUBTABLE));
 
   init (ASSIGN, "assign",
         fixed (1, 1, BIFORM) -> variable (0) -> regular (1));

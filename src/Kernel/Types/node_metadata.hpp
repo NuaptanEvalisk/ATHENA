@@ -30,6 +30,7 @@ class frozen_tree {
 public:
   frozen_tree (const tree& source): value (std::make_shared<const tree> (copy (source))) {}
   operator tree () const { return copy (*value); }
+  bool matches (const tree& source) const;
   bool operator == (const frozen_tree& other) const;
   int hash () const;
 };

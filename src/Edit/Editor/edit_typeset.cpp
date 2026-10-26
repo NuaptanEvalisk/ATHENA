@@ -23,6 +23,7 @@
 #include "iterator.hpp"
 #include "merge_sort.hpp"
 #include "Typeset/Env/compound_counters.hpp"
+#include "Typeset/Env/local_environment.hpp"
 #include "scheme.hpp"
 #include "node_metadata_transform.hpp"
 #ifdef EXPERIMENTAL
@@ -49,11 +50,22 @@ toc_fold_contains (tree t) {
 * Contructors, destructors and notification of modifications
 ******************************************************************************/
 
+struct cursor_environment_checkpoint: evaluation_environment_checkpoint {
+  const bool analyzed;
+  const athena::contracts::contract_event_log trace;
+  const athena::contracts::evaluation_boundary_handle boundary;
+  cursor_environment_checkpoint (const edit_env_rep& env, bool analyzed= false,
+      athena::contracts::contract_event_log trace= {},
+      athena::contracts::evaluation_boundary_handle boundary= {}):
+    evaluation_environment_checkpoint (env), analyzed (analyzed),
+    trace (std::move (trace)), boundary (std::move (boundary)) {}
+};
+
 edit_typeset_rep::edit_typeset_rep ():
   editor_rep (), // NOTE: ignored by the compiler, but suppresses warning
   the_style (TUPLE),
-  cur (hashmap<string,tree> (UNINIT)),
-  stydef (UNINIT), pre (UNINIT), init (UNINIT), fin (UNINIT), grefs (UNINIT),
+  cur (nullptr),
+  init (UNINIT), fin (UNINIT), grefs (UNINIT),
   folded_headings (), folded_tocs (), unfolded_tocs (),
   fold_view_active (false), fold_view_rebuild (false),
   fold_view_has_toc (false),
@@ -289,48 +301,30 @@ void
 edit_typeset_rep::typeset_style_use_cache (tree style) {
   style= preprocess_style (style, buf->master);
   drd= drd_info (buf->title, standard_drd_for_thread ());
-  //cout << "Typesetting style using cache " << style << LF;
-  bool ok;
-  hashmap<string,tree> H;
-  tree t;
-  style_get_cache (style, H, t, ok);
-  if (ok) {
-    env->patch_env (H);
-    ok= drd->set_locals (t);
-    drd->set_environment (H);
-  }
-  if (!ok) {
-    //cout << "Typeset without cache " << style << LF;
-    if (!is_tuple (style)) FAILED ("tuple expected as style");
-    H= get_style_env (style);
-    drd= get_style_drd (style);
-    style_set_cache (style, H, drd->get_locals ());
-    env->patch_env (H);
-    drd->set_environment (H);
-  }
+  get_style_environment (style, buf->master, true)->restore (*env.operator-> ());
   use_modules (env->read (THE_MODULES));
 }
 
 void
 edit_typeset_rep::typeset_preamble () {
+  typeset_invalidate_env ();
   env->write_default_env ();
   typeset_style_use_cache (the_style);
   env->update ();
-  env->read_env (stydef);
   env->patch_env (init);
   env->update ();
-  env->read_env (pre);
-  drd->heuristic_init (pre);
+  env->analyze_contracts ();
+  pre= std::make_unique<evaluation_environment_checkpoint> (*env.operator-> ());
   if (compound_counter_view)
     compound_counter_variables= athena::avd::counter_variables (env);
 }
 
 void
 edit_typeset_rep::typeset_prepare () {
+  if (!pre) typeset_preamble ();
   env->base_file_name= buf->master;
   env->read_only= buf->read_only;
-  env->write_default_env ();
-  env->patch_env (pre);
+  pre->restore (*env.operator-> ());
   env->style_init_env ();
   if (compound_counter_view)
     athena::avd::apply_counter_state (
@@ -361,13 +355,13 @@ edit_typeset_rep::clear_compound_counters () {
 tree
 edit_typeset_rep::compound_counter_environment () {
   typeset_preamble ();
-  return (tree) pre;
+  return (tree) pre->variables ();
 }
 
 tree
 edit_typeset_rep::evaluate_compound_counters (const tree& incoming) {
   athena::avd::validate_counter_state (incoming);
-  if (N (pre) == 0) typeset_preamble ();
+  if (!pre) typeset_preamble ();
   // Semantic execution has its own environment and reference/auxiliary maps.
   // It neither builds boxes nor changes this view's live typesetter state.
   drd_info local_drd= drd_info ("compound-counter-evaluation", drd);
@@ -377,7 +371,7 @@ edit_typeset_rep::evaluate_compound_counters (const tree& incoming) {
   hashmap<string,tree> attachments= copy (buf->data->att);
   edit_env evaluation (local_drd, buf->master, refs, global_refs,
                        aux, aux, attachments, attachments);
-  evaluation->patch_env (pre);
+  pre->restore (*evaluation.operator-> ());
   evaluation->style_init_env ();
   evaluation->update ();
   return athena::avd::evaluate_counter_state (
@@ -391,7 +385,47 @@ edit_typeset_rep::init_update () {
 void
 edit_typeset_rep::drd_update () {
   typeset_exec_until (tp);
-  drd->heuristic_init (cur[tp]);
+  cur[tp]->restore (*env.operator-> ());
+  env->style_init_env ();
+  env->update ();
+  if (!cur[tp]->analyzed) {
+    const auto previous= cur[tp];
+    env->analyze_contracts ();
+    cur (tp)= std::make_shared<const cursor_environment_checkpoint> (
+      *env.operator-> (), true, previous->trace, previous->boundary);
+    if (prepared_cursor == previous) prepared_cursor= cur[tp];
+  }
+}
+
+void
+edit_typeset_rep::prepare_cursor_environment () {
+  if (!pre || fold_view_active || (ttt->br->status & VALID_MASK) != PROCESSED ||
+      !(rp < tp)) return;
+  const path source_path= path_up (tp);
+  if (!has_subtree (et, source_path)) return;
+  const tree source= subtree (et, source_path);
+  if (!is_atomic (source)) return;
+  const auto occurrence= find_source_occurrence (ttt->br->source_occurrences, source_path);
+  if (!occurrence || occurrence->value != source) return;
+  const auto trace= ttt->br->contract_changes;
+  auto prepared= prepared_cursor;
+  if (!prepared || prepared->trace != trace || prepared->boundary != occurrence->boundary) {
+    const auto prefix= athena::contracts::contract_event_prefix (trace, occurrence->boundary);
+    if (!prefix) return;
+    temporary_environment_scope temporary (*env.operator-> ());
+    typeset_prepare ();
+    if (!env->replay_contract_events (prefix, false)) return;
+    if (env->get_string (PREAMBLE) == "true" || env->get_string (MODE) == "src") return;
+    occurrence->restore_context (*env.operator-> ());
+    prepared= std::make_shared<const cursor_environment_checkpoint> (
+      *env.operator-> (), false, trace, occurrence->boundary);
+  }
+  if (N(cur) >= 25) cur= hashmap<path,std::shared_ptr<const cursor_environment_checkpoint>> (nullptr);
+  cur (tp)= prepared;
+  prepared_cursor= prepared;
+  prepared->restore (*env.operator-> ());
+  env->style_init_env ();
+  env->update ();
 }
 
 #ifdef EXPERIMENTAL
@@ -413,7 +447,8 @@ edit_typeset_rep::environment_update () {
 
 void
 edit_typeset_rep::typeset_invalidate_env () {
-  cur= hashmap<path,hashmap<string,tree> > (hashmap<string,tree> (UNINIT));
+  cur= hashmap<path,std::shared_ptr<const cursor_environment_checkpoint>> (nullptr);
+  prepared_cursor.reset ();
 }
 
 static void
@@ -496,7 +531,8 @@ edit_typeset_rep::typeset_exec_until (path p) {
   }
 
   //cout << "Exec until " << p << LF;
-  if (N(cur[p])!=0) return;
+  if (cur[p] && cur[p]->trace == ttt->br->contract_changes &&
+      (!cur[p]->boundary || (ttt->br->status & VALID_MASK) == PROCESSED)) return;
   if (N(cur)>=25) // avoids out of memory in weird cases
     typeset_invalidate_env ();
   typeset_prepare ();
@@ -540,7 +576,8 @@ edit_typeset_rep::typeset_exec_until (path p) {
     env->write (MODE, "src");
   if (env->read (MODE) == "src" && env->read (PREAMBLE) != "true")
     define_style_macros (env, subtree (et, rp));
-  env->read_env (cur (p));
+  cur (p)= std::make_shared<const cursor_environment_checkpoint> (
+    *env.operator-> (), false, ttt->br->contract_changes);
   //time_t t2= texmacs_time ();
   //if (t2 - t1 >= 10) cout << "typeset_exec_until took " << t2-t1 << "ms\n";
 }
@@ -548,7 +585,7 @@ edit_typeset_rep::typeset_exec_until (path p) {
 tree
 edit_typeset_rep::get_full_env () {
   typeset_exec_until (tp);
-  return (tree) cur[tp];
+  return (tree) cur[tp]->variables ();
 }
 
 bool
@@ -560,7 +597,7 @@ edit_typeset_rep::defined_at_cursor (string var) {
 tree
 edit_typeset_rep::get_env_value (string var, path p) {
   typeset_exec_until (p);
-  tree t= cur[p][var];
+  tree t= cur[p]->value (var);
   return is_func (t, BACKUP, 2)? t[0]: t;
 }
 
@@ -582,7 +619,7 @@ edit_typeset_rep::get_env_value (string var) {
 bool
 edit_typeset_rep::defined_at_init (string var) {
   if (init->contains (var)) return true;
-  if (N(pre)==0) typeset_preamble ();
+  if (!pre) typeset_preamble ();
   return pre->contains (var);
 }
 
@@ -598,8 +635,8 @@ edit_typeset_rep::get_init_value (string var) {
     if (var == BG_COLOR && is_func (t, _PATTERN)) t= env->exec (t);
     return is_func (t, BACKUP, 2)? t[0]: t;
   }
-  if (N(pre)==0) typeset_preamble ();
-  tree t= pre [var];
+  if (!pre) typeset_preamble ();
+  tree t= pre->value (var);
   if (var == BG_COLOR && is_func (t, _PATTERN)) t= env->exec (t);
   return is_func (t, BACKUP, 2)? t[0]: t;
 }
@@ -763,28 +800,20 @@ prefix_specific (hashmap<string,tree>& H, string prefix) {
 
 tree
 edit_typeset_rep::exec (tree t, hashmap<string,tree> H, bool expand_refs) {
-  hashmap<string,tree> H2;
-  env->read_env (H2);
-  env->write_env (H);
-  try {
-    t= env->exec (t);
-    if (expand_refs)
-      t= expand_references (t, buf->data->ref);
-    t= simplify_execed (t);
-    t= simplify_correct (t);
-  }
-  catch (...) {
-    env->write_env (H2);
-    throw;
-  }
-  env->write_env (H2);
+  temporary_environment_scope execution (*env.operator-> (), H);
+  env->update ();
+  t= env->exec (t);
+  if (expand_refs)
+    t= expand_references (t, buf->data->ref);
+  t= simplify_execed (t);
+  t= simplify_correct (t);
   return t;
 }
 
 tree
 edit_typeset_rep::exec_texmacs (tree t, path p) {
   typeset_exec_until (p);
-  return exec (t, cur[p]);
+  return exec (t, cur[p]->variables ());
 }
 
 tree
@@ -796,7 +825,7 @@ tree
 edit_typeset_rep::exec_verbatim (tree t, path p) {
   t= convert_OTS1_symbols_to_universal_encoding (t);
   typeset_exec_until (p);
-  hashmap<string,tree> H= copy (cur[p]);
+  hashmap<string,tree> H= cur[p]->variables ();
   H ("TeXmacs")= tree (MACRO, "TeXmacs");
   H ("LaTeX")= tree (MACRO, "LaTeX");
   H ("TeX")= tree (MACRO, "TeX");
@@ -828,7 +857,7 @@ edit_typeset_rep::exec_html (tree t, path p) {
   else t= copy (t);
   if (p == (rp * 0)) typeset_preamble ();
   typeset_exec_until (p);
-  hashmap<string,tree> H= copy (cur[p]);
+  hashmap<string,tree> H= cur[p]->variables ();
   tree patch= html_export_environment_patch ();
   hashmap<string,tree> P (UNINIT, patch);
   H->join (P);
@@ -902,7 +931,7 @@ edit_typeset_rep::exec_latex (tree t, path p) {
     return t;
   if (p == (rp * 0)) typeset_preamble ();
   typeset_exec_until (p);
-  hashmap<string,tree> H= copy (cur[p]);
+  hashmap<string,tree> H= cur[p]->variables ();
   object l= null_object ();
   iterator<string> it= iterate (H);
   while (it->busy ()) l= cons (object (it->next ()), l);
@@ -938,7 +967,7 @@ edit_typeset_rep::texmacs_exec (tree t) {
 tree
 edit_typeset_rep::var_texmacs_exec (tree t) {
   typeset_exec_until (tp);
-  env->write_env (cur[tp]);
+  cur[tp]->restore (*env.operator-> ());
   env->update_frame ();
   return texmacs_exec (t);
 }
@@ -992,8 +1021,7 @@ void
 edit_typeset_rep::init_default (string var) {
   if (!init->contains (var)) return;
   init->reset (var);
-  if (stydef->contains (var)) pre(var)= stydef[var];
-  else pre->reset (var);
+  pre.reset ();
   notify_change (THE_ENVIRONMENT);
 }
 
@@ -1499,6 +1527,7 @@ edit_typeset_rep::typeset_forced () {
   //cout << "Typeset forced\n";
   SI x1, y1, x2, y2;
   typeset (x1, y1, x2, y2);
+  prepare_cursor_environment ();
 }
 
 void

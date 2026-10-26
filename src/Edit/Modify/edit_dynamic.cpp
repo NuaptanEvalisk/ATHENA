@@ -17,6 +17,7 @@
 #include "native_interfaces.hpp"
 #include "buffer_state.hpp"
 #include "node_metadata.hpp"
+#include "Data/NodeContracts/node_groups.hpp"
 
 #include <algorithm>
 
@@ -1015,29 +1016,10 @@ edit_dynamic_rep::ensure_trailing_proof_paragraph () {
 
 namespace {
 
-struct dynamic_toggle_pair { const char* first; const char* second; };
-
-// The persisted source tag pairs currently registered in dynamic-drd.scm.
-const dynamic_toggle_pair dynamic_toggle_pairs[] = {
-  {"picture-mixed", "source-mixed"},
-  {"folded-reverse", "unfolded-reverse"},
-  {"folded", "unfolded"},
-  {"folded-plain", "unfolded-plain"},
-  {"folded-std", "unfolded-std"},
-  {"folded-explain", "unfolded-explain"},
-  {"folded-env", "unfolded-env"},
-  {"folded-documentation", "unfolded-documentation"},
-  {"folded-grouped", "unfolded-grouped"},
-  {"summarized", "detailed"},
-  {"summarized-plain", "detailed-plain"},
-  {"summarized-std", "detailed-std"},
-  {"summarized-env", "detailed-env"},
-  {"summarized-documentation", "detailed-documentation"},
-  {"summarized-grouped", "detailed-grouped"},
-  {"summarized-raw", "detailed-raw"},
-  {"summarized-tiny", "detailed-tiny"},
-  {"summarized-algorithm", "detailed-algorithm"}
-};
+bool dynamic_group (string tag, const char* group) {
+  return athena::contracts::standard_node_groups ().contains (
+    group, std::string_view (tag.data (), N (tag)));
+}
 
 string
 dynamic_tag (tree t) {
@@ -1047,37 +1029,28 @@ dynamic_tag (tree t) {
 int
 dynamic_toggle_side (tree t) {
   string tag= dynamic_tag (t);
-  for (const auto& pair: dynamic_toggle_pairs) {
-    if (tag == pair.first) return 1;
-    if (tag == pair.second) return 2;
-  }
+  if (dynamic_group (tag, "toggle-first-tag")) return 1;
+  if (dynamic_group (tag, "toggle-second-tag")) return 2;
   return 0;
 }
 
 void
 dynamic_toggle (tree t) {
   const string tag= dynamic_tag (t);
-  for (const auto& pair: dynamic_toggle_pairs) {
-    if (tag == pair.first) {
-      (void) tree_assign_node (t, as_tree_label (string (pair.second)));
-      return;
-    }
-    if (tag == pair.second) {
-      (void) tree_assign_node (t, as_tree_label (string (pair.first)));
-      return;
-    }
-  }
+  if (dynamic_toggle_side (t) == 0) return;
+  const auto next= athena::contracts::standard_node_groups ().alternate (
+    std::string_view (tag.data (), N (tag)));
+  (void) tree_assign_node (t, as_tree_label (string (next.c_str ())));
 }
 
 bool dynamic_alternative (string tag) {
-  return tag == "switch" || tag == "screens" || tag == "tiny-switch";
+  return dynamic_group (tag, "alternative-tag");
 }
 bool dynamic_unroll (string tag) {
-  return tag == "unroll" || tag == "unroll-compressed" ||
-         tag == "unroll-phantoms" || tag == "unroll-greyed";
+  return dynamic_group (tag, "unroll-tag");
 }
 bool dynamic_expanded (string tag) {
-  return tag == "expanded" || tag == "slides";
+  return dynamic_group (tag, "expanded-tag");
 }
 bool dynamic_switch (string tag) {
   return dynamic_alternative (tag) || dynamic_unroll (tag) ||
@@ -1085,9 +1058,7 @@ bool dynamic_switch (string tag) {
 }
 bool dynamic_hidden (tree t) {
   const string tag= dynamic_tag (t);
-  return tag == "hidden" || tag == "hidden*" ||
-         tag == "hidden-deleted" || tag == "hidden-invisible" ||
-         tag == "hidden-greyed";
+  return dynamic_group (tag, "hidden-tag");
 }
 
 void

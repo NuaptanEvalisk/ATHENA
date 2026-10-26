@@ -1,0 +1,240 @@
+{
+  "version": 1,
+  "license": "GPL-3.0-or-later",
+  "nodes": {
+    "document": {
+      "inner-border": true,
+      "editing-minimum": 1,
+      "repeat": {"position": "last", "count": 1},
+      "fields": [{"name": "paragraph", "role": "content"}]
+    },
+    "para": {
+      "display-name": "paragraph",
+      "inner-border": true,
+      "editing-minimum": 1,
+      "repeat": {"position": "last", "count": 1},
+      "fields": [{"name": "part", "role": "content"}]
+    },
+    "concat": {
+      "inner-border": true,
+      "editing-minimum": 1,
+      "repeat": {"position": "last", "count": 1},
+      "fields": [{"name": "part", "role": "content"}]
+    },
+    "surround": {
+      "fields": [
+        {"name": "before", "role": "content"},
+        {"name": "after", "role": "content"},
+        {"name": "body", "role": "content"}
+      ]
+    },
+    "rigid": {
+      "fields": [{"name": "body", "role": "content"}]
+    },
+    "frac": {
+      "math": true,
+      "display-name": "fraction",
+      "fields": [
+        {"name": "numerator", "role": "content", "environment": {"math-display": "false"}},
+        {"name": "denominator", "role": "content", "environment": {"math-display": "false"}}
+      ]
+    },
+    "sqrt": {
+      "math": true,
+      "display-name": "root",
+      "optional": 1,
+      "fields": [
+        {"name": "radicand", "role": "content"},
+        {"name": "index", "role": "content"}
+      ]
+    },
+    "wide": {
+      "fields": [
+        {"name": "expression", "role": "content"},
+        {"name": "accent", "role": "data"}
+      ]
+    },
+    "wide*": {
+      "display-name": "wide under",
+      "fields": [
+        {"name": "expression", "role": "content"},
+        {"name": "accent", "role": "data"}
+      ]
+    },
+    "neg": {
+      "math": true,
+      "display-name": "negation",
+      "fields": [{"name": "expression", "role": "content"}]
+    },
+    "above": {
+      "fields": [
+        {"name": "expression", "role": "content"},
+        {"name": "annotation", "role": "content"}
+      ]
+    },
+    "below": {
+      "fields": [
+        {"name": "expression", "role": "content"},
+        {"name": "annotation", "role": "content"}
+      ]
+    },
+    "table": {
+      "inner-border": true,
+      "editing-minimum": 1,
+      "repeat": {"position": "last", "count": 1},
+      "fields": [{"name": "row", "role": "content"}]
+    },
+    "row": {
+      "inner-border": true,
+      "editing-minimum": 1,
+      "repeat": {"position": "last", "count": 1},
+      "fields": [{"name": "cell", "role": "content"}]
+    },
+    "cell": {
+      "inner-border": true,
+      "fields": [{"name": "body", "role": "content"}]
+    },
+    "subtable": {
+      "inner-border": true,
+      "fields": [{"name": "body", "role": "content"}]
+    },
+    "tformat": {
+      "display-name": "table format",
+      "inner-border": true,
+      "repeat": {"position": "first", "count": 1},
+      "fields": [
+        {"name": "format", "role": "data"},
+        {"name": "body", "role": "content"}
+      ]
+    },
+    "tree": {
+      "editing-minimum": 2,
+      "repeat": {"position": "last", "count": 1},
+      "fields": [
+        {"name": "root", "role": "content"},
+        {"name": "branch", "role": "content"}
+      ]
+    },
+    "syntax": {
+      "fields": [
+        {"name": "body", "role": "content"},
+        {"name": "syntax", "role": "data"}
+      ]
+    },
+    "delimited": {
+      "math": true,
+      "fields": [
+        {"name": "left", "type": "atom", "role": "data"},
+        {"name": "right", "type": "atom", "role": "data"},
+        {"name": "sizing", "type": "atom", "role": "data"},
+        {"name": "left-size", "type": "atom", "role": "data"},
+        {"name": "right-size", "type": "atom", "role": "data"},
+        {"name": "expression", "role": "content"}
+      ]
+    },
+    "big-operator": {
+      "math": true,
+      "fields": [
+        {"name": "glyph", "type": "atom", "role": "data", "search": "atomic"},
+        {"name": "upright", "type": "atom", "role": "data"}
+      ]
+    },
+    "math-middle": {
+      "math": true,
+      "fields": [
+        {"name": "glyph", "type": "atom", "role": "data", "search": "atomic"}
+      ]
+    },
+    "scripts": {
+      "math": true,
+      "properties": {
+        "math:scripts-policy": {"type": "string", "required": true}
+      },
+      "fields": [
+        {"name": "base", "role": "content"},
+        {"name": "left-subscript", "role": "content"},
+        {"name": "left-superscript", "role": "content"},
+        {"name": "right-subscript", "role": "content"},
+        {"name": "right-superscript", "role": "content"}
+      ]
+    },
+    "math-accent": {
+      "math": true,
+      "properties": {
+        "math:accent-stretch": {"type": "boolean", "required": true}
+      },
+      "fields": [
+        {"name": "glyph", "type": "atom", "role": "data"},
+        {"name": "placement", "type": "atom", "role": "data"},
+        {"name": "expression", "role": "content"}
+      ]
+    },
+    "math-annotation": {
+      "math": true,
+      "fields": [
+        {"name": "expression", "role": "content"},
+        {"name": "below", "role": "content"},
+        {"name": "above", "role": "content"}
+      ]
+    },
+    "math-long-arrow": {
+      "math": true,
+      "fields": [
+        {"name": "symbol", "role": "data", "search": "atomic"},
+        {"name": "below", "role": "content"},
+        {"name": "above", "role": "content"}
+      ]
+    },
+    "math-grid": {
+      "math": true,
+      "properties": {
+        "math:grid-kind": {"type": "string", "required": true}
+      },
+      "repeat": {"position": "last", "count": 1, "minimum": 1},
+      "fields": [
+        {"name": "row", "role": "content", "environment": {"mode": "math"}}
+      ]
+    },
+    "math-block": {
+      "math": true,
+      "properties": {
+        "math:block-numbered": {"type": "boolean", "required": true}
+      },
+      "fields": [
+        {"name": "expression", "role": "content", "environment": {"mode": "math", "math-display": "true"}}
+      ]
+    },
+    "math-variant": {
+      "math": true,
+      "fields": [
+        {"name": "variant", "type": "atom", "role": "data"},
+        {"name": "expression", "role": "content"}
+      ]
+    },
+    "math-symbol": {
+      "math": true,
+      "fields": [
+        {"name": "symbol", "type": "atom", "role": "data"}
+      ]
+    },
+    "enunciation": {
+      "fields": [{"name": "body", "role": "body"}],
+      "properties": {
+        "kind": {"type": "string", "required": true},
+        "name": {"type": "list", "element-type": "rich-text", "accepted-legacy-type": "rich-text", "required": true, "editor": "title-slot"},
+        "attribution": {"type": "list", "element-type": "rich-text", "editor": "title-slot"},
+        "year": {"type": "string", "editor": "title-slot"},
+        "numbered": {"type": "boolean", "required": true},
+        "target": {"type": "reference"},
+        "variant": {"type": "string"},
+        "legacy-tag": {"type": "string"}
+      }
+    },
+    "program": {
+      "fields": [{"name": "body", "role": "body"}],
+      "properties": {
+        "language": {"type": "string", "required": true}
+      }
+    }
+  }
+}

@@ -26,10 +26,35 @@
 #include "dictionary.hpp"
 #include "new_style.hpp"
 #include "node_metadata.hpp"
+#include "local_environment.hpp"
+#include <filesystem>
+#include <stdexcept>
 
 extern int script_status;
-extern tree with_package_definitions (string package, tree body);
 static tree filter_style (tree t);
+
+static url
+resolve_package_source (url base, string package) {
+  url search= "$ATHENA_STYLE_PATH";
+  if (is_rooted (base, "default"))
+    search= search | ::expand (head (base) * url_ancestor ());
+  else search= search | head (base);
+  return resolve_style_file (package, search, true);
+}
+
+static athena::contracts::package_source_query
+package_source_receipt (string requested, url source) {
+  namespace fs= std::filesystem;
+  const string name= concretize (source);
+  const std::string path (name.data (), N(name));
+  std::error_code error;
+  const auto modified= fs::last_write_time (path, error);
+  const std::int64_t stamp= error ? -1 : modified.time_since_epoch ().count ();
+  error.clear ();
+  const auto size= fs::file_size (path, error);
+  return {std::string (requested.data (), N(requested)), path,
+          style_cache_generation (), stamp, error ? std::uintmax_t (-1) : size};
+}
 
 /******************************************************************************
 * Subroutines
@@ -121,12 +146,6 @@ edit_env_rep::rewrite (tree t) {
         return tree (_ERROR, "invalid self include");
       //cout << "file_name= " << as_tree (file_name) << LF;
       return load_inclusion (file_rel);
-    }
-  case WITH_PACKAGE:
-    {
-      if (N(t) != 2) return tree (_ERROR, "invalid with-package");
-      string file_name= exec_string (t[0]);
-      return with_package_definitions (file_name, t[1]);
     }
   case REWRITE_INACTIVE:
     {
@@ -323,7 +342,13 @@ edit_env_rep::exec (tree t) {
   case VAR_INCLUDE:
     return exec_rewrite (t);
   case WITH_PACKAGE:
-    return exec_rewrite (t);
+    if (N(t) != 2) return tree (_ERROR, "invalid with-package");
+    {
+      scoped_package_environment scope (*this, t[0]);
+      tree result= exec (t[1]);
+      scope.finish ();
+      return result;
+    }
   case USE_PACKAGE:
     return exec_use_package (t);
   case USE_MODULE:
@@ -634,7 +659,7 @@ edit_env_rep::exec_provide (tree t) {
   if (N(t)!=2) return tree (_ERROR, "bad provide");
   tree r= exec (t[0]);
   if (is_compound (r)) return tree (_ERROR, "bad provide");
-  if (provides (t->label)) return "";
+  if (provides (r->label)) return "";
   assign (r->label, copy (t[1]));
   tree v= read (r->label);
   if (is_atomic (v) || is_func (v, MACRO));
@@ -644,42 +669,20 @@ edit_env_rep::exec_provide (tree t) {
 
 tree
 edit_env_rep::exec_with (tree t) {
-  int i, n= N(t), k= (n-1)>>1; // is k=0 allowed ?
-  if ((n&1) != 1) return tree (_ERROR, "bad with");
-  STACK_NEW_ARRAY(vars,string,k);
-  STACK_NEW_ARRAY(oldv,tree,k);
-  STACK_NEW_ARRAY(newv,tree,k);
-  for (i=0; i<k; i++) {
-    tree var_t= exec (t[i<<1]);
-    if (is_atomic (var_t)) {
-      string var= var_t->label;
-      newv[i]= exec (t[(i<<1)+1]);
-      vars[i]= normalize_legacy_math_font_variable (var, newv[i]);
-      oldv[i]= read (vars[i]);
-    }
-    else {
-      STACK_DELETE_ARRAY(vars);
-      STACK_DELETE_ARRAY(oldv);
-      STACK_DELETE_ARRAY(newv);
-      return tree (_ERROR, "bad with");
-    }
-  }
-
-  // for (i=0; i<k; i++) monitored_write_update (vars[i], newv[i]);
-  for (i=0; i<k; i++) write_update (vars[i], newv[i]);
+  const int n= N(t);
+  local_environment_bindings bindings;
+  if (!evaluate_local_environment (*this, t, bindings)) return tree (_ERROR, "bad with");
+  local_environment_scope scope (*this, bindings);
   tree r= exec (t[n-1]);
-  for (i=k-1; i>=0; i--) write_update (vars[i], oldv[i]);
+  scope.finish ();
 
   tree u (WITH, n);
-  for (i=0; i<k; i++) {
-    u[i<<1]    = vars[i];
-    u[(i<<1)+1]= tree (QUOTE, newv[i]);
+  for (int i=0; i<int(bindings.size ()); i++) {
+    u[i<<1]    = bindings[i].name;
+    u[(i<<1)+1]= tree (QUOTE, bindings[i].value);
   }
   u[n-1]= r;
   athena::node::copy_metadata (t, u);
-  STACK_DELETE_ARRAY(vars);
-  STACK_DELETE_ARRAY(oldv);
-  STACK_DELETE_ARRAY(newv);
   return u;
 }
 
@@ -741,8 +744,142 @@ edit_env_rep::exec_compound (tree t) {
 
 tree
 edit_env_rep::exec_drd_props (tree t) {
-  apply_drd_properties (drd, t);
+  using namespace athena::contracts;
+  declaration_execution execution {athena::node::frozen_tree (t), {}, {}, package_origin,
+    {}, declaration_status::invalid, {}};
+  const string file= as_string (cur_file_name);
+  execution.file= package_origin ? package_origin->source : std::string (file.data (), N(file));
+  const path source_path= obtain_ip (t);
+  if (is_accessible (source_path))
+    for (path p= reverse (source_path); !is_nil (p); p= p->next)
+      execution.source_path.push_back (p->item);
+  if (N (t) > 0 && !is_atomic (t[0])) {
+    t= copy (t);
+    t[0]= exec (t[0]);
+  }
+  try {
+    auto declaration= decode_contract_declaration (t);
+    declaration.package= package_origin;
+    declaration.source= execution.file;
+    declaration.source_path= execution.source_path;
+    execution.declaration= std::make_shared<const contract_declaration> (std::move (declaration));
+  }
+  catch (const std::invalid_argument& error) {
+    execution.diagnostic= error.what ();
+  }
+  if (execution.declaration) {
+    apply_contract_event (execution.declaration, true);
+    const auto history= drd->contracts.declaration_history (execution.declaration->target);
+    const auto& occurrence= history->occurrences.back ();
+    execution.status= occurrence.status;
+    execution.diagnostic= occurrence.diagnostic;
+  }
+  const std::string diagnostic= execution.diagnostic;
+  if (contract_events)
+    contract_events->record (std::make_shared<const declaration_execution> (std::move (execution)));
+  if (!diagnostic.empty ())
+    return tree (_ERROR, string (diagnostic.data (), diagnostic.size ()));
   return t;
+}
+
+void
+edit_env_rep::apply_contract_event (const athena::contracts::contract_event& event,
+                                    bool record) {
+  if (record && contract_events)
+    contract_events->record (athena::contracts::definition_query {
+      event->target, drd->contracts.definition (event->target)});
+  if (drd->contracts.apply_declaration (event, true))
+    drd->declaration_changed (event->target);
+  if (record && contract_events) contract_events->record (event);
+}
+
+void
+edit_env_rep::synchronize_definition_value (string name, const tree& value) {
+  if (existing_tree_label (name)) {
+    const auto current= drd->contracts.definition (as_tree_label (name));
+    if (current && current->value->expression.matches (value)) return;
+  }
+  // A ready-value write retains a matching binding. ASSIGN and WITH explicitly
+  // create their execution binding before this lower-level write boundary.
+  track_definition (name, value);
+}
+
+void
+edit_env_rep::track_definition (string name, const tree& value) {
+  const bool macro= is_func (value, MACRO) || is_func (value, XMACRO);
+  if (!macro && !existing_tree_label (name)) return;
+  const auto target= make_tree_label (name);
+  const auto current= drd->contracts.definition (target);
+  if (!macro && !current) return;
+  auto payload= contract_events ? contract_events->previous_value (target, value) : nullptr;
+  if (!payload && current && current->value->expression.matches (value)) payload= current->value;
+  auto binding= athena::contracts::capture_definition (
+    name, value, std::move (payload), package_origin);
+  drd->contracts.bind (binding);
+  if (contract_events) contract_events->record (std::move (binding));
+}
+
+bool
+edit_env_rep::replay_contract_events (const athena::contracts::contract_event_log& events,
+                                      bool record) {
+  {
+    athena::contracts::contract_event_suspension pause (contract_events);
+    auto result= athena::contracts::resolve_evaluation_effects (events, drd->contracts,
+      [this] (const string& name) -> std::optional<tree> {
+        if (!env->contains (name)) return std::nullopt;
+        return env[name];
+      }, true, [this] (const auto& query) { return external_input_matches (query); },
+      [this] (const auto& query) { return package_input_matches (query); });
+    if (!result) return false;
+    // Only the outward variable effects reach the real evaluator. Intermediate
+    // WITH values and their restorations were resolved in the private draft.
+    for (const auto& [key, value]: result->variables) {
+      const string name (key.data (), key.size ());
+      if (value) {
+        if (record) monitored_write_update (name, tree (*value));
+        else write_update (name, tree (*value));
+      }
+      else {
+        if (record) back->write_back (name, env);
+        restore_local_value (name, tree (UNINIT), false);
+      }
+    }
+    drd->contracts= std::move (result->contracts);
+  }
+  if (record && events && contract_events) contract_events->record (events);
+  return true;
+}
+
+bool
+edit_env_rep::can_replay_events (const athena::contracts::contract_event_log& events) {
+  return athena::contracts::evaluation_events_applicable (events, drd->contracts,
+    [this] (const string& name) -> std::optional<tree> {
+      if (!env->contains (name)) return std::nullopt;
+      return env[name];
+    }, [this] (const auto& query) { return external_input_matches (query); },
+    [this] (const auto& query) { return package_input_matches (query); });
+}
+
+bool
+edit_env_rep::package_input_matches (const athena::contracts::package_source_query& query) const {
+  const string requested (query.name.data (), query.name.size ());
+  const auto current= package_source_receipt (
+    requested, resolve_package_source (base_file_name, requested));
+  return query.path == current.path && query.generation == current.generation &&
+         query.modified == current.modified && query.bytes == current.bytes;
+}
+
+bool
+edit_env_rep::external_input_matches (const athena::contracts::external_query& query) const {
+  using athena::contracts::external_source;
+  auto& local= query.source == external_source::reference ? local_ref : local_att;
+  auto& global= query.source == external_source::reference ? global_ref : global_att;
+  const string key (query.name.data (), query.name.size ());
+  const bool selected_local= local->contains (key);
+  auto& selected= selected_local ? local : global;
+  const bool present= selected->contains (key);
+  return selected_local == query.local && present == query.present &&
+    (!present || (query.value && query.value->matches (selected[key])));
 }
 
 tree
@@ -1131,18 +1268,17 @@ tree
 edit_env_rep::exec_use_package (tree t) {
   int i, n= N(t);
   for (i=0; i<n; i++) {
-    //cout << "Package " << as_string (t[i]) << "\n";
-    url name= url_none ();
-    url styp= "$ATHENA_STYLE_PATH";
-    if (is_rooted (base_file_name, "default"))
-      styp= styp | ::expand (head (base_file_name) * url_ancestor ());
-    else styp= styp | head (base_file_name);
-    name= resolve_style_file (as_string (t[i]), styp, true);
-    //cout << as_string (t[i]) << " -> " << name << "\n";
+    const string requested= as_string (t[i]);
+    url name= resolve_package_source (base_file_name, requested);
+    if (contract_events)
+      contract_events->record (package_source_receipt (requested, name));
     if (!is_none (name)) {
       tree body= load_style_body (name);
       if (is_func (body, _ERROR)) std_warning << body[0] << LF;
-      else exec (filter_style (body));
+      else {
+        package_execution_scope package (*this, name);
+        exec (filter_style (body));
+      }
     }
   }
   return "";
@@ -1927,6 +2063,12 @@ edit_env_rep::exec_set_binding (tree t) {
   }
   //cout << t << ": " << keys << " -> " << value << "\n";
 
+  // SET_BINDING mutates a reference provider and additional layout outputs.
+  // These are not variable writes and cannot be replayed by the current
+  // contract draft. Do not admit its enclosing cached execution as reusable.
+  if (contract_events)
+    contract_events->record (athena::contracts::evaluation_barrier {});
+
   for (int i=0; i<N(keys); i++) {
     string key= keys[i]->label;
     tree old_value= local_ref[key];
@@ -1960,7 +2102,14 @@ tree
 edit_env_rep::exec_get_binding (tree t) {
   if (N(t) != 1 && N(t) != 2) return tree (_ERROR, "bad get binding");
   string key= exec_string (t[0]);
-  tree value= local_ref->contains (key)? local_ref [key]: global_ref [key];
+  const bool is_local= local_ref->contains (key);
+  const bool present= is_local || global_ref->contains (key);
+  tree value= is_local ? local_ref [key]: global_ref [key];
+  if (contract_events)
+    contract_events->record (athena::contracts::external_query {
+      athena::contracts::external_source::reference,
+      std::string (key.data (), N(key)), is_local, present,
+      present ? std::optional<athena::node::frozen_tree> (value) : std::nullopt});
   int type= (N(t) == 1? 0: as_int (exec_string (t[1])));
   if (type != 0 && type != 1) type= 0;
   if (is_func (value, TUPLE) && (N(value) >= 2)) value= value[type];
@@ -1978,7 +2127,14 @@ tree
 edit_env_rep::exec_has_binding (tree t) {
   if (N(t) != 1 && N(t) != 2) return tree (_ERROR, "bad get binding");
   string key= exec_string (t[0]);
-  tree value= local_ref->contains (key)? local_ref [key]: global_ref [key];
+  const bool is_local= local_ref->contains (key);
+  const bool present= is_local || global_ref->contains (key);
+  tree value= is_local ? local_ref [key]: global_ref [key];
+  if (contract_events)
+    contract_events->record (athena::contracts::external_query {
+      athena::contracts::external_source::reference,
+      std::string (key.data (), N(key)), is_local, present,
+      present ? std::optional<athena::node::frozen_tree> (value) : std::nullopt});
   int type= (N(t) == 1? 0: as_int (exec_string (t[1])));
   if (type != 0 && type != 1) type= 0;
   if (is_func (value, TUPLE) && (N(value) >= 2)) value= value[type];
@@ -1991,7 +2147,14 @@ tree
 edit_env_rep::exec_get_attachment (tree t) {
   if (N(t) != 1) return tree (_ERROR, "bad get attachment");
   string key= exec_string (t[0]);
-  tree value= local_att->contains (key)? local_att [key]: global_att [key];
+  const bool is_local= local_att->contains (key);
+  const bool present= is_local || global_att->contains (key);
+  tree value= is_local ? local_att [key]: global_att [key];
+  if (contract_events)
+    contract_events->record (athena::contracts::external_query {
+      athena::contracts::external_source::attachment,
+      std::string (key.data (), N(key)), is_local, present,
+      present ? std::optional<athena::node::frozen_tree> (value) : std::nullopt});
   return value;
 }
 
@@ -2266,6 +2429,13 @@ edit_env_rep::exec_until (tree t, path p) {
   case WITH:
     exec_until_with (t, p);
     return;
+  case WITH_PACKAGE:
+    if (N(t) == 2 && p->item == 1) {
+      scoped_package_environment scope (*this, t[0]);
+      exec_until (t[1], p->next);
+      scope.finish (true);
+    }
+    return;
   case COMPOUND:
     exec_until_compound (t, p);
     return;
@@ -2323,28 +2493,13 @@ edit_env_rep::exec_until_table (tree t, path p) {
 
 void
 edit_env_rep::exec_until_with (tree t, path p) {
-  int i, n= N(t), k= (n-1)>>1; // is k=0 allowed ?
+  const int n= N(t);
   if (((n&1) != 1) || (p->item != n-1)) return;
-  STACK_NEW_ARRAY(vars,string,k);
-  STACK_NEW_ARRAY(newv,tree,k);
-  for (i=0; i<k; i++) {
-    tree var_t= exec (t[i<<1]);
-    if (is_atomic (var_t)) {
-      string var= var_t->label;
-      vars[i]= var;
-      newv[i]= exec (t[(i<<1)+1]);
-    }
-    else {
-      STACK_DELETE_ARRAY(vars);
-      STACK_DELETE_ARRAY(newv);
-      return;
-    }
-  }
-  for (i=0; i<k; i++) monitored_write_update (vars[i], newv[i]);
+  local_environment_bindings bindings;
+  if (!evaluate_local_environment (*this, t, bindings)) return;
+  local_environment_scope scope (*this, bindings, true);
   exec_until (t[n-1], p->next);
-  STACK_DELETE_ARRAY(vars);
-  STACK_DELETE_ARRAY(newv);
-  return;
+  scope.finish (true);
 }
 
 void
@@ -2505,8 +2660,15 @@ edit_env_rep::exec_until (tree t, path p, string var, int level) {
     return false;
   case EXTERN:
   case VAR_INCLUDE:
-  case WITH_PACKAGE:
     return exec_until_rewrite (t, p, var, level);
+  case WITH_PACKAGE:
+    if (N(t) != 2 || is_nil (p) || p->item != 1) return false;
+    {
+      scoped_package_environment scope (*this, t[0]);
+      const bool result= exec_until (t[1], p->next, var, level);
+      scope.finish (true);
+      return result;
+    }
   case USE_PACKAGE:
   case USE_MODULE:
   case OR:
@@ -2596,39 +2758,12 @@ edit_env_rep::exec_until_table (tree t, path p, string var, int level) {
 
 bool
 edit_env_rep::exec_until_with (tree t, path p, string var, int level) {
-  int i, n= N(t), k= (n-1)>>1; // is k=0 allowed ?
-  if ((n&1) != 1) return false;
-  STACK_NEW_ARRAY(vars,string,k);
-  STACK_NEW_ARRAY(oldv,tree,k);
-  STACK_NEW_ARRAY(newv,tree,k);
-  for (i=0; i<k; i++) {
-    tree var_t= exec (t[i<<1]);
-    if (is_atomic (var_t)) {
-      string var= var_t->label;
-      vars[i]= var;
-      oldv[i]= read (var);
-      newv[i]= exec (t[(i<<1)+1]);
-    }
-    else {
-      STACK_DELETE_ARRAY(vars);
-      STACK_DELETE_ARRAY(oldv);
-      STACK_DELETE_ARRAY(newv);
-      return false;
-    }
-  }
-
-  for (i=0; i<k; i++) monitored_write_update (vars[i], newv[i]);
-  if (exec_until (t[n-1], p, var, level)) {
-    STACK_DELETE_ARRAY(vars);
-    STACK_DELETE_ARRAY(oldv);
-    STACK_DELETE_ARRAY(newv);
-    return true;
-  }
-  for (i=k-1; i>=0; i--) write_update (vars[i], oldv[i]);
-  STACK_DELETE_ARRAY(vars);
-  STACK_DELETE_ARRAY(oldv);
-  STACK_DELETE_ARRAY(newv);
-  return false;
+  local_environment_bindings bindings;
+  if (!evaluate_local_environment (*this, t, bindings)) return false;
+  local_environment_scope scope (*this, bindings, true);
+  const bool found= exec_until (t[N(t)-1], p, var, level);
+  scope.finish (found);
+  return found;
 }
 
 bool

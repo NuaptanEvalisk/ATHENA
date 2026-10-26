@@ -155,9 +155,9 @@ void TestDocumentNodeModel::registry_roles_and_nested_bodies () {
 void TestDocumentNodeModel::drd_roles_and_code_boundaries () {
   drd_info drd ("document-node-roles-test", standard_drd_for_thread ());
   const auto tag= make_tree_label ("test-body-and-code");
-  drd->info (tag)= tag_info (2, 0, ARITY_NORMAL, CHILD_DETAILED)->
+  drd->contracts.replace (tag, freeze_descriptor (tag_info (2, 0, ARITY_NORMAL, CHILD_DETAILED)->
     type (0, TYPE_REGULAR)->accessible (0)->name (0, "body")->
-    accessible (1)->type (1, TYPE_CODE);
+    accessible (1)->type (1, TYPE_CODE)));
   tree hidden (DOCUMENT, "Not content");
   tree source (DOCUMENT, tree (tag, tree (DOCUMENT, "Content"), hidden),
                tree (MACRO, "body", hidden), tree (QUOTE, hidden),

@@ -15,46 +15,39 @@
 #include "drd_mode.hpp"
 #include "iterator.hpp"
 #include "analyze.hpp"
+#include "Data/NodeContracts/node_group_scope.hpp"
+#include "Data/NodeContracts/macro_analysis.hpp"
+#include "Data/NodeContracts/contract_declaration.hpp"
 
 /******************************************************************************
 * Constructors and basic operations
 ******************************************************************************/
 
 drd_info_rep::drd_info_rep (string name2):
-  name (name2), info (tag_info ()), env (UNINIT) {}
+  name (name2), env (UNINIT) {}
 drd_info_rep::drd_info_rep (string name2, drd_info base):
-  name (name2), info (tag_info (), base->info), env (UNINIT) {}
+  name (name2), contracts (base->contracts.snapshot ()), env (UNINIT) {}
+drd_info_rep::~drd_info_rep ()= default;
 drd_info::drd_info (string name):
   rep (tm_new<drd_info_rep> (name)) {}
 drd_info::drd_info (string name, drd_info base):
   rep (tm_new<drd_info_rep> (name, base)) {}
 
-tree
-drd_info_rep::get_locals () {
-  tree t (COLLECTION);
-  iterator<tree_label> it= iterate (info->item);
-  while (it->busy()) {
-    tree_label l= it->next();
-    tree v= (tree) info->item[l];
-    t << tree (ASSOCIATE, as_string (l), v);
-  }
-  return t;
-}
-
-bool
-drd_info_rep::set_locals (tree t) {
-  if (!is_func (t, COLLECTION))
-    return false;
-  int i, n= N(t);
-  for (i=0; i<n; i++)
-    if (is_func (t[i], ASSOCIATE, 2) && is_atomic (t[i][0]))
-      info (make_tree_label (t[i][0]->label))= tag_info (t[i][1]);
-  return true;
-}
-
 bool
 drd_info_rep::contains (string l) {
-  return existing_tree_label (l) && info->contains (as_tree_label (l));
+  if (!existing_tree_label (l)) {
+    athena::contracts::observe_contract_absence (contracts, l);
+    return false;
+  }
+  const auto label= as_tree_label (l);
+  athena::contracts::observe_contract_query (contracts, label);
+  return contracts.contains (label);
+}
+
+const athena::contracts::node_contract&
+drd_info_rep::describe (tree_label label) {
+  athena::contracts::observe_contract_query (contracts, label);
+  return contracts.resolve (label);
 }
 
 tm_ostream&
@@ -67,28 +60,22 @@ operator << (tm_ostream& out, drd_info drd) {
 ******************************************************************************/
 
 void
-drd_info_rep::set_type (tree_label l, int tp) {
-  if (info[l]->pi.freeze_type) return;
-  if (!info->contains (l)) info(l)= copy (info[l]);
-  tag_info& ti= info(l);
-  ti->pi.type= tp;
+drd_info_rep::set_type (tree_label l, int tp, property_authority source) {
+  contracts.edit (l, [=] (auto& value) {
+    if (!athena::contracts::accepts (value.type_origin, source)) return;
+    value.type= tp;
+    value.type_origin= source;
+  });
 }
 
 int
 drd_info_rep::get_type (tree_label l) {
-  return info[l]->pi.type;
-}
-
-void
-drd_info_rep::freeze_type (tree_label l) {
-  if (!info->contains (l)) info(l)= copy (info[l]);
-  tag_info& ti= info(l);
-  ti->pi.freeze_type= true;
+  return describe (l).type;
 }
 
 int
 drd_info_rep::get_type (tree t) {
-  return info[L(t)]->pi.type;
+  return describe (L(t)).type;
 }
 
 /******************************************************************************
@@ -96,88 +83,65 @@ drd_info_rep::get_type (tree t) {
 ******************************************************************************/
 
 void
-drd_info_rep::set_arity (tree_label l, int arity, int extra, int am, int cm) {
-  if (info[l]->pi.freeze_arity) return;
-  if (!info->contains (l)) info(l)= copy (info[l]);
-  tag_info& ti= info(l);
-  ti->pi.arity_mode= am;
-  ti->pi.child_mode= cm;
-  if (am != ARITY_VAR_REPEAT) {
-    ti->pi.arity_base = arity;
-    ti->pi.arity_extra= extra;
-  }
-  else {
-    ti->pi.arity_base = extra;
-    ti->pi.arity_extra= arity;
-  }
-  int n;
-  if (arity+extra == 0) n= 0;
-  else if (cm == CHILD_UNIFORM) n= 1;
-  else if (cm == CHILD_BIFORM) n= 2;
-  else n= arity+extra;
-  if (N(ti->ci) != n) ti->ci= array<child_info> (n);
+drd_info_rep::set_arity (tree_label l, int arity, int extra, int am, int cm,
+                         property_authority source) {
+  contracts.edit (l, [=] (auto& value) {
+    if (!athena::contracts::accepts (value.layout_origin, source)) return;
+    value.layout_origin= source;
+    value.layout= {am == ARITY_VAR_REPEAT ? extra : arity,
+      am == ARITY_VAR_REPEAT ? arity : extra,
+      static_cast<athena::contracts::arity_kind> (am),
+      static_cast<athena::contracts::field_mapping> (cm)};
+    const auto count= value.layout.fields ();
+    if (int(value.fields.size ()) != count)
+      value.fields.assign (count, athena::contracts::field_contract {});
+  });
 }
 
 int
 drd_info_rep::get_arity_mode (tree_label l) {
-  return info[l]->pi.arity_mode;
+  return static_cast<int> (describe (l).layout.arity);
 }
 
 int
 drd_info_rep::get_child_mode (tree_label l) {
-  return info[l]->pi.child_mode;
+  return static_cast<int> (describe (l).layout.mapping);
 }
 
 int
 drd_info_rep::get_arity_base (tree_label l) {
-  return info[l]->pi.arity_base;
+  return describe (l).layout.base;
 }
 
 int
 drd_info_rep::get_arity_extra (tree_label l) {
-  return info[l]->pi.arity_extra;
+  return describe (l).layout.extra;
 }
 
 int
 drd_info_rep::get_nr_indices (tree_label l) {
-  return N(info[l]->ci);
-}
-
-void
-drd_info_rep::freeze_arity (tree_label l) {
-  if (!info->contains (l)) info(l)= copy (info[l]);
-  tag_info& ti= info(l);
-  ti->pi.freeze_arity= true;
+  return int(describe (l).fields.size ());
 }
 
 int
 drd_info_rep::get_old_arity (tree_label l) {
-  tag_info ti= info[l];
-  if (ti->pi.arity_mode != ARITY_NORMAL) return -1;
-  else return ((int) ti->pi.arity_base) + ((int) ti->pi.arity_extra);
+  const auto& ti= describe (l);
+  if (ti.layout.arity != athena::contracts::arity_kind::fixed) return -1;
+  else return ((int) ti.layout.base) + ((int) ti.layout.extra);
 }
 
 int
 drd_info_rep::get_minimal_arity (tree_label l) {
-  parent_info pi= info[l]->pi;
-  switch (pi.arity_mode) {
-  case ARITY_NORMAL:
-    return ((int) pi.arity_base) + ((int) pi.arity_extra);
-  case ARITY_OPTIONS:
-  case ARITY_REPEAT:
-  case ARITY_VAR_REPEAT:
-    return ((int) pi.arity_base);
-  }
-  return 0; // NOT REACHED
+  return describe (l).layout.minimum ();
 }
 
 int
 drd_info_rep::get_maximal_arity (tree_label l) {
-  parent_info pi= info[l]->pi;
-  switch (pi.arity_mode) {
+  const auto& layout= describe (l).layout;
+  switch (static_cast<int> (layout.arity)) {
   case ARITY_NORMAL:
   case ARITY_OPTIONS:
-    return ((int) pi.arity_base) + ((int) pi.arity_extra);
+    return ((int) layout.base) + ((int) layout.extra);
   case ARITY_REPEAT:
   case ARITY_VAR_REPEAT:
     return 0x7fffffff;
@@ -187,38 +151,26 @@ drd_info_rep::get_maximal_arity (tree_label l) {
 
 bool
 drd_info_rep::correct_arity (tree_label l, int i) {
-  parent_info pi= info[l]->pi;
-  switch (pi.arity_mode) {
-  case ARITY_NORMAL:
-    return i == ((int) pi.arity_base) + ((int) pi.arity_extra);
-  case ARITY_OPTIONS:
-    return (i >= ((int) pi.arity_base)) &&
-           (i <= ((int) pi.arity_base) + ((int) pi.arity_extra));
-  case ARITY_REPEAT:
-  case ARITY_VAR_REPEAT:
-    return (i >= ((int) pi.arity_base)) &&
-           (((i-pi.arity_base) % pi.arity_extra) == 0);
-  }
-  return false; // NOT REACHED
+  return describe (l).layout.accepts (i);
 }
 
 bool
 drd_info_rep::insert_point (tree_label l, int i, int n) {
-  parent_info pi= info[l]->pi;
-  switch (pi.arity_mode) {
+  const auto& layout= describe (l).layout;
+  switch (static_cast<int> (layout.arity)) {
   case ARITY_NORMAL:
     return false;
   case ARITY_OPTIONS:
-    return (i >= ((int) pi.arity_base)) && (i <= n) &&
-           (n < ((int) pi.arity_base) + ((int) pi.arity_extra));
+    return (i >= ((int) layout.base)) && (i <= n) &&
+           (n < ((int) layout.base) + ((int) layout.extra));
   case ARITY_REPEAT:
     return (i >= 0) &&
-           ((i < ((int) pi.arity_base)) ||
-            ((i - pi.arity_base) % pi.arity_extra) == 0);
+           ((i < ((int) layout.base)) ||
+            ((i - layout.base) % layout.extra) == 0);
   case ARITY_VAR_REPEAT:
     return (i >= 0) &&
-           ((i > (n - ((int) pi.arity_base))) ||
-            (i % pi.arity_extra == 0));
+           ((i > (n - ((int) layout.base))) ||
+            (i % layout.extra == 0));
   }
   return false; // NOT REACHED
 }
@@ -229,7 +181,7 @@ drd_info_rep::is_dynamic (tree t, bool hack) {
   if (is_atomic (t)) return false;
   if (is_func (t, DOCUMENT) || is_func (t, PARA) || is_func (t, CONCAT) ||
       is_func (t, TABLE) || is_func (t, ROW)) return false;
-  return info[L(t)]->pi.arity_mode != ARITY_NORMAL;
+  return describe (L(t)).layout.arity != athena::contracts::arity_kind::fixed;
 }
 
 /******************************************************************************
@@ -237,40 +189,34 @@ drd_info_rep::is_dynamic (tree t, bool hack) {
 ******************************************************************************/
 
 void
-drd_info_rep::set_border (tree_label l, int mode) {
-  if (info[l]->pi.freeze_border) return;
-  if (!info->contains (l)) info(l)= copy (info[l]);
-  tag_info& ti= info(l);
-  ti->pi.border_mode= mode;
+drd_info_rep::set_border (tree_label l, int mode, property_authority source) {
+  contracts.edit (l, [=] (auto& value) {
+    if (!athena::contracts::accepts (value.border_origin, source)) return;
+    value.border= mode;
+    value.border_origin= source;
+  });
 }
 
 int
 drd_info_rep::get_border (tree_label l) {
-  return info[l]->pi.border_mode;
-}
-
-void
-drd_info_rep::freeze_border (tree_label l) {
-  if (!info->contains (l)) info(l)= copy (info[l]);
-  tag_info& ti= info(l);
-  ti->pi.freeze_border= true;
+  return describe (l).border;
 }
 
 bool
 drd_info_rep::is_child_enforcing (tree t) {
-  return ((info[L(t)]->pi.border_mode & BORDER_INNER) != 0) &&
+  return ((describe (L(t)).border & BORDER_INNER) != 0) &&
          (N(t) != 0);
 }
 
 bool
 drd_info_rep::is_parent_enforcing (tree t) {
-  return ((info[L(t)]->pi.border_mode & BORDER_OUTER) != 0) &&
+  return ((describe (L(t)).border & BORDER_OUTER) != 0) &&
          (N(t) != 0);
 }
 
 bool
 drd_info_rep::var_without_border (tree_label l) {
-  return ((info[l]->pi.border_mode & BORDER_INNER) != 0) &&
+  return ((describe (l).border & BORDER_INNER) != 0) &&
          (!std_contains (as_string (l)));
 }
 
@@ -280,28 +226,23 @@ drd_info_rep::var_without_border (tree_label l) {
 ******************************************************************************/
 
 void
-drd_info_rep::set_with_like (tree_label l, bool is_with_like) {
-  if (info[l]->pi.freeze_with) return;
-  if (!info->contains (l)) info(l)= copy (info[l]);
-  tag_info& ti= info(l);
-  ti->pi.with_like= is_with_like;
+drd_info_rep::set_with_like (tree_label l, bool is_with_like,
+                            property_authority source) {
+  contracts.edit (l, [=] (auto& value) {
+    if (!athena::contracts::accepts (value.with_origin, source)) return;
+    value.with_like= is_with_like;
+    value.with_origin= source;
+  });
 }
 
 bool
 drd_info_rep::get_with_like (tree_label l) {
-  return info[l]->pi.with_like;
-}
-
-void
-drd_info_rep::freeze_with_like (tree_label l) {
-  if (!info->contains (l)) info(l)= copy (info[l]);
-  tag_info& ti= info(l);
-  ti->pi.freeze_with= true;
+  return describe (l).with_like;
 }
 
 bool
 drd_info_rep::is_with_like (tree t) {
-  return info[L(t)]->pi.with_like && N(t) > 0;
+  return describe (L(t)).with_like && N(t) > 0;
 }
 
 /******************************************************************************
@@ -310,23 +251,17 @@ drd_info_rep::is_with_like (tree t) {
 ******************************************************************************/
 
 void
-drd_info_rep::set_var_type (tree_label l, int vt) {
-  if (info[l]->pi.freeze_with) return;
-  if (!info->contains (l)) info(l)= copy (info[l]);
-  tag_info& ti= info(l);
-  ti->pi.var_type= vt;
+drd_info_rep::set_var_type (tree_label l, int vt, property_authority source) {
+  contracts.edit (l, [=] (auto& value) {
+    if (!athena::contracts::accepts (value.variable_type_origin, source)) return;
+    value.variable_type= vt;
+    value.variable_type_origin= source;
+  });
 }
 
 int
 drd_info_rep::get_var_type (tree_label l) {
-  return info[l]->pi.var_type;
-}
-
-void
-drd_info_rep::freeze_var_type (tree_label l) {
-  if (!info->contains (l)) info(l)= copy (info[l]);
-  tag_info& ti= info(l);
-  ti->pi.freeze_with= true;
+  return describe (l).variable_type;
 }
 
 /******************************************************************************
@@ -335,14 +270,15 @@ drd_info_rep::freeze_var_type (tree_label l) {
 
 void
 drd_info_rep::set_attribute (tree_label l, string which, tree val) {
-  if (!info->contains (l)) info(l)= copy (info[l]);
-  tag_info& ti= info(l);
-  ti->set_attribute (which, val);
+  contracts.edit (l, [&] (auto& value) {
+    value.attributes.insert_or_assign (std::string (which.data (), N(which)),
+      athena::node::frozen_tree (val));
+  });
 }
 
 tree
 drd_info_rep::get_attribute (tree_label l, string which) {
-  tree val= info[l]->get_attribute (which);
+  tree val= describe (l).attribute (std::string_view (which.data (), N(which)));
   if ((which == "name") && (val == ""))
     return as_string (l);
   return val;
@@ -375,12 +311,23 @@ drd_info_rep::get_long_name (tree_label l) {
   return as_string (get_attribute (l, "name"));
 }
 
+static tree
+syntax_for_name (drd_info_rep& scope, const string& name) {
+  if (existing_tree_label (name)) {
+    tree syntax= scope.get_attribute (as_tree_label (name), "syntax");
+    if (syntax != "") return syntax;
+  }
+  else athena::contracts::observe_contract_absence (scope.contracts, name);
+  const bool present= scope.env->contains (name);
+  tree value= present ? scope.env[name] : tree (UNINIT);
+  athena::contracts::observe_contract_variable (scope.contracts, name, present,
+                                               present ? &value : nullptr);
+  return value;
+}
+
 tree
 drd_info_rep::get_syntax (tree_label l) {
-  tree r= get_attribute (l, "syntax");
-  if (r != "") return r;
-  if (env->contains (as_string (l))) return env[as_string (l)];
-  return UNINIT;
+  return syntax_for_name (*this, as_string (l));
 }
 
 static tree
@@ -399,25 +346,20 @@ replace (tree t, hashmap<tree,tree> h) {
 tree
 drd_info_rep::get_syntax (tree t, path p) {
   if (is_func (t, VALUE, 1) && is_atomic (t[0])) {
-    string s= t[0]->label;
-    if (!existing_tree_label (s)) return UNINIT;
-    return get_syntax (as_tree_label (s));
+    return syntax_for_name (*this, t[0]->label);
   }
   else if (is_func (t, OR_VALUE)) {
     for (int i=0; i<N(t); i++)
       if (is_atomic (t[i])) {
-        string s= t[i]->label;
-        if (existing_tree_label (s)) {
-          tree r= get_syntax (as_tree_label (s));
-          if (r != UNINIT) return t;
-        }
+        tree r= syntax_for_name (*this, t[i]->label);
+        if (r != UNINIT) return t;
       }
     return UNINIT;
   }
   else if (L(t) < START_EXTENSIONS || is_atomic (t))
     return UNINIT;
   else {
-    tree fun= the_drd->get_syntax (L(t));
+    tree fun= get_syntax (L(t));
     if (fun == UNINIT) return UNINIT;
     else if (N(t) == 0 && !is_func (fun, MACRO)) return fun;
     else if (!is_func (fun, MACRO)) return UNINIT;
@@ -442,42 +384,38 @@ drd_info_rep::get_syntax (tree t, path p) {
 * Children's mode
 ******************************************************************************/
 
+static const athena::contracts::node_contract&
+descriptor_for (drd_info_rep& scope, const tree& value) {
+  if (is_func (value, EXTERN) && N(value)>0 && is_atomic (value[0])) {
+    const string name= "extern:" * value[0]->label;
+    if (scope.contains (name)) return scope.describe (as_tree_label (name));
+  }
+  return scope.describe (L(value));
+}
+
 void
-drd_info_rep::set_type (tree_label l, int nr, int tp) {
-  if (!info->contains (l)) info(l)= copy (info[l]);
-  tag_info  & ti= info(l);
-  if (nr >= N(ti->ci)) return;
-  child_info& ci= ti->ci[nr];
-  if (ci.freeze_type) return;
-  ci.type= tp;
+drd_info_rep::set_type (tree_label l, int nr, int tp, property_authority source) {
+  contracts.edit (l, [&] (auto& value) {
+    if (nr < 0 || nr >= int(value.fields.size ())) return;
+    auto& field= value.fields[nr];
+    if (!athena::contracts::accepts (field.type_origin, source)) return;
+    field.type= tp;
+    field.type_origin= source;
+  });
 }
 
 int
 drd_info_rep::get_type (tree_label l, int nr) {
-  if (nr >= N(info[l]->ci)) return TYPE_ADHOC;
-  return info[l]->ci[nr].type;
-}
-
-void
-drd_info_rep::freeze_type (tree_label l, int nr) {
-  if (!info->contains (l)) info(l)= copy (info[l]);
-  tag_info  & ti= info(l);
-  if (nr >= N(ti->ci)) return;
-  child_info& ci= ti->ci[nr];
-  ci.freeze_type= true;
+  if (nr >= int(describe (l).fields.size ())) return TYPE_ADHOC;
+  return describe (l).fields[nr].type;
 }
 
 int
 drd_info_rep::get_type_child (tree t, int i) {
-  tag_info ti= info[L(t)];
-  if (is_func (t, EXTERN) && N(t)>0 && is_atomic (t[0])) {
-    tree_label lab= make_tree_label ("extern:" * t[0]->label);
-    if (info->contains(lab)) { ti= info[lab]; }
-    else { ti = info(EXTERN); info(lab)= ti; }
-  }
-  int index= ti->get_index (i, N(t));
-  if ((index<0) || (index>=N(ti->ci))) return TYPE_INVALID;
-  int r= ti->ci[index].type;
+  const auto& ti= descriptor_for (*this, t);
+  int index= ti.layout.index (i, N(t));
+  if ((index<0) || (index>=int(ti.fields.size ()))) return TYPE_INVALID;
+  int r= ti.fields[index].type;
   if (r != TYPE_BINDING) return r;
   if ((i & 1) == 0) return TYPE_VARIABLE;
   return TYPE_REGULAR;
@@ -488,44 +426,37 @@ drd_info_rep::get_type_child (tree t, int i) {
 ******************************************************************************/
 
 void
-drd_info_rep::set_accessible (tree_label l, int nr, int is_accessible) {
-  if (!info->contains (l)) info(l)= copy (info[l]);
-  tag_info  & ti= info(l);
-  if (nr >= N(ti->ci)) return;
-  child_info& ci= ti->ci[nr];
-  if (ci.freeze_accessible) return;
-  ci.accessible= is_accessible;
+drd_info_rep::set_accessible (tree_label l, int nr, int is_accessible,
+                             property_authority source) {
+  contracts.edit (l, [&] (auto& value) {
+    if (nr < 0 || nr >= int(value.fields.size ())) return;
+    auto& field= value.fields[nr];
+    if (!athena::contracts::accepts (field.accessible_origin, source)) return;
+    field.accessible= is_accessible;
+    field.accessible_origin= source;
+  });
 }
 
 int
 drd_info_rep::get_accessible (tree_label l, int nr) {
-  if (nr >= N(info[l]->ci)) return ACCESSIBLE_NEVER;
-  return info[l]->ci[nr].accessible;
-}
-
-void
-drd_info_rep::freeze_accessible (tree_label l, int nr) {
-  if (!info->contains (l)) info(l)= copy (info[l]);
-  tag_info  & ti= info(l);
-  if (nr >= N(ti->ci)) return;
-  child_info& ci= ti->ci[nr];
-  ci.freeze_accessible= true;
+  if (nr >= int(describe (l).fields.size ())) return ACCESSIBLE_NEVER;
+  return describe (l).fields[nr].accessible;
 }
 
 bool
 drd_info_rep::all_accessible (tree_label l) {
-  int i, n= N(info[l]->ci);
+  int i, n= int(describe (l).fields.size ());
   for (i=0; i<n; i++)
-    if (info[l]->ci[i].accessible != ACCESSIBLE_ALWAYS)
+    if (describe (l).fields[i].accessible != ACCESSIBLE_ALWAYS)
       return false;
   return n>0;
 }
 
 bool
 drd_info_rep::none_accessible (tree_label l) {
-  int i, n= N(info[l]->ci);
+  int i, n= int(describe (l).fields.size ());
   for (i=0; i<n; i++)
-    if (info[l]->ci[i].accessible != ACCESSIBLE_NEVER)
+    if (describe (l).fields[i].accessible != ACCESSIBLE_NEVER)
       return false;
   return true;
 }
@@ -533,24 +464,19 @@ drd_info_rep::none_accessible (tree_label l) {
 bool
 drd_info_rep::is_accessible_child (tree t, int i) {
   //cout << "l= " << as_string (L(t)) << "\n";
-  tag_info ti= info[L(t)];
-  if (is_func (t, EXTERN) && N(t)>0 && is_atomic (t[0])) {
-    tree_label lab= make_tree_label ("extern:" * t[0]->label);
-    if (info->contains(lab)) { ti= info[lab]; }
-    else { ti = info(EXTERN); info(lab)= ti; }
-  }
-  int index= ti->get_index (i, N(t));
-  if ((index<0) || (index>=N(ti->ci))) {
+  const auto& ti= descriptor_for (*this, t);
+  int index= ti.layout.index (i, N(t));
+  if ((index<0) || (index>=int(ti.fields.size ()))) {
     if (get_access_mode () == DRD_ACCESS_SOURCE)
       return !is_atomic (t) && i >= 0 && i < N(t);
     else return false;
   }
   switch (get_access_mode ()) {
   case DRD_ACCESS_NORMAL:
-    return ti->ci[index].accessible == ACCESSIBLE_ALWAYS;
+    return ti.fields[index].accessible == ACCESSIBLE_ALWAYS;
   case DRD_ACCESS_HIDDEN:
-    return ti->ci[index].accessible == ACCESSIBLE_ALWAYS ||
-           ti->ci[index].accessible == ACCESSIBLE_HIDDEN;
+    return ti.fields[index].accessible == ACCESSIBLE_ALWAYS ||
+           ti.fields[index].accessible == ACCESSIBLE_HIDDEN;
   case DRD_ACCESS_SOURCE:
     return true;
   }
@@ -571,41 +497,29 @@ drd_info_rep::is_accessible_path (tree t, path p) {
 ******************************************************************************/
 
 void
-drd_info_rep::set_writability (tree_label l, int nr, int writability) {
-  if (!info->contains (l)) info(l)= copy (info[l]);
-  tag_info  & ti= info(l);
-  if (nr >= N(ti->ci)) return;
-  child_info& ci= ti->ci[nr];
-  if (ci.freeze_writability) return;
-  ci.writability= writability;
+drd_info_rep::set_writability (tree_label l, int nr, int writability,
+                              property_authority source) {
+  contracts.edit (l, [&] (auto& value) {
+    if (nr < 0 || nr >= int(value.fields.size ())) return;
+    auto& field= value.fields[nr];
+    if (!athena::contracts::accepts (field.writability_origin, source)) return;
+    field.writability= writability;
+    field.writability_origin= source;
+  });
 }
 
 int
 drd_info_rep::get_writability (tree_label l, int nr) {
-  if (nr >= N(info[l]->ci)) return WRITABILITY_NORMAL;
-  return info[l]->ci[nr].writability;
-}
-
-void
-drd_info_rep::freeze_writability (tree_label l, int nr) {
-  if (!info->contains (l)) info(l)= copy (info[l]);
-  tag_info  & ti= info(l);
-  if (nr >= N(ti->ci)) return;
-  child_info& ci= ti->ci[nr];
-  ci.freeze_writability= true;
+  if (nr >= int(describe (l).fields.size ())) return WRITABILITY_NORMAL;
+  return describe (l).fields[nr].writability;
 }
 
 int
 drd_info_rep::get_writability_child (tree t, int i) {
-  tag_info ti= info[L(t)];
-  if (is_func (t, EXTERN) && N(t)>0 && is_atomic (t[0])) {
-    tree_label lab= make_tree_label ("extern:" * t[0]->label);
-    if (info->contains(lab)) { ti= info[lab]; }
-    else { ti = info(EXTERN); info(lab)= ti; }
-  }
-  int index= ti->get_index (i, N(t));
-  if ((index<0) || (index>=N(ti->ci))) return WRITABILITY_DISABLE;
-  return ti->ci[index].writability;
+  const auto& ti= descriptor_for (*this, t);
+  int index= ti.layout.index (i, N(t));
+  if ((index<0) || (index>=int(ti.fields.size ()))) return WRITABILITY_DISABLE;
+  return ti.fields[index].writability;
 }
 
 /******************************************************************************
@@ -634,30 +548,20 @@ drd_info_rep::get_child_long_name (tree_label l, int nr) {
 
 string
 drd_info_rep::get_child_name (tree t, int i) {
-  tag_info ti= info[L(t)];
-  if (is_func (t, EXTERN) && N(t)>0 && is_atomic (t[0])) {
-    tree_label lab= make_tree_label ("extern:" * t[0]->label);
-    if (info->contains(lab)) { ti= info[lab]; }
-    else { ti = info(EXTERN); info(lab)= ti; }
-  }
-  int index= ti->get_index (i, N(t));
-  if ((index<0) || (index>=N(ti->ci))) return "";
-  return get_child_name (L(t), index);
+  const auto& ti= descriptor_for (*this, t);
+  int index= ti.layout.index (i, N(t));
+  if ((index<0) || (index>=int(ti.fields.size ()))) return "";
+  return as_string (ti.attribute ("name-" + std::to_string (index)));
 }
 
 string
 drd_info_rep::get_child_long_name (tree t, int i) {
-  tag_info ti= info[L(t)];
-  if (is_func (t, EXTERN) && N(t)>0 && is_atomic (t[0])) {
-    tree_label lab= make_tree_label ("extern:" * t[0]->label);
-    if (info->contains(lab)) { ti= info[lab]; }
-    else { ti = info(EXTERN); info(lab)= ti; }
-  }
-  int index= ti->get_index (i, N(t));
-  if ((index<0) || (index>=N(ti->ci))) return "";
-  string r= get_child_long_name (L(t), index);
+  const auto& ti= descriptor_for (*this, t);
+  int index= ti.layout.index (i, N(t));
+  if ((index<0) || (index>=int(ti.fields.size ()))) return "";
+  string r= as_string (ti.attribute ("long-name-" + std::to_string (index)));
   if (r != "") return r;
-  return get_child_name (L(t), index);
+  return as_string (ti.attribute ("name-" + std::to_string (index)));
 }
 
 /******************************************************************************
@@ -696,32 +600,20 @@ drd_env_read (tree env, string var, tree val) {
 }
 
 void
-drd_info_rep::set_env (tree_label l, int nr, tree env) {
-  //if (as_string (l) == "section")
-  //cout << as_string (l) << ", " << nr << " -> " << env << "\n";
-  //if (as_string (l) == "session")
-  //cout << as_string (l) << ", " << nr << " -> " << env << "\n";
-  if (!info->contains (l)) info(l)= copy (info[l]);
-  tag_info  & ti= info(l);
-  if (nr >= N(ti->ci)) return;
-  child_info& ci= ti->ci[nr];
-  if (ci.freeze_env) return;
-  ci.env= drd_encode (env);
+drd_info_rep::set_env (tree_label l, int nr, tree env, property_authority source) {
+  contracts.edit (l, [&] (auto& value) {
+    if (nr < 0 || nr >= int(value.fields.size ())) return;
+    auto& field= value.fields[nr];
+    if (!athena::contracts::accepts (field.environment_origin, source)) return;
+    field.environment= athena::node::frozen_tree (env);
+    field.environment_origin= source;
+  });
 }
 
 tree
 drd_info_rep::get_env (tree_label l, int nr) {
-  if (nr >= N(info[l]->ci)) return tree (ATTR);
-  return drd_decode (info[l]->ci[nr].env);
-}
-
-void
-drd_info_rep::freeze_env (tree_label l, int nr) {
-  if (!info->contains (l)) info(l)= copy (info[l]);
-  tag_info  & ti= info(l);
-  if (nr >= N(ti->ci)) return;
-  child_info& ci= ti->ci[nr];
-  ci.freeze_env= true;
+  if (nr >= int(describe (l).fields.size ())) return tree (ATTR);
+  return tree (describe (l).fields[nr].environment);
 }
 
 tree
@@ -744,10 +636,10 @@ drd_info_rep::get_env_child (tree t, int i, tree env) {
       }
     */
 
-    tag_info ti= info[L(t)];
-    int index= ti->get_index (i, N(t));
-    if ((index<0) || (index>=N(ti->ci))) return "";
-    tree cenv= drd_decode (ti->ci[index].env);
+    const auto& ti= describe (L(t));
+    int index= ti.layout.index (i, N(t));
+    if ((index<0) || (index>=int(ti.fields.size ()))) return "";
+    tree cenv (ti.fields[index].environment);
     for (int i=1; i<N(cenv); i+=2)
       if (is_func (cenv[i], ARG, 1) && is_int (cenv[i][0])) {
         cenv= copy (cenv);
@@ -785,7 +677,7 @@ drd_info_rep::get_env_descendant (tree t, path p, string var, tree val) {
 }
 
 /******************************************************************************
-* Heuristic initialization of DRD
+* Owner-local declaration analysis
 ******************************************************************************/
 
 void
@@ -793,368 +685,23 @@ drd_info_rep::set_environment (hashmap<string,tree> env2) {
   env= env2;
 }
 
-tree
-drd_info_rep::arg_access (tree t, tree arg, tree env, int& type, bool& found) {
-  // returns "" if unaccessible and the env if accessible
-  // cout << "  arg_access " << t << ", " << arg << ", " << env << "\n";
-  if (is_atomic (t)) return "";
-  else if (t == arg) { found= true; return env; }
-  else if (is_func (t, QUOTE_ARG, 1) && N(arg) == 1 && t[0] == arg[0])
-    return env;
-  else if (is_func (t, MAP_ARGS) && (t[2] == arg[0])) {
-    if ((N(t) >= 4) && (N(arg) >= 2) && (as_int (t[3]) > as_int (arg[1])))
-      return "";
-    if ((N(t) == 5) && (N(arg) >= 2) && (as_int (t[3]) <= as_int (arg[1])))
-      return "";
-    tree_label inner= make_tree_label (as_string (t[0]));
-    tree_label outer= make_tree_label (as_string (t[1]));
-    if (get_nr_indices (inner) > 0)
-      type= get_type_child (tree (inner, arg), 0);
-    if ((get_nr_indices (inner) > 0) &&
-        (get_accessible (inner, 0) == ACCESSIBLE_ALWAYS) &&
-        all_accessible (outer))
-      return env;
-    return "";
-  }
-  else if (is_func (t, MACRO)) return "";
-  else if (is_func (t, WITH)) {
-    int n= N(t)-1;
-    //cout << "env= " << drd_env_merge (env, t (0, n)) << "\n";
-    tree cenv= env == "" ? env : drd_env_merge (env, t (0, n));
-    return arg_access (t[n], arg, cenv, type, found);
-  }
-  else if (is_func (t, TFORMAT)) {
-    int n= N(t)-1;
-    if (env == "") return arg_access (t[n], arg, env, type, found);
-    tree oldf= drd_env_read (env, CELL_FORMAT, tree (TFORMAT));
-    tree newf= oldf * tree (TFORMAT, A (t (0, n)));
-    tree w   = tree (ATTR, CELL_FORMAT, newf);
-    tree cenv= get_env_child (t, n, drd_env_merge (env, w));
-    return arg_access (t[n], arg, cenv, type, found);
-  }
-  else if (is_func (t, COMPOUND) && N(t) >= 1 && is_atomic (t[0]))
-    return arg_access (compound (t[0]->label, A (t (1, N(t)))),
-                       arg, env, type, found);
-  else if ((is_func (t, IF) || is_func (t, VAR_IF)) && N(t) >= 2)
-    return arg_access (t[1], arg, env, type, found);
-  else {
-    int i, n= N(t);
-    for (i=0; i<n; i++) {
-      int  ctype = get_type_child (t, i);
-      bool cfound= false;
-      tree cenv  = env == "" ? env : get_env_child (t, i, env);
-      tree aenv  = arg_access (t[i], arg, cenv, ctype, cfound);
-      if (aenv != "") {
-        if (ctype != TYPE_INVALID) { type= ctype; found= cfound; }
-        if (is_accessible_child (t, i)) return aenv;
-      }
-      else if (cfound /*type == TYPE_UNKNOWN*/ &&
-               ctype != TYPE_INVALID &&
-               ctype != TYPE_UNKNOWN) {
-        type = ctype;
-        found= cfound;
-        //cout << "  found type " << t << ", " << arg << ", " << type << "\n";
-      }
-    }
-    return "";
-  }
-}
-
-static void
-rewrite_symbolic_arguments (tree macro, tree& env) {
-  if (!is_func (env, ATTR)) return;
-  for (int i=1; i<N(env); i+=2)
-    if (is_func (env[i], ARG, 1)) {
-      for (int j=0; j+1<N(macro); j++)
-        if (macro[j] == env[i][0])
-          env[i]= tree (ARG, as_tree (j));
-    }
-}
-
-static bool
-is_length (string s) {
-  int i;
-  for (i=0; (i<N(s)) && (!is_locase (s[i])); i++) {}
-  return is_double (s (0, i)) && is_locase_alpha (s (i, N(s)));
-}
-
-bool
-drd_info_rep::heuristic_with_like (tree t, tree arg) {
-  if (arg == "") {
-    if (!is_func (t, MACRO) || N(t) < 2) return false;
-    return heuristic_with_like (t[N(t)-1], t[N(t)-2]);
-  }
-  else if (t == tree (ARG, arg))
-    return true;
-  else if (is_with_like (t))
-    return heuristic_with_like (t[N(t)-1], arg);
-  else return false;
-}
-
-bool
-drd_info_rep::heuristic_init_macro (string var, tree macro) {
-  //cout << "init_macro " << var << " -> " << macro << "\n";
-  tree_label l = make_tree_label (var);
-  tag_info old_ti= copy (info[l]);
-  int i, n= N(macro)-1;
-  set_arity (l, n, 0, ARITY_NORMAL, CHILD_DETAILED);
-  if (n == 0 && is_compound (macro[0], "localize", 1) &&
-      is_atomic (macro[0][0])) {
-    set_type (l, TYPE_STRING);
-    set_var_type (l, VAR_MACRO_PARAMETER);
-  }
-  else if (n == 0 && is_atomic (macro[0]) &&
-           is_length (macro[0]->label)) {
-    set_type (l, TYPE_LENGTH);
-    set_var_type (l, VAR_MACRO_PARAMETER);
-  }
-  else set_type (l, get_type (macro[n]));
-  set_with_like (l, heuristic_with_like (macro, ""));
-  //if (heuristic_with_like (macro, ""))
-  //cout << "With-like: " << var << LF;
-  for (i=0; i<n; i++) {
-    if (is_atomic (macro[i]))
-      if (l >= START_EXTENSIONS || get_child_name (l, i) == "")
-        set_child_name (l, i, macro[i]->label);
-    int  type = TYPE_UNKNOWN;
-    bool found= false;
-    tree arg (ARG, macro[i]);
-    tree env= arg_access (macro[n], arg, tree (ATTR), type, found);
-    //if (var == "section" || var == "section-title")
-    //cout << var << " -> " << env << ", " << macro << "\n";
-    //if (var == "math")
-    //cout << var << ", " << i << " -> " << type << ", " << env << ", " << macro << "\n";
-    set_type (l, i, type);
-    if (env != "") {
-      //if (var == "eqnarray*")
-      //cout << var << " -> " << env << "\n";
-      //if (var == "session")
-      //cout << var << " = " << macro << ", " << i << " -> " << env << "\n";
-      rewrite_symbolic_arguments (macro, env);
-      set_accessible (l, i, ACCESSIBLE_ALWAYS);
-      set_env (l, i, env);
-    }
-  }
-  //if (old_ti != info[l])
-  //cout << var << ": " << old_ti << " -> " << info[l] << "\n";
-  return (old_ti != info[l]);
-}
-
-static int
-minimal_arity (tree t, tree var) {
-  if (is_atomic (t)) return 0;
-  else if (is_func (t, ARG, 2) && (t[0] == var))
-    return as_int (t[1]) + 1;
-  else if (is_func (t, MAP_ARGS) && (N(t)>=4) && (t[2] == var))
-    return as_int (t[3]);
-  else {
-    int i, n= N(t), m= 0;
-    for (i=0; i<n; i++)
-      m= max (m, minimal_arity (t[i], var));
-    return m;
-  }
-}
-
-bool
-drd_info_rep::heuristic_init_xmacro (string var, tree xmacro) {
-  tree_label l = make_tree_label (var);
-  tag_info old_ti= copy (info[l]);
-  int i, m= minimal_arity (xmacro[1], xmacro[0]);
-  set_arity (l, m, 1, ARITY_REPEAT, CHILD_DETAILED);
-  set_type (l, get_type (xmacro[1]));
-  for (i=0; i<=m; i++) {
-    int  type = TYPE_UNKNOWN;
-    bool found= false;
-    tree arg (ARG, xmacro[0], as_string (i));
-    tree env= arg_access (xmacro[1], arg, tree (ATTR), type, found);
-    //cout << var << ", " << xmacro << ", " << i << " -> " << type << "\n";
-    set_type (l, i, type);
-    if (env != "") {
-      set_accessible (l, i, ACCESSIBLE_ALWAYS);
-      set_env (l, i, env);
-    }
-  }
-  // if (old_ti != info[l])
-  //   cout << var << ": " << old_ti << " -> " << info[l] << "\n";
-  return (old_ti != info[l]);
-}
-
-bool
-drd_info_rep::heuristic_init_parameter (string var, string val) {
-  tree_label l = make_tree_label (var);
-  tag_info old_ti= copy (info[l]);
-  set_arity (l, 0, 0, ARITY_NORMAL, CHILD_UNIFORM);
-  set_var_type (l, VAR_PARAMETER);
-  if (var == "color" || ends (var, "-color")) set_type (l, TYPE_COLOR);
-  else if (ends (var, "-recolor")) set_type (l, TYPE_COLOR);
-  else if (ends (var, "-length")) set_type (l, TYPE_LENGTH);
-  else if (ends (var, "-width")) set_type (l, TYPE_LENGTH);
-  else if (val == "true" || val == "false") set_type (l, TYPE_BOOLEAN);
-  else if (is_int (val)) set_type (l, TYPE_INTEGER);
-  else if (is_double (val)) set_type (l, TYPE_NUMERIC);
-  else if (is_length (val)) set_type (l, TYPE_LENGTH);
-  else set_type (l, TYPE_STRING);
-  return (old_ti != info[l]);
-}
-
-bool
-drd_info_rep::heuristic_init_parameter (string var, tree val) {
-  tree_label l = make_tree_label (var);
-  tag_info old_ti= copy (info[l]);
-  set_arity (l, 0, 0, ARITY_NORMAL, CHILD_UNIFORM);
-  set_var_type (l, VAR_PARAMETER);
-  if (var == "color" || ends (var, "-color")) set_type (l, TYPE_COLOR);
-  else if (ends (var, "-length")) set_type (l, TYPE_LENGTH);
-  else if (ends (var, "-width")) set_type (l, TYPE_LENGTH);
-  else set_type (l, get_type (val));
-  return (old_ti != info[l]);
+void
+drd_info_rep::analyze_environment (
+    const athena::contracts::evaluation_input_snapshot& inputs,
+    hashmap<string,tree> values) {
+  set_environment (values);
+  if (!analysis) analysis= std::make_unique<athena::contracts::macro_analysis> (*this);
+  analysis->synchronize (inputs, values);
 }
 
 void
-drd_info_rep::heuristic_init (hashmap<string,tree> env2) {
-  // time_t tt= texmacs_time ();
-  set_environment (env2);
-  bool flag= true;
-  int round= 0;
-  while (flag) {
-    // cout << HRULE;
-    flag= false;
-    iterator<string> it= iterate (env);
-    while (it->busy()) {
-      string var= it->next();
-      tree   val= env[var];
-      if (is_atomic (val))
-        flag= heuristic_init_parameter (var, val->label) | flag;
-      else if (is_func (val, MACRO))
-        flag= heuristic_init_macro (var, val) | flag;
-      else if (is_func (val, XMACRO))
-        flag= heuristic_init_xmacro (var, val) | flag;
-      else
-        flag= heuristic_init_parameter (var, val) | flag;
-    }
-    if ((round++) == 10) {
-      std_warning << "Warning: bad heuristic drd convergence\n";
-      flag= false;
-    }
-  }
-  // cout << "--> " << (texmacs_time ()-tt) << "ms\n";
+drd_info_rep::declaration_changed (tree_label label) {
+  if (analysis) analysis->invalidate (as_string (label));
 }
 
 void
-apply_drd_properties (drd_info drd, tree t) {
-  int n= N(t);
-  if ((n < 3) || !is_atomic (t[0])) return;
-  for (int i=1; i<n-1; i+=2) {
-    if (!is_atomic (t[i])) continue;
-    string var= t[0]->label;
-    string prop= t[i]->label;
-    tree val= t[i+1];
-    tree_label l= make_tree_label (var);
-    if (prop == "arity") {
-      if (is_tuple (val, "repeat", 2))
-        drd->set_arity (l, as_int (val[1]), as_int (val[2]),
-                        ARITY_REPEAT, CHILD_BIFORM);
-      else if (is_tuple (val, "repeat*", 2))
-        drd->set_arity (l, as_int (val[1]), as_int (val[2]),
-                        ARITY_VAR_REPEAT, CHILD_BIFORM);
-      else if (is_tuple (val, "options", 2))
-        drd->set_arity (l, as_int (val[1]), as_int (val[2]),
-                        ARITY_OPTIONS, CHILD_BIFORM);
-      else
-        drd->set_arity (l, as_int (val), 0, ARITY_NORMAL, CHILD_DETAILED);
-      drd->freeze_arity (l);
-    }
-    else if (prop == "name") {
-      if (is_atomic (val)) drd->set_attribute (l, prop, val->label);
-    }
-    else if (prop == "syntax") drd->set_syntax (l, val);
-    else if (prop == "border") {
-      if (val == "yes") drd->set_border (l, BORDER_YES);
-      if (val == "inner") drd->set_border (l, BORDER_INNER);
-      if (val == "outer") drd->set_border (l, BORDER_OUTER);
-      if (val == "no") drd->set_border (l, BORDER_INNER);
-      drd->freeze_border (l);
-    }
-    else if (prop == "with-like") {
-      if (val == "yes") drd->set_with_like (l, true);
-      if (val == "no") drd->set_with_like (l, false);
-      drd->freeze_with_like (l);
-    }
-    else if (prop == "locals") {
-      int count= drd->get_nr_indices (l);
-      for (int j=0; j<count; ++j) {
-        drd->set_env (l, j, val);
-        drd->freeze_env (l, j);
-      }
-    }
-    else if (prop == "unaccessible" || prop == "hidden" ||
-             prop == "accessible") {
-      int prop_code= ACCESSIBLE_NEVER;
-      if (prop == "hidden") prop_code= ACCESSIBLE_HIDDEN;
-      if (prop == "accessible") prop_code= ACCESSIBLE_ALWAYS;
-      if (val == "none") prop_code= ACCESSIBLE_NEVER;
-      if (is_int (val)) {
-        int j= as_int (val);
-        drd->set_accessible (l, j, prop_code);
-        drd->freeze_accessible (l, j);
-      }
-      else if (val == "none" || val == "all") {
-        int count= drd->get_nr_indices (l);
-        for (int j=0; j<count; ++j) {
-          drd->set_accessible (l, j, prop_code);
-          drd->freeze_accessible (l, j);
-        }
-      }
-    }
-    else if (prop == "normal-writability" || prop == "disable-writability" ||
-             prop == "enable-writability") {
-      int prop_code= WRITABILITY_NORMAL;
-      if (prop == "disable-writability") prop_code= WRITABILITY_DISABLE;
-      if (prop == "enable-writability") prop_code= WRITABILITY_ENABLE;
-      if (is_int (val)) {
-        int j= as_int (val);
-        drd->set_writability (l, j, prop_code);
-        drd->freeze_writability (l, j);
-      }
-      else if (val == "all") {
-        int count= drd->get_nr_indices (l);
-        for (int j=0; j<count; ++j) {
-          drd->set_writability (l, j, prop_code);
-          drd->freeze_writability (l, j);
-        }
-      }
-    }
-    else if (prop == "returns" && drd_encode_type (as_string (val)) >= 0) {
-      drd->set_type (l, drd_encode_type (as_string (val)));
-      drd->freeze_type (l);
-    }
-    else if (prop == "parameter" && drd_encode_type (as_string (val)) >= 0) {
-      drd->set_var_type (l, VAR_PARAMETER);
-      drd->set_type (l, drd_encode_type (as_string (val)));
-      drd->freeze_var_type (l);
-      drd->freeze_type (l);
-    }
-    else if (prop == "macro-parameter" &&
-             drd_encode_type (as_string (val)) >= 0) {
-      drd->set_var_type (l, VAR_MACRO_PARAMETER);
-      drd->set_type (l, drd_encode_type (as_string (val)));
-      drd->freeze_var_type (l);
-      drd->freeze_type (l);
-    }
-    else if (drd_encode_type (prop) >= 0) {
-      int tp= drd_encode_type (prop);
-      if (is_int (val)) {
-        int j= as_int (val);
-        drd->set_type (l, j, tp);
-        drd->freeze_type (l, j);
-      }
-      else if (val == "all") {
-        int count= drd->get_nr_indices (l);
-        for (int j=0; j<count; ++j) {
-          drd->set_type (l, j, tp);
-          drd->freeze_type (l, j);
-        }
-      }
-    }
-  }
+apply_drd_properties (drd_info destination, tree t) {
+  const auto declaration= athena::contracts::decode_contract_declaration (t);
+  if (athena::contracts::apply_contract_declaration (destination->contracts, declaration))
+    destination->declaration_changed (declaration.target);
 }

@@ -14,6 +14,8 @@
 extern thread_local hashmap<string,int> default_var_type;
 void initialize_default_var_type ();
 extern thread_local hashmap<string,tree> default_env;
+extern thread_local athena::contracts::definition_entries default_definitions;
+extern thread_local athena::contracts::evaluation_input_snapshot default_inputs;
 void initialize_default_env ();
 #include "page_type.hpp"
 
@@ -44,6 +46,9 @@ edit_env_rep::edit_env_rep (drd_info& drd2,
   initialize_default_env ();
   initialize_default_var_type ();
   env= copy (default_env);
+  drd->contracts.reset_definitions (default_definitions);
+  inputs.reset (default_inputs);
+  drd->set_environment (env);
   style_init_env ();
   update ();
   complete= false;
@@ -77,6 +82,54 @@ edit_env_rep::style_init_env () {
 /******************************************************************************
 * Modification of environment variables
 ******************************************************************************/
+
+void
+edit_env_rep::write_value (string name, tree value, bool monitored, bool refresh) {
+  if (contract_events) contract_events->write_variable (name, &value);
+  synchronize_definition_value (name, value);
+  const bool changed= !env->contains (name) || env[name] != value;
+  if (changed) inputs.record (std::string (name.data (), N(name)), true);
+  if (monitored && (changed || !refresh)) back->write_back (name, env);
+  if (changed || !refresh) env(name)= value;
+  if (changed && refresh) update (name);
+}
+
+void
+edit_env_rep::assign (string name, tree expression) {
+  tree value= exec (expression);
+  track_definition (name, value);
+  monitored_write_update (name, value);
+}
+
+void
+edit_env_rep::restore_local_value (string name, tree value, bool previously_present) {
+  if (previously_present) {
+    if (contract_events) contract_events->write_variable (name, &value);
+    // The enclosing scope restores the original binding after its values.
+    // Restoring a value is not execution of a new definition producer.
+    if (existing_tree_label (name)) {
+      const auto label= as_tree_label (name);
+      const auto binding= drd->contracts.definition (label);
+      if (binding && !binding->value->expression.matches (value))
+        drd->contracts.forget_definition (label);
+    }
+    const bool changed= !env->contains (name) || env[name] != value;
+    if (changed) {
+      inputs.record (std::string (name.data (), N(name)), true);
+      env(name)= value;
+      update (name);
+    }
+  }
+  else {
+    if (contract_events) contract_events->write_variable (name, nullptr);
+    if (existing_tree_label (name))
+      drd->contracts.forget_definition (as_tree_label (name));
+    const bool changed= env[name] != value;
+    if (env->contains (name)) inputs.record (std::string (name.data (), N(name)), false);
+    env->reset (name);
+    if (changed) update (name);
+  }
+}
 
 /*
 void
@@ -118,26 +171,26 @@ edit_env_rep::assign (string s, tree t) {
 tree
 edit_env_rep::local_begin_extents (box b) {
   tree old= tree (TUPLE,
-		  env ["w-length"], env ["h-length"],
-		  env ["l-length"], env ["b-length"],
-		  env ["r-length"], env ["t-length"]);
-  env ("w-length")= as_string (b->w ()) * "tmpt";
-  env ("h-length")= as_string (b->h ()) * "tmpt";
-  env ("l-length")= as_string (b->x1) * "tmpt";
-  env ("b-length")= as_string (b->y1) * "tmpt";
-  env ("r-length")= as_string (b->x2) * "tmpt";
-  env ("t-length")= as_string (b->y2) * "tmpt";
+                  read ("w-length"), read ("h-length"),
+                  read ("l-length"), read ("b-length"),
+                  read ("r-length"), read ("t-length"));
+  write ("w-length", as_string (b->w ()) * "tmpt");
+  write ("h-length", as_string (b->h ()) * "tmpt");
+  write ("l-length", as_string (b->x1) * "tmpt");
+  write ("b-length", as_string (b->y1) * "tmpt");
+  write ("r-length", as_string (b->x2) * "tmpt");
+  write ("t-length", as_string (b->y2) * "tmpt");
   return old;
 }
 
 void
 edit_env_rep::local_end_extents (tree t) {
-  env ("w-length")= t[0];
-  env ("h-length")= t[1];
-  env ("l-length")= t[2];
-  env ("b-length")= t[3];
-  env ("r-length")= t[4];
-  env ("t-length")= t[5];
+  write ("w-length", t[0]);
+  write ("h-length", t[1]);
+  write ("l-length", t[2]);
+  write ("b-length", t[3]);
+  write ("r-length", t[4]);
+  write ("t-length", t[5]);
 }
 
 /******************************************************************************
@@ -146,12 +199,43 @@ edit_env_rep::local_end_extents (tree t) {
 
 void
 edit_env_rep::write_default_env () {
+  if (contract_events) contract_events->record (athena::contracts::evaluation_barrier {});
+  drd->contracts.reset_definitions (default_definitions);
   env= copy (default_env);
+  inputs.reset (default_inputs);
+  drd->set_environment (env);
 }
 
 void
 edit_env_rep::write_env (hashmap<string,tree> user_env) {
+  if (contract_events) contract_events->record (athena::contracts::evaluation_barrier {});
   env= copy (user_env);
+  initialize_value_inputs ();
+  drd->set_environment (env);
+}
+
+void
+edit_env_rep::initialize_value_inputs () {
+  athena::contracts::definition_entries baseline;
+  std::set<std::string> names;
+  iterator<string> keys= iterate (env);
+  while (keys->busy ()) {
+    const string name= keys->next ();
+    names.emplace (name.data (), N(name));
+    const tree value= env[name];
+    if (!is_func (value, MACRO) && !is_func (value, XMACRO)) continue;
+    const auto current= drd->contracts.definition (make_tree_label (name));
+    auto binding= athena::contracts::capture_definition (
+      name, value, current ? current->value : nullptr);
+    baseline.emplace (binding->target, std::move (binding));
+  }
+  drd->contracts.reset_definitions (std::move (baseline));
+  inputs.reset (athena::contracts::evaluation_input_snapshot::baseline (std::move (names)));
+}
+
+void
+edit_env_rep::analyze_contracts () {
+  drd->analyze_environment (inputs.snapshot (), env);
 }
 
 void

@@ -11,6 +11,7 @@
 #include "structured_commands.hpp"
 #include "editor.hpp"
 #include "native_interfaces.hpp"
+#include "native_node_groups.hpp"
 #include "new_view.hpp"
 #include "table_commands.hpp"
 #include "tree_traverse.hpp"
@@ -285,7 +286,7 @@ void generic_vertical_once (tree t, bool downwards) {
 }
 
 object similar_labels (tree t) {
-  return call ("similar-to", symbol_object (as_string (L (t))));
+  return native_node_similar (symbol_object (as_string (L (t))));
 }
 
 bool label_in_list (tree t, object labels) {
@@ -366,7 +367,7 @@ void generic_traverse_up () { dispatch_focus ("traverse-vertical", false); }
 void generic_traverse_down () { dispatch_focus ("traverse-vertical", true); }
 
 void generic_traverse_previous_section_title () {
-  object labels= call ("similar-to", symbol_object ("section"));
+  object labels= native_node_similar (symbol_object ("section"));
   call ("go-to-previous-tag", labels);
 }
 

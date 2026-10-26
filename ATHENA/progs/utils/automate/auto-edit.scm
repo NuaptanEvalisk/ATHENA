@@ -17,26 +17,6 @@
 ;; DRD properties
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define-group implied-tag
-  implied-generic implied-verbatim implied-scm implied-cpp
-  implied-python implied-julia implied-shell)
-
-(define-group variant-tag
-  (implied-tag))
-
-(define-group similar-tag
-  (implied-tag))
-
-(define-group auto-block-tag
-  block-if block-for block-while
-  block-assign
-  block-intersperse)
-
-(define-group auto-inline-tag
-  inline-if inline-for inline-while
-  inline-assign
-  inline-intersperse)
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Inserting automated tags
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

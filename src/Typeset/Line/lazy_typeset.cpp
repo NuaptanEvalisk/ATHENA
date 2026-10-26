@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "Line/lazy_typeset.hpp"
+#include "Env/local_environment.hpp"
 #include "Line/lazy_vstream.hpp"
 #include "Format/format.hpp"
 #include "Stack/stacker.hpp"
@@ -319,40 +320,26 @@ make_lazy_formatting (edit_env env, tree t, path ip, string v) {
 
 lazy
 make_lazy_with (edit_env env, tree t, path ip) {
-  int last= N(t)-1;
-  int i, k= last>>1; // is k=0 allowed ?
-  // if ((last&1) != 0) return;
-  
-  STACK_NEW_ARRAY(vars,string,k);
-  STACK_NEW_ARRAY(oldv,tree,k);
-  STACK_NEW_ARRAY(newv,tree,k);
-  for (i=0; i<k; i++) {
-    tree var_t= env->exec (t[i<<1]);
-    if (is_atomic (var_t)) {
-      string var= var_t->label;
-      newv[i]= env->exec (t[(i<<1)+1]);
-      vars[i]= env->normalize_legacy_math_font_variable (var, newv[i]);
-      oldv[i]= env->read (vars[i]);
-    }
-    /*
-    else {
-      STACK_DELETE_ARRAY(vars);
-      STACK_DELETE_ARRAY(oldv);
-      STACK_DELETE_ARRAY(newv);
-      return;
-    }
-    */
-  }
-
-  // for (i=0; i<k; i++) env->monitored_write_update (vars[i], newv[i]);
-  for (i=0; i<k; i++) env->write_update (vars[i], newv[i]);
+  const int last= N(t)-1;
+  local_environment_bindings bindings;
+  if (!evaluate_local_environment (*env.operator-> (), t, bindings))
+    return make_lazy (env, tree (_ERROR, "bad with"), ip);
+  local_environment_scope scope (*env.operator-> (), bindings);
   array<line_item> a= typeset_marker (env, descend (ip, 0));
   array<line_item> b= typeset_marker (env, descend (ip, 1));
   lazy par= make_lazy (env, t[last], descend (ip, last));
-  for (i=k-1; i>=0; i--) env->write_update (vars[i], oldv[i]);
-  STACK_DELETE_ARRAY(vars);
-  STACK_DELETE_ARRAY(oldv);
-  STACK_DELETE_ARRAY(newv);
+  scope.finish ();
+  return lazy_surround (a, b, par, ip);
+}
+
+lazy
+make_lazy_with_package (edit_env env, tree t, path ip) {
+  if (N(t) != 2) return make_lazy (env, tree (_ERROR, "bad with-package"), ip);
+  scoped_package_environment scope (*env.operator-> (), t[0]);
+  array<line_item> a= typeset_marker (env, descend (ip, 0));
+  array<line_item> b= typeset_marker (env, descend (ip, 1));
+  lazy par= make_lazy (env, t[1], descend (ip, 1));
+  scope.finish ();
   return lazy_surround (a, b, par, ip);
 }
 
@@ -769,6 +756,8 @@ make_lazy_impl (edit_env env, tree t, path ip) {
     return make_lazy_table (env, t, ip);
   case WITH:
     return make_lazy_with (env, t, ip);
+  case WITH_PACKAGE:
+    return make_lazy_with_package (env, t, ip);
   case ARG:
     return make_lazy_argument (env, t, ip);
   case MAP_ARGS:
@@ -788,7 +777,6 @@ make_lazy_impl (edit_env env, tree t, path ip) {
     return make_lazy_compound (env, t, ip);
   case EXTERN:
   case VAR_INCLUDE:
-  case WITH_PACKAGE:
     return make_lazy_rewrite (env, t, ip);
   case STYLE_ONLY:
   case VAR_STYLE_ONLY:

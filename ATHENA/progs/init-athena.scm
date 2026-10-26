@@ -71,7 +71,6 @@
              make-inline-if make-inline-if-else make-inline-for make-inline-while
              make-inline-assign make-inline-intersperse make-inline-tag
              make-output-string make-inline-output make-block-output)
-(lazy-define (utils edit variants) make-inline-tag-list make-wrapped-tag-list)
 (lazy-define (utils cas cas-out) cas->stree)
 
 (lazy-define (utils test test-convert) delayed-quit
@@ -111,11 +110,12 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting generic mode\n")
+(initialize-node-groups)
 (import-from (utils edit variants))
 (import-from (utils library cursor))
 (import-from (generic document-edit))
 (import-from (generic generic-edit))
-(import-from (generic format-drd))
+
 (import-from (source source-edit))
 (import-from (athena athena tm-files))
 (import-from (athena athena tm-print))
@@ -207,7 +207,6 @@
 (lazy-keyboard (text text-edit) in-text?)
 (lazy-keyboard (native-keyboard text) in-text?)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
-(lazy-define (text text-drd) tm-register-new-list-tag)
 (lazy-define (text text-edit)
              document-propose-title? document-propose-abstract?
              automatic-section-context? automatic-section-rename
@@ -255,7 +254,7 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting graphics mode\n")
-(lazy-keyboard (graphics graphics-drd) in-graphics?)
+(lazy-keyboard (graphics graphics-properties) in-graphics?)
 (lazy-keyboard (graphics graphics-main) in-graphics?)
 (lazy-keyboard (graphics graphics-utils) in-graphics?)
 (lazy-keyboard (native-keyboard graphics) in-graphics?)

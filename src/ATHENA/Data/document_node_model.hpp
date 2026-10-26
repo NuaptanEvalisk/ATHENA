@@ -168,29 +168,6 @@ public:
   std::vector<diagnostic> cancelled (const tree&, limits budget= {});
 };
 
-enum class property_type {
-  string, boolean, integer, real, list, dictionary, reference, rich_text
-};
-
-struct property_rule {
-  std::string name;
-  property_type type;
-  bool required;
-  // When present, every direct list member must have this type; no coercion.
-  std::optional<property_type> element_type= std::nullopt;
-  std::optional<property_type> accepted_legacy_type= std::nullopt;
-};
-
-// kind:string, name:list<rich_text>, numbered:bool are required. A historical
-// singleton name:rich_text is also accepted. Optional attribution
-// is a list of rich_text names, never a singleton rich_text. Optional year is
-// text (including values such as "19XX"), never an integer or parsed date.
-// target:reference, variant:string and legacy-tag:string are also optional.
-// No author, attribution or year inference; stored values are not normalized.
-const std::vector<property_rule>& enunciation_property_schema ();
-// Canonical program nodes carry one required language:string property. The
-// language identifies syntax highlighting/presentation; it is never a tag.
-const std::vector<property_rule>& program_property_schema ();
 bool is_namespaced_extension (const std::string& name);
 
 // Read-only validation of this node's properties, not a migration. Canonical

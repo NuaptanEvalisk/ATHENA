@@ -116,9 +116,9 @@ private slots:
       QVERIFY2 (math::valid_native_math (source), as_charp (as_string (L(source))));
       QVERIFY (drd->correct_arity (L(source), N(source)));
       const tree body (DOCUMENT, source);
-      tag_info info= drd->info[L(source)];
+      const auto& info= drd->contracts.resolve (L(source));
       for (int i=0; i<N(source); ++i) {
-        const auto& child= info->ci[info->get_index (i, N(source))];
+        const auto& child= info.fields[info.layout.index (i, N(source))];
         const bool content= sample.content[i];
         const int expected_type= content || L(source) == MATH_LONG_ARROW ?
           TYPE_REGULAR : TYPE_STRING;

@@ -11,6 +11,7 @@
 
 #include "drd_std.hpp"
 #include "vars.hpp"
+#include "Data/NodeContracts/native_fields.hpp"
 #include <mutex>
 
 drd_info std_drd ("tm");
@@ -23,9 +24,8 @@ static drd_info
 clone_standard_drd () {
   std::lock_guard<std::recursive_mutex> guard (std_drd_mutex);
   init_std_drd ();
-  tree locals= copy (std_drd->get_locals ());
   drd_info local ("tm-thread");
-  local->set_locals (locals);
+  local->contracts= athena::contracts::contract_scope (std_drd->contracts.snapshot ());
   return local;
 }
 
@@ -117,15 +117,43 @@ var_repeat (int arity, int extra, int child_mode= CHILD_UNIFORM) {
   return tag_info (extra, arity, ARITY_VAR_REPEAT, child_mode, true);
 }
 
+static tag_info
+native_contract (tree_label label) {
+  using namespace athena::contracts;
+  const auto* schema= native_fields (label);
+  ASSERT (schema != nullptr, "Missing native node field contract");
+  const int base= schema->editing_minimum;
+  const int extra= schema->repeat ? schema->repeat : schema->optional;
+  const int mode= schema->repeat ?
+    (schema->repeat_first ? ARITY_VAR_REPEAT : ARITY_REPEAT) :
+    (schema->optional ? ARITY_OPTIONS : ARITY_NORMAL);
+  tag_info result (base, extra, mode, CHILD_DETAILED, true);
+  if (schema->inner_border) result= result->inner_border ();
+  result= result->name (string (schema->display_name.data (), schema->display_name.size ()));
+  // Expand just the descriptor prototype, not the actual repeated source.
+  // The old positional facade then maps each physical child to this prototype.
+  for (int i=0; i<N(result->ci); ++i) {
+    const auto& field= *schema->child (i, base + extra);
+    auto& child= result->ci[i];
+    child.type= field.value == field_value::atom ? TYPE_STRING : TYPE_REGULAR;
+    child.accessible= field.editable ? ACCESSIBLE_ALWAYS : ACCESSIBLE_NEVER;
+    child.block= field.role == field_role::inline_content ? BLOCK_REQUIRE_INLINE :
+      field.role == field_role::body ? BLOCK_REQUIRE_BLOCK : BLOCK_REQUIRE_NONE;
+    child.env= tree (ATTR);
+    for (const auto& [key, value]: field.environment)
+      child.env << string (key.data (), key.size ()) <<
+                   string (value.data (), value.size ());
+    result->set_attribute ("name-" * as_string (i),
+      string (field.name.data (), field.name.size ()));
+  }
+  return result;
+}
+
 static void
 init (tree_label l, string name, tag_info ti) {
   STD_CODE(name)= (int) l;
   make_tree_label (l, name);
-  std_drd->info (l)= ti;
-  std_drd->freeze_arity (l);
-  std_drd->freeze_border (l);
-  // std_drd->freeze_block (l);
-  // FIXME: freeze children properties
+  std_drd->contracts.replace (l, freeze_descriptor (ti));
 }
 
 static void
@@ -133,9 +161,7 @@ init_var (string var, int tp, string vname= "") {
   tree_label l= make_tree_label (var);
   tag_info ti= fixed (0) -> var_parameter () -> type (tp);
   if (vname != "") ti= ti->name (vname);
-  std_drd->info (l)= ti;
-  std_drd->freeze_arity (l);
-  std_drd->freeze_border (l);
+  std_drd->contracts.replace (l, freeze_descriptor (ti));
 }
 
 static bool std_drd_initialized= false;

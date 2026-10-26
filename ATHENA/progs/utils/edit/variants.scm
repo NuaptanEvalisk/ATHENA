@@ -15,76 +15,37 @@
   (:use (utils library tree)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Definition of tag groups (could be done using drds in the future)
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define group-table (make-ahash-table))
-(tm-define group-resolve-table (make-ahash-table))
-
-(define (group-resolve-one x)
-  (if (pair? x) (group-resolve (car x)) (list x)))
-
-(tm-define (group-resolve which)
-  (if (not (ahash-ref group-resolve-table which))
-      (with l (ahash-ref group-table which)
-	(ahash-set! group-resolve-table which
-		    (if l (append-map group-resolve-one l) '()))))
-  (ahash-ref group-resolve-table which))
-
-(tm-define-macro (define-group group . l)
-  ;; Compilation runs in an initialized ATHENA world. Its group contents must
-  ;; neither suppress emitted accessors nor be captured in the compiled file.
-  `(begin
-     (set! group-resolve-table (make-ahash-table))
-     (with old (ahash-ref group-table ',group)
-       (ahash-set! group-table ',group (if old (append old ',l) ',l)))
-     (tm-define (,(symbol-append group '-list))
-       (group-resolve ',group))
-     (tm-define (,(symbol-append group '?) lab)
-       (in? lab (group-resolve ',group)))
-     (tm-define (,(symbol-append 'inside- group '?))
-       (not (not (inside-which (group-resolve ',group)))))))
-
-(tm-define (group-find which group)
-  (:synopsis "Find subgroup of @group which contains @which")
-  (with l (ahash-ref group-table group)
-    (cond ((not l) #f)
-	  ((in? which l) group)
-	  (else (with f (map car (list-filter l (lambda (x) (pair? x))))
-		  (list-any (lambda (x) (group-find which x)) f))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Numbers
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define-group numbered-tag)
+(tm-define (symbol-numbered? s) (in? s (node-group-members "numbered-tag")))
 
-(tm-define (symbol-numbered? s)
-  (in? s (numbered-tag-list)))
-
-(tm-define (symbol-unnumbered? s)
-  (and (symbol-ends? s '*)
-       (in? (symbol-drop-right s 1) (numbered-tag-list))))
+(tm-define
+ (symbol-unnumbered? s)
+ (and (symbol-ends? s '*)
+      (in? (symbol-drop-right s 1) (node-group-members "numbered-tag"))))
 
 (tm-define (symbol-toggle-number s)
   (if (symbol-ends? s '*)
       (symbol-drop-right s 1)
       (symbol-append s '*)))
 
-(tm-define (numbered-tag-list*)
-  (map (lambda (x) (symbol-append x '*)) (numbered-tag-list)))
+(tm-define
+ (numbered-tag-list*)
+ (map (lambda (x) (symbol-append x '*)) (node-group-members "numbered-tag")))
 
 (tm-define (numbered-unnumbered-append l)
   (append l (map (lambda (x) (symbol-append x '*)) l)))
 
-(tm-define (numbered-unnumbered-complete l)
-  (let* ((nl (numbered-tag-list))
-	 (bl (list-intersection l nl)))
-    (append l (map (lambda (x) (symbol-append x '*)) bl))))
+(tm-define
+ (numbered-unnumbered-complete l)
+ (let* ((nl (node-group-members "numbered-tag")) (bl (list-intersection l nl)))
+   (append l (map (lambda (x) (symbol-append x '*)) bl))))
 
-(tm-define (numbered-standard-context? t)
-  (or (tree-in? t (numbered-tag-list))
-      (tree-in? t (numbered-tag-list*))))
+(tm-define
+ (numbered-standard-context? t)
+ (or (tree-in? t (node-group-members "numbered-tag"))
+     (tree-in? t (numbered-tag-list*))))
 
 (tm-define (numbered-context? t)
   #f)
@@ -117,16 +78,15 @@
 ;; Alternate between two possibilities
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define-group alternate-tag (alternate-first-tag) (alternate-second-tag))
-(define-group alternate-first-tag)
-(define-group alternate-second-tag)
-
-(tm-define (alternate-standard-context? t)
-  (tree-in? t (alternate-tag-list)))
-(tm-define (alternate-standard-first? t)
-  (tree-in? t (alternate-first-tag-list)))
-(tm-define (alternate-standard-second? t)
-  (tree-in? t (alternate-second-tag-list)))
+(tm-define
+ (alternate-standard-context? t)
+ (tree-in? t (node-group-members "alternate-tag")))
+(tm-define
+ (alternate-standard-first? t)
+ (tree-in? t (node-group-members "alternate-first-tag")))
+(tm-define
+ (alternate-standard-second? t)
+ (tree-in? t (node-group-members "alternate-second-tag")))
 
 (tm-define (alternate-context? t) #f)
 (tm-define (alternate-context? t)
@@ -146,15 +106,6 @@
 (tm-define (pure-alternate-context? t)
   (alternate-context? t))
 
-(tm-define alternate-table (make-ahash-table))
-
-(tm-define-macro (define-alternate first second)
-  `(begin
-     (define-group alternate-first-tag ,first)
-     (define-group alternate-second-tag ,second)
-     (ahash-set! alternate-table ',first ',second)
-     (ahash-set! alternate-table ',second ',first)))
-
 (tm-define (alternate-reverse? t)
   #f)
 
@@ -173,9 +124,6 @@
 (tm-define (alternate-toggle t)
   (and-with p (tree-outer t)
     (alternate-toggle p)))
-
-(tm-define (symbol-toggle-alternate l)
-  (ahash-ref alternate-table l))
 
 (tm-define (alternate-toggle t)
   (:require (alternate-standard-context? t))
@@ -229,8 +177,6 @@
 ;; Variants
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define-group variant-tag)
-
 (tm-define (focus-tree-modified t)
   (noop))
 
@@ -249,28 +195,9 @@
       (variant-set t (symbol-append v '*))
       (variant-set t v)))
 
-(define (variants-of-sub lab type nv?)
-  (with numbered? (or (in? lab (numbered-tag-list))
-		      (in? lab (numbered-tag-list*)))
-    (cond ((and numbered? (symbol-ends? lab '*))
-	   (with l (variants-of-sub (symbol-drop-right lab 1) type nv?)
-	     (if nv? l (map (lambda (x) (symbol-append x '*)) l))))
-	  ((and numbered? nv?)
-	   (numbered-unnumbered-append (variants-of-sub lab type #f)))
-	  (else (with vg (group-find lab type)
-		  (if (not vg) (list lab)
-		      (group-resolve vg)))))))
-
-(tm-define (variants-of lab)
-  (:synopsis "Retrieve list of variants of @lab")
-  (variants-of-sub lab 'variant-tag #f))
-
-(tm-define (similar-to lab)
-  (:synopsis "Retrieve list of tags similar to @lab")
-  (variants-of-sub lab 'similar-tag #t))
-
-(tm-define (variant-standard-context? t)
-  (tree-in? t (numbered-unnumbered-complete (variant-tag-list))))
+(tm-define
+ (variant-standard-context? t)
+ (tree-in? t (numbered-unnumbered-complete (node-group-members "variant-tag"))))
 
 (tm-define (variant-context? t)
   #f)
@@ -301,8 +228,7 @@
 ;; Folding-unfolding variants of tags with hidden arguments
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (hidden-context? t)
-  (tree-in? t (hidden-tag-list)))
+(tm-define (hidden-context? t) (tree-in? t (node-group-members "hidden-tag")))
 
 (tm-define (tree-show-hidden t)
   (noop))
@@ -316,56 +242,3 @@
     (while (and t (!= t (cursor-tree)))
       (tree-show-hidden t)
       (set! t (tree-ref t :down)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Standard groups
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define-group variant-tag
-  (argument-tag) (value-tag) (quote-tag)
-  (binary-operation-tag) (binary-compare-tag)
-  (label-tag) (unary-reference-tag) (n-ary-citation-tag))
-
-(define-group similar-tag
-  (label-tag) (reference-tag) (citation-tag))
-
-(define-group hidden-tag
-  hidden hidden*)
-
-(define-group argument-tag
-  arg quote-arg)
-
-(define-group value-tag
-  value quote-value)
-
-(define-group quote-tag
-  quote quasi quasiquote)
-
-(define-group binary-operation-tag
-  plus minus times over minimum maximum or and)
-
-(define-group binary-compare-tag
-  equal unequal less lesseq greater greatereq)
-
-(define-group label-tag
-  label)
-
-(define-group unary-reference-tag
-  reference pageref eqref)
-
-(define-group reference-tag
-  reference pageref eqref smart-ref)
-
-(define-group n-ary-citation-tag
-  cite nocite)
-
-(define-group citation-tag
-  cite nocite cite-detail)
-
-(define-group mini-flow-tag
-  table graphics ornament ornamented tree)
-
-(define-group make-inline-tag)
-
-(define-group make-wrapped-tag
-  wide-tabular wide-block footnote)

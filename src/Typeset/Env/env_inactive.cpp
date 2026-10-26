@@ -326,7 +326,7 @@ edit_env_rep::rewrite_inactive_var_active (
   tree t, tree var, bool block, bool flush)
 {
   (void) block;
-  tree r= tree (WITH, MODE, copy (env [MODE]), subvar (var, 0));
+  tree r= tree (WITH, MODE, copy (read (MODE)), subvar (var, 0));
   if (flush &&
       (src_compact != COMPACT_ALL) &&
       (is_multi_paragraph (t[0]) || (src_compact == COMPACT_NONE)))

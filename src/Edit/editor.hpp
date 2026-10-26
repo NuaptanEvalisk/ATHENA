@@ -378,6 +378,7 @@ public:
   virtual double   divide_lengths (string l1, string l2) = 0;
   virtual void     init_update () = 0;
   virtual void     drd_update () = 0;
+  virtual void     prepare_cursor_environment () = 0;
 #ifdef EXPERIMENTAL
   virtual void     environment_update () = 0;
 #endif

@@ -68,6 +68,13 @@ if (ATHENA_ENABLE_AUDMAP_REPL)
 endif ()
 include(AthenaGlue)
 include(AthenaShippedMacroLabels)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+  "${ATHENA_SOURCE_DIR}/ATHENA/misc/node-fields.json")
+file(READ "${ATHENA_SOURCE_DIR}/ATHENA/misc/node-fields.json" ATHENA_NATIVE_FIELDS_JSON)
+configure_file(Data/NodeContracts/native_fields_data.hpp.in
+  "${ATHENA_BINARY_DIR}/generated/native_fields_data.hpp" @ONLY)
+set_source_files_properties(Data/NodeContracts/native_fields.cpp PROPERTIES
+  INCLUDE_DIRECTORIES "${ATHENA_BINARY_DIR}/generated")
 add_subdirectory(ATHENA/Interop)
 if(ATHENA_ENABLE_PLUGINS)
   add_subdirectory(Subsystems/Plugins)

@@ -11,13 +11,13 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(texmacs-module (dynamic fold-edit)
-  (:use (utils library tree)
-        (utils library cursor)
-        (dynamic dynamic-drd)
-        (generic generic-edit)
-        (generic document-edit)
-        (text text-edit)))
+(texmacs-module
+ (dynamic fold-edit)
+ (:use (utils library tree)
+       (utils library cursor)
+       (generic generic-edit)
+       (generic document-edit)
+       (text text-edit)))
 
 (tm-define (screens-buffer?)
   (with t (buffer-tree)
@@ -33,10 +33,11 @@
 ;; Dynamic movements for fold tags and switches
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (dynamic-context? t)
-  (or (toggle-tag? (tree-label t))
-      (switch-tag? (tree-label t))
-      (overlays-tag? (tree-label t))))
+(tm-define
+ (dynamic-context? t)
+ (or (node-group-contains? "toggle-tag" (tree-label t))
+     (node-group-contains? "switch-tag" (tree-label t))
+     (node-group-contains? "overlays-tag" (tree-label t))))
 
 (tm-define (dynamic-extremal t forwards?)
   (and-with p (tree-outer t)
@@ -79,28 +80,35 @@
 ;; Folding
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (toggle-context? t)
-  (toggle-tag? (tree-label t)))
+(tm-define
+ (toggle-context? t)
+ (node-group-contains? "toggle-tag" (tree-label t)))
 
-(tm-define (toggle-first-context? t)
-  (toggle-first-tag? (tree-label t)))
+(tm-define
+ (toggle-first-context? t)
+ (node-group-contains? "toggle-first-tag" (tree-label t)))
 
-(tm-define (toggle-second-context? t)
-  (toggle-second-tag? (tree-label t)))
+(tm-define
+ (toggle-second-context? t)
+ (node-group-contains? "toggle-second-tag" (tree-label t)))
 
-(tm-define (fold-context? t)
-  (or (folded-tag? (tree-label t)) (unfolded-tag? (tree-label t))))
+(tm-define
+ (fold-context? t)
+ (or (node-group-contains? "folded-tag" (tree-label t))
+     (node-group-contains? "unfolded-tag" (tree-label t))))
 
 (tm-define (make-toggle tag)
   (:type (-> void))
   (:synopsis "Insert a 'fold' environment")
   (insert-go-to `(,tag (document "") (document "")) (list 0 0)))
 
-(tm-define (alternate-toggle t)
-  (:require (toggle-context? t))
-  (with i (if (toggle-first-context? t) 1 0)
-    (variant-set t (ahash-ref alternate-table (tree-label t)))
-    (tree-go-to t i :start)))
+(tm-define
+ (alternate-toggle t)
+ (:require (toggle-context? t))
+ (with i
+       (if (toggle-first-context? t) 1 0)
+       (variant-set t (symbol-toggle-alternate (tree-label t)))
+       (tree-go-to t i :start)))
 
 (tm-define (dynamic-extremal t forwards?)
   (:require (toggle-context? t))
@@ -165,8 +173,9 @@
 ;; Basic routines on switches
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (switch-context? t)
-  (switch-tag? (tree-label t)))
+(tm-define
+ (switch-context? t)
+ (node-group-contains? "switch-tag" (tree-label t)))
 
 (tm-define (switch-valid-child? t i)
   (and t i (>= i 0) (< i (tree-arity t))))
@@ -197,35 +206,39 @@
     (switch-select t i)
     (apply tree-go-to (cons* t i 0 args))))
 
-(tm-define (switch-insert-at t i what)
-  (set! i (if (== i :end) (tree-arity t) (switch-index t i)))
-  (when (and (>= i 0) (<= i (tree-arity t)))
-    (let* ((empty (if (tree-in? t (big-switch-tag-list)) '(document "") ""))
-           (v (switch-index t :visible)))
-      (tree-insert! t i `((shown ,(or what empty))))
-      (if (tree-in? t (alternative-tag-list))
-          (switch-select t i)
-          (switch-select t (+ v 1)))
-      (tree-go-to t i :start))))
+(tm-define
+ (switch-insert-at t i what)
+ (set! i (if (== i :end) (tree-arity t) (switch-index t i)))
+ (when (and (>= i 0) (<= i (tree-arity t)))
+       (let* ((empty (if (tree-in? t (node-group-members "big-switch-tag"))
+                         '(document "")
+                         ""))
+              (v (switch-index t :visible)))
+         (tree-insert! t i `((shown ,(or what empty))))
+         (if (tree-in? t (node-group-members "alternative-tag"))
+             (switch-select t i)
+             (switch-select t (+ v 1)))
+         (tree-go-to t i :start))))
 
-(tm-define (switch-remove-at t i)
-  (set! i (switch-index t i))
-  (when (and (>= i 0) (< i (tree-arity t)) (> (tree-arity t) 1))
-    (let* ((v (switch-index t :visible))
-           (l (- (tree-arity t) 2)))
-      (switch-set-range t (max 0 (- i 1)) (min l (+ i 1)) #t)
-      (tree-remove! t i 1)
-      (if (tree-in? t (alternative-tag-list))
-          (switch-select t (min i l))
-          (switch-select t (max 0 (- v 1))))
-      (tree-go-to t (min i l) :start))))
+(tm-define
+ (switch-remove-at t i)
+ (set! i (switch-index t i))
+ (when (and (>= i 0) (< i (tree-arity t)) (> (tree-arity t) 1))
+       (let* ((v (switch-index t :visible)) (l (- (tree-arity t) 2)))
+         (switch-set-range t (max 0 (- i 1)) (min l (+ i 1)) #t)
+         (tree-remove! t i 1)
+         (if (tree-in? t (node-group-members "alternative-tag"))
+             (switch-select t (min i l))
+             (switch-select t (max 0 (- v 1))))
+         (tree-go-to t (min i l) :start))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Specific types of switches
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (alternative-context? t)
-  (alternative-tag? (tree-label t)))
+(tm-define
+ (alternative-context? t)
+ (node-group-contains? "alternative-tag" (tree-label t)))
 
 (tm-define (switch-select t i)
   (texmacs-error "switch-select" "invalid context"))
@@ -235,8 +248,7 @@
   (switch-set-range t 0 :last #f)
   (switch-set t i #t))
 
-(define (unroll-context? t)
-  (unroll-tag? (tree-label t)))
+(define (unroll-context? t) (node-group-contains? "unroll-tag" (tree-label t)))
 
 (tm-define (switch-select t i)
   (:require (unroll-context? t))
@@ -244,7 +256,7 @@
   (switch-set-range t (+ i 1) :last #f))
 
 (define (expanded-context? t)
-  (expanded-tag? (tree-label t)))
+  (node-group-contains? "expanded-tag" (tree-label t)))
 
 (tm-define (switch-select t i)
   (:require (expanded-context? t))
@@ -254,10 +266,11 @@
 ;; User interface to switches
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (make-switch tag)
-  (if (in? tag (big-switch-tag-list))
-      (insert-go-to `(,tag (shown (document ""))) '(0 0 0 0))
-      (insert-go-to `(,tag (shown "")) '(0 0 0))))
+(tm-define
+ (make-switch tag)
+ (if (in? tag (node-group-members "big-switch-tag"))
+     (insert-go-to `(,tag (shown (document ""))) '(0 0 0 0))
+     (insert-go-to `(,tag (shown "")) '(0 0 0))))
 
 (tm-define (dynamic-extremal t forwards?)
   (:require (switch-context? t))
@@ -301,12 +314,14 @@
       (when (and (hidden-context? (tree-ref t i)) (not (tree-is? t i l)))
         (tree-assign-node (tree-ref t i) l)))))
 
-(tm-define (variant-circulate t forward?)
-  (:require (switch-context? t))
-  (with i (switch-index t)
-    (variant-circulate-in t (big-switch-tag-list) forward?)
-    (switch-normalize-hidden t)
-    (switch-select t i)))
+(tm-define
+ (variant-circulate t forward?)
+ (:require (switch-context? t))
+ (with i
+       (switch-index t)
+       (variant-circulate-in t (node-group-members "big-switch-tag") forward?)
+       (switch-normalize-hidden t)
+       (switch-select t i)))
 
 (tm-define (tree-show-hidden t)
   (:require (switch-context? t))
@@ -318,23 +333,28 @@
 ;; User interface to overlays
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (overlays-context? t)
-  (and (overlays-tag? (tree-label t))
-       (== (tree-arity t) 3)))
+(tm-define
+ (overlays-context? t)
+ (and (node-group-contains? "overlays-tag" (tree-label t))
+      (== (tree-arity t) 3)))
 
-(tm-define (overlay-context? t)
-  (overlay-tag? (tree-label t)))
+(tm-define
+ (overlay-context? t)
+ (node-group-contains? "overlay-tag" (tree-label t)))
 
 (tm-define (make-overlays l)
   (if (== l 'overlays)
       (insert-go-to `(,l "1" "1" (document "")) '(2 0 0))
       (insert-go-to `(,l "1" "1" "") '(2 0))))
 
-(tm-define (make-overlay l)
-  (with-innermost t overlays-context?
-    (if (unary-overlay-tag? (tree-label t))
-        (insert-go-to `(,l ,(tree-copy (tree-ref t 0)) "") '(1 0))
-        (insert-go-to `(,l ,(tree-copy (tree-ref t 0)) "" "") '(1 0)))))
+(tm-define
+ (make-overlay l)
+ (with-innermost
+  t
+  overlays-context?
+  (if (node-group-contains? "unary-overlay-tag" (tree-label t))
+      (insert-go-to `(,l ,(tree-copy (tree-ref t 0)) "") '(1 0))
+      (insert-go-to `(,l ,(tree-copy (tree-ref t 0)) "" "") '(1 0)))))
 
 (tm-define (make-alter-colors)
   (insert-go-to `(alter-colors "" "#0000" "black") '(0 0)))
@@ -377,20 +397,26 @@
         (overlays-switch-to p i))))
 
 (define (overlay-satisfies-proviso? t i pos)
-  (cond ((>= pos (- (tree-arity t) 1)) #f)
-        ((tm-equal? (tree-ref t pos) "proviso")
-         (and-with c (tree-ref t (+ pos 1))
-           (and (tree-in? c (nullary-overlay-tag-list))
-                (== (tree-arity c) 1)
-                (and-with ref (tree->number (tree-ref c 0))
-                  (and (integer? ref)
-                       (cond ((tree-is? c 'show-always) #t)
-                             ((tree-is? c 'show-from)   (>= i ref))
-                             ((tree-is? c 'show-until)  (<= i ref))
-                             ((tree-is? c 'show-this)   (== i ref))
-                             ((tree-is? c 'show-other)  (!= i ref))
-                             (else #f)))))))
-        (else (overlay-satisfies-proviso? t i (+ pos 2)))))
+  (cond
+    ((>= pos (- (tree-arity t) 1)) #f)
+    ((tm-equal? (tree-ref t pos) "proviso")
+     (and-with
+      c
+      (tree-ref t (+ pos 1))
+      (and (tree-in? c (node-group-members "nullary-overlay-tag"))
+           (== (tree-arity c) 1)
+           (and-with
+            ref
+            (tree->number (tree-ref c 0))
+            (and (integer? ref)
+                 (cond
+                   ((tree-is? c 'show-always) #t)
+                   ((tree-is? c 'show-from) (>= i ref))
+                   ((tree-is? c 'show-until) (<= i ref))
+                   ((tree-is? c 'show-this) (== i ref))
+                   ((tree-is? c 'show-other) (!= i ref))
+                   (else #f)))))))
+    (else (overlay-satisfies-proviso? t i (+ pos 2)))))
 
 
 
@@ -886,27 +912,30 @@
        (tree-is? (tree-ref t :up) 'document)
        (list-context? (tree-ref t :up :up))))
 
-(tm-define (make-unroll switch-tag)
-  (if (and (selection-active?)
-           (tree-in? (selection-tree) (list-tag-list))
-           (tree-is? (selection-tree) 0 'document))
-      (let* ((sel (selection-tree))
-             (list-tag (tree-label sel))
-             (items (tree-children (tree-ref sel 0)))
-             (fun (lambda (c) `(shown (document ,c))))
-             (unroll `(,switch-tag ,@(map fun items)))
-             (new-list `(,list-tag (document ,unroll))))
-        (clipboard-cut "dummy")
-        (insert new-list))
-      (make-switch switch-tag)))
+(tm-define
+ (make-unroll switch-tag)
+ (if (and (selection-active?)
+          (tree-in? (selection-tree) (node-group-members "list-tag"))
+          (tree-is? (selection-tree) 0 'document))
+     (let* ((sel (selection-tree))
+            (list-tag (tree-label sel))
+            (items (tree-children (tree-ref sel 0)))
+            (fun (lambda (c) `(shown (document ,c))))
+            (unroll `(,switch-tag ,@(map fun items)))
+            (new-list `(,list-tag (document ,unroll))))
+       (clipboard-cut "dummy")
+       (insert new-list))
+     (make-switch switch-tag)))
 
-(tm-define (make-switch-list switch-tag list-tag)
-  (with flag? (and (selection-active-non-small?)
-                   (in? list-tag (description-tag-list)))
-    (wrap-selection-any
-      (make list-tag)
-      (make-switch switch-tag)
-      (if flag? (insert '(item* "")) (make-item)))))
+(tm-define
+ (make-switch-list switch-tag list-tag)
+ (with flag?
+       (and (selection-active-non-small?)
+            (in? list-tag (node-group-members "description-tag")))
+       (wrap-selection-any
+        (make list-tag)
+        (make-switch switch-tag)
+        (if flag? (insert '(item* "")) (make-item)))))
 
 (tm-define (kbd-enter t shift?)
   (:require (switch-list-context? t))

@@ -10,11 +10,14 @@
 ******************************************************************************/
 
 #include "bridge.hpp"
+#include "Env/local_environment.hpp"
 
 class bridge_with_rep: public bridge_rep {
 protected:
   int    last;
   bridge body;
+  athena::contracts::evaluation_boundary_handle body_entry;
+  athena::contracts::contract_event_log prefix_source, body_prefix;
 
 public:
   bridge_with_rep (typesetter ttt, tree st, path ip);
@@ -59,7 +62,7 @@ bridge_with (typesetter ttt, tree st, path ip) {
 void
 bridge_with_rep::notify_assign (path p, tree u) {
   // cout << "Assign " << p << ", " << u << " in " << st << "\n";
-  ASSERT (!is_nil (p) || is_func (u, WITH), "nil path");
+  ASSERT (!is_nil (p) || L(u) == L(st), "nil path");
   if (is_nil (p)) {
     st=u;
     initialize ();
@@ -127,27 +130,26 @@ bridge_with_rep::notify_change () {
 
 void
 bridge_with_rep::my_exec_until (path p) {
-  int i, k= last>>1; // is k=0 allowed ?
   if (((last&1) != 0) || (p->item != last)) return;
-  STACK_NEW_ARRAY(vars,string,k);
-  STACK_NEW_ARRAY(newv,tree,k);
-  for (i=0; i<k; i++) {
-    tree var_t= env->exec (st[i<<1]);
-    if (is_atomic (var_t)) {
-      string var= var_t->label;
-      newv[i]= env->exec (st[(i<<1)+1]);
-      vars[i]= env->normalize_legacy_math_font_variable (var, newv[i]);
-    }
-    else {
-      STACK_DELETE_ARRAY(vars);
-      STACK_DELETE_ARRAY(newv);
-      return;
-    }
+  if (prefix_source != contract_changes) {
+    body_prefix= athena::contracts::contract_event_prefix (contract_changes, body_entry);
+    prefix_source= contract_changes;
   }
-  for (i=0; i<k; i++) env->monitored_write_update (vars[i], newv[i]);
+  if (body_prefix && env->replay_contract_events (body_prefix, false)) {
+    body->exec_until (p->next);
+    return;
+  }
+  if (L(st) == WITH_PACKAGE) {
+    scoped_package_environment scope (*env.operator-> (), st[0]);
+    body->exec_until (p->next);
+    scope.finish (true);
+    return;
+  }
+  local_environment_bindings bindings;
+  if (!evaluate_local_environment (*env.operator-> (), st, bindings)) return;
+  local_environment_scope scope (*env.operator-> (), bindings, true);
   body->exec_until (p->next);
-  STACK_DELETE_ARRAY(vars);
-  STACK_DELETE_ARRAY(newv);
+  scope.finish (true);
 }
 
 bool
@@ -158,36 +160,30 @@ bridge_with_rep::my_typeset_will_be_complete () {
 
 void
 bridge_with_rep::my_typeset (int desired_status) {
-  int i, k= last>>1; // is k=0 allowed ?
-  // if ((last&1) != 0) return;
-  
-  STACK_NEW_ARRAY(vars,string,k);
-  STACK_NEW_ARRAY(oldv,tree,k);
-  STACK_NEW_ARRAY(newv,tree,k);
-  for (i=0; i<k; i++) {
-    tree var_t= env->exec (st[i<<1]);
-    if (is_atomic (var_t)) {
-      string var= var_t->label;
-      newv[i]= env->exec (st[(i<<1)+1]);
-      vars[i]= env->normalize_legacy_math_font_variable (var, newv[i]);
-      oldv[i]= env->read (vars[i]);
-    }
-    /*
-    else {
-      STACK_DELETE_ARRAY(vars);
-      STACK_DELETE_ARRAY(oldv);
-      STACK_DELETE_ARRAY(newv);
+  if (L(st) == WITH_PACKAGE) {
+    if (N(st) != 2) {
+      ttt->insert_paragraph (tree (_ERROR, "bad with-package"), ip);
       return;
     }
-    */
+    scoped_package_environment scope (*env.operator-> (), st[0]);
+    ttt->insert_marker (st, ip);
+    body_entry= env->contract_events->mark_boundary ();
+    prefix_source.reset ();
+    body_prefix.reset ();
+    body->typeset (desired_status);
+    scope.finish ();
+    return;
   }
-
-  // for (i=0; i<k; i++) env->monitored_write_update (vars[i], newv[i]);
-  for (i=0; i<k; i++) env->write_update (vars[i], newv[i]);
+  local_environment_bindings bindings;
+  if (!evaluate_local_environment (*env.operator-> (), st, bindings)) {
+    ttt->insert_paragraph (tree (_ERROR, "bad with"), ip);
+    return;
+  }
+  local_environment_scope scope (*env.operator-> (), bindings);
   ttt->insert_marker (st, ip);
+  body_entry= env->contract_events->mark_boundary ();
+  prefix_source.reset ();
+  body_prefix.reset ();
   body->typeset (desired_status);
-  for (i=k-1; i>=0; i--) env->write_update (vars[i], oldv[i]);
-  STACK_DELETE_ARRAY(vars);
-  STACK_DELETE_ARRAY(oldv);
-  STACK_DELETE_ARRAY(newv);
+  scope.finish ();
 }

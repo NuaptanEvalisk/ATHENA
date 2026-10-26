@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "bridge.hpp"
+#include "Env/local_environment.hpp"
 #include "node_metadata.hpp"
 #include "Boxes/construct.hpp"
 #include "scheme.hpp"
@@ -155,6 +156,7 @@ make_bridge (typesetter ttt, tree st, path ip) {
   case TFORMAT:
     return bridge_formatting (ttt, st, ip, CELL_FORMAT);
   case WITH:
+  case WITH_PACKAGE:
     return bridge_with (ttt, st, ip);
   case COMPOUND:
     return bridge_compound (ttt, st, ip);
@@ -175,7 +177,6 @@ make_bridge (typesetter ttt, tree st, path ip) {
     return bridge_eval (ttt, st, ip);
   case EXTERN:
   case VAR_INCLUDE:
-  case WITH_PACKAGE:
     return bridge_rewrite (ttt, st, ip);
   case INCLUDE:
     return bridge_compound (ttt, st, ip);
@@ -396,7 +397,8 @@ bridge_rep::exec_until (path p, bool skip_flag) {
   }
   else if (p == path (right_index (st))) {
     // cout << "  Patch env\n";
-    env->patch_env (changes);
+    if (!env->replay_contract_events (contract_changes, false))
+      env->exec_until (st, p);
   }
   else if (p != path (0)) {
     // cout << "  My execute until\n";
@@ -420,12 +422,12 @@ bridge_rep::typeset (int desired_status) {
   }
 
   //cout << "Typesetting " << st << ", " << desired_status << LF << INDENT;
-  if ((status==desired_status) && (N(ttt->old_patch)==0)) {
-    //cout << "cached" << LF;
-    env->monitored_patch_env (changes);
-    // cout << "changes       = " << changes << LF;
-  }
-  else {
+  const bool cache_candidate= status == desired_status && N(ttt->old_patch) == 0;
+  const bool replayed= cache_candidate && env->replay_contract_events (contract_changes, true);
+  if (replayed && env->source_occurrences)
+    env->source_occurrences->reuse (source_occurrences);
+  if (!replayed) {
+    if (cache_candidate) notify_change ();
     AthenaArtifactRadioactiveScope radioactive_scope (
       radioactive_dependencies, ttt, true);
     // cout << "Typesetting " << st << ", " << desired_status << LF << INDENT;
@@ -436,6 +438,9 @@ bridge_rep::typeset (int desired_status) {
     env->link_env= link_env;
     ttt->local_start (l, sb);
     env->local_start (prev_back);
+    athena::contracts::contract_event_capture capture (
+      env->contract_events, contract_changes, &env->drd->contracts);
+    source_occurrence_capture occurrences (*env.operator-> (), source_occurrences, ip);
     if (env->hl_lan != 0) env->lan->highlight (st);
     int pending_generation= ttt->progressive_pending_generation;
     my_typeset (desired_status);
@@ -443,6 +448,8 @@ bridge_rep::typeset (int desired_status) {
       ttt->progressive_pending_generation != pending_generation;
     env->local_update (ttt->old_patch, changes);
     env->local_end (prev_back);
+    capture.commit ();
+    occurrences.commit ();
     ttt->local_end (l, sb);
     env->link_env= old_link_env;
     status= progressively_pending? CORRUPTED: desired_status;

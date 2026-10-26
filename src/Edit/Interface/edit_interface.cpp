@@ -733,6 +733,7 @@ edit_interface_rep::change_time () {
 
 void
 edit_interface_rep::update_menus () {
+  prepare_cursor_environment ();
   refresh_editor_style_command_flags ();
   publish_editor_command_state ();
   publish_focus_toolbar_state ();
@@ -2086,6 +2087,7 @@ edit_interface_rep::apply_changes () {
     SI old_heading_right= is_nil (eb) ? vx2 : eb->x2;
     SI x1, y1, x2, y2;
     typeset (x1, y1, x2, y2);
+    prepare_cursor_environment ();
     heading_cell_cache_valid= false;
     the_ghost_cursor ()= eb->find_check_cursor (tp, the_cursor ()->affinity);
     SI heading_strip_width= 80 * pixel;
@@ -2099,6 +2101,7 @@ edit_interface_rep::apply_changes () {
     (void) publish_ui (actor_command_kind::ui_native_drawing_focus_refresh);
     // check_data_integrety ();
   }
+  else if (env_change & (THE_CURSOR | THE_FOCUS)) prepare_cursor_environment ();
   
 #ifdef EXPERIMENTAL
   if (env_change & THE_ENVIRONMENT)

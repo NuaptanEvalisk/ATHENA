@@ -11,25 +11,18 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(texmacs-module (math math-edit)
-  (:use (utils library tree)
-	(utils library cursor)
-	(math math-drd)
-        (math math-stats)))
+(texmacs-module
+ (math math-edit)
+ (:use (utils library tree) (utils library cursor) (math math-stats)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Some drd properties, which should go into table-drd.scm later on
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define-group variant-tag (math-table-tag))
-(define-group similar-tag (math-table-tag))
-
-(define-group math-table-tag
-  matrix det bmatrix Bmatrix)
-
-(tm-define (kbd-variant t forwards?)
-  (:require (tree-in? t (combinatorial-number-tag-list)))
-  (variant-circulate t forwards?))
+(tm-define
+ (kbd-variant t forwards?)
+ (:require (tree-in? t (node-group-members "combinatorial-number-tag")))
+ (variant-circulate t forwards?))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Spaces
@@ -117,9 +110,8 @@
 ;; Mathematical editing helpers
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-
 (define (search-labels t)
-  (tree-search t (lambda (l) (tree-in? l (label-tag-list)))))
+  (tree-search t (lambda (l) (tree-in? l (node-group-members "label-tag")))))
 
 (define (cut-all t w)
   (cond ((tree-atomic? t) (noop))
@@ -151,7 +143,6 @@
                      (script-context? (tree-ref t :previous)))
                 (and (tree-ref t :next)
                      (script-context? (tree-ref t :next)))))))
-
 
 (tm-define (math-evaluation-bar)
   (:synopsis "Evaluate the preceding or selected expression at a limit")

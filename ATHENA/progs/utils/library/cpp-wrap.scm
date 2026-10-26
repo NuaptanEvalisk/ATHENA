@@ -62,25 +62,27 @@
         (insert-go-to ins (cons (- (tm-arity ins) 1) end)))
       (apply former (cons lab opt-arity))))
 
-(tm-define (make lab . opt-arity)
-  (:require (in? lab (make-inline-tag-list)))
-  (if (selection-active-large?)
-      (with sel `(par-block ,(selection-tree))
-	(clipboard-cut "wrapbuf")
-	(make-return-after)
-	(apply var-make (cons lab opt-arity))
-	(tree-set (cursor-tree) sel)
-	(with-innermost t lab
-	  (tree-go-to t :end)
-	  (make-return-before)))
-      (apply var-make (cons lab opt-arity))))
+(tm-define
+ (make lab . opt-arity)
+ (:require (in? lab (node-group-members "make-inline-tag")))
+ (if (selection-active-large?)
+     (with sel
+           `(par-block ,(selection-tree))
+           (clipboard-cut "wrapbuf")
+           (make-return-after)
+           (apply var-make (cons lab opt-arity))
+           (tree-set (cursor-tree) sel)
+           (with-innermost t lab (tree-go-to t :end) (make-return-before)))
+     (apply var-make (cons lab opt-arity))))
 
-(tm-define (make lab . opt-arity)
-  (:require (in? lab (make-wrapped-tag-list)))
-  (with sel? (selection-active-any?)
-    (clipboard-cut "wrapbuf")
-    (apply var-make (cons lab opt-arity))
-    (if sel? (clipboard-paste "wrapbuf"))))
+(tm-define
+ (make lab . opt-arity)
+ (:require (in? lab (node-group-members "make-wrapped-tag")))
+ (with sel?
+       (selection-active-any?)
+       (clipboard-cut "wrapbuf")
+       (apply var-make (cons lab opt-arity))
+       (if sel? (clipboard-paste "wrapbuf"))))
 
 (tm-define (insert-go-to t p) (cpp-insert-go-to t p))
 (tm-define (make-hybrid) (cpp-make-hybrid))

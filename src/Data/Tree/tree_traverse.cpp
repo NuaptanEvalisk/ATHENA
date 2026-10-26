@@ -16,6 +16,7 @@
 #include "utf8_edit.hpp"
 #include "hashset.hpp"
 #include "scheme.hpp"
+#include "Data/NodeContracts/node_groups.hpp"
 
 /******************************************************************************
 * Accessability
@@ -33,7 +34,8 @@ is_parameter (tree_label l) {
 
 string
 get_tag_type (tree_label l) {
-  return drd_decode_type (the_drd->get_type (l));
+  const auto name= athena::contracts::type_name (the_drd->get_type (l));
+  return string (name.data (), name.size ());
 }
 
 int
@@ -140,7 +142,8 @@ get_child_long_name (tree t, int i) {
 
 string
 get_child_type (tree t, int i) {
-  return drd_decode_type (the_drd->get_type_child (t, i));
+  const auto name= athena::contracts::type_name (the_drd->get_type_child (t, i));
+  return string (name.data (), name.size ());
 }
 
 tree
@@ -651,12 +654,9 @@ init_sections () {
     section_traverse_tags->insert (make_tree_label ("hide-part"));
   }
   if (N(section_tags) == 0) {
-    eval ("(use-modules (text text-drd))");
-    object l= eval ("(append (section-tag-list) (section*-tag-list))");
-    while (!is_null (l)) {
-      section_tags->insert (as_tree_label (as_symbol (car (l))));
-      l= cdr (l);
-    }
+    for (const auto* group: {"section-tag", "section*-tag"})
+      for (const auto& name: athena::contracts::standard_node_groups ().members (group))
+        section_tags->insert (as_tree_label (string (name.c_str ())));
   }
 }
 

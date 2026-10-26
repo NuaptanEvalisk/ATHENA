@@ -177,7 +177,7 @@ evaluate_impl (tree t) {
   case VAR_INCLUDE:
     return evaluate_include (t);
   case WITH_PACKAGE:
-    return evaluate_rewrite (t);
+    return evaluate_error ("with-package requires native evaluation");
   case USE_PACKAGE:
     return evaluate_use_package (t);
   case USE_MODULE:

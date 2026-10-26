@@ -602,14 +602,6 @@ add_test(NAME node_reference_headless_export_scheme_test
     --runtime ${ATHENA_GUILE_PREFIX}
     --resources ${ATHENA_SOURCE_DIR}/ATHENA
     --timeout 120)
-add_test(NAME group_bytecode_scheme_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/runtime-test.py
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/group-bytecode-test.scm
-    --root-env ATHENA_GROUP_TEST_DIR
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
 add_test(NAME native_v3_structured_search_runtime_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/runtime-test.py
@@ -662,7 +654,7 @@ set_tests_properties(native_v3_math_alphabet_stage_test PROPERTIES TIMEOUT 120)
 set_tests_properties(
   node_data_art_scheme_test node_model_bridge_scheme_test
   node_source_edit_scheme_test node_tree_diff_scheme_test
-  node_reference_headless_export_scheme_test group_bytecode_scheme_test
+  node_reference_headless_export_scheme_test
   native_v3_structured_search_runtime_test native_v3_export_runtime_test
   native_v3_mathml_routing_runtime_test
   PROPERTIES TIMEOUT 150)
@@ -731,7 +723,6 @@ set(_athena_application_runtime_tests
   node_source_edit_scheme_test
   node_tree_diff_scheme_test
   node_reference_headless_export_scheme_test
-  group_bytecode_scheme_test
   native_v3_structured_search_runtime_test
   native_v3_export_runtime_test
   native_v3_mathml_routing_runtime_test

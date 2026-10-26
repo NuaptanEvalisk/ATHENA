@@ -11,23 +11,23 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(texmacs-module (link ref-edit)
-  (:use (utils edit variants)
-        (generic generic-edit)
-        (text text-drd)))
+(texmacs-module
+ (link ref-edit)
+ (:use (utils edit variants) (generic generic-edit)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Finding all standard types of labels/references in a document
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (label-context? t)
-  (tree-in? t (label-tag-list)))
+(tm-define (label-context? t) (tree-in? t (node-group-members "label-tag")))
 
-(tm-define (reference-context? t)
-  (tree-in? t (reference-tag-list)))
+(tm-define
+ (reference-context? t)
+ (tree-in? t (node-group-members "reference-tag")))
 
-(tm-define (citation-context? t)
-  (tree-in? t (citation-tag-list)))
+(tm-define
+ (citation-context? t)
+ (tree-in? t (node-group-members "citation-tag")))
 
 (tm-define (tie-context? t)
   (or (label-context? t) (reference-context? t) (citation-context? t)))
@@ -202,9 +202,13 @@
         (else #f)))
 
 (define type-list
-  (with l (append (enunciation-tag-list) (section-tag-list)
-                  (equation-tag-list) (algorithm-tag-list))
-    (append (map symbol->string l) (list "figure" "table"))))
+  (with l
+        (append
+         (node-group-members "enunciation-tag")
+         (node-group-members "section-tag")
+         (node-group-members "equation-tag")
+         (node-group-members "algorithm-tag"))
+        (append (map symbol->string l) (list "figure" "table"))))
 
 (define (plural s)
   (cond ((== s "") s)
@@ -302,17 +306,15 @@
   (if (tm-func? t 'cell 1) (tm-ref t 0) t))
 
 (define (clean-preview t)
-  (cond ((tm-is? t 'document)
-         `(document ,@(map clean-preview (tm-children t))))
-        ((tm-is? t 'concat)
-         (apply tmconcat (map clean-preview (tm-children t))))
-        ((tm-in? t (section-tag-list))
-         (with l (symbol-append (tm-label t) '*)
-           `(,l ,@(tm-children t))))
-        ((tm-in? t '(label item item* bibitem bibitem* eq-number)) "")
-        ((tm-in? t '(tformat table row cell))
-         `(,(tm-label t) ,@(map clean-preview (tm-children t))))
-        (else t)))
+  (cond
+    ((tm-is? t 'document) `(document ,@(map clean-preview (tm-children t))))
+    ((tm-is? t 'concat) (apply tmconcat (map clean-preview (tm-children t))))
+    ((tm-in? t (node-group-members "section-tag"))
+     (with l (symbol-append (tm-label t) '*) `(,l ,@(tm-children t))))
+    ((tm-in? t '(label item item* bibitem bibitem* eq-number)) "")
+    ((tm-in? t '(tformat table row cell))
+     `(,(tm-label t) ,@(map clean-preview (tm-children t))))
+    (else t)))
 
 (define (preview-expand-context? t)
   (tree-in? t '(theorem proposition lemma corollary conjecture
@@ -321,22 +323,29 @@
                 definition* axiom*)))
 
 (define (label-preview t)
-  (and-with doc (tree-search-upwards t preview-context?)
-    (with math? (tree-search-upwards t math-context?)
-      (when (and (tree-up doc) (tree-up (tree-up doc))
-                 (tree-is? (tree-up doc) 'document))
-        (with enc (tree-up (tree-up doc))
-          (cond ((preview-expand-context? enc)
-                 (set! doc (tree-up doc)))
-                ((and (tree-in? enc (algorithm-tag-list))
-                      (< (tree-index (tree-up doc)) (- (tree-arity enc) 1)))
-                 (set! doc `(with "par-first" "0em" ,(tree-up doc)))))))
-      (when (tm-is? doc 'row)
-        (set! doc (apply tmconcat (map uncell (tm-children doc)))))
-      (set! doc (clean-preview doc))
-      (when math?
-        (set! doc `(with "math-display" "true" (math ,doc))))
-      `(preview-balloon ,doc))))
+  (and-with
+   doc
+   (tree-search-upwards t preview-context?)
+   (with math?
+         (tree-search-upwards t math-context?)
+         (when (and (tree-up doc)
+                    (tree-up (tree-up doc))
+                    (tree-is? (tree-up doc) 'document))
+               (with enc
+                     (tree-up (tree-up doc))
+                     (cond
+                       ((preview-expand-context? enc) (set! doc (tree-up doc)))
+                       ((and (tree-in?
+                              enc
+                              (node-group-members "algorithm-tag"))
+                             (< (tree-index (tree-up doc))
+                                (- (tree-arity enc) 1)))
+                        (set! doc `(with "par-first" "0em" ,(tree-up doc)))))))
+         (when (tm-is? doc 'row)
+               (set! doc (apply tmconcat (map uncell (tm-children doc)))))
+         (set! doc (clean-preview doc))
+         (when math? (set! doc `(with "math-display" "true" (math ,doc))))
+         `(preview-balloon ,doc))))
 
 (tm-define (ref-preview id)
   (and-with p (and-nnull? (label->path id))

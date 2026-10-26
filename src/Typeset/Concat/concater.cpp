@@ -11,6 +11,7 @@
 ******************************************************************************/
 
 #include "concater.hpp"
+#include "Env/local_environment.hpp"
 #include "analyze.hpp"
 #include "concater.hpp"
 #include "scheme.hpp"
@@ -151,6 +152,8 @@ concater_rep::with_limits (int status) {
 
 void
 concater_rep::typeset (tree t, path ip) {
+  if (is_atomic (t) && is_accessible (ip) && env->source_occurrences && env->contract_events)
+    env->source_occurrences->record (t, ip);
   if (!athena::node_reference::export_node_destinations_active ()) {
     typeset_impl (t, ip);
     return;
@@ -522,6 +525,9 @@ concater_rep::typeset_impl (tree t, path ip) {
   case WITH:
     typeset_with (t, ip);
     break;
+  case WITH_PACKAGE:
+    typeset_with_package (t, ip);
+    break;
   case PROVIDES:
     typeset_executable (t, ip);
     break;
@@ -614,9 +620,6 @@ concater_rep::typeset_impl (tree t, path ip) {
     break;
   case TRANSCLUDE:
     typeset_transclude (t, ip);
-    break;
-  case WITH_PACKAGE:
-    typeset_rewrite (t, ip);
     break;
   case USE_PACKAGE:
   case USE_MODULE:

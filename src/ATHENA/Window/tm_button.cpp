@@ -36,24 +36,8 @@ void use_modules (tree t);
 
 void
 initialize_environment (edit_env& env, tree doc, drd_info& drd) {
-  env->write_default_env ();
-  bool ok;
-  tree t, style= extract (doc, "style");
-  hashmap<string,tree> H;
-  style_get_cache (style, H, t, ok);
-  if (ok) {
-    env->patch_env (H);
-    ok= drd->set_locals (t);
-    drd->set_environment (H);
-  }
-  if (!ok) {
-    if (!is_tuple (style)) FAILED ("tuple expected as style");
-    H= get_style_env (style);
-    drd= get_style_drd (style);
-    style_set_cache (style, H, drd->get_locals ());
-    env->patch_env (H);
-    drd->set_environment (H);
-  }
+  tree style= extract (doc, "style");
+  get_style_environment (style, env->base_file_name, true)->restore (*env.operator-> ());
   use_modules (env->read (THE_MODULES));
   tree init= extract (doc, "initial");
   for (int i=0; i<N(init); i++)

@@ -224,6 +224,9 @@ void remap_property (property& p, const identity_map& replacements) {
 bool frozen_tree::operator == (const frozen_tree& other) const {
   return value == other.value || frozen_equal (*value, *other.value);
 }
+bool frozen_tree::matches (const tree& source) const {
+  return frozen_equal (*value, source);
+}
 int frozen_tree::hash () const { return frozen_hash (*value); }
 
 bool valid_id (const std::string& value) {

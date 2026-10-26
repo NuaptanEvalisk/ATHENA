@@ -10,11 +10,14 @@
 ******************************************************************************/
 
 #include "bridge.hpp"
+#include "Env/local_environment.hpp"
 
 class bridge_surround_rep: public bridge_rep {
 protected:
   bridge               body;
   hashmap<string,tree> changes_before;
+  athena::contracts::contract_event_log contracts_before;
+  source_occurrence_log occurrences_before;
 
   bool                 corrupted;
   array<line_item>     a;
@@ -142,14 +145,18 @@ bridge_surround_rep::notify_change () {
 
 void
 bridge_surround_rep::my_clean_links () {
-  if (corrupted || (N(ttt->old_patch) != 0))
+  if (corrupted || (N(ttt->old_patch) != 0) ||
+      !env->can_replay_events (contracts_before))
     link_env= link_repository (true);
 }
 
 void
 bridge_surround_rep::my_exec_until (path p) {
   if (p->item == 2) {
-    env->patch_env (changes_before);
+    if (!env->replay_contract_events (contracts_before, false)) {
+      env->exec_until (st, p);
+      return;
+    }
     body->exec_until (p->next);
   }
   else env->exec_until (st, p);
@@ -163,9 +170,14 @@ bridge_surround_rep::my_typeset_will_be_complete () {
 
 void
 bridge_surround_rep::my_typeset (int desired_status) {
-  if (corrupted || (N(ttt->old_patch) != 0)) {
+  const bool replayed= !corrupted && N(ttt->old_patch) == 0 &&
+    env->replay_contract_events (contracts_before, true);
+  if (!replayed) {
     hashmap<string,tree> prev_back (UNINIT);
     env->local_start (prev_back);
+    athena::contracts::contract_event_capture capture (
+      env->contract_events, contracts_before, &env->drd->contracts);
+    source_occurrence_capture occurrences (*env.operator-> (), occurrences_before, ip);
     /*
     cout << st[0] << "\n";
     cout << st[1] << "\n";
@@ -175,11 +187,13 @@ bridge_surround_rep::my_typeset (int desired_status) {
     b= typeset_concat (env, st[1], descend (ip, 1));
     env->local_update (ttt->old_patch, changes_before);
     env->local_end (prev_back);
+    capture.commit ();
+    occurrences.commit ();
     corrupted= false;
   }
   else {
     athena_artifact_radioactive_reuse_queries ();
-    env->monitored_patch_env (changes_before);
+    if (env->source_occurrences) env->source_occurrences->reuse (occurrences_before);
   }
 
   ttt->insert_marker (st, ip);

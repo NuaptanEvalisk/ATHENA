@@ -11,12 +11,12 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(texmacs-module (text text-edit)
-  (:use (utils library tree)
-	(utils edit variants)
-	(utils edit selections)
-	(text text-drd)
-	(generic format-drd) (generic generic-edit)))
+(texmacs-module
+ (text text-edit)
+ (:use (utils library tree)
+       (utils edit variants)
+       (utils edit selections)
+       (generic generic-edit)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Inserting a title and an abstract
@@ -44,17 +44,18 @@
 ;; Inserting document, author and abstract data
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (doc-title-context? t)
-  (and (tree-search-upwards t 'doc-data)
-       (or (tree-in? t (doc-title-tag-list))
-           (and (tree-is? t 'date) (tree-is? t :up 'doc-date)))))
+(tm-define
+ (doc-title-context? t)
+ (and (tree-search-upwards t 'doc-data)
+      (or (tree-in? t (node-group-members "doc-title-tag"))
+          (and (tree-is? t 'date) (tree-is? t :up 'doc-date)))))
 
-(tm-define (doc-author-context? t)
-  (and (tree-search-upwards t 'doc-data)
-       (tree-in? t (author-data-tag-list))))
+(tm-define
+ (doc-author-context? t)
+ (and (tree-search-upwards t 'doc-data)
+      (tree-in? t (node-group-members "author-data-tag"))))
 
-(define doc-data-inactive-tags
-  (doc-title-inactive-tag-list))
+(define doc-data-inactive-tags (node-group-members "doc-title-inactive-tag"))
 
 (tm-define (make-doc-data)
   (:applicable (not (selection-active-non-small?)))
@@ -94,8 +95,9 @@
 	     (tree-insert! t pos `((,l "")))
 	     (tree-go-to t pos 0 0))))))
 
-(tm-define (abstract-data-context? t)
-  (tree-in? t (abstract-data-tag-list)))
+(tm-define
+ (abstract-data-context? t)
+ (tree-in? t (node-group-members "abstract-data-tag")))
 
 (tm-define (make-abstract-data)
   (insert-go-to '(abstract-data (abstract "")) '(0 0 0)))
@@ -208,11 +210,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (doc-data-go-to-active t i)
-  (cond ((< i 0) (tree-go-to t :end))
-	((tree-in? t i (doc-title-inactive-tag-list))
-	 (doc-data-go-to-active t (- i 1)))
-	((not (cursor-inside? (tree-ref t i)))
-	 (tree-go-to t i :end))))
+  (cond
+    ((< i 0) (tree-go-to t :end))
+    ((tree-in? t i (node-group-members "doc-title-inactive-tag"))
+     (doc-data-go-to-active t (- i 1)))
+    ((not (cursor-inside? (tree-ref t i))) (tree-go-to t i :end))))
 
 (tm-define (doc-data-activate-here)
   (with-innermost dd 'doc-data
@@ -220,12 +222,18 @@
       (tree-remove-node! t 0)
       (doc-data-go-to-active dd (tree-down-index dd)))))
 
-(tm-define (doc-data-has-hidden?)
-  (with-innermost t 'doc-data
-    (with l (cdr (tree->list t))
-      (with fun (lambda (t) (or (tree-in? t (doc-title-inactive-tag-list))
-				(tree-is? t 'doc-inactive)))
-	(list-or (map fun l))))))
+(tm-define
+ (doc-data-has-hidden?)
+ (with-innermost
+  t
+  'doc-data
+  (with l
+        (cdr (tree->list t))
+        (with fun
+              (lambda (t)
+                (or (tree-in? t (node-group-members "doc-title-inactive-tag"))
+                    (tree-is? t 'doc-inactive)))
+              (list-or (map fun l))))))
 
 (tm-define (doc-data-deactivated?)
   (with-innermost t 'doc-data
@@ -277,8 +285,9 @@
 ;; Sectional commands
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (section-context? t)
-  (tree-in? t (numbered-unnumbered-append (section-tag-list))))
+(tm-define
+ (section-context? t)
+ (tree-in? t (numbered-unnumbered-append (node-group-members "section-tag"))))
 
 (tm-define (previous-section)
   (with bt (buffer-tree)
@@ -294,10 +303,14 @@
         (when (and (tree? s) (tree->path s) (section-context? s))
           (tree-go-to s 0 :end))))))
 
-(tm-define (go-to-section-title)
-  (and-with s (previous-section)
-    (when (or (section-tag? (tm-car s)) (section*-tag? (tm-car s)))
-      (tree-go-to s 0 :start))))
+(tm-define
+ (go-to-section-title)
+ (and-with
+  s
+  (previous-section)
+  (when (or (node-group-contains? "section-tag" (tm-car s))
+            (node-group-contains? "section*-tag" (tm-car s)))
+        (tree-go-to s 0 :start))))
 
 (define (selection-trim-ending)
   (if (selection-active-any?)
@@ -356,21 +369,22 @@
 ;; Routines for lists, enumerations and descriptions
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (list-context? t)
-  (tree-in? t (list-tag-list)))
+(tm-define (list-context? t) (tree-in? t (node-group-members "list-tag")))
 
-(tm-define (itemize-context? t)
-  (tree-in? t (itemize-tag-list)))
+(tm-define
+ (itemize-context? t)
+ (tree-in? t (node-group-members "itemize-tag")))
 
-(tm-define (enumerate-context? t)
-  (tree-in? t (enumerate-tag-list)))
+(tm-define
+ (enumerate-context? t)
+ (tree-in? t (node-group-members "enumerate-tag")))
 
-(tm-define (todo-list-context? t)
-  (tree-in? t (todo-tag-list)))
+(tm-define (todo-list-context? t) (tree-in? t (node-group-members "todo-tag")))
 
-(tm-define (itemize-enumerate-context? t)
-  (or (tree-in? t (itemize-tag-list))
-      (tree-in? t (enumerate-tag-list))))
+(tm-define
+ (itemize-enumerate-context? t)
+ (or (tree-in? t (node-group-members "itemize-tag"))
+     (tree-in? t (node-group-members "enumerate-tag"))))
 
 (tm-define (todo-list-item-context? t)
   (or (tree-is? t 'todo-item)
@@ -404,21 +418,26 @@
           (and (tree? p) p))
         marker)))
 
-(tm-define (make-tmlist l)
-  (with flag? (and (selection-active-non-small?)
-                   (in? l (description-tag-list)))
-    (wrap-selection-any
-      (make l)
-      (if flag? (insert '(item* "")) (make-item)))))
+(tm-define
+ (make-tmlist l)
+ (with flag?
+       (and (selection-active-non-small?)
+            (in? l (node-group-members "description-tag")))
+       (wrap-selection-any
+        (make l)
+        (if flag? (insert '(item* "")) (make-item)))))
 
-(tm-define (make-item)
-  (if (not (make-return-after))
-      (with lab (inside-which (list-tag-list))
-	(cond ((in? lab (itemize-tag-list)) (make 'item))
-	      ((in? lab (enumerate-tag-list)) (make 'item))
-	      ((in? lab (todo-tag-list)) (make 'item))
-	      ((in? lab (description-tag-list)) (make 'item*))
-              (else (make 'item))))))
+(tm-define
+ (make-item)
+ (if (not (make-return-after))
+     (with lab
+           (inside-which (node-group-members "list-tag"))
+           (cond
+             ((in? lab (node-group-members "itemize-tag")) (make 'item))
+             ((in? lab (node-group-members "enumerate-tag")) (make 'item))
+             ((in? lab (node-group-members "todo-tag")) (make 'item))
+             ((in? lab (node-group-members "description-tag")) (make 'item*))
+             (else (make 'item))))))
 
 (tm-define (kbd-enter t shift?)
   (:require (list-context? t))
@@ -562,8 +581,9 @@
   (if (not (make-return-after))
       (insert (list (string->symbol env) aux name '(document "")))))
 
-(tm-define (automatic-section-context? t)
-  (tree-in? t (automatic-section-tag-list)))
+(tm-define
+ (automatic-section-context? t)
+ (tree-in? t (node-group-members "automatic-section-tag")))
 
 (define (automatic-name-var t)
   (cond ((tm-func? t 'table-of-contents) "table-of-contents-text")
@@ -597,15 +617,23 @@
 ;; Editing enunciations
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (enunciation-context? t)
-  (tree-in? t (enunciation-tag-list)))
+(tm-define
+ (enunciation-context? t)
+ (tree-in? t (node-group-members "enunciation-tag")))
 
-(tm-define (dueto-supporting-context? t)
-  (or (tree-in? t (numbered-unnumbered-append (enunciation-tag-list)))
-      (tree-in? t (render-enunciation-tag-list))
-      (tree-in? t '(proof render-proof
-                    proof-alternative render-proof-alternative
-                    proof-standard render-proof-standard))))
+(tm-define
+ (dueto-supporting-context? t)
+ (or (tree-in?
+      t
+      (numbered-unnumbered-append (node-group-members "enunciation-tag")))
+     (tree-in? t (node-group-members "render-enunciation-tag"))
+     (tree-in?
+      t
+      '(proof render-proof
+              proof-alternative
+              render-proof-alternative
+              proof-standard
+              render-proof-standard))))
 
 (tm-define (dueto-added? t)
   (tm-find t (lambda (x) (tm-is? x 'dueto))))
@@ -623,8 +651,9 @@
 ;; Editing algorithms
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (algorithm-context? t)
-  (tree-in? t (algorithm-tag-list)))
+(tm-define
+ (algorithm-context? t)
+ (tree-in? t (node-group-members "algorithm-tag")))
 
 (tm-define (algorithm-root s)
   (cond ((symbol-ends? s '*)
@@ -706,14 +735,17 @@
 ;; Possible to use a custom note symbol
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (detached-note-context? t)
-  (tree-in? t (detached-note-tag-list)))
+(tm-define
+ (detached-note-context? t)
+ (tree-in? t (node-group-members "detached-note-tag")))
 
-(tm-define (auto-note-context? t)
-  (tree-in? t (auto-note-tag-list)))
+(tm-define
+ (auto-note-context? t)
+ (tree-in? t (node-group-members "auto-note-tag")))
 
-(tm-define (custom-note-context? t)
-  (tree-in? t (custom-note-tag-list)))
+(tm-define
+ (custom-note-context? t)
+ (tree-in? t (node-group-members "custom-note-tag")))
 
 (tm-define (note-toggle-custom t)
   (let* ((l (symbol-toggle-number (tree-label t)))
@@ -727,48 +759,61 @@
 ;; Possible to change the title of titled environments
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (titled-context? t)
-  (or (tree-is? t 'enunciation)
-      (tree-in? t (numbered-unnumbered-append (titled-tag-list)))))
+(tm-define
+ (titled-context? t)
+ (or (tree-is? t 'enunciation)
+     (tree-in?
+      t
+      (numbered-unnumbered-append (node-group-members "titled-tag")))))
 
-(tm-define (titled-named? t)
-  (tree-in? t (render-titled-tag-list)))
+(tm-define
+ (titled-named? t)
+ (tree-in? t (node-group-members "render-titled-tag")))
 
-(tm-define (titled-toggle-name t)
-  (cond ((tree-in? t (numbered-unnumbered-append (small-figure-tag-list)))
-         (tree-set! t `(render-small-figure "" "" ,(tree-ref t 0)
-                                                  ,(tree-ref t 1))))
-        ((tree-in? t (numbered-unnumbered-append (big-figure-tag-list)))
-         (tree-set! t `(render-big-figure "" "" ,(tree-ref t 0)
-                                                ,(tree-ref t 1))))
-        ((tree-is? t 'render-small-figure)
-         (tree-set! t `(small-figure ,(tree-ref t 2) ,(tree-ref t 3))))
-        ((tree-is? t 'render-big-figure)
-         (tree-set! t `(big-figure ,(tree-ref t 2) ,(tree-ref t 3))))
-        (else (node-properties-show t))))
+(tm-define
+ (titled-toggle-name t)
+ (cond
+   ((tree-in?
+     t
+     (numbered-unnumbered-append (node-group-members "small-figure-tag")))
+    (tree-set! t `(render-small-figure "" "" ,(tree-ref t 0) ,(tree-ref t 1))))
+   ((tree-in?
+     t
+     (numbered-unnumbered-append (node-group-members "big-figure-tag")))
+    (tree-set! t `(render-big-figure "" "" ,(tree-ref t 0) ,(tree-ref t 1))))
+   ((tree-is? t 'render-small-figure)
+    (tree-set! t `(small-figure ,(tree-ref t 2) ,(tree-ref t 3))))
+   ((tree-is? t 'render-big-figure)
+    (tree-set! t `(big-figure ,(tree-ref t 2) ,(tree-ref t 3))))
+   (else (node-properties-show t))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Framed environments
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (frame-context? t)
-  (tree-in? t (frame-tag-list)))
+(tm-define (frame-context? t) (tree-in? t (node-group-members "frame-tag")))
 
-(tm-define (frame-titled-context? t)
-  (tree-in? t (frame-titled-tag-list)))
+(tm-define
+ (frame-titled-context? t)
+ (tree-in? t (node-group-members "frame-titled-tag")))
 
-(tm-define (frame-titled? t)
-  (tree-in? t (frame-titled-tag-list)))
+(tm-define
+ (frame-titled? t)
+ (tree-in? t (node-group-members "frame-titled-tag")))
 
-(tm-define (frame-toggle-title t)
-  (cond ((tree-in? t (frame-tag-list))
-         (with l (symbol-append (tree-label t) '-titled)
-           (tree-set! t `(,l ,(tree-ref t 0) ""))
-           (tree-go-to t 1 :end)))
-        ((tree-in? t (frame-titled-tag-list))
-         (with l (symbol-drop-right (tree-label t) 7)
-           (tree-set! t `(,l ,(tree-ref t 0)))
-           (tree-go-to t 0 :end)))))
+(tm-define
+ (frame-toggle-title t)
+ (cond
+   ((tree-in? t (node-group-members "frame-tag"))
+    (with l
+          (symbol-append (tree-label t) '-titled)
+          (tree-set! t `(,l ,(tree-ref t 0) ""))
+          (tree-go-to t 1 :end)))
+   ((tree-in? t (node-group-members "frame-titled-tag"))
+    (with l
+          (symbol-drop-right (tree-label t) 7)
+          (tree-set! t `(,l ,(tree-ref t 0)))
+          (tree-go-to t 0 :end)))))
 
 (tm-define (parameter-choice-list var)
   (:require (in? var (list "padding-above" "padding-below")))
@@ -872,12 +917,13 @@
                 (list "ornament-hpadding" "Horizontal padding")
                 (list "ornament-vpadding" "Vertical padding"))))
 
-(tm-define (customizable-parameters t)
-  (:require (tree-in? t (ornament-tag-list)))
-  (list (list "ornament-shape" "Shape")
-        (list "ornament-border" "Border width")
-        (list "ornament-hpadding" "Horizontal padding")
-        (list "ornament-vpadding" "Vertical padding")))
+(tm-define
+ (customizable-parameters t)
+ (:require (tree-in? t (node-group-members "ornament-tag")))
+ (list (list "ornament-shape" "Shape")
+       (list "ornament-border" "Border width")
+       (list "ornament-hpadding" "Horizontal padding")
+       (list "ornament-vpadding" "Vertical padding")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Floating objects and environments
@@ -889,8 +935,7 @@
 (tm-define (footnote-context? t)
   (tree-in? t '(footnote wide-footnote)))
 
-(tm-define (figure-context? t)
-  (tree-in? t (figure-tag-list)))
+(tm-define (figure-context? t) (tree-in? t (node-group-members "figure-tag")))
 
 (tm-define (float-or-footnote-context? t)
   (tree-in? t '(float wide-float footnote wide-footnote)))
@@ -1038,42 +1083,58 @@
   (:require (== l 'abstract))
   "Abstract text")
 
-(tm-define (parameter-show-in-menu? l)
-  (:require (and (string-ends? l "-numbered")
-                 (in? (string->symbol (string-drop-right l 9))
-                      (section-tag-list))))
-  #f)
+(tm-define
+ (parameter-show-in-menu? l)
+ (:require
+  (and (string-ends? l "-numbered")
+       (in? (string->symbol (string-drop-right l 9))
+            (node-group-members "section-tag"))))
+ #f)
 
 (tm-define (parameter-show-in-menu? l)
   (:require (== l "appendix-prefix"))
   #f)
 
-(tm-define (standard-options l)
-  (:require (in? l (list-tag-list)))
-  (list "compact-list" "triangle-list" "prefix-enumerations"))
+(tm-define
+ (standard-options l)
+ (:require (in? l (node-group-members "list-tag")))
+ (list "compact-list" "triangle-list" "prefix-enumerations"))
 
-(tm-define (standard-options l)
-  (:require (or (in? l (enunciation-tag-list))
-                (in? l (render-enunciation-tag-list))
-                (in? l '(proof render-proof
-                         proof-alternative render-proof-alternative
-                         proof-standard render-proof-standard))))
-  (append (list "number-europe" ;; "number-us"
-                "number-long-article"
-                "framed-theorems"
-                "hanging-theorems")))
+(tm-define
+ (standard-options l)
+ (:require
+  (or (in? l (node-group-members "enunciation-tag"))
+      (in? l (node-group-members "render-enunciation-tag"))
+      (in? l
+           '(proof render-proof
+                   proof-alternative
+                   render-proof-alternative
+                   proof-standard
+                   render-proof-standard))))
+ (append
+  (list "number-europe"
+        "number-long-article"
+        "framed-theorems"
+        "hanging-theorems")))
 
-(tm-define (focus-tag-name l)
-  (:require (in? l (algorithm-tag-list)))
-  (with r (algorithm-root l)
-    (with s (upcase-first (tree-name (tree r)))
-      (string-replace s "-" " "))))
+(tm-define
+ (focus-tag-name l)
+ (:require (in? l (node-group-members "algorithm-tag")))
+ (with r
+       (algorithm-root l)
+       (with s (upcase-first (tree-name (tree r))) (string-replace s "-" " "))))
 
-(tm-define (standard-options l)
-  (:require (in? l (algorithm-tag-list)))
-  (list "centered-program" "framed-program"))
+(tm-define
+ (standard-options l)
+ (:require (in? l (node-group-members "algorithm-tag")))
+ (list "centered-program" "framed-program"))
 
-(tm-define (standard-options l)
-  (:require (in? l (numbered-unnumbered-append
-                     (append (small-figure-tag-list) (big-figure-tag-list)))))
-  (list "captions-above"))
+(tm-define
+ (standard-options l)
+ (:require
+  (in? l
+       (numbered-unnumbered-append
+        (append
+         (node-group-members "small-figure-tag")
+         (node-group-members "big-figure-tag")))))
+ (list "captions-above"))

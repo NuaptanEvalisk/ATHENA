@@ -12,6 +12,8 @@
 #include "Bridge/impl_typesetter.hpp"
 #include "iterator.hpp"
 #include "tm_timer.hpp"
+#include "Env/local_environment.hpp"
+#include <memory>
 
 /******************************************************************************
 * Constructor and destructor
@@ -163,6 +165,34 @@ typesetter_rep::determine_page_references (box b) {
 
 box
 typesetter_rep::typeset () {
+  evaluation_environment_transaction execution (*env.operator-> ());
+  const tree source= br->st;
+  const path source_path= br->ip;
+  try {
+    box result= typeset_pass ();
+    execution.commit ();
+    return result;
+  }
+  catch (...) {
+    execution.rollback ();
+    // Completed children may have published cache records before the failed
+    // parent. Rebuild this pass from source, never from those partial effects.
+    br= make_bridge (this, source, source_path);
+    old_patch= hashmap<string,tree> (UNINIT);
+    l= array<page_item> ();
+    sb= stack_border ();
+    a= array<line_item> ();
+    b= array<line_item> ();
+    env->complete= false;
+    env->page_refs_changed= false;
+    progressive_pending= false;
+    progressive_root_active= false;
+    throw;
+  }
+}
+
+box
+typesetter_rep::typeset_pass () {
   old_patch= hashmap<string,tree> (UNINIT);
   l        = array<page_item> ();
   sb       = stack_border ();
@@ -195,10 +225,11 @@ typesetter_rep::typeset () {
     env->touched  = hashmap<string,bool> (false);
   }
   br->typeset (PROCESSED+ WANTED_PARAGRAPH);
-  pager ppp= tm_new<pager_rep> (br->ip, env, l);
+  auto release_pager= [] (pager p) { tm_delete (p); };
+  std::unique_ptr<pager_rep, decltype(release_pager)> ppp (
+    tm_new<pager_rep> (br->ip, env, l), release_pager);
   box rb= ppp->make_pages ();
   if (env->complete && paper) determine_page_references (rb);
-  tm_delete (ppp);
   // env->complete= false;  // moved to edit_typeset_rep::typeset
   return rb;
 }
@@ -307,16 +338,14 @@ typeset (typesetter ttt, SI& x1, SI& y1, SI& x2, SI& y2) {
 box
 typeset_as_document (edit_env env, tree t, path ip) {
   box b;
-  hashmap<string,tree> base_env;
-  env->read_env (base_env);
   for (int pass=0; pass<6; pass++) {
-    env->write_env (base_env);
+    temporary_environment_scope execution (*env.operator-> ());
     env->style_init_env ();
     env->update ();
-    typesetter ttt= new_typesetter (env, t, ip);
+    std::unique_ptr<typesetter_rep, decltype(&delete_typesetter)> ttt (
+      new_typesetter (env, t, ip), delete_typesetter);
     b= ttt->typeset ();
     bool again= env->page_refs_changed;
-    delete_typesetter (ttt);
     if (!again) break;
     if (pass == 5)
       typeset_warning << "Page references did not stabilize" << LF;

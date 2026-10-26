@@ -15,7 +15,6 @@
 #include "convert.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
-#include "tm_configure.hpp"
 #include "../../Typeset/env.hpp"
 #include <QFileInfo>
 #include <QSaveFile>
@@ -32,32 +31,16 @@
 ******************************************************************************/
 
 struct style_data_rep {
-  hashmap<tree,hashmap<string,tree> > style_cache;
-  hashmap<tree,tree> style_drd;
   hashmap<string,bool> style_busy;
-  hashmap<string,tree> style_void;
-  drd_info drd_void;
-  hashmap<tree,hashmap<string,tree> > style_cached;
-  hashmap<tree,drd_info> drd_cached;
-  hashmap<tree,hashmap<string,tree> > offline_style_env_cached;
-  hashmap<tree,drd_info> offline_style_drd_cached;
-  hashmap<tree,drd_info> offline_document_drd_cached;
+  hashmap<tree,style_environment_ptr> styles;
+  hashmap<tree,style_environment_ptr> offline_documents;
 
   style_data_rep ():
-    style_cache (hashmap<string,tree> (UNINIT)),
-    style_drd (tree (COLLECTION)),
     style_busy (false),
-    style_void (UNINIT),
-    drd_void ("void"),
-    style_cached (style_void),
-    drd_cached (drd_void),
-    offline_style_env_cached (style_void),
-    offline_style_drd_cached (drd_void),
-    offline_document_drd_cached (drd_void) {}
+    styles (nullptr), offline_documents (nullptr) {}
 };
 
 static std::atomic<std::uint64_t> style_generation {1};
-static std::mutex style_disk_cache_mutex;
 static thread_local style_data_rep* sd= NULL;
 static thread_local std::uint64_t local_style_generation= 0;
 thread_local hashmap<string,bool> hidden_packages (false);
@@ -286,36 +269,30 @@ preprocess_style (tree st, url name) {
 }
 
 /******************************************************************************
-* Caching style files on disk
+* Owner-thread evaluated package checkpoints
 ******************************************************************************/
 
-static string
-cache_file_name (tree t) {
-  if (is_atomic (t)) {
-    string s= t->label;
-    if (ends (s, ".ats")) s= s (0, N(s) - 4);
-    else if (ends (s, ".ts")) s= s (0, N(s) - 3);
-    s= replace (s, "/", "%");
-    s= replace (s, "\\", "%");
-    s= replace (s, ":", "_");
-    return s;
-  }
-  else {
-    string s;
-    int i, n= N(t);
-    for (i=0; i<n; i++)
-      s << "__" << cache_file_name (t[i]);
-    return s * "__";
-  }
+style_environment::style_environment (edit_env_rep& env):
+  inputs (env.inputs.snapshot ()), contracts (env.drd->contracts.snapshot ()) {
+  env.read_env (values);
 }
 
-static string
-style_cache_file_name (tree style) {
-  string ns= BUILD_DATE;
-  for (int i=0; i<N(ns); i++)
-    if (!is_alpha (ns[i]) && !is_digit (ns[i])) ns.set (i, '_');
-  // Native default macros are also stored in the style environment cache.
-  return "__athena-style-cache-v2-" * ns * "__" * cache_file_name (style);
+void
+style_environment::restore (edit_env_rep& env) const {
+  if (env.contract_events)
+    env.contract_events->record (athena::contracts::evaluation_barrier {});
+  env.env= copy (values);
+  env.inputs.reset (inputs);
+  env.drd->contracts= athena::contracts::contract_scope (contracts);
+  env.drd->set_environment (env.env);
+}
+
+drd_info
+style_environment::descriptor (string name) const {
+  drd_info result (name);
+  result->contracts= athena::contracts::contract_scope (contracts);
+  result->set_environment (copy (values));
+  return result;
 }
 
 void
@@ -330,8 +307,6 @@ style_invalidate_cache () {
   }
   init_style_data ();
   local_style_generation= generation;
-  std::lock_guard<std::mutex> lock (style_disk_cache_mutex);
-  remove ("$ATHENA_HOME_PATH/system/cache" * url_wildcard ("__*"));
 }
 
 std::uint64_t
@@ -339,122 +314,50 @@ style_cache_generation () {
   return style_generation.load (std::memory_order_acquire);
 }
 
-void
-style_set_cache (tree style, hashmap<string,tree> H, tree t) {
-  init_style_data ();
-  // cout << "set cache " << style << LF;
-  sd->style_cache (copy (style))= H;
-  sd->style_drd   (copy (style))= t;
-  url name ("$ATHENA_HOME_PATH/system/cache", style_cache_file_name (style));
-  std::lock_guard<std::mutex> guard (style_disk_cache_mutex);
-  if (!exists (name)) {
-    save_string (name, tree_to_scheme (tuple ((tree) H, t)));
-    // cout << "saved " << name << LF;
-  }
-}
-
-void
-style_get_cache (tree style, hashmap<string,tree>& H, tree& t, bool& f) {
-  init_style_data ();
-  //cout << "get cache " << style << LF;
-  if ((style == "") || (style == tree (TUPLE))) { f= false; return; }
-  f= sd->style_cache->contains (style);
-  if (f) {
-    H= sd->style_cache [style];
-    t= sd->style_drd   [style];
-  }
-  else {
-    string s;
-    url name ("$ATHENA_HOME_PATH/system/cache", style_cache_file_name (style));
-    std::lock_guard<std::mutex> guard (style_disk_cache_mutex);
-    if (exists (name) && (!load_string (name, s, false))) {
-      //cout << "loaded " << name << LF;
-      tree p= scheme_to_tree (s);
-      H= hashmap<string,tree> (UNINIT, p[0]);
-      t= p[1];
-      sd->style_cache (copy (style))= H;
-      sd->style_drd   (copy (style))= t;
-      f= true;
-    }
-  }
-}
-
 /******************************************************************************
 * Get environment and drd of style files
 ******************************************************************************/
 
-bool
-compute_env_and_drd (tree style) {
+style_environment_ptr
+get_style_environment (tree style, url source_name, bool scheme_modules) {
   init_style_data ();
+  init_std_drd ();
   ASSERT (is_tuple (style), "style tuple expected");
+  tree key (TUPLE, copy (style), as_string (head (source_name)),
+            as_string_bool (scheme_modules));
+  if (sd->styles->contains (key)) return sd->styles[key];
   bool busy= false;
   for (int i=0; i<N(style); i++)
     busy= busy || sd->style_busy->contains (as_string (style[i]));
-  hashmap<string,bool> old_busy= copy (sd->style_busy);
+  struct busy_scope {
+    hashmap<string,bool> previous;
+    busy_scope (): previous (copy (sd->style_busy)) {}
+    ~busy_scope () { sd->style_busy= previous; }
+  } active;
   for (int i=0; i<N(style); i++)
     sd->style_busy (as_string (style[i]))= true;
 
-  //cout << "Get environment of " << style << INDENT << LF;
-  hashmap<string,tree> H;
-  drd_info drd ("none", standard_drd_for_thread ());
-  url none= url ("$PWD/none");
+  drd_info drd ("package-evaluation", standard_drd_for_thread ());
   hashmap<string,tree> lref;
   hashmap<string,tree> gref;
   hashmap<string,tree> laux;
   hashmap<string,tree> gaux;
   hashmap<string,tree> latt;
   hashmap<string,tree> gatt;
-  edit_env env (drd, none, lref, gref, laux, gaux, latt, gatt);
+  edit_env env (drd, source_name, lref, gref, laux, gaux, latt, gatt);
+  env->set_scheme_modules_enabled (scheme_modules);
   if (!busy) {
-    tree t;
-    bool ok;
-    style_get_cache (style, H, t, ok);
-    if (ok) {
-      env->patch_env (H);
-      ok= drd->set_locals (t);
-      drd->set_environment (H);
-    }
-    if (!ok) {
-      env->exec (tree (USE_PACKAGE, A (style)));
-      env->read_env (H);
-      drd->heuristic_init (H);
-    }
-    sd->style_cached (style)= H;
-    sd->drd_cached (style)= drd;
+    env->exec (tree (USE_PACKAGE, A (style)));
+    env->analyze_contracts ();
   }
-  //cout << UNINDENT << "Got environment of " << style << LF;
-
-  sd->style_busy= old_busy;
-  return !busy;
-}
-
-hashmap<string,tree>
-get_style_env (tree style) {
-  //cout << "get_style_env " << style << "\n";
-  init_style_data ();
-  if (sd->style_cached->contains (style))
-    return sd->style_cached [style];
-  else if (compute_env_and_drd (style))
-    return sd->style_cached [style];
-  else {
-    //cout << "Busy style: " << style << "\n";
-    return hashmap<string,tree> ();
-  }
+  auto checkpoint= std::make_shared<const style_environment> (*env.operator-> ());
+  if (!busy) sd->styles(key)= checkpoint;
+  return checkpoint;
 }
 
 drd_info
 get_style_drd (tree style) {
-  //cout << "get_style_drd " << style << "\n";
-  init_style_data ();
-  init_std_drd ();
-  if (sd->drd_cached->contains (style))
-    return sd->drd_cached [style];
-  else if (compute_env_and_drd (style))
-    return sd->drd_cached [style];
-  else {
-    //cout << "Busy drd: " << style << "\n";
-    return standard_drd_for_thread ();
-  }
+  return get_style_environment (style, url ("$PWD/none"), true)->descriptor ("style");
 }
 
 tree
@@ -482,12 +385,11 @@ get_document_drd (tree doc) {
       return the_drd;
     style= tree (TUPLE, "generic");
   }
-  //cout << "style= " << style << "\n";
-  drd_info drd= get_style_drd (style);
+  url none= url ("$PWD/none");
+  auto base= get_style_environment (style, none, true);
+  drd_info drd= base->descriptor ("document");
   tree p= get_document_preamble (doc);
   if (p != "") {
-    drd= drd_info ("preamble", drd);
-    url none= url ("$PWD/none");
     hashmap<string,tree> lref;
     hashmap<string,tree> gref;
     hashmap<string,tree> laux;
@@ -495,43 +397,11 @@ get_document_drd (tree doc) {
     hashmap<string,tree> latt;
     hashmap<string,tree> gatt;
     edit_env env (drd, none, lref, gref, laux, gaux, latt, gatt);
-    hashmap<string,tree> H;
-    env->exec (tree (USE_PACKAGE, A (style)));
+    base->restore (*env.operator-> ());
+    env->update ();
     env->exec (p);
-    env->read_env (H);
-    drd->heuristic_init (H);
+    env->analyze_contracts ();
   }
-  return drd;
-}
-
-drd_info
-get_offline_style_drd (tree style, url source_name,
-                       hashmap<string,tree>& values) {
-  init_style_data ();
-  init_std_drd ();
-  // Keep the source directory in the cache key.  exec_use_package deliberately
-  // searches beside the owning document, so two documents with the same visible
-  // style tuple may still resolve nested local packages differently.
-  tree key (TUPLE, copy (style), as_string (head (source_name)));
-  if (sd->offline_style_drd_cached->contains (key)) {
-    values= sd->offline_style_env_cached [key];
-    return sd->offline_style_drd_cached [key];
-  }
-
-  drd_info drd ("offline-style", standard_drd_for_thread ());
-  hashmap<string,tree> lref;
-  hashmap<string,tree> gref;
-  hashmap<string,tree> laux;
-  hashmap<string,tree> gaux;
-  hashmap<string,tree> latt;
-  hashmap<string,tree> gatt;
-  edit_env env (drd, source_name, lref, gref, laux, gaux, latt, gatt);
-  env->set_scheme_modules_enabled (false);
-  env->exec (tree (USE_PACKAGE, A (style)));
-  env->read_env (values);
-  drd->heuristic_init (values);
-  sd->offline_style_env_cached (copy (key))= values;
-  sd->offline_style_drd_cached (copy (key))= drd;
   return drd;
 }
 
@@ -539,19 +409,18 @@ drd_info
 get_offline_document_drd (tree doc, url source_name) {
   init_style_data ();
   tree style= preprocess_style (extract (doc, "style"), source_name);
-  hashmap<string,tree> base_values;
-  drd_info base= get_offline_style_drd (style, source_name, base_values);
+  auto base= get_style_environment (style, source_name, false);
 
   tree preamble= get_document_preamble (doc);
-  if (preamble == "") return base;
+  if (preamble == "") return base->descriptor ("offline-document");
 
   tree key (TUPLE, copy (style), as_string (head (source_name)), copy (preamble));
-  if (sd->offline_document_drd_cached->contains (key))
-    return sd->offline_document_drd_cached [key];
+  if (sd->offline_documents->contains (key))
+    return sd->offline_documents[key]->descriptor ("offline-document");
 
   // Preamble processing is the document-specific overlay.  Reuse the cached
   // package environment/DRD and execute only the local preamble on top of it.
-  drd_info drd ("offline-document-preamble", base);
+  drd_info drd= base->descriptor ("offline-document-preamble");
   hashmap<string,tree> lref;
   hashmap<string,tree> gref;
   hashmap<string,tree> laux;
@@ -560,12 +429,12 @@ get_offline_document_drd (tree doc, url source_name) {
   hashmap<string,tree> gatt;
   edit_env env (drd, source_name, lref, gref, laux, gaux, latt, gatt);
   env->set_scheme_modules_enabled (false);
-  env->patch_env (base_values);
+  base->restore (*env.operator-> ());
+  env->update ();
   env->exec (preamble);
-  hashmap<string,tree> values;
-  env->read_env (values);
-  drd->heuristic_init (values);
-  sd->offline_document_drd_cached (copy (key))= drd;
+  env->analyze_contracts ();
+  sd->offline_documents(copy (key))=
+    std::make_shared<const style_environment> (*env.operator-> ());
   return drd;
 }
 

@@ -241,8 +241,8 @@ bridge_docrange_rep::refresh_radioactive_children () {
 void
 bridge_docrange_rep::my_exec_until (path p) {
   if (p->item < begin);
-  else if ((p->item >= end) && ((status & VALID_MASK) == PROCESSED))
-    env->patch_env (changes);
+  else if ((p->item >= end) && ((status & VALID_MASK) == PROCESSED) &&
+           env->replay_contract_events (contract_changes, false)) {}
   else if (divide) {
     int i, n= N(acc);
     for (i=0; i<n; i++)
@@ -250,7 +250,7 @@ bridge_docrange_rep::my_exec_until (path p) {
   }
   else {
     int i;
-    for (i=begin; i<p->item; i++)
+    for (i=begin; i<min (end, p->item); i++)
       brs[i]->exec_until (path (right_index (brs[i]->st)), true);
     if (p->item < end) brs[i]->exec_until (p->next);
   }

@@ -6,6 +6,7 @@
 * This software falls under the GNU general public license version 3 or later.
 ******************************************************************************/
 #include "math_tree_v3.hpp"
+#include "Data/NodeContracts/native_fields.hpp"
 #include "node_metadata.hpp"
 #include "named_symbol.hpp"
 #include "unicode_text.hpp"
@@ -21,8 +22,6 @@ bool one_of (const string& value, const char* options) {
   return N (value) == 1 &&
     std::string_view (options).find (value[0]) != std::string_view::npos;
 }
-
-bool atomic (const tree& value) { return is_atomic (value); }
 
 } // namespace
 
@@ -45,11 +44,12 @@ bool size_level (const string& value) {
 }
 
 bool valid_delimited (const tree& value) {
-  if (!is_func (value, DELIMITED, 6)) return false;
-  for (int i= 0; i < 5; ++i)
-    // These five scalar descriptors are encoded as attributes of <d>.
-    // Any nested UUID/property would be silently discarded by that encoding.
-    if (!atomic (value[i]) || athena::node::get (value[i])) return false;
+  if (L(value) != DELIMITED || !contracts::native_field_shape (value)) return false;
+  const auto* fields= contracts::native_fields (DELIMITED);
+  for (int i=0; i<N(value); ++i)
+    // Descriptor fields serialize as attributes, so they cannot own metadata.
+    if (fields->child (i, N(value))->role == contracts::field_role::data &&
+        athena::node::get (value[i])) return false;
   if (!glyph (value[0]->label, true) || !glyph (value[1]->label, true) ||
       (value[0]->label == "" && value[1]->label == "") ||
       !one_of (value[2]->label, "afm"))
@@ -71,8 +71,7 @@ tree delimited (const string& left, const string& right, char sizing,
 }
 
 bool valid_big_operator (const tree& value) {
-  if (!is_func (value, BIG_OPERATOR, 2) ||
-      !atomic (value[0]) || !atomic (value[1]) ||
+  if (L(value) != BIG_OPERATOR || !contracts::native_field_shape (value) ||
       athena::node::get (value[0]) || athena::node::get (value[1]) ||
       !one_of (value[1]->label, "01")) return false;
   return glyph (value[0]->label);
@@ -103,14 +102,11 @@ tree scripts (const tree& base, const tree& left_sub, const tree& left_sup,
 }
 
 bool valid_scripts (const tree& value) {
-  if (!is_func (value, MATH_SCRIPTS, 5)) return false;
+  if (L(value) != MATH_SCRIPTS || !contracts::native_field_shape (value) ||
+      !contracts::native_property_shape (value)) return false;
   const auto* meta= athena::node::get (value);
-  if (!meta) return false;
-  auto policy= meta->properties.find (scripts_policy_key);
-  if (policy == meta->properties.end ()) return false;
-  const auto* text= std::get_if<std::string> (&policy->second.data);
-  if (!text) return false;
-  return valid_scripts_policy (string (text->data (), int (text->size ())));
+  const auto& text= std::get<std::string> (meta->properties.at (scripts_policy_key).data);
+  return valid_scripts_policy (string (text.data (), int (text.size ())));
 }
 
 std::string symbol_registry_identity (const string& semantic_id) {
@@ -254,48 +250,33 @@ void clear_row_tag (tree& row) {
 
 bool valid_native_math (const tree& value) {
   if (!is_compound (value)) return true;
+  if (const auto* fields= contracts::native_fields (L(value)))
+    if (fields->math && (!contracts::native_field_shape (value) ||
+                        !contracts::native_property_shape (value))) return false;
   switch (L (value)) {
   case DELIMITED: return valid_delimited (value);
   case BIG_OPERATOR: return valid_big_operator (value);
   case MATH_SCRIPTS: return valid_scripts (value);
   case MATH_MIDDLE:
-    return N (value) == 1 && is_atomic (value[0]) &&
-           !athena::node::get (value[0]) &&
+    return !athena::node::get (value[0]) &&
            glyph (value[0]->label);
-  case MATH_ACCENT: {
-    if (N (value) != 3 || !is_atomic (value[0]) ||
-        !is_atomic (value[1]) || !glyph (value[0]->label) ||
-        !one_of (value[1]->label, "ou")) return false;
-    const auto* meta= athena::node::get (value);
-    if (!meta) return false;
-    const auto found= meta->properties.find ("math:accent-stretch");
-    return found != meta->properties.end () &&
-           std::holds_alternative<bool> (found->second.data);
-  }
+  case MATH_ACCENT:
+    return glyph (value[0]->label) && one_of (value[1]->label, "ou");
   case MATH_ANNOTATION:
     // The fixed three-slot layout must also represent an editor's unfinished
     // annotation with an empty label. It still has exactly one canonical AST.
-    return N (value) == 3;
+    return true;
   case MATH_LONG_ARROW:
-    return N (value) == 3 &&
-           ((is_atomic (value[0]) && glyph (value[0]->label)) ||
+    return ((is_atomic (value[0]) && glyph (value[0]->label)) ||
             (is_func (value[0], MATH_SYMBOL, 1) &&
              is_atomic (value[0][0]) &&
              !symbol_registry_identity (value[0][0]->label).empty ()));
   case MATH_GRID: {
-    if (N (value) == 0) return false;
-    bool row_overrides= false;
-    if (const auto* meta= athena::node::get (value)) {
-      auto kind= meta->properties.find ("math:grid-kind");
-      if (kind == meta->properties.end ()) return false;
-      const auto* data= std::get_if<std::string> (&kind->second.data);
-      if (!data || !(*data == "matrix" || *data == "eqnarray" ||
-                     *data == "align" || *data == "cases" ||
-                     *data == "stack" ||
-                     *data == "generic")) return false;
-      row_overrides= *data == "eqnarray" || *data == "align" || *data == "stack";
-    }
-    else return false;
+    const auto* meta= athena::node::get (value);
+    const auto& kind= std::get<std::string> (meta->properties.at ("math:grid-kind").data);
+    if (!(kind == "matrix" || kind == "eqnarray" || kind == "align" ||
+          kind == "cases" || kind == "stack" || kind == "generic")) return false;
+    const bool row_overrides= kind == "eqnarray" || kind == "align" || kind == "stack";
     for (int i=0; i<N (value); ++i) {
       if (!valid_grid_row (value[i])) return false;
       if (!row_overrides)
@@ -306,15 +287,8 @@ bool valid_native_math (const tree& value) {
     return true;
   }
   case MATH_BLOCK:
-    if (N (value) != 1 || is_func (value[0], DOCUMENT)) return false;
-    if (const auto* meta= athena::node::get (value)) {
-      auto numbered= meta->properties.find ("math:block-numbered");
-      return numbered != meta->properties.end () &&
-             std::holds_alternative<bool> (numbered->second.data);
-    }
-    return false;
+    return !is_func (value[0], DOCUMENT);
   case MATH_VARIANT: {
-    if (N (value) != 2 || !is_atomic (value[0])) return false;
     const string& kind= value[0]->label;
     return kind == "bb" || kind == "rm" || kind == "it" ||
            kind == "bf" || kind == "ss" || kind == "tt" ||
@@ -322,7 +296,6 @@ bool valid_native_math (const tree& value) {
            kind == "mbf" || kind == "mbfu";
   }
   case MATH_SYMBOL: {
-    if (N (value) != 1 || !is_atomic (value[0])) return false;
     return !symbol_registry_identity (value[0]->label).empty ();
   }
   default: return true;
@@ -332,24 +305,16 @@ bool valid_native_math (const tree& value) {
 bool descriptor_slot (const tree& value, int index) {
   if (!is_compound (value) || index < 0 || index >= N (value))
     return false;
-  switch (L (value)) {
-  case DELIMITED: return index < 5;
-  case BIG_OPERATOR: return true;
-  case MATH_MIDDLE: case MATH_SYMBOL: return index == 0;
-  case MATH_ACCENT: return index < 2;
-  case MATH_VARIANT: return index == 0;
-  case MATH_LONG_ARROW: return index == 0;
-  default: return false;
-  }
+  const auto* fields= contracts::native_fields (L(value));
+  const auto* field= fields && fields->math ? fields->child (index, N(value)) : nullptr;
+  return field && field->role == contracts::field_role::data;
 }
 
 bool hidden_search_descriptor_slot (const tree& value, int index) {
   if (!descriptor_slot (value, index)) return false;
-  if (index == 0 &&
-      (L (value) == BIG_OPERATOR || L (value) == MATH_MIDDLE ||
-       (L (value) == MATH_LONG_ARROW && is_atomic (value[index]))))
-    return false;
-  return true;
+  const auto* field= contracts::native_fields (L(value))->child (index, N(value));
+  return field->search == contracts::search_projection::hidden ||
+    (field->search == contracts::search_projection::atomic && !is_atomic (value[index]));
 }
 
 } // namespace athena::math_v3

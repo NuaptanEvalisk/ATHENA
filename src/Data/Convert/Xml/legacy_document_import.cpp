@@ -11,6 +11,7 @@
 #include "legacy_document_reader.hpp"
 #include "drd_std.hpp"
 #include "drd_info.hpp"
+#include "Data/NodeContracts/evaluation_inputs.hpp"
 #include "file.hpp"
 #include "analyze.hpp"
 #include "convert.hpp"
@@ -19,6 +20,7 @@
 #include <limits>
 #include <memory>
 #include <set>
+#include <stdexcept>
 
 namespace athena::document {
 namespace {
@@ -75,6 +77,7 @@ tree find_document_field (const tree& document, string label) {
 class contract_compiler {
   drd_info drd;
   hashmap<string,tree> environment;
+  contracts::evaluation_inputs inputs;
   std::vector<tree> properties;
   std::set<std::string> loaded;
   legacy_import_limits limits;
@@ -144,8 +147,13 @@ class contract_compiler {
     if ((is_func (t, ASSIGN, 2) || is_func (t, PROVIDE, 2)) &&
         is_atomic (t[0])) {
       string name= t[0]->label;
-      if (is_func (t, ASSIGN) || !environment->contains (name))
+      if (is_func (t, ASSIGN) || !environment->contains (name)) {
         environment (name)= t[1];
+        inputs.record (bytes (name), true);
+        if (is_func (t[1], MACRO) || is_func (t[1], XMACRO) ||
+            (existing_tree_label (name) && drd->contracts.definition (as_tree_label (name))))
+          drd->contracts.bind (athena::contracts::capture_definition (name, t[1]));
+      }
       return;
     }
     if (is_func (t, DRD_PROPS)) {
@@ -172,10 +180,13 @@ public:
         if (is_atomic (style[i])) load_package (style[i]->label, document_path);
     tree preamble= find_preamble (source);
     if (preamble != "") scan (preamble, document_path);
-    // Explicit contracts freeze their slots before heuristic inference so a
-    // macro body cannot weaken a declared scalar/code/identifier role.
-    for (const auto& property: properties) apply_drd_properties (drd, property);
-    drd->heuristic_init (environment);
+    // Explicit roles take precedence over inferred macro composition.
+    try {
+      for (const auto& property: properties) apply_drd_properties (drd, property);
+    } catch (const std::invalid_argument& error) {
+      throw codec_exception (codec_error::invalid_structure, error.what ());
+    }
+    drd->analyze_environment (inputs.snapshot (), environment);
   }
 
   legacy_text_role role (const tree& parent, int child,

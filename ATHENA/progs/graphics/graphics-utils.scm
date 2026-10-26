@@ -13,8 +13,9 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(texmacs-module (graphics graphics-utils)
-  (:use (graphics graphics-drd)))
+(texmacs-module
+ (graphics graphics-utils)
+ (:use (graphics graphics-properties)))
 
 (use-modules (ice-9 copy-tree))
 
@@ -296,19 +297,22 @@
 	(with u (tree-innermost 'graphics)
 	  (and u (tree->path u))))))
 
-(tm-define (graphics-path path)
-  (if (or (null? path) (null? (cdr path)))
-      #f
-      (with p (cDr path)
-	 (with o (path->tree p)
-	    (if (and (tree? o) ;; (in? (tree-label o) gr-tags-all)
-		     (not (eq? (tree-label o) 'string))
-		     (tm-upwards-path (cDr p) '(graphics)
-                                      (graphical-text-tag-list)))
-		(begin
-		  ;;(display* "gp=" (path->tree (cDr path)) "\n")
-		  (if (eq? (tree-label o) 'graphics) #f p))
-		(graphics-path (cDr path)))))))
+(tm-define
+ (graphics-path path)
+ (if (or (null? path) (null? (cdr path)))
+     #f
+     (with p
+           (cDr path)
+           (with o
+                 (path->tree p)
+                 (if (and (tree? o)
+                          (not (eq? (tree-label o) 'string))
+                          (tm-upwards-path
+                           (cDr p)
+                           '(graphics)
+                           (node-group-members "graphical-text-tag")))
+                     (begin (if (eq? (tree-label o) 'graphics) #f p))
+                     (graphics-path (cDr path)))))))
 
 (tm-define (graphics-active-path)
   ;; path to active tag

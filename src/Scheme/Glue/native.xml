@@ -1490,4 +1490,25 @@
   <binding name="image-remove-background" native="image_remove_background_current" returns="string">
     <arg type="object" />
   </binding>
+  <binding name="initialize-node-groups" native="initialize_node_groups" returns="void" exceptions="scheme" />
+  <binding name="node-group-members" native="native_node_group_members" returns="object" exceptions="scheme">
+    <arg type="string" />
+  </binding>
+  <binding name="node-group-contains?" native="native_node_group_contains" returns="bool" exceptions="scheme">
+    <arg type="string" />
+    <arg type="object" />
+  </binding>
+  <binding name="node-group-find" native="native_node_group_find" returns="object" exceptions="scheme">
+    <arg type="object" />
+    <arg type="string" />
+  </binding>
+  <binding name="variants-of" native="native_node_variants" returns="object" exceptions="scheme">
+    <arg type="object" />
+  </binding>
+  <binding name="similar-to" native="native_node_similar" returns="object" exceptions="scheme">
+    <arg type="object" />
+  </binding>
+  <binding name="symbol-toggle-alternate" native="native_node_alternate" returns="object" exceptions="scheme">
+    <arg type="object" />
+  </binding>
 </glue>

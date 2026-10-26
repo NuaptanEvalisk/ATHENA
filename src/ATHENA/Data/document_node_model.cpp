@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "ATHENA/Data/document_node_model.hpp"
+#include "Data/NodeContracts/native_fields.hpp"
 #include "ATHENA/Data/heading_word_count.hpp"
 #include "ATHENA/Data/document_node_copy.hpp"
 #include "ATHENA/Data/enunciation_model.hpp"
@@ -148,6 +149,24 @@ public:
   }
 };
 
+role_declaration native_roles (const tree& source,
+                              const contracts::native_node_fields& fields) {
+  role_declaration result;
+  for (int i=0; i<N(source); ++i) {
+    switch (fields.child (i, N(source))->role) {
+    case contracts::field_role::data:
+      result.children.push_back (child_role::data); break;
+    case contracts::field_role::content:
+      result.children.push_back (child_role::content); break;
+    case contracts::field_role::inline_content:
+      result.children.push_back (child_role::inline_content); break;
+    case contracts::field_role::body:
+      result.children.push_back (child_role::body); break;
+    }
+  }
+  return result;
+}
+
 role_declaration roles_for (const tree& source, drd_info drd,
                             const role_resolver& resolve, const source_path& where) {
   if (excluded (source)) return {semantic_role::data, "", {}};
@@ -185,6 +204,19 @@ role_declaration roles_for (const tree& source, drd_info drd,
     return {semantic_role::enunciation, supplied ? supplied->category : "",
             {child_role::body}};
   }
+  if (const auto* fields= contracts::native_fields (L(source))) {
+    if (!contracts::native_field_shape (source))
+      fail (where, issue::invalid_role_declaration,
+            "Source does not match native fields of " + fields->name);
+    role_declaration result= native_roles (source, *fields);
+    if (supplied) {
+      if (supplied->children != result.children)
+        fail (where, issue::invalid_role_declaration,
+              "Conflicting native field roles for " + fields->name);
+      return *supplied;
+    }
+    return result;
+  }
   if (supplied) return *supplied;
   if (athena_heading_level (source) > 0 || athena_heading_title_tree (source)) {
     if (N(source) > 1)
@@ -202,27 +234,27 @@ role_declaration roles_for (const tree& source, drd_info drd,
   if (!drd->contains (as_string (L(source))))
     fail (where, issue::unsupported_ambiguous_role, "No DRD or explicit body-role contract for " +
           bytes (as_string (L(source))));
-  if (!drd->correct_arity (L(source), N(source)))
-    fail (where, issue::unsupported_ambiguous_role, "Arity does not match DRD");
+  const auto& info= drd->contracts.resolve (L(source));
+  if (!info.layout.accepts (N(source)))
+    fail (where, issue::unsupported_ambiguous_role, "Arity does not match node contract");
 
-  // Read physical child descriptors directly: is_accessible_child depends on
-  // live source/hidden access mode and must not control migration semantics.
-  tag_info info= drd->info[L(source)];
-  if (info->pi.type == TYPE_CODE || info->pi.type == TYPE_RAW)
+  // Source identity roles consume one resolved contract, not view-dependent
+  // accessibility getters or separate positional descriptor lookups.
+  if (info.type == TYPE_CODE || info.type == TYPE_RAW)
     return {semantic_role::data, "", {}};
   role_declaration result;
   for (int i= 0; i < N(source); ++i) {
-    const int index= info->get_index (i, N(source));
-    if (index < 0 || index >= N(info->ci))
+    const int index= info.layout.index (i, N(source));
+    if (index < 0 || index >= int(info.fields.size ()))
       fail (where, issue::unsupported_ambiguous_role, "DRD has no physical child role");
-    const child_info& child= info->ci[index];
+    const auto& child= info.fields[index];
     // A transparent WITH-like macro returns its final argument through only
-    // WITH-like wrappers. arg_access() consequently finds that argument without
-    // an enclosing typed expression and leaves TYPE_UNKNOWN. The DRD's
+    // WITH-like wrappers. Parameter analysis finds that argument without an
+    // enclosing typed expression and leaves TYPE_UNKNOWN. The descriptor's
     // with_like contract, unlike accessibility alone, proves it is content.
     // Other unknown arguments remain errors; no tag-name guesses are involved.
     const bool transparent_body= child.type == TYPE_UNKNOWN &&
-      i+1 == N(source) && drd->is_with_like (source);
+      i+1 == N(source) && info.with_like;
     if (child.type == TYPE_ADHOC || child.type == TYPE_ERROR ||
         (child.type == TYPE_UNKNOWN && !transparent_body))
       fail (where, issue::unsupported_ambiguous_role,
@@ -233,7 +265,7 @@ role_declaration roles_for (const tree& source, drd_info drd,
       result.children.push_back (child_role::data);
       continue;
     }
-    const tree mode= drd_env_read (drd->get_env (L(source), index), "mode", "");
+    const tree mode= drd_env_read (tree (child.environment), "mode", "");
     if (mode == "prog" || mode == "src") {
       result.children.push_back (child_role::data);
       continue;
@@ -249,7 +281,7 @@ role_declaration roles_for (const tree& source, drd_info drd,
     // for CONCAT. It is not evidence of a declared paragraph/body boundary.
     // Nested DOCUMENTs are recognized structurally; other body slots need a
     // named DRD contract or the caller's explicit role declaration.
-    else if (drd->get_child_name (L(source), index) == "body")
+    else if (info.attribute ("name-" + std::to_string (index)) == "body")
       result.children.push_back (child_role::body);
     else result.children.push_back (child_role::content);
   }
@@ -397,20 +429,6 @@ template<typename T> T& at (T& root, const source_path& where) {
   return *current;
 }
 
-property_type type_of (const node::property& value) {
-  return std::visit ([] (const auto& item) {
-    using T= std::decay_t<decltype (item)>;
-    if constexpr (std::is_same_v<T, std::string>) return property_type::string;
-    else if constexpr (std::is_same_v<T, bool>) return property_type::boolean;
-    else if constexpr (std::is_same_v<T, std::int64_t>) return property_type::integer;
-    else if constexpr (std::is_same_v<T, double>) return property_type::real;
-    else if constexpr (std::is_same_v<T, node::property::list>) return property_type::list;
-    else if constexpr (std::is_same_v<T, node::property::dictionary>) return property_type::dictionary;
-    else if constexpr (std::is_same_v<T, node::reference>) return property_type::reference;
-    else return property_type::rich_text;
-  }, value.data);
-}
-
 class property_validator {
   traversal_budget budget;
   std::set<const tree_rep*> active;
@@ -493,38 +511,23 @@ public:
     const auto* metadata= node::get (source);
     if (metadata && !metadata->id.empty () && !node::valid_id (metadata->id))
       error (issue::invalid_id, "", "Invalid node ID");
-    const std::vector<property_rule>* schema= enunciation ?
-      &enunciation_property_schema () :
-      (program ? &program_property_schema () : nullptr);
+    const auto* schema= contracts::native_fields (L(source));
     if (schema != nullptr) {
-      for (const auto& rule: *schema)
-        if (rule.required && (!metadata || metadata->properties.count (rule.name) == 0))
-          error (issue::missing_property, rule.name,
-                 enunciation ? "Required enunciation property" :
-                               "Required program property");
+      for (const auto& [name, field]: schema->properties)
+        if (field.required && (!metadata || metadata->properties.count (name) == 0))
+          error (issue::missing_property, name, "Required " + schema->name + " property");
     }
     if (metadata) {
       for (const auto& entry: metadata->properties) {
-        const auto rule= schema == nullptr ?
-          static_cast<const property_rule*> (nullptr) :
-          [&] () -> const property_rule* {
-            auto found= std::find_if (
-              schema->begin (), schema->end (), [&] (const property_rule& r) {
-                return r.name == entry.first;
-              });
-            return found == schema->end () ? nullptr : &*found;
-          } ();
+        const auto* rule= schema ? schema->property (entry.first) : nullptr;
         if (rule != nullptr) {
-          if (type_of (entry.second) != rule->type &&
-              (!rule->accepted_legacy_type ||
-               type_of (entry.second) != *rule->accepted_legacy_type))
+          if (!rule->accepts_type (entry.second))
             error (issue::wrong_property_type, entry.first,
-                   enunciation ? "Does not match enunciation property schema" :
-                                 "Does not match program property schema");
+                   "Does not match " + schema->name + " property schema");
           if (rule->element_type) {
             if (const auto* list= std::get_if<node::property::list> (&entry.second.data))
               for (std::size_t i= 0; i < list->size (); ++i)
-                if (type_of ((*list)[i]) != *rule->element_type)
+                if (contracts::type_of ((*list)[i]) != *rule->element_type)
                   error (issue::wrong_property_type,
                          entry.first + "[" + std::to_string (i) + "]",
                          "List member does not match property element schema");
@@ -568,6 +571,11 @@ std::optional<role_declaration> standard_source_role (const tree& source) {
   if (athena::program::is_program (source))
     return role_declaration {
       semantic_role::content, "program", {child_role::body}};
+  if (!canonical_enunciation (source))
+    if (const auto* fields= contracts::native_fields (L(source))) {
+      if (!contracts::native_field_shape (source)) return {};
+      return native_roles (source, *fields);
+    }
   const auto& registry= enunciation::standard_registry ();
   const int body= registry.body_index (source);
   if (body >= 0) {
@@ -673,13 +681,6 @@ std::optional<role_declaration> standard_source_role (const tree& source) {
     return role_declaration {
       semantic_role::content, "",
       {child_role::data, child_role::content}};
-  // WIDE accents may be structured presentation tokens (for example a
-  // NAMED_SYMBOL wrapped in CONCAT), so the DRD cannot type them as strings.
-  // The decorated expression is source content; the accent descriptor is not.
-  if (is_func (source, WIDE, 2) || is_func (source, VAR_WIDE, 2))
-    return role_declaration {
-      semantic_role::content, "",
-      {child_role::content, child_role::data}};
   // Math presentation primitives mix source expressions with structural
   // operator/delimiter descriptors.  The latter may themselves be structured
   // trees, so source identity planning must classify them by primitive
@@ -703,11 +704,6 @@ std::optional<role_declaration> standard_source_role (const tree& source) {
     children[0]= child_role::data;
     return role_declaration {semantic_role::content, "", std::move (children)};
   }
-  if ((is_func (source, ABOVE, 2) || is_func (source, BELOW, 2)) ||
-      (is_func (source, SQRT) && (N(source) == 1 || N(source) == 2)))
-    return role_declaration {
-      semantic_role::content, "",
-      std::vector<child_role> (N(source), child_role::content)};
   // Legacy TeX imports may retain mathllap as a one-argument transparent
   // presentation wrapper around authored mathematical content.
   if (is_compound (source, "mathllap", 1))
@@ -774,12 +770,6 @@ std::optional<role_declaration> standard_source_role (const tree& source) {
       is_compound (source, "choice", 1))
     return role_declaration {
       semantic_role::content, "", {child_role::content}};
-  if (is_func (source, TFORMAT) && N(source) >= 1) {
-    std::vector<child_role> children (N(source), child_role::data);
-    children.back ()= child_role::content;
-    return role_declaration {
-      semantic_role::content, "", std::move (children)};
-  }
   if (is_compound (source, "description-paragraphs", 1))
     return role_declaration {
       semantic_role::content, "", {child_role::body}};
@@ -979,27 +969,6 @@ std::vector<diagnostic> source_identity_state::cancelled (const tree& body, limi
   auto errors= initialize (body, budget);
   if (errors.empty ()) dirty.reset ();
   return errors;
-}
-
-const std::vector<property_rule>& enunciation_property_schema () {
-  static const std::vector<property_rule> schema {
-    {"kind", property_type::string, true},
-    {"name", property_type::list, true, property_type::rich_text, property_type::rich_text},
-    {"attribution", property_type::list, false, property_type::rich_text},
-    {"year", property_type::string, false},
-    {"numbered", property_type::boolean, true},
-    {"target", property_type::reference, false},
-    {"variant", property_type::string, false},
-    {"legacy-tag", property_type::string, false}
-  };
-  return schema;
-}
-
-const std::vector<property_rule>& program_property_schema () {
-  static const std::vector<property_rule> schema {
-    {"language", property_type::string, true}
-  };
-  return schema;
 }
 
 bool is_namespaced_extension (const std::string& name) {
