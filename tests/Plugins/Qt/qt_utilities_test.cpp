@@ -15,7 +15,7 @@
 #include "Qt/qt_utilities.hpp"
 #include "Xml/clipboard_xml.hpp"
 #include "convert.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include <stdexcept>
 #include <atomic>
 #include <thread>
@@ -26,7 +26,7 @@ class TestQtUtilities: public QObject {
   Q_OBJECT
 
 private slots:
-  void initTestCase () { init_std_drd (); }
+  void initTestCase () { athena::contracts::initialize_builtins (); }
   void text_roundtrip ();
   void invalid_text ();
   void text_lists ();
@@ -102,7 +102,7 @@ void TestQtUtilities::parallel_plain_text () {
   std::vector<std::thread> workers;
   for (int i=0; i<8; ++i) workers.emplace_back ([&] {
     // Each search worker owns its tree and DRD, including on pooled-thread reuse.
-    standard_drd_for_thread ();
+    athena::contracts::builtin_contracts ();
     tree content (DOCUMENT, tree (WITH, "font-series", "bold", "Body"));
     ++ready;
     while (ready.load () != 8) std::this_thread::yield ();

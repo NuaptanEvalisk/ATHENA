@@ -79,8 +79,10 @@ struct utf8_text_box_rep final: box_rep {
   }
   box expand_glyphs (int mode, double factor) override {
     (void) mode;
-    return utf8_text_box (ip, source, begin, end,
-                          fn->magnify (1.0 + factor, 1.0), pen, options, bg);
+    box result= utf8_text_box (ip, source, begin, end,
+                               fn->magnify (1.0 + factor, 1.0), pen, options, bg);
+    result->source_boundary= source_boundary;
+    return result;
   }
   double left_slope () override { return fn->slope; }
   double right_slope () override { return fn->slope; }
@@ -359,14 +361,18 @@ text_box_rep::adjust_kerning (int mode, double factor) {
   }
   if ((mode & START_OF_LINE) != 0) nxk->left  -= pad;
   if ((mode & END_OF_LINE  ) != 0) nxk->right -= pad;
-  return tm_new<text_box_rep> (ip, pos, str, fn, pen, nxk, bg);
+  auto* result= tm_new<text_box_rep> (ip, pos, str, fn, pen, nxk, bg);
+  result->source_boundary= source_boundary;
+  return result;
 }
 
 box
 text_box_rep::expand_glyphs (int mode, double factor) {
   if (N(str) == 0) return this;
   font nfn= fn->magnify (1.0 + factor, 1.0);
-  return tm_new<text_box_rep> (ip, pos, str, nfn, pen, xk, bg);
+  auto* result= tm_new<text_box_rep> (ip, pos, str, nfn, pen, xk, bg);
+  result->source_boundary= source_boundary;
+  return result;
 }
 
 void

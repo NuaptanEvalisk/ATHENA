@@ -21,7 +21,7 @@
 #include "data_cache.hpp"
 #include "math_tree_v3.hpp"
 #include "tree_cursor.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "node_metadata.hpp"
 #include "document_node_model.hpp"
 #include "scheme.hpp"
@@ -35,7 +35,7 @@ static server_rep* test_server= nullptr;
 
 class NativeMathEditor: public edit_main_rep {
 public:
-  using editor_rep::drd;
+  using editor_rep::contract_state;
   using editor_rep::eb;
   NativeMathEditor (server_rep* server, buffer_document_state* buffer):
     editor_rep (server, buffer), edit_main_rep (server, buffer) {}
@@ -76,7 +76,7 @@ class NativeV3MathEditorTest: public QObject {
   }
 
   void verify_display_focus (path block) {
-    SchemeExecutionContext context (nullptr, editor, &editor->drd,
+    SchemeExecutionContext context (nullptr, editor, &editor->contract_state,
       &buffer->document, ATHENA_NO_ACTOR, ATHENA_NO_VIEW, 0,
       SCHEME_CAPABILITY_BUFFER);
     SchemeExecutionScope execution (context);
@@ -115,7 +115,7 @@ private slots:
     QVERIFY (native_latex_get_command ("(", help, inline_formula));
   }
   void nativeGridRowSelectionKeepsNativeOwnership () {
-    SchemeExecutionContext context (nullptr, editor, &editor->drd,
+    SchemeExecutionContext context (nullptr, editor, &editor->contract_state,
       &buffer->document, 0, 0, 0, SCHEME_CAPABILITY_BUFFER);
     SchemeExecutionScope scope (context);
     tree grid (MATH_GRID,
@@ -184,7 +184,7 @@ private slots:
     QFETCH (int, columns);
     QFETCH (int, row);
     QFETCH (int, column);
-    SchemeExecutionContext context (nullptr, editor, &editor->drd,
+    SchemeExecutionContext context (nullptr, editor, &editor->contract_state,
       &buffer->document, 0, 0, 0, SCHEME_CAPABILITY_BUFFER);
     SchemeExecutionScope scope (context);
     tree grid (MATH_GRID, 2);
@@ -249,7 +249,7 @@ private slots:
     QFETCH (QString, entry);
     QFETCH (bool, grid);
     QFETCH (bool, selected);
-    SchemeExecutionContext context (nullptr, editor, &editor->drd,
+    SchemeExecutionContext context (nullptr, editor, &editor->contract_state,
       &buffer->document, 0, 0, 0, SCHEME_CAPABILITY_BUFFER);
     SchemeExecutionScope scope (context);
     buffer->storage_version= athena::document::xml_storage_version::v3;
@@ -327,7 +327,7 @@ private slots:
     QFETCH (QString, automatic);
     QFETCH (bool, selected);
     eval ("(import-from (math math-edit))");
-    SchemeExecutionContext context (nullptr, editor, &editor->drd,
+    SchemeExecutionContext context (nullptr, editor, &editor->contract_state,
       &buffer->document, ATHENA_NO_ACTOR, ATHENA_NO_VIEW, 0,
       SCHEME_CAPABILITY_BUFFER);
     SchemeExecutionScope execution (context);
@@ -347,7 +347,7 @@ private slots:
     QCOMPARE (editor->the_path (), end (current_document_tree (), content_path () * 5));
   }
   void escapePickerBracketsInTextStaySerializable () {
-    SchemeExecutionContext context (nullptr, editor, &editor->drd,
+    SchemeExecutionContext context (nullptr, editor, &editor->contract_state,
       &buffer->document, ATHENA_NO_ACTOR, ATHENA_NO_VIEW, 0,
       SCHEME_CAPABILITY_BUFFER);
     SchemeExecutionScope execution (context);
@@ -379,7 +379,7 @@ private slots:
   void selectedNativeFormulaAcceptsBrackets () {
     QFETCH (bool, identified);
     QFETCH (bool, partial);
-    with_borrowed_drd context (&editor->drd);
+    athena::contracts::evaluation_state_scope context (&editor->contract_state);
     namespace model= athena::document_node;
     tree accent (MATH_ACCENT, "\xcc\x87", "o", "\xce\xb3");
     athena::node::metadata accent_meta;
@@ -402,7 +402,7 @@ private slots:
     }
     reset_inline (expression);
     const auto assigned= model::assign_detached_source_ids (
-      subtree (current_document_tree (), buffer->root_path), editor->drd,
+      subtree (current_document_tree (), buffer->root_path), editor->contract_state.contracts,
       model::standard_source_role, [] (const auto&) { return athena::node::new_id (); });
     QVERIFY2 (assigned.ok (), assigned.diagnostics.empty () ? "No source body" :
               assigned.diagnostics.front ().detail.c_str ());
@@ -410,7 +410,7 @@ private slots:
     editor->clear_undo_history ();
     buffer->node_identities= std::make_unique<model::source_identity_state> ();
     QVERIFY (buffer->node_identities->initialize_complete (
-      *assigned.body, editor->drd, model::standard_source_role).empty ());
+      *assigned.body, editor->contract_state.contracts, model::standard_source_role).empty ());
     const tree before= copy (*assigned.body);
     editor->archive_state ();
     editor->selection_set_paths (content_path () * path (partial ? 2 : 0, 0),
@@ -420,7 +420,7 @@ private slots:
     editor->start_editing ();
     editor->math_bracket_open ("(", ")", 1);
     const auto plan= buffer->node_identities->prepare (
-      subtree (current_document_tree (), buffer->root_path), editor->drd,
+      subtree (current_document_tree (), buffer->root_path), editor->contract_state.contracts,
       model::standard_source_role, [] (const auto&) { return athena::node::new_id (); });
     editor->end_editing ();
     QVERIFY2 (plan.ok (), plan.diagnostics.empty () ? "Invalid edit" :
@@ -437,7 +437,7 @@ private slots:
     QCOMPARE (subtree (current_document_tree (), buffer->root_path), after);
   }
   void cutIdentifiedFixedContentTransfersHeader () {
-    with_borrowed_drd context (&editor->drd);
+    athena::contracts::evaluation_state_scope context (&editor->contract_state);
     for (tree value: {tree ("xy"), tree (CONCAT, "x", tree (FRAC, "a", "b")),
                       tree (DOCUMENT, "x", "y")}) {
       athena::node::metadata meta;
@@ -1041,7 +1041,7 @@ private slots:
     verify_roundtrip ();
   }
   void arrowKeysStopOutsideDelimitersInsideMath () {
-    with_borrowed_drd context (&editor->drd);
+    athena::contracts::evaluation_state_scope context (&editor->contract_state);
     for (char sizing: {'a', 'f', 'm'})
       for (const tree& body: {tree (""), tree ("x"), tree (FRAC, "a", "b")}) {
         reset_inline (athena::math_v3::delimited ("(", ")", sizing, body,
@@ -1072,7 +1072,7 @@ private slots:
     QVERIFY (editor->the_path () == end (current_document_tree (), content_path ()));
   }
   void hybridBigOperatorsAcceptScriptsInV3 () {
-    SchemeExecutionContext context (nullptr, editor, &editor->drd,
+    SchemeExecutionContext context (nullptr, editor, &editor->contract_state,
       &buffer->document, 0, 0, 0, SCHEME_CAPABILITY_BUFFER);
     SchemeExecutionScope scope (context);
     for (const char* name: {"prod", "sum", "int", "coprod"}) {
@@ -1157,7 +1157,7 @@ private slots:
       }
   }
   void hybridEmptyHatCanBeDeleted () {
-    SchemeExecutionContext context (nullptr, editor, &editor->drd,
+    SchemeExecutionContext context (nullptr, editor, &editor->contract_state,
       &buffer->document, 0, 0, 0, SCHEME_CAPABILITY_BUFFER);
     SchemeExecutionScope scope (context);
     reset_inline ("");
@@ -1267,7 +1267,7 @@ private slots:
     verify_roundtrip ();
   }
   void escapeBlackboardFollowedByBracketUsesNativeV3 () {
-    SchemeExecutionContext context (nullptr, editor, &editor->drd,
+    SchemeExecutionContext context (nullptr, editor, &editor->contract_state,
       &buffer->document, ATHENA_NO_ACTOR, ATHENA_NO_VIEW, 0,
       SCHEME_CAPABILITY_BUFFER);
     SchemeExecutionScope scope (context);

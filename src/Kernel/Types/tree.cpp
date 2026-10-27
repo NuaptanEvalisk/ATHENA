@@ -11,7 +11,7 @@
 
 #include "generic_tree.hpp"
 #include "node_metadata.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "hashset.hpp"
 
 /******************************************************************************
@@ -339,7 +339,7 @@ is_multi_paragraph (tree t) {
     return is_multi_paragraph (t[N(t)-1]);
   default:
     {
-      static hashset<tree_label> inline_set; // FIXME: use drd
+      static hashset<tree_label> inline_set; // FIXME: use contract_state
       if (N(inline_set) == 0) {
 	inline_set->insert (make_tree_label ("footnote"));
 	inline_set->insert (make_tree_label ("footnote-anchor"));

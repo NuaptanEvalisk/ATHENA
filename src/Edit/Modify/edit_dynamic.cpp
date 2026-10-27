@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "edit_dynamic.hpp"
+#include "Typeset/Env/local_environment.hpp"
 #include "tree_analyze.hpp"
 #include "ATHENA/Data/enunciation_model.hpp"
 #include "format_commands.hpp"
@@ -18,6 +19,7 @@
 #include "buffer_state.hpp"
 #include "node_metadata.hpp"
 #include "Data/NodeContracts/node_groups.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
 
 #include <algorithm>
 
@@ -32,25 +34,53 @@ edit_dynamic_rep::~edit_dynamic_rep () {}
 * Subroutines for inactive content
 ******************************************************************************/
 
-static bool env_locked   = false;
-static bool env_in_source= false;
+namespace {
+struct source_edit_scope {
+  std::optional<bool>& selected;
+  std::optional<bool> previous;
+  source_edit_scope (std::optional<bool>& selected, bool source):
+    selected (selected), previous (selected) { selected= source; }
+  ~source_edit_scope () { selected= previous; }
+};
+
+struct macro_edit_scope {
+  std::shared_ptr<const evaluation_environment_checkpoint>& selected;
+  std::shared_ptr<const evaluation_environment_checkpoint> previous;
+  macro_edit_scope (std::shared_ptr<const evaluation_environment_checkpoint>& selected,
+                    std::shared_ptr<const evaluation_environment_checkpoint> context):
+    selected (selected), previous (selected) { selected= std::move (context); }
+  ~macro_edit_scope () { selected= std::move (previous); }
+};
+}
+
+std::shared_ptr<const evaluation_environment_checkpoint>
+edit_dynamic_rep::macro_invocation_context () {
+  if (macro_environment) return macro_environment;
+  path input= search_upwards (HYBRID);
+  if (is_nil (input)) input= search_upwards (LATEX);
+  if (is_nil (input)) return editor_rep::cursor_context_at (tp);
+  if (is_func (subtree (et, path_up (input)), INACTIVE)) input= path_up (input);
+  // Read the invocation site, outside the name field's display-only text style.
+  return editor_rep::cursor_context_at (input * 0);
+}
 
 bool
 edit_dynamic_rep::in_source () {
-  // FIXME: we use a very dirty trick to "lock the environment",
-  // so that no new look-ups are made during modifications of et or tp.
-  // In fact, we would need to retypeset the document in order to
-  // get a correct value.
-  if (!env_locked)
-    env_in_source= get_env_string (MODE) == "src";
-  return env_in_source;
+  if (source_mode_during_edit) return *source_mode_during_edit;
+  const auto context= macro_environment ? macro_environment :
+    cursor_context_at (tp, cursor_source_boundary ());
+  if (context) return context->value (MODE) == "src" || context->value (PREAMBLE) == "true";
+  return get_env_string (MODE) == "src";
 }
 
 path
 edit_dynamic_rep::find_dynamic (path p) {
   path parent= path_up (p);
   if (!(rp < parent)) return path ();
-  if (drd->is_dynamic (subtree (et, parent))) return p;
+  tree source= subtree (et, parent);
+  if (L(source) >= START_EXTENSIONS ||
+      athena::contracts::editing_query {contract_state.contracts}.variable_arity (source))
+    return p;
   return find_dynamic (parent);
 }
 
@@ -77,7 +107,8 @@ edit_dynamic_rep::is_multi_paragraph_macro (tree t, bool pure) {
     for (i=1; i<n; i++)
       if (is_multi_paragraph_macro (t[i], pure))
         return true;
-    tree f= get_env_value (as_string (L(t)));
+    tree f= macro_environment ? macro_environment->value (as_string (L(t))) :
+      get_env_value (as_string (L(t)));
     return is_multi_paragraph_macro (f, pure);
   }
   if (!pure)
@@ -101,7 +132,10 @@ contains_table_format (tree t, tree var) {
 
 void
 edit_dynamic_rep::make_compound (tree_label l, int n= -1) {
-  //cout << "Make compound " << as_string (l) << ", " << n << "\n";
+  const auto context= macro_invocation_context ();
+  macro_edit_scope invocation (macro_environment, context);
+  const athena::contracts::editing_query query {
+    context ? context->contract_context () : contract_state.contracts};
   const string tag= as_string (l);
   const auto* declaration= athena::enunciation::standard_registry ().legacy (
     std::string (tag.data (), N(tag)));
@@ -125,10 +159,14 @@ edit_dynamic_rep::make_compound (tree_label l, int n= -1) {
     }
   }
   eval ("(use-modules (generic generic-edit))");
+  const tree definition= context ? context->value (tag) : get_env_value (tag);
+  if (n == -1 && is_func (definition, MACRO) &&
+      query.describe (l).layout_origin == athena::contracts::property_authority::inferred)
+    n= N(definition)-1;
   if (n == -1) {
     for (n=0; true; n++) {
-      if (drd->correct_arity (l, n) &&
-          ((n>0) || (drd->get_arity_mode (l) == ARITY_NORMAL))) break;
+      if (query.describe (l).layout.accepts (n) &&
+          ((n>0) || (query.describe (l).layout.arity == athena::contracts::arity_kind::fixed))) break;
       if (n == 100) return;
     }
   }
@@ -137,14 +175,14 @@ edit_dynamic_rep::make_compound (tree_label l, int n= -1) {
   path p (0, 0);
   int  acc=0;
   for (; acc<n; acc++)
-    if (drd->is_accessible_child (t, acc))
+    if (query.accessible (t, acc))
       break;
   if (acc<n) p->item= acc;
   if (n == 0) insert_tree (t, 1);
-  else if (is_with_like (t) && format_with_like_check_insert (t));
+  else if (query.describe (l).with_like && format_with_like_check_insert (t));
   else {
     string s= as_string (l);
-    tree f= get_env_value (s);
+    tree f= definition;
     bool block_macro= (N(f) == 2) && is_multi_paragraph_macro (f, true);
     bool large_macro= (N(f) == 2) && is_multi_paragraph_macro (f, false);
     bool table_macro= (N(f) == 2) && contains_table_format (f[1], f[0]);
@@ -155,7 +193,7 @@ edit_dynamic_rep::make_compound (tree_label l, int n= -1) {
     if (selection_active_small () ||
         (large_macro && selection_active_normal ()))
       sel= selection_get_cut ();
-    else if (is_with_like (t) && selection_active_normal ()) {
+    else if (query.describe (l).with_like && selection_active_normal ()) {
       sel= selection_get_cut ();
       t[n-1]= sel;
       insert_tree (t, p);
@@ -172,7 +210,7 @@ edit_dynamic_rep::make_compound (tree_label l, int n= -1) {
         t[0]= tree (DOCUMENT, "");
         p   = path (0, 0, 0);
       }
-    if (!drd->all_accessible (l))
+    if (!query.all_fields_editable (l))
       if (get_init_string (MODE) != "src" && !inside ("show-preamble")) {
         t= tree (INACTIVE, t);
         p= path (0, p);
@@ -182,14 +220,14 @@ edit_dynamic_rep::make_compound (tree_label l, int n= -1) {
     if (sel != "") insert_tree (sel, end (sel));
     
     tree mess= concat ();
-    if (drd->get_arity_mode (l) != ARITY_NORMAL)
+    if (query.describe (l).layout.arity != athena::contracts::arity_kind::fixed)
       mess= concat (kbd ("A-right"), ": insert argument");
-    if (!drd->all_accessible (l)) {
+    if (!query.all_fields_editable (l)) {
       if (mess != "") mess << ", ";
       mess << kbd ("return") << ": activate";
     }
     if (mess == concat ()) mess= "Move to the right when finished";
-    set_status_hint (mess, drd->get_name (l));
+    set_status_hint (mess, query.name (l));
   }
 }
 
@@ -208,7 +246,7 @@ edit_dynamic_rep::activate () {
     correct (path_up (p));
   }
   else {
-    bool acc= (p < path_up (tp) && drd->is_accessible_child (st, tp[N(p)]));
+    bool acc= (p < path_up (tp) && athena::contracts::editing_query {contract_state.contracts}.accessible (st, tp[N(p)]));
     remove_node (p * 0);
     call ("notify-activated", object (subtree (et, p)));
     if (!acc) go_to (end (et, p));
@@ -228,7 +266,7 @@ edit_dynamic_rep::go_to_argument (path p, bool start_flag) {
   if (i < 0) go_to_start (path_up (p, inactive? 2: 1));
   else if (i >= n) go_to_end (path_up (p, inactive? 2: 1));
   else {
-    if ((!drd->is_accessible_child (t, i)) &&
+    if ((!athena::contracts::editing_query {contract_state.contracts}.accessible (t, i)) &&
         (!inactive) && (!in_source ()))
       {
         insert_node (path_up (p) * 0, INACTIVE);
@@ -248,11 +286,11 @@ edit_dynamic_rep::insert_argument (path p, bool forward) {
       is_func (t, STYLE_WITH) ||
       is_func (t, VAR_STYLE_WITH))
     if (i == n-1) i--;
-  if ((!in_source ()) || drd->contains (as_string (L(t)))) {
-    if (forward) do i++; while ((i<=n) && (!drd->insert_point (L(t), i, n)));
-    else while ((i>=0) && (!drd->insert_point (L(t), i, n))) i--;
+  if ((!in_source ()) || athena::contracts::editing_query {contract_state.contracts}.contains (as_string (L(t)))) {
+    if (forward) do i++; while ((i<=n) && (!athena::contracts::editing_query {contract_state.contracts}.describe (L(t)).layout.insertion (i, n)));
+    else while ((i>=0) && (!athena::contracts::editing_query {contract_state.contracts}.describe (L(t)).layout.insertion (i, n))) i--;
     if ((i<0) || (i>n)) return;
-    while (!drd->correct_arity (L(t), n+d)) d++;
+    while (!athena::contracts::editing_query {contract_state.contracts}.describe (L(t)).layout.accepts (n+d)) d++;
   }
   else if (forward) i++;
   path q= path_up (p) * i;
@@ -274,19 +312,20 @@ void
 edit_dynamic_rep::remove_empty_argument (path p, bool forward) {
   tree t= subtree (et, path_up (p));
   int i= last_item (p), j, d, n= N(t);
-  bool src_flag= in_source () && (!drd->contains (as_string (L(t))));
+  const bool source= in_source ();
+  bool src_flag= source && (!athena::contracts::editing_query {contract_state.contracts}.contains (as_string (L(t))));
 
   for (d=1; d<=n-i; d++)
     if ((src_flag && (d==1)) ||
         ((!src_flag) &&
-         drd->correct_arity (L(t), n-d) &&
-         drd->insert_point (L(t), i, n-d)))
+         athena::contracts::editing_query {contract_state.contracts}.describe (L(t)).layout.accepts (n-d) &&
+         athena::contracts::editing_query {contract_state.contracts}.describe (L(t)).layout.insertion (i, n-d)))
       {
         bool flag= true;
         for (j=0; j<d; j++)
           flag= flag && is_empty (t[i+j]);
         if (flag) {
-          bool old_locked= env_locked; env_locked= true;
+          source_edit_scope source_scope (source_mode_during_edit, source);
           remove (p, d);
           if ((d == n) && is_mod_active_once (subtree (et, path_up (p, 2)))) {
             remove_node (path_up (p, 2) * 0);
@@ -294,7 +333,6 @@ edit_dynamic_rep::remove_empty_argument (path p, bool forward) {
           }
           else if (forward) go_to_argument (path_up (p) * i, true);
           else go_to_argument (path_up (p) * (i-1), false);
-          env_locked= old_locked;
           return;
         }
         else break;
@@ -339,12 +377,12 @@ void
 edit_dynamic_rep::remove_argument (path p, bool forward) {
   tree t= subtree (et, path_up (p));
   int i= last_item (p), n= N(t), d= 1;
-  if ((!in_source ()) || drd->contains (as_string (L(t)))) {
-    if (forward) do i++; while (i<=n && !drd->insert_point (L(t), i, n));
-    else while (i>=0 && !drd->insert_point (L(t), i, n)) i--;
+  if ((!in_source ()) || athena::contracts::editing_query {contract_state.contracts}.contains (as_string (L(t)))) {
+    if (forward) do i++; while (i<=n && !athena::contracts::editing_query {contract_state.contracts}.describe (L(t)).layout.insertion (i, n));
+    else while (i>=0 && !athena::contracts::editing_query {contract_state.contracts}.describe (L(t)).layout.insertion (i, n)) i--;
     if ((i<0) || (i>n)) return;
-    while (i>=d && !drd->correct_arity (L(t), n-d)) d++;
-    if (i<d || n<=d || !drd->insert_point (L(t), i-d, n-d)) return;
+    while (i>=d && !athena::contracts::editing_query {contract_state.contracts}.describe (L(t)).layout.accepts (n-d)) d++;
+    if (i<d || n<=d || !athena::contracts::editing_query {contract_state.contracts}.describe (L(t)).layout.insertion (i-d, n-d)) return;
   }
   else {
     if (forward) i++;
@@ -398,7 +436,7 @@ void
 edit_dynamic_rep::back_in_general (tree t, path p, bool forward) {
   if (is_func (subtree (et, path_up (p, 2)), INACTIVE) || in_source ())
     if ((L(t) >= START_EXTENSIONS) && (last_item (p) == 0) && (!forward)) {
-      bool src_flag= in_source () && (!drd->contains (as_string (L(t))));
+      bool src_flag= in_source () && (!athena::contracts::editing_query {contract_state.contracts}.contains (as_string (L(t))));
       tree u (COMPOUND, copy (as_string (L(t))));
       if (is_empty (t[0]) && src_flag) u << A (copy (t (1, N(t))));
       else u << A (copy (t));
@@ -656,14 +694,20 @@ edit_dynamic_rep::prepare_hybrid () {
   tree st= subtree (et, p);
   if (N(st) == 3 && is_tuple (st[1])) return true;
   if (!is_atomic (st[0]) || st[0] == "") return false;
+  const auto context= macro_invocation_context ();
+  if (!context) {
+    set_message ("Macro input is awaiting layout", "Macro input");
+    return false;
+  }
+  macro_edit_scope invocation (macro_environment, context);
+  const athena::contracts::editing_query query {context->contract_context ()};
   string name= st[0]->label;
-  tree f= get_env_value (name);
-  drd_update ();
+  tree f= context->value (name);
   tree_label tag= make_tree_label (name);
   int arity= 0;
   if (is_func (f, MACRO)) arity= N(f)-1;
-  else if (drd->contains (name)) {
-    for (; arity < 100 && !drd->correct_arity (tag, arity); ++arity) {}
+  else if (query.contains (name)) {
+    for (; arity < 100 && !query.describe (tag).layout.accepts (arity); ++arity) {}
     if (arity == 100) return false;
   }
   else return false;
@@ -677,13 +721,13 @@ edit_dynamic_rep::prepare_hybrid () {
   tree prototype (tag, arity);
   for (int i=0; i<arity; ++i) {
     string label= is_func (f, MACRO) && is_atomic (f[i])?
-                    f[i]->label: drd->get_child_name (prototype, i);
+                    f[i]->label: query.child_name (prototype, i);
     if (label == "body") {
       if (body >= 0) { body= -1; break; }
       body= i;
     }
   }
-  if (body < 0 && arity == 1 && drd->is_accessible_child (prototype, 0)) body= 0;
+  if (body < 0 && arity == 1 && query.accessible (prototype, 0)) body= 0;
   if (selected != "" && body >= 0) {
     args[body]= selected;
     selected= "";
@@ -697,6 +741,29 @@ edit_dynamic_rep::prepare_hybrid () {
   if (selected != "")
     set_status_hint ("Select an argument and press Enter to place the selection", name);
   return true;
+}
+
+void
+edit_dynamic_rep::choose_hybrid (string name, bool activate) {
+  if (!hybrid_name_context ()) return;
+  const auto context= macro_invocation_context ();
+  if (!context) {
+    set_message ("Macro input is awaiting layout", "Macro input");
+    return;
+  }
+  macro_edit_scope invocation (macro_environment, context);
+  std::optional<command> resolved;
+  if (activate) {
+    string help;
+    command action;
+    (void) kbd_get_command (name, help, action);
+    resolved= action;
+  }
+  path field= path_up (tp);
+  assign (field, name);
+  go_to (end (et, field));
+  if (activate) activate_hybrid (false, resolved);
+  else (void) prepare_hybrid ();
 }
 
 bool
@@ -755,9 +822,9 @@ edit_dynamic_rep::hybrid_keypress (string key) {
     int n= N(st[1]);
     if (key == "A-right") {
       int next= n+1;
-      while (next < 100 && !drd->correct_arity (tag, next)) ++next;
+      while (next < 100 && !athena::contracts::editing_query {contract_state.contracts}.describe (tag).layout.accepts (next)) ++next;
       int at= n;
-      while (at >= 0 && !drd->insert_point (tag, at, n)) --at;
+      while (at >= 0 && !athena::contracts::editing_query {contract_state.contracts}.describe (tag).layout.insertion (at, n)) --at;
       if (next < 100 && at >= 0) {
         insert (p * 1 * at, tree (TUPLE, next-n));
         go_to (start (et, p * 1 * at));
@@ -765,9 +832,9 @@ edit_dynamic_rep::hybrid_keypress (string key) {
     }
     else {
       int previous= n-1;
-      while (previous >= 0 && !drd->correct_arity (tag, previous)) --previous;
+      while (previous >= 0 && !athena::contracts::editing_query {contract_state.contracts}.describe (tag).layout.accepts (previous)) --previous;
       int at= previous;
-      while (at >= 0 && !drd->insert_point (tag, at, previous)) --at;
+      while (at >= 0 && !athena::contracts::editing_query {contract_state.contracts}.describe (tag).layout.insertion (at, previous)) --at;
       bool empty= at >= 0;
       for (int i= std::max (0, at); empty && i<at+n-previous; ++i)
         empty= is_empty (st[1][i]);
@@ -804,6 +871,11 @@ edit_dynamic_rep::activate_latex () {
 
 bool
 edit_dynamic_rep::activate_latex (bool report_error) {
+  return activate_latex (report_error, {});
+}
+
+bool
+edit_dynamic_rep::activate_latex (bool report_error, const std::optional<command>& resolved) {
   path p= search_upwards (LATEX);
   if (is_nil (p)) p= search_upwards (HYBRID);
   if (is_nil (p)) return false;
@@ -813,7 +885,15 @@ edit_dynamic_rep::activate_latex (bool report_error) {
       p= path_up (p);
     string  s= st[0]->label, help;
     command cmd;
-    if (kbd_get_command (s, help, cmd)) {
+    const bool found= resolved ? (cmd= *resolved, !is_nil (cmd)) :
+      kbd_get_command (s, help, cmd);
+    if (found) {
+      const auto context= macro_invocation_context ();
+      if (!context) {
+        set_message ("Macro input is awaiting layout", "Macro input");
+        return false;
+      }
+      macro_edit_scope invocation (macro_environment, context);
       cut (p * 0, p * 1);
       cmd ();
       if (N(st) == 2) insert_tree (copy (st[1]));
@@ -828,7 +908,19 @@ edit_dynamic_rep::activate_latex (bool report_error) {
 
 void
 edit_dynamic_rep::activate_hybrid (bool with_args_hint) {
+  activate_hybrid (with_args_hint, {});
+}
+
+void
+edit_dynamic_rep::activate_hybrid (bool with_args_hint, const std::optional<command>& resolved) {
   // WARNING: update edit_interface_rep::set_hybrid_footer when updating this
+  const auto context= macro_invocation_context ();
+  if (!context) {
+    set_message ("Macro input is awaiting layout", "Macro input");
+    return;
+  }
+  macro_edit_scope invocation (macro_environment, context);
+  const athena::contracts::editing_query query {context->contract_context ()};
   path hp= search_upwards (HYBRID);
   if (!is_nil (hp)) {
     tree input= subtree (et, hp);
@@ -839,11 +931,11 @@ edit_dynamic_rep::activate_hybrid (bool with_args_hint) {
     if (N(input) == 3 && is_tuple (input[1])) {
       if (input[2] != "") return;
       tree_label label= make_tree_label (input[0]->label);
-      tree f= get_env_value (input[0]->label);
+      tree f= context->value (input[0]->label);
       if ((!is_func (f, MACRO) && !is_func (f, XMACRO) &&
-           !drd->contains (input[0]->label)) ||
+           !query.contains (input[0]->label)) ||
           (is_func (f, MACRO) && N(input[1]) != N(f)-1) ||
-          (!is_func (f, MACRO) && !drd->correct_arity (label, N(input[1])))) {
+          (!is_func (f, MACRO) && !query.describe (label).layout.accepts (N(input[1])))) {
         set_message ("Invalid macro arguments", "Macro input");
         return;
       }
@@ -871,7 +963,7 @@ edit_dynamic_rep::activate_hybrid (bool with_args_hint) {
       return;
     }
   }
-  if (activate_latex (false)) { finish_hybrid (true); return; }
+  if (activate_latex (false, resolved)) { finish_hybrid (true); return; }
   set_message ("", "");
   path p= search_upwards (HYBRID);
   if (is_nil (p)) return;
@@ -902,35 +994,36 @@ edit_dynamic_rep::activate_hybrid (bool with_args_hint) {
   }
 
   // built-in primitives, macro applications and values
-  bool old_locked= env_locked; env_locked= true;
-  tree f= get_env_value (name);
-  if ((drd->contains (name) && (f == UNINIT)) ||
-      is_func (f, MACRO) || is_func (f, XMACRO)) {
-    assign (p, "");
-    correct (path_up (p));
-    make_compound (make_tree_label (name));
-    if (N(st) == 2) insert_tree (st[1]);
-  }
-  else if (f != UNINIT) {
-    if (N(st) == 2) {
-      env_locked= old_locked;
-      set_message ("This value cannot wrap the selection", "Macro input");
-      return;
+  const bool source= in_source ();
+  tree f= context->value (name);
+  {
+    source_edit_scope source_scope (source_mode_during_edit, source);
+    if ((query.contains (name) && (f == UNINIT)) ||
+        is_func (f, MACRO) || is_func (f, XMACRO)) {
+      assign (p, "");
+      correct (path_up (p));
+      make_compound (make_tree_label (name));
+      if (N(st) == 2) insert_tree (st[1]);
     }
-    assign (p, tree (VALUE, copy (name)));
-    go_to (end (et, p));
-    correct (path_up (p));
+    else if (f != UNINIT) {
+      if (N(st) == 2) {
+        set_message ("This value cannot wrap the selection", "Macro input");
+        return;
+      }
+      assign (p, tree (VALUE, copy (name)));
+      go_to (end (et, p));
+      correct (path_up (p));
+    }
+    else if (in_source ()) {
+      assign (p, "");
+      correct (path_up (p));
+      make_compound (make_tree_label (name), with_args_hint? 1: 0);
+      if (N(st) == 2) insert_tree (st[1]);
+    }
+    else set_message ("Error: unknown command",
+                      "activate hybrid command");
   }
-  else if (in_source ()) {
-    assign (p, "");
-    correct (path_up (p));
-    make_compound (make_tree_label (name), with_args_hint? 1: 0);
-    if (N(st) == 2) insert_tree (st[1]);
-  }
-  else set_message ("Error: unknown command",
-                    "activate hybrid command");
-  env_locked= old_locked;
-  if (f != UNINIT || drd->contains (name) || in_source ()) finish_hybrid (true);
+  if (f != UNINIT || query.contains (name) || in_source ()) finish_hybrid (true);
 }
 
 /******************************************************************************

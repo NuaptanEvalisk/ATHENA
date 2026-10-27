@@ -21,7 +21,7 @@ extern double time_l2t_finalize_doc;
 extern double time_l2t_handle_matches;
 extern double time_l2t_upgrade_tex;
 extern double time_l2t_finalize_misc;
-extern double time_l2t_drd_correct;
+extern double time_l2t_arity_correct;
 extern double time_l2t_style_check; // New: for the exists() call
 extern double time_l2t_simplify_correct;
 extern double time_l2t_latex_correct;

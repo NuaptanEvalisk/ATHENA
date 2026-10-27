@@ -21,6 +21,7 @@
 #include "format_geometry.hpp"
 #include "native_dynamic_commands.hpp"
 #include "generic_editor_commands.hpp"
+#include "Typeset/Env/local_environment.hpp"
 #include "language.hpp"
 #include "scheme.hpp"
 #include "tree_select.hpp"
@@ -184,7 +185,12 @@ popup_spell_add (editor ed) {
     ed->set_message ("No live spelling error at cursor", "spell check");
     return;
   }
-  tree language= ed->get_env_value ("language", first);
+  const auto context= ed->cursor_context_at (first);
+  if (!context) {
+    ed->set_message ("Spelling context is awaiting layout", "spell check");
+    return;
+  }
+  tree language= context->value ("language");
   string lan= is_atomic (language) ? as_string (language):
                                     ed->get_init_string ("language");
   spell_insert (lan, word);

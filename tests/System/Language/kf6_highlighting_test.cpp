@@ -10,7 +10,7 @@
 #include <iostream>
 #include <thread>
 #include "language.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "modification.hpp"
 
 bool headless_mode= true;
@@ -67,7 +67,7 @@ static bool check () {
 
 int main (int argc, char** argv) {
   QCoreApplication app (argc, argv);
-  init_std_drd ();
+  athena::contracts::initialize_builtins ();
   bool a= false, b= false;
   std::thread first ([&] { a= check (); });
   std::thread second ([&] { b= check (); });

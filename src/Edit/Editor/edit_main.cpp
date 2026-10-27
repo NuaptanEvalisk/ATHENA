@@ -17,7 +17,7 @@
 #include "Pdf/pdf_hummus_renderer.hpp"
 #include "convert.hpp"
 #include "typesetter.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "message.hpp"
 #include <setjmp.h>
 #include <stdexcept>
@@ -46,7 +46,7 @@
 editor_rep::editor_rep ():
   simple_widget_rep (), cvw (NULL), mvw (NULL),
   runtime_view_id (ATHENA_NO_VIEW), ui_endpoint (nullptr),
-  drd ("virtual"), et (current_document_tree ()), rp (),
+  et (current_document_tree ()), rp (),
   progressive_typeset_pending (false), progressive_typeset_continue (false) {
   std_warning << "warning, this virtual constructor should never be called\n";
 }
@@ -55,7 +55,7 @@ editor_rep::editor_rep (server_rep* sv2, buffer_document_state* buf2):
   simple_widget_rep (), sv (sv2), cvw (NULL), mvw (NULL),
   runtime_view_id (ATHENA_NO_VIEW), ui_endpoint (nullptr),
   buf (buf2),
-  drd (buf->title), et (buf2->document), rp (buf2->root_path),
+  et (buf2->document), rp (buf2->root_path),
   progressive_typeset_pending (false), progressive_typeset_continue (false) {}
 
 void
@@ -63,6 +63,61 @@ editor_rep::schedule_progressive_typeset () {
   if (!progressive_typeset_pending || progressive_typeset_continue) return;
   progressive_typeset_continue= true;
   notify_change (THE_TREE | THE_EXTENTS | THE_FREEZE);
+}
+
+void
+editor_rep::remember_cursor_display (path bp) {
+  cursor_display_root= is_nil (bp) ? box () : eb;
+  cursor_display_path= bp;
+  cursor_display_source= tp;
+}
+
+cursor
+editor_rep::current_display_cursor (athena::text::caret_affinity affinity) {
+  if (cursor_display_root == eb && cursor_display_source == tp &&
+      !is_nil (cursor_display_path)) {
+    cursor_display_path= eb->with_cursor_affinity (cursor_display_path, affinity);
+    return eb->find_cursor (cursor_display_path);
+  }
+  bool found;
+  path bp;
+  if (!is_nil (cursor_display_root) && cursor_display_source == tp &&
+      !is_nil (cursor_display_path)) {
+    const auto boundary= cursor_display_root->find_source_boundary (cursor_display_path);
+    if (boundary && cursor_occurrence_admitted (tp, boundary))
+      bp= eb->find_occurrence_box_path (tp, boundary, found);
+  }
+  if (is_nil (bp)) bp= eb->find_box_path (tp, found);
+  bp= eb->with_cursor_affinity (bp, affinity);
+  cursor result= eb->find_cursor (bp);
+  result->valid= found;
+  remember_cursor_display (found ? bp : path ());
+  return result;
+}
+
+athena::contracts::evaluation_boundary_handle
+editor_rep::cursor_source_boundary () {
+  if (cursor_display_root != eb || cursor_display_source != tp ||
+      is_nil (cursor_display_path)) return {};
+  return cursor_display_root->find_source_boundary (cursor_display_path);
+}
+
+std::shared_ptr<const evaluation_environment_checkpoint>
+editor_rep::cursor_context_at (path source) {
+  if (cursor_display_root == eb && cursor_display_source == tp &&
+      !is_nil (cursor_display_path)) {
+    box displayed= eb;
+    path remaining= cursor_display_path;
+    while (true) {
+      const auto& boundary= displayed->source_boundary;
+      if (boundary && cursor_occurrence_admitted (source, boundary))
+        return cursor_context_at (source, boundary);
+      if (is_nil (remaining) || displayed->subnr () == 0) break;
+      displayed= displayed[remaining->item];
+      remaining= remaining->next;
+    }
+  }
+  return cursor_context_at (source, cursor_source_boundary ());
 }
 
 bool

@@ -61,8 +61,10 @@ public:
   void selection_raw_set (string key, tree t);
   tree selection_raw_get (string key);
   void selection_correct (path i1, path i2, path& o1, path& o2);
+  void selection_correct (path i1, path i2, path& o1, path& o2, const cursor_navigation&);
   path selection_get_subtable (int& row1, int& col1, int& row2, int& col2);
   selection compute_selection (path p1, path p2);
+  selection compute_selection (path p1, path p2, const cursor_navigation&);
   selection compute_selection (range_set sel);
   void selection_get (selection& sel);
   void selection_get (path& start, path& end);

@@ -10,11 +10,27 @@
 ******************************************************************************/
 
 #include "tree_select.hpp"
-#include "drd_std.hpp"
+#include "cursor_navigation.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "analyze.hpp"
 #include "node_metadata.hpp"
 
 path closest_up (tree t, path p);
+
+namespace {
+class selection_request: private cursor_navigation {
+  void selection_adjust_border (tree, path, path, path&, path&);
+  void adjust_right_script (tree, path&);
+  void adjust_left_script (tree, path&);
+  void adjust_right_script (tree, path&, path&);
+  void adjust_left_script (tree, path&, path&);
+  void selection_adjust (tree, path, path, path&, path&);
+  void selection_make_accessible (tree, path, path, path&, path&);
+public:
+  explicit selection_request (const cursor_navigation& context): cursor_navigation (context) {}
+  void correct (tree, path, path, path&, path&);
+};
+}
 
 /******************************************************************************
 * Useful subroutines
@@ -47,14 +63,16 @@ correct_right_most_inside (path p, tree t) {
 * Structural correction of the selection
 ******************************************************************************/
 
-static void
-selection_adjust_border (tree t, path i1, path i2, path& o1, path& o2) {
+void
+selection_request::selection_adjust_border (tree t, path i1, path i2, path& o1, path& o2) {
   o1= i1; o2= i2;
   if (is_compound (t) && !is_atom (i1) && !is_atom (i2) &&
       i1->item == i2->item) {
     path O1, O2;
     selection_adjust_border (t[i1->item], i1->next, i2->next, O1, O2);
-    if (the_drd->var_without_border (L(t[i1->item])) &&
+    const auto label= L(t[i1->item]);
+    if ((contracts ().describe (label).border & BORDER_INNER) != 0 &&
+        !athena::contracts::builtin_label (as_string (label)) &&
         (O1->item != O2->item)) {
       o1= path (0);
       o2= path (1);
@@ -66,8 +84,8 @@ selection_adjust_border (tree t, path i1, path i2, path& o1, path& o2) {
   }
 }
 
-static void
-adjust_right_script (tree t, path& o1) {
+void
+selection_request::adjust_right_script (tree t, path& o1) {
   while (is_concat (t) && o1->item > 0 && o1->next == path (0)) {
     tree st= t[o1->item];
     if (is_right_script_prime (st)) {
@@ -93,8 +111,8 @@ adjust_right_script (tree t, path& o1) {
   }
 }
 
-static void
-adjust_left_script (tree t, path& o2) {
+void
+selection_request::adjust_left_script (tree t, path& o2) {
   while (is_concat (t) && o2->item + 1 < N(t) && o2->next == path (1)) {
     tree st= t[o2->item];
     if (is_left_script_prime (st)) {
@@ -119,8 +137,8 @@ adjust_left_script (tree t, path& o2) {
   }
 }
 
-static void
-adjust_right_script (tree t, path& o1, path& o2) {
+void
+selection_request::adjust_right_script (tree t, path& o1, path& o2) {
   if (!is_concat (t)) return;
   if (o1->item == o2->item) return;
   if (is_right_script_prime (t[o2->item])) {
@@ -130,8 +148,8 @@ adjust_right_script (tree t, path& o1, path& o2) {
   }
 }
 
-static void
-adjust_left_script (tree t, path& o1, path& o2) {
+void
+selection_request::adjust_left_script (tree t, path& o1, path& o2) {
   if (!is_concat (t)) return;
   if (o1->item == o2->item && o2->next != path (1)) return;
   if (is_left_script_prime (t[o1->item])) {
@@ -141,8 +159,8 @@ adjust_left_script (tree t, path& o1, path& o2) {
   }
 }
 
-static void
-selection_adjust (tree t, path i1, path i2, path& o1, path& o2) {
+void
+selection_request::selection_adjust (tree t, path i1, path i2, path& o1, path& o2) {
   //cout << "Adjust " << i1 << " -- " << i2 << " in " << t << "\n";
   if (i1 == i2) {
     o1= i1;
@@ -201,8 +219,8 @@ selection_adjust (tree t, path i1, path i2, path& o1, path& o2) {
   //cout << "Adjusted " << o1 << " -- " << o2 << " in " << t << "\n";
 }
 
-static void
-selection_make_accessible (tree t, path i1, path i2, path& o1, path& o2) {
+void
+selection_request::selection_make_accessible (tree t, path i1, path i2, path& o1, path& o2) {
   o1= i1; o2= i2;
   // A complete compound is a structural selection, not a pair of cursor
   // positions inside that compound.  Its borders remain meaningful even when
@@ -216,19 +234,19 @@ selection_make_accessible (tree t, path i1, path i2, path& o1, path& o2) {
       return;
   }
   if (!is_accessible_cursor (t, o1))
-    o1= previous_accessible (t, o1);
+    o1= move_accessible (t, o1, false);
   if (!is_accessible_cursor (t, o1))
-    o1= next_accessible (t, o1);
+    o1= move_accessible (t, o1, true);
   if (!is_accessible_cursor (t, o2))
-    o2= next_accessible (t, o2);
+    o2= move_accessible (t, o2, true);
   if (!is_accessible_cursor (t, o2))
-    o2= previous_accessible (t, o2);
+    o2= move_accessible (t, o2, false);
   if (path_inf (o1, o2))
     o1= shift (t, o1, 1);
 }
 
 void
-selection_correct (tree t, path i1, path i2, path& o1, path& o2) {
+selection_request::correct (tree t, path i1, path i2, path& o1, path& o2) {
   o1= i1; o2= i2;
 #ifdef SANITY_CHECKS
   ASSERT (is_inside (t, o1), "invalid selection [selection_correct]");
@@ -248,6 +266,15 @@ selection_correct (tree t, path i1, path i2, path& o1, path& o2) {
     if (o1 == i1 && o2 == i2) break;
     if (o1 == p1 && o2 == p2) break;
   }
+}
+
+void selection_correct (const cursor_navigation& context, tree t,
+                        path i1, path i2, path& o1, path& o2) {
+  selection_request (context).correct (t, i1, i2, o1, o2);
+}
+
+void selection_correct (tree t, path i1, path i2, path& o1, path& o2) {
+  selection_correct (current_cursor_navigation (), t, i1, i2, o1, o2);
 }
 
 /******************************************************************************

@@ -25,7 +25,14 @@ protected:
   tree the_style;                         // document style
   hashmap<path,std::shared_ptr<const cursor_environment_checkpoint>> cur;
   std::shared_ptr<const cursor_environment_checkpoint> prepared_cursor;
+  std::vector<std::shared_ptr<const cursor_environment_checkpoint>> cursor_contexts;
   std::unique_ptr<evaluation_environment_checkpoint> pre; // styles/init state
+  tree initial_background;
+  struct page_geometry {
+    SI page_width[2], pages_width[2], page_height[2];
+    int packet, offset;
+  } prepared_page_geometry;
+  bool page_geometry_from_layout= false;
   hashmap<string,tree> init;              // environment changes w.r.t. style
   hashmap<string,tree> fin;               // environment changes w.r.t. doc
   hashmap<string,tree> grefs;             // global references
@@ -61,12 +68,23 @@ protected:
   void                 set_att (hashmap<string,tree> att);
   tree                 folded_screen_tree ();
   bool                 heading_fold_set_current (bool folded, bool toggle);
+  std::shared_ptr<const cursor_environment_checkpoint> prepared_context_at (
+    path source, athena::contracts::evaluation_boundary_handle selected);
+  std::shared_ptr<const evaluation_environment_checkpoint> conversion_context_at (path source);
+  void prepare_initial_background ();
+  void prepare_page_geometry ();
 
 public:
   edit_typeset_rep ();
   ~edit_typeset_rep ();
   void clear_local_info ();
   void prepare_cursor_environment () override;
+  void set_field_environment (
+    std::shared_ptr<const athena::contracts::detached_environment>) override;
+  std::shared_ptr<const evaluation_environment_checkpoint> cursor_context_at (
+    path source, athena::contracts::evaluation_boundary_handle selected) override;
+  bool cursor_occurrence_admitted (
+    path source, const athena::contracts::evaluation_boundary_handle& selected) override;
   bool set_enunciation_editing_id (const std::string& id) override;
   void set_data (new_data data);
   void get_data (new_data& data);
@@ -87,7 +105,7 @@ public:
   double   divide_lengths (string l1, string l2);
 
   void     init_update ();
-  void     drd_update ();
+  athena::contracts::contract_scope prepare_source_contracts () override;
 #ifdef EXPERIMENTAL
   void     environment_update ();
 #endif
@@ -114,7 +132,8 @@ public:
   SI       get_total_width (bool deco);
   SI       get_total_height (bool deco);
 
-  tree     exec (tree t, hashmap<string,tree> env, bool expand_refs= true);
+  tree     exec (tree t, const evaluation_environment_checkpoint& context,
+                 hashmap<string,tree> overlay, bool expand_refs= true);
   tree     exec_texmacs (tree t, path p);
   tree     exec_texmacs (tree t);
   tree     exec_verbatim (tree t, path p);

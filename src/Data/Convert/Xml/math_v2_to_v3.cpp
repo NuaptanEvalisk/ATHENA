@@ -11,7 +11,8 @@
 #include "node_metadata.hpp"
 #include "tree_analyze.hpp"
 #include "named_symbol.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
 #include "ATHENA/Data/document_node_model.hpp"
 #include "vars.hpp"
 #include <algorithm>
@@ -1399,7 +1400,7 @@ class converter {
     for (int i=0; i<N (source); ++i) {
       // Identifiers and string/URL arguments are data, not formula operands.
       // Preserve their exact tree and metadata even inside a mathematical row.
-      const int field_type= standard_drd_for_thread ()->get_type_child (source, i);
+      const int field_type= athena::contracts::editing_query {athena::contracts::builtin_contracts ()}.child_type (source, i);
       const bool data= math_body && roles && i < int (roles->children.size ()) &&
         roles->children[i] == athena::document_node::child_role::data;
       if (data || field_type == TYPE_IDENTIFIER || field_type == TYPE_STRING ||

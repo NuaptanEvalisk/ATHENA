@@ -12,7 +12,7 @@
 #include <QtTest/QtTest>
 
 #include "convert.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 
 class TestParseXML: public QObject {
   Q_OBJECT
@@ -23,7 +23,7 @@ private slots:
 
 
 void TestParseXML::expand_xml_default_entity () {
-  // init_std_drd ();
+  // athena::contracts::initialize_builtins ();
   // print_tree (parse_xml ("&quot;"));
   QVERIFY (parse_xml ("&amp;") == tuple(tree("*TOP*"), tree("\"&\"")));
   QVERIFY (parse_xml ("&lt;") == tuple(tree("*TOP*"), tree("\"<\"")));

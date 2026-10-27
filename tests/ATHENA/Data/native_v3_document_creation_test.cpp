@@ -6,6 +6,7 @@
 * This software falls under the GNU general public license version 3 or later.
 ******************************************************************************/
 #include <QtTest/QtTest>
+#include "Data/NodeContracts/editing_query.hpp"
 #include <QDir>
 #include <QFile>
 #include <QScopeGuard>
@@ -24,7 +25,7 @@
 #include "tm_buffer.hpp"
 #include "convert.hpp"
 #include "analyze.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "scheme.hpp"
 #include "ATHENA/server.hpp"
 #include "Graphics/Gui/gui.hpp"
@@ -110,13 +111,13 @@ private slots:
       {tree (MATH_VARIANT, "bb", "x"), {false, true}},
       {tree (MATH_SYMBOL, "differential-d"), {false}}
     };
-    auto drd= standard_drd_for_thread ();
+    const auto& context= athena::contracts::builtin_contracts ();
     for (const auto& sample: samples) {
       const tree& source= sample.source;
       QVERIFY2 (math::valid_native_math (source), as_charp (as_string (L(source))));
-      QVERIFY (drd->correct_arity (L(source), N(source)));
+      QVERIFY (athena::contracts::editing_query {context}.describe (L(source)).layout.accepts (N(source)));
       const tree body (DOCUMENT, source);
-      const auto& info= drd->contracts.resolve (L(source));
+      const auto& info= context.resolve (L(source));
       for (int i=0; i<N(source); ++i) {
         const auto& child= info.fields[info.layout.index (i, N(source))];
         const bool content= sample.content[i];
@@ -125,12 +126,12 @@ private slots:
         QCOMPARE (int (child.type), expected_type);
         QCOMPARE (child.accessible != ACCESSIBLE_NEVER, content);
         const auto role= model::classify_source_path (
-          body, {0, i}, drd, model::standard_source_role);
+          body, {0, i}, context, model::standard_source_role);
         QVERIFY (role.ok ());
         QCOMPARE (role.content, content);
       }
       const auto assigned= model::assign_detached_source_ids (
-        body, drd, model::standard_source_role,
+        body, context, model::standard_source_role,
         [] (const model::identity_request&) { return node::new_id (); });
       QVERIFY (assigned.ok ());
       QVERIFY (node::valid_id (node::id (*assigned.body)));
@@ -140,11 +141,11 @@ private slots:
     }
     const tree grid_body (DOCUMENT, grid);
     const auto cell= model::classify_source_path (
-      grid_body, {0, 1, 1, 0}, drd, model::standard_source_role);
+      grid_body, {0, 1, 1, 0}, context, model::standard_source_role);
     QVERIFY (cell.ok () && cell.content);
     const tree arrow_body (DOCUMENT, samples[7].source);
     const auto descriptor= model::classify_source_path (
-      arrow_body, {0, 0, 0}, drd, model::standard_source_role);
+      arrow_body, {0, 0, 0}, context, model::standard_source_role);
     QVERIFY (descriptor.ok () && !descriptor.content);
   }
 

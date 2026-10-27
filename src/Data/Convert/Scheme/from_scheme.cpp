@@ -12,7 +12,7 @@
 #include "convert.hpp"
 #include "message.hpp"
 #include "analyze.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "path.hpp"
 #include "Xml/legacy_document_reader.hpp"
 #include <limits>
@@ -140,7 +140,7 @@ string_to_scheme_tree (string s, int& i, scheme_read_budget* budget= nullptr,
 
 namespace athena::document {
 tree read_legacy_scheme (std::string_view input, codec_limits limits) {
-  init_std_drd ();
+  athena::contracts::initialize_builtins ();
   if (input.size () > limits.input_bytes || input.size () > std::numeric_limits<int>::max ())
     throw codec_exception (codec_error::resource_limit, "Legacy Scheme input exceeds size budget");
   string source (input.data (), static_cast<int> (input.size ()));
@@ -248,7 +248,7 @@ scheme_tree_to_tree (scheme_tree t, string version) {
 
 tree
 scheme_tree_to_tree (scheme_tree t) {
-  return scheme_tree_to_tree (t, standard_codes_for_thread (), true);
+  return scheme_tree_to_tree (t, athena::contracts::builtin_codes (), true);
 }
 
 /******************************************************************************

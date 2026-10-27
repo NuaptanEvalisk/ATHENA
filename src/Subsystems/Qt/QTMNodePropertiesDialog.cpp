@@ -21,6 +21,7 @@
 #include "qt_utilities.hpp"
 #include "convert.hpp"
 #include "native_interfaces.hpp"
+#include "Typeset/Env/local_environment.hpp"
 
 #include <QApplication>
 #include <QCheckBox>
@@ -71,12 +72,15 @@ QToolButton* tool (const char* icon, const char* label, QWidget* parent) {
 // The input buffer is private and the original field is unchanged on cancel.
 class RichField: public QWidget {
   tree original;
+  std::shared_ptr<const athena::contracts::detached_environment> environment;
   xml::xml_format_version source_version;
   QLineEdit* line;
   QToolButton* edit;
 public:
-  explicit RichField (tree value, xml::xml_format_version version, QWidget* parent= nullptr):
-    QWidget (parent), original (copy (value)), source_version (version) {
+  explicit RichField (tree value, xml::xml_format_version version, QWidget* parent,
+                     std::shared_ptr<const athena::contracts::detached_environment> context):
+    QWidget (parent), original (copy (value)), environment (std::move (context)),
+    source_version (version) {
     auto* layout= new QHBoxLayout (this);
     layout->setContentsMargins (0, 0, 0, 0);
     line= new QLineEdit (this);
@@ -115,7 +119,8 @@ private:
     url name (string ("tmfs://aux/node-property-") * from_qstring (qs (node::new_id ())));
     tree style= compound ("style", tuple ("generic", "gui-base"));
     input= texmacs_input_widget (
-      tree (WITH, "preamble", "true", tree (DOCUMENT, initial)), style, name, source_version);
+      tree (WITH, "preamble", "true", tree (DOCUMENT, initial)), style, name,
+      source_version, environment);
     struct CloseInput {
       widget& input;
       ~CloseInput () { if (!is_nil (input)) send_destroy (input); }
@@ -140,13 +145,15 @@ private:
 
 class RichNames: public QWidget {
   QVBoxLayout* rows;
+  std::shared_ptr<const athena::contracts::detached_environment> environment;
   xml::xml_format_version version;
   std::vector<RichField*> fields;
   node::property original;
   std::vector<tree> initial;
 public:
-  RichNames (const tree& source, xml::xml_format_version format, QWidget* parent):
-    QWidget (parent), version (format) {
+  RichNames (const tree& source, xml::xml_format_version format, QWidget* parent,
+             std::shared_ptr<const athena::contracts::detached_environment> context):
+    QWidget (parent), environment (std::move (context)), version (format) {
     rows= new QVBoxLayout (this);
     rows->setContentsMargins (0, 0, 0, 0);
     auto* add= tool ("list-add", "Add name", this);
@@ -172,7 +179,7 @@ private:
     auto* row= new QWidget (this);
     auto* layout= new QHBoxLayout (row);
     layout->setContentsMargins (0, 0, 0, 0);
-    auto* field= new RichField (value, version, row);
+    auto* field= new RichField (value, version, row, environment);
     auto* remove= tool ("list-remove", "Remove name", row);
     layout->addWidget (field, 1); layout->addWidget (remove);
     fields.push_back (field);
@@ -217,6 +224,7 @@ void inspect (QTreeWidgetItem* item, const node::property& p) {
 
 class NodeDialog: public QDialog {
   tree header;
+  std::shared_ptr<const athena::contracts::detached_environment> environment;
   xml::xml_format_version source_version;
   node_property_submit submit;
   QComboBox *kind= nullptr, *variant= nullptr;
@@ -230,8 +238,9 @@ class NodeDialog: public QDialog {
   bool applying= false;
 public:
   NodeDialog (std::string snapshot, bool canonical, bool writable,
-              node_property_submit commit, QWidget* parent):
-    QDialog (parent), submit (std::move (commit)) {
+              node_property_submit commit, QWidget* parent,
+              std::shared_ptr<const athena::contracts::detached_environment> context):
+    QDialog (parent), environment (std::move (context)), submit (std::move (commit)) {
     auto decoded= decode_node_property_snapshot (snapshot);
     header= std::move (decoded.header);
     source_version= decoded.source_version;
@@ -313,7 +322,7 @@ private:
     updateVariants ();
     connect (kind, &QComboBox::currentTextChanged, this, updateVariants);
     form->addRow ("Variant:", variant);
-    name= new RichNames (header, source_version, fields);
+    name= new RichNames (header, source_version, fields, environment);
     name->setObjectName ("enunciation-name");
     form->addRow ("Name:", name);
     numbered= new QCheckBox ("Numbered", fields);
@@ -373,7 +382,8 @@ private:
     dialog.setWindowTitle ("Attribution");
     dialog.resize (600, 120);
     auto* layout= new QVBoxLayout (&dialog);
-    auto* text= new RichField (index < 0 ? tree ("") : authorValues[index], source_version, &dialog);
+    auto* text= new RichField (index < 0 ? tree ("") : authorValues[index],
+                              source_version, &dialog, environment);
     layout->addWidget (text);
     auto* actions= new QDialogButtonBox (QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
     layout->addWidget (actions);
@@ -526,8 +536,10 @@ node_property_snapshot decode_node_property_snapshot (const std::string& bytes) 
 }
 
 QDialog* make_node_properties_dialog (std::string snapshot, bool canonical, bool writable,
-                                      node_property_submit submit, QWidget* parent) {
-  return new NodeDialog (std::move (snapshot), canonical, writable, std::move (submit), parent);
+                                      node_property_submit submit, QWidget* parent,
+                                      std::shared_ptr<const athena::contracts::detached_environment> environment) {
+  return new NodeDialog (std::move (snapshot), canonical, writable, std::move (submit),
+                        parent, std::move (environment));
 }
 
 bool node_properties_show (tree source) {
@@ -560,12 +572,18 @@ bool node_properties_show (tree source) {
       encode_node_property_snapshot (source, context->actor->current_state ()->storage_version)};
     bool canonical= en::is_canonical (source) && model::validate_node_properties (source).empty ();
     bool writable= !context->actor->current_state ()->read_only;
-    qt_post_to_main_thread ([request= std::move (request), canonical, writable] {
+    const auto prepared= context->editor->cursor_context_at (absolute * 0, {});
+    if (writable && canonical && !prepared) {
+      context->editor->set_message ("Node properties", "Source context is not ready", true);
+      return false;
+    }
+    auto environment= prepared ? prepared->detach () : nullptr;
+    qt_post_to_main_thread ([request= std::move (request), canonical, writable, environment] {
       try {
         auto* dialog= make_node_properties_dialog (request.snapshot, canonical, writable,
           [request] (std::string desired, node_property_completion complete) {
             commit (request, std::move (desired), std::move (complete));
-          }, QApplication::activeWindow ());
+          }, QApplication::activeWindow (), environment);
         dialog->setAttribute (Qt::WA_DeleteOnClose);
         dialog->setWindowModality (Qt::WindowModal);
         dialog->show ();

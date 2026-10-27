@@ -166,15 +166,21 @@ typesetter_rep::determine_page_references (box b) {
 box
 typesetter_rep::typeset () {
   evaluation_environment_transaction execution (*env.operator-> ());
+  auto base= std::make_shared<const evaluation_environment_checkpoint> (*env.operator-> ());
+  evaluation_context_capture contexts (*env.operator-> (), *base);
   const tree source= br->st;
   const path source_path= br->ip;
   try {
     box result= typeset_pass ();
     execution.commit ();
+    execution_base= std::move (base);
+    execution_contexts= contexts.contexts ();
     return result;
   }
   catch (...) {
     execution.rollback ();
+    execution_base.reset ();
+    execution_contexts= {};
     // Completed children may have published cache records before the failed
     // parent. Rebuild this pass from source, never from those partial effects.
     br= make_bridge (this, source, source_path);
@@ -261,6 +267,7 @@ typesetter_rep::typeset (SI& x1b, SI& y1b, SI& x2b, SI& y2b) {
 
 void
 notify_assign (typesetter ttt, path p, tree u) {
+  ttt->execution_base.reset ();
   // cout << "Assign " << p << ", " << u << "\n";
   if (is_nil (p)) ttt->br= make_bridge (ttt, u, ttt->br->ip);
   else ttt->br->notify_assign (p, u);
@@ -268,30 +275,35 @@ notify_assign (typesetter ttt, path p, tree u) {
 
 void
 notify_insert (typesetter ttt, path p, tree u) {
+  ttt->execution_base.reset ();
   // cout << "Insert " << p << ", " << u << "\n";
   ttt->br->notify_insert (p, u);
 }
 
 void
 notify_remove (typesetter ttt, path p, int nr) {
+  ttt->execution_base.reset ();
   // cout << "Remove " << p << ", " << nr << "\n";
   ttt->br->notify_remove (p, nr);
 }
 
 void
 notify_split (typesetter ttt, path p) {
+  ttt->execution_base.reset ();
   // cout << "Split " << p << "\n";
   ttt->br->notify_split (p);
 }
 
 void
 notify_join (typesetter ttt, path p) {
+  ttt->execution_base.reset ();
   // cout << "Join " << p << "\n";
   ttt->br->notify_join (p);
 }
 
 void
 notify_assign_node (typesetter ttt, path p, tree_label op) {
+  ttt->execution_base.reset ();
   // cout << "Assign node " << p << ", " << as_string (op) << "\n";
   tree t= subtree (ttt->br->st, p);
   int i, n= N(t);
@@ -303,6 +315,7 @@ notify_assign_node (typesetter ttt, path p, tree_label op) {
 
 void
 notify_insert_node (typesetter ttt, path p, tree t) {
+  ttt->execution_base.reset ();
   // cout << "Insert node " << p << ", " << t << "\n";
   int i, pos= last_item (p), n= N(t);
   tree r (t, n+1);
@@ -315,6 +328,7 @@ notify_insert_node (typesetter ttt, path p, tree t) {
 
 void
 notify_remove_node (typesetter ttt, path p) {
+  ttt->execution_base.reset ();
   // cout << "Remove node " << p << "\n";
   tree t= subtree (ttt->br->st, p);
   if (is_nil (path_up (p))) ttt->br= make_bridge (ttt, t, ttt->br->ip);

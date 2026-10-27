@@ -13,6 +13,7 @@
 #define EDIT_DYNAMIC_H
 #include "editor.hpp"
 #include <vector>
+#include <optional>
 
 class edit_dynamic_rep: virtual public editor_rep {
   double hybrid_mark= 0;
@@ -20,7 +21,13 @@ class edit_dynamic_rep: virtual public editor_rep {
   tree hybrid_owner;
   struct hybrid_draft { tree input, selection; };
   std::vector<hybrid_draft> hybrid_drafts;
+  std::optional<bool> source_mode_during_edit;
+  std::shared_ptr<const evaluation_environment_checkpoint> macro_environment;
+  std::shared_ptr<const evaluation_environment_checkpoint> macro_invocation_context ();
+  bool is_multi_paragraph_macro (tree t, bool pure);
   void finish_hybrid (bool accepted= false);
+  bool activate_latex (bool report_error, const std::optional<command>& resolved);
+  void activate_hybrid (bool with_args_hint, const std::optional<command>& resolved);
 public:
   edit_dynamic_rep ();
   ~edit_dynamic_rep ();
@@ -28,7 +35,6 @@ public:
   bool in_source ();
   path find_dynamic (path p);
 
-  bool is_multi_paragraph_macro (tree t, bool pure);
   void make_compound (tree_label l, int n);
   void activate ();
 
@@ -57,6 +63,7 @@ public:
   bool hybrid_name_context ();
   bool hybrid_keypress (string key);
   bool prepare_hybrid ();
+  void choose_hybrid (string name, bool activate);
   bool activate_latex ();
   bool activate_latex (bool report_error);
   void activate_hybrid (bool with_args_hint);

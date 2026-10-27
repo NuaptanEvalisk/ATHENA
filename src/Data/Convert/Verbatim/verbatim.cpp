@@ -14,7 +14,8 @@
 #include "locale.hpp"
 #include "wencoding.hpp"
 #include "vars.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
 #include "analyze.hpp"
 #include "utf8_edit.hpp"
 #include <unicode/ucnv.h>
@@ -152,16 +153,15 @@ print_verbatim (string& buf, tree t, bool wrap) {
       else {
         int i, n= N(t);
         for (i=0; i<n; i++)
-          if (the_drd->is_accessible_child (t, i)) {
+          if (athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.accessible (t, i)) {
             if (is_document (t) && (i>0)) {
               if (wrap && N(buf)>0 && buf[N(buf)-1] != '\n') buf << "\n";
               buf << "\n";
             }
-            // Standard tag_info has non-atomic ownership; converters also run
-            // in parallel Vault search workers, so use its thread-local clone.
-            tree w= standard_drd_for_thread ()->get_env_child (t, i, tree (ATTR));
-            if (drd_env_read (w, MODE, "text") == "prog" ||
-                drd_env_read (w, FONT_FAMILY, "rm") == "tt")
+            // Parallel Vault search workers use their own standard context.
+            tree w= athena::contracts::editing_query {athena::contracts::builtin_contracts ()}.environment (t, i, tree (ATTR));
+            if (athena::contracts::field_environment_read (w, MODE, "text") == "prog" ||
+                athena::contracts::field_environment_read (w, FONT_FAMILY, "rm") == "tt")
               print_verbatim (buf, t[i], false);
             else print_verbatim (buf, t[i], wrap);
           }

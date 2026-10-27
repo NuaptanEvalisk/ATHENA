@@ -13,7 +13,7 @@
 #include "namespace_sorter_migration.hpp"
 #include "namespaces.hpp"
 #include "namespaces_private.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "vault.hpp"
 #include "vaultfile_json.hpp"
@@ -102,7 +102,7 @@ query_text (const fs::path& database, const char* sql) {
 
 void
 NamespaceOntologyTest::initTestCase () {
-  init_std_drd ();
+  athena::contracts::initialize_builtins ();
 }
 
 void

@@ -21,7 +21,6 @@
 #include "compound_virtual_document.hpp"
 #include "convert.hpp"
 #include "named_symbol.hpp"
-#include "drd_mode.hpp"
 #include "utf8_edit.hpp"
 #include "ATHENA/Data/node_reference.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
@@ -134,10 +133,6 @@ static tree source_excerpt_tree (const tree& value) {
 }
 
 static QString source_excerpt (const tree& value) {
-  struct access_scope {
-    int previous= set_access_mode (DRD_ACCESS_NORMAL);
-    ~access_scope () { set_access_mode (previous); }
-  } scope;
   QString text= to_qstring (tree_to_verbatim (source_excerpt_tree (value), false,
                                             "UTF-8")).simplified ();
   const auto characters= utf8_graphemes (from_qstring (text));

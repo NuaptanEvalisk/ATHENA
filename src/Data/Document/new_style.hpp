@@ -11,7 +11,7 @@
 
 #ifndef NEW_STYLE_H
 #define NEW_STYLE_H
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "scheme.hpp"
 #include "Data/NodeContracts/evaluation_inputs.hpp"
 #include <cstdint>
@@ -47,15 +47,14 @@ class style_environment {
 public:
   explicit style_environment (edit_env_rep&);
   void restore (edit_env_rep&) const;
-  drd_info descriptor (string name) const;
+  athena::contracts::evaluation_state context () const;
 };
 using style_environment_ptr= std::shared_ptr<const style_environment>;
 style_environment_ptr get_style_environment (tree style, url source_name,
                                              bool scheme_modules);
-drd_info get_style_drd (tree style);
 tree get_document_preamble (tree t);
-drd_info get_document_drd (tree doc);
-drd_info get_offline_document_drd (tree doc, url source_name);
+athena::contracts::evaluation_state prepare_document_context (tree doc);
+athena::contracts::evaluation_state prepare_offline_document_context (tree doc, url source_name);
 
 array<string> get_style_names ();
 array<string> get_package_names ();

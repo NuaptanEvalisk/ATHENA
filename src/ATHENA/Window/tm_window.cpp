@@ -18,7 +18,7 @@
 #include "merge_sort.hpp"
 #include "iterator.hpp"
 #include "boot.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "ATHENA/Data/new_view.hpp"
 #include "buffer_actor.hpp"
@@ -326,7 +326,8 @@ enrich_embedded_document (tree body, tree style) {
 
 static widget
 make_input_widget (tree doc, tree style, url wname,
-                   std::optional<athena::document::xml_format_version> version) {
+                   std::optional<athena::document::xml_format_version> version,
+                   std::shared_ptr<const athena::contracts::detached_environment> field_environment= {}) {
   doc= enrich_embedded_document (doc, style);
   url       base = get_master_buffer (get_current_buffer ());
   tm_view   curvw= concrete_view (get_current_view ());
@@ -336,7 +337,7 @@ make_input_widget (tree doc, tree style, url wname,
     else set_buffer_tree (name, doc);
   }
   else if (version) {
-    if (!initialize_buffer_tree (name, doc, *version))
+    if (!initialize_buffer_tree (name, doc, *version, std::move (field_environment)))
       FAILED ("Could not initialize input widget document");
   }
   else create_buffer (name, doc);
@@ -359,8 +360,9 @@ texmacs_input_widget (tree doc, tree style, url wname) {
 
 widget
 texmacs_input_widget (tree doc, tree style, url wname,
-                      athena::document::xml_format_version version) {
-  return make_input_widget (doc, style, wname, version);
+                      athena::document::xml_format_version version,
+                      std::shared_ptr<const athena::contracts::detached_environment> field_environment) {
+  return make_input_widget (doc, style, wname, version, std::move (field_environment));
 }
 
 /******************************************************************************

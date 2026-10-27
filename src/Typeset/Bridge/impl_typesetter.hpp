@@ -12,11 +12,16 @@
 #ifndef IMPL_TYPESETTER_H
 #define IMPL_TYPESETTER_H
 #include "Bridge/bridge.hpp"
+#include "Env/local_environment.hpp"
+
+class evaluation_environment_checkpoint;
 
 class typesetter_rep {
 public:
   edit_env&    env;
   bridge       br;
+  std::shared_ptr<const evaluation_environment_checkpoint> execution_base;
+  prepared_context_index execution_contexts;
   rectangles   change_log;
   array<brush> old_bgs;
 

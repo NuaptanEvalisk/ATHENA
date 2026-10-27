@@ -22,7 +22,7 @@
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include "Data/Tree/math_tree_v3.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 
 namespace node= athena::node;
 namespace model= athena::document_node;
@@ -57,7 +57,7 @@ void accept (QDialog* dialog) {
 class NodePropertiesDialogTest: public QObject {
   Q_OBJECT
 private slots:
-  void initTestCase () { init_std_drd (); }
+  void initTestCase () { athena::contracts::initialize_builtins (); }
   void unchangedDraftIsLossless () {
     tree original= source ();
     int calls= 0;

@@ -10,6 +10,7 @@
 
 #include "ATHENA/Data/document_node_model.hpp"
 #include "Data/NodeContracts/native_fields.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
 #include "ATHENA/Data/heading_word_count.hpp"
 #include "ATHENA/Data/document_node_copy.hpp"
 #include "ATHENA/Data/enunciation_model.hpp"
@@ -167,7 +168,7 @@ role_declaration native_roles (const tree& source,
   return result;
 }
 
-role_declaration roles_for (const tree& source, drd_info drd,
+role_declaration roles_for (const tree& source, const contracts::contract_scope& descriptors,
                             const role_resolver& resolve, const source_path& where) {
   if (excluded (source)) return {semantic_role::data, "", {}};
   if (is_func (source, WITH) || is_func (source, STYLE_WITH) ||
@@ -231,10 +232,10 @@ role_declaration roles_for (const tree& source, drd_info drd,
   if (N(source) == 0)
     return {semantic_role::content, "", {}};
 
-  if (!drd->contains (as_string (L(source))))
-    fail (where, issue::unsupported_ambiguous_role, "No DRD or explicit body-role contract for " +
+  if (!athena::contracts::editing_query {descriptors}.contains (as_string (L(source))))
+    fail (where, issue::unsupported_ambiguous_role, "No native or explicit body-role contract for " +
           bytes (as_string (L(source))));
-  const auto& info= drd->contracts.resolve (L(source));
+  const auto& info= descriptors.resolve (L(source));
   if (!info.layout.accepts (N(source)))
     fail (where, issue::unsupported_ambiguous_role, "Arity does not match node contract");
 
@@ -246,7 +247,7 @@ role_declaration roles_for (const tree& source, drd_info drd,
   for (int i= 0; i < N(source); ++i) {
     const int index= info.layout.index (i, N(source));
     if (index < 0 || index >= int(info.fields.size ()))
-      fail (where, issue::unsupported_ambiguous_role, "DRD has no physical child role");
+      fail (where, issue::unsupported_ambiguous_role, "Node contract has no physical child role");
     const auto& child= info.fields[index];
     // A transparent WITH-like macro returns its final argument through only
     // WITH-like wrappers. Parameter analysis finds that argument without an
@@ -258,14 +259,14 @@ role_declaration roles_for (const tree& source, drd_info drd,
     if (child.type == TYPE_ADHOC || child.type == TYPE_ERROR ||
         (child.type == TYPE_UNKNOWN && !transparent_body))
       fail (where, issue::unsupported_ambiguous_role,
-            "DRD child role is ambiguous for " + bytes (as_string (L(source))) +
+            "Node contract child role is ambiguous for " + bytes (as_string (L(source))) +
             "[" + std::to_string (i) + "]");
     if ((!transparent_body && child.type != TYPE_REGULAR) ||
         child.accessible == ACCESSIBLE_NEVER) {
       result.children.push_back (child_role::data);
       continue;
     }
-    const tree mode= drd_env_read (tree (child.environment), "mode", "");
+    const tree mode= contracts::field_environment_read (tree (child.environment), "mode", "");
     if (mode == "prog" || mode == "src") {
       result.children.push_back (child_role::data);
       continue;
@@ -277,10 +278,10 @@ role_declaration roles_for (const tree& source, drd_info drd,
       // its formal parameter is called "body". A nested DOCUMENT still
       // introduces its own structural body boundary in identity_planner.
       result.children.push_back (child_role::content);
-    // Legacy child_info initializes block to zero (BLOCK_REQUIRE_BLOCK), even
-    // for CONCAT. It is not evidence of a declared paragraph/body boundary.
+    // A bootstrap field's default block policy alone is not evidence of a
+    // declared paragraph/body boundary.
     // Nested DOCUMENTs are recognized structurally; other body slots need a
-    // named DRD contract or the caller's explicit role declaration.
+    // named native contract or the caller's explicit role declaration.
     else if (info.attribute ("name-" + std::to_string (index)) == "body")
       result.children.push_back (child_role::body);
     else result.children.push_back (child_role::content);
@@ -289,7 +290,7 @@ role_declaration roles_for (const tree& source, drd_info drd,
 }
 
 class identity_planner {
-  drd_info drd;
+  const contracts::contract_scope& descriptors;
   const role_resolver& resolve;
   traversal_budget budget;
   source_path where;
@@ -330,7 +331,7 @@ class identity_planner {
       }
       return;
     }
-    const auto contract= roles_for (source, drd, resolve, where);
+    const auto contract= roles_for (source, descriptors, resolve, where);
     if (contract.role == semantic_role::data) return;
     if (contract.role == semantic_role::enunciation)
       candidates.push_back ({where, identity_role::enunciation, contract.category});
@@ -351,8 +352,8 @@ class identity_planner {
   }
 
 public:
-  identity_planner (drd_info value, const role_resolver& resolver, limits limit):
-    drd (value), resolve (resolver), budget {limit} {}
+  identity_planner (const contracts::contract_scope& value, const role_resolver& resolver, limits limit):
+    descriptors (value), resolve (resolver), budget {limit} {}
   std::vector<identity_request> inspect (const tree& body, source_path selected= {}) {
     scope= std::move (selected);
     const tree* target= &body;
@@ -367,7 +368,7 @@ public:
 };
 
 source_path_classification classify_source_path_impl (
-    const tree& body, const source_path& selected, drd_info drd,
+    const tree& body, const source_path& selected, const contracts::contract_scope& descriptors,
     const role_resolver& resolve, limits budget) {
   source_path_classification result;
   try {
@@ -382,7 +383,7 @@ source_path_classification classify_source_path_impl (
 
       if (depth == selected.size ()) {
         if (is_compound (*current) && !is_func (*current, DOCUMENT)) {
-          const auto contract= roles_for (*current, drd, resolve, prefix);
+          const auto contract= roles_for (*current, descriptors, resolve, prefix);
           if (contract.role == semantic_role::data) return result;
         }
         result.content= true;
@@ -404,7 +405,7 @@ source_path_classification classify_source_path_impl (
         }
       }
       else {
-        const auto contract= roles_for (*current, drd, resolve, prefix);
+        const auto contract= roles_for (*current, descriptors, resolve, prefix);
         if (contract.role == semantic_role::data) return result;
         next= contract.children[index];
         if (context == child_role::inline_content &&
@@ -783,7 +784,7 @@ std::optional<role_declaration> standard_source_role (const tree& source) {
 }
 
 identity_result assign_detached_source_ids (
-    const tree& body, drd_info drd, const role_resolver& roles,
+    const tree& body, const contracts::contract_scope& descriptors, const role_resolver& roles,
     const identity_allocator& allocate, limits budget) {
   identity_result result;
   try {
@@ -793,7 +794,7 @@ identity_result assign_detached_source_ids (
       if (tagged (body[i], "body") || tagged (body[i], "TeXmacs"))
         fail ({i}, issue::invalid_body, "Extract the body from the file envelope first");
     auto reserved= identity_audit (budget).inspect (body);
-    const auto candidates= identity_planner (drd, roles, budget).inspect (body);
+    const auto candidates= identity_planner (descriptors, roles, budget).inspect (body);
     std::vector<assigned_identity> pending;
     for (const auto& request: candidates) {
       if (!node::id (at (body, request.where)).empty ()) continue;
@@ -826,9 +827,9 @@ identity_result assign_detached_source_ids (
 }
 
 source_path_classification classify_source_path (
-    const tree& body, const source_path& where, drd_info drd,
+    const tree& body, const source_path& where, const contracts::contract_scope& descriptors,
     const role_resolver& roles, limits budget) {
-  return classify_source_path_impl (body, where, drd, roles, budget);
+  return classify_source_path_impl (body, where, descriptors, roles, budget);
 }
 
 namespace {
@@ -860,10 +861,10 @@ std::vector<diagnostic> source_identity_state::initialize (const tree& body, lim
 }
 
 std::vector<diagnostic> source_identity_state::initialize_complete (
-    const tree& body, drd_info drd, const role_resolver& roles, limits budget) {
+    const tree& body, const contracts::contract_scope& descriptors, const role_resolver& roles, limits budget) {
   auto errors= initialize (body, budget);
   if (!errors.empty ()) return errors;
-  const auto plan= prepare (body, drd, roles, {}, budget);
+  const auto plan= prepare (body, descriptors, roles, {}, budget);
   if (!plan.ok ()) {
     ready= false;
     return plan.diagnostics;
@@ -888,7 +889,7 @@ void source_identity_state::observe (modification mod) {
   ++revision;
 }
 
-identity_edit_plan source_identity_state::prepare (const tree& body, drd_info drd,
+identity_edit_plan source_identity_state::prepare (const tree& body, const contracts::contract_scope& descriptors,
     const role_resolver& roles, const identity_allocator& allocate, limits budget) const {
   identity_edit_plan plan;
   plan.revision= revision;
@@ -898,7 +899,7 @@ identity_edit_plan source_identity_state::prepare (const tree& body, drd_info dr
     if (!dirty) return plan;
     plan.scope= *dirty;
     // Classify the ancestry first, validating the selected path before access.
-    const auto candidates= identity_planner (drd, roles, budget).inspect (body, *dirty);
+    const auto candidates= identity_planner (descriptors, roles, budget).inspect (body, *dirty);
     std::map<source_path, std::set<std::string>> local;
     auto reserved= identity_audit (budget).inspect (at (body, *dirty), &local);
     for (auto& entry: local) {

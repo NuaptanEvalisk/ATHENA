@@ -1,6 +1,7 @@
 // Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later.
 #include "contract_scope.hpp"
 #include "contract_declaration.hpp"
+#include <immer/algorithm.hpp>
 #include <algorithm>
 #include <set>
 #include <tuple>
@@ -30,10 +31,10 @@ const node_contract& unknown_contract () {
 
 bool field_contract::operator == (const field_contract& other) const {
   return std::tie (type, accessible, writability, block, environment, type_origin,
-           accessible_origin, writability_origin, block_origin, environment_origin) ==
+           accessible_origin, writability_origin, block_origin, environment_origin, analysis) ==
          std::tie (other.type, other.accessible, other.writability, other.block,
            other.environment, other.type_origin, other.accessible_origin,
-           other.writability_origin, other.block_origin, other.environment_origin);
+           other.writability_origin, other.block_origin, other.environment_origin, other.analysis);
 }
 
 bool node_contract::operator == (const node_contract& other) const {
@@ -64,13 +65,14 @@ definition_binding capture_definition (const string& name, const tree& value,
 
 struct contract_snapshot::layer {
   contract_snapshot parent;
-  std::shared_ptr<const contract_entries> entries;
-  std::shared_ptr<const contract_entries> projections;
+  contract_entries entries;
+  contract_entries projections;
+  inference_origins provenance;
+  inference_receipts receipts;
   std::shared_ptr<const group_extensions> groups;
-  std::shared_ptr<const definition_entries> definitions;
+  definition_entries definitions;
   std::shared_ptr<declaration_source_state> sources;
   bool inherit_definitions;
-  bool inherit_inference;
 };
 
 contract_snapshot::contract_snapshot (std::shared_ptr<const layer> value):
@@ -86,19 +88,8 @@ bool contract_snapshot::contains (tree_label label) const {
 }
 
 std::shared_ptr<const node_contract> contract_snapshot::find (tree_label label) const {
-  bool inferred= true;
-  for (auto current= value.get (); current; current= current->parent.value.get ()) {
-    if (inferred) {
-      const auto projection= current->projections->find (label);
-      if (projection != current->projections->end () && projection->second)
-        return projection->second;
-      if (projection != current->projections->end ()) inferred= false;
-    }
-    const auto found= current->entries->find (label);
-    if (found != current->entries->end ()) return found->second;
-    inferred= inferred && current->inherit_inference;
-  }
-  return {};
+  const auto inferred= find_inference (label);
+  return inferred ? inferred : find_declaration (label);
 }
 
 const node_contract& contract_snapshot::declared (tree_label label) const {
@@ -108,44 +99,47 @@ const node_contract& contract_snapshot::declared (tree_label label) const {
 
 std::shared_ptr<const node_contract> contract_snapshot::find_declaration (tree_label label) const {
   for (auto current= value.get (); current; current= current->parent.value.get ()) {
-    const auto found= current->entries->find (label);
-    if (found != current->entries->end ()) return found->second;
+    const auto found= current->entries.find (label);
+    if (found) return *found;
   }
   return {};
 }
 
 std::shared_ptr<const node_contract> contract_snapshot::find_inference (tree_label label) const {
-  for (auto current= value.get (); current; current= current->parent.value.get ()) {
-    const auto found= current->projections->find (label);
-    if (found != current->projections->end ()) return found->second;
-    if (current->entries->count (label) || !current->inherit_inference) break;
-  }
-  return {};
+  const auto found= value ? value->projections.find (label) : nullptr;
+  return found ? *found : nullptr;
 }
 
 std::shared_ptr<const declaration_chain> contract_snapshot::declaration_history (tree_label label) const {
   if (!value) return {};
   const auto found= value->sources->targets.find (label);
-  return found == value->sources->targets.end () ? nullptr : found->second;
+  return found ? *found : nullptr;
 }
 
 definition_binding contract_snapshot::definition (tree_label label) const {
   for (auto current= value.get (); current; current= current->parent.value.get ()) {
-    const auto found= current->definitions->find (label);
-    if (found != current->definitions->end ()) return found->second;
+    const auto found= current->definitions.find (label);
+    if (found) return *found;
     if (!current->inherit_definitions) break;
   }
   return {};
 }
 
+std::vector<tree_label> contract_snapshot::definition_labels () const {
+  std::set<tree_label> labels;
+  for (auto current= value.get (); current; current= current->parent.value.get ()) {
+    for (const auto& [label, entry]: current->definitions) labels.insert (label);
+    if (!current->inherit_definitions) break;
+  }
+  return {labels.begin (), labels.end ()};
+}
+
 std::vector<tree_label> contract_snapshot::labels () const {
   std::set<tree_label> labels;
-  bool inferred= true;
+  if (value)
+    for (const auto& [label, entry]: value->projections) labels.insert (label);
   for (auto current= value.get (); current; current= current->parent.value.get ()) {
-    for (const auto& [label, entry]: *current->entries) labels.insert (label);
-    if (inferred)
-      for (const auto& [label, entry]: *current->projections) labels.insert (label);
-    inferred= inferred && current->inherit_inference;
+    for (const auto& [label, entry]: current->entries) labels.insert (label);
   }
   return {labels.begin (), labels.end ()};
 }
@@ -156,17 +150,16 @@ const group_extensions& contract_snapshot::groups () const {
 }
 
 contract_scope::contract_scope ():
-  entries (std::make_shared<contract_entries> ()),
-  projections (std::make_shared<contract_entries> ()),
   extensions (std::make_shared<group_extensions> ()),
-  definitions (std::make_shared<definition_entries> ()),
   sources (std::make_shared<declaration_source_state> ()) {}
 
 contract_scope::contract_scope (contract_snapshot parent):
-  parent (std::move (parent)), entries (std::make_shared<contract_entries> ()),
-  projections (std::make_shared<contract_entries> ()),
-  extensions (std::make_shared<group_extensions> (this->parent.groups ())),
-  definitions (std::make_shared<definition_entries> ()),
+  parent (std::move (parent)),
+  projections (this->parent.value ? this->parent.value->projections : contract_entries {}),
+  provenance (this->parent.value ? this->parent.value->provenance : inference_origins {}),
+  receipts (this->parent.value ? this->parent.value->receipts : inference_receipts {}),
+  extensions (this->parent.value ? this->parent.value->groups :
+              std::make_shared<const group_extensions> ()),
   sources (this->parent.value ? this->parent.value->sources :
            std::make_shared<declaration_source_state> ()) {}
 
@@ -180,12 +173,11 @@ bool contract_scope::contains (tree_label label) const {
 }
 
 std::shared_ptr<const node_contract> contract_scope::find (tree_label label) const {
-  const auto projection= projections->find (label);
-  if (projection != projections->end () && projection->second) return projection->second;
-  const auto found= entries->find (label);
-  if (found != entries->end ()) return found->second;
-  return inherit_inference && projection == projections->end () ?
-    parent.find (label) : parent.find_declaration (label);
+  const auto projection= projections.find (label);
+  if (projection) return *projection;
+  const auto found= entries.find (label);
+  if (found) return *found;
+  return parent.find_declaration (label);
 }
 
 const node_contract& contract_scope::declared (tree_label label) const {
@@ -194,32 +186,34 @@ const node_contract& contract_scope::declared (tree_label label) const {
 }
 
 std::shared_ptr<const node_contract> contract_scope::find_declaration (tree_label label) const {
-  const auto found= entries->find (label);
-  return found == entries->end () ? parent.find_declaration (label) : found->second;
+  const auto found= entries.find (label);
+  return found ? *found : parent.find_declaration (label);
 }
 
 std::shared_ptr<const node_contract> contract_scope::find_inference (tree_label label) const {
-  const auto found= projections->find (label);
-  if (found != projections->end ()) return found->second;
-  return inherit_inference && !entries->count (label) ? parent.find_inference (label) : nullptr;
+  const auto found= projections.find (label);
+  return found ? *found : nullptr;
+}
+
+analysis_evidence_ptr contract_scope::inference_evidence (tree_label label) const {
+  const auto found= provenance.find (label);
+  return found ? *found : nullptr;
 }
 
 std::shared_ptr<const declaration_chain> contract_scope::declaration_history (tree_label label) const {
   const auto found= sources->targets.find (label);
-  return found == sources->targets.end () ? nullptr : found->second;
+  return found ? *found : nullptr;
 }
 
 definition_binding contract_scope::definition (tree_label label) const {
-  const auto found= definitions->find (label);
-  return found == definitions->end () ?
-    (inherit_definitions ? parent.definition (label) : nullptr) : found->second;
+  const auto found= definitions.find (label);
+  return found ? *found : (inherit_definitions ? parent.definition (label) : nullptr);
 }
 
 bool contract_scope::bind (definition_binding value) {
   if (definition (value->target) == value) return false;
-  if (!definitions.unique ()) definitions= std::make_shared<definition_entries> (*definitions);
   const auto target= value->target;
-  definitions->insert_or_assign (target, std::move (value));
+  definitions= std::move (definitions).set (target, std::move (value));
   refresh_declarations (target, true);
   invalidate_inference (target);
   return true;
@@ -227,15 +221,15 @@ bool contract_scope::bind (definition_binding value) {
 
 void contract_scope::forget_definition (tree_label label) {
   if (!definition (label)) return;
-  if (!definitions.unique ()) definitions= std::make_shared<definition_entries> (*definitions);
-  if (inherit_definitions && parent.definition (label)) definitions->insert_or_assign (label, nullptr);
-  else definitions->erase (label);
+  if (inherit_definitions && parent.definition (label))
+    definitions= std::move (definitions).set (label, nullptr);
+  else definitions= std::move (definitions).erase (label);
   refresh_declarations (label, false);
   invalidate_inference (label);
 }
 
 void contract_scope::reset_definitions (definition_entries baseline) {
-  definitions= std::make_shared<definition_entries> (std::move (baseline));
+  definitions= std::move (baseline);
   inherit_definitions= false;
   const auto histories= sources;
   for (const auto& [label, history]: histories->targets)
@@ -245,30 +239,54 @@ void contract_scope::reset_definitions (definition_entries baseline) {
 
 contract_snapshot contract_scope::snapshot () const {
   return contract_snapshot (std::make_shared<const contract_snapshot::layer> (
-    contract_snapshot::layer {parent, entries, projections, extensions, definitions, sources,
-                             inherit_definitions, inherit_inference}));
+    contract_snapshot::layer {parent, entries, projections, provenance, receipts, extensions, definitions, sources,
+                             inherit_definitions}));
 }
 
 bool contract_scope::same_state (const contract_scope& other) const {
-  return parent.value == other.parent.value && entries == other.entries &&
-         projections == other.projections && inherit_inference == other.inherit_inference &&
+  return parent.value == other.parent.value && entries.identity () == other.entries.identity () &&
+         projections.identity () == other.projections.identity () &&
+         provenance.identity () == other.provenance.identity () &&
          sources == other.sources &&
-         extensions == other.extensions && definitions == other.definitions &&
+         extensions == other.extensions && definitions.identity () == other.definitions.identity () &&
          inherit_definitions == other.inherit_definitions;
 }
 
-std::vector<tree_label> contract_scope::changed_contracts (const contract_scope& other) const {
-  if (parent.value == other.parent.value && entries == other.entries &&
-      projections == other.projections && inherit_inference == other.inherit_inference) return {};
+namespace {
+template<class Map>
+void changed_keys (const Map& before, const Map& after, std::set<tree_label>& result) {
+  const auto record= [&] (const auto& value) { result.insert (value.first); };
+  immer::diff (before, after, immer::make_differ (
+    record, record, [&] (const auto&, const auto& value) { record (value); }));
+}
+}
+
+std::vector<tree_label> contract_scope::changed_declarations (const contract_scope& other) const {
+  if (parent.value == other.parent.value && entries.identity () == other.entries.identity ()) return {};
   std::set<tree_label> candidates;
-  if (parent.value != other.parent.value || inherit_inference != other.inherit_inference) {
+  if (parent.value != other.parent.value) {
     for (auto label: parent.labels ()) candidates.insert (label);
     for (auto label: other.parent.labels ()) candidates.insert (label);
   }
-  for (const auto& [label, value]: *entries) candidates.insert (label);
-  for (const auto& [label, value]: *other.entries) candidates.insert (label);
-  for (const auto& [label, value]: *projections) candidates.insert (label);
-  for (const auto& [label, value]: *other.projections) candidates.insert (label);
+  changed_keys (other.entries, entries, candidates);
+  std::vector<tree_label> changed;
+  for (auto label: candidates) {
+    const auto a= find_declaration (label), b= other.find_declaration (label);
+    if (a != b && (!a || !b || !(*a == *b))) changed.push_back (label);
+  }
+  return changed;
+}
+
+std::vector<tree_label> contract_scope::changed_contracts (const contract_scope& other) const {
+  if (parent.value == other.parent.value && entries.identity () == other.entries.identity () &&
+      projections.identity () == other.projections.identity ()) return {};
+  std::set<tree_label> candidates;
+  if (parent.value != other.parent.value) {
+    for (auto label: parent.labels ()) candidates.insert (label);
+    for (auto label: other.parent.labels ()) candidates.insert (label);
+  }
+  changed_keys (other.entries, entries, candidates);
+  changed_keys (other.projections, projections, candidates);
   std::vector<tree_label> changed;
   for (auto label: candidates) {
     const auto left= find (label), right= other.find (label);
@@ -277,6 +295,21 @@ std::vector<tree_label> contract_scope::changed_contracts (const contract_scope&
         (a != b && (!a || !b || !(*a == *b)))) changed.push_back (label);
   }
   return changed;
+}
+
+std::vector<tree_label> contract_scope::changed_definitions (const contract_scope& other) const {
+  if (parent.value == other.parent.value && definitions.identity () == other.definitions.identity () &&
+      inherit_definitions == other.inherit_definitions) return {};
+  std::set<tree_label> candidates;
+  if (parent.value != other.parent.value || inherit_definitions != other.inherit_definitions) {
+    for (auto label: parent.definition_labels ()) candidates.insert (label);
+    for (auto label: other.parent.definition_labels ()) candidates.insert (label);
+  }
+  changed_keys (other.definitions, definitions, candidates);
+  std::vector<tree_label> result;
+  for (auto label: candidates)
+    if (definition (label) != other.definition (label)) result.push_back (label);
+  return result;
 }
 
 void contract_scope::replace (tree_label label, node_contract value) {
@@ -297,33 +330,45 @@ void contract_scope::materialize_declaration (
     tree_label label, std::shared_ptr<const node_contract> value) {
   const auto previous= find_declaration (label);
   if (previous == value || (previous && value && *previous == *value)) return;
-  if (!entries.unique ()) entries= std::make_shared<contract_entries> (*entries);
-  if (value == parent.find_declaration (label)) entries->erase (label);
-  else entries->insert_or_assign (label, std::move (value));
+  if (value == parent.find_declaration (label)) entries= std::move (entries).erase (label);
+  else entries= std::move (entries).set (label, std::move (value));
   invalidate_inference (label);
 }
 
 void contract_scope::invalidate_inference (tree_label label) {
-  const bool inherited= inherit_inference && bool (parent.find_inference (label));
-  const auto existing= projections->find (label);
-  if (inherited ? existing != projections->end () && !existing->second :
-                  existing == projections->end ()) return;
-  if (!projections.unique ()) projections= std::make_shared<contract_entries> (*projections);
-  if (inherited) projections->insert_or_assign (label, nullptr);
-  else projections->erase (label);
+  const auto existing= projections.find (label);
+  if (!existing) return;
+  const auto evidence= *provenance.find (label);
+  const auto count= *receipts.find (evidence);
+  if (count == 1) receipts= std::move (receipts).erase (evidence);
+  else receipts= std::move (receipts).set (evidence, count-1);
+  projections= std::move (projections).erase (label);
+  provenance= std::move (provenance).erase (label);
 }
 
-void contract_scope::publish_inference (tree_label label, node_contract value) {
-  const auto previous= find (label);
-  if (previous && *previous == value) return;
-  auto entry= std::make_shared<const node_contract> (std::move (value));
-  if (!projections.unique ()) projections= std::make_shared<contract_entries> (*projections);
-  projections->insert_or_assign (label, std::move (entry));
+void contract_scope::set_inference (tree_label label, std::shared_ptr<const node_contract> value,
+                                     analysis_evidence_ptr evidence) {
+  const auto existing= projections.find (label);
+  if (existing && *existing == value && inference_evidence (label) == evidence) return;
+  invalidate_inference (label);
+  const auto previous= receipts.find (evidence);
+  const auto count= previous ? *previous : 0;
+  receipts= std::move (receipts).set (evidence, count+1);
+  provenance= std::move (provenance).set (label, std::move (evidence));
+  projections= std::move (projections).set (label, std::move (value));
+}
+
+void contract_scope::replace_inference (contract_entries values, inference_origins origins,
+                                         inference_receipts sources) {
+  projections= std::move (values);
+  provenance= std::move (origins);
+  receipts= std::move (sources);
 }
 
 void contract_scope::clear_inference () {
-  projections= std::make_shared<contract_entries> ();
-  inherit_inference= false;
+  projections= {};
+  provenance= {};
+  receipts= {};
 }
 
 std::vector<tree_label> contract_scope::restore_targets (
@@ -333,27 +378,20 @@ std::vector<tree_label> contract_scope::restore_targets (
     const bool source_changed= declaration_history (target.label) != before.declaration_history (target.label);
     const auto original_definition= before.definition (target.label);
     if (definition (target.label) != original_definition) {
-      if (!definitions.unique ()) definitions= std::make_shared<definition_entries> (*definitions);
       if (original_definition == (inherit_definitions ? parent.definition (target.label) : nullptr))
-        definitions->erase (target.label);
-      else definitions->insert_or_assign (target.label, original_definition);
+        definitions= std::move (definitions).erase (target.label);
+      else definitions= std::move (definitions).set (target.label, original_definition);
     }
     const auto effective= find (target.label);
     const auto original= before.find_declaration (target.label);
     const bool declaration_changed= find_declaration (target.label) != original;
     if (declaration_changed) {
-      if (!entries.unique ()) entries= std::make_shared<contract_entries> (*entries);
-      if (original == parent.find_declaration (target.label)) entries->erase (target.label);
-      else entries->insert_or_assign (target.label, original);
+      if (original == parent.find_declaration (target.label)) entries= std::move (entries).erase (target.label);
+      else entries= std::move (entries).set (target.label, original);
     }
-    const auto inferred= before.find_inference (target.label);
-    if (find_inference (target.label) != inferred) {
-      const auto inherited= inherit_inference && !entries->count (target.label) ?
-        parent.find_inference (target.label) : nullptr;
-      if (!projections.unique ()) projections= std::make_shared<contract_entries> (*projections);
-      if (inferred == inherited) projections->erase (target.label);
-      else projections->insert_or_assign (target.label, inferred);
-    }
+    const auto inferred= before.projections.find (target.label);
+    if (inferred) set_inference (target.label, *inferred, before.inference_evidence (target.label));
+    else invalidate_inference (target.label);
     if (source_changed || declaration_changed || find (target.label) != effective)
       changed.push_back (target.label);
   }

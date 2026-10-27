@@ -17,7 +17,7 @@
 #include "tm_link.hpp"
 #include "message.hpp"
 #include "new_document.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "boot.hpp"
 #include "scheme_execution_context.hpp"
 #include "buffer_actor.hpp"
@@ -187,7 +187,7 @@ set_current_view (url u) {
   if (vw != NULL) {
     visit_buffer (vw->buf);
   }
-  swap_current_drd (nullptr);
+  athena::contracts::exchange_evaluation_state (nullptr);
   swap_current_document_tree (nullptr);
 }
 
@@ -609,13 +609,6 @@ switch_to_buffer (url name) {
 void
 switch_to_buffer_from_actor (string encoded_name) {
   switch_to_buffer (decode_url (std::move (encoded_name)));
-}
-
-void
-set_current_drd (url name) {
-  (void) name;
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
-  swap_current_drd (context == nullptr ? nullptr : context->drd);
 }
 
 bool

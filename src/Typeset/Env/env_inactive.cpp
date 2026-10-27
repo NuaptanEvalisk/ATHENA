@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "env.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
 
 static tree
 subvar (tree var, int i) {
@@ -200,7 +201,7 @@ edit_env_rep::rewrite_inactive_arg (
       }
       else r= rewrite_inactive (t[i], r, block, flush);
     }
-  return highlight (r, t[i], drd->get_type_child (t, i));
+  return highlight (r, t[i], athena::contracts::editing_query {contract_state.contracts}.child_type (t, i));
 }
 
 tree
@@ -384,7 +385,7 @@ edit_env_rep::rewrite_inactive_hybrid (
     if (staged) {
       string macro_name= t[0]->label;
       tree definition= provides (macro_name) ? read (macro_name) : tree ("");
-      const bool known_signature= drd->contains (macro_name);
+      const bool known_signature= athena::contracts::editing_query {contract_state.contracts}.contains (macro_name);
       tree signature= known_signature ? compound (macro_name) : tree (TUPLE);
       for (int i=0; i<N(t[1]); ++i) signature << t[1][i];
       tree arguments= subvar (var, 1);
@@ -394,7 +395,7 @@ edit_env_rep::rewrite_inactive_hybrid (
             is_atomic (definition[i]))
           label= definition[i]->label;
         if (label == "" && known_signature)
-          label= drd->get_child_name (signature, i);
+          label= athena::contracts::editing_query {contract_state.contracts}.child_name (signature, i);
         if (label == "") label= "arg" * as_string (i+1);
         r << tree (SPACE, "0.3fn") << field (label, subvar (arguments, i));
       }

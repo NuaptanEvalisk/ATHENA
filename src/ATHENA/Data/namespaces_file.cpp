@@ -169,7 +169,7 @@ namespace_save_new_document (
     // A template creates new source objects, not another copy of its UUIDs.
     doc= athena::document_node::duplicate_source_nodes (doc);
     auto identities= athena::document_node::assign_detached_source_ids (
-      extract (doc, "body"), get_document_drd (doc),
+      extract (doc, "body"), prepare_document_context (doc).contracts,
       athena::document_node::standard_source_role,
       [] (const athena::document_node::identity_request&) {
         return athena::node::new_id ();

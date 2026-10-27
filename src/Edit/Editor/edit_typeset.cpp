@@ -26,6 +26,9 @@
 #include "Typeset/Env/local_environment.hpp"
 #include "scheme.hpp"
 #include "node_metadata_transform.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
+#include "Data/NodeContracts/detached_environment.hpp"
+#include "buffer_actor.hpp"
 #ifdef EXPERIMENTAL
 #include "../../Style/Environment/std_environment.hpp"
 #endif // EXPERIMENTAL
@@ -51,14 +54,21 @@ toc_fold_contains (tree t) {
 ******************************************************************************/
 
 struct cursor_environment_checkpoint: evaluation_environment_checkpoint {
-  const bool analyzed;
   const athena::contracts::contract_event_log trace;
   const athena::contracts::evaluation_boundary_handle boundary;
-  cursor_environment_checkpoint (const edit_env_rep& env, bool analyzed= false,
+  const std::shared_ptr<const evaluation_environment_checkpoint> execution_base;
+  cursor_environment_checkpoint (const edit_env_rep& env,
       athena::contracts::contract_event_log trace= {},
-      athena::contracts::evaluation_boundary_handle boundary= {}):
-    evaluation_environment_checkpoint (env), analyzed (analyzed),
-    trace (std::move (trace)), boundary (std::move (boundary)) {}
+      athena::contracts::evaluation_boundary_handle boundary= {},
+      std::shared_ptr<const evaluation_environment_checkpoint> base= {}):
+    evaluation_environment_checkpoint (env),
+    trace (std::move (trace)), boundary (std::move (boundary)), execution_base (std::move (base)) {}
+  cursor_environment_checkpoint (const evaluation_environment_checkpoint& context,
+      const source_occurrence& occurrence, athena::contracts::contract_event_log trace,
+      athena::contracts::evaluation_boundary_handle boundary,
+      std::shared_ptr<const evaluation_environment_checkpoint> base):
+    evaluation_environment_checkpoint (context, occurrence),
+    trace (std::move (trace)), boundary (std::move (boundary)), execution_base (std::move (base)) {}
 };
 
 edit_typeset_rep::edit_typeset_rep ():
@@ -71,29 +81,32 @@ edit_typeset_rep::edit_typeset_rep ():
   fold_view_has_toc (false),
   heading_word_count_cache_hash (INT_MIN), heading_word_count_cache (),
   heading_word_count_cache_map (0),
-  env (drd, buf->master,
+  env (contract_state, buf->master,
        buf->data->ref, grefs,
        buf->data->aux, buf->data->aux,
        buf->data->att, buf->data->att),
   ttt (new_typesetter (env, subtree (et, rp), reverse (rp))) {
-    init_update ();
+    pre= std::make_unique<evaluation_environment_checkpoint> (*env.operator-> ());
+    initial_background= pre->value (BG_COLOR);
+    prepare_page_geometry ();
 }
 
 edit_typeset_rep::~edit_typeset_rep () { delete_typesetter (ttt); }
 
 void
 edit_typeset_rep::set_data (new_data data) {
-  set_style (data->style);
-  set_init  (data->init);
+  the_style= copy (data->style);
+  init= copy (data->init);
   set_fin   (data->fin);
   set_ref   (data->ref);
   set_aux   (data->aux);
   set_att   (data->att);
   notify_page_change ();
-  add_init (data->init);
+  ttt->br->notify_assign (path (), subtree (et, rp));
   notify_change (THE_ENVIRONMENT);
   notify_change (THE_DECORATIONS);
   typeset_invalidate_env ();
+  init_update ();
   iterator<string> it = iterate (data->att);
   while (it->busy()) {
     string key= it->next ();
@@ -116,7 +129,10 @@ edit_typeset_rep::get_data (new_data& data) {
 
 typesetter edit_typeset_rep::get_typesetter () { return ttt; }
 tree edit_typeset_rep::get_style () { return the_style; }
-void edit_typeset_rep::set_style (tree t) { the_style= copy (t); }
+void edit_typeset_rep::set_style (tree t) {
+  the_style= copy (t);
+  init_update ();
+}
 hashmap<string,tree> edit_typeset_rep::get_init () { return init; }
 hashmap<string,tree> edit_typeset_rep::get_fin () { return fin; }
 hashmap<string,tree> edit_typeset_rep::get_ref () { return buf->data->ref; }
@@ -240,6 +256,7 @@ edit_typeset_rep::add_init (hashmap<string,tree> H) {
   init->join (H);
   ttt->br->notify_assign (path (), subtree (et, rp));
   notify_change (THE_ENVIRONMENT);
+  init_update ();
 }
 
 void
@@ -300,7 +317,7 @@ use_modules (tree t) {
 void
 edit_typeset_rep::typeset_style_use_cache (tree style) {
   style= preprocess_style (style, buf->master);
-  drd= drd_info (buf->title, standard_drd_for_thread ());
+  contract_state= athena::contracts::evaluation_state (athena::contracts::builtin_contracts ().snapshot ());
   get_style_environment (style, buf->master, true)->restore (*env.operator-> ());
   use_modules (env->read (THE_MODULES));
 }
@@ -309,19 +326,24 @@ void
 edit_typeset_rep::typeset_preamble () {
   typeset_invalidate_env ();
   env->write_default_env ();
-  typeset_style_use_cache (the_style);
+  if (buf->field_environment) {
+    buf->field_environment->restore (*env.operator-> ());
+    use_modules (env->read (THE_MODULES));
+  }
+  else typeset_style_use_cache (the_style);
   env->update ();
   env->patch_env (init);
   env->update ();
-  env->analyze_contracts ();
+  if (!buf->field_environment) (void) env->prepare_contracts ({});
   pre= std::make_unique<evaluation_environment_checkpoint> (*env.operator-> ());
+  prepare_initial_background ();
+  if (!page_geometry_from_layout) prepare_page_geometry ();
   if (compound_counter_view)
     compound_counter_variables= athena::avd::counter_variables (env);
 }
 
 void
 edit_typeset_rep::typeset_prepare () {
-  if (!pre) typeset_preamble ();
   env->base_file_name= buf->master;
   env->read_only= buf->read_only;
   pre->restore (*env.operator-> ());
@@ -361,15 +383,14 @@ edit_typeset_rep::compound_counter_environment () {
 tree
 edit_typeset_rep::evaluate_compound_counters (const tree& incoming) {
   athena::avd::validate_counter_state (incoming);
-  if (!pre) typeset_preamble ();
   // Semantic execution has its own environment and reference/auxiliary maps.
   // It neither builds boxes nor changes this view's live typesetter state.
-  drd_info local_drd= drd_info ("compound-counter-evaluation", drd);
+  athena::contracts::evaluation_state local_state= athena::contracts::evaluation_state (contract_state.contracts.snapshot ());
   hashmap<string,tree> refs= copy (buf->data->ref);
   hashmap<string,tree> global_refs= copy (grefs);
   hashmap<string,tree> aux= copy (buf->data->aux);
   hashmap<string,tree> attachments= copy (buf->data->att);
-  edit_env evaluation (local_drd, buf->master, refs, global_refs,
+  edit_env evaluation (local_state, buf->master, refs, global_refs,
                        aux, aux, attachments, attachments);
   pre->restore (*evaluation.operator-> ());
   evaluation->style_init_env ();
@@ -380,52 +401,137 @@ edit_typeset_rep::evaluate_compound_counters (const tree& incoming) {
 
 void
 edit_typeset_rep::init_update () {
+  typeset_preamble ();
 }
 
 void
-edit_typeset_rep::drd_update () {
-  typeset_exec_until (tp);
-  cur[tp]->restore (*env.operator-> ());
+edit_typeset_rep::prepare_initial_background () {
+  const tree value= init->contains (BG_COLOR) ? init[BG_COLOR] : pre->value (BG_COLOR);
+  if (!is_func (value, _PATTERN)) {
+    initial_background= value;
+    return;
+  }
+  temporary_environment_scope preparation (*env.operator-> ());
+  pre->restore (*env.operator-> ());
+  env->patch_env (init);
   env->style_init_env ();
   env->update ();
-  if (!cur[tp]->analyzed) {
-    const auto previous= cur[tp];
-    env->analyze_contracts ();
-    cur (tp)= std::make_shared<const cursor_environment_checkpoint> (
-      *env.operator-> (), true, previous->trace, previous->boundary);
-    if (prepared_cursor == previous) prepared_cursor= cur[tp];
-  }
+  initial_background= env->exec (value);
+}
+
+athena::contracts::contract_scope
+edit_typeset_rep::prepare_source_contracts () {
+  athena::contracts::evaluation_state contracts (athena::contracts::builtin_contracts ().snapshot ());
+  hashmap<string,tree> refs= copy (buf->data->ref);
+  hashmap<string,tree> global_refs= copy (grefs);
+  hashmap<string,tree> aux= copy (buf->data->aux);
+  hashmap<string,tree> attachments= copy (buf->data->att);
+  edit_env preparation (contracts, buf->master, refs, global_refs,
+                        aux, aux, attachments, attachments);
+  const tree style= preprocess_style (the_style, buf->master);
+  get_style_environment (style, buf->master, true)->restore (*preparation.operator-> ());
+  use_modules (preparation->read (THE_MODULES));
+  preparation->patch_env (init);
+  preparation->style_init_env ();
+  preparation->update ();
+  const tree preamble= get_document_preamble (subtree (et, rp));
+  if (preamble != "") preparation->exec (preamble);
+  preparation->analyze_contracts ();
+  return contracts.contracts;
+}
+
+void edit_typeset_rep::set_field_environment (
+    std::shared_ptr<const athena::contracts::detached_environment> context) {
+  buf->field_environment= std::move (context);
+  notify_change (THE_ENVIRONMENT);
+  init_update ();
+}
+
+std::shared_ptr<const cursor_environment_checkpoint>
+edit_typeset_rep::prepared_context_at (
+    path position, athena::contracts::evaluation_boundary_handle selected_boundary) {
+  if (!ttt->execution_base || !(rp < position)) return {};
+  const path source_path= path_up (position);
+  if (!has_subtree (et, source_path)) return {};
+  const tree source= subtree (et, source_path);
+  const auto trace= ttt->br->contract_changes;
+  const auto base= ttt->execution_base;
+  const auto occurrence= find_source_occurrence (
+    ttt->br->source_occurrences, source_path, source, selected_boundary);
+  if (!occurrence) return {};
+  const auto boundary= !is_atomic (source) && last_item (position) == right_index (source) ?
+    occurrence->end_boundary : occurrence->boundary;
+  if (!boundary) return {};
+  for (const auto& cached: cursor_contexts)
+    if (cached->trace == trace && cached->boundary == boundary &&
+        cached->execution_base == base) return cached;
+  const auto* recorded= ttt->execution_contexts.find (boundary);
+  const auto context= recorded ? *recorded : nullptr;
+  if (!context) return {};
+  const auto prepared= std::make_shared<const cursor_environment_checkpoint> (
+    *context, *occurrence, trace, boundary, base);
+  if (cursor_contexts.size () >= 25) cursor_contexts.clear ();
+  cursor_contexts.push_back (prepared);
+  return prepared;
+}
+
+std::shared_ptr<const evaluation_environment_checkpoint>
+edit_typeset_rep::cursor_context_at (
+    path position, athena::contracts::evaluation_boundary_handle selected) {
+  return prepared_context_at (position, std::move (selected));
+}
+
+bool
+edit_typeset_rep::cursor_occurrence_admitted (
+    path position, const athena::contracts::evaluation_boundary_handle& selected) {
+  if (!ttt->execution_base || !(rp < position)) return false;
+  const path source_path= path_up (position);
+  if (!has_subtree (et, source_path)) return false;
+  const auto occurrence= find_source_occurrence (ttt->br->source_occurrences,
+    source_path, subtree (et, source_path), selected);
+  return occurrence && (occurrence->boundary == selected || occurrence->end_boundary == selected);
 }
 
 void
 edit_typeset_rep::prepare_cursor_environment () {
-  if (!pre || fold_view_active || (ttt->br->status & VALID_MASK) != PROCESSED ||
-      !(rp < tp)) return;
-  const path source_path= path_up (tp);
-  if (!has_subtree (et, source_path)) return;
-  const tree source= subtree (et, source_path);
-  if (!is_atomic (source)) return;
-  const auto occurrence= find_source_occurrence (ttt->br->source_occurrences, source_path);
-  if (!occurrence || occurrence->value != source) return;
-  const auto trace= ttt->br->contract_changes;
-  auto prepared= prepared_cursor;
-  if (!prepared || prepared->trace != trace || prepared->boundary != occurrence->boundary) {
-    const auto prefix= athena::contracts::contract_event_prefix (trace, occurrence->boundary);
-    if (!prefix) return;
-    temporary_environment_scope temporary (*env.operator-> ());
-    typeset_prepare ();
-    if (!env->replay_contract_events (prefix, false)) return;
-    if (env->get_string (PREAMBLE) == "true" || env->get_string (MODE) == "src") return;
-    occurrence->restore_context (*env.operator-> ());
-    prepared= std::make_shared<const cursor_environment_checkpoint> (
-      *env.operator-> (), false, trace, occurrence->boundary);
-  }
+  auto selected= cursor_source_boundary ();
+  if (!selected && prepared_cursor && prepared_cursor->trace == ttt->br->contract_changes &&
+      prepared_cursor->execution_base == ttt->execution_base) selected= prepared_cursor->boundary;
+  const auto prepared= prepared_context_at (tp, selected);
+  if (!prepared || prepared->value (PREAMBLE) == "true") return;
   if (N(cur) >= 25) cur= hashmap<path,std::shared_ptr<const cursor_environment_checkpoint>> (nullptr);
   cur (tp)= prepared;
   prepared_cursor= prepared;
   prepared->restore (*env.operator-> ());
   env->style_init_env ();
   env->update ();
+  std::function<void ()> wake;
+  if (const auto* context= current_scheme_execution_context (); context && context->actor) {
+    const auto actor= context->actor_id;
+    const auto view= context->view_id;
+    wake= [actor, view] {
+      const auto continuation= actor_continuation_registry::instance ().store ([] {
+        const auto* context= current_scheme_execution_context ();
+        if (!context || !context->editor) return;
+        context->editor->prepare_cursor_environment ();
+        context->editor->notify_change (THE_CURSOR | THE_FOCUS);
+      });
+      if (!buffer_actor::try_submit_to (actor, actor_command_kind::run_native_continuation,
+          view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, continuation))
+        actor_continuation_registry::instance ().discard (continuation);
+    };
+  }
+  // A retained context can already be ready; publication still validates it
+  // against this owner rather than trusting the worker or the cursor path.
+  const bool changed= env->prepare_contracts (std::move (wake));
+  if (changed) {
+    auto resolved= std::make_shared<const cursor_environment_checkpoint> (
+      *env.operator-> (), prepared->trace, prepared->boundary, prepared->execution_base);
+    cur (tp)= resolved;
+    prepared_cursor= resolved;
+    for (auto& cached: cursor_contexts)
+      if (cached == prepared) cached= resolved;
+  }
 }
 
 #ifdef EXPERIMENTAL
@@ -447,8 +553,10 @@ edit_typeset_rep::environment_update () {
 
 void
 edit_typeset_rep::typeset_invalidate_env () {
+  ttt->execution_base.reset ();
   cur= hashmap<path,std::shared_ptr<const cursor_environment_checkpoint>> (nullptr);
   prepared_cursor.reset ();
+  cursor_contexts.clear ();
 }
 
 static void
@@ -515,6 +623,16 @@ define_style_macros (edit_env& env, tree t) {
 
 void
 edit_typeset_rep::typeset_exec_until (path p) {
+  // General queries use the same recorded occurrence as cursor preparation.
+  // A path-only cache may belong to a different display of the same argument.
+  const auto prepared= prepared_context_at (
+    p, p == tp ? cursor_source_boundary () : nullptr);
+  if (prepared) {
+    if (N(cur) >= 25)
+      cur= hashmap<path,std::shared_ptr<const cursor_environment_checkpoint>> (nullptr);
+    cur (p)= prepared;
+    return;
+  }
   // FIXME: we should ensure that p is inside the document
   // if (!(rp <= p)) p= correct_cursor (et, rp * 0);
 
@@ -531,10 +649,12 @@ edit_typeset_rep::typeset_exec_until (path p) {
   }
 
   //cout << "Exec until " << p << LF;
-  if (cur[p] && cur[p]->trace == ttt->br->contract_changes &&
-      (!cur[p]->boundary || (ttt->br->status & VALID_MASK) == PROCESSED)) return;
-  if (N(cur)>=25) // avoids out of memory in weird cases
-    typeset_invalidate_env ();
+  if (cur[p] && !cur[p]->boundary && cur[p]->trace == ttt->br->contract_changes) return;
+  if (N(cur)>=25)
+    cur= hashmap<path,std::shared_ptr<const cursor_environment_checkpoint>> (nullptr);
+  // This remaining variable-query fallback must not replace the prepared
+  // contract owner selected by the displayed cursor occurrence.
+  temporary_environment_scope temporary (*env.operator-> ());
   typeset_prepare ();
   if (!(rp <= p)) {
     failed_error << "Erroneous path " << p << "\n";
@@ -555,7 +675,7 @@ edit_typeset_rep::typeset_exec_until (path p) {
               env->write (fm[k][0]->label, fm[k][1]);
       }
       else {
-        tree w= drd->get_env_child (t, i, tree (ATTR));
+        tree w= athena::contracts::editing_query {contract_state.contracts}.environment (t, i, tree (ATTR));
         if (w == "") break;
         //cout << "t= " << t << "\n";
         //cout << "i= " << i << "\n";
@@ -577,7 +697,7 @@ edit_typeset_rep::typeset_exec_until (path p) {
   if (env->read (MODE) == "src" && env->read (PREAMBLE) != "true")
     define_style_macros (env, subtree (et, rp));
   cur (p)= std::make_shared<const cursor_environment_checkpoint> (
-    *env.operator-> (), false, ttt->br->contract_changes);
+    *env.operator-> (), ttt->br->contract_changes);
   //time_t t2= texmacs_time ();
   //if (t2 - t1 >= 10) cout << "typeset_exec_until took " << t2-t1 << "ms\n";
 }
@@ -619,7 +739,6 @@ edit_typeset_rep::get_env_value (string var) {
 bool
 edit_typeset_rep::defined_at_init (string var) {
   if (init->contains (var)) return true;
-  if (!pre) typeset_preamble ();
   return pre->contains (var);
 }
 
@@ -630,14 +749,8 @@ edit_typeset_rep::defined_in_init (string var) {
 
 tree
 edit_typeset_rep::get_init_value (string var) {
-  if (init->contains (var)) {
-    tree t= init [var];
-    if (var == BG_COLOR && is_func (t, _PATTERN)) t= env->exec (t);
-    return is_func (t, BACKUP, 2)? t[0]: t;
-  }
-  if (!pre) typeset_preamble ();
-  tree t= pre->value (var);
-  if (var == BG_COLOR && is_func (t, _PATTERN)) t= env->exec (t);
+  tree t= var == BG_COLOR ? initial_background :
+    init->contains (var) ? init[var] : pre->value (var);
   return is_func (t, BACKUP, 2)? t[0]: t;
 }
 
@@ -698,28 +811,36 @@ edit_typeset_rep::get_page_count () {
 
 SI
 edit_typeset_rep::get_page_width (bool deco) {
-  (void) get_env_string (PAGE_WIDTH);
-  return (env->get_page_width (deco) + std_shrinkf - 1) / std_shrinkf;
+  return (prepared_page_geometry.page_width[deco] + std_shrinkf - 1) / std_shrinkf;
 }
 
 SI
 edit_typeset_rep::get_pages_width (bool deco) {
-  (void) get_env_string (PAGE_WIDTH);
-  return (env->get_pages_width (deco) + std_shrinkf - 1) / std_shrinkf;
+  return (prepared_page_geometry.pages_width[deco] + std_shrinkf - 1) / std_shrinkf;
 }
 
 SI
 edit_typeset_rep::get_page_height (bool deco) {
-  (void) get_env_string (PAGE_HEIGHT);
-  return (env->get_page_height (deco) + std_shrinkf - 1) / std_shrinkf;
+  return (prepared_page_geometry.page_height[deco] + std_shrinkf - 1) / std_shrinkf;
+}
+
+void
+edit_typeset_rep::prepare_page_geometry () {
+  for (int deco=0; deco<2; ++deco) {
+    prepared_page_geometry.page_width[deco]= env->get_page_width (deco != 0);
+    prepared_page_geometry.pages_width[deco]= env->get_pages_width (deco != 0);
+    prepared_page_geometry.page_height[deco]= env->get_page_height (deco != 0);
+  }
+  prepared_page_geometry.packet= env->page_packet;
+  prepared_page_geometry.offset= env->page_offset;
 }
 
 SI
 edit_typeset_rep::get_total_width (bool deco) {
   SI w= eb->w();
   if (!deco) {
-    SI w1= env->get_pages_width (false);
-    SI w2= env->get_pages_width (true);
+    SI w1= prepared_page_geometry.pages_width[false];
+    SI w2= prepared_page_geometry.pages_width[true];
     w -= (w2 - w1);
   }
   return (w + std_shrinkf - 1) / std_shrinkf;
@@ -729,11 +850,11 @@ SI
 edit_typeset_rep::get_total_height (bool deco) {
   SI h= eb->h();
   if (!deco) {
-    SI h1= env->get_page_height (false);
-    SI h2= env->get_page_height (true);
+    SI h1= prepared_page_geometry.page_height[false];
+    SI h2= prepared_page_geometry.page_height[true];
     int nr= get_page_count ();
-    int nx= env->page_packet;
-    int ny= ((nr + env->page_offset) + nx - 1) / nx;
+    int nx= prepared_page_geometry.packet;
+    int ny= ((nr + prepared_page_geometry.offset) + nx - 1) / nx;
     h -= ny * (h2 - h1);
   }
   return (h + std_shrinkf - 1) / std_shrinkf;
@@ -798,9 +919,26 @@ prefix_specific (hashmap<string,tree>& H, string prefix) {
   H= R;
 }
 
+std::shared_ptr<const evaluation_environment_checkpoint>
+edit_typeset_rep::conversion_context_at (path p) {
+  if (p == rp * 0) {
+    // Whole-document expansion starts before its body effects. This is an
+    // explicit conversion operation, not a getter preparing a missing cursor.
+    if (has_changed (THE_ENVIRONMENT)) typeset_preamble ();
+    return std::make_shared<const evaluation_environment_checkpoint> (*pre);
+  }
+  const auto context= cursor_context_at (p, p == tp ? cursor_source_boundary () : nullptr);
+  if (!context)
+    throw std::runtime_error ("Conversion source context is not prepared");
+  return context;
+}
+
 tree
-edit_typeset_rep::exec (tree t, hashmap<string,tree> H, bool expand_refs) {
-  temporary_environment_scope execution (*env.operator-> (), H);
+edit_typeset_rep::exec (tree t, const evaluation_environment_checkpoint& context,
+                       hashmap<string,tree> overlay, bool expand_refs) {
+  temporary_environment_scope execution (*env.operator-> ());
+  context.restore (*env.operator-> ());
+  env->patch_env (overlay);
   env->update ();
   t= env->exec (t);
   if (expand_refs)
@@ -812,8 +950,8 @@ edit_typeset_rep::exec (tree t, hashmap<string,tree> H, bool expand_refs) {
 
 tree
 edit_typeset_rep::exec_texmacs (tree t, path p) {
-  typeset_exec_until (p);
-  return exec (t, cur[p]->variables ());
+  const auto context= conversion_context_at (p);
+  return exec (t, *context, hashmap<string,tree> (UNINIT));
 }
 
 tree
@@ -824,12 +962,12 @@ edit_typeset_rep::exec_texmacs (tree t) {
 tree
 edit_typeset_rep::exec_verbatim (tree t, path p) {
   t= convert_OTS1_symbols_to_universal_encoding (t);
-  typeset_exec_until (p);
-  hashmap<string,tree> H= cur[p]->variables ();
+  const auto context= conversion_context_at (p);
+  hashmap<string,tree> H (UNINIT);
   H ("TeXmacs")= tree (MACRO, "TeXmacs");
   H ("LaTeX")= tree (MACRO, "LaTeX");
   H ("TeX")= tree (MACRO, "TeX");
-  return exec (t, H);
+  return exec (t, *context, H);
 }
 
 tree
@@ -855,9 +993,8 @@ edit_typeset_rep::exec_html (tree t, path p) {
   if (buf->storage_version != athena::document::xml_storage_version::v3)
     t= convert_OTS1_symbols_to_universal_encoding (t);
   else t= copy (t);
-  if (p == (rp * 0)) typeset_preamble ();
-  typeset_exec_until (p);
-  hashmap<string,tree> H= cur[p]->variables ();
+  const auto context= conversion_context_at (p);
+  hashmap<string,tree> H= context->variables ();
   tree patch= html_export_environment_patch ();
   hashmap<string,tree> P (UNINIT, patch);
   H->join (P);
@@ -888,15 +1025,11 @@ edit_typeset_rep::exec_html (tree t, path p) {
     w << string ("html-extra-javascript") << H["html-extra-javascript"];
   if (H->contains ("html-site-version"))
     w << string ("html-site-version") << H["html-site-version"];
-  if (N(w) == 0) return exec (t, H);
+  if (N(w) == 0) return exec (t, *context, H);
   else {
     w << t;
-    return exec (w, H);
+    return exec (w, *context, H);
   }
-  //tree r= exec (t, H);
-  //cout << "In: " << t << "\n";
-  //cout << "Out: " << r << "\n";
-  //return r;
 }
 
 tree
@@ -929,9 +1062,8 @@ edit_typeset_rep::exec_latex (tree t, path p) {
       call ("get-preference", "texmacs->latex:expand-user-macros"));
   if (!expand_unknown_macros && !expand_user_macro)
     return t;
-  if (p == (rp * 0)) typeset_preamble ();
-  typeset_exec_until (p);
-  hashmap<string,tree> H= cur[p]->variables ();
+  const auto context= conversion_context_at (p);
+  hashmap<string,tree> H= context->variables ();
   object l= null_object ();
   iterator<string> it= iterate (H);
   while (it->busy ()) l= cons (object (it->next ()), l);
@@ -944,12 +1076,12 @@ edit_typeset_rep::exec_latex (tree t, path p) {
       is_document (t) && is_compound (t[0], "hide-preamble")) {
     tree r= copy (t);
     r[0]= "";
-    r= exec (value_to_compound (r, P), H, false);
-    r[0]= exec (t[0], H, false);
+    r= exec (value_to_compound (r, P), *context, H, false);
+    r[0]= exec (t[0], *context, H, false);
     return r;
   }
   else {
-    tree r= exec (value_to_compound (t, P), H, false);
+    tree r= exec (value_to_compound (t, P), *context, H, false);
     return r;
   }
 }
@@ -967,8 +1099,10 @@ edit_typeset_rep::texmacs_exec (tree t) {
 tree
 edit_typeset_rep::var_texmacs_exec (tree t) {
   typeset_exec_until (tp);
+  temporary_environment_scope execution (*env.operator-> ());
   cur[tp]->restore (*env.operator-> ());
-  env->update_frame ();
+  env->style_init_env ();
+  env->update ();
   return texmacs_exec (t);
 }
 
@@ -983,12 +1117,14 @@ edit_typeset_rep::change_style (tree t) {
   if (changed) {
     require_save ();
     notify_change (THE_ENVIRONMENT);
+    init_update ();
   }
 }
 
 void
 edit_typeset_rep::init_style () {
   notify_change (THE_ENVIRONMENT);
+  init_update ();
 }
 
 void
@@ -998,6 +1134,7 @@ edit_typeset_rep::init_style (string name) {
   else the_style= tree (TUPLE, name) * the_style (1, N(the_style));
   require_save ();
   notify_change (THE_ENVIRONMENT);
+  init_update ();
 }
 
 tree
@@ -1009,6 +1146,7 @@ void
 edit_typeset_rep::init_env (string var, tree by) {
   if (init (var) == by) return;
   init (var)= by;
+  prepare_initial_background ();
   if (var == "full-screen-mode") return;
   if (var != PAGE_SCREEN_WIDTH &&
       var != PAGE_SCREEN_HEIGHT &&
@@ -1021,8 +1159,8 @@ void
 edit_typeset_rep::init_default (string var) {
   if (!init->contains (var)) return;
   init->reset (var);
-  pre.reset ();
   notify_change (THE_ENVIRONMENT);
+  init_update ();
 }
 
 /******************************************************************************
@@ -1100,8 +1238,8 @@ heading_find_for_cursor (tree doc, path cursor, path& heading) {
 }
 
 static tree
-heading_fold_hidden () {
-  return compound ("folded-hidden");
+heading_fold_hidden (tree source) {
+  return compound ("folded-hidden", source);
 }
 
 static tree
@@ -1141,7 +1279,7 @@ heading_fold_screen_tree (tree t, path p, hashset<string> folded,
     if (folded_level != 0) {
       if (level != 0 && level <= folded_level) folded_level= 0;
       else {
-        r[i]= heading_fold_hidden ();
+        r[i]= heading_fold_hidden (t[i]);
         continue;
       }
     }
@@ -1421,6 +1559,8 @@ edit_typeset_rep::typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2) {
     }
     prooftrack_screen_scope prooftrack_screen (!printed);
     eb= ::typeset (ttt, x1, y1, x2, y2);
+    prepare_page_geometry ();
+    page_geometry_from_layout= true;
     progressive_typeset_pending=
       ttt->progressive_root_active && ttt->progressive_pending;
     if (full_repaint) {
@@ -1518,6 +1658,7 @@ edit_typeset_rep::typeset (SI& x1, SI& y1, SI& x2, SI& y2) {
     }
     missing_nr= N(env->missing);
     redefined_nr= N(env->redefined);
+    ttt->execution_base.reset ();
     ttt->br->notify_assign (path (), ttt->br->st);
   }
 }
@@ -1583,6 +1724,7 @@ SI
 edit_typeset_rep::typeset_enunciation_slot_width (tree content) {
   // Match unhyphenated table cells: measure the native inline box without
   // constraining it to the previous viewport width.
+  temporary_environment_scope measurement (*env.operator-> ());
   typeset_prepare ();
   env->patch_env (init);
   env->update ();

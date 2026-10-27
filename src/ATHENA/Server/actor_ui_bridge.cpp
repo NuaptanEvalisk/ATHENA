@@ -314,6 +314,19 @@ actor_ui_endpoint::focus_toolbar_state () const {
   return focus_toolbar_state_;
 }
 
+void actor_ui_endpoint::update_title_environment (std::uint64_t generation,
+    std::shared_ptr<const athena::contracts::detached_environment> environment) {
+  std::lock_guard<std::mutex> lock (title_environment_lock_);
+  title_environment_generation_= generation;
+  title_environment_= std::move (environment);
+}
+
+std::shared_ptr<const athena::contracts::detached_environment>
+actor_ui_endpoint::title_environment (std::uint64_t generation) const {
+  std::lock_guard<std::mutex> lock (title_environment_lock_);
+  return generation == title_environment_generation_ ? title_environment_ : nullptr;
+}
+
 void
 actor_ui_endpoint::update_document_menu_state (
   actor_document_menu_snapshot snapshot) noexcept {

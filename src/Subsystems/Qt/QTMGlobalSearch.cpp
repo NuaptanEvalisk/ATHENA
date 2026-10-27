@@ -21,7 +21,6 @@
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "convert.hpp"
 #include "converter.hpp"
-#include "drd_mode.hpp"
 #include "editor.hpp"
 #include "message.hpp"
 #include "namespaces.hpp"
@@ -877,9 +876,8 @@ QTMGlobalSearch::searchFile (tree body, url u, const tree& query,
                            const VaultSearchOptions& options,
                            std::vector<Result>& hits) {
   try {
-    int oldMode= set_access_mode (DRD_ACCESS_SOURCE);
     std::vector<VaultContentMatch> matches;
-    try {
+    {
       QString enunciation= options.enunciation;
       bool caseInsensitive= options.caseInsensitive;
       bool fuzzy= options.fuzzy;
@@ -895,11 +893,6 @@ QTMGlobalSearch::searchFile (tree body, url u, const tree& query,
       if (options.mode != VaultSearchMode::Content)
         vault_search_semantic_matches (body, u, options, matches);
     }
-    catch (...) {
-      set_access_mode (oldMode);
-      throw;
-    }
-    set_access_mode (oldMode);
 
     if (options.mode == VaultSearchMode::Content) std::stable_sort (
       matches.begin (), matches.end (),

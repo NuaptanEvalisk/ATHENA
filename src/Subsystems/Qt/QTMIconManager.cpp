@@ -17,7 +17,7 @@
 #include "qt_widget.hpp"
 #include "env.hpp"
 #include "typesetter.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "QTMCommandRegistry.hpp"
 #include <QAction>
 
@@ -81,10 +81,10 @@ math_icon_digest (const QString& symbol) {
 
 QImage
 render_math_icon_at_startup (const QString& symbol) {
-  drd_info drd ("menu-symbol", std_drd);
+  athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
   hashmap<string, tree> lr (UNINIT), gr (UNINIT), la (UNINIT), ga (UNINIT);
   hashmap<string, tree> lat (UNINIT), gat (UNINIT);
-  edit_env env (drd, url_none (), lr, gr, la, ga, lat, gat);
+  edit_env env (contract_state, url_none (), lr, gr, la, ga, lat, gat);
   env->write (MODE, "math");
   // Cache a neutral alpha image; the palette is applied with Qt later,
   // without constructing a TeXmacs font or a box.

@@ -11,7 +11,7 @@
 #include <QtTest/QtTest>
 
 #include "convert.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 
 class TestQueryXML: public QObject {
   Q_OBJECT
@@ -24,7 +24,7 @@ private slots:
 
 void
 TestQueryXML::test_find_first_element_by_name () {
-  init_std_drd ();
+  athena::contracts::initialize_builtins ();
   string svg_content= "<svg xmlns=\"http://www.w3.org/2000/svg\"\
 class=\"railroad-diagram\" width=\"521\" height=\"110\" viewBox=\"0 0 521 110\">\
 </svg>";

@@ -16,7 +16,7 @@
 #include "analyze.hpp"
 #include "convert.hpp"
 #include "merge_sort.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "language.hpp"
 #include "ATHENA/Data/desktop_data_notifications.hpp"
 #include <QJsonDocument>
@@ -548,7 +548,7 @@ init_athena () {
   //cout << "Initialize -- Succession status table\n";
   init_succession_status_table ();
   //cout << "Initialize -- Succession standard DRD\n";
-  init_std_drd ();
+  athena::contracts::initialize_builtins ();
   //cout << "Initialize -- User preferences\n";
   load_user_preferences ();
   //cout << "Initialize -- Guile\n";

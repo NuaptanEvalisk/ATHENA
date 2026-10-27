@@ -176,7 +176,7 @@ bridge_surround_rep::my_typeset (int desired_status) {
     hashmap<string,tree> prev_back (UNINIT);
     env->local_start (prev_back);
     athena::contracts::contract_event_capture capture (
-      env->contract_events, contracts_before, &env->drd->contracts);
+      env->contract_events, contracts_before, &env->contract_state.contracts);
     source_occurrence_capture occurrences (*env.operator-> (), occurrences_before, ip);
     /*
     cout << st[0] << "\n";

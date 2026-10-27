@@ -538,7 +538,8 @@ initialize_default_env () {
     const tree value= env[name];
     if (!is_func (value, MACRO) && !is_func (value, XMACRO)) continue;
     auto binding= athena::contracts::capture_definition (name, value);
-    default_definitions.emplace (binding->target, std::move (binding));
+    const auto target= binding->target;
+    default_definitions= std::move (default_definitions).set (target, std::move (binding));
   }
   default_inputs= athena::contracts::evaluation_input_snapshot::baseline (std::move (names));
 }

@@ -18,7 +18,7 @@
 #include "charmap.hpp"
 #include "translator.hpp"
 #include "data_cache.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "Freetype/free_type.hpp"
 #include "Freetype/tt_face.hpp"
 #include "Qt/QTMRenderService.hpp"
@@ -176,7 +176,7 @@ main () {
   QTemporaryDir profile;
   if (!profile.isValid ()) return 1;
   qputenv ("ATHENA_HOME_PATH", profile.path ().toLocal8Bit ());
-  init_std_drd ();
+  athena::contracts::initialize_builtins ();
   if (std::getenv ("ATHENA_PATH") == nullptr || !check_invalidation ()) return 1;
   std::promise<void> ready[2];
   auto first= ready[0].get_future ();

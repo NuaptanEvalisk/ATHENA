@@ -10,6 +10,8 @@
 ******************************************************************************/
 
 #include "edit_interface.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
+#include "Typeset/Env/local_environment.hpp"
 #include "hashmap.hpp"
 #include "hashset.hpp"
 #include "analyze.hpp"
@@ -28,7 +30,7 @@
 
 static void
 find_completions (
-  drd_info drd, tree t, std::map<std::string, int>& words)
+  const athena::contracts::contract_scope& contracts, tree t, std::map<std::string, int>& words)
 {
   if (is_atomic (t)) {
     string s= t->label;
@@ -40,8 +42,8 @@ find_completions (
   else {
     int i, n= N(t);
     for (i=0; i<n; i++)
-      if (drd->is_accessible_child (t, i))
-        find_completions (drd, t[i], words);
+      if (athena::contracts::editing_query {contracts}.accessible (t, i))
+        find_completions (contracts, t[i], words);
   }
 }
 
@@ -83,8 +85,8 @@ edit_interface_rep::indexed_completions (string prefix) {
       if (found->second == 0) completion_words.erase (found);
     }
     chunk.clear ();
-    if (i < N(body) && drd->is_accessible_child (body, i))
-      find_completions (drd, body[i], chunk);
+    if (i < N(body) && athena::contracts::editing_query {contract_state.contracts}.accessible (body, i))
+      find_completions (contract_state.contracts, body[i], chunk);
     for (const auto& word: chunk) completion_words[word.first]+= word.second;
   }
   completion_dirty_chunks.clear ();
@@ -168,19 +170,27 @@ edit_interface_rep::complete_try_realtime () {
 
 bool
 edit_interface_rep::complete_hybrid () {
+  pending_hybrid_completion= path ();
   tree text= subtree (et, path_up (tp));
   if (!is_atomic (text) || last_item (tp) != N(text->label) || text == "") return false;
+  const auto context= cursor_context_at (tp, cursor_source_boundary ());
+  if (!context) {
+    pending_hybrid_completion= copy (tp);
+    pending_hybrid_prefix= copy (text->label);
+    return false;
+  }
   string prefix= text->label;
   std::map<std::string, string> catalog;
-  tree environment= get_full_env ();
-  for (int i=0; i<N(environment); ++i) {
-    tree entry= environment[i];
-    if (N(entry) != 2 || !is_atomic (entry[0]) ||
-        !(is_func (entry[1], MACRO) || is_func (entry[1], XMACRO))) continue;
-    string name= entry[0]->label, signature= name;
-    if (is_func (entry[1], MACRO)) {
-      for (int j=0; j<N(entry[1])-1; ++j)
-        if (is_atomic (entry[1][j])) signature= signature * "  [" * entry[1][j]->label * "]";
+  const auto contracts= context->contract_context ().snapshot ();
+  for (auto label: contracts.definition_labels ()) {
+    const auto binding= contracts.definition (label);
+    if (!binding) continue;
+    const auto& parameters= binding->value->signature;
+    if (parameters.kind == athena::contracts::definition_kind::value) continue;
+    string name (binding->name.data (), binding->name.size ()), signature= name;
+    if (parameters.kind == athena::contracts::definition_kind::macro) {
+      for (const auto& parameter: parameters.parameters)
+        signature= signature * "  [" * string (parameter.data (), parameter.size ()) * "]";
     }
     else signature= signature * "  [...]";
     catalog[std::string (name.data (), N(name))]= signature;
@@ -212,6 +222,17 @@ edit_interface_rep::complete_hybrid () {
   if (N(choices) == 0) return false;
   complete_start (prefix, choices);
   return true;
+}
+
+void
+edit_interface_rep::complete_hybrid_after_layout () {
+  if (is_nil (pending_hybrid_completion)) return;
+  const path requested= pending_hybrid_completion;
+  pending_hybrid_completion= path ();
+  if (tp != requested || !hybrid_name_context ()) return;
+  const tree text= subtree (et, path_up (tp));
+  if (is_atomic (text) && text->label == pending_hybrid_prefix)
+    (void) complete_hybrid ();
 }
 
 void
@@ -266,11 +287,7 @@ edit_interface_rep::complete_choose (std::uint64_t session, int index, bool acti
   try {
     archive_state ();
     if (hybrid) {
-      path name= path_up (tp);
-      assign (name, suffix);
-      go_to (end (et, name));
-      if (activate) activate_hybrid (false);
-      else (void) prepare_hybrid ();
+      choose_hybrid (suffix, activate);
     }
     else if (ends (suffix, "()")) insert_tree (suffix, path (N(suffix)-1));
     else insert_tree (suffix);

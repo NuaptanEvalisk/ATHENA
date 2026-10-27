@@ -12,7 +12,7 @@
 #define SCHEME_EXECUTION_CONTEXT_H
 
 #include "actor_transport.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "new_document.hpp"
 
 #include <cstdint>
@@ -34,7 +34,7 @@ class SchemeExecutionContext {
 public:
   buffer_actor* const actor;
   editor_rep* const editor;
-  drd_info* const drd;
+  athena::contracts::evaluation_state* const contract_state;
   tree* const document;
   const athena_actor_id actor_id;
   const athena_view_id view_id;
@@ -43,7 +43,7 @@ public:
   const std::thread::id owner_thread;
 
   SchemeExecutionContext (buffer_actor* actor, editor_rep* editor,
-                          drd_info* drd, tree* document,
+                          athena::contracts::evaluation_state* contract_state, tree* document,
                           athena_actor_id actor_id, athena_view_id view_id,
                           std::uint64_t command_id,
                           SchemeCapabilitySet capabilities);
@@ -56,7 +56,7 @@ public:
 
 class SchemeExecutionScope {
   const SchemeExecutionContext* previous_context;
-  with_borrowed_drd drd_scope;
+  athena::contracts::evaluation_state_scope evaluation_scope;
   with_document_tree document_scope;
 
 public:

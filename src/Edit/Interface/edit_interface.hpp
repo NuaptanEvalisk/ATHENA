@@ -93,6 +93,7 @@ protected:
   string enunciation_slot_field_, enunciation_slot_geometry_;
   int enunciation_slot_index_= 0;
   path enunciation_slot_box_path_;
+  std::shared_ptr<const evaluation_environment_checkpoint> enunciation_slot_context_;
   void refresh_enunciation_slots ();
   void refresh_enunciation_slot_geometry ();
   struct prooftrack_geometry;
@@ -135,7 +136,10 @@ protected:
   string        completion_original;
   bool          completion_hybrid= false;
   array<string> hybrid_completion_labels;
+  path          pending_hybrid_completion;
+  string        pending_hybrid_prefix;
   bool complete_hybrid ();
+  void complete_hybrid_after_layout ();
   bool completion_index_valid= false;
   std::map<int, std::map<std::string, int>> completion_chunks;
   std::map<std::string, int> completion_words;

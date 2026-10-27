@@ -13,7 +13,7 @@
 #include "ATHENA/Data/vault.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "ATHENA/Interop/resources.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include <sqlite3.h>
 #include <future>
 
@@ -96,7 +96,7 @@ std::shared_ptr<const occurrence> leaf (const resolution_result& result, std::si
 class TestInteropArtifacts: public QObject {
   Q_OBJECT
 private slots:
-  void initTestCase () { init_std_drd (); }
+  void initTestCase () { athena::contracts::initialize_builtins (); }
 
   void unbuiltIndexIsNotCreated () {
     QTemporaryDir temporary;

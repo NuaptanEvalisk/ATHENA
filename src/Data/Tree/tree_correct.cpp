@@ -1,7 +1,7 @@
 
 /******************************************************************************
 * MODULE     : tree_correct.cpp
-* DESCRIPTION: make a tree syntactically match a drd
+* DESCRIPTION: make a tree syntactically match a contract_state
 * COPYRIGHT  : (C) 2005  Joris van der Hoeven
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -10,22 +10,24 @@
 ******************************************************************************/
 
 #include "tree_correct.hpp"
+#include "Data/NodeContracts/syntax_query.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
 #include "node_metadata.hpp"
 #include "tree_analyze.hpp"
 #include "scheme.hpp"
 #include "packrat.hpp"
 
 /******************************************************************************
-* DRD based correction
+* Import arity correction
 ******************************************************************************/
 
 tree
-drd_correct (drd_info drd, tree t) {
+correct_import_arity (const athena::contracts::contract_scope& scope, tree t) {
   if (is_atomic (t)) return t;
   else {
     int i, n= N(t);
-    if (drd->contains (as_string (L(t))) &&
-        !drd->correct_arity (L(t), n)) {
+    const athena::contracts::editing_query query {scope};
+    if (query.contains (as_string (L(t))) && !query.describe (L(t)).layout.accepts (n)) {
       if (athena::node::contains_metadata (t))
         // A heuristic corrector may not delete an explicitly annotated object.
         // Retain invalid source for the editor/owner validator to diagnose.
@@ -35,7 +37,7 @@ drd_correct (drd_info drd, tree t) {
     tree r (t, n);
     athena::node::copy_metadata (t, r);
     for (i=0; i<n; i++)
-      r[i]= drd_correct (drd, t[i]);
+      r[i]= correct_import_arity (scope, t[i]);
     return r;
   }
 }
@@ -266,21 +268,21 @@ superfluous_with_correct (tree t, tree env) {
     athena::node::copy_metadata (t, r);
     for (int i=0; i<N(t); i++)
       r[i]= superfluous_with_correct
-              (t[i], the_drd->get_env_child (t, i, env));
+              (t[i], athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.environment (t, i, env));
     // An identified or attributed wrapper is not redundant source content.
     if (athena::node::get (r)) return r;
     if (is_compound (r, "math", 1) && r[0] == "" &&
         !athena::node::get (r[0])) return "";
     else if (is_compound (r, "text", 1) && r[0] == "" &&
              !athena::node::get (r[0])) return "";
-    else if (is_compound (r, "math", 1) && drd_env_read (env, MODE) == "math")
+    else if (is_compound (r, "math", 1) && athena::contracts::field_environment_read (env, MODE) == "math")
       return r[0];
-    else if (is_compound (r, "text", 1) && drd_env_read (env, MODE) == "text")
+    else if (is_compound (r, "text", 1) && athena::contracts::field_environment_read (env, MODE) == "text")
       return r[0];
     else if (is_func (r, WITH)) {
       for (int i=0; i+1<N(r); i+=2)
         if (!is_atomic (r[i])) return r;
-        else if (drd_env_read (env, r[i]->label) != r[i+1]) return r;
+        else if (athena::contracts::field_environment_read (env, r[i]->label) != r[i+1]) return r;
       return r[N(r)-1];
     }
     else if (is_func (r, CONCAT)) {
@@ -293,7 +295,7 @@ superfluous_with_correct (tree t, tree env) {
 
 tree
 superfluous_with_correct (tree t) {
-  with_drd drd (get_document_drd (t));
+  athena::contracts::owned_evaluation_scope contract_state (prepare_document_context (t));
   return superfluous_with_correct (t, tree (WITH, MODE, "text"));
 }
 
@@ -378,7 +380,7 @@ get_submode (tree t, int i, string mode) {
   if (is_func (t, WITH) && i == N(t)-1)
     for (int j=0; j<N(t)-1; j+=2)
       if (t[j] == MATH_FONT_FAMILY) return "text";
-  tree tmode= the_drd->get_env_child (t, i, MODE, mode);
+  tree tmode= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, MODE, mode);
   return (is_atomic (tmode)? tmode->label: string ("text"));
 }
 
@@ -411,7 +413,7 @@ homoglyph_correct (tree t, string mode) {
 
 tree
 homoglyph_correct (tree t) {
-  with_drd drd (get_document_drd (t));
+  athena::contracts::owned_evaluation_scope contract_state (prepare_document_context (t));
   return homoglyph_correct (t, "text");
 }
 
@@ -513,7 +515,7 @@ superfluous_invisible_correct (tree t, string mode) {
 
 tree
 superfluous_invisible_correct (tree t) {
-  with_drd drd (get_document_drd (t));
+  athena::contracts::owned_evaluation_scope contract_state (prepare_document_context (t));
   return superfluous_invisible_correct (t, "text");
 }
 
@@ -710,7 +712,7 @@ invisible_corrector::get_status (tree t, bool left, bool script_flag) {
     else if (is_func (t, WITH))
       return get_status (t[N(t)-1], left, script_flag);
     else if (N(t) == 0 && L(t) >= START_EXTENSIONS) {
-      tree def= the_drd->get_syntax (L(t));
+      tree def= athena::contracts::syntax_query {{athena::contracts::current_evaluation_state ().contracts}, athena::contracts::current_evaluation_state ().values}.definition (as_string (L(t)));
       if (is_func (def, MACRO, 1))
         return get_status (def[0], left, script_flag);
       else return SURE_NOTHING;
@@ -825,7 +827,7 @@ missing_invisible_correct (tree t, int force) {
   // force = -1, only correct when sure, and when old markup is incorrect
   // force = 0 , only correct when pretty sure
   // force = 1 , correct whenever reasonable (used for LaTeX import)
-  with_drd drd (get_document_drd (t));
+  athena::contracts::owned_evaluation_scope contract_state (prepare_document_context (t));
   invisible_corrector corrector (t, force);
   //cout << "Times before " << corrector.times_before << "\n";
   //cout << "Space before " << corrector.space_before << "\n";
@@ -956,7 +958,7 @@ count_math_errors (tree t, int mode) {
   else {
     int sum= 0;
     for (int i=0; i<N(t); i++) {
-      tree cmode= the_drd->get_env_child (t, i, MODE, "text");
+      tree cmode= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, MODE, "text");
       if (cmode != "math") sum += count_math_errors (t[i], mode);
       else {
         tree u= t[i];

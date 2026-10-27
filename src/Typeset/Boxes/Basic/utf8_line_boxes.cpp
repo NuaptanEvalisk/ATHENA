@@ -164,6 +164,7 @@ struct utf8_line_box_rep: box_rep {
     auto* result= tm_new<utf8_line_box_rep> (ip, paragraph, begin, end, nominal, pen,
       options, background, horizontal_scale * (1.0 + factor), std::move (spaces), paints);
     result->flow= flow;
+    result->source_boundary= source_boundary;
     return result;
   }
   double left_slope () override { return nominal->slope * horizontal_scale; }
@@ -273,6 +274,7 @@ struct source_span {
   int begin, end, source_begin;
   path ip;
   font nominal;
+  athena::contracts::evaluation_boundary_handle boundary;
 };
 
 struct text_annotation {
@@ -453,10 +455,12 @@ struct mapped_utf8_line_box_rep final: utf8_line_box_rep {
   path find_right_box_path () override {
     return path (end-begin, path (static_cast<int> (caret_affinity::upstream), last_source));
   }
-  path find_box_path (path p, bool& found) override {
+  path find_source_box_path (path p,
+      const athena::contracts::evaluation_boundary_handle& boundary, bool& found) {
     found= false;
     if (!is_nil (p)) for (int i=first_source; i<=last_source; ++i) {
       const auto& s= (*sources)[i];
+      if (boundary && s.boundary != boundary) continue;
       if (!is_accessible (s.ip) || path_up (p) != reverse (s.ip)) continue;
       const int at= last_item (p) - s.source_begin;
       const int absolute= s.begin + at;
@@ -468,8 +472,19 @@ struct mapped_utf8_line_box_rep final: utf8_line_box_rep {
     }
     return path (0, static_cast<int> (caret_affinity::downstream));
   }
+  path find_box_path (path p, bool& found) override {
+    return find_source_box_path (p, {}, found);
+  }
+  path find_occurrence_box_path (path p,
+      const athena::contracts::evaluation_boundary_handle& boundary, bool& found) override {
+    path result= find_source_box_path (p, boundary, found);
+    return found ? result : path ();
+  }
   path find_tree_path (path bp) override {
     return reverse (source_path (source_index (bp), begin + relative (bp)));
+  }
+  athena::contracts::evaluation_boundary_handle find_source_boundary (path bp) override {
+    return (*sources)[source_index (bp)].boundary;
   }
   path with_cursor_affinity (path bp, caret_affinity side) override {
     return path (relative (bp), path (static_cast<int> (side), source_index (bp)));
@@ -578,7 +593,8 @@ build_utf8_flow (path ip, array<box> pieces, array<bool> markers, bool restore_s
       add_style (std::min (style.end, static_cast<std::size_t> (last)), style.request);
     }
     add_style (last, b->paragraph->request ());
-    sources->push_back ({begin, static_cast<int> (text.size ()), first, b->ip, b->nominal});
+    sources->push_back ({begin, static_cast<int> (text.size ()), first, b->ip, b->nominal,
+                        b->source_boundary});
   };
   const utf8_line_box_rep* previous= nullptr;
   for (int i=0; i<N(pieces); ++i) {
@@ -609,7 +625,7 @@ build_utf8_flow (path ip, array<box> pieces, array<bool> markers, bool restore_s
       const int at= text.size ();
       result->piece_sources.push_back (sources->size ());
       sources->push_back ({at, at, pieces[i]->get_leaf_left_pos (),
-                          pieces[i]->ip, pieces[i]->get_leaf_font ()});
+                          pieces[i]->ip, pieces[i]->get_leaf_font (), pieces[i]->source_boundary});
     }
   }
   if (restore_spaces && previous->end != static_cast<int> (previous->bytes ().size ())) return {};
@@ -734,6 +750,7 @@ void reassemble_utf8_line (array<box>& pieces, array<SI>& spaces) {
       for (; last<N(pieces); ++last) {
         auto* next= dynamic_cast<utf8_line_box_rep*> (pieces[last].operator-> ());
         if (!next || next->paragraph != base->paragraph || next->ip != base->ip ||
+            next->source_boundary != base->source_boundary ||
             !next->space_widths.empty () || next->begin < end || spaces[last] < 0 ||
             !same_paint (base->pen, next->pen) || base->background != next->background ||
             !same_options (base->options, next->options) ||
@@ -745,9 +762,11 @@ void reassemble_utf8_line (array<box>& pieces, array<SI>& spaces) {
         end= next->end;
       }
       if (last > first+1) {
-        output << box (tm_new<utf8_line_box_rep> (base->ip, base->paragraph,
+        auto* merged= tm_new<utf8_line_box_rep> (base->ip, base->paragraph,
           base->begin, end, base->nominal, base->pen, base->options,
-          base->background, base->horizontal_scale, std::move (widths)));
+          base->background, base->horizontal_scale, std::move (widths));
+        merged->source_boundary= base->source_boundary;
+        output << box (merged);
       }
       else output << pieces[first];
     }

@@ -7,7 +7,7 @@
 #include <QtTest/QtTest>
 
 #include "ATHENA/Data/redundant_wikilinks.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -75,7 +75,7 @@ private slots:
 
 void
 TestRedundantWikilinks::initTestCase () {
-  init_std_drd ();
+  athena::contracts::initialize_builtins ();
 }
 
 void

@@ -26,7 +26,7 @@
 #include "ATHENA/Data/vault_map_sqlite.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "new_style.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "node_metadata.hpp"
 #include "unicode_text.hpp"
 #include <QCoreApplication>
@@ -2005,8 +2005,8 @@ upgrade_vault_node_model (
         athena::document_node::source_identity_state identities;
         const tree& body= document_body_ref (decoded.document);
         const auto diagnostics= identities.initialize_complete (
-          body, get_offline_document_drd (
-                  decoded.document, url ((root / path).string ().c_str ())),
+          body, prepare_offline_document_context (
+                  decoded.document, url ((root / path).string ().c_str ())).contracts,
           athena::document_node::standard_source_role);
         require (diagnostics.empty (),
                  "Invalid migrated identity baseline in " + path.string () +
@@ -2069,8 +2069,8 @@ upgrade_vault_node_model (
             result.legacy_anchors_removed += removed.size ();
             athena::document_node::source_identity_state identities;
             const auto diagnostics= identities.initialize_complete (
-              body, get_offline_document_drd (
-                      decoded.document, url ((staged / path).string ().c_str ())),
+              body, prepare_offline_document_context (
+                      decoded.document, url ((staged / path).string ().c_str ())).contracts,
               athena::document_node::standard_source_role);
             require (diagnostics.empty (),
                      "Label cleanup invalidated identity baseline in " +
@@ -2288,9 +2288,9 @@ upgrade_vault_node_model (
       tree& body= document_body_ref (document.document);
       const std::string relative= document.path.generic_string ();
       auto identities= athena::document_node::assign_detached_source_ids (
-        body, get_offline_document_drd (
+        body, prepare_offline_document_context (
                 document.document,
-                url ((staged / document.path).string ().c_str ())),
+                url ((staged / document.path).string ().c_str ())).contracts,
         athena::document_node::standard_source_role,
         [&] (const athena::document_node::identity_request& request) {
           auto preferred_path= preferred[relative].find (request.where);
@@ -2343,7 +2343,7 @@ upgrade_vault_node_model (
       auto found= artifacts_by_document.find (relative);
       if (found == artifacts_by_document.end ()) continue;
       tree& body= document_body_ref (document.document);
-      const auto source_drd= get_offline_document_drd (
+      const auto source_state= prepare_offline_document_context (
         document.document, url ((staged / document.path).string ().c_str ()));
       for (const AthenaArtifactRecord& artifact: found->second) {
         path native;
@@ -2359,7 +2359,7 @@ upgrade_vault_node_model (
         }
         node_path where= native_to_source_path (native);
         const auto classification= athena::document_node::classify_source_path (
-          body, where, source_drd,
+          body, where, source_state.contracts,
           athena::document_node::standard_source_role);
         require (classification.ok (),
                  "Could not classify Artifact source " + artifact.uuid + " in " +
@@ -2484,9 +2484,9 @@ upgrade_vault_node_model (
       tree& body= document_body_ref (document.document);
       athena::document_node::source_identity_state identities;
       const auto diagnostics= identities.initialize_complete (
-        body, get_offline_document_drd (
+        body, prepare_offline_document_context (
                 document.document,
-                url ((staged / document.path).string ().c_str ())),
+                url ((staged / document.path).string ().c_str ())).contracts,
         athena::document_node::standard_source_role);
       require (diagnostics.empty (),
                "Migrated identity baseline is incomplete in " +
@@ -2530,8 +2530,8 @@ upgrade_vault_node_model (
       const tree& body= document_body_ref (decoded.document);
       athena::document_node::source_identity_state identities;
       const auto diagnostics= identities.initialize_complete (
-        body, get_offline_document_drd (
-                decoded.document, url ((staged / path).string ().c_str ())),
+        body, prepare_offline_document_context (
+                decoded.document, url ((staged / path).string ().c_str ())).contracts,
         athena::document_node::standard_source_role);
       require (diagnostics.empty (),
                "Post-write identity validation failed: " + path.string ());
@@ -2671,7 +2671,7 @@ int preflight_vault_xml_v3_cli (const fs::path& root, bool strict) {
   const auto old_term= std::signal (SIGTERM, cancel_signal);
   int code= 1;
   try {
-    init_std_drd ();
+    athena::contracts::initialize_builtins ();
     std::cerr << "Offline XML v2 -> v3 preflight; Vault contents remain unchanged.\n";
     auto progress= [&] (const char* phase, std::size_t done,
                         std::size_t total, const std::string& path) {
@@ -2707,7 +2707,7 @@ int upgrade_vault_format_cli (const fs::path& root) {
   const auto old_term= std::signal (SIGTERM, cancel_signal);
   int code= 1;
   try {
-    init_std_drd ();
+    athena::contracts::initialize_builtins ();
     std::cerr << "Offline vault upgrade. Close all users of this vault before continuing.\n";
     std::string previous;
     auto last= std::chrono::steady_clock::now ();
@@ -2752,7 +2752,7 @@ int upgrade_vault_node_model_cli (
   const auto old_term= std::signal (SIGTERM, cancel_signal);
   int code= 1;
   try {
-    init_std_drd ();
+    athena::contracts::initialize_builtins ();
     std::cerr
       << "Offline node-model migration for an existing UTF-8 XML vault. "
       << "Close all users of this vault before continuing.\n";
@@ -3408,7 +3408,7 @@ int stage_vault_xml_v3_cli (
   const auto old_term= std::signal (SIGTERM, cancel_signal);
   int code= 1;
   try {
-    init_std_drd ();
+    athena::contracts::initialize_builtins ();
     std::cerr << "Generating a disconnected XML v3 candidate only; "
                  "the original Vault will NOT be exchanged or modified.\n";
     const vault_upgrade_progress progress= [&] (
@@ -3446,7 +3446,7 @@ int upgrade_vault_xml_v3_cli (
   const auto old_term= std::signal (SIGTERM, cancel_signal);
   int code= 1;
   try {
-    init_std_drd ();
+    athena::contracts::initialize_builtins ();
     std::cerr << (options.check_only ? "Offline XML v3 Vault preflight.\n" :
       "Offline XML v3 Vault upgrade. Close all users of this Vault; old clients must not reopen it.\n");
     auto progress= [&] (const char* phase, std::size_t done,

@@ -20,7 +20,7 @@
 #include "tree_select.hpp"
 #include "Qt/qt_simple_widget.hpp"
 #include "server.hpp"
-#include "drd_info.hpp"
+#include "Data/NodeContracts/evaluation_state.hpp"
 #ifdef EXPERIMENTAL
 #  include "../Style/Environment/environment.hpp"
 #  include "../Style/Memorizer/memorizer.hpp"
@@ -44,6 +44,8 @@ class server_rep;
 typedef tm_view_rep* tm_view;
 class modification;
 class editor;
+class evaluation_environment_checkpoint;
+namespace athena::contracts { class detached_environment; }
 struct heading_cell_range {
   int  level;
   path heading_path;
@@ -104,11 +106,13 @@ public:
 
 protected:
   buffer_document_state* buf; // actor-owned document state
-  drd_info     drd;  // the drd for the buffer
+  athena::contracts::evaluation_state contract_state;
   tree&        et;   // all TeXmacs trees
   box          eb;   // box translation of tree
   path         rp;   // path to the root of the document in et
   path         tp;   // path of cursor in tree
+  box          cursor_display_root;
+  path         cursor_display_path, cursor_display_source;
   path         previous_gp; // previous graphics path
   bool         progressive_typeset_pending;
   bool         progressive_typeset_continue;
@@ -149,6 +153,11 @@ protected:
   virtual string get_string_property (string what) = 0;
 
 protected:
+  void remember_cursor_display (path box_path);
+  cursor current_display_cursor (athena::text::caret_affinity affinity=
+                                 athena::text::caret_affinity::downstream);
+  athena::contracts::evaluation_boundary_handle cursor_source_boundary ();
+
   /* protected routines from edit_typeset */
   virtual void   typeset_preamble () = 0;
   virtual void   typeset_invalidate_env () = 0;
@@ -173,7 +182,7 @@ protected:
   /* other protected subroutines */
   virtual tree kbd (string s) = 0;
   virtual tree kbd_shortcut (string s) = 0;
-  virtual path tree_path (path sp, SI x, SI y, SI delta) = 0;
+  virtual path tree_path (path sp, SI x, SI y, SI delta, bool source= false) = 0;
   virtual void apply_changes () = 0;
   virtual path search_format () = 0;
   virtual path search_format (int& row, int& col) = 0;
@@ -182,6 +191,7 @@ protected:
   virtual void table_bound (path fp, int& i1, int& j1, int& i2, int& j2) = 0;
   virtual tree table_get_subtable (path p, int i1, int j1, int i2, int j2) = 0;
   virtual void table_write_subtable (path fp, int row, int col, tree subt) = 0;
+  virtual void table_cut_selection (path fp, int row1, int col1, int row2, int col2) = 0;
   virtual void table_del_format (path fp, int I1, int J1,
 				 int I2, int J2, string var) = 0;
   virtual void table_set_format (path fp, int I1, int J1,
@@ -377,8 +387,15 @@ public:
   virtual bool     is_length (string s) = 0;
   virtual double   divide_lengths (string l1, string l2) = 0;
   virtual void     init_update () = 0;
-  virtual void     drd_update () = 0;
+  virtual athena::contracts::contract_scope prepare_source_contracts () = 0;
   virtual void     prepare_cursor_environment () = 0;
+  virtual void set_field_environment (
+    std::shared_ptr<const athena::contracts::detached_environment>) = 0;
+  virtual std::shared_ptr<const evaluation_environment_checkpoint> cursor_context_at (
+    path source, athena::contracts::evaluation_boundary_handle selected) = 0;
+  std::shared_ptr<const evaluation_environment_checkpoint> cursor_context_at (path source);
+  virtual bool cursor_occurrence_admitted (
+    path source, const athena::contracts::evaluation_boundary_handle& selected) = 0;
 #ifdef EXPERIMENTAL
   virtual void     environment_update () = 0;
 #endif
@@ -601,6 +618,7 @@ public:
   virtual bool hybrid_name_context () = 0;
   virtual bool hybrid_keypress (string key) = 0;
   virtual bool prepare_hybrid () = 0;
+  virtual void choose_hybrid (string name, bool activate) = 0;
   virtual bool activate_latex () = 0;
   virtual void activate_hybrid (bool with_args_hint) = 0;
   virtual void activate_symbol () = 0;
@@ -751,7 +769,6 @@ public:
   friend void   edit_done (editor_rep* ed, modification mod);
   friend void   set_buffer_tree (url name, tree doc);
   friend void   set_current_view (url u);
-  friend void   set_current_drd (url name);
   friend void   delete_view (url u);
 };
 

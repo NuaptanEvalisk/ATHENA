@@ -131,6 +131,7 @@ function (athena_configure_body_target target_name)
   )
   target_link_libraries (${target_name}
     PUBLIC
+    immer
     athena_unicode
     athena_audmap
     PkgConfig::SPDLOG

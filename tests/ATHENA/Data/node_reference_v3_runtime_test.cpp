@@ -9,7 +9,7 @@
 #include "ATHENA/Data/source_identity_repair.hpp"
 #include "ATHENA/Data/document_history_store.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
 #include <chrono>
@@ -89,7 +89,7 @@ std::string digest (const std::string& bytes) {
 class TestNodeReferenceV3Runtime: public QObject {
   Q_OBJECT
 private slots:
-  void initTestCase () { init_std_drd (); }
+  void initTestCase () { athena::contracts::initialize_builtins (); }
 
   void diskCensusAndPreviewPreserveSourceVersion () {
     for (const auto version: {xml_format_version::v2, xml_format_version::v3}) {

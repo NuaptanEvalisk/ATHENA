@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "Interface/edit_interface.hpp"
+#include "Typeset/Env/local_environment.hpp"
 #include "message.hpp"
 #include "gui.hpp" // for gui_interrupted
 
@@ -163,7 +164,9 @@ void
 edit_interface_rep::draw_env (renderer ren) {
   if (!full_screen) {
     if (!is_nil (env_rects)) {
-      color col= get_env_color (CONTEXT_COLOR);
+      const auto context= cursor_context_at (tp, cursor_source_boundary ());
+      color col= named_color (as_string (context ? context->value (CONTEXT_COLOR) :
+                                                  get_init_value (CONTEXT_COLOR)));
       ren->set_pencil (pencil (col, ren->pixel));
       ren->draw_rectangles (env_rects);
     }
@@ -180,30 +183,31 @@ edit_interface_rep::draw_cursor (renderer ren) {
   if (get_preference ("draw cursor") == "on" &&
       cursor_blink_visible && !temp_invalid_cursor &&
       (got_focus || full_screen)) {
+    const auto context= cursor_context_at (tp, cursor_source_boundary ());
+    if (!context) return;
     cursor cu= get_cursor();
-    if (!inside_active_graphics ()) {
+    if (!(inside_graphics () && context->value (PREAMBLE) == "false")) {
       SI dw= 0;
       if (tremble_count > 3) dw= min (tremble_count - 3, 25) * pixel;
       cu->y1 -= 2*zpixel + dw; cu->y2 += 2*zpixel + dw;
       SI x1= cu->ox + ((SI) (cu->y1 * cu->slope)), y1= cu->oy + cu->y1;
       SI x2= cu->ox + ((SI) (cu->y2 * cu->slope)), y2= cu->oy + cu->y2;
-      string mode= get_env_string (MODE);
+      string mode= as_string (context->value (MODE));
       string family, series;
       color cuc= gui_cursor_color;
       if (!cu->valid) cuc= green;
-      // else if (mode == "math") cuc= get_env_color (MATH_CURSOR_COLOR);
       ren->set_pencil (pencil (cuc, zpixel + dw));
       if ((mode == "text") || (mode == "src")) {
-        family= get_env_string (FONT_FAMILY);
-        series= get_env_string (FONT_SERIES);
+        family= as_string (context->value (FONT_FAMILY));
+        series= as_string (context->value (FONT_SERIES));
       }
       else if (mode == "math") {
-        family= get_env_string (MATH_FONT_FAMILY);
-        series= get_env_string (MATH_FONT_SERIES);
+        family= as_string (context->value (MATH_FONT_FAMILY));
+        series= as_string (context->value (MATH_FONT_SERIES));
       }
       else if (mode == "prog") {
-        family= get_env_string (PROG_FONT_FAMILY);
-        series= get_env_string (PROG_FONT_SERIES);
+        family= as_string (context->value (PROG_FONT_FAMILY));
+        series= as_string (context->value (PROG_FONT_SERIES));
       }
       SI lserif= (series=="bold"? 2*zpixel: zpixel) + dw;
       SI rserif= zpixel + dw;
@@ -260,9 +264,11 @@ edit_interface_rep::draw_selection (renderer ren, rectangle r) {
     ren->set_pencil (pencil (col, ren->pixel));
     ren->draw_rectangles (locus_rects);
   }
+  const auto context= cursor_context_at (tp, cursor_source_boundary ());
+  const color match_color= named_color (as_string (context ? context->value (MATCH_COLOR) :
+                                                           get_init_value (MATCH_COLOR)));
   for (int i=0; i<N(alt_selection_rects); i++) {
-    color col= get_env_color (MATCH_COLOR);
-    ren->set_pencil (pencil (col, ren->pixel));
+    ren->set_pencil (pencil (match_color, ren->pixel));
 #ifdef QTTEXMACS
     ren->draw_selection (alt_selection_rects[i] & visible);
 #else
@@ -275,7 +281,6 @@ edit_interface_rep::draw_selection (renderer ren, rectangle r) {
   }
   if (!image_resize_active && !is_nil (selection_rects)) {
     color col= gui_selection_color;
-    // if (table_selection) col= get_env_color (TABLE_SELECTION_COLOR);
     ren->set_pencil (pencil (col, ren->pixel));
 #ifdef QTTEXMACS
     ren->draw_selection (selection_rects & visible);

@@ -11,7 +11,7 @@
 #include <QTemporaryDir>
 #include "Xml/document_file_codec.hpp"
 #include "Xml/legacy_document_import.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "convert.hpp"
 #include <future>
 #include <filesystem>
@@ -50,7 +50,7 @@ tree find_tag (const tree& value, string label) {
 class TestLegacyImport: public QObject {
   Q_OBJECT
 private slots:
-  void initTestCase () { init_std_drd (); }
+  void initTestCase () { athena::contracts::initialize_builtins (); }
   void charactersAndRoles () {
     auto t= table ();
     QCOMPARE (text_of (t.decode ("<#4E2D><#1F469><#200D><#1F4BB>", legacy_text_role::content)),

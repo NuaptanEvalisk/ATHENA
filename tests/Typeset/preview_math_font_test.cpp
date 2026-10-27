@@ -14,7 +14,7 @@
 #include "boot.hpp"
 #include "converter.hpp"
 #include "data_cache.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "gui.hpp"
 #include "ATHENA/tm_frame.hpp"
 #include "Qt/qt_widget.hpp"
@@ -52,10 +52,10 @@ class PreviewMathFontTest: public QObject {
   Q_OBJECT
 private slots:
   void auxiliaryCaptionsPreserveMathProperties () {
-    drd_info drd ("auxiliary-caption-metadata", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->complete= true;
     env->update ();
@@ -100,10 +100,10 @@ private slots:
   }
 
   void vacantScriptCursorsPreserveVisibleGeometry () {
-    drd_info drd ("vacant-script-cursors", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -138,10 +138,10 @@ private slots:
   }
 
   void nativeDisplayParagraphIsCentered () {
-    drd_info drd ("native-display-paragraph", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "text");
@@ -172,10 +172,10 @@ private slots:
   }
 
   void transformedNamedSymbolsHaveInlineOrigins () {
-    drd_info drd ("transformed-symbol-origins", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     for (const char* family: {"TeX Gyre Pagella", "roman"})
       for (const char* size: {"10", "12", "18"}) {
@@ -219,10 +219,10 @@ private slots:
       }
   }
   void migratedBigOperatorGlyphsAndScriptsRender () {
-    drd_info drd ("migrated-big-operator-glyphs", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -258,10 +258,10 @@ private slots:
   }
 
   void migratedHistoricalLayoutRetainsGeometry () {
-    drd_info drd ("migrated-historical-layout", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -292,10 +292,10 @@ private slots:
   }
 
   void nativeV3MiddleStretchMatchesLegacyUnicodeMiddle () {
-    drd_info drd ("native-v3-math-middle-stretch", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -338,10 +338,10 @@ private slots:
   }
 
   void nativeV3DelimitedAutoMatchesLegacyGeometry () {
-    drd_info drd ("native-v3-delimited-geometry", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -371,10 +371,10 @@ private slots:
   }
 
   void nativeV3DelimitedFixedAndManualSize () {
-    drd_info drd ("native-v3-delimited-manual", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -394,10 +394,10 @@ private slots:
   }
 
   void nativeV3ScriptsMatchLegacyUnicodeGeometry () {
-    drd_info drd ("native-v3-math-scripts", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -457,10 +457,10 @@ private slots:
   }
 
   void nativeV3LeftScriptsRespectRightLimitsPolicy () {
-    drd_info drd ("native-v3-combined-scripts-limits", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -497,10 +497,10 @@ private slots:
   }
 
   void nativeV3MathGridAndUnnumberedBlockLayout () {
-    drd_info drd ("native-v3-math-grid-display", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -529,10 +529,10 @@ private slots:
   }
 
   void nativeV3SingleEquationNumberUsesStyleCounterAndBinding () {
-    drd_info drd ("native-v3-numbered-math-block", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "text"); // MathBlock itself must establish math mode.
@@ -575,10 +575,10 @@ private slots:
   }
 
   void nativeV3AnnotationAndLongArrowMatchLegacyUnicodeGeometry () {
-    drd_info drd ("native-v3-annotation-layout", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -614,10 +614,10 @@ private slots:
   }
 
   void nativeV3AccentMatchesLegacyUnicodeGeometry () {
-    drd_info drd ("native-v3-accent-variant", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -645,10 +645,10 @@ private slots:
   }
 
   void nativeV3MathVariantMatchesExpandedStyleSemantics () {
-    drd_info drd ("native-v3-math-variants", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -839,10 +839,10 @@ private slots:
                                                   "texgyrepagella-math"),
                        std::pair<string,string> ("TeX Gyre Bonum",
                                                   "texgyrebonum-math")}) {
-      drd_info drd ("native-delimiters", std_drd);
+      athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
       hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
       hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-      edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+      edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
       env->write_default_env ();
       env->write (FONT, family.first);
       env->write (FONT_BASE_SIZE, "12");
@@ -870,10 +870,10 @@ private slots:
   }
 
   void pagellaMatrixDelimiterGrowsWithRows () {
-    drd_info drd ("matrix-delimiters", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (FONT_BASE_SIZE, "12");
@@ -891,10 +891,10 @@ private slots:
   }
 
   void pagellaDelimitersFollowMathAxis () {
-    drd_info drd ("braces", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -959,10 +959,10 @@ private slots:
   }
 
   void legacyInlineCalPreservesFont () {
-    drd_info drd ("preview-test", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (FONT_SERIES, "bold");

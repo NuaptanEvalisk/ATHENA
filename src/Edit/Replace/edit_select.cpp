@@ -13,7 +13,8 @@
 #include "Interface/edit_interface.hpp"
 #include "convert.hpp"
 #include "tree_select.hpp"
-#include "drd_mode.hpp"
+#include "cursor_navigation.hpp"
+#include "Typeset/Env/local_environment.hpp"
 #include "tm_buffer.hpp"
 #include "utf8_edit.hpp"
 #include "Xml/clipboard_xml.hpp"
@@ -48,9 +49,9 @@ edit_select_rep::formula_root (path p) {
       st= subtree (et, path_up (p, 2));
     if (is_func (st, CELL)) break;
     if (is_compound (st) && N(st) == 1) {
-      tree env= drd->get_env (L(st), 0);
-      tree mt= drd_env_read (env, MODE);
-      tree pt= drd_env_read (env, "prog-language");
+      tree env= athena::contracts::editing_query {contract_state.contracts}.environment (st, 0, tree (ATTR));
+      tree mt= athena::contracts::field_environment_read (env, MODE);
+      tree pt= athena::contracts::field_environment_read (env, "prog-language");
       if (mt == "math") break;
       if (mt == "prog" && pt == "minimal") break;
       if (mt == "text") return rp;
@@ -305,7 +306,8 @@ edit_select_rep::select_enlarge () {
 
   path p = common (cur_sel);
   tree st= subtree (et, p);
-  if (drd->var_without_border (L(st)) ||
+  if (((athena::contracts::editing_query {contract_state.contracts}.describe (L(st)).border &
+        BORDER_INNER) != 0 && !athena::contracts::builtin_label (as_string (L(st)))) ||
       is_func (st, TFORMAT) ||
       is_func (st, DOCUMENT, 1) ||
       is_script (st) ||
@@ -389,11 +391,18 @@ edit_select_rep::selection_active_enlarging () {
 
 void
 edit_select_rep::selection_correct (path i1, path i2, path& o1, path& o2) {
+  using athena::contracts::access_policy;
+  const auto context= cursor_context_at (tp, cursor_source_boundary ());
+  const auto access= in_source () ? access_policy::source : access_policy::normal;
+  selection_correct (i1, i2, o1, o2,
+    cursor_navigation ({context ? context->contract_context () : contract_state.contracts, access}));
+}
+
+void
+edit_select_rep::selection_correct (path i1, path i2, path& o1, path& o2,
+                                    const cursor_navigation& navigation) {
   ASSERT (rp <= i1 && rp <= i2, "paths not inside document");
-  int old_mode= get_access_mode ();
-  if (in_source ()) set_access_mode (DRD_ACCESS_SOURCE);
-  ::selection_correct (subtree (et, rp), i1 / rp, i2 / rp, o1, o2);
-  set_access_mode (old_mode);
+  ::selection_correct (navigation, subtree (et, rp), i1 / rp, i2 / rp, o1, o2);
   o1= rp * o1; o2= rp * o2;
 }
 
@@ -419,6 +428,15 @@ selection_table_path (tree et, path p) {
 
 selection
 edit_select_rep::compute_selection (path p1, path p2) {
+  using athena::contracts::access_policy;
+  const auto context= cursor_context_at (tp, cursor_source_boundary ());
+  const auto access= in_source () ? access_policy::source : access_policy::normal;
+  return compute_selection (p1, p2,
+    cursor_navigation ({context ? context->contract_context () : contract_state.contracts, access}));
+}
+
+selection
+edit_select_rep::compute_selection (path p1, path p2, const cursor_navigation& navigation) {
   if (is_table_selection (et, p1, p2, true)) {
     int row1, col1, row2, col2;
     path fp= find_subtable_selection (et, p1, p2, row1, col1, row2, col2);
@@ -442,7 +460,7 @@ edit_select_rep::compute_selection (path p1, path p2) {
   else {
     path p_start, p_end;
     //cout << "Find " << p1 << " -- " << p2 << "\n";
-    selection_correct (p1, p2, p_start, p_end);
+    selection_correct (p1, p2, p_start, p_end, navigation);
     //cout << "Find " << p_start << " -- " << p_end << "\n";
     const path row= common (p_start, p_end);
     if (native_math_grid_row (et, row)) {
@@ -474,20 +492,13 @@ edit_select_rep::compute_selection (path p1, path p2) {
 selection
 edit_select_rep::compute_selection (range_set sel) {
   if (is_empty (sel)) return selection ();
-  int old_mode= set_access_mode (DRD_ACCESS_SOURCE);
-  // FIXME: instead of changing the access mode,
-  // we should already start with setting the correct DRD.
-  // For instance, when searching text using a popup window,
-  // the DRD is incorrect.  Consequently, matching text inside
-  // certain macros can become inaccessible, after which
-  // the entire macro is erroneously highlighted.
-  // Similar remark for the main routine for computing selections
+  // Highlight source ranges without promoting a search hit to its macro.
+  const cursor_navigation navigation ({contract_state.contracts, athena::contracts::access_policy::source});
   rectangles rs;
   for (int i=0; i+1<N(sel); i+=2) {
-    selection ssel= compute_selection (sel[i], sel[i+1]);
+    selection ssel= compute_selection (sel[i], sel[i+1], navigation);
     if (ssel->valid) rs << ssel->rs;
   }
-  set_access_mode (old_mode);
   return selection (rs, start (sel), end (sel));
 }
 
@@ -790,14 +801,15 @@ edit_select_rep::selection_set (
      nicely copying graphics into text, text into graphics, etc. */
   string s, sh, sv;
   if (key == "primary" || key == "mouse") {
-    if (selection_export == "verbatim") t= exec_verbatim (t, tp);
+    const path context= selection_get_cursor_path ();
+    if (selection_export == "verbatim") t= exec_verbatim (t, context);
     if (selection_export == "html") {
         if (mode == "math") 
-            t= exec_html (compound ("math", t));
+            t= exec_html (compound ("math", t), context);
         else 
-            t= exec_html (t, tp);
+            t= exec_html (t, context);
     }
-    if (selection_export == "latex") t= exec_latex (t, tp);
+    if (selection_export == "latex") t= exec_latex (t, context);
     if ((selection_export == "latex") && (mode == "math"))
       t= compound ("math", t);
     if (selection_export == "verbatim")
@@ -808,7 +820,7 @@ edit_select_rep::selection_set (
       s= string (native_bytes.data (), static_cast<int> (native_bytes.size ()));
 #ifdef QTTEXMACS
       tree tmp;
-      tmp= exec_verbatim (t, tp);
+      tmp= exec_verbatim (t, context);
       sv= tree_to_verbatim (tmp, false, "utf-8");
       //tmp= exec_html (t, tp);
       //sh= tree_to_generic (tmp, "html-snippet");
@@ -1120,42 +1132,12 @@ edit_select_rep::raw_cut (path p1, path p2) {
   if (is_func (t, TFORMAT) || is_func (t, TABLE) || is_func (t, ROW)) {
     path fp= ::table_search_format (et, p);
     tree st= subtree (et, fp);
-    int row1, col1, row2, col2, nr_rows, nr_cols;
+    int row1, col1, row2, col2;
     table_search_coordinates (st, tail (p1, N(fp)), row1, col1);
     table_search_coordinates (st, tail (p2, N(fp)), row2, col2);
     if (row1>row2) { int tmp= row1; row1= row2; row2= tmp; }
     if (col1>col2) { int tmp= col1; col1= col2; col2= tmp; }
-    table_get_extents (fp, nr_rows, nr_cols);
-
-    int i, j;
-    for (i=row1; i<=row2; i++)
-      for (j=col1; j<=col2; j++) {
-        path cp= fp * ::table_search_cell (st, i, j);
-        if (is_func (subtree (et, cp), CELL, 1)) cp= cp * 0;
-        assign (cp, "");
-      }
-    path cp= fp * ::table_search_cell (st, row1, col1);
-    go_to (cp * path (0, 0));
-
-    if (is_func (st, TFORMAT))
-      table_del_format (fp, row1+1, col1+1, row2+1, col2+1, "");
-
-    if (fp == search_format ()) {
-      if (col1 == 0 && col2 == nr_cols-1 && row2 > row1)
-        table_remove (fp, row1 + 1, col1, row2 - row1, 0);      
-      else if (row1 == 0 && row2 == nr_rows-1 && col2 > col1)
-        table_remove (fp, row1, col1 + 1, 0, col2 - col1);      
-      table_correct_block_content ();
-      table_resize_notify ();
-    }
-    else {
-      observer obs= position_new (tp);
-      go_to (start (et, fp * ::table_search_cell (st, row1, col1)));
-      table_correct_block_content ();
-      table_resize_notify ();
-      go_to (position_get (obs));
-      position_delete (obs);
-    }
+    table_cut_selection (fp, row1, col1, row2, col2);
     return;
   }
 

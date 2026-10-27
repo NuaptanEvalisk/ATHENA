@@ -54,7 +54,7 @@ new_source_document () {
   new_data data;
   tree document= attach_data (body, data);
   auto identities= athena::document_node::assign_detached_source_ids (
-    body, get_document_drd (document),
+    body, prepare_document_context (document).contracts,
     athena::document_node::standard_source_role,
     [] (const athena::document_node::identity_request&) {
       return athena::node::new_id ();
@@ -675,9 +675,23 @@ replace_buffer_tree (url name, tree doc,
 
 bool
 initialize_buffer_tree (url name, tree doc,
-                        athena::document::xml_format_version version) {
+                        athena::document::xml_format_version version,
+                        std::shared_ptr<const athena::contracts::detached_environment> field_environment) {
   if (!is_nil (concrete_buffer (name))) return false;
   const auto format= buffer_source_format (version);
+  if (field_environment) {
+    insert_buffer (name);
+    const auto install= actor_continuation_registry::instance ().store ([field_environment] {
+      const auto* context= current_scheme_execution_context ();
+      context->actor->current_state ()->field_environment= field_environment;
+    });
+    if (!invoke_buffer_actor (concrete_buffer (name), actor_command_kind::run_native_continuation,
+          ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, install)) {
+      actor_continuation_registry::instance ().discard (install);
+      remove_buffer (name);
+      return false;
+    }
+  }
   if (try_set_buffer_tree (name, std::move (doc), format)) return true;
   remove_buffer (name);
   return false;

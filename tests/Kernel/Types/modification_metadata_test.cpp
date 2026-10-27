@@ -13,7 +13,7 @@
 #include "new_document.hpp"
 #include "node_metadata.hpp"
 #include "ATHENA/Data/document_node_model.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -474,7 +474,7 @@ private slots:
   void automaticIdentitiesShareTheInsertionUndoStep () {
     namespace model= athena::document_node;
     namespace node= athena::node;
-    init_std_drd ();
+    athena::contracts::initialize_builtins ();
     tree document= make_document_tree ();
     with_document_tree context (&document);
     set_document (document, path (0), tree (DOCUMENT, "Original"));
@@ -482,7 +482,7 @@ private slots:
     QVERIFY (state.initialize (document[0]).empty ());
     int allocations= 0;
     auto allocate= [&] (const auto&) { ++allocations; return node::new_id (); };
-    state.apply (document[0], state.prepare (document[0], standard_drd_for_thread (), {}, allocate));
+    state.apply (document[0], state.prepare (document[0], athena::contracts::builtin_contracts (), {}, allocate));
     const tree before= copy (document[0]);
     double author= new_author (), previous= get_author ();
     set_author (author);
@@ -492,7 +492,7 @@ private slots:
       attach_observer (document, watch);
       auto edit= mod_insert (path (), 1, tree (DOCUMENT, "Inserted"));
       ::apply (document[0], edit);
-      auto plan= state.prepare (document[0], standard_drd_for_thread (), {}, allocate);
+      auto plan= state.prepare (document[0], athena::contracts::builtin_contracts (), {}, allocate);
       QVERIFY (plan.ok ());
       state.apply (document[0], plan);
       history->confirm ();
@@ -502,13 +502,13 @@ private slots:
       history->undo ();
       QCOMPARE (document[0], before);
       QVERIFY (state.pending ());
-      auto undo_plan= state.prepare (document[0], standard_drd_for_thread (), {}, allocate);
+      auto undo_plan= state.prepare (document[0], athena::contracts::builtin_contracts (), {}, allocate);
       QVERIFY (undo_plan.ok () && undo_plan.changes.empty ());
       state.apply (document[0], undo_plan);
       history->redo ();
       QCOMPARE (document[0], expected);
       QVERIFY (state.pending ());
-      auto redo_plan= state.prepare (document[0], standard_drd_for_thread (), {}, allocate);
+      auto redo_plan= state.prepare (document[0], athena::contracts::builtin_contracts (), {}, allocate);
       QVERIFY (redo_plan.ok () && redo_plan.changes.empty ());
       state.apply (document[0], redo_plan);
       QCOMPARE (allocations, created);

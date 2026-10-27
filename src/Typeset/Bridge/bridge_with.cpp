@@ -167,7 +167,7 @@ bridge_with_rep::my_typeset (int desired_status) {
     }
     scoped_package_environment scope (*env.operator-> (), st[0]);
     ttt->insert_marker (st, ip);
-    body_entry= env->contract_events->mark_boundary ();
+    body_entry= env->mark_execution_boundary ();
     prefix_source.reset ();
     body_prefix.reset ();
     body->typeset (desired_status);
@@ -181,7 +181,7 @@ bridge_with_rep::my_typeset (int desired_status) {
   }
   local_environment_scope scope (*env.operator-> (), bindings);
   ttt->insert_marker (st, ip);
-  body_entry= env->contract_events->mark_boundary ();
+  body_entry= env->mark_execution_boundary ();
   prefix_source.reset ();
   body_prefix.reset ();
   body->typeset (desired_status);

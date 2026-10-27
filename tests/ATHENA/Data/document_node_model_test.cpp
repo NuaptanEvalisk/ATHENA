@@ -14,7 +14,7 @@
 #include "ATHENA/Data/enunciation_model.hpp"
 #include "ATHENA/Data/document_node_copy.hpp"
 #include "patch.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 
 #include <algorithm>
 #include <iomanip>
@@ -67,7 +67,7 @@ class TestDocumentNodeModel: public QObject {
   Q_OBJECT
 
 private slots:
-  void initTestCase () { init_std_drd (); }
+  void initTestCase () { athena::contracts::initialize_builtins (); }
   void deterministic_paragraphs_and_headings ();
   void registry_roles_and_nested_bodies ();
   void drd_roles_and_code_boundaries ();
@@ -93,7 +93,7 @@ void TestDocumentNodeModel::deterministic_paragraphs_and_headings () {
                tree (CONCAT, "Prefix ", compound ("section*", "Heading")),
                compound ("doc-title", "Title"));
   auto result= model::assign_detached_source_ids (
-    source, standard_drd_for_thread (), {}, deterministic_id);
+    source, athena::contracts::builtin_contracts (), {}, deterministic_id);
   QVERIFY (result.ok ());
   QCOMPARE (result.assigned.size (), std::size_t (5));
   QVERIFY (result.assigned[0].request.role == model::identity_role::body);
@@ -106,11 +106,11 @@ void TestDocumentNodeModel::deterministic_paragraphs_and_headings () {
   QVERIFY (node::id (source).empty ());
   QVERIFY (node::id (source[0]).empty ());
   auto again= model::assign_detached_source_ids (
-    source, standard_drd_for_thread (), {}, deterministic_id);
+    source, athena::contracts::builtin_contracts (), {}, deterministic_id);
   QVERIFY (again.ok ());
   QCOMPARE (*again.body, *result.body);
   auto already_assigned= model::assign_detached_source_ids (
-    *result.body, standard_drd_for_thread (), {}, {});
+    *result.body, athena::contracts::builtin_contracts (), {}, {});
   QVERIFY (already_assigned.ok ());
   QVERIFY (already_assigned.assigned.empty ());
   QCOMPARE (*already_assigned.body, *result.body);
@@ -138,7 +138,7 @@ void TestDocumentNodeModel::registry_roles_and_nested_bodies () {
   tree source (DOCUMENT, compound ("render-theorem", "Explicit title",
                                   tree (DOCUMENT, nested)));
   auto result= model::assign_detached_source_ids (
-    source, standard_drd_for_thread (), roles, deterministic_id);
+    source, athena::contracts::builtin_contracts (), roles, deterministic_id);
   QVERIFY (result.ok ());
   QVERIFY (result.assigned[1].request.role == model::identity_role::enunciation);
   QVERIFY (result.assigned[1].request.category == "provable");
@@ -153,17 +153,23 @@ void TestDocumentNodeModel::registry_roles_and_nested_bodies () {
 }
 
 void TestDocumentNodeModel::drd_roles_and_code_boundaries () {
-  drd_info drd ("document-node-roles-test", standard_drd_for_thread ());
+  auto context= athena::contracts::builtin_contracts ();
   const auto tag= make_tree_label ("test-body-and-code");
-  drd->contracts.replace (tag, freeze_descriptor (tag_info (2, 0, ARITY_NORMAL, CHILD_DETAILED)->
-    type (0, TYPE_REGULAR)->accessible (0)->name (0, "body")->
-    accessible (1)->type (1, TYPE_CODE)));
+  athena::contracts::node_contract contract;
+  contract.layout= {2, 0, athena::contracts::arity_kind::fixed,
+                          athena::contracts::field_mapping::detailed};
+  contract.fields.resize (2);
+  contract.fields[0].type= TYPE_REGULAR;
+  contract.fields[1].type= TYPE_CODE;
+  for (auto& field: contract.fields) field.accessible= ACCESSIBLE_ALWAYS;
+  contract.attributes.emplace ("name-0", node::frozen_tree (tree ("body")));
+  context.replace (tag, std::move (contract));
   tree hidden (DOCUMENT, "Not content");
   tree source (DOCUMENT, tree (tag, tree (DOCUMENT, "Content"), hidden),
                tree (MACRO, "body", hidden), tree (QUOTE, hidden),
                tree (WITH, "mode", "prog", hidden));
   source << compound ("style", hidden);
-  auto result= model::assign_detached_source_ids (source, drd, {}, deterministic_id);
+  auto result= model::assign_detached_source_ids (source, context, {}, deterministic_id);
   QVERIFY (result.ok ());
   QVERIFY (!node::id ((*result.body)[0][0][0]).empty ());
   QCOMPARE ((*result.body)[0][1], hidden);
@@ -182,7 +188,7 @@ void TestDocumentNodeModel::preserves_and_reserves_existing_ids () {
   node::set (paragraph, metadata);
   tree source (DOCUMENT, paragraph, "New");
   auto result= model::assign_detached_source_ids (
-    source, standard_drd_for_thread (), {}, deterministic_id);
+    source, athena::contracts::builtin_contracts (), {}, deterministic_id);
   QVERIFY (result.ok ());
   QCOMPARE (result.assigned.size (), std::size_t (2));
   QVERIFY (node::equal_metadata ((*result.body)[0], paragraph));
@@ -191,7 +197,7 @@ void TestDocumentNodeModel::preserves_and_reserves_existing_ids () {
 
   tree quoted (DOCUMENT, tree (QUOTE, paragraph));
   auto collision= model::assign_detached_source_ids (
-    quoted, standard_drd_for_thread (), {}, [] (const auto&) { return existing_id; });
+    quoted, athena::contracts::builtin_contracts (), {}, [] (const auto&) { return existing_id; });
   QVERIFY (!collision.body.has_value ());
   QVERIFY (has_issue (collision.diagnostics, model::issue::duplicate_id));
 
@@ -202,7 +208,7 @@ void TestDocumentNodeModel::preserves_and_reserves_existing_ids () {
   tree with_property (DOCUMENT, "Body");
   node::set (with_property, root_metadata);
   auto property_collision= model::assign_detached_source_ids (
-    with_property, standard_drd_for_thread (), {}, [] (const auto&) { return existing_id; });
+    with_property, athena::contracts::builtin_contracts (), {}, [] (const auto&) { return existing_id; });
   QVERIFY (has_issue (property_collision.diagnostics, model::issue::duplicate_id));
 }
 
@@ -216,19 +222,19 @@ void TestDocumentNodeModel::rejects_duplicates_and_allocator_collisions () {
     return existing_id;
   };
   auto duplicate= model::assign_detached_source_ids (
-    duplicated, standard_drd_for_thread (), {}, allocate);
+    duplicated, athena::contracts::builtin_contracts (), {}, allocate);
   QVERIFY (!duplicate.ok ());
   QVERIFY (has_issue (duplicate.diagnostics, model::issue::duplicate_id));
   QCOMPARE (calls, 0);
   tree source (DOCUMENT, "New");
   auto collision= model::assign_detached_source_ids (
-    source, standard_drd_for_thread (), {}, allocate);
+    source, athena::contracts::builtin_contracts (), {}, allocate);
   QCOMPARE (calls, 2);
   QVERIFY (!collision.body.has_value ());
   QVERIFY (collision.assigned.empty ());
   QVERIFY (node::id (source).empty ());
   auto invalid= model::assign_detached_source_ids (
-    source, standard_drd_for_thread (), {}, [] (const auto&) { return "not-a-uuid"; });
+    source, athena::contracts::builtin_contracts (), {}, [] (const auto&) { return "not-a-uuid"; });
   QVERIFY (has_issue (invalid.diagnostics, model::issue::invalid_id));
 }
 
@@ -240,20 +246,20 @@ void TestDocumentNodeModel::ambiguous_roles_and_budgets_fail_before_allocation (
   };
   tree source (DOCUMENT, compound ("unknown-body-role", tree (DOCUMENT, "Content")));
   auto unknown= model::assign_detached_source_ids (
-    source, standard_drd_for_thread (), {}, allocate);
+    source, athena::contracts::builtin_contracts (), {}, allocate);
   QVERIFY (has_issue (unknown.diagnostics, model::issue::unsupported_ambiguous_role));
   tree computed_mode (DOCUMENT, tree (WITH, "mode", tree (VALUE, "mode-variable"), "Body"));
   auto computed= model::assign_detached_source_ids (
-    computed_mode, standard_drd_for_thread (), {}, allocate);
+    computed_mode, athena::contracts::builtin_contracts (), {}, allocate);
   QVERIFY (has_issue (computed.diagnostics, model::issue::unsupported_ambiguous_role));
   model::limits budget;
   budget.maximum_nodes= 1;
   auto limited= model::assign_detached_source_ids (
-    tree (DOCUMENT, "Body"), standard_drd_for_thread (), {}, allocate, budget);
+    tree (DOCUMENT, "Body"), athena::contracts::builtin_contracts (), {}, allocate, budget);
   QVERIFY (has_issue (limited.diagnostics, model::issue::resource_limit));
   auto envelope= model::assign_detached_source_ids (
     tree (DOCUMENT, compound ("body", tree (DOCUMENT, "Body"))),
-    standard_drd_for_thread (), {}, allocate);
+    athena::contracts::builtin_contracts (), {}, allocate);
   QVERIFY (has_issue (envelope.diagnostics, model::issue::invalid_body));
   QCOMPARE (calls, 0);
 }
@@ -463,7 +469,7 @@ void TestDocumentNodeModel::incremental_identities_keep_text_edits_local () {
   tree untouched= source[9999];
   model::source_identity_state state;
   QVERIFY (state.initialize (source).empty ());
-  auto initial= state.prepare (source, standard_drd_for_thread (), {}, deterministic_id);
+  auto initial= state.prepare (source, athena::contracts::builtin_contracts (), {}, deterministic_id);
   QVERIFY (initial.ok ());
   QCOMPARE (initial.changes.size (), std::size_t (10001));
   state.apply (source, initial);
@@ -472,7 +478,7 @@ void TestDocumentNodeModel::incremental_identities_keep_text_edits_local () {
   auto insertion= mod_insert (path (5000), 2, "new");
   raw_apply (source, insertion); state.observe (insertion);
   model::limits tiny; tiny.maximum_nodes= 4;
-  auto typed= state.prepare (source, standard_drd_for_thread (), {}, {}, tiny);
+  auto typed= state.prepare (source, athena::contracts::builtin_contracts (), {}, {}, tiny);
   QVERIFY (typed.ok ());
   QVERIFY (typed.changes.empty ());
   QCOMPARE (typed.scope, model::source_path {5000});
@@ -485,11 +491,11 @@ void TestDocumentNodeModel::incremental_identities_classify_inserted_bodies () {
   tree source (DOCUMENT, "Original");
   model::source_identity_state state;
   QVERIFY (state.initialize (source).empty ());
-  state.apply (source, state.prepare (source, standard_drd_for_thread (), {}, deterministic_id));
+  state.apply (source, state.prepare (source, athena::contracts::builtin_contracts (), {}, deterministic_id));
   const auto root_id= node::id (source);
   auto inserted= mod_insert (path (), 1, tree (DOCUMENT, canonical (tree (DOCUMENT, "New paragraph"))));
   raw_apply (source, inserted); state.observe (inserted);
-  auto plan= state.prepare (source, standard_drd_for_thread (), model::standard_source_role,
+  auto plan= state.prepare (source, athena::contracts::builtin_contracts (), model::standard_source_role,
     [] (const auto&) { return node::new_id (); });
   QVERIFY (plan.ok ());
   QCOMPARE (plan.assigned.size (), std::size_t (3));
@@ -498,7 +504,7 @@ void TestDocumentNodeModel::incremental_identities_classify_inserted_bodies () {
   QVERIFY (!node::id (source[1]).empty ());
   QVERIFY (!node::id (source[1][0]).empty ());
   QVERIFY (!node::id (source[1][0][0]).empty ());
-  auto noop= state.prepare (source, standard_drd_for_thread (), {}, {});
+  auto noop= state.prepare (source, athena::contracts::builtin_contracts (), {}, {});
   QVERIFY (noop.ok () && noop.changes.empty ());
 }
 
@@ -510,17 +516,17 @@ void TestDocumentNodeModel::incremental_identities_reserve_rich_property_owners 
   node::set (source[0], metadata);
   model::source_identity_state state;
   QVERIFY (state.initialize (source).empty ());
-  auto initial= state.prepare (source, standard_drd_for_thread (), {}, deterministic_id);
+  auto initial= state.prepare (source, athena::contracts::builtin_contracts (), {}, deterministic_id);
   QVERIFY (initial.ok ()); state.apply (source, initial);
   auto edit= mod_insert (path (0, 0), 1, "!");
   raw_apply (source, edit); state.observe (edit);
-  auto plan= state.prepare (source, standard_drd_for_thread (), {}, {});
+  auto plan= state.prepare (source, athena::contracts::builtin_contracts (), {}, {});
   QVERIFY (plan.ok ()); state.apply (source, plan);
   tree original= copy (source[1]);
   tree duplicate ("Duplicate rich identity"); set_id (duplicate, existing_id);
   auto replace= mod_assign (path (1), duplicate);
   raw_apply (source, replace); state.observe (replace);
-  auto failed= state.prepare (source, standard_drd_for_thread (), {}, {});
+  auto failed= state.prepare (source, athena::contracts::builtin_contracts (), {}, {});
   QVERIFY (has_issue (failed.diagnostics, model::issue::duplicate_id));
   QVERIFY (failed.changes.empty ());
   raw_apply (source, mod_assign (path (1), original));
@@ -533,20 +539,20 @@ void TestDocumentNodeModel::incremental_identities_reject_stale_plans_and_rebase
   tree source (DOCUMENT, "First", "Second", "Third");
   model::source_identity_state state;
   QVERIFY (state.initialize (source).empty ());
-  auto initial= state.prepare (source, standard_drd_for_thread (), {}, deterministic_id);
+  auto initial= state.prepare (source, athena::contracts::builtin_contracts (), {}, deterministic_id);
   QVERIFY (initial.ok ()); state.apply (source, initial);
   auto edit= mod_insert (path (2), 0, "!");
   raw_apply (source, edit); state.observe (edit);
-  auto stale= state.prepare (source, standard_drd_for_thread (), {}, {});
+  auto stale= state.prepare (source, athena::contracts::builtin_contracts (), {}, {});
   auto removal= mod_remove (path (), 0, 1);
   raw_apply (source, removal); state.observe (removal);
   QVERIFY_EXCEPTION_THROWN (state.apply (source, stale), std::logic_error);
-  auto fresh= state.prepare (source, standard_drd_for_thread (), {}, {});
+  auto fresh= state.prepare (source, athena::contracts::builtin_contracts (), {}, {});
   QVERIFY (fresh.ok () && fresh.changes.empty () && fresh.scope.empty ());
   state.apply (source, fresh);
   edit= mod_insert (path (1), 0, "?");
   raw_apply (source, edit); state.observe (edit);
-  auto local= state.prepare (source, standard_drd_for_thread (), {}, {});
+  auto local= state.prepare (source, athena::contracts::builtin_contracts (), {}, {});
   QVERIFY (local.ok ()); QCOMPARE (local.scope, model::source_path {1});
   state.apply (source, local);
 }
@@ -555,12 +561,12 @@ void TestDocumentNodeModel::incremental_identities_rebuild_after_applied_rollbac
   tree source (DOCUMENT, "First", "Second");
   model::source_identity_state state;
   QVERIFY (state.initialize (source).empty ());
-  auto initial= state.prepare (source, standard_drd_for_thread (), {}, deterministic_id);
+  auto initial= state.prepare (source, athena::contracts::builtin_contracts (), {}, deterministic_id);
   QVERIFY (initial.ok ()); state.apply (source, initial);
   const tree before= copy (source);
   auto insertion= mod_insert (path (), 0, tree (DOCUMENT, "Inserted"));
   raw_apply (source, insertion); state.observe (insertion);
-  auto plan= state.prepare (source, standard_drd_for_thread (), {},
+  auto plan= state.prepare (source, athena::contracts::builtin_contracts (), {},
     [] (const auto&) { return node::new_id (); });
   QVERIFY (plan.ok ()); state.apply (source, plan);
   // A save/preflight can apply the plan before the history transaction fails.
@@ -569,7 +575,7 @@ void TestDocumentNodeModel::incremental_identities_rebuild_after_applied_rollbac
   QVERIFY (!state.pending ());
   auto edit= mod_insert (path (1), 0, "!");
   raw_apply (source, edit); state.observe (edit);
-  auto local= state.prepare (source, standard_drd_for_thread (), {}, {});
+  auto local= state.prepare (source, athena::contracts::builtin_contracts (), {}, {});
   QVERIFY (local.ok ());
   QVERIFY (local.changes.empty ());
   QCOMPARE (local.scope, model::source_path {1});
@@ -581,12 +587,12 @@ void TestDocumentNodeModel::incremental_identities_fail_closed_after_bad_reiniti
   model::source_identity_state state;
   QVERIFY (state.pending ());
   QVERIFY (state.initialize (source).empty ());
-  state.apply (source, state.prepare (source, standard_drd_for_thread (), {}, deterministic_id));
+  state.apply (source, state.prepare (source, athena::contracts::builtin_contracts (), {}, deterministic_id));
   QVERIFY (!state.pending ());
   tree duplicate (DOCUMENT, copy (source[0]), copy (source[0]));
   QVERIFY (has_issue (state.cancelled (duplicate), model::issue::duplicate_id));
   QVERIFY (state.pending ());
-  auto plan= state.prepare (duplicate, standard_drd_for_thread (), {}, deterministic_id);
+  auto plan= state.prepare (duplicate, athena::contracts::builtin_contracts (), {}, deterministic_id);
   QVERIFY (!plan.ok ());
   QVERIFY_EXCEPTION_THROWN (state.apply (duplicate, plan), std::logic_error);
   QVERIFY (state.cancelled (source).empty ());

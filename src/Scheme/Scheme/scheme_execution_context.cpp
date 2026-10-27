@@ -9,23 +9,23 @@
 ******************************************************************************/
 
 #include "scheme_execution_context.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "System/Misc/crash_report.hpp"
 
 static thread_local const SchemeExecutionContext* execution_context= nullptr;
 
-static drd_info*
-checked_context_drd (const SchemeExecutionContext& context) {
+static athena::contracts::evaluation_state*
+checked_context_state (const SchemeExecutionContext& context) {
   ASSERT (context.owner_thread == std::this_thread::get_id (),
           "Scheme execution context entered from a foreign thread");
-  return context.drd;
+  return context.contract_state;
 }
 
 SchemeExecutionContext::SchemeExecutionContext (
-  buffer_actor* actor2, editor_rep* editor2, drd_info* drd2,
+  buffer_actor* actor2, editor_rep* editor2, athena::contracts::evaluation_state* contract_state2,
   tree* document2, athena_actor_id actor_id2, athena_view_id view_id2,
   std::uint64_t command_id2, SchemeCapabilitySet capabilities2):
-    actor (actor2), editor (editor2), drd (drd2), document (document2),
+    actor (actor2), editor (editor2), contract_state (contract_state2), document (document2),
     actor_id (actor_id2), view_id (view_id2), command_id (command_id2),
     capabilities (capabilities2), owner_thread (std::this_thread::get_id ()) {}
 
@@ -36,7 +36,7 @@ SchemeExecutionContext::has (SchemeExecutionCapability capability) const noexcep
 
 SchemeExecutionScope::SchemeExecutionScope (
   const SchemeExecutionContext& context):
-    previous_context (nullptr), drd_scope (checked_context_drd (context)),
+    previous_context (nullptr), evaluation_scope (checked_context_state (context)),
     document_scope (context.document) {
   previous_context= execution_context;
   execution_context= &context;

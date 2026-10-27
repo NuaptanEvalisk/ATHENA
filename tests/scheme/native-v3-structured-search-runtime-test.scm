@@ -284,12 +284,8 @@
 ;; The source editor exposes all physical children, including descriptors,
 ;; but text search must still see only editable math expression content.
 ;; A complete structured math query must nevertheless retain descriptor checks.
-(define (with-source-access thunk)
-  (let ((previous (set-access-mode 2)))
-    (dynamic-wind (lambda () #t) thunk
-                  (lambda () (set-access-mode previous)))))
-(with-source-access
- (lambda ()
+(let ((hits (lambda (source query)
+              (tree-search-source source query '() 20))))
    (let ((brackets (make-math (delimited "(" ")" "x")))
          (variant (make-math (stree->tree '(math-variant "rm" "x")))))
      (check (null? (hits brackets (stree->tree "a")))
@@ -319,4 +315,4 @@
        (check (not (null? (hits middle (stree->tree "|"))))
               "middle separator glyph disappeared from text search")
        (check (not (null? (hits arrow (stree->tree "→"))))
-              "long-arrow glyph disappeared from text search")))))
+              "long-arrow glyph disappeared from text search"))))

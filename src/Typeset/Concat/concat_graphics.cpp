@@ -10,8 +10,9 @@
 ******************************************************************************/
 
 #include "concater.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
 #include "Boxes/graphics.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "hashset.hpp"
 #include "analyze.hpp"
 #include "scheme.hpp"
@@ -778,7 +779,7 @@ concater_rep::typeset_graphical (array<box>& bs, tree t, path ip) {
   set_graphical_values (t);
 
   for (i=0; i<n; i++)
-    if (the_drd->get_type (t[i]) == TYPE_CONSTRAINT) {
+    if (athena::contracts::editing_query {env->contract_state.contracts}.describe (L(t[i])).type == TYPE_CONSTRAINT) {
       tree u= t[i];
       switch (L(u)) {
       case IS_EQUAL:
@@ -803,7 +804,7 @@ concater_rep::typeset_graphical (array<box>& bs, tree t, path ip) {
     }
 
   for (i=0; i<n; i++)
-    if (the_drd->get_type (t[i]) != TYPE_CONSTRAINT && !is_atomic (t[i])) {
+    if (athena::contracts::editing_query {env->contract_state.contracts}.describe (L(t[i])).type != TYPE_CONSTRAINT && !is_atomic (t[i])) {
       bool ok;
       box b= typeset_gr_item (env, t[i], descend (ip, i), ok);
       if (ok) bs << b;

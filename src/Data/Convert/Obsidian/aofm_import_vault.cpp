@@ -40,7 +40,7 @@ struct IpcTelemetryData {
   double time_l2t_handle_matches;
   double time_l2t_upgrade_tex;
   double time_l2t_finalize_misc;
-  double time_l2t_drd_correct;
+  double time_l2t_arity_correct;
   double time_l2t_style_check;
   double time_l2t_simplify_correct;
   double time_l2t_latex_correct;
@@ -98,7 +98,7 @@ aofm_import_vault(string source_dir, string destination_dir,
   time_l2t_handle_matches = 0.0;
   time_l2t_upgrade_tex = 0.0;
   time_l2t_finalize_misc = 0.0;
-  time_l2t_drd_correct = 0.0;
+  time_l2t_arity_correct = 0.0;
   time_l2t_style_check = 0.0;
   time_l2t_simplify_correct = 0.0;
   time_l2t_latex_correct = 0.0;
@@ -226,7 +226,7 @@ aofm_import_vault(string source_dir, string destination_dir,
       time_l2t_handle_matches = 0.0;
       time_l2t_upgrade_tex = 0.0;
       time_l2t_finalize_misc = 0.0;
-      time_l2t_drd_correct = 0.0;
+      time_l2t_arity_correct = 0.0;
       time_l2t_style_check = 0.0;
       time_l2t_simplify_correct = 0.0;
       time_l2t_latex_correct = 0.0;
@@ -285,7 +285,7 @@ aofm_import_vault(string source_dir, string destination_dir,
       msg.telemetry.time_l2t_handle_matches = time_l2t_handle_matches;
       msg.telemetry.time_l2t_upgrade_tex = time_l2t_upgrade_tex;
       msg.telemetry.time_l2t_finalize_misc = time_l2t_finalize_misc;
-      msg.telemetry.time_l2t_drd_correct = time_l2t_drd_correct;
+      msg.telemetry.time_l2t_arity_correct = time_l2t_arity_correct;
       msg.telemetry.time_l2t_style_check = time_l2t_style_check;
       msg.telemetry.time_l2t_simplify_correct = time_l2t_simplify_correct;
       msg.telemetry.time_l2t_latex_correct = time_l2t_latex_correct;
@@ -348,7 +348,7 @@ aofm_import_vault(string source_dir, string destination_dir,
           time_l2t_handle_matches += msg.telemetry.time_l2t_handle_matches;
           time_l2t_upgrade_tex += msg.telemetry.time_l2t_upgrade_tex;
           time_l2t_finalize_misc += msg.telemetry.time_l2t_finalize_misc;
-          time_l2t_drd_correct += msg.telemetry.time_l2t_drd_correct;
+          time_l2t_arity_correct += msg.telemetry.time_l2t_arity_correct;
           time_l2t_style_check += msg.telemetry.time_l2t_style_check;
           time_l2t_simplify_correct += msg.telemetry.time_l2t_simplify_correct;
           time_l2t_latex_correct += msg.telemetry.time_l2t_latex_correct;
@@ -419,7 +419,7 @@ aofm_import_vault(string source_dir, string destination_dir,
   cout << "  - handle_matches: " << time_l2t_handle_matches << "s" << LF;
   cout << "  - upgrade_tex: " << time_l2t_upgrade_tex << "s" << LF;
   cout << "  - finalize_misc/textm: " << time_l2t_finalize_misc << "s" << LF;
-  cout << "  - drd_correct: " << time_l2t_drd_correct << "s" << LF;
+  cout << "  - arity correction: " << time_l2t_arity_correct << "s" << LF;
   cout << "  - style_check (exists): " << time_l2t_style_check << "s" << LF;
   cout << "  - simplify_correct: " << time_l2t_simplify_correct << "s" << LF;
   cout << "  - latex_correct: " << time_l2t_latex_correct << "s" << LF;

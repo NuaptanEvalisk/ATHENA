@@ -350,7 +350,7 @@ std::unique_ptr<athena::document_node::source_identity_state>
 replacement_node_identities (const tree& document, const tree& body) {
   auto next= std::make_unique<athena::document_node::source_identity_state> ();
   const auto errors= next->initialize_complete (
-    body, get_document_drd (document), athena::document_node::standard_source_role);
+    body, prepare_document_context (document).contracts, athena::document_node::standard_source_role);
   if (!errors.empty ()) {
     std_warning << "Source replacement rejected: "
                 << string (errors.front ().detail.c_str ()) << LF;
@@ -361,9 +361,9 @@ replacement_node_identities (const tree& document, const tree& body) {
 
 std::unique_ptr<athena::document_node::source_identity_state>
 prepare_replacement_node_identities (const tree& document, tree& body) {
-  const drd_info drd= get_document_drd (document);
+  const athena::contracts::evaluation_state contract_state= prepare_document_context (document);
   const auto assigned= athena::document_node::assign_detached_source_ids (
-    body, drd, athena::document_node::standard_source_role,
+    body, contract_state.contracts, athena::document_node::standard_source_role,
     [] (const athena::document_node::identity_request&) {
       return athena::node::new_id ();
     });
@@ -375,7 +375,7 @@ prepare_replacement_node_identities (const tree& document, tree& body) {
   body= *assigned.body;
   auto next= std::make_unique<athena::document_node::source_identity_state> ();
   const auto errors= next->initialize_complete (
-    body, drd, athena::document_node::standard_source_role);
+    body, contract_state.contracts, athena::document_node::standard_source_role);
   if (!errors.empty ()) {
     std_warning << "Source replacement rejected: "
                 << string (errors.front ().detail.c_str ()) << LF;
@@ -782,7 +782,6 @@ buffer_actor::apply_saved_document (const std::string& expected_storage,
   state.last_save= last_modified (state.name);
   for (auto& view: impl_->views) {
     view.second.instance->set_data (state.data);
-    view.second.instance->init_update ();
     view.second.instance->notify_save ();
     (void) view.second.instance->publish_ui (actor_command_kind::ui_mark_buffer_saved,
       static_cast<std::uint64_t> (state.last_save));
@@ -1071,9 +1070,9 @@ void
 buffer_actor::execute (actor_command_record& command) {
   current_font_domain ().synchronize_configuration ();
   editor_rep* editor= current_editor (command.view_id);
-  drd_info* drd= editor == nullptr ? nullptr : &editor->drd;
+  athena::contracts::evaluation_state* contract_state= editor == nullptr ? nullptr : &editor->contract_state;
   SchemeExecutionContext context (
-    this, editor, drd, impl_ == nullptr ? nullptr : &impl_->state.document,
+    this, editor, contract_state, impl_ == nullptr ? nullptr : &impl_->state.document,
     id_, command.view_id,
     command.command_id, command.capabilities);
   actor_dispatch_request request= {this, &command, nullptr};
@@ -1166,11 +1165,13 @@ buffer_actor::dispatch (actor_command_record& command) {
     string argument;
     if (command.payload0 != ATHENA_NO_BLOB)
       argument= actor_text_registry::instance ().take (command.payload0);
-    if (editor != nullptr)
+    if (editor != nullptr) {
+      if (editor->has_changed (THE_TREE | THE_ENVIRONMENT)) editor->apply_changes ();
       command.argument[0]= run_native_editor_command (
         editor,
         static_cast<native_editor_command_id> (command.argument[0]),
         argument) ? 1 : 0;
+    }
     else command.argument[0]= 0;
     break;
   }
@@ -1180,6 +1181,7 @@ buffer_actor::dispatch (actor_command_record& command) {
       encoded= actor_text_registry::instance ().take (command.payload0);
     command.argument[0]= 0;
     if (editor == nullptr || N(encoded) == 0) break;
+    if (editor->has_changed (THE_TREE | THE_ENVIRONMENT)) editor->apply_changes ();
     actor_editor_command_snapshot state= editor->editor_command_state_snapshot ();
     const std::uint32_t required=
       static_cast<std::uint32_t> (command.argument[1]);
@@ -1666,7 +1668,10 @@ buffer_actor::dispatch (actor_command_record& command) {
     const bool source_v2= command.argument[1] == 2;
     const bool source_v3= command.argument[1] == 3;
     std::unique_ptr<athena::document_node::source_identity_state> identities;
-    if (source_v2 || source_v3 || (!supplied_format && impl_->state.node_identities)) {
+    // A metadata editor owns field content, not a second document identity
+    // graph. Its final value is validated and committed by the source owner.
+    if (!impl_->state.field_environment &&
+        (source_v2 || source_v3 || (!supplied_format && impl_->state.node_identities))) {
       new_data projected;
       tree body= detach_data (document, projected);
       // Node-model XML permits anonymous source nodes. Complete their identities on
@@ -1692,7 +1697,6 @@ buffer_actor::dispatch (actor_command_record& command) {
     else if (identities) impl_->state.node_identities= std::move (identities);
     for (auto& entry: impl_->views) {
       entry.second.instance->set_data (impl_->state.data);
-      entry.second.instance->init_update ();
     }
     publish_tmfs_title (editor);
     athena::node_reference::source_changed ();
@@ -1778,6 +1782,7 @@ buffer_actor::dispatch (actor_command_record& command) {
         snapshot_editor= impl_->views.begin ()->second.instance.operator -> ();
       if (impl_->state.storage_version !=
             athena::document::xml_storage_version::v1 &&
+          !impl_->state.field_environment &&
           !impl_->state.node_identities)
         throw std::runtime_error (
           "Node-model document has no active source identity index");

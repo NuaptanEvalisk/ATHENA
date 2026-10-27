@@ -9,9 +9,12 @@
 ******************************************************************************/
 #include "legacy_document_import.hpp"
 #include "legacy_document_reader.hpp"
-#include "drd_std.hpp"
-#include "drd_info.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 #include "Data/NodeContracts/evaluation_inputs.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
+#include "Data/NodeContracts/contract_declaration.hpp"
+#include "Data/NodeContracts/macro_analysis.hpp"
 #include "file.hpp"
 #include "analyze.hpp"
 #include "convert.hpp"
@@ -51,7 +54,7 @@ legacy_text_role standard_role (const tree& parent, int i, legacy_text_role inhe
   // presentation text. Explicit child types can further restrict a field.
   if (L (parent) < START_EXTENSIONS) {
     return role_for_type (
-      standard_drd_for_thread ()->get_type_child (parent, i), inherited);
+      athena::contracts::editing_query {athena::contracts::builtin_contracts ()}.child_type (parent, i), inherited);
   }
   return inherited;
 }
@@ -75,7 +78,7 @@ tree find_document_field (const tree& document, string label) {
 }
 
 class contract_compiler {
-  drd_info drd;
+  contracts::contract_scope declarations;
   hashmap<string,tree> environment;
   contracts::evaluation_inputs inputs;
   std::vector<tree> properties;
@@ -151,8 +154,8 @@ class contract_compiler {
         environment (name)= t[1];
         inputs.record (bytes (name), true);
         if (is_func (t[1], MACRO) || is_func (t[1], XMACRO) ||
-            (existing_tree_label (name) && drd->contracts.definition (as_tree_label (name))))
-          drd->contracts.bind (athena::contracts::capture_definition (name, t[1]));
+            (existing_tree_label (name) && declarations.definition (as_tree_label (name))))
+          declarations.bind (athena::contracts::capture_definition (name, t[1]));
       }
       return;
     }
@@ -171,7 +174,7 @@ class contract_compiler {
 public:
   contract_compiler (const tree& source, legacy_import_limits import_limits,
                      const legacy_import_context& context):
-    drd ("legacy-import", standard_drd_for_thread ()),
+    declarations (athena::contracts::builtin_contracts ().snapshot ()),
     environment (UNINIT), limits (import_limits), document_path (context.source_path) {
     tree style= find_document_field (source, "style");
     if (is_atomic (style) && style != "") load_package (style->label, document_path);
@@ -182,16 +185,19 @@ public:
     if (preamble != "") scan (preamble, document_path);
     // Explicit roles take precedence over inferred macro composition.
     try {
-      for (const auto& property: properties) apply_drd_properties (drd, property);
+      for (const auto& property: properties)
+        athena::contracts::apply_contract_declaration (declarations,
+          athena::contracts::decode_contract_declaration (property));
     } catch (const std::invalid_argument& error) {
       throw codec_exception (codec_error::invalid_structure, error.what ());
     }
-    drd->analyze_environment (inputs.snapshot (), environment);
+    athena::contracts::macro_analysis analysis;
+    analysis.synchronize (declarations, inputs.snapshot (), environment);
   }
 
   legacy_text_role role (const tree& parent, int child,
                          legacy_text_role inherited) {
-    return role_for_type (drd->get_type_child (parent, child), inherited);
+    return role_for_type (athena::contracts::editing_query {declarations}.child_type (parent, child), inherited);
   }
 };
 
@@ -333,7 +339,7 @@ public:
   legacy_document_result run (const tree& source) {
     if (!is_func (source, DOCUMENT))
       throw codec_exception (codec_error::invalid_structure, "Expected legacy document envelope");
-    init_std_drd ();
+    athena::contracts::initialize_builtins ();
     auto result= visit (source, {}, {}, legacy_text_role::content, 0);
     // Enforce the actual output shape/size, including symbol-induced nodes.
     write_xml (result, xml_kind::document, limits);

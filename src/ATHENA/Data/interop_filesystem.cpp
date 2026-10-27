@@ -89,7 +89,7 @@ std::string new_filesystem_document_bytes (const value& encoded, int node_model_
       else if (athena::node::contains_metadata (doc))
         throw std::invalid_argument ("New documents must not import existing source identities");
       auto identities= athena::document_node::assign_detached_source_ids (
-        extract (doc, "body"), get_document_drd (doc),
+        extract (doc, "body"), prepare_document_context (doc).contracts,
         athena::document_node::standard_source_role,
         [] (const athena::document_node::identity_request&) { return athena::node::new_id (); });
       if (!identities.ok ()) throw std::invalid_argument (identities.diagnostics.front ().detail);

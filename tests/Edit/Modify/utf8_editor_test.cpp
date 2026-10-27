@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include <QApplication>
+#include "Data/NodeContracts/editing_query.hpp"
 #include <QClipboard>
 #include <QMimeData>
 #include <QScopedValueRollback>
@@ -27,14 +28,14 @@
 #include "boot.hpp"
 #include "buffer_state.hpp"
 #include "data_cache.hpp"
-#include "drd_mode.hpp"
+#include "cursor_navigation.hpp"
 #include "scheme.hpp"
 #include "sys_utils.hpp"
 #include "tree_select.hpp"
 #include "tree_traverse.hpp"
 #include "utf8_edit.hpp"
 #include "Concat/concater.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "Stack/stacker.hpp"
 #include "Boxes/utf8_line.hpp"
 #include "Qt/qt_renderer.hpp"
@@ -122,9 +123,14 @@ public:
       old_path, new_path, forwards);
   }
   void set_test_child_accessibility (tree_label tag, int child, bool accessible) {
-    drd->set_arity (tag, 1, 0, ARITY_NORMAL, CHILD_DETAILED);
-    drd->set_accessible (
-      tag, child, accessible ? ACCESSIBLE_ALWAYS : ACCESSIBLE_NEVER);
+    using namespace athena::contracts;
+    contract_state.contracts.edit (tag, [=] (node_contract& value) {
+      value.layout= {1, 0, arity_kind::fixed, field_mapping::detailed};
+      value.layout_origin= property_authority::inferred;
+      value.fields.resize (1);
+      value.fields[child].accessible= accessible ? ACCESSIBLE_ALWAYS : ACCESSIBLE_NEVER;
+      value.fields[child].accessible_origin= property_authority::inferred;
+    });
   }
   path spellable_range (path p, string language) {
     search_lan= language;
@@ -196,9 +202,9 @@ private slots:
     const tree binary (RAW_DATA, string ("\xff\x80\0", 3));
     QVERIFY (is_inside (binary, path (0, 0)));
     QVERIFY (!is_accessible_cursor (binary, path (0, 0)));
-    const int old_access= set_access_mode (DRD_ACCESS_SOURCE);
-    const bool source_access= is_accessible_cursor (binary, path (0, 0));
-    set_access_mode (old_access);
+    const cursor_navigation source_navigation (current_cursor_navigation ().contracts ().with_access (
+      athena::contracts::access_policy::source));
+    const bool source_access= source_navigation.is_accessible_cursor (binary, path (0, 0));
     QVERIFY (source_access);
     QVERIFY (valid_cursor (binary, path (0, 0)));
     QVERIFY (!valid_cursor (binary, path (0, 1)));
@@ -251,10 +257,10 @@ private slots:
     QVERIFY_THROWS_EXCEPTION (std::invalid_argument, named_symbol_registry (
       R"({"version":1,"symbols":[{"identity":"test:symbol","recipe":["rotate",900,"x"],"math_class":"symbol","slant":"upright"}]})"));
 
-    drd_info drd ("utf8-symbols", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "pagella");
     env->write (FONT_SHAPE, "italic");
@@ -283,9 +289,9 @@ private slots:
       QVERIFY (valid_cursor (symbol, path (1)));
       QVERIFY (next_accessible (symbol, path (0)) == path (1));
       QVERIFY (previous_accessible (symbol, path (1)) == path (0));
-      const int old_access= set_access_mode (DRD_ACCESS_SOURCE);
-      const bool source_access= is_accessible_cursor (symbol, path (0, 0));
-      set_access_mode (old_access);
+      const cursor_navigation source_navigation (current_cursor_navigation ().contracts ().with_access (
+        athena::contracts::access_policy::source));
+      const bool source_access= source_navigation.is_accessible_cursor (symbol, path (0, 0));
       QVERIFY (source_access);
 
       array<line_item> items= typeset_concat (env, symbol, path (0));
@@ -410,10 +416,10 @@ private slots:
     QCOMPARE (utf8_grapheme_next (original, size - 3), size);
   }
   void textTypesetting () {
-    drd_info drd ("utf8-editor-text", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "typewriter=JetBrains Mono,TeX Gyre Pagella");
     env->write ("athena-radioactive-links-suppressed", "true");
@@ -488,10 +494,10 @@ private slots:
     QVERIFY (result->find_tree_path (mono_cursor) == path (0, path (1, path (2, 2))));
   }
   void pagellaTextQuotes () {
-    drd_info drd ("utf8-pagella-quotes", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "pagella");
     env->write (MODE, "text");
@@ -543,10 +549,10 @@ private slots:
     QCOMPARE (latex_help, string ("Insert α"));
     QVERIFY (native_latex_get_command ("acute", latex_help, latex_command));
     QCOMPARE (latex_help, string ("Make acute"));
-    drd_info drd ("utf8-math-typesetting", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "cal=TeX Gyre Termes,frak=TeX Gyre Pagella,bbb=TeX Gyre Bonum,TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -623,10 +629,10 @@ private slots:
     QCOMPARE (calligraphic[0]->b->get_leaf_string (), string ("E"));
   }
   void structuredWideAccents () {
-    drd_info drd ("structured-wide-accents", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -661,10 +667,10 @@ private slots:
       }
   }
   void structuredLongArrows () {
-    drd_info drd ("structured-long-arrows", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -713,10 +719,10 @@ private slots:
 
   void mathDelimiterFonts () {
     using namespace athena::text;
-    drd_info drd ("utf8-math-delimiters", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -751,10 +757,10 @@ private slots:
   }
 
   void nativeListMarkers () {
-    drd_info drd ("utf8-list-markers", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->update ();
@@ -777,10 +783,10 @@ private slots:
 
   void nativePagellaSmallCaps () {
     using namespace athena::text;
-    drd_info drd ("utf8-pagella-smallcaps", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (FONT_SHAPE, "small-caps");
@@ -822,10 +828,10 @@ private slots:
   }
 
   void nativeTypewriterSmallCaps () {
-    drd_info drd ("utf8-typewriter-smallcaps", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "Fira Mono");
     env->write (FONT_SHAPE, "small-caps");
@@ -839,10 +845,10 @@ private slots:
   }
 
   void nativeMathPackageDots () {
-    drd_info drd ("utf8-math-package-dots", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -867,10 +873,10 @@ private slots:
   }
 
   void nativeMathPrimeGlyphs () {
-    drd_info drd ("utf8-math-primes", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -923,10 +929,10 @@ private slots:
   }
 
   void smallLabelSelectionGeometry () {
-    drd_info drd ("small-label-selection", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->update ();
@@ -972,9 +978,9 @@ private slots:
   }
 
   void structuralNavigationSelections () {
-    drd_info drd ("utf8-structural-navigation", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     {
-      with_drd use (drd);
+      athena::contracts::owned_evaluation_scope use (contract_state);
       tree doc (DOCUMENT, tree (LABEL, "anchor"), "tail");
       path start_in (0, 0), end_in (0, 1), start_out, end_out;
       ::selection_correct (doc, start_in, end_in, start_out, end_out);
@@ -986,18 +992,18 @@ private slots:
 
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->update ();
     env->exec (tree (USE_PACKAGE,
       string (std::getenv ("ATHENA_PATH")) * "/packages/section/section-base.ats"));
     env->update ();
-    QVERIFY (drd->is_accessible_child (
+    QVERIFY (athena::contracts::editing_query {contract_state.contracts}.accessible (
       compound ("heading-fold-title", "Heading"), 0));
     tree heading= compound ("section", "Heading");
-    QVERIFY (drd->is_accessible_child (heading, 0));
+    QVERIFY (athena::contracts::editing_query {contract_state.contracts}.accessible (heading, 0));
     {
-      with_drd use (drd);
+      athena::contracts::owned_evaluation_scope use (contract_state);
       path entered= next_accessible (heading, path (0));
       QVERIFY (entered != path (1));
       QVERIFY (!is_atom (entered) && entered->item == 0);
@@ -1488,10 +1494,10 @@ private slots:
       "       (equal? (tree->stree (tm->tree (tree->list t))) s)))")));
   }
   void programTypesetting () {
-    drd_info drd ("utf8-editor-program", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (MODE, "prog");
     env->write (PROG_FONT, "JetBrains Mono");
@@ -1518,10 +1524,10 @@ private slots:
     QVERIFY (result->find_tree_path (caret) == path (0, N(source)));
   }
   void inlineSourceMapping () {
-    drd_info drd ("utf8-inline-source", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write ("athena-radioactive-links-suppressed", "true");
@@ -1627,10 +1633,10 @@ private slots:
     QVERIFY (red_pixels > 0 && blue_pixels > 0);
   }
   void wrappedText () {
-    drd_info drd ("utf8-wrapped-text", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (PAR_MODE, "justify");
@@ -1670,10 +1676,10 @@ private slots:
     QVERIFY (lines >= 2);
   }
   void wrappedSourceMapping () {
-    drd_info drd ("utf8-wrapped-source", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (PAR_MODE, "justify");
@@ -1781,10 +1787,10 @@ private slots:
     QVERIFY (pieces[0]->find_tree_path (end) == path (0, 1, 2));
   }
   void sourceBoundaryBreaks () {
-    drd_info drd ("utf8-source-breaks", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (PAR_MODE, "left");
@@ -1824,10 +1830,10 @@ private slots:
     QCOMPARE (items[0]->penalty == 0, break_at_five);
   }
   void linkedText () {
-    drd_info drd ("utf8-linked-text", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write ("athena-radioactive-links-suppressed", "true");
@@ -1949,10 +1955,10 @@ private slots:
     painter.end ();
   }
   void tocNotification () {
-    drd_info drd ("utf8-toc", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->update ();
     const string title= "caf\xc3\xa9 \xe4\xb8\xad \xf0\x9f\x91\xa9";

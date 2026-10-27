@@ -9,11 +9,13 @@
 ******************************************************************************/
 #pragma once
 #include <functional>
+#include <memory>
 #include <string>
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 
 class QDialog;
 class QWidget;
+namespace athena::contracts { class detached_environment; }
 
 using node_property_completion= std::function<void (std::string)>;
 using node_property_submit=
@@ -34,7 +36,8 @@ node_property_snapshot decode_node_property_snapshot (const std::string&);
 // Completion is delivered on the UI thread: empty means success, else error.
 QDialog* make_node_properties_dialog (
   std::string snapshot, bool canonical, bool writable,
-  node_property_submit submit, QWidget* parent= nullptr);
+  node_property_submit submit, QWidget* parent= nullptr,
+  std::shared_ptr<const athena::contracts::detached_environment> environment= {});
 
 // Called from the owning BufferActor, with the actual attached focus node.
 bool node_properties_show (tree source);

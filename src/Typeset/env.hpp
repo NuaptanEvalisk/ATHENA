@@ -12,7 +12,7 @@
 #ifndef ENV_H
 #define ENV_H
 #include "vars.hpp"
-#include "drd_info.hpp"
+#include "Data/NodeContracts/evaluation_state.hpp"
 #include "Data/NodeContracts/contract_declaration.hpp"
 #include "Data/NodeContracts/evaluation_inputs.hpp"
 #include "gui.hpp"
@@ -24,6 +24,9 @@
 #include "url.hpp"
 #include "frame.hpp"
 #include "link.hpp"
+#include <functional>
+
+namespace athena::contracts { class macro_analysis; class detached_environment; }
 
 #define DECORATION (-1)
 
@@ -126,6 +129,8 @@
 
 class edit_env;
 class source_occurrence_capture;
+class source_occurrence_scope;
+class evaluation_context_capture;
 struct source_occurrence_block;
 using source_occurrence_log= std::shared_ptr<const source_occurrence_block>;
 class ornament_parameters;
@@ -134,14 +139,18 @@ class edit_env_rep: public concrete_struct {
   friend class temporary_environment_scope;
   friend class evaluation_environment_transaction;
   friend class evaluation_environment_checkpoint;
+  friend class evaluation_context_capture;
   friend class style_environment;
+  friend class athena::contracts::detached_environment;
 public:
-  drd_info&                    drd;
+  athena::contracts::evaluation_state&                    contract_state;
 private:
-  hashmap<string,tree>         env;
+  hashmap<string,tree>&        env;
   hashmap<string,tree>         back;
   athena::contracts::evaluation_inputs inputs;
+  std::unique_ptr<athena::contracts::macro_analysis> contract_analysis;
   void write_value (string name, tree value, bool monitored, bool refresh);
+  void record_variable_write (const string&, const tree*);
 public:
   hashmap<string,path>         src;
   list<hashmap<string,tree> >  macro_arg;
@@ -435,7 +444,7 @@ private:
   tree rewrite_inactive (tree t, tree var);
 
 public:
-  edit_env_rep (drd_info& drd,
+  edit_env_rep (athena::contracts::evaluation_state& contract_state,
 		url base_file_name,
 		hashmap<string,tree>& local_ref,
 		hashmap<string,tree>& global_ref,
@@ -443,6 +452,7 @@ public:
 		hashmap<string,tree>& global_aux,
 		hashmap<string,tree>& local_att,
 		hashmap<string,tree>& global_att);
+  ~edit_env_rep ();
   void   set_scheme_modules_enabled (bool enabled) {
     scheme_modules_enabled= enabled;
   }
@@ -453,11 +463,15 @@ public:
   void   exec_until (tree t, path p);
   athena::contracts::contract_event_capture* contract_events= nullptr;
   source_occurrence_capture* source_occurrences= nullptr;
+  source_occurrence_scope* active_source_occurrence= nullptr;
+  evaluation_context_capture* recorded_contexts= nullptr;
+  athena::contracts::evaluation_boundary_handle mark_execution_boundary ();
   void apply_contract_event (const athena::contracts::contract_event&, bool record);
   void track_definition (string name, const tree& value);
   void synchronize_definition_value (string name, const tree& value);
   void initialize_value_inputs ();
   void analyze_contracts ();
+  bool prepare_contracts (std::function<void ()> notify);
   // Admission failure leaves the live environment and capture unchanged.
   bool replay_contract_events (const athena::contracts::contract_event_log&, bool record);
   bool can_replay_events (const athena::contracts::contract_event_log&);
@@ -608,7 +622,7 @@ class edit_env {
   CONCRETE_NULL(edit_env);
   inline edit_env (edit_env_rep* rep2):
     rep(rep2) { INC_COUNT_NULL (this->rep); }
-  edit_env (drd_info& drd,
+  edit_env (athena::contracts::evaluation_state& contract_state,
 	    url base_file_name,
 	    hashmap<string,tree>& local_ref,
 	    hashmap<string,tree>& global_ref,

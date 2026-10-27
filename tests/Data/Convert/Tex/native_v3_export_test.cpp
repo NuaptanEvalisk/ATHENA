@@ -15,7 +15,7 @@
 
 #include "analyze.hpp"
 #include "convert.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
 #include "scheme.hpp"
@@ -333,7 +333,7 @@ private slots:
 
 static void run_tests (int argc, char** argv) {
   initialize_scheme ();
-  init_std_drd ();
+  athena::contracts::initialize_builtins ();
   TestNativeV3Export test;
   std::exit (QTest::qExec (&test, argc, argv));
 }

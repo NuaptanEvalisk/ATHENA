@@ -10,9 +10,10 @@
 ******************************************************************************/
 
 #include "dictionary.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
 #include "file.hpp"
 #include "universal.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "iterator.hpp"
 #include "gui_text.hpp"
 #include <QJsonArray>
@@ -227,7 +228,7 @@ tree_translate (tree t, string from, string to) {
   else {
     tree r (t, N(t));
     for (int i=0; i<N(t); i++)
-      if (!the_drd->is_accessible_child (t, i)) r[i]= t[i];
+      if (!athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.accessible (t, i)) r[i]= t[i];
       else r[i]= tree_translate (t[i], from, to);
     return r;
   }

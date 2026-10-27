@@ -10,7 +10,7 @@
 #include "ATHENA/Data/websites_internal.hpp"
 #include "Data/Tree/math_tree_v3.hpp"
 #include "node_metadata_transform.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 
 namespace {
 namespace node= athena::node;
@@ -34,7 +34,7 @@ tree fixture_document (const tree& body) {
 class NativeV3WebsiteSnapshotTest: public QObject {
   Q_OBJECT
 private slots:
-  void initTestCase () { init_std_drd (); }
+  void initTestCase () { athena::contracts::initialize_builtins (); }
 
   void legacySymbolConversionRetainsMetadata () {
     tree script= math::scripts ("x", "", "", "i", "", 'r');

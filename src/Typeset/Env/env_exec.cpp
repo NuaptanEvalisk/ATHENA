@@ -10,6 +10,9 @@
 ******************************************************************************/
 
 #include "env.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
+#include "Data/NodeContracts/native_fields.hpp"
+#include "math_tree_v3.hpp"
 #include "compound_counters.hpp"
 #include "enunciation_surround.hpp"
 #include "program_presentation.hpp"
@@ -22,7 +25,6 @@
 #include "scheme_native_context.hpp"
 #include "page_type.hpp"
 #include "typesetter.hpp"
-#include "drd_mode.hpp"
 #include "dictionary.hpp"
 #include "new_style.hpp"
 #include "node_metadata.hpp"
@@ -597,6 +599,32 @@ edit_env_rep::exec (tree t) {
   case FRAME_INVERSE:
     return exec_frame_inverse (t);
 
+  case DELIMITED:
+  case MATH_ACCENT:
+  case MATH_VARIANT: {
+    if (!athena::math_v3::valid_native_math (t)) return tree (_ERROR, "invalid native math node");
+    native_math_context_scope context (*this, t);
+    const int body= athena::contracts::native_field_index (L(t), "expression");
+    tree result (t, N(t));
+    for (int i=0; i<N(t); ++i) result[i]= i == body ? exec (t[i]) : t[i];
+    athena::node::copy_metadata (t, result);
+    return result;
+  }
+  case MATH_SCRIPTS:
+  case MATH_ANNOTATION:
+  case MATH_LONG_ARROW: {
+    native_math_context_scope mode (*this, native_math_context::math);
+    tree result (t, N(t));
+    if (N(t)>0) result[0]= exec (t[0]);
+    native_math_context_scope scripts (*this, native_math_context::script);
+    for (int i=1; i<N(t); ++i) {
+      native_math_context_scope position (*this, native_script_position (L(t), i));
+      result[i]= exec (t[i]);
+    }
+    athena::node::copy_metadata (t, result);
+    return result;
+  }
+
   default:
     if (L(t) < START_EXTENSIONS) {
       int i, n= N(t);
@@ -769,7 +797,7 @@ edit_env_rep::exec_drd_props (tree t) {
   }
   if (execution.declaration) {
     apply_contract_event (execution.declaration, true);
-    const auto history= drd->contracts.declaration_history (execution.declaration->target);
+    const auto history= contract_state.contracts.declaration_history (execution.declaration->target);
     const auto& occurrence= history->occurrences.back ();
     execution.status= occurrence.status;
     execution.diagnostic= occurrence.diagnostic;
@@ -787,16 +815,15 @@ edit_env_rep::apply_contract_event (const athena::contracts::contract_event& eve
                                     bool record) {
   if (record && contract_events)
     contract_events->record (athena::contracts::definition_query {
-      event->target, drd->contracts.definition (event->target)});
-  if (drd->contracts.apply_declaration (event, true))
-    drd->declaration_changed (event->target);
+      event->target, contract_state.contracts.definition (event->target)});
+  contract_state.contracts.apply_declaration (event, true);
   if (record && contract_events) contract_events->record (event);
 }
 
 void
 edit_env_rep::synchronize_definition_value (string name, const tree& value) {
   if (existing_tree_label (name)) {
-    const auto current= drd->contracts.definition (as_tree_label (name));
+    const auto current= contract_state.contracts.definition (as_tree_label (name));
     if (current && current->value->expression.matches (value)) return;
   }
   // A ready-value write retains a matching binding. ASSIGN and WITH explicitly
@@ -809,13 +836,13 @@ edit_env_rep::track_definition (string name, const tree& value) {
   const bool macro= is_func (value, MACRO) || is_func (value, XMACRO);
   if (!macro && !existing_tree_label (name)) return;
   const auto target= make_tree_label (name);
-  const auto current= drd->contracts.definition (target);
+  const auto current= contract_state.contracts.definition (target);
   if (!macro && !current) return;
   auto payload= contract_events ? contract_events->previous_value (target, value) : nullptr;
   if (!payload && current && current->value->expression.matches (value)) payload= current->value;
   auto binding= athena::contracts::capture_definition (
     name, value, std::move (payload), package_origin);
-  drd->contracts.bind (binding);
+  contract_state.contracts.bind (binding);
   if (contract_events) contract_events->record (std::move (binding));
 }
 
@@ -824,12 +851,16 @@ edit_env_rep::replay_contract_events (const athena::contracts::contract_event_lo
                                       bool record) {
   {
     athena::contracts::contract_event_suspension pause (contract_events);
-    auto result= athena::contracts::resolve_evaluation_effects (events, drd->contracts,
-      [this] (const string& name) -> std::optional<tree> {
+    const auto lookup= [this] (const string& name) -> std::optional<tree> {
         if (!env->contains (name)) return std::nullopt;
         return env[name];
-      }, true, [this] (const auto& query) { return external_input_matches (query); },
-      [this] (const auto& query) { return package_input_matches (query); });
+      };
+    const auto external= [this] (const auto& query) { return external_input_matches (query); };
+    const auto packages= [this] (const auto& query) { return package_input_matches (query); };
+    auto result= recorded_contexts ?
+      recorded_contexts->replay (events, lookup, external, packages) :
+      athena::contracts::resolve_evaluation_effects (events, contract_state.contracts, lookup,
+        athena::contracts::execution_resolution::cache_admission, external, packages);
     if (!result) return false;
     // Only the outward variable effects reach the real evaluator. Intermediate
     // WITH values and their restorations were resolved in the private draft.
@@ -844,7 +875,7 @@ edit_env_rep::replay_contract_events (const athena::contracts::contract_event_lo
         restore_local_value (name, tree (UNINIT), false);
       }
     }
-    drd->contracts= std::move (result->contracts);
+    contract_state.contracts= std::move (result->contracts);
   }
   if (record && events && contract_events) contract_events->record (events);
   return true;
@@ -852,7 +883,7 @@ edit_env_rep::replay_contract_events (const athena::contracts::contract_event_lo
 
 bool
 edit_env_rep::can_replay_events (const athena::contracts::contract_event_log& events) {
-  return athena::contracts::evaluation_events_applicable (events, drd->contracts,
+  return athena::contracts::evaluation_events_applicable (events, contract_state.contracts,
     [this] (const string& name) -> std::optional<tree> {
       if (!env->contains (name)) return std::nullopt;
       return env[name];
@@ -2067,7 +2098,8 @@ edit_env_rep::exec_set_binding (tree t) {
   // These are not variable writes and cannot be replayed by the current
   // contract draft. Do not admit its enclosing cached execution as reusable.
   if (contract_events)
-    contract_events->record (athena::contracts::evaluation_barrier {});
+    contract_events->record (athena::contracts::evaluation_barrier {
+      athena::contracts::evaluation_barrier_kind::layout_output});
 
   for (int i=0; i<N(keys); i++) {
     string key= keys[i]->label;
@@ -2411,6 +2443,39 @@ edit_env_rep::exec_until (tree t, path p) {
   }
 
   switch (L(t)) {
+  case DELIMITED:
+  case MATH_ACCENT:
+  case MATH_VARIANT: {
+    if (!athena::math_v3::valid_native_math (t)) return;
+    const int body= athena::contracts::native_field_index (L(t), "expression");
+    if (p->item != body) return;
+    native_math_context_scope context (*this, t);
+    exec_until (t[body], p->next);
+    context.finish (true);
+    return;
+  }
+  case MATH_SCRIPTS:
+  case MATH_ANNOTATION:
+  case MATH_LONG_ARROW: {
+    native_math_context_scope mode (*this, native_math_context::math);
+    if (p->item == 0) {
+      exec_until (t[0], p->next);
+      mode.finish (true);
+      return;
+    }
+    (void) exec (t[0]);
+    native_math_context_scope scripts (*this, native_math_context::script);
+    for (int i=1; i<p->item; ++i) {
+      native_math_context_scope position (*this, native_script_position (L(t), i));
+      (void) exec (t[i]);
+    }
+    native_math_context_scope position (*this, native_script_position (L(t), p->item));
+    exec_until (t[p->item], p->next);
+    position.finish (true);
+    scripts.finish (true);
+    mode.finish (true);
+    return;
+  }
   case DATOMS:
     exec_until_formatting (t, p, ATOM_DECORATIONS);
     return;
@@ -2570,6 +2635,36 @@ edit_env_rep::exec_until (tree t, path p, string var, int level) {
   //      << " inside " << var << " level " << level << "\n";
   if (is_atomic (t)) return false;
   switch (L(t)) {
+  case DELIMITED:
+  case MATH_ACCENT:
+  case MATH_VARIANT: {
+    if (!athena::math_v3::valid_native_math (t)) return false;
+    const int body= athena::contracts::native_field_index (L(t), "expression");
+    native_math_context_scope context (*this, t);
+    const bool found= exec_until (t[body], p, var, level);
+    context.finish (found);
+    return found;
+  }
+  case MATH_SCRIPTS:
+  case MATH_ANNOTATION:
+  case MATH_LONG_ARROW: {
+    native_math_context_scope mode (*this, native_math_context::math);
+    if (N(t)>0 && exec_until (t[0], p, var, level)) {
+      mode.finish (true);
+      return true;
+    }
+    native_math_context_scope scripts (*this, native_math_context::script);
+    for (int i=1; i<N(t); ++i) {
+      native_math_context_scope position (*this, native_script_position (L(t), i));
+      if (exec_until (t[i], p, var, level)) {
+        position.finish (true);
+        scripts.finish (true);
+        mode.finish (true);
+        return true;
+      }
+    }
+    return false;
+  }
   case DATOMS:
     return exec_until_formatting (t, p, var, level, ATOM_DECORATIONS);
   case DLINES:
@@ -2991,7 +3086,7 @@ edit_env_rep::expand (tree t, bool search_accessible) {
       r[i]= expand (t[i], search_accessible);
       if (search_accessible &&
 	  is_accessible (obtain_ip (r[i])) &&
-	  drd->is_accessible_child (t, i))
+	  athena::contracts::editing_query {contract_state.contracts}.accessible (t, i))
 	return r[i];
     }
     if (search_accessible) return t;

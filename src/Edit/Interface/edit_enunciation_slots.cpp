@@ -13,6 +13,8 @@
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "buffer_state.hpp"
 #include "buffer_actor.hpp"
+#include "actor_ui_bridge.hpp"
+#include "Typeset/Env/local_environment.hpp"
 #include <nlohmann/json.hpp>
 
 namespace {
@@ -84,6 +86,8 @@ void edit_interface_rep::refresh_enunciation_slots () {
   if (!is_nil (selected)) typeset_invalidate_presentation (selected);
   ++enunciation_slot_request_;
   enunciation_slot_field_= "";
+  enunciation_slot_context_.reset ();
+  if (ui_endpoint) ui_endpoint->update_title_environment (enunciation_slot_request_, {});
   (void) publish_ui_text (actor_command_kind::ui_enunciation_slot, "");
 }
 
@@ -93,6 +97,8 @@ bool edit_interface_rep::open_enunciation_slot (string field, int index,
   if (field == "") {
     ++enunciation_slot_request_;
     enunciation_slot_field_= "";
+    enunciation_slot_context_.reset ();
+    if (ui_endpoint) ui_endpoint->update_title_environment (enunciation_slot_request_, {});
     (void) publish_ui_text (actor_command_kind::ui_enunciation_slot, "");
     (void) publish_ui (actor_command_kind::ui_focus_view);
     return true;
@@ -103,6 +109,8 @@ bool edit_interface_rep::open_enunciation_slot (string field, int index,
       !buf || buf->read_only) return false;
   const tree& source= subtree (et, enunciation_slots_path_);
   if (!en::editable_title (source)) return false;
+  const auto prepared= cursor_context_at (enunciation_slots_path_ * 0, {});
+  if (!prepared || !ui_endpoint) return false;
   const std::string key (field.data (), N(field));
   const auto* fields= athena::contracts::native_fields (L(source));
   const auto* property= fields ? fields->property (key) : nullptr;
@@ -123,24 +131,22 @@ bool edit_interface_rep::open_enunciation_slot (string field, int index,
   std::vector<int> location;
   for (path p= enunciation_slots_path_ / rp; !is_nil (p); p= p->next)
     location.push_back (p->item);
-  const string font= get_env_string (FONT);
-  const string font_size= get_env_string (FONT_BASE_SIZE);
   nlohmann::json request {
     {"generation", ++enunciation_slot_request_},
     {"field", key}, {"index", index}, {"node", athena::node::id (source)},
     {"path", location},
     {"header", xml::write_xml_v3 (carrier, xml::xml_kind::fragment)},
     {"style", xml::write_xml_v3 (get_style (), xml::xml_kind::fragment)},
-    {"font", std::string (font.data (), N(font))},
-    {"font-size", std::string (font_size.data (), N(font_size))},
     {"zoom", zoomf}
   };
   const auto geometry= slot_geometry (rect, magf);
   request.update (geometry);
   enunciation_slot_geometry_= string (geometry.dump ().c_str ());
   const auto serialized= request.dump ();
+  enunciation_slot_context_= prepared;
+  ui_endpoint->update_title_environment (enunciation_slot_request_, prepared->detach ());
   return publish_ui_text (actor_command_kind::ui_enunciation_slot,
-    string (serialized.data (), serialized.size ()));
+    string (serialized.data (), serialized.size ()), enunciation_slot_request_);
 }
 
 void edit_interface_rep::refresh_enunciation_slot_geometry () {
@@ -149,6 +155,22 @@ void edit_interface_rep::refresh_enunciation_slot_geometry () {
       is_nil (enunciation_slots_path_) || !has_subtree (et, enunciation_slots_path_)) return;
   const auto id= athena::node::id (subtree (et, enunciation_slots_path_));
   const std::string field (enunciation_slot_field_.data (), N(enunciation_slot_field_));
+  const auto prepared= cursor_context_at (enunciation_slots_path_ * 0, {});
+  if (!prepared) {
+    open_enunciation_slot ("", 0);
+    return;
+  }
+  if (enunciation_slot_context_ &&
+      !prepared->same_field_context (*enunciation_slot_context_)) {
+    enunciation_slot_context_= prepared;
+    ui_endpoint->update_title_environment (enunciation_slot_request_, prepared->detach ());
+    const auto update= nlohmann::json {
+      {"context", true}, {"node", id}, {"field", field},
+      {"index", enunciation_slot_index_}}.dump ();
+    publish_ui_text (actor_command_kind::ui_enunciation_slot,
+      string (update.data (), update.size ()), enunciation_slot_request_);
+  }
+  else enunciation_slot_context_= prepared;
   const string locus= en::title_slot_id (id, field, enunciation_slot_index_);
   rectangle rect;
   // A keystroke normally keeps the same box route. Search again only when

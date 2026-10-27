@@ -12,7 +12,7 @@
 #include "Xml/vault_format_upgrade.hpp"
 #include "Xml/document_file_codec.hpp"
 #include "vault_directory_lease.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "convert.hpp"
 #include <QByteArray>
 #include <fstream>
@@ -61,7 +61,7 @@ std::string sql (const fs::path& path, const std::string& query) {
 class TestVaultFormatUpgrade: public QObject {
   Q_OBJECT
 private slots:
-  void initTestCase () { init_std_drd (); }
+  void initTestCase () { athena::contracts::initialize_builtins (); }
   void successfulAtomicUpgrade () {
     QTemporaryDir tmp;
     const auto root= vault (tmp);

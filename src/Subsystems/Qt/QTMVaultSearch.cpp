@@ -18,14 +18,13 @@
 #include "buffer_name_catalog.hpp"
 #include "node_metadata.hpp"
 #include "math_tree_v3.hpp"
-#include "tree_cursor.hpp"
+#include "cursor_navigation.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include "convert.hpp"
 #include "boot.hpp"
 #include "math_token.hpp"
 #include "QTMVaultAnchorModel.hpp"
 #include "analyze.hpp"
-#include "drd_mode.hpp"
 #include "fuzzy_rank.hpp"
 #include "utf8_edit.hpp"
 #include "qt_utilities.hpp"
@@ -278,6 +277,8 @@ QString vault_search_identity (tree body, url file, path position) {
 void vault_search_semantic_matches (tree body, url file,
     const VaultSearchOptions& options, std::vector<VaultContentMatch>& matches) {
   if (!options.semanticCandidates) return;
+  const cursor_navigation navigation (current_cursor_navigation ().contracts ().with_access (
+    athena::contracts::access_policy::source));
   const auto found= options.semanticCandidates->find (to_qstring (concretize (file)));
   if (found == options.semanticCandidates->end ()) return;
   for (const auto& hit: found->second) {
@@ -303,7 +304,7 @@ void vault_search_semantic_matches (tree body, url file,
     }
     if (!valid || !kindMatches) continue;
     VaultContentMatch match;
-    match.start= start (body, where); match.end= end (body, where);
+    match.start= navigation.start (body, where); match.end= navigation.end (body, where);
     match.exact= false; match.score= 0; match.semantic= true; match.semanticScore= hit.score;
     match.sourceUuid= vault_search_node_uuid (body, where);
     matches.push_back (std::move (match));
@@ -747,7 +748,9 @@ append_content_matches (std::vector<VaultContentMatch>& out, tree t,
     pattern= compound ("math", compound ("select-region", query[0]));
     athena::node::copy_metadata (query, pattern);
   }
-  range_set exactRanges= search (t, pattern, base, caseInsensitive, limit);
+  const auto context= current_cursor_navigation ().contracts ().with_access (
+    athena::contracts::access_policy::source);
+  range_set exactRanges= search (context, t, pattern, base, caseInsensitive, limit);
   std::vector<VaultContentMatch> exact;
   for (int i=0; i+1<N(exactRanges); i+=2) {
     if (is_compound (query, "math", 1) &&

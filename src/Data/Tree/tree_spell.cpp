@@ -12,8 +12,7 @@
 #include "tree_search.hpp"
 #include "analyze.hpp"
 #include "boot.hpp"
-#include "drd_mode.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "language.hpp"
 #include "vars.hpp"
 #include "hashset.hpp"
@@ -51,10 +50,8 @@ static bool
 is_accessible_for_spell (tree t, int i) {
   if (spell_ignore->contains (L(t))) return false;
   if (is_func (t, RAW_DATA) || is_func (t, NAMED_SYMBOL)) return false;
-  if (is_accessible_child (t, i)) return true;
-  if (is_func (t, HIDDEN)) return true;
-  if (get_access_mode () != DRD_ACCESS_SOURCE) return false;
-  return i >= 0 && i < N(t);
+  return athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.accessible (t, i) ||
+    is_func (t, HIDDEN);
 }
 
 /******************************************************************************
@@ -94,8 +91,8 @@ spell (tree mode, tree lan, range_set& sel, tree t, path p) {
   else
     for (int i=0; i<N(t); i++)
       if (is_accessible_for_spell (t, i)) {
-        tree smode= the_drd->get_env_child (t, i, MODE, mode);
-        tree slan = the_drd->get_env_child (t, i, LANGUAGE, lan);
+        tree smode= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, MODE, mode);
+        tree slan = athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, LANGUAGE, lan);
         spell (smode, slan, sel, t[i], p * i);
       }
 }
@@ -111,8 +108,8 @@ spell (tree mode, tree lan, range_set& sel, tree t, path p, path pos) {
       if (pos->item >= 0 && pos->item < N(t))
         if (is_accessible_for_spell (t, pos->item)) {
           int i= pos->item;
-          tree smode= the_drd->get_env_child (t, i, MODE, mode);
-          tree slan = the_drd->get_env_child (t, i, LANGUAGE, lan);
+          tree smode= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, MODE, mode);
+          tree slan = athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, LANGUAGE, lan);
           spell (smode, slan, sub[i], t[i], p * i);
           hits += N(sub[i]);
         }
@@ -122,8 +119,8 @@ spell (tree mode, tree lan, range_set& sel, tree t, path p, path pos) {
           int i= (e==0? pos->item + d: pos->item - d);
           if (i >= 0 && i < N(t))
             if (is_accessible_for_spell (t, i)) {
-              tree smode= the_drd->get_env_child (t, i, MODE, mode);
-              tree slan = the_drd->get_env_child (t, i, LANGUAGE, lan);
+              tree smode= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, MODE, mode);
+              tree slan = athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, LANGUAGE, lan);
               spell (smode, slan, sub[i], t[i], p * i);
               hits += N(sub[i]);
             }
@@ -154,8 +151,8 @@ spell (tree mode, tree lan, range_set& sel, tree t,
     for (int i=i1; i<i2; i++) {
       if (hits > spell_max_hits) break;
       if (is_accessible_for_spell (t, i)) {
-        tree smode= the_drd->get_env_child (t, i, MODE, mode);
-        tree slan = the_drd->get_env_child (t, i, LANGUAGE, lan);
+        tree smode= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, MODE, mode);
+        tree slan = athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, LANGUAGE, lan);
         if (i == i1 && !is_atom (pos1) && i1 + 1 < i2)
           spell (smode, slan, sub[i], t[i],
                  p * i, pos1->next, path (right_index (t[i])));
@@ -280,8 +277,8 @@ incremental_spell::step (int word_budget, int node_budget, int milliseconds) {
       --node_budget;
       if (n >= 2*N(f.t)) { stack.pop_back (); continue; }
       if (i < 0 || i >= N(f.t) || !is_accessible_for_spell (f.t, i)) continue;
-      tree mode= the_drd->get_env_child (f.t, i, MODE, f.mode);
-      tree lan= the_drd->get_env_child (f.t, i, LANGUAGE, f.lan);
+      tree mode= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (f.t, i, MODE, f.mode);
+      tree lan= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (f.t, i, LANGUAGE, f.lan);
       path focus= !is_nil (f.focus) && i == f.focus->item?
                   f.focus->next: path ();
       frame child (f.t[i], mode, lan, f.p * i, focus);
@@ -450,8 +447,8 @@ bool incremental_spell_cache::step (tree body, tree mode, tree language, path fo
     job& work= chosen->second;
     bool accessible= is_accessible_for_spell (body, i);
     if (accessible && !work.scan.initialized) {
-      tree child_mode= the_drd->get_env_child (body, i, MODE, mode);
-      tree child_language= the_drd->get_env_child (body, i, LANGUAGE, language);
+      tree child_mode= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (body, i, MODE, mode);
+      tree child_language= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (body, i, LANGUAGE, language);
       work.scan.start (body[i], child_mode, child_language, path (),
         !is_nil (focus) && i == pivot? focus->next: path ());
     }

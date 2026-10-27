@@ -27,7 +27,6 @@ void init_default_current_view (string variable);
 void set_current_view (url u);
 url  get_current_view ();
 url  get_current_view_safe ();
-void set_current_drd (url u);
 url  window_to_view (url win);
 url  view_to_buffer (url u);
 url  view_to_window (url u);

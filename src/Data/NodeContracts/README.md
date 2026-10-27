@@ -2233,7 +2233,8 @@ environment, a fresh analyzer still reported arity one. The log is
 authored entries and materialized inference projections. Ordinary descriptor
 queries select the effective projection or declaration; they do not merge fields
 or invoke analysis. `declared` selects only source rules. `replace` and `edit`
-update that source layer, while `publish_inference` alone stores computed output.
+update that source layer, while `replace_inference` publishes the worker's
+immutable computed-output projection.
 A changed declaration retires its old projection; reapplying an unchanged rule
 does not discard a still-selected result.
 
@@ -2625,3 +2626,957 @@ package; that test passed. Package source admission is therefore covered, but
 compound/folded occurrence preparation, derived font/frame inputs, and the
 remaining query-time DRD calls are separate migration work. No Notes content
 was changed and no installed executable was replaced.
+
+### Compound Occurrences And Recorded Contexts
+
+Bridge, Lazy and Concater now retain source entry/exit boundaries for compound
+nodes as well as atomic text. A nested handoff of the same source through these
+layers is one occurrence; separate displays of an argument remain separate.
+Lookup filters by the actual source value and can retain an explicitly selected
+boundary. Without a selected boundary, multiple displays remain ambiguous.
+Atomic sources share their entry/exit token because they have no evaluated
+effects. Compound borders select the corresponding entry or exit state.
+
+A successful typesetter pass now publishes its incoming environment checkpoint
+alongside its execution record. Cursor context preparation reconstructs from
+that exact pair rather than re-admitting a prefix against the current mutable
+environment. The cache key includes the incoming checkpoint, not only the trace:
+reusing a trace under different incoming values must not reuse an old cursor
+context. Context reconstruction does not evaluate source, inspect package files,
+or reexecute reference writes. A layout-output barrier still refuses cache
+admission, but permits reconstructing recorded variable/contract state. An
+unrecorded whole-environment replacement still refuses reconstruction.
+
+Heading folding retains the original source beneath its transient placeholder.
+The document bridge executes folded children through their hidden bridge while
+omitting their boxes, including documents containing only hidden children.
+Previously the document bridge skipped those children before the hidden bridge
+could run. Hidden work now participates in its existing progressive budget.
+Visible positions in a folded screen tree can use their own captured contexts.
+
+The temporary production-linked probe
+`/tmp/athena-compound-occurrences-probe.cpp` passed after the parent document
+dispatch was corrected. Its final log is
+`/tmp/athena-native-occurrences-final-probe.log`: compound/empty fields and local
+entry/exit, actual duplicate displays, cached reuse, recorded contexts behind
+reference writes, opaque-reset rejection, and folded definitions/declarations
+in cold/warm layout all passed. No permanent regression suite was added.
+
+This is not the final prepared-query cutover. Physical repeated-display
+selection must carry the hit box's occurrence (including Unicode source spans),
+not guess from a source path. Source/metadata preparation, progressive pending
+positions and preparation cost still need completion before removing
+`restricted_exec` and the three `drd_update` callers. Macro inference remains
+synchronous. No application binary has been deployed for this slice.
+
+### Native Bootstrap Without Legacy Descriptor Storage
+
+`tag_info.cpp` and `tag_info.hpp` are removed, including parent/child descriptor
+storage, tuple codecs and both conversion directions. Their only remaining
+production consumer was standard-table initialization. That table now builds
+`node_contract` directly through a transient local builder; it does not retain a
+second mutable representation. Native JSON field prototypes populate the same
+contract without a legacy intermediate. Existing defaults and policies are
+unchanged. One existing source-identity test fixture was translated to native
+contract data; no new assertions or tests were added for that mechanical change.
+
+The production body library built with `-j16`, including CMake's removal of the
+deleted translation unit. The final occurrence probe above starts the real
+standard registry and generic style on this build. The remaining `drd_info`
+consumer facade and synchronous analysis owner have not yet been removed.
+
+### Physical Display Selection And Descriptor Writer Removal
+
+Source occurrence scopes now associate produced boxes with the existing
+execution-boundary token. This is an identity, not a copy of the environment or
+an actor-owned source tree. Unicode paragraph source spans retain the token
+through merging, line assembly and glyph expansion; plain text expansion also
+preserves it. Concater resolves its effective source address before opening the
+occurrence scope, matching the address used for the actual boxes.
+
+Actual clicks and physical cursor movement retain the hit box path and layout
+root separately from the logical source path. Exploratory hit queries do not
+change this selection. Cursor geometry and preparation use that physical
+selection within the current frame, so two displays of the same source no
+longer collapse merely because their source paths are equal. Navigation also
+distinguishes their tokens when comparing positions. Preparation precedes the
+cursor-moved callback, rather than waiting for later menu publication.
+
+The production body library built with `-j16`. The temporary production-linked
+probe `/tmp/athena-compound-occurrences-probe.cpp` now checks actual coordinate
+hits on two displays of one argument under distinct WITH environments, after
+Unicode merging, admitted reuse and a subsequent source-suffix change. It
+passed; the log is `/tmp/athena-occurrence-hit-probe.log`. Its first endpoint-only
+check hit the merged line's structural markers rather than its argument text;
+the diagnostic box/source paths established this before the probe was changed
+to interior coordinate hits. No implementation fallback was added for that
+test-selection error, and temporary diagnostic output was removed.
+
+Old descriptor mutation methods (`set_type`, `set_arity`, `set_accessible`,
+`set_env`, the remaining field/tag setters and unused block/tuple declarations)
+are removed from `drd_info`. Production had no remaining callers after native
+bootstrap conversion. The sole remaining test fixture now constructs its
+native contract directly; its assertions were not changed or run as a suite.
+The actual evaluator declaration and analysis boundaries remain; this does not
+claim removal of the read facade or the synchronous analyzer.
+
+This slice does not complete owner preparation. A changed layout root currently
+invalidates the retained physical path; retaining the chosen display across
+that change still needs an admitted source/display mapping, not a guessed box
+index. Cursor accessibility correction still uses the ambient DRD policy, and
+source-mode, metadata and progressive pending contexts remain unfinished. The
+`cur[path]` fallback and all three `drd_update` callers still exist. No installed
+application binary was replaced, and no Notes documents were accessed.
+
+### Native Cursor Queries And Hit Context Isolation
+
+`editing_query` reads one explicit contract scope with a value-type access and
+input-writability policy. Native v3 child access, borders and field environment
+come directly from `native_fields`; macro fields read the selected evaluated
+scope and record their contract dependencies. Field-environment projection has
+one implementation here; the remaining DRD getters delegate to it.
+
+`cursor_navigation` owns recursive correction, accessibility and elementary
+movement. Activation, inactive/source access and nested input writability no
+longer mutate thread-local modes during recursion. The obsolete global
+writability mode and its DRD getters are deleted. Source traversal no longer
+round-trips the old integer access mode through a boolean.
+
+Physical hit correction obtains the captured occurrence's checkpoint before
+checking accessibility. `cursor_context_at` reconstructs recorded values but
+does not restore the live evaluator. Its small occurrence-keyed cache is separate
+from `cur[path]`, so probing another display cannot overwrite the current cursor
+environment. Only actual cursor preparation publishes that entry. The still
+synchronous analysis boundary updates matching cache entries when it publishes.
+
+This is not removal of the DRD facade. `Data/Drd/cursor_adapter.cpp` temporarily
+serves callers that have not supplied their own context, and the old access-mode
+API remains for search, selection and other consumers. Unprepared hit positions
+also still use the owner's available contracts. Source-mode preparation,
+metadata editors, progressive positions, changed-frame display continuity and
+removal of query-time execution remain open. No installed executable was
+replaced by this slice.
+
+The production body library built with `-j16`. The temporary production-linked
+`/tmp/athena-native-navigation-probe.cpp` passed nested activation/writability,
+policy isolation, and cold/warm physical-display checks with different local
+contracts for the same source argument. The selected query does not change the
+live owner's contract state. Evidence is in
+`/tmp/athena-native-navigation-probe.log`; this is not an interactive editor
+acceptance test. No permanent tests or Notes changes were made.
+
+### Recorded Source Fields
+
+Inactive recursive rendering and preamble rendering already produce inner
+source-field occurrences under the actual `mode=src` WITH scope. The temporary
+`/tmp/athena-source-context-probe.cpp` checked those fields after cold and warm
+layout, including that neither rendering nor checkpoint reconstruction executes
+the displayed assignments. It passed against the production body library;
+evidence is `/tmp/athena-source-context-probe.log`.
+
+Preparation no longer rejects these captured fields merely for having source
+mode. The preamble outer-boundary rejection remains: the inner displayed field
+and the outer node entry are different contexts. Cursor access treats an
+explicit preamble context as source access. `in_source()` reads a captured
+context when present; its legacy getter fallback still serves unprepared
+positions. The previous process-static environment lock/cache is replaced by
+an editor-owned scoped source-mode override for the two mutations that need to
+retain their entry mode. Nested exits and exceptions restore that editor's
+previous override without touching another view.
+
+This does not remove `define_style_macros` or `restricted_exec` for missing
+contexts. Their remaining callers still need prepared/pending behavior before
+deletion; source display is not permission to execute the text being displayed.
+
+The source-field preparation and per-editor override changes subsequently built
+with `-j16` (`/tmp/athena-source-context-build.log`). The source probe establishes
+the recorded-context invariant; no additional test was added for removing the
+mode rejection or replacing the two static mutation locks.
+
+### Explicit Search And Selection Policies
+
+The remaining global access modes and `drd_mode.cpp/.hpp` are deleted, together
+with their Scheme bindings. Search owns its policy, limits and matching options
+per request. Selection correction receives the same native navigation context;
+source highlights and hover probes explicitly request source access. Vault
+search owns that choice in its common implementation, not in each Qt caller.
+The generated `tree-search-source` binding exposes the explicit source query.
+
+The production library built with `-j16`. The temporary production-linked
+`/tmp/athena-explicit-access-probe.cpp` checked normal/source search isolation,
+source selection without changing subsequent navigation, native math descriptor
+exclusion, removal of the old Scheme bindings and actual invocation of the new
+binding. It passed (`/tmp/athena-explicit-access-probe.log`). Existing C++ and
+Scheme fixtures were migrated to the explicit APIs without adding assertions or
+running their suites.
+
+### Native Field Read Cutover
+
+The DRD child type/name/environment APIs and environment helper aliases are
+removed. Their consumers in editing, inactive rendering, spelling, tree
+correction and conversion now read `editing_query`. Core v3 field types and
+names come directly from `native_fields`; scoped macro declarations retain their
+own projection. Descendant environment traversal uses the same implementation.
+Unused positional descriptor getters are deleted; cardinality limits belong to
+`field_layout`. This batch built with `-j16`
+(`/tmp/athena-native-field-query-build.log`). No new test was needed for the
+direct getter/call-site migration.
+
+Owner acquisition is not yet fully replaced: compatibility entry points still
+obtain the current owner before constructing a query. Remaining syntax queries,
+synchronous inference, missing-position execution and the `drd_info` owner must
+still be removed. These changes do not establish completion of nativization or
+deployment of the final application.
+
+### Progressive Prepared Prefixes
+
+Cursor context lookup no longer requires the whole root bridge to be PROCESSED.
+A successful partial pass publishes the matching execution base and captured
+occurrences for its completed prefix. A progressively pending bridge retains
+its entry boundary but does not publish an exit boundary. An unrendered source
+has no prepared occurrence; lookup does not execute that source to obtain one.
+
+Typesetter source notifications invalidate the execution base immediately.
+Environment invalidation uses the existing editor/typesetter ownership boundary
+and does the same; cache-size eviction does not invalidate a valid execution.
+This separates an unfinished current layout from a stale layout after an edit.
+The legacy missing-position fallback is still present and must be removed in
+the query cutover; a prepared miss is not yet a complete pending-command policy.
+
+The library built with `-j16` (`/tmp/athena-progressive-context-build.log`). The
+production-linked temporary probe checked a 100-paragraph progressive document:
+prefix assignments are visible without executing the suffix, advancing layout
+publishes the suffix's own context, only the final pass provides the root exit,
+and source assignment clears the old base. Search/selection and generated glue
+checks also passed on this build. Evidence is
+`/tmp/athena-progressive-context-probe.log`. No Notes files or installed
+application executable were changed.
+
+### Native Read API Completion
+
+The remaining DRD read getters are deleted: descriptor/type/name, arity and
+insertion, accessibility/border, with-like and syntax reads. Callers use
+`editing_query` and `field_layout` directly. `syntax_query` accepts an explicit
+contract query and the matching value map; it substitutes syntax without
+executing definitions. Ordinary scalar values still belong to that value map,
+not to the callable binding registry. Contract and variable reads retain their
+dependency receipts.
+
+The production library built with `-j16`
+(`/tmp/athena-native-read-cutover-build-2.log`). The first build identified a
+missing explicit include in deletion code, corrected before the successful
+build. No broad test suite was run. `drd_info` still owns the transitional paired
+environment and synchronous analyzer; deleting its getters does not remove
+those remaining ownership and scheduling paths.
+
+### Admitted Display Continuity
+
+When layout replaces the root box, the editor first checks whether its selected
+source occurrence remains in the current execution's indexed source log. Only
+an admitted token is searched in the new box tree; an invalidated token does not
+cause a whole-tree search on each keystroke. Lookup requires both the exact
+logical source position and the occurrence token. Modifier remapping is checked
+at each enclosing box.
+
+Merged Unicode lines require their own lookup: several spans can refer to the
+same source field but have distinct occurrence tokens. Their native span map now
+filters by the token before converting a source offset into a caret position.
+This preserves the selected display through admitted reuse, not just its source
+path. Reevaluated occurrences whose old tokens were not admitted still need the
+explicit unresolved/pending policy described in the design; this change does
+not claim to identify them by geometry or their previous box indices.
+
+The production library built with `-j16` (`/tmp/athena-display-span-build.log`).
+The temporary production-linked `/tmp/athena-display-continuity-probe.cpp`
+passed (`/tmp/athena-display-continuity-probe-2.log`): a macro displays its one
+argument twice under different local environments; the second display is found
+by its token in a merged line, after cached layout, and after a sibling source
+edit changes the root. The first probe exposed the missing merged-span lookup;
+that failure was fixed in the line box's source map, not worked around in editor
+geometry. No Notes files or installed executable were changed.
+
+### Detached Analysis And Owner Publication
+
+`macro_analysis` no longer retains a DRD/evaluator reference. Owner-side capture
+consumes value-journal differences, declaration changes and binding-identity
+changes into immutable resolution records. Equal-valued reassignments remain
+different bindings. Changed expressions are frozen once; unchanged resolutions
+are shared. The worker receives neither mutable source trees nor an editor.
+
+`analysis_service` uses the existing bounded worker implementation (two workers,
+32 queued jobs). Each environment has at most one admitted job and one coalesced
+latest demand. Capacity exhaustion retains one weak waiting entry per owner;
+completion admits waiting owners instead of dropping demand or executing it
+inline. Closing an environment cancels its service without joining a worker.
+Editor wake-ups transport actor/view IDs, not editor pointers.
+
+The detached engine updates its dependency closure incrementally. Boost.Graph
+computes recursive components. A proposal retains its complete resolution
+context and component read sets; owner admission checks binding identity,
+presence, values and authored declarations using the current captured records.
+Rejecting one component also rejects its dependent callers, not unrelated
+components. Cold synchronous preparation and later interactive requests share
+retained immutable results; synchronous preparation never borrows a busy worker.
+
+Before polling a new result, preparation also checks the previous publication
+and retires stale component projections. Therefore a delayed result is not the
+only invalidation boundary: editing a dependency cannot keep its old dependent
+facts published through the waiting period. Unchanged prepared inputs reuse the
+admission result instead of repeatedly traversing expressions.
+
+Field analysis now carries typed unresolved/resolved/ambiguous/dynamic evidence
+for type, accessibility and environment. Type conflicts propagate through
+callers as ambiguity, with `TYPE_UNKNOWN` as the unresolved value, rather than
+manufacturing the persisted/schema type `TYPE_ERROR`. Conditional visibility and
+environment conflicts remain native evidence, not ad hoc tree attributes.
+Consumers still need the complete explicit pending policy specified above.
+
+The service belongs to `edit_env`; `drd_info` no longer owns an analyzer or
+manual declaration-invalidation methods. Native scope/input differences are
+the invalidation source. The legacy importer directly uses the declaration
+decoder and explicit detached synchronous preparation. The old `drd_update`
+method is removed. Source identity adoption instead prepares an independent
+style/init/preamble environment, without using the current cursor, cached
+cursor context or approximate document-prefix execution.
+
+Menu refresh no longer requests preparation. Normal layout/cursor lifecycle
+prepares interactive contexts and publishes ready worker results. The remaining
+general variable-query prefix fallback is isolated in a temporary evaluator so
+it cannot replace the selected prepared contract owner; its eventual removal,
+metadata-field transfer and missing/invalidated occurrence policy remain open.
+Temporary evaluation restores its source filename and secure flag as well as
+values, bindings and argument maps.
+
+Production-library builds used `-j16`:
+`/tmp/athena-native-analysis-owner-build.log`,
+`/tmp/athena-source-contract-owner-build.log`,
+`/tmp/athena-analysis-retirement-build.log`, and
+`/tmp/athena-query-owner-isolation-build.log`.
+The temporary production-linked `/tmp/athena-detached-analysis-probe.cpp`
+passed (`/tmp/athena-analysis-retirement-probe.log`): worker/owner separation,
+same-valued binding replacement, atomic recursive rejection, dependent rejection,
+independent publication, retirement while no new result is available, restored
+context, unchanged publication reuse, and typed ambiguity through a caller.
+No permanent suite, Notes writes, deployment or commit was performed.
+
+This is not full DRD removal. Large changed-expression capture and a large
+publication batch are not yet time-sliced; cold package/identity preparation is
+still explicitly synchronous; missing/source/metadata contexts and the old
+current-owner adapters remain. The `drd_info` scope/value handle has lost its
+read/analysis authority but still needs its remaining consumers migrated before
+deletion. Final application linking and deployment are still outstanding.
+
+### Metadata Field Contexts
+
+`evaluation_environment_checkpoint::detach` now transfers immutable values,
+their matching contract snapshot, macro argument values, package origin and
+the structured source URL. It reuses existing frozen binding expressions and
+does not transfer source observers, source paths or an evaluator. The receiving
+actor thaws its own variable/argument maps; source locations become decoration
+paths rather than addresses into the original document.
+
+Inline enunciation slots capture their source-node entry context. The existing
+UI endpoint carries the latest generation-bound snapshot, and buffer bootstrap
+installs it before content initialization or the first layout. Live slot
+refresh compares changed variable candidates, binding/declaration state and
+argument context. Actual changes update the existing input actor without
+replacing its text/cursor; unchanged contexts do not refreeze the environment.
+Losing the source occurrence closes the slot through its existing flush path.
+Node properties also pass the selected node's immutable context into their
+structured-text editors. Their modal draft retains the opening context, and
+commit continues to use the existing source lease/content validation.
+
+The first focused probe exposed an important distinction: a metadata field is
+not another source document. Assigning document UUIDs to its local macro content
+required an inferred child role before the field could even open. Field buffer
+bootstrap now retains v3 editing/serialization but does not create a document
+identity index. It cannot opt into source identity adoption. Source commit owns
+field validation and persistence; ordinary document identity preparation is
+unchanged. This is not a permissive fallback for unknown document macros.
+
+Production-library `-j16` builds succeeded in
+`/tmp/athena-metadata-context-build-4.log` and
+`/tmp/athena-metadata-field-owner-build.log`; the final slot-close adjustment
+also built successfully in `/tmp/athena-metadata-context-final-build.log`.
+The temporary production-linked `/tmp/athena-metadata-context-probe.cpp` passed
+at 20:43 on 2026-10-26 (`/tmp/athena-metadata-field-owner-probe.log`). It checks
+cross-thread local macro execution, retained binding identity, argument-value
+transfer without original source paths, scalar/binding/declaration invalidation,
+snapshot isolation and real v3 BufferActor bootstrap without field UUIDs.
+No Notes files, installed executable or permanent test suite were changed.
+
+This completes this metadata transfer boundary, not the full native cutover.
+General missing/repeated-display preparation and query-prefix removal, the
+remaining old owner adapters, inference pending-policy consumers and budgeted
+large-input capture/publication remain. Application linking/deployment are not
+yet performed.
+
+### Recorded General Queries And Explicit Conversion
+
+General `get_env_value` queries now select recorded source occurrences before
+considering the remaining cold-position fallback. Previously only cursor
+preparation populated these entries: querying a different displayed source path
+could ignore a valid record and run the old ten-child heuristic instead. Cached
+recorded contexts are distinguished by execution base, trace and physical
+boundary, not merely source path. Root entry and exit use their corresponding
+boundaries.
+
+Conversion uses an explicit matching checkpoint and restores it under a
+temporary evaluation scope. Values, binding identities, arguments, package and
+source context travel together; overlays no longer replace the whole variable
+map and borrow the live editor's argument stack. Whole-document expansion
+explicitly selects style/init preparation before body execution. Fragment
+conversion requires an existing source context, and clipboard converters pass
+the selection's source position (including mathematical HTML fragments).
+
+`/tmp/athena-prepared-query-before.log` demonstrates the old error: paragraph 12
+assigned `late`, the paragraph 14 recorded context contained `late`, but the
+query returned `early`; the root exit returned `uninit` despite its recorded
+`late`. After the change, the production-linked temporary
+`/tmp/athena-prepared-query-probe.cpp` passed at 21:02 on 2026-10-26
+(`/tmp/athena-prepared-query-after.log`). It also checks local/outer contexts and
+that fragment execution restores the editor's original contract/value state.
+The `-j16` production library build is recorded in
+`/tmp/athena-prepared-query-build.log`.
+
+The same probe deliberately inspects an important remaining gap: a newly
+created script field has no layout occurrence until the next pass. Those
+queries still use the isolated legacy fallback. Deleting that fallback without
+providing edit-owner preparation would change typing semantics. Native script
+context includes display/condensed style, nesting level and vertical position,
+not merely math mode; JSON field shape alone does not specify it.
+
+### Pending Access At Displayed Macro Arguments
+
+`cursor_navigation::is_mapped_cursor` checks one already-admitted physical
+source path. It is not another schema-wide access mode. Normal tree traversal
+still uses ordinary explicit/inferred permissions; only the exact displayed
+route may use its actual presence as evidence when inference is unresolved,
+ambiguous or conditional. Native fields and authored accessibility/writability
+restrictions remain authoritative. Inferred child environments do not grant
+source-mode permissions along that route.
+
+Physical hit testing first verifies the box boundary against the current source
+occurrence, then uses mapped accessibility. Current-cursor correction and the
+post-physical-movement check use the same rule. Missing or stale boundaries
+cannot authorize a route, and no inferred permission is published as a side
+effect. This prevents pending analysis from moving a click out of an actually
+displayed macro parameter while keeping unknown, undisplayed arguments closed.
+
+The production library built with `-j16`
+(`/tmp/athena-mapped-cursor-build.log`). A temporary production-linked probe
+(`/tmp/athena-mapped-cursor-probe.cpp`) passed at 21:22 on 2026-10-26
+(`/tmp/athena-mapped-cursor-probe.log`). It exercises an actual editor layout
+whose locally assigned macro has no inferred access facts, hits its blue
+argument at source path `[1,0,3]`, retains that exact cursor through correction,
+and rejects its old occurrence after source replacement. It separately checks
+declared denial, declared read-only fields, ambiguous analysis, native delimiter
+descriptors, builtin restrictions and no permission leakage to an unused
+argument. No permanent tests, Notes changes or installed binary changes.
+
+The unused `get_style_drd` entry point is removed. Import arity correction now
+takes an explicit native `contract_scope` rather than a `drd_info` owner; its
+LaTeX caller selects the thread-local standard scope, and the existing import
+telemetry describes arity correction. This is a consumer removal, not deletion
+of the remaining current-owner adapters. The production library rebuilt with
+`-j16` (`/tmp/athena-contract-import-build.log`); this straightforward API
+cutover did not add or run tests.
+
+### Immutable Builtins And Explicit Identity Inputs
+
+`builtin_contracts` owns the process-wide immutable native baseline. Its
+one-time initialization registers tree labels before constructing native
+contracts; consumers fork a snapshot rather than inheriting a mutable standard
+DRD owner. The parser code table is materialized privately on each thread from
+the immutable native label catalog. Parser-local changes cannot change the
+identity of a builtin label.
+
+`std_drd`, `STD_CODE`, `init_std_drd`, `standard_drd_for_thread`,
+`standard_codes_for_thread` and `std_contains` are removed. Source identity
+classification, planning and initialization receive `const contract_scope&`;
+editor preparation returns a native scope, not an evaluator owner. The existing
+test sources were adjusted to these API changes without adding tests.
+
+The production library built with `-j16`
+(`/tmp/athena-native-builtins-build.log`). The temporary production-linked
+mapped-cursor probe passed at 21:49 on 2026-10-26
+(`/tmp/athena-native-builtins-probe.log`), including concurrent cold
+initialization on four threads and isolation of private scopes/parser tables.
+
+### One Actor-Local Evaluation State
+
+`evaluation_state` replaces the refcounted `drd_info` handle. It owns a native
+contract scope and the actor-local variable map. `edit_env` borrows that map
+directly: there is no second DRD variable view and no `set_environment`
+synchronization. A state copy forks contracts and copies the mutable variable
+map. Worker inputs remain the separate detached native snapshots.
+
+Temporary evaluation no longer replaces an owner handle. It saves and restores
+values and contracts in place, so the editor, evaluator and active execution
+scope retain the same owner address. Root evaluation transactions likewise
+commit or roll back that single paired state. Source/argument stacks, input
+revisions and reference outputs keep their existing evaluator ownership.
+
+Scheme execution scopes borrow the native state on their checked owner thread.
+Standalone import/correction scopes own a value. `prepare_document_context`
+and `prepare_offline_document_context` return prepared native state; legacy
+import compilation uses a contract scope directly. The obsolete `set-drd`
+binding and its two print-wrapper calls are removed; actor context selection
+already belongs to `SchemeExecutionScope`, not a URL-based Scheme setter.
+
+`drd_info.cpp/.hpp` and `drd_std.cpp/.hpp` are deleted. The cursor utility entry
+points now live in `Data/Tree/cursor_execution.cpp` and borrow native execution
+state. The remaining `Data/Drd` files are the tree-label and variable-name data,
+not a second contract implementation. Persisted `drd-props` style syntax still
+feeds native declarations; its spelling is not an old runtime authority.
+
+The production library built with `-j16`
+(`/tmp/athena-native-evaluation-state-build.log`). The temporary
+production-linked probe passed at 21:58 on 2026-10-26
+(`/tmp/athena-native-evaluation-state-probe.log`): direct variable-map ownership,
+private copied state, nested temporary restoration, exceptional root rollback,
+successful root commit and the actual mapped-cursor case. It also verifies that
+the generated runtime no longer registers `set-drd`. No permanent test was
+added and no suite was run.
+
+This does not complete the cutover: fresh-edit/cold-position preparation,
+query-prefix removal, remaining pending consumers and budgeted large-input
+capture/admission are still open. The installed executable has not been
+changed. Final application deployment must also refresh compiled Scheme
+resources, including the changed print wrapper.
+
+### Persistent Snapshot Storage Selection
+
+The retained-snapshot write path in `contract_scope` cloned whole `std::map`
+tables for definitions, declared contracts and inferred projections. Declaration
+source state cloned its complete target map too. A transaction reduces the
+frequency but not the size of that copy, so it cannot meet the owner-work
+requirement for a small edit in a large scope.
+
+The selected implementation is [Immer](https://github.com/arximboldi/immer),
+pinned to upstream v0.9.1 commit
+`160f0d7025321e5dc1fc3f0b7742ca7621d43981`. Its native persistent HAMT maps share
+unchanged branches and provide structural-sharing-aware `diff`. Default
+reference counting is thread-safe; mutable legacy trees remain excluded from
+these maps. The library is header-only and Boost Software License 1.0, matching
+ATHENA's C++ toolchain without another system runtime dependency. It is fetched
+through the existing CMake dependency mechanism, with upstream tests/examples/
+docs/extras disabled. No system installation is performed.
+
+Alternatives considered: `std::map` and Qt implicit-sharing maps still copy a
+whole retained table; Boost.Container's standard-style maps do not provide
+persistent snapshots; a custom HAMT or unbounded overlay chain would duplicate
+a mature implementation. Ordered declaration group application remains ordered
+data, not an unordered-map iteration side effect. This storage change is not
+by itself completion of resumable expression capture or budgeted publication.
+
+Contract entries, inferred projections, bindings, declaration targets and
+detached analysis inputs now use these persistent maps. Snapshot writes copy
+only the affected branches; scope and worker input differences skip shared
+branches. Ordered group contributors remain a shared ordered map, copied only
+when group declarations change. The dependency include boundary shields Immer
+from the legacy `make` preprocessor macro without modifying upstream headers.
+
+Variable-input snapshots use persistent name-to-assignment receipts as well.
+Each batch replaces receipts for assigned names and erases removed names, so
+same-name reassignment and restored branches remain distinguishable. The old
+64-batch history compaction and its ensuing all-name invalidation are removed.
+Analysis capture reuses the evaluator's already-frozen binding payload rather
+than comparing and copying it a second time. Changed unbound expressions still
+require separate bounded-capture work.
+
+Production library builds passed with `-j16`
+(`/tmp/athena-persistent-contracts-build.log` and
+`/tmp/athena-persistent-inputs-build.log`). The temporary production-linked
+probe passed at 22:34 on 2026-10-26
+(`/tmp/athena-persistent-contracts-probe-2.log`). It checks retained snapshots,
+changed-key discovery, inherited deletion/inference masking, restored input
+branches, same-name reassignment and declaration-group withdrawal/restoration.
+Its initial group fixture had no callable binding, so its declarations correctly
+remained pending; the corrected fixture checks that state and then binds the
+macros before checking ordering. No production change was needed for that
+fixture failure. Retaining a snapshot, modifying one key and finding its diff
+256 times took 0.574 ms for 8,192 entries and 0.734 ms for 32,768 entries on this
+run; these observations are not timing thresholds. The existing temporary
+single-owner and physical mapped-cursor checks also passed. No permanent suite,
+Notes changes or executable deployment occurred.
+
+The next integration step still needs the real consumers: `texmacs-exec*`
+(`var_texmacs_exec`) is used by graphical `box-info`, `frame-direct` and
+`frame-inverse` operations, not merely file conversion. Its missing-context
+behavior must be fixed with interactive edit preparation rather than blindly
+replacing it with a conversion error. `contract_scope(snapshot)` now shares its
+immutable group-extension projection when forking a child scope. Group
+publication replaces that projection wholesale rather than modifying it.
+
+### Worker-Side Symbol Discovery
+
+Owner capture no longer recursively scans definitions for tag spellings and
+referenced variable names. The input baseline already contains all visible
+variables; subsequent assignment/presence receipts and contract/binding changes
+cover additions, removals and shadowing. Unknown references therefore remain
+absent receipts, not a reason to traverse the expression on the owner.
+
+The detached engine discovers symbols on its private thawed tree before
+building dependencies. This iterative walk checks cancellation and reads the
+process tree-label catalog only for label spelling; the catalog is protected by
+its shared mutex, and production labels are registered before a source tree can
+reference them. No binding, authored declaration or variable value is taken
+from another owner. Numeric tags and literal `compound`/`map-args` names are
+both resolved. Inference and dependency receipts still come exclusively from
+the captured native inputs, including absent targets that may be defined later.
+
+The production library built with `-j16`
+(`/tmp/athena-worker-symbol-build.log`). A focused temporary probe passed at
+22:50 on 2026-10-26 (`/tmp/athena-worker-symbol-probe.log`): an initially missing
+target is referenced by both a numeric tree tag and `compound`; defining it
+updates the caller's access and mathematical environment, and deleting it
+removes that access again. Notifications prove the analysis ran off-owner.
+No permanent tests, Notes changes or executable deployment occurred. Large
+unbound-value freezing, proposal admission/publication and fresh-edit context
+preparation remain separate unfinished work.
+
+### Prepared Inference Projections
+
+The detached engine now materializes complete native inference projections,
+not just the analyzer's field results. Captured resolutions retain the full
+immutable authored contract. Preparing the analyzer's reduced input and merging
+inferred fields into that authored baseline both happen on the worker; border,
+writability and other non-inferred attributes are preserved. Full declaration
+receipts prevent an old projection from overwriting a newer authored attribute.
+
+Facts and projected contracts use persistent maps. An unchanged input snapshot
+allows owner publication to replace the inference map and retain the facts
+without enumerating components or assembling field vectors. Repeated publication
+of that snapshot is a no-op. This is a snapshot match, not a document revision
+shortcut: stale proposals still validate their dependency components and only
+share their admitted projections. The owner no longer reconstructs those
+projections. Capture uses `changed_declarations` rather than effective-contract
+changes, so inference output is not rediscovered as an analysis input.
+
+Production-library builds passed with `-j16`
+(`/tmp/athena-projected-analysis-build.log` and
+`/tmp/athena-projected-analysis-inputs-build.log`). The temporary production-linked
+probe passed at 23:10 on 2026-10-26
+(`/tmp/athena-projected-analysis-probe.log`). It covers matching snapshots,
+same-valued rebinding of a recursive component before publication, acceptance
+of independent facts, non-inferred attribute preservation and changes made
+after worker completion, unchanged reuse, and late/deleted dependencies.
+No permanent suite, Notes modification or executable deployment occurred.
+
+Stale proposal admission and retirement still enumerate the component graph;
+this change does not claim those paths are budgeted. The worker's component
+read sets can supply a reverse receipt index so sparse changed inputs visit
+only affected components. Large changed-input capture, large affected closures,
+fresh-edit context preparation and the old variable-query prefix fallback also
+remain open.
+
+### Sparse Stale-Result Admission And Retirement
+
+Worker proposals now include a reverse receipt index and reverse component
+edges. Admission uses structural diffs of the persistent input maps to find
+changed receipts, then visits only their readers and dependent components.
+Absent entries and explicit empty resolutions have the same negative-receipt
+meaning. Rebinding still invalidates a receipt even if its expression is equal.
+
+The owner adopts the worker's persistent projection map and erases only rejected
+members. Retirement without a new proposal uses the same dependency closure.
+Neither path builds a complete accepted-name set or walks all facts; the former
+duplicate `applied` facts table and per-target inference publication API are
+removed. Unaffected projection objects retain their identity. This does not
+bound the cost of a genuinely large affected closure or large new input capture.
+
+The production library built with `-j16`
+(`/tmp/athena-sparse-analysis-build.log`). The focused temporary probe passed at
+23:29 on 2026-10-26 (`/tmp/athena-sparse-analysis-probe.log`), covering stale
+recursive components, callers outside those components, independent projection
+identity, fresh-result recovery, and retirement before requesting new work.
+No permanent suite, Notes modification or executable deployment occurred.
+
+The remaining editor lifecycle work is unchanged: source-prefix heuristics in
+`typeset_exec_until`, unprepared edited fields, initial-value preparation and
+the interactive graphics consumer of `var_texmacs_exec` must move to explicit
+owner preparation before the old query-time fallback can be removed. The goal
+is not complete and the intermediate binary has not been deployed.
+
+### Prepared Initial-Environment Queries
+
+`defined_at_init` and `get_init_value` no longer prepare a missing style context
+or execute a background pattern. An editor starts with its native default
+checkpoint. Loading data prepares the complete style/init checkpoint before
+publishing command state; explicit style changes, initial-override removal and
+field-environment replacement publish their new baseline at those operations.
+Plain initial overrides remain immediately readable. `set_data` batches its
+inputs once instead of applying the same init overlay twice, and actor reloads
+no longer call the formerly empty `init_update` a second time.
+
+Background expression preparation is owned by those input changes. It restores
+the initial checkpoint plus current overrides in a temporary environment, then
+retains the computed result for reads. File/pattern resolution and expression
+side effects therefore cannot be triggered by an initial-value getter or leak
+into the live cursor's values/contracts. Normal layout and explicit conversion
+preparation still have their own evaluator responsibilities.
+
+The production library built with `-j16`
+(`/tmp/athena-initial-query-build.log`). A focused temporary probe passed at
+23:41 on 2026-10-26 (`/tmp/athena-initial-query-probe.log`), covering construction,
+load, initial override/reset, field enter/exit, style publication and isolation
+of a background expression containing an assignment. Its first launch failed
+before these checks because the probe subclass omitted virtual-base
+initialization; correcting the probe constructor required no production change.
+No permanent tests, Notes changes or binary deployment occurred.
+
+Initial getters are now read-only, but `typeset_exec_until` still contains the
+source-prefix heuristic for unprepared cursor/path queries. Removing that path,
+preparing fresh edits, and confining interactive graphics evaluation to its
+selected context remain required before completing the native cutover.
+
+### Native Script Field Contexts
+
+The ordinary evaluator's generic child traversal did not enter the environments
+used by native script layout. Replacing the editor's approximate prefix with
+that traversal alone would therefore still give wrong environments for freshly
+inserted script fields. `native_math_context_scope` now owns the shared math,
+script-style and vertical-position scopes. Layout retains one script scope
+around the whole slot group, with separate position scopes for each slot; it
+does not repeat font-level setup for every sibling or change their order.
+
+`MATH_SCRIPTS`, `MATH_ANNOTATION` and `MATH_LONG_ARROW` use those scopes in full
+evaluation and both partial-evaluation paths, including macro-argument lookup.
+Complete evaluation restores the incoming environment and preserves metadata;
+partial evaluation retains the selected inner state. This is an existing
+evaluator preparation primitive, not permission to execute it in getters or to
+select the first display of a repeated argument.
+
+The production library built with `-j16`
+(`/tmp/athena-native-script-context-build.log`). The focused temporary probe
+passed at 00:00 on 2026-10-27
+(`/tmp/athena-native-script-context-probe.log`), comparing prepared field values
+against actual layout occurrence records for nested subscripts/superscripts,
+bases, annotations and long-arrow labels, plus complete expansion and a macro
+argument inside a script. No permanent tests, Notes changes or deployment.
+The editor's prefix fallback has not yet been switched: fresh-edit preparation,
+other native field semantics and occurrence selection still need integration.
+
+### Direct Prepared Boundary Contexts
+
+Owner-local checkpoints now share a variable baseline and persistent frozen
+overrides. Reading one value no longer copies the whole variable table; full
+materialization is explicit for evaluator restore, transfer or a full-env
+request. Interactive graphics evaluation uses a temporary selected environment
+and restores the live values, contracts and derived font state afterward.
+
+The typesetter now publishes a persistent boundary-to-context index alongside
+its execution base. Real execution captures the current native contract scope,
+input receipts and shared variable overrides at source entry/exit and WITH-body
+boundaries. Variable-write capture shares its existing frozen payload with the
+context recorder. Prepared field queries select this index instead of searching,
+copying and resolving a prefix of the event trace.
+
+Admitted replay prepares boundary contexts during its existing read/effect
+traversal, not a second source evaluation. Its variable effects are persistent;
+structural diffs update only changes since the preceding boundary, including
+local-scope restoration. A private draft is published only after admission
+succeeds. An unread incoming variable is therefore rebased correctly even when
+the same bridge and boundary tokens are reused. Environment replacement rebases
+the recorder; transaction rollback restores its previous index and values;
+temporary evaluation suspends it. Root failure discards the published index.
+
+Production-library builds used `-j16`; the last completed build is recorded in
+`/tmp/athena-boundary-context-final-build.log`. The focused temporary probe passed
+at 00:39 on 2026-10-27
+(`/tmp/athena-boundary-context-final-probe.log`). It compares indexed values and
+contracts with execution-prefix reconstruction, covers native script contexts,
+admitted reuse with changed unread inputs, rejected replay, transaction rollback,
+local-scope effects, temporary isolation, checkpoint transfer and interactive
+graphics isolation. No permanent tests, Notes changes or executable deployment.
+
+This removes prefix reconstruction from already prepared queries, not the
+separate `restricted_exec` fallback for missing occurrences. Fresh-edit/cold
+preparation and pending-state integration remain the main cutover work; large
+input capture/admission budgeting and final application deployment remain open.
+
+### Native Content Contexts And Prepared UI Reads
+
+`DELIMITED`, `MATH_ACCENT` and all eleven `MATH_VARIANT` kinds now share their
+mode/font scopes between layout, full evaluation and both partial-evaluation
+routes. Only the schema's expression field is evaluated; descriptors remain
+data. The variant renderer no longer maintains a second font dispatch table.
+
+Command and focus snapshots are unavailable until the cursor has an admitted
+occurrence. Mode and paragraph-spacing publication read that context directly;
+spelling suggestions also require a prepared source context. Native action
+dispatch applies pending tree/environment layout before checking its command
+snapshot, as keyboard dispatch already does. The right footer keeps its previous
+field description while statistics can still update; missing contexts do not
+create an idle retry loop. Page dimensions retain the last successful layout's
+geometry (or initial prepared geometry before any layout), independent of cursor
+environment selection. Slot-width measurement now isolates evaluator state.
+
+Interactive `typeset_preamble` now requests asynchronous analysis and publishes
+ready results instead of synchronously running macro inference on environment
+refresh. Explicit cold style/source/offline preparation is unchanged.
+
+The production library built with `-j16`
+(`/tmp/athena-native-prepared-ui-build.log`). A focused temporary probe passed at
+01:22 on 2026-10-27 (`/tmp/athena-native-prepared-ui-probe.log`), checking native
+field environments against actual layout, full/macro-argument execution,
+unprepared/prepared command-state transitions, slot measurement isolation and
+page-geometry independence. The first expanded probe had incorrectly called
+`node::edit` on a tree without metadata; the core identified that fixture error,
+which was corrected with `node::set`, without a production fallback.
+
+This is not completion: `restricted_exec`, `table_descend` and
+`define_style_macros` still service unprepared variable queries. Fresh-edit
+preparation, remaining native block/grid context semantics, command pending
+integration and large-input capture/admission budgeting remain. No Notes changes,
+permanent tests or executable deployment were performed for this group.
+
+The complete `ATHENA.bin` target subsequently built with `-j16`
+(`/tmp/athena-native-application-build.log`). A headless launch with an empty
+temporary profile verified the generated runtime interfaces by writing a closed
+result file, `/tmp/athena-native-binding-check-VKafVP/bindings.scm`:
+`tree-search-source` is defined; `set-drd`, `set-access-mode` and `get-access-mode`
+are not. The initial stdout-only check was inconclusive because the requested
+Scheme quit takes the normal `_exit` path; its missing stdout marker was not a
+crash or evidence of an absent binding. No executable was deployed.
+
+### Native Grid Row Contexts
+
+Native table layout and AVD counter projection now share grid-numbering
+validation and the row context implementation in
+`Typeset/Env/native_math_environment.*`. Counter advancement, quoted rich labels,
+whole-block label inheritance, pending-tag isolation and row UUID binding have
+one implementation. Both paths share the display-math environment scope as
+well; semantic projection preserves MathBlock/MathGrid metadata.
+
+The table renderer records source occurrences for its direct grid, row and cell
+entry points. Previously those wrappers bypassed the generic concater, leaving
+only their contents recorded. Boundary queries can now select the actual
+rendered row/cell context instead of reconstructing it from format declarations.
+Incomplete/failed layout still has no completed exit boundary.
+
+The complete application and targeted row-numbering executable built with
+`-j16` (`/tmp/athena-native-grid-final-build.log`). At 02:03 on 2026-10-27,
+the existing checks for counters/bindings/destinations, empty/native-math tags,
+nested/tag grids, single execution of nested MathBlocks, and whole-block kinds
+and rejected overrides all passed
+(`/tmp/athena-native-grid-numbering-check.log`). The temporary production-library
+probe passed at 02:07 (`/tmp/athena-native-grid-context-probe.log`): grid/row/cell
+entry and exit contexts retain display mode, row/column indices and quoted
+labels; the direct index still agrees with the execution trace; successive
+binding edits before layout do not reuse stale query checkpoints. A native
+subscript/input/nested-superscript/input sequence made zero unprepared variable
+queries. This does not remove the editor's unprepared-query fallback or complete
+fresh-edit/pending-state integration. No permanent tests or deployment.
+
+Source modification notifications now clear both occurrence and path-query
+checkpoints before cursor correction. The bridge trace is not a source revision:
+it remains unchanged between successive mutations until layout runs, so it
+cannot alone validate a cached unprepared query. Cursor-moved Scheme hooks also
+require an admitted current occurrence; an old valid cursor box after mutation
+does not authorize mode-dependent callbacks. `apply_changes` delivers the hook
+after the new layout through its existing `go_to_here` path.
+
+The next query consumers to handle explicitly are source-position search and
+manual spelling (`edit_search.cpp::test`, `edit_spell.cpp`), table format queries
+at arbitrary paths (`edit_table.cpp`), selection environment reads and dynamic
+macro insertion/completion. Search can visit unrendered source, so replacing its
+missing context with a default mode or silently skipping that match is not a
+valid cutover. The native editing probe above establishes only its exercised
+sequence, not that all callers of `get_env_value` are ready for fallback removal.
+
+### Prepared Presentation And Completion Consumers
+
+Live-spelling menu queries and dictionary insertion now select prepared source
+contexts. They do not reconstruct an environment for a spelling range; absent
+context produces no suggestions and prevents a dictionary write. The preferred
+display occurrence is retained even when the word starts before the cursor in
+the same source leaf. Selection image export likewise requires the selected
+fragment's prepared math/display context before it creates output.
+
+Caret, context-frame and match-highlight drawing no longer use general variable
+getters. The caret waits for its current occurrence; presentation colors may use
+the initial document color until context is ready. Link-hover color selects the
+actual hit box's source occurrence, not whichever display a path-only lookup
+would choose.
+
+Hybrid-name completion reads captured native definition signatures instead of
+materializing and filtering the entire environment. A request immediately after
+an edit is retained by cursor path and prefix and resumed after layout; moving
+away or changing the requested text discards it. This is presentation work only:
+it does not apply a macro, wait on inference or cause another layout pass.
+
+Still pending: hybrid activation/argument preparation after a completion changes
+the name, selection and table queries inside edits, and the unrendered-source
+search/manual-spelling workflows. The latter have no current shipped menu or
+keybinding entry but retain exposed Scheme interfaces and keyboard branches;
+their retirement has been asked separately, not assumed. Source identity
+planning also must distinguish pending inferred field roles from invalid source.
+In particular, a new analysis owner currently clears inherited inference before
+its own proposal arrives; retaining cold-prepared facts requires their matching
+resolution evidence, not blindly trusting an inherited projection.
+
+The next macro-edit slice has three concrete post-mutation callers:
+`complete_choose` replaces the HYBRID name before invoking preparation or
+activation; `activate_hybrid` prepares arguments and recursively activates the
+new node; and its no-argument branch clears the inserter before calling
+`make_compound`, which reads the macro definition again. The existing
+`source_mode_during_edit` retains only the source-mode decision. These operations
+need to capture the invocation's prepared macro context before replacing the
+inserter and pass it through that bounded action. Do not retain an arbitrary
+pre-edit environment for later independent commands or insert a layout pass
+between primitive mutations.
+
+The full application built with `-j16`
+(`/tmp/athena-native-query-consumers-final-build.log`). The temporary production
+library probe passed at 02:37 on 2026-10-27
+(`/tmp/athena-native-completion-context-final-probe.log`), verifying captured
+macro parameter labels, post-edit completion deferral, resumption after layout
+and zero unprepared variable queries in that sequence. Its initial assertion
+incorrectly inspected the candidate list after a missing GUI endpoint had
+closed the completion session; the diagnostic confirmed that the prepared
+definition and signature were present. The fixture was corrected to inspect
+the generated labels, without adding any production fallback. No broad suite,
+permanent test, Notes access or executable deployment was performed.
+
+### Bounded Macro Invocation And Inherited Inference Evidence
+
+Hybrid completion selection captures its invocation checkpoint before changing
+the name, including keyboard-command lookup before mutation. Argument preparation,
+recursive activation and compound creation retain that context only for the
+bounded operation. Invocation queries select the enclosing source occurrence,
+outside the name field's display-only text style. Ancestor selection follows the
+remembered physical box path, so repeated macro arguments can retain different
+local definitions. Direct compound callers without a prepared invocation and
+command actions querying newly inserted fields are still pending migration.
+
+Inference now carries immutable input/dependency evidence through snapshots and
+local target restoration. The evidence does not own output projections, avoiding
+an ownership cycle. Effective inference uses complete persistent maps rather than
+parent fallthrough/tombstones; inheritance shares those maps. Value and provenance
+maps are separate, preserving structural value diffs when a worker renews evidence.
+Receipt counts track the live publications, including mixed publications after
+restoring individual local targets. New owners validate these receipts rather
+than deleting all inherited facts while waiting for their own worker. Rejection
+still follows recursive components and their caller closure, and only removes
+an entry when it carries the rejected evidence.
+
+The complete application built with `-j16`
+(`/tmp/athena-native-inference-evidence-final-build.log`). At 03:23 on 2026-10-27,
+the temporary production-library probe passed
+(`/tmp/athena-native-inference-invocation-probe.log`): nullary activation,
+parameter preparation, recursive selection activation, math invocation and
+different definitions at repeated displays made zero unprepared variable queries;
+matching cold inference survived a new owner, changed dependencies invalidated
+callers without discarding unrelated facts, and mixed local restoration preserved
+the matching publication. The detached editor fixture holds an owning editor
+handle and disables plugin keyboard lazy loading because it has no BufferActor.
+Earlier fixture failures were diagnosed from their actual stacks, not covered by
+production null checks. No permanent test, Notes access or deployment.
+
+This is not the final cutover. Selection replacement and table editing still have
+post-mutation variable queries; legacy manual search/spelling retirement has not
+been authorized. `restricted_exec`, `table_descend` and `define_style_macros`
+remain. Genuinely pending source-identity roles, bounded large-value capture and
+large dependency-closure admission also remain, followed by final deployment.

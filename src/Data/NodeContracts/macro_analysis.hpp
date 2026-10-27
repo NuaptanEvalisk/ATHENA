@@ -4,24 +4,27 @@
 #include "tree.hpp"
 #include "hashmap.hpp"
 #include "evaluation_inputs.hpp"
+#include "contract_scope.hpp"
+#include <functional>
 #include <memory>
-
-class drd_info_rep;
 
 namespace athena::contracts {
 
-// Owner-side adapter during the scope-lifecycle transition. It prepares
-// immutable inputs and projects completed native results into positional
-// consumers. The dependency engine itself has no access to this owner's DRD.
+// Owner-side capture/publication. No evaluator or DRD is retained. Detached
+// analysis is keyed by the captured resolution, including binding identity.
 class macro_analysis {
   struct impl;
   std::unique_ptr<impl> state;
 public:
-  explicit macro_analysis (drd_info_rep&);
+  macro_analysis ();
   ~macro_analysis ();
-  void invalidate (const string& binding);
-  void synchronize (const evaluation_input_snapshot& inputs,
+  void synchronize (contract_scope&, const evaluation_input_snapshot& inputs,
                     const hashmap<string, tree>& definitions);
+  bool request (const contract_scope&, const evaluation_input_snapshot&,
+                const hashmap<string,tree>&, std::function<void ()> notify);
+  bool publish_ready (contract_scope&, const evaluation_input_snapshot&,
+                      const hashmap<string,tree>&);
+  bool pending () const;
 };
 
 } // namespace athena::contracts

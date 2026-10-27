@@ -13,7 +13,8 @@
 #include <thread>
 #include "Ispell/ispell.hpp"
 #include "tree_spell.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
 #include "language.hpp"
 #include "convert.hpp"
 #include "unicode_text.hpp"
@@ -40,7 +41,7 @@ int main (int argc, char** argv) {
   CHECK (dic.open (QIODevice::WriteOnly));
   dic.write ("2\n\xe9" "cole\n?\n");
   dic.close ();
-  init_std_drd ();
+  athena::contracts::initialize_builtins ();
   CHECK (ispell_start ("french") == "ok");
   CHECK (ispell_test ("french", u8"\u00e9cole"));
   tree suggestions= ispell_check ("french", "ecole");
@@ -77,7 +78,7 @@ int main (int argc, char** argv) {
   // explicit text inside a formula remains eligible for spelling checks.
   tree display (MATH_BLOCK, tree (CONCAT, "qzxqzxqzx",
     tree (WITH, "mode", "text", "qzxqzxqzx")));
-  CHECK (std_drd->get_env_child (display, 0, "mode", "text") == "math");
+  CHECK (athena::contracts::editing_query {athena::contracts::builtin_contracts ()}.value (display, 0, "mode", "text") == "math");
   tree math_doc (DOCUMENT, display,
     tree (MATH_GRID, tree (ROW, tree (CELL, "qzxqzxqzx"))), "qzxqzxqzx");
   incremental_spell math_scan;

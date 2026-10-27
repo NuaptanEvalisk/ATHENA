@@ -13,7 +13,7 @@
 
 #include "ATHENA/Data/enunciation_model.hpp"
 #include "ATHENA/Data/heading_word_count.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 
 namespace en= athena::enunciation;
 namespace node= athena::node;
@@ -43,7 +43,7 @@ class TestEnunciationModel: public QObject {
   Q_OBJECT
 
 private slots:
-  void initTestCase () { init_std_drd (); }
+  void initTestCase () { athena::contracts::initialize_builtins (); }
   void all_declared_aliases ();
   void stars_and_proof_variants ();
   void explicit_titles_and_metadata ();

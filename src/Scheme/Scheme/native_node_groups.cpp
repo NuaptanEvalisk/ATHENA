@@ -1,7 +1,7 @@
 #include "native_node_groups.hpp"
 #include "Data/NodeContracts/node_groups.hpp"
 #include "Data/NodeContracts/node_group_scope.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 
 #include <algorithm>
 
@@ -19,7 +19,7 @@ object symbols (const std::vector<std::string>& values) {
   return as_list_object (result);
 }
 std::vector<std::string> members (const std::string& group) {
-  return athena::contracts::group_members (the_drd->contracts, group);
+  return athena::contracts::group_members (athena::contracts::current_evaluation_state ().contracts, group);
 }
 }
 
@@ -29,12 +29,12 @@ object native_node_group_members (string group) { return symbols (members (bytes
 
 bool native_node_group_contains (string group, object tag) {
   if (!is_symbol (tag)) return false;
-  return athena::contracts::group_contains (the_drd->contracts, bytes (group), bytes (as_symbol (tag)));
+  return athena::contracts::group_contains (athena::contracts::current_evaluation_state ().contracts, bytes (group), bytes (as_symbol (tag)));
 }
 
 object native_node_group_find (object tag, string group) {
   if (!is_symbol (tag)) return object (false);
-  auto found= athena::contracts::group_find (the_drd->contracts, bytes (group), bytes (as_symbol (tag)));
+  auto found= athena::contracts::group_find (athena::contracts::current_evaluation_state ().contracts, bytes (group), bytes (as_symbol (tag)));
   return found.empty () ? object (false) : symbol_object (text (found));
 }
 
@@ -44,7 +44,7 @@ object variants (object tag, bool numbered) {
   const auto name= bytes (as_symbol (tag));
   auto values= standard_node_groups ().variants (name, numbered);
   if (values.size () == 1 && values.front () == name) {
-    auto group= athena::contracts::group_find (the_drd->contracts,
+    auto group= athena::contracts::group_find (athena::contracts::current_evaluation_state ().contracts,
       numbered ? "similar-tag" : "variant-tag", name);
     if (!group.empty ()) values= members (group);
   }

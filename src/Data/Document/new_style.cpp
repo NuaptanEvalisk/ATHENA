@@ -10,12 +10,14 @@
 ******************************************************************************/
 
 #include "new_style.hpp"
+#include "Data/NodeContracts/syntax_query.hpp"
 #include "file.hpp"
 #include "data_cache.hpp"
 #include "convert.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "../../Typeset/env.hpp"
+#include "Env/local_environment.hpp"
 #include <QFileInfo>
 #include <QSaveFile>
 #include <atomic>
@@ -232,7 +234,7 @@ convert_legacy_style_file (const std::filesystem::path& source,
       return false;
     }
 
-    init_std_drd ();
+    athena::contracts::initialize_builtins ();
     return install_style_file (source, target, error);
   }
   catch (const std::exception& e) {
@@ -273,7 +275,7 @@ preprocess_style (tree st, url name) {
 ******************************************************************************/
 
 style_environment::style_environment (edit_env_rep& env):
-  inputs (env.inputs.snapshot ()), contracts (env.drd->contracts.snapshot ()) {
+  inputs (env.inputs.snapshot ()), contracts (env.contract_state.contracts.snapshot ()) {
   env.read_env (values);
 }
 
@@ -283,15 +285,14 @@ style_environment::restore (edit_env_rep& env) const {
     env.contract_events->record (athena::contracts::evaluation_barrier {});
   env.env= copy (values);
   env.inputs.reset (inputs);
-  env.drd->contracts= athena::contracts::contract_scope (contracts);
-  env.drd->set_environment (env.env);
+  env.contract_state.contracts= athena::contracts::contract_scope (contracts);
+  if (env.recorded_contexts) env.recorded_contexts->rebase ();
 }
 
-drd_info
-style_environment::descriptor (string name) const {
-  drd_info result (name);
-  result->contracts= athena::contracts::contract_scope (contracts);
-  result->set_environment (copy (values));
+athena::contracts::evaluation_state
+style_environment::context () const {
+  athena::contracts::evaluation_state result (contracts);
+  result.values= copy (values);
   return result;
 }
 
@@ -315,13 +316,13 @@ style_cache_generation () {
 }
 
 /******************************************************************************
-* Get environment and drd of style files
+* Get environment and contract_state of style files
 ******************************************************************************/
 
 style_environment_ptr
 get_style_environment (tree style, url source_name, bool scheme_modules) {
   init_style_data ();
-  init_std_drd ();
+  athena::contracts::initialize_builtins ();
   ASSERT (is_tuple (style), "style tuple expected");
   tree key (TUPLE, copy (style), as_string (head (source_name)),
             as_string_bool (scheme_modules));
@@ -337,14 +338,14 @@ get_style_environment (tree style, url source_name, bool scheme_modules) {
   for (int i=0; i<N(style); i++)
     sd->style_busy (as_string (style[i]))= true;
 
-  drd_info drd ("package-evaluation", standard_drd_for_thread ());
+  athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
   hashmap<string,tree> lref;
   hashmap<string,tree> gref;
   hashmap<string,tree> laux;
   hashmap<string,tree> gaux;
   hashmap<string,tree> latt;
   hashmap<string,tree> gatt;
-  edit_env env (drd, source_name, lref, gref, laux, gaux, latt, gatt);
+  edit_env env (contract_state, source_name, lref, gref, laux, gaux, latt, gatt);
   env->set_scheme_modules_enabled (scheme_modules);
   if (!busy) {
     env->exec (tree (USE_PACKAGE, A (style)));
@@ -353,11 +354,6 @@ get_style_environment (tree style, url source_name, bool scheme_modules) {
   auto checkpoint= std::make_shared<const style_environment> (*env.operator-> ());
   if (!busy) sd->styles(key)= checkpoint;
   return checkpoint;
-}
-
-drd_info
-get_style_drd (tree style) {
-  return get_style_environment (style, url ("$PWD/none"), true)->descriptor ("style");
 }
 
 tree
@@ -376,18 +372,18 @@ get_document_preamble (tree t) {
   }
 }
 
-drd_info
-get_document_drd (tree doc) {
+athena::contracts::evaluation_state
+prepare_document_context (tree doc) {
   init_style_data ();
   tree style= extract (doc, "style");
   if (is_snippet (doc)) {
-    if (the_drd->get_syntax (make_tree_label ("theorem")) != tree (UNINIT))
-      return the_drd;
+    if (athena::contracts::syntax_query {{athena::contracts::current_evaluation_state ().contracts}, athena::contracts::current_evaluation_state ().values}.definition ("theorem") != tree (UNINIT))
+      return athena::contracts::current_evaluation_state ();
     style= tree (TUPLE, "generic");
   }
   url none= url ("$PWD/none");
   auto base= get_style_environment (style, none, true);
-  drd_info drd= base->descriptor ("document");
+  athena::contracts::evaluation_state contract_state= base->context ();
   tree p= get_document_preamble (doc);
   if (p != "") {
     hashmap<string,tree> lref;
@@ -396,38 +392,38 @@ get_document_drd (tree doc) {
     hashmap<string,tree> gaux;
     hashmap<string,tree> latt;
     hashmap<string,tree> gatt;
-    edit_env env (drd, none, lref, gref, laux, gaux, latt, gatt);
+    edit_env env (contract_state, none, lref, gref, laux, gaux, latt, gatt);
     base->restore (*env.operator-> ());
     env->update ();
     env->exec (p);
     env->analyze_contracts ();
   }
-  return drd;
+  return contract_state;
 }
 
-drd_info
-get_offline_document_drd (tree doc, url source_name) {
+athena::contracts::evaluation_state
+prepare_offline_document_context (tree doc, url source_name) {
   init_style_data ();
   tree style= preprocess_style (extract (doc, "style"), source_name);
   auto base= get_style_environment (style, source_name, false);
 
   tree preamble= get_document_preamble (doc);
-  if (preamble == "") return base->descriptor ("offline-document");
+  if (preamble == "") return base->context ();
 
   tree key (TUPLE, copy (style), as_string (head (source_name)), copy (preamble));
   if (sd->offline_documents->contains (key))
-    return sd->offline_documents[key]->descriptor ("offline-document");
+    return sd->offline_documents[key]->context ();
 
   // Preamble processing is the document-specific overlay.  Reuse the cached
   // package environment/DRD and execute only the local preamble on top of it.
-  drd_info drd= base->descriptor ("offline-document-preamble");
+  athena::contracts::evaluation_state contract_state= base->context ();
   hashmap<string,tree> lref;
   hashmap<string,tree> gref;
   hashmap<string,tree> laux;
   hashmap<string,tree> gaux;
   hashmap<string,tree> latt;
   hashmap<string,tree> gatt;
-  edit_env env (drd, source_name, lref, gref, laux, gaux, latt, gatt);
+  edit_env env (contract_state, source_name, lref, gref, laux, gaux, latt, gatt);
   env->set_scheme_modules_enabled (false);
   base->restore (*env.operator-> ());
   env->update ();
@@ -435,7 +431,7 @@ get_offline_document_drd (tree doc, url source_name) {
   env->analyze_contracts ();
   sd->offline_documents(copy (key))=
     std::make_shared<const style_environment> (*env.operator-> ());
-  return drd;
+  return contract_state;
 }
 
 /******************************************************************************

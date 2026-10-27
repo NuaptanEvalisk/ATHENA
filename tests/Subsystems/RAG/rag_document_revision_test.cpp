@@ -19,7 +19,7 @@
 #include "Data/Tree/math_tree_v3.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "node_metadata.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -74,7 +74,7 @@ class TestRagDocumentRevision: public QObject {
   Q_OBJECT
 
 private slots:
-  void initTestCase () { init_std_drd (); }
+  void initTestCase () { athena::contracts::initialize_builtins (); }
 
   void explicitStorageVersion_data () {
     QTest::addColumn<int> ("version");

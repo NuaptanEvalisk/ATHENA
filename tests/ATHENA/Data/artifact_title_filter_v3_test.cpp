@@ -16,7 +16,7 @@
 #include "Data/Convert/Xml/vault_xml_v3_indexes.hpp"
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -52,7 +52,7 @@ tree native_name (char policy= 'o') {
 class TestArtifactTitleFilterV3: public QObject {
   Q_OBJECT
 private slots:
-  void initTestCase () { init_std_drd (); }
+  void initTestCase () { athena::contracts::initialize_builtins (); }
 
   void encodedFragmentsKeepVersionAndSemanticProperties () {
     auto filter= athena_artifact_title_filter_from_entries ({"Notice"});

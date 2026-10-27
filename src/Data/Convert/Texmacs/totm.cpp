@@ -10,7 +10,7 @@
 ******************************************************************************/
 
 #include "convert.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 
 /******************************************************************************
 * Conversion of TeXmacs trees to the present TeXmacs string format
@@ -284,7 +284,7 @@ tm_writer::write (tree t) {
   case EXPAND:
     if ((n>=1) && is_atomic (t[0])) {
       string s= t[0]->label;
-      if (std_contains (s));
+      if (athena::contracts::builtin_label (s));
       else if ((N(s)>0) && (!is_iso_alpha (s)));
       else {
         apply (s, A(t(1,n)));

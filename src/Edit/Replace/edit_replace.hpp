@@ -12,6 +12,7 @@
 #ifndef EDIT_REPLACE_H
 #define EDIT_REPLACE_H
 #include "editor.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
 
 class edit_replace_rep: virtual public editor_rep {
 protected:
@@ -60,9 +61,10 @@ public:
   /* search and replace */
   path test_sub (path p, tree t);
   path test (path p, tree t);
-  void step_ascend (bool forward);
+  void step_ascend (bool forward, athena::contracts::access_policy access);
   void step_descend (bool forward);
-  void step_horizontal (bool forward);
+  void step_horizontal (bool forward,
+    athena::contracts::access_policy access= athena::contracts::access_policy::normal);
   void next_match (bool forward);
   void search_start (bool forward= true);
   void search_next (bool forward);

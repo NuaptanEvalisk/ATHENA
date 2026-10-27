@@ -28,7 +28,7 @@
 #include <QScopeGuard>
 #include <fstream>
 #include <future>
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "widget.hpp"
 #include "promise.hpp"
 #include "scheme.hpp"
@@ -1140,7 +1140,7 @@ static void run_tests (int argc, char** argv) {
     if (!profile.isValid ()) std::exit (1);
     qputenv ("ATHENA_HOME_PATH", profile.path ().toUtf8 ());
     QApplication application (argc, argv);
-    init_std_drd ();
+    athena::contracts::initialize_builtins ();
     initialize_scheme ();
     TestBufferActor test;
     result= QTest::qExec (&test, argc, argv);

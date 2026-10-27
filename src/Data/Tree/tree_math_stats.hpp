@@ -11,7 +11,7 @@
 
 #ifndef TREE_MATH_STATS_H
 #define TREE_MATH_STATS_H
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 
 void compile_stats (string id, tree t, string mode);
 int number_occurrences (string id, tree t);

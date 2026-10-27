@@ -2,7 +2,7 @@
 #include <QtTest/QtTest>
 #include <QCryptographicHash>
 #include "Xml/document_file_codec.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "node_metadata.hpp"
 
 using namespace athena::document;
@@ -17,7 +17,7 @@ std::string digest (const std::string& bytes) {
 class TestNativeXmlDispatch: public QObject {
   Q_OBJECT
 private slots:
-  void initTestCase () { init_std_drd (); }
+  void initTestCase () { athena::contracts::initialize_builtins (); }
 
   void preserveExplicitVersionWithoutMetadata () {
     constexpr auto version= xml_format_version::v3;

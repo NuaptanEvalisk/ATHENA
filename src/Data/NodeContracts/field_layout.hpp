@@ -1,5 +1,6 @@
 // Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later.
 #pragma once
+#include <limits>
 
 namespace athena::contracts {
 
@@ -13,6 +14,10 @@ struct field_layout {
   field_mapping mapping= field_mapping::uniform;
 
   int minimum () const { return arity == arity_kind::fixed ? base+extra : base; }
+  int maximum () const {
+    return arity == arity_kind::fixed || arity == arity_kind::optional ?
+      base+extra : std::numeric_limits<int>::max ();
+  }
   int fields () const {
     if (base+extra == 0) return 0;
     return mapping == field_mapping::uniform ? 1 :
@@ -23,6 +28,18 @@ struct field_layout {
     if (arity == arity_kind::fixed) return size == base+extra;
     if (arity == arity_kind::optional) return size <= base+extra;
     return (size-base) % extra == 0;
+  }
+  bool insertion (int child, int size) const {
+    switch (arity) {
+    case arity_kind::fixed: return false;
+    case arity_kind::optional:
+      return child >= base && child <= size && size < base+extra;
+    case arity_kind::repeated_suffix:
+      return child >= 0 && (child < base || (child-base) % extra == 0);
+    case arity_kind::repeated_prefix:
+      return child >= 0 && (child > size-base || child % extra == 0);
+    }
+    return false;
   }
   int index (int child, int size) const {
     if (mapping == field_mapping::uniform) return 0;

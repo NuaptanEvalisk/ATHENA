@@ -1,7 +1,7 @@
 
 /******************************************************************************
 * MODULE     : tree_correct.hpp
-* DESCRIPTION: make a tree syntactically match a drd
+* DESCRIPTION: source tree normalization and import correction
 * COPYRIGHT  : (C) 2005  Joris van der Hoeven
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -11,9 +11,11 @@
 
 #ifndef TREE_CORRECT_H
 #define TREE_CORRECT_H
-#include "drd_std.hpp"
+#include "tree.hpp"
 
-tree drd_correct (drd_info drd, tree t);
+namespace athena::contracts { class contract_scope; }
+
+tree correct_import_arity (const athena::contracts::contract_scope& scope, tree t);
 tree correct_concat_block (tree t);
 tree with_correct (tree t);
 tree superfluous_with_correct (tree t);

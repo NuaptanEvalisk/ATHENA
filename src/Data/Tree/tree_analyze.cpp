@@ -10,10 +10,10 @@
 ******************************************************************************/
 
 #include "tree_analyze.hpp"
+#include "Data/NodeContracts/syntax_query.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
 #include "node_metadata.hpp"
 #include "convert.hpp"
-
-drd_info get_style_drd (tree style);
 
 /******************************************************************************
 * Tokenize mathematical concats and recomposition
@@ -121,7 +121,7 @@ concat_recompose_source (tree source, array<tree> a) {
 
 bool
 is_with_like (tree t) {
-  return the_drd->is_with_like (t);
+  return athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.describe (L(t)).with_like && N(t) > 0;
 }
 
 tree&
@@ -177,7 +177,7 @@ with_recompose (tree w, array<tree> a) {
 
 int
 symbol_type (tree t) {
-  tree r= the_drd->get_syntax (t);
+  tree r= athena::contracts::syntax_query {{athena::contracts::current_evaluation_state ().contracts}, athena::contracts::current_evaluation_state ().values}.expand (t);
   if (r != UNINIT) {
     if (is_compound (t, "text")) return SYMBOL_SKIP;
     else if (is_compound (t, "eq-number")) return SYMBOL_SKIP;
@@ -354,7 +354,7 @@ symbol_priorities (array<tree> a) {
 
 bool
 is_correctable_child (tree t, int i, bool noaround) {
-  int type= the_drd->get_type_child (t, i);
+  int type= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.child_type (t, i);
   if (is_compound (t, "body", 1)) return true;
   else if (!is_concat (t)) {
     switch (type) {

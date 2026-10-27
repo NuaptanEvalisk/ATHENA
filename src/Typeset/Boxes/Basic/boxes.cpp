@@ -199,6 +199,32 @@ box_rep::with_cursor_affinity (path bp, athena::text::caret_affinity affinity) {
   return path (bp->item, subbox (bp->item)->with_cursor_affinity (bp->next, affinity));
 }
 
+athena::contracts::evaluation_boundary_handle
+box_rep::find_source_boundary (path bp) {
+  if (is_nil (bp) || is_atom (bp) || subnr () == 0) return source_boundary;
+  return subbox (bp->item)->find_source_boundary (bp->next);
+}
+
+path
+box_rep::find_occurrence_box_path (
+    path source, const athena::contracts::evaluation_boundary_handle& boundary,
+    bool& found) {
+  path candidate= find_box_path (source, found);
+  if (found && find_source_boundary (candidate) == boundary &&
+      find_tree_path (candidate) == source) return candidate;
+  for (int i=0; i<subnr (); ++i) {
+    path child= subbox (i)->find_occurrence_box_path (source, boundary, found);
+    if (!found) continue;
+    candidate= path (i, child);
+    // Modifier boxes may remap child source paths. Admission is checked in
+    // this box's coordinate system, not just in the terminal glyph box.
+    if (find_tree_path (candidate) == source &&
+        find_source_boundary (candidate) == boundary) return candidate;
+  }
+  found= false;
+  return path ();
+}
+
 std::optional<athena::text::caret_affinity>
 box_rep::cursor_affinities (path bp) {
   if (is_nil (bp) || is_atom (bp) || subnr () == 0) return std::nullopt;

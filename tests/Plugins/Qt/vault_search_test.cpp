@@ -35,8 +35,8 @@
 #include "boxes.hpp"
 #include <QSemaphore>
 #include "Qt/qt_utilities.hpp"
-#include "drd_std.hpp"
-#include "drd_mode.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
+#include "cursor_navigation.hpp"
 #include "namespaces.hpp"
 #include "vault.hpp"
 #include "vaultfile_json.hpp"
@@ -505,7 +505,7 @@ void TestVaultSearch::availableEnunciationsKeepUnsavedSourceAndCancel () {
 
 void
 TestVaultSearch::initTestCase () {
-  init_std_drd ();
+  athena::contracts::initialize_builtins ();
 }
 
 void
@@ -903,9 +903,7 @@ TestVaultSearch::findsStructuredMathematicalExpressions () {
   tree longer= compound ("math",
     tree (CONCAT, "f=x", tree (RSUP, "2"), "+1+y"));
   std::vector<VaultContentMatch> matches;
-  int previous= set_access_mode (DRD_ACCESS_SOURCE);
   append_content_matches (matches, longer, math_query, path (), 200, false, false);
-  set_access_mode (previous);
   QCOMPARE (matches.size (), (size_t) 1);
   QVERIFY (matches[0].exact);
   QCOMPARE (matches[0].start, path (0) * 0 * 2);
@@ -952,11 +950,6 @@ TestVaultSearch::findsStructuredMathematicalExpressions () {
 
 void TestVaultSearch::nativeV3StructuredSearchHonorsPolicies () {
   using namespace athena;
-  struct SourceAccess {
-    int previous= set_access_mode (DRD_ACCESS_SOURCE);
-    ~SourceAccess () { set_access_mode (previous); }
-  } sourceAccess;
-
   auto count= [] (tree source, tree query, bool fuzzy= true) {
     std::vector<VaultContentMatch> matches;
     append_content_matches (matches, compound ("math", source),
@@ -1090,28 +1083,22 @@ void TestVaultSearch::nativeV3StructuredSearchHonorsPolicies () {
 }
 
 void TestVaultSearch::emptyNativeSearchPatternDoesNotLoopOrIndexMissingChildren () {
-  struct SourceAccess {
-    int previous= set_access_mode (DRD_ACCESS_SOURCE);
-    ~SourceAccess () { set_access_mode (previous); }
-  } sourceAccess;
+  const auto context= current_cursor_navigation ().contracts ().with_access (
+    athena::contracts::access_policy::source);
   const tree empty_concat (CONCAT);
-  const auto from_atom= search (tree ("abc"), empty_concat,
+  const auto from_atom= search (context, tree ("abc"), empty_concat,
                                 path (), false, 10);
   QCOMPARE (N(from_atom), 0);
-  const auto from_concat= search (tree (CONCAT, "a", "b"), empty_concat,
+  const auto from_concat= search (context, tree (CONCAT, "a", "b"), empty_concat,
                                   path (), false, 10);
   QCOMPARE (N(from_concat), 0);
   // A zero-length atomic query cannot repeatedly revisit the same byte.
-  const auto empty_atom= search (tree ("abc"), tree (""),
+  const auto empty_atom= search (context, tree ("abc"), tree (""),
                                  path (), false, 10);
   QVERIFY (N(empty_atom) <= 20);
 }
 
 void TestVaultSearch::nativeV3SearchExcludesMathDescriptorsFromTextAndFuzzy () {
-  struct SourceAccess {
-    int previous= set_access_mode (DRD_ACCESS_SOURCE);
-    ~SourceAccess () { set_access_mode (previous); }
-  } sourceAccess;
   tree manual= athena::math_v3::delimited ("(", ")", 'm', "x", "1024", "1024");
   tree source= compound ("math", manual);
   std::vector<VaultContentMatch> matches;
@@ -1137,10 +1124,6 @@ void TestVaultSearch::nativeV3SearchExcludesMathDescriptorsFromTextAndFuzzy () {
 }
 
 void TestVaultSearch::filtersCanonicalAndLegacyEnunciations () {
-  struct SourceAccess {
-    int previous= set_access_mode (DRD_ACCESS_SOURCE);
-    ~SourceAccess () { set_access_mode (previous); }
-  } sourceAccess;
   tree legacy= compound ("theorem", tree (DOCUMENT, "Needle"));
   tree canonical= athena::enunciation::convert_detached_source (legacy).source;
   tree other= compound ("definition", tree (DOCUMENT, "Needle"));
@@ -1415,10 +1398,8 @@ void TestVaultSearch::parallelSearchPreservesOrder () {
       [] (tree body, url, const tree& query, const VaultSearchOptions& options,
           std::vector<std::string>& out) {
         std::vector<VaultContentMatch> matches;
-        int previous= set_access_mode (DRD_ACCESS_SOURCE);
         append_content_matches (matches, body, query, path (), 200,
                                 options.caseInsensitive, options.fuzzy);
-        set_access_mode (previous);
         if (!matches.empty ()) out.push_back ("subgroup");
       }, [] (const VaultSearchProgress&) {},
       [&] (std::vector<std::string> out, const VaultSearchProgress& p, bool stopped) {

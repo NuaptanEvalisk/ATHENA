@@ -20,6 +20,7 @@
 #include "metadata.hpp"
 #include "scheme.hpp"
 #include "tree_correct.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "url.hpp"
 #include "vars.hpp"
 
@@ -2622,8 +2623,8 @@ latex_to_tree (tree t0, bool not_document) {
 
   // cout << "\n\nt10= " << t10 << "\n\n";
   auto s7 = std::chrono::high_resolution_clock::now();
-  tree t11= drd_correct (std_drd, t10);
-  time_l2t_drd_correct += std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - s7).count();
+  tree t11= correct_import_arity (athena::contracts::builtin_contracts (), t10);
+  time_l2t_arity_correct += std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - s7).count();
 
   // cout << "\n\nt11= " << t11 << "\n\n";
 

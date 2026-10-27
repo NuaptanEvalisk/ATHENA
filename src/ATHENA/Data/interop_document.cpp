@@ -197,7 +197,7 @@ void complete_v2_identities (tree& source, const std::string& filename) {
   new_data data;
   tree body= detach_data (source, data);
   auto result= athena::document_node::assign_detached_source_ids (
-    body, get_offline_document_drd (source, url_system (string (filename.c_str ()))),
+    body, prepare_offline_document_context (source, url_system (string (filename.c_str ()))).contracts,
     athena::document_node::standard_source_role,
     [] (const athena::document_node::identity_request&) {
       return athena::node::new_id ();

@@ -10,9 +10,29 @@
 #include <set>
 #include <string>
 #include <vector>
+#include <stdexcept>
+#include <tuple>
 
 namespace athena::contracts {
+
+bool analysis_field_input::operator == (const analysis_field_input& b) const {
+  return std::tie (type, access, type_origin, access_origin, environment_origin, environment, name) ==
+    std::tie (b.type, b.access, b.type_origin, b.access_origin, b.environment_origin, b.environment, b.name);
+}
+
+bool analysis_contract_input::operator == (const analysis_contract_input& b) const {
+  return std::tie (name, layout, type, variable_type, with_like, type_origin,
+    layout_origin, variable_type_origin, with_origin, fields) ==
+    std::tie (b.name, b.layout, b.type, b.variable_type, b.with_like, b.type_origin,
+      b.layout_origin, b.variable_type_origin, b.with_origin, b.fields);
+}
+
 namespace {
+
+void check_cancelled (const std::atomic<bool>* cancelled) {
+  if (cancelled && cancelled->load (std::memory_order_relaxed))
+    throw std::runtime_error ("Macro analysis cancelled");
+}
 
 std::string bytes (const string& value) {
   return std::string (value.data (), N(value));
@@ -37,6 +57,7 @@ void join_environment (environment& current, const environment& incoming) {
 
 struct usage {
   bool seen= false, visible= false, guaranteed= false, dynamic_environment= false;
+  bool ambiguous_type= false;
   std::set<int> types;
   std::optional<environment> context;
 
@@ -45,6 +66,7 @@ struct usage {
     visible |= other.visible;
     guaranteed |= other.guaranteed;
     dynamic_environment |= other.dynamic_environment;
+    ambiguous_type |= other.ambiguous_type;
     types.insert (other.types.begin (), other.types.end ());
     if (other.context) {
       if (context) join_environment (*context, *other.context);
@@ -52,17 +74,27 @@ struct usage {
     }
   }
 
-  int type () const {
+  std::set<int> type_constraints () const {
     auto constraints= types;
     if (constraints.size () > 1) constraints.erase (TYPE_REGULAR);
-    return constraints.empty () ? TYPE_UNKNOWN : constraints.size () == 1 ?
-      *constraints.begin () : TYPE_ERROR;
+    return constraints;
+  }
+
+  inference_state type_state () const {
+    const auto constraints= type_constraints ();
+    if (ambiguous_type || constraints.size () > 1) return inference_state::ambiguous;
+    return constraints.empty () ? inference_state::unresolved : inference_state::resolved;
+  }
+
+  int type () const {
+    const auto constraints= type_constraints ();
+    return !ambiguous_type && constraints.size () == 1 ? *constraints.begin () : TYPE_UNKNOWN;
   }
 
   bool operator == (const usage& other) const {
     return seen == other.seen && visible == other.visible &&
       guaranteed == other.guaranteed && dynamic_environment == other.dynamic_environment &&
-      types == other.types && context == other.context;
+      ambiguous_type == other.ambiguous_type && types == other.types && context == other.context;
   }
 };
 
@@ -116,14 +148,13 @@ struct field {
   property_authority environment_origin= property_authority::inferred;
   tree environment= tree (ATTR);
   std::string name;
-  bool conditional= false;
-  std::vector<std::string> conflicts;
+  field_analysis analysis;
 
   bool operator == (const field& other) const {
     return type == other.type && access == other.access &&
       type_origin == other.type_origin && access_origin == other.access_origin &&
       environment_origin == other.environment_origin && environment == other.environment &&
-      name == other.name && conditional == other.conditional && conflicts == other.conflicts;
+      name == other.name && analysis == other.analysis;
   }
 };
 
@@ -183,6 +214,31 @@ struct macro_analysis_core::impl {
   std::map<std::string, std::set<std::string>> dependants;
   std::set<std::string> dirty;
 
+  void remember_symbol (tree_label label) {
+    if (symbols.count (label)) return;
+    const auto name= bytes (as_string (label));
+    symbols.emplace (label, name);
+    labels.emplace (name, label);
+  }
+
+  void discover_symbols (const tree& source, const std::atomic<bool>* cancelled) {
+    // This is a worker-private thawed expression. The process label catalog
+    // supplies spelling only; bindings and declarations come from the input.
+    std::vector<const tree*> pending {&source};
+    while (!pending.empty ()) {
+      check_cancelled (cancelled);
+      const tree& value= *pending.back ();
+      pending.pop_back ();
+      remember_symbol (L(value));
+      if (is_atomic (value)) continue;
+      if (is_func (value, COMPOUND) || is_func (value, MAP_ARGS))
+        for (int i=0; i<(L(value) == MAP_ARGS ? 2 : 1) && i<N(value); ++i)
+          if (is_atomic (value[i]) && existing_tree_label (value[i]->label))
+            remember_symbol (as_tree_label (value[i]->label));
+      for (int i=0; i<N(value); ++i) pending.push_back (&value[i]);
+    }
+  }
+
   const contract& lookup (const std::string& name) const {
     const auto found= contracts.find (name);
     static const contract unknown;
@@ -238,12 +294,13 @@ struct macro_analysis_core::impl {
   usage argument (const tree& value, const tree& formal,
                   const environment& context, int expected= TYPE_UNKNOWN,
                   bool visible= true, bool guaranteed= true,
-                  bool ready= true) const {
+                  bool ready= true, bool ambiguous_type= false) const {
     usage result;
     if (is_atomic (value)) return result;
     if (value == formal || (is_func (value, QUOTE_ARG, 1) &&
                             N(formal) == 1 && value[0] == formal[0])) {
       result.seen= true;
+      result.ambiguous_type= ambiguous_type;
       if (expected != TYPE_UNKNOWN && expected != TYPE_INVALID && expected != TYPE_ADHOC)
         result.types.insert (expected);
       result.visible= visible;
@@ -253,10 +310,10 @@ struct macro_analysis_core::impl {
     }
     if (is_func (value, MACRO) || is_func (value, XMACRO)) return result;
     if ((is_func (value, IF) || is_func (value, VAR_IF)) && N(value) >= 2) {
-      usage first= argument (value[1], formal, context, expected, visible, guaranteed, ready);
+      usage first= argument (value[1], formal, context, expected, visible, guaranteed, ready, ambiguous_type);
       usage second;
       if (N(value) == 3)
-        second= argument (value[2], formal, context, expected, visible, guaranteed, ready);
+        second= argument (value[2], formal, context, expected, visible, guaranteed, ready, ambiguous_type);
       result.join (first);
       result.join (second);
       result.guaranteed= first.guaranteed && second.guaranteed;
@@ -265,12 +322,12 @@ struct macro_analysis_core::impl {
     if (is_func (value, CASE) && N(value) >= 2) {
       bool all= (N(value) & 1) != 0;
       for (int i=1; i<N(value); i+=2) {
-        const auto branch= argument (value[i], formal, context, expected, visible, guaranteed, ready);
+        const auto branch= argument (value[i], formal, context, expected, visible, guaranteed, ready, ambiguous_type);
         all= all && branch.guaranteed;
         result.join (branch);
       }
       if (N(value) & 1) {
-        const auto branch= argument (value[N(value)-1], formal, context, expected, visible, guaranteed, ready);
+        const auto branch= argument (value[N(value)-1], formal, context, expected, visible, guaranteed, ready, ambiguous_type);
         all= all && branch.guaranteed;
         result.join (branch);
       }
@@ -283,7 +340,7 @@ struct macro_analysis_core::impl {
       for (int i=0; i+1<N(value); i+=2)
         if (is_atomic (value[i])) local[bytes (value[i]->label)]= value[i+1];
         else dynamic= true;
-      result= argument (value[N(value)-1], formal, local, expected, visible, guaranteed, ready);
+      result= argument (value[N(value)-1], formal, local, expected, visible, guaranteed, ready, ambiguous_type);
       result.dynamic_environment |= dynamic;
       return result;
     }
@@ -297,13 +354,13 @@ struct macro_analysis_core::impl {
       }
       const int last= N(value)-1;
       return argument (value[last], formal, child_environment (value, last, local),
-                       expected, visible, guaranteed, ready);
+                       expected, visible, guaranteed, ready, ambiguous_type);
     }
     if (is_func (value, COMPOUND) && N(value) > 0 && is_atomic (value[0])) {
       const auto found= labels.find (bytes (value[0]->label));
       if (found == labels.end ()) return result;
       const tree expanded (found->second, A (value (1, N(value))));
-      return argument (expanded, formal, context, expected, visible, guaranteed, ready);
+      return argument (expanded, formal, context, expected, visible, guaranteed, ready, ambiguous_type);
     }
     if (is_func (value, MAP_ARGS) && N(value) >= 3 && value[2] == formal[0]) {
       if (!is_atomic (value[0]) || !is_atomic (value[1]) ||
@@ -338,7 +395,7 @@ struct macro_analysis_core::impl {
             tree (labels.at (bytes (value[0]->label)), forwarded, as_string (start+i));
         }
         const auto branch= argument (expansion, formal, context, expected,
-                                     visible, guaranteed, ready);
+                                     visible, guaranteed, ready, ambiguous_type);
         result.join (branch);
         all= all && branch.guaranteed;
         any= true;
@@ -359,7 +416,8 @@ struct macro_analysis_core::impl {
         if (const auto* inferred= inferred_field (value, index))
           certain= certain && inferred->guaranteed;
       result.join (argument (value[i], formal, child_environment (value, i, context),
-                             type, access, certain, ready && context_ready (value, index)));
+                             type, access, certain, ready && context_ready (value, index),
+                             field.analysis.type == inference_state::ambiguous));
     }
     return result;
   }
@@ -383,8 +441,7 @@ struct macro_analysis_core::impl {
       infer (child.type, TYPE_UNKNOWN, child.type_origin);
       infer (child.access, ACCESSIBLE_NEVER, child.access_origin);
       infer (child.environment, tree (ATTR), child.environment_origin);
-      child.conditional= false;
-      child.conflicts.clear ();
+      child.analysis= {};
     }
     const auto found= definitions.find (name);
     if (found != definitions.end ())
@@ -445,15 +502,24 @@ struct macro_analysis_core::impl {
         infer (child.type, usage.type (), child.type_origin);
         infer (child.access, usage.visible ? ACCESSIBLE_ALWAYS : ACCESSIBLE_NEVER,
                child.access_origin);
-        child.conditional= usage.visible && !usage.guaranteed;
-        child.conflicts.clear ();
-        if (usage.type () == TYPE_ERROR) child.conflicts.push_back ("type");
-        if (usage.dynamic_environment) child.conflicts.push_back ("dynamic-environment");
+        auto& evidence= child.analysis;
+        evidence.type= child.type_origin == property_authority::inferred ?
+          usage.type_state () : inference_state::resolved;
+        evidence.conditional= usage.visible && !usage.guaranteed;
+        evidence.access= child.access_origin != property_authority::inferred ? inference_state::resolved :
+          evidence.conditional ? inference_state::dynamic :
+          usage.seen ? inference_state::resolved : inference_state::unresolved;
+        evidence.environment= usage.dynamic_environment ? inference_state::dynamic :
+          usage.context ? inference_state::resolved : inference_state::unresolved;
+        evidence.conflicts.clear ();
+        if (evidence.type == inference_state::ambiguous) evidence.conflicts.push_back ("type");
+        if (usage.dynamic_environment) evidence.conflicts.push_back ("dynamic-environment");
         tree entries (ATTR);
         if (usage.context && !usage.dynamic_environment)
           for (const auto& [key, input]: *usage.context) {
             if (!input) {
-              child.conflicts.push_back (key);
+              evidence.environment= inference_state::ambiguous;
+              evidence.conflicts.push_back (key);
               continue;
             }
             tree entry= *input;
@@ -463,6 +529,8 @@ struct macro_analysis_core::impl {
             entries << native (key) << entry;
           }
         infer (child.environment, entries, child.environment_origin);
+        if (child.environment_origin != property_authority::inferred)
+          evidence.environment= inference_state::resolved;
       }
     }
     else {
@@ -482,7 +550,8 @@ struct macro_analysis_core::impl {
     return before != info || previous_fields != definition.fields;
   }
 
-  std::vector<analysis_contract_result> apply (macro_analysis_input input) {
+  std::vector<analysis_contract_result> apply (macro_analysis_input input,
+                                              const std::atomic<bool>* cancelled) {
     for (auto& [label, name]: input.symbols) {
       symbols[label]= name;
       labels[name]= label;
@@ -492,11 +561,13 @@ struct macro_analysis_core::impl {
       dirty.insert (item.name);
     }
     for (const auto& item: input.changed) {
+      check_cancelled (cancelled);
       auto& definition= definitions[item.name];
       for (const auto& dependency: definition.dependencies)
         dependants[dependency].erase (item.name);
       definition.source= tree (item.expression);
       const tree& value= definition.source;
+      discover_symbols (value, cancelled);
       definition.dependencies.clear ();
       if ((is_func (value, MACRO) || is_func (value, XMACRO)) && N(value)>0)
         dependencies (value[N(value)-1], definition.dependencies, symbols);
@@ -515,6 +586,7 @@ struct macro_analysis_core::impl {
     }
     std::deque<std::string> queue (dirty.begin (), dirty.end ());
     while (!queue.empty ()) {
+      check_cancelled (cancelled);
       const std::string name= queue.front (); queue.pop_front ();
       for (const auto& dependant: dependants[name])
         if (dirty.insert (dependant).second) queue.push_back (dependant);
@@ -530,6 +602,7 @@ struct macro_analysis_core::impl {
     queue.assign (dirty.begin (), dirty.end ());
     std::set<std::string> queued= dirty;
     while (!queue.empty ()) {
+      check_cancelled (cancelled);
       const std::string name= queue.front (); queue.pop_front (); queued.erase (name);
       const auto found= definitions.find (name);
       if (found == definitions.end () || !evaluate (name, found->second)) continue;
@@ -549,9 +622,12 @@ struct macro_analysis_core::impl {
       result.layout_origin= info.layout_origin;
       result.variable_type_origin= info.variable_type_origin;
       result.with_origin= info.with_origin;
+      const auto source= definitions.find (name);
+      if (source != definitions.end ())
+        result.dependencies.assign (source->second.dependencies.begin (), source->second.dependencies.end ());
       for (const auto& child: info.children)
         result.fields.push_back ({child.type, child.access,
-          node::frozen_tree (child.environment), child.name, child.conditional, child.conflicts,
+          node::frozen_tree (child.environment), child.name, child.analysis,
           child.type_origin, child.access_origin, child.environment_origin});
       output.push_back (std::move (result));
     }
@@ -563,8 +639,8 @@ struct macro_analysis_core::impl {
 macro_analysis_core::macro_analysis_core (): state (std::make_unique<impl> ()) {}
 macro_analysis_core::~macro_analysis_core ()= default;
 std::vector<analysis_contract_result>
-macro_analysis_core::apply (macro_analysis_input input) {
-  return state->apply (std::move (input));
+macro_analysis_core::apply (macro_analysis_input input, const std::atomic<bool>* cancelled) {
+  return state->apply (std::move (input), cancelled);
 }
 
 } // namespace athena::contracts

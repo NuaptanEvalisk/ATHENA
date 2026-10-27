@@ -26,6 +26,7 @@
 
 class widget;
 class QImage;
+namespace athena::contracts { class detached_environment; }
 
 struct actor_viewport_snapshot {
   std::shared_ptr<viewport_follow_state> cursor_follow;
@@ -410,6 +411,10 @@ public:
   void update_focus_toolbar_state (
     actor_focus_toolbar_snapshot snapshot) noexcept;
   actor_focus_toolbar_snapshot focus_toolbar_state () const;
+  void update_title_environment (std::uint64_t generation,
+    std::shared_ptr<const athena::contracts::detached_environment> environment);
+  std::shared_ptr<const athena::contracts::detached_environment>
+    title_environment (std::uint64_t generation) const;
   void update_document_menu_state (
     actor_document_menu_snapshot snapshot) noexcept;
   actor_document_menu_snapshot document_menu_state () const;
@@ -508,6 +513,9 @@ private:
   std::atomic<bool> inside_table_ {false};
   mutable std::mutex focus_toolbar_lock_;
   actor_focus_toolbar_snapshot focus_toolbar_state_;
+  mutable std::mutex title_environment_lock_;
+  std::uint64_t title_environment_generation_= 0;
+  std::shared_ptr<const athena::contracts::detached_environment> title_environment_;
   mutable std::mutex document_menu_lock_;
   actor_document_menu_snapshot document_menu_state_;
   mutable std::mutex popup_menu_lock_;

@@ -189,7 +189,7 @@ read_texmacs_symbol_token (string s, int i, string& token) {
 * During the parsing, the following global variables are used:
 *
 *     command_type   Contains the types of all currently defined tex commands.
-*                    See latex-type in latex-drd.scm for the list of possible
+*                    See latex-type in latex-contract_state.scm for the list of possible
 *                    types.
 *     command_arity  Contains the corresponding arity.
 *     command_def    Contains the definitions of user commands.
@@ -1127,7 +1127,7 @@ latex_parser::parse_command (string s, int& i, string cmd, int change) {
 /************************ retrieve arguments *******************************/
     t = tree(TUPLE, copy (cmd)); // parsed arguments
     u = tree(TUPLE, copy (cmd)); // unparsed arguments
-    // Should be in a drd.
+    // Should be in a contract_state.
 
     bool option2= (cmd == "\\def" || cmd == "\\newenvironment");
     if (is_def (t)) change--;

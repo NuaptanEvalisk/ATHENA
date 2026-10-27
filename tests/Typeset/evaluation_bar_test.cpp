@@ -15,7 +15,7 @@
 #include "analyze.hpp"
 #include "boot.hpp"
 #include "data_cache.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "gui.hpp"
 #include "scheme.hpp"
 #include "server.hpp"
@@ -74,10 +74,10 @@ private slots:
   void nestedAngles () {
     QFETCH (QString, family);
     QFETCH (QString, series);
-    drd_info drd ("angle-test", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, string (family.toUtf8 ().constData ()));
     env->write (FONT_SERIES, string (series.toUtf8 ().constData ()));
@@ -110,10 +110,10 @@ private slots:
   void growsWithBody () {
     QFETCH (QString, family);
     QFETCH (QString, series);
-    drd_info drd ("evaluation-test", std_drd);
+    athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
     hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
     env->write_default_env ();
     env->write (FONT, string (family.toUtf8 ().constData ()));
     env->write (FONT_SERIES, string (series.toUtf8 ().constData ()));

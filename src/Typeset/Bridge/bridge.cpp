@@ -439,13 +439,15 @@ bridge_rep::typeset (int desired_status) {
     ttt->local_start (l, sb);
     env->local_start (prev_back);
     athena::contracts::contract_event_capture capture (
-      env->contract_events, contract_changes, &env->drd->contracts);
+      env->contract_events, contract_changes, &env->contract_state.contracts);
     source_occurrence_capture occurrences (*env.operator-> (), source_occurrences, ip);
+    source_occurrence_scope occurrence (*env.operator-> (), st, ip);
     if (env->hl_lan != 0) env->lan->highlight (st);
     int pending_generation= ttt->progressive_pending_generation;
     my_typeset (desired_status);
     bool progressively_pending=
       ttt->progressive_pending_generation != pending_generation;
+    occurrence.finish (!progressively_pending);
     env->local_update (ttt->old_patch, changes);
     env->local_end (prev_back);
     capture.commit ();

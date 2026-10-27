@@ -943,12 +943,14 @@ qt_actor_widget_rep::drain_external_effects () {
     case actor_command_kind::ui_enunciation_slot: {
       const string request= actor_text_registry::instance ().take (record.payload0);
       const auto actor= actor_id_, view= view_id_;
+      auto environment= endpoint_->title_environment (record.argument[0]);
       QPointer<QTMWidget> target= canvas ();
       // Embedded editors register new canvases. Do not mutate the canvas
       // registry while repaint_all is iterating it to drain these effects.
       qt_post_to_main_thread ([target, actor, view,
+          environment= std::move (environment),
           request= std::string (request.data (), N(request))] {
-        qtm_enunciation_slot (target, actor, view, request);
+        qtm_enunciation_slot (target, actor, view, request, environment);
       });
       break;
     }

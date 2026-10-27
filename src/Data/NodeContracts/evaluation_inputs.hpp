@@ -12,10 +12,7 @@ namespace athena::contracts {
 // this record neither retains legacy trees nor discovers changes by scanning it.
 class evaluation_input_snapshot {
   struct root;
-  struct batch;
   std::shared_ptr<const root> base;
-  std::shared_ptr<const batch> head;
-  std::set<std::string> names () const;
   friend class evaluation_inputs;
 public:
   evaluation_input_snapshot ()= default;

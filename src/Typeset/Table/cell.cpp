@@ -14,6 +14,7 @@
 #include "Boxes/construct.hpp"
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
+#include "Env/local_environment.hpp"
 #include <stdexcept>
 
 lazy make_lazy_paragraph (edit_env env, array<box> bs, path ip);
@@ -27,6 +28,7 @@ cell_rep::cell_rep (edit_env env2):
 
 void
 cell_rep::typeset (tree fm, tree t, path iq, bool native_math) {
+  source_occurrence_scope occurrence (*env.operator-> (), t, iq);
   ip= iq;
   format_cell (fm);
   string native_color;
@@ -163,6 +165,7 @@ cell_rep::typeset (tree fm, tree t, path iq, bool native_math) {
       D->typeset (attach_deco (decoration, iq));
     }
   }
+  occurrence.finish ();
 }
 
 void

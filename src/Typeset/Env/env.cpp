@@ -10,6 +10,8 @@
 ******************************************************************************/
 
 #include "env.hpp"
+#include "local_environment.hpp"
+#include "Data/NodeContracts/macro_analysis.hpp"
 #include "iterator.hpp"
 extern thread_local hashmap<string,int> default_var_type;
 void initialize_default_var_type ();
@@ -23,7 +25,7 @@ void initialize_default_env ();
 * Initialization
 ******************************************************************************/
 
-edit_env_rep::edit_env_rep (drd_info& drd2,
+edit_env_rep::edit_env_rep (athena::contracts::evaluation_state& contract_state2,
 			    url base_file_name2,
 			    hashmap<string,tree>& local_ref2,
 			    hashmap<string,tree>& global_ref2,
@@ -31,8 +33,8 @@ edit_env_rep::edit_env_rep (drd_info& drd2,
 			    hashmap<string,tree>& global_aux2,
 			    hashmap<string,tree>& local_att2,
 			    hashmap<string,tree>& global_att2):
-  drd (drd2),
-  env (UNINIT), back (UNINIT), src (path (DECORATION)),
+  contract_state (contract_state2),
+  env (contract_state2.values), back (UNINIT), src (path (DECORATION)),
   var_type (default_var_type),
   base_file_name (base_file_name2),
   cur_file_name (base_file_name2),
@@ -46,9 +48,8 @@ edit_env_rep::edit_env_rep (drd_info& drd2,
   initialize_default_env ();
   initialize_default_var_type ();
   env= copy (default_env);
-  drd->contracts.reset_definitions (default_definitions);
+  contract_state.contracts.reset_definitions (default_definitions);
   inputs.reset (default_inputs);
-  drd->set_environment (env);
   style_init_env ();
   update ();
   complete= false;
@@ -56,7 +57,9 @@ edit_env_rep::edit_env_rep (drd_info& drd2,
   recover_env= tuple ();
 }
 
-edit_env::edit_env (drd_info& drd,
+edit_env_rep::~edit_env_rep ()= default;
+
+edit_env::edit_env (athena::contracts::evaluation_state& contract_state,
 		    url base_file_name,
 		    hashmap<string,tree>& local_ref,
 		    hashmap<string,tree>& global_ref,
@@ -64,7 +67,7 @@ edit_env::edit_env (drd_info& drd,
 		    hashmap<string,tree>& global_aux,
 		    hashmap<string,tree>& local_att,
 		    hashmap<string,tree>& global_att):
-  rep (tm_new<edit_env_rep> (drd, base_file_name,
+  rep (tm_new<edit_env_rep> (contract_state, base_file_name,
                              local_ref, global_ref,
                              local_aux, global_aux,
                              local_att, global_att)) {}
@@ -84,8 +87,24 @@ edit_env_rep::style_init_env () {
 ******************************************************************************/
 
 void
+edit_env_rep::record_variable_write (const string& name, const tree* value) {
+  if (contract_events) {
+    const auto write= contract_events->write_variable (name, value);
+    if (recorded_contexts) recorded_contexts->write (write);
+  }
+  else if (recorded_contexts) recorded_contexts->write (name, value);
+}
+
+athena::contracts::evaluation_boundary_handle
+edit_env_rep::mark_execution_boundary () {
+  const auto boundary= contract_events->mark_boundary ();
+  if (recorded_contexts) recorded_contexts->mark (boundary);
+  return boundary;
+}
+
+void
 edit_env_rep::write_value (string name, tree value, bool monitored, bool refresh) {
-  if (contract_events) contract_events->write_variable (name, &value);
+  record_variable_write (name, &value);
   synchronize_definition_value (name, value);
   const bool changed= !env->contains (name) || env[name] != value;
   if (changed) inputs.record (std::string (name.data (), N(name)), true);
@@ -104,14 +123,14 @@ edit_env_rep::assign (string name, tree expression) {
 void
 edit_env_rep::restore_local_value (string name, tree value, bool previously_present) {
   if (previously_present) {
-    if (contract_events) contract_events->write_variable (name, &value);
+    record_variable_write (name, &value);
     // The enclosing scope restores the original binding after its values.
     // Restoring a value is not execution of a new definition producer.
     if (existing_tree_label (name)) {
       const auto label= as_tree_label (name);
-      const auto binding= drd->contracts.definition (label);
+      const auto binding= contract_state.contracts.definition (label);
       if (binding && !binding->value->expression.matches (value))
-        drd->contracts.forget_definition (label);
+        contract_state.contracts.forget_definition (label);
     }
     const bool changed= !env->contains (name) || env[name] != value;
     if (changed) {
@@ -121,9 +140,9 @@ edit_env_rep::restore_local_value (string name, tree value, bool previously_pres
     }
   }
   else {
-    if (contract_events) contract_events->write_variable (name, nullptr);
+    record_variable_write (name, nullptr);
     if (existing_tree_label (name))
-      drd->contracts.forget_definition (as_tree_label (name));
+      contract_state.contracts.forget_definition (as_tree_label (name));
     const bool changed= env[name] != value;
     if (env->contains (name)) inputs.record (std::string (name.data (), N(name)), false);
     env->reset (name);
@@ -200,10 +219,10 @@ edit_env_rep::local_end_extents (tree t) {
 void
 edit_env_rep::write_default_env () {
   if (contract_events) contract_events->record (athena::contracts::evaluation_barrier {});
-  drd->contracts.reset_definitions (default_definitions);
+  contract_state.contracts.reset_definitions (default_definitions);
   env= copy (default_env);
   inputs.reset (default_inputs);
-  drd->set_environment (env);
+  if (recorded_contexts) recorded_contexts->rebase ();
 }
 
 void
@@ -211,7 +230,7 @@ edit_env_rep::write_env (hashmap<string,tree> user_env) {
   if (contract_events) contract_events->record (athena::contracts::evaluation_barrier {});
   env= copy (user_env);
   initialize_value_inputs ();
-  drd->set_environment (env);
+  if (recorded_contexts) recorded_contexts->rebase ();
 }
 
 void
@@ -224,18 +243,28 @@ edit_env_rep::initialize_value_inputs () {
     names.emplace (name.data (), N(name));
     const tree value= env[name];
     if (!is_func (value, MACRO) && !is_func (value, XMACRO)) continue;
-    const auto current= drd->contracts.definition (make_tree_label (name));
+    const auto current= contract_state.contracts.definition (make_tree_label (name));
     auto binding= athena::contracts::capture_definition (
       name, value, current ? current->value : nullptr);
-    baseline.emplace (binding->target, std::move (binding));
+    const auto target= binding->target;
+    baseline= std::move (baseline).set (target, std::move (binding));
   }
-  drd->contracts.reset_definitions (std::move (baseline));
+  contract_state.contracts.reset_definitions (std::move (baseline));
   inputs.reset (athena::contracts::evaluation_input_snapshot::baseline (std::move (names)));
 }
 
 void
 edit_env_rep::analyze_contracts () {
-  drd->analyze_environment (inputs.snapshot (), env);
+  if (!contract_analysis) contract_analysis= std::make_unique<athena::contracts::macro_analysis> ();
+  contract_analysis->synchronize (contract_state.contracts, inputs.snapshot (), env);
+}
+
+bool
+edit_env_rep::prepare_contracts (std::function<void ()> notify) {
+  if (!contract_analysis) contract_analysis= std::make_unique<athena::contracts::macro_analysis> ();
+  const auto selected= inputs.snapshot ();
+  contract_analysis->request (contract_state.contracts, selected, env, std::move (notify));
+  return contract_analysis->publish_ready (contract_state.contracts, selected, env);
 }
 
 void

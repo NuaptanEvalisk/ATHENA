@@ -15,8 +15,10 @@
 #include "hashmap.hpp"
 #include "url.hpp"
 #include "tm_timer.hpp"
+#include <memory>
 
 namespace athena::document { enum class xml_format_version; }
+namespace athena::contracts { class detached_environment; }
 
 /******************************************************************************
 * The buffer class
@@ -95,7 +97,8 @@ bool buffer_create_source (url name);
 // Create an in-memory document with an explicit version before any view exists.
 // True on success; an existing buffer is left untouched and returns false.
 bool initialize_buffer_tree (url name, tree doc,
-                             athena::document::xml_format_version version);
+                             athena::document::xml_format_version version,
+                             std::shared_ptr<const athena::contracts::detached_environment> field_environment= {});
 // Replace an existing in-memory baseline, preserving the caller's source format.
 // True on success; invalid input is rejected before the actor sees a replacement.
 bool replace_buffer_tree (url name, tree doc,

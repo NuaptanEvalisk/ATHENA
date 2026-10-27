@@ -11,7 +11,7 @@
 #include "ATHENA/Data/interop_document_nodes.hpp"
 #include "ATHENA/Data/interop_document_codec.hpp"
 #include "converter.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "node_metadata.hpp"
 #include "tree.hpp"
 #include <cmath>
@@ -23,7 +23,7 @@ using namespace athena::interop;
 class TestDocumentNodes: public QObject {
   Q_OBJECT
 private slots:
-  void initTestCase () { init_std_drd (); }
+  void initTestCase () { athena::contracts::initialize_builtins (); }
 
   void clearFormattingRetainsDescendantIdentities () {
     tree body (CONCAT, "content", " remains");

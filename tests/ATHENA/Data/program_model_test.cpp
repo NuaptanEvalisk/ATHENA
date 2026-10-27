@@ -15,7 +15,7 @@
 #include "ATHENA/Data/program_model.hpp"
 #include "ATHENA/Data/document_node_model.hpp"
 #include "Xml/athena_document_xml.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "native_editor_actions.hpp"
 #include "program_presentation.hpp"
 
@@ -26,7 +26,7 @@ class TestProgramModel: public QObject {
   Q_OBJECT
 
 private slots:
-  void initTestCase () { init_std_drd (); }
+  void initTestCase () { athena::contracts::initialize_builtins (); }
   void one_node_type_carries_language_property ();
   void arbitrary_language_is_valid_source ();
   void metadata_survives_document_roundtrip ();

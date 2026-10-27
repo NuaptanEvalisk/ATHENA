@@ -16,20 +16,24 @@
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
 #include "ATHENA/Data/node_reference_export.hpp"
+#include "Env/native_math_environment.hpp"
+#include "Env/local_environment.hpp"
 #include <stdexcept>
 
 lazy make_lazy_paragraph (edit_env env, array<box> bs, path ip);
 
 namespace {
-class native_local {
-  edit_env env;
-  string key;
-  tree previous;
-public:
-  native_local (edit_env env, string key, tree value):
-    env (env), key (key), previous (env->local_begin (key, value)) {}
-  ~native_local () { env->local_end (key, previous); }
-};
+template<typename Body>
+void with_table_format_sources (edit_env env, tree t, path ip, const Body& body) {
+  source_occurrence_scope occurrence (*env.operator-> (), t, ip);
+  if (is_func (t, TFORMAT)) {
+    const tree format= env->read (CELL_FORMAT) * t (0, N(t)-1);
+    native_math_value_scope scope (env, CELL_FORMAT, format);
+    with_table_format_sources (env, t[N(t)-1], descend (ip, N(t)-1), body);
+  }
+  else body (t, ip, env->read (CELL_FORMAT));
+  occurrence.finish ();
+}
 
 bool row_tag_math_root (const tree& t) {
   if (is_atomic (t)) return false;
@@ -154,25 +158,13 @@ table_rep::typeset (tree t, path iq, std::optional<bool> block_numbering) {
   native_math_grid_kind= "";
   native_block_numbering= block_numbering;
   if (is_func (t, MATH_GRID)) {
-    validate_native_math_grid_layout (t);
+    validate_native_math_grid_numbering (env, t, block_numbering);
     const auto* meta= athena::node::get (t);
     const auto kind= std::get<std::string> (
       meta->properties.at ("math:grid-kind").data);
     native_math_grid_kind= string (kind.data (), int (kind.size ()));
     native_row_numbering= native_math_grid_uses_row_numbering (t);
     for (int i= 0; i < N(t); ++i) {
-      using namespace athena::math_v3;
-      const auto policy= get_row_numbering (t[i]);
-      if (const auto tag= get_row_tag (t[i])) validate_row_tag (*tag, false);
-      if (!block_numbering.has_value () &&
-          (policy != row_numbering::inherit || get_row_tag (t[i]).has_value ()))
-        throw std::invalid_argument ("Row overrides require a direct MathBlock grid");
-      const bool automatic= native_row_numbering && !get_row_tag (t[i]) &&
-        (policy == row_numbering::numbered ||
-         (policy == row_numbering::inherit && block_numbering.value_or (false)));
-      if (automatic && (!env->provides ("next-equation") ||
-                        !env->provides ("the-equation")))
-        throw std::invalid_argument ("Native row numbering requires equation counter macros");
       native_rows << t[i];
       native_row_keys << tree (TUPLE);
       native_row_labels << box ();
@@ -180,16 +172,14 @@ table_rep::typeset (tree t, path iq, std::optional<bool> block_numbering) {
     }
     native_number_gap= env->as_length ("5mm");
   }
-  tree new_format= env->read (CELL_FORMAT);
-  native_local format_scope (env, CELL_FORMAT, tree (TFORMAT));
-  if (!is_func (new_format, TFORMAT)) new_format= tree (TFORMAT);
-  while (is_func (t, TFORMAT)) {
-    new_format= new_format * t (0, N(t)-1);
-    iq        = descend (iq, N(t)-1);
-    t         = t[N(t)-1];
-  }
-  format_table (new_format);
-  typeset_table (new_format, t, iq);
+  tree inherited= env->read (CELL_FORMAT);
+  if (!is_func (inherited, TFORMAT)) inherited= tree (TFORMAT);
+  native_math_value_scope inherited_scope (env, CELL_FORMAT, inherited);
+  with_table_format_sources (env, t, iq, [&] (tree content, path source, tree format) {
+    native_math_value_scope format_scope (env, CELL_FORMAT, tree (TFORMAT));
+    format_table (format);
+    typeset_table (format, content, source);
+  });
 }
 
 void
@@ -202,51 +192,19 @@ table_rep::typeset_table (tree fm, tree t, path ip) {
   STACK_NEW_ARRAY (subformat, tree, nr_rows);
   extract_format (fm, subformat, nr_rows);
   for (i=0; i<nr_rows; i++) {
-    native_local row_scope (env, CELL_ROW_NR, as_string (i));
     if (native_math_grid_kind == "") {
+      native_math_value_scope row_scope (env, CELL_ROW_NR, as_string (i));
       typeset_row (i, subformat[i], t[i], descend (ip, i));
       continue;
     }
-    using namespace athena::math_v3;
-    const tree outer_label= env->read (THE_LABEL);
-    native_local label_scope (env, THE_LABEL, "");
-    native_local tags_scope (env, "the-tags", tree (TUPLE));
-    tree number ("");
-    const auto tag= get_row_tag (t[i]);
-    const auto policy= get_row_numbering (t[i]);
-    const bool automatic= native_row_numbering && !tag &&
-      (policy == row_numbering::numbered ||
-       (policy == row_numbering::inherit && native_block_numbering.value_or (false)));
-    if (tag) number= *tag;
-    else if (automatic) {
-      if (is_func (env->exec (compound ("next-equation")), _ERROR))
-        throw std::invalid_argument ("Equation counter failed during native row layout");
-      number= env->exec (compound ("the-equation"));
-      if (is_func (number, _ERROR) || number == "")
-        throw std::invalid_argument ("Equation counter produced no native row number");
-    }
-    // Only a direct non-row-numbered block shares its whole-block label.
-    // Other grids isolate both label state and pending tags from their parent.
-    if (!native_row_numbering && native_block_numbering.has_value ())
-      number= outer_label;
-    // VALUE evaluates its stored expression. Keep the quote in the local
-    // environment so rich tags bind as data; assign() would consume it here
-    // and cause a second expansion when the row's LABEL is typeset.
-    env->local_begin (THE_LABEL,
-      !native_row_numbering && native_block_numbering.has_value () ?
-        number : tree (QUOTE, number));
-    const auto id= athena::node::id (t[i]);
-    if (native_row_numbering && !id.empty ()) {
-      const string key= "athena-node-" * string (id.data (), int (id.size ()));
-      const tree bound= env->exec (tree (SET_BINDING, key, tree (QUOTE, number)));
-      if (!is_func (bound, HIDDEN_BINDING))
-        throw std::invalid_argument ("Native row UUID binding failed");
-      native_row_keys[i]= bound[0];
-    }
-    if (tag || automatic) {
-      native_local mode_scope (env, MODE, row_tag_math_root (number) ? "math" : "text");
-      native_local shape_scope (env, FONT_SHAPE, "right");
-      native_local display_scope (env, MATH_DISPLAY, "false");
+    native_math_row_scope row_scope (env, t[i], i,
+      native_row_numbering, native_block_numbering);
+    native_row_keys[i]= row_scope.binding_keys;
+    if (row_scope.show_number) {
+      const tree number= row_scope.number;
+      native_math_value_scope mode_scope (env, MODE, native_math_row_tag_is_math (number) ? "math" : "text");
+      native_math_value_scope shape_scope (env, FONT_SHAPE, "right");
+      native_math_value_scope display_scope (env, MATH_DISPLAY, "false");
       native_row_labels[i]= typeset_as_concat (
         env, tree (CONCAT, "(", number, ")"), decorate_middle (descend (ip, i)));
       native_number_width= max (native_number_width, native_row_labels[i]->w ());
@@ -261,6 +219,7 @@ table_rep::typeset_table (tree fm, tree t, path ip) {
 
 void
 table_rep::typeset_row (int i, tree fm, tree t, path ip) {
+  source_occurrence_scope occurrence (*env.operator-> (), t, ip);
   //ASSERT (i==0 || nr_cols == N(t), "inconsistent number of columns");
   int j;
   nr_cols= (i==0? N(t): min (nr_cols, N(t)));
@@ -294,6 +253,7 @@ table_rep::typeset_row (int i, tree fm, tree t, path ip) {
     if (hyphen == "y") C->row_span= 1;
   }
   STACK_DELETE_ARRAY (subformat);
+  occurrence.finish ();
 }
 
 /******************************************************************************
@@ -362,48 +322,43 @@ inherited_format (hashmap<string,tree> cvar) {
 void
 table_rep::typeset_subtable (tree t, path iq, hashmap<string,tree> cvar) {
   ip= iq;
-
-  bool plain_flag= true;
-  tree new_format= tree (TFORMAT);
-  while (is_func (t, TFORMAT)) {
-    new_format= new_format * t (0, N(t)-1);
-    iq        = descend (iq, N(t)-1);
-    t         = t[N(t)-1];
+  tree nested= t;
+  path nested_ip= iq;
+  while (is_func (nested, TFORMAT)) {
+    nested_ip= descend (nested_ip, N(nested)-1);
+    nested= nested[N(nested)-1];
   }
-
-  if (is_func (t, TABLE, 1) &&
-      is_func (t[0], ROW, 1) &&
-      is_func (t[0][0], CELL, 1)) {
-    path siq= descend (descend (descend (iq, 0), 0), 0);
-    tree st = t[0][0][0];
-    if (is_func (st, DOCUMENT, 1)) {
-      siq= descend (siq, 0);
-      st = st[0];
+  tree macro;
+  path macro_ip;
+  array<tree> macro_format;
+  bool macro_table= false;
+  if (is_func (nested, TABLE, 1) && is_func (nested[0], ROW, 1) &&
+      is_func (nested[0][0], CELL, 1)) {
+    macro= nested[0][0][0];
+    macro_ip= descend (descend (descend (nested_ip, 0), 0), 0);
+    if (is_func (macro, DOCUMENT, 1)) {
+      macro= macro[0];
+      macro_ip= descend (macro_ip, 0);
     }
-    array<tree> xfm;
-    if (is_subtable_macro (env, st, xfm)) {
-      new_format << xfm;
-      iq= descend (siq, 0);
-      t = st[0];
-      plain_flag= false;
+    macro_table= is_subtable_macro (env, macro, macro_format);
+  }
+  native_math_value_scope inherited_scope (env, CELL_FORMAT,
+    macro_table ? tree (TFORMAT) : inherited_format (cvar));
+  const auto render= [&] (tree content, path source, tree format) {
+    native_math_value_scope format_scope (env, CELL_FORMAT, tree (TFORMAT));
+    format_table (format);
+    typeset_table (format, content, source);
+  };
+  with_table_format_sources (env, t, iq, [&] (tree content, path source, tree format) {
+    if (!macro_table) { render (content, source, format); return; }
+    source_occurrence_scope occurrence (*env.operator-> (), macro, macro_ip);
+    {
+      native_math_value_scope macro_scope (env, CELL_FORMAT,
+        format * tree (TFORMAT, macro_format));
+      with_table_format_sources (env, macro[0], descend (macro_ip, 0), render);
     }
-  }
-
-  if (plain_flag) {
-    tree inh_format= inherited_format (cvar);
-    new_format= inh_format * new_format;
-  }
-  
-  while (is_func (t, TFORMAT)) {
-    new_format= new_format * t (0, N(t)-1);
-    iq        = descend (iq, N(t)-1);
-    t         = t[N(t)-1];
-  }
-
-  tree old_format= env->local_begin (CELL_FORMAT, tree (TFORMAT));
-  format_table (new_format);
-  typeset_table (new_format, t, iq);
-  env->local_end (CELL_FORMAT, old_format);
+    occurrence.finish ();
+  });
 }
 
 /******************************************************************************

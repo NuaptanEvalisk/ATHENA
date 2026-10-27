@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "edit_table.hpp"
+#include "Env/local_environment.hpp"
 
 /******************************************************************************
 * Constructors and destructors
@@ -17,6 +18,30 @@
 
 edit_table_rep::edit_table_rep (): cell_mode ("cell") {}
 edit_table_rep::~edit_table_rep () {}
+
+edit_table_rep::table_context_scope::table_context_scope (edit_table_rep& owner, path format):
+  owner (owner), previous_path (owner.table_context_path), previous (owner.table_context) {
+  if (owner.table_context && owner.table_context_path == format) return;
+  owner.table_context_path= format;
+  owner.table_context= owner.editor_rep::cursor_context_at (format * 0);
+}
+
+edit_table_rep::table_context_scope::~table_context_scope () {
+  owner.table_context_path= previous_path;
+  owner.table_context= std::move (previous);
+}
+
+tree
+edit_table_rep::table_environment_value (path format, string variable) {
+  const auto context= table_context && table_context_path == format ? table_context :
+    editor_rep::cursor_context_at (format * 0);
+  if (context) {
+    tree value= context->value (variable);
+    return is_func (value, BACKUP, 2) ? value[0] : value;
+  }
+  // New table macros and decoration payloads still need explicit preparation.
+  return get_env_value (variable, format * 0);
+}
 
 /******************************************************************************
 * Elementary subroutines for table manipulation
@@ -103,11 +128,12 @@ edit_table_rep::search_format (path p) {
 path
 edit_table_rep::search_format (int& row, int& col) {
   path p= search_table (row, col);
-  if (is_nil (p)) return p;
-  if (is_func (subtree (et, p), TFORMAT)) return p;
-  if (is_func (subtree (et, path_up (p)), TFORMAT)) return path_up (p);
-  insert_node (p * 0, TFORMAT);
-  return p;
+  return search_format (p);
+}
+
+void
+edit_table_rep::ensure_table_format (path format) {
+  if (is_func (subtree (et, format), TABLE)) insert_node (format * 0, TFORMAT);
 }
 
 path
@@ -230,13 +256,14 @@ edit_table_rep::with_read (tree with, int nr_rows, int nr_cols,
 
 tree
 edit_table_rep::table_get_format (path fp) {
-  tree fm= get_env_value (CELL_FORMAT, fp * 0);
+  tree fm= table_environment_value (fp, CELL_FORMAT);
   tree st= subtree (et, fp);
-  return fm * st (0, N(st)-1);
+  return is_func (st, TFORMAT) ? fm * st (0, N(st)-1) : fm;
 }
 
 void
 edit_table_rep::table_set_format (path fp, string var, tree val) {
+  ensure_table_format (fp);
   table_del_format (fp, var);
   tree with (TWITH, var, val);
   tree st= subtree (et, fp);
@@ -247,7 +274,7 @@ tree
 edit_table_rep::table_get_format (path fp, string var) {
   tree st= table_get_format (fp);
   int k, n= N(st);
-  tree val= get_env_value (var);
+  tree val= table_environment_value (fp, var);
   for (k=0; k<n; k++)
     if (is_func (st[k], TWITH, 2) && (st[k][0] == var))
       val= st[k][1];
@@ -257,6 +284,7 @@ edit_table_rep::table_get_format (path fp, string var) {
 void
 edit_table_rep::table_del_format (path fp, string var) {
   tree st= subtree (et, fp);
+  if (!is_func (st, TFORMAT)) return;
   int k, n= N(st);
   for (k=n-2; k>=0; k--)
     if (is_func (st[k], TWITH, 2))
@@ -268,6 +296,7 @@ void
 edit_table_rep::table_set_format (
   path fp, int I1, int J1, int I2, int J2, string var, tree val)
 {
+  ensure_table_format (fp);
   table_del_format (fp, I1, J1, I2, J2, var);
   tree with (CWITH);
   with << as_string (I1) << as_string (I2)
@@ -288,7 +317,7 @@ edit_table_rep::table_get_format (
   with_decode (nr_rows, nr_cols, I1, J1, I2, J2, i1, j1, i2, j2);
 
   int k, n= N(st);
-  tree val= get_env_value (var);
+  tree val= table_environment_value (fp, var);
   for (k=0; k<n; k++)
     if (is_func (st[k], CWITH, 6) && (st[k][4] == var)) {
       int row1, col1, row2, col2;
@@ -306,6 +335,7 @@ edit_table_rep::table_del_format (
   int i1, j1, i2, j2;
   int nr_rows, nr_cols;
   tree st= subtree (et, fp);
+  if (!is_func (st, TFORMAT)) return;
   table_get_extents (fp, nr_rows, nr_cols);
   with_decode (nr_rows, nr_cols, I1, J1, I2, J2, i1, j1, i2, j2);
 
@@ -325,7 +355,7 @@ edit_table_rep::table_get_format (
   path fp, string var, tree** val, int nr_rows, int nr_cols)
 {
   int i, j;
-  tree def_val= get_env_value (var, fp);
+  tree def_val= table_environment_value (fp, var);
   for (i=0; i<nr_rows; i++)
     for (j=0; j<nr_cols; j++)
       val[i][j]= def_val;
@@ -363,7 +393,7 @@ edit_table_rep::table_individualize (path fp, string var) {
             tree with (CWITH);
             with << as_string (i+1) << as_string (i+1)
                  << as_string (j+1) << as_string (j+1)
-                 << copy (st[k][4]) << copy (st[k][5]) << copy (st[k][6]);
+                 << copy (st[k][4]) << copy (st[k][5]);
             ins_format << with;
           }
         remove (fp * k, 1);
@@ -564,7 +594,7 @@ edit_table_rep::table_bound (
   path fp, int& row1, int& col1, int& row2, int& col2)
 {
   fp= search_format (fp);
-  if (!is_func (subtree (et, fp), TFORMAT)) return;
+  table_context_scope context (*this, fp);
 
   int i, j, ii, jj, nr_rows, nr_cols;
   table_get_extents (fp, nr_rows, nr_cols);
@@ -613,10 +643,8 @@ edit_table_rep::table_go_to (path fp, int row, int col, bool at_start) {
   if (col<0) col= 0;
   if (row>=nr_rows) row= nr_rows-1;
   if (col>=nr_cols) col= nr_cols-1;
-  if (is_func (subtree (et, fp), TFORMAT)) {
-    int row2= row, col2= col;
-    table_bound (fp, row, col, row2, col2);
-  }
+  int row2= row, col2= col;
+  table_bound (fp, row, col, row2, col2);
   path q= search_cell (fp, row, col);
   go_to_border (q, at_start);
 }
@@ -804,16 +832,25 @@ void
 edit_table_rep::table_write_subtable (
   path fp, int row, int col, tree subt)
 {
-  int nr_rows, nr_cols, sub_rows, sub_cols;
+  table_context_scope context (*this, fp);
+  int sub_rows, sub_cols;
   int min_rows, min_cols, max_rows, max_cols;
-  table_get_extents (fp, nr_rows, nr_cols);
   ::table_get_extents (subt, sub_rows, sub_cols);
   table_get_limits (fp, min_rows, min_cols, max_rows, max_cols);
   if ((max_rows < row + sub_rows) || (max_cols < col + sub_cols)) return;
+  table_write_subtable_unchecked (fp, row, col, subt);
+}
+
+void
+edit_table_rep::table_write_subtable_unchecked (path fp, int row, int col, tree subt) {
+  int nr_rows, nr_cols, sub_rows, sub_cols;
+  table_get_extents (fp, nr_rows, nr_cols);
+  ::table_get_extents (subt, sub_rows, sub_cols);
   if ((nr_rows < row + sub_rows) || (nr_cols < col + sub_cols))
     table_set_extents (fp, max (nr_rows, row + sub_rows),
                            max (nr_cols, col + sub_cols));
 
+  if (is_func (subt, TFORMAT)) ensure_table_format (fp);
   if (is_func (subtree (et, fp), TFORMAT) &&
       is_func (subt, TFORMAT))
     {
@@ -832,7 +869,7 @@ edit_table_rep::table_write_subtable (
     for (j=0; j<sub_cols; j++) {
       path cp  = search_cell (rp, j+col);
       tree subc= subr[j];
-      while (is_func (subc, TFORMAT)) subc= subc [N(subr)-1];
+      while (is_func (subc, TFORMAT)) subc= subc [N(subc)-1];
       if (is_func (subc, CELL, 1)) subc= subc[0];
       assign (cp, copy (subc));
     }
@@ -846,7 +883,7 @@ edit_table_rep::table_hor_insert_subtable (path fp, int col, tree subt) {
   ::table_get_extents (subt, sub_rows, sub_cols);
   if (sub_rows != nr_rows) return;
   table_insert (fp, 0, col, 0, sub_cols);
-  table_write_subtable (fp, 0, col, subt);
+  table_write_subtable_unchecked (fp, 0, col, subt);
 }
 
 void
@@ -856,7 +893,25 @@ edit_table_rep::table_ver_insert_subtable (path fp, int row, tree subt) {
   ::table_get_extents (subt, sub_rows, sub_cols);
   if (sub_cols != nr_cols) return;
   table_insert (fp, row, 0, sub_rows, 0);
-  table_write_subtable (fp, row, 0, subt);
+  table_write_subtable_unchecked (fp, row, 0, subt);
+}
+
+void
+edit_table_rep::table_cut_selection (path fp, int row1, int col1, int row2, int col2) {
+  table_context_scope context (*this, fp);
+  int rows, cols;
+  table_get_extents (fp, rows, cols);
+  for (int row= row1; row<=row2; ++row)
+    for (int col= col1; col<=col2; ++col)
+      assign (search_cell (fp, row, col), "");
+  go_to (start (et, search_cell (fp, row1, col1)));
+  table_del_format (fp, row1+1, col1+1, row2+1, col2+1, "");
+  if (col1 == 0 && col2 == cols-1 && row2 > row1)
+    table_remove (fp, row1+1, col1, row2-row1, 0);
+  else if (row1 == 0 && row2 == rows-1 && col2 > col1)
+    table_remove (fp, row1, col1+1, 0, col2-col1);
+  table_correct_block_content ();
+  table_resize_notify ();
 }
 
 /******************************************************************************
@@ -925,9 +980,10 @@ table_undecorate (tree st, int row, int col) {
 
 void
 edit_table_rep::table_hor_decorate (path fp, int col, int cbef, int caft) {
-  tree st= subtree (et, fp);
-  if (!is_func (st, TFORMAT)) return;
   if (cbef+caft == 0) return;
+  table_context_scope context (*this, fp);
+  ensure_table_format (fp);
+  tree st= subtree (et, fp);
   int i, j, k, nr_rows, nr_cols;
   path p= search_table (fp);
   table_get_extents (p, nr_rows, nr_cols);
@@ -968,9 +1024,10 @@ edit_table_rep::table_hor_decorate (path fp, int col, int cbef, int caft) {
 
 void
 edit_table_rep::table_ver_decorate (path fp, int row, int rbef, int raft) {
-  tree st= subtree (et, fp);
-  if (!is_func (st, TFORMAT)) return;
   if (rbef+raft == 0) return;
+  table_context_scope context (*this, fp);
+  ensure_table_format (fp);
+  tree st= subtree (et, fp);
   int i, j, k, nr_rows, nr_cols;
   path p= search_table (fp);
   table_get_extents (p, nr_rows, nr_cols);
@@ -1131,6 +1188,7 @@ edit_table_rep::table_insert_row (bool forward) {
   int row, col;
   path fp= search_format (row, col);
   if (is_nil (fp)) return;
+  table_context_scope context (*this, fp);
   int nr_rows, nr_cols, i1, j1, i2, j2;
   table_get_extents (fp, nr_rows, nr_cols);
   table_get_limits (fp, i1, j1, i2, j2);
@@ -1146,6 +1204,7 @@ edit_table_rep::table_insert_column (bool forward) {
   int row, col;
   path fp= search_format (row, col);
   if (is_nil (fp)) return;
+  table_context_scope context (*this, fp);
   int nr_rows, nr_cols, i1, j1, i2, j2;
   table_get_extents (fp, nr_rows, nr_cols);
   table_get_limits (fp, i1, j1, i2, j2);
@@ -1161,10 +1220,11 @@ edit_table_rep::table_remove_row (bool forward, bool flag) {
   int row, col;
   path fp= search_format (row, col);
   if (is_nil (fp)) return;
+  table_context_scope context (*this, fp);
   int nr_rows, nr_cols, i1, j1, i2, j2;
   table_get_extents (fp, nr_rows, nr_cols);
   table_get_limits (fp, i1, j1, i2, j2);
-  if (nr_rows-1 < i1) destroy_table ();
+  if (nr_rows-1 < i1) { destroy_table (); return; }
   else if (flag) {
     table_remove (fp, row, col, 1, 0);
     int ncol= col;
@@ -1187,10 +1247,11 @@ edit_table_rep::table_remove_column (bool forward, bool flag) {
   int row, col;
   path fp= search_format (row, col);
   if (is_nil (fp)) return;
+  table_context_scope context (*this, fp);
   int nr_rows, nr_cols, i1, j1, i2, j2;
   table_get_extents (fp, nr_rows, nr_cols);
   table_get_limits (fp, i1, j1, i2, j2);
-  if (nr_cols-1 < j1) destroy_table ();
+  if (nr_cols-1 < j1) { destroy_table (); return; }
   else if (flag) {
     table_remove (fp, row, col, 0, 1);
     int ncol= max (0, col + (forward? 0: -1));
@@ -1385,6 +1446,7 @@ edit_table_rep::table_correct_block_content () {
   int nr_rows, nr_cols;
   path fp= search_format ();
   if (is_nil (fp)) return;
+  table_context_scope context (*this, fp);
   table_get_extents (fp, nr_rows, nr_cols);
   int row, col;
   for (row= 0; row < nr_rows; row++)
@@ -1419,27 +1481,28 @@ edit_table_rep::get_cell_mode () {
 
 void
 edit_table_rep::cell_set_format (string var, tree val) {
+  path fp;
+  int row1, col1, row2, col2;
   if (selection_active_table (false)) {
-    int row1, col1, row2, col2, rows, cols;
-    path fp= selection_get_subtable (row1, col1, row2, col2);
+    int rows, cols;
+    fp= selection_get_subtable (row1, col1, row2, col2);
+    if (is_nil (fp)) return;
     row1++; col1++; row2++; col2++;
     table_get_extents (fp, rows, cols);
     if (rows > row1 && row1 <= 2 && row2 == rows) row2= -1;
     if (cols > col1 && col1 <= 2 && col2 == cols) col2= -1;
-    table_set_format (fp, row1, col1, row2, col2, var, val);
   }
   else {
     int row, col;
-    path fp= search_format (row, col); row++; col++;
+    fp= search_format (row, col); row++; col++;
     if (is_nil (fp)) return;
-    if (cell_mode=="row")
-      table_set_format (fp, row, 1, row, -1, var, val);
-    else if (cell_mode=="column")
-      table_set_format (fp, 1, col, -1, col, var, val);
-    else if (cell_mode=="table")
-      table_set_format (fp, 1, 1, -1, -1, var, val);
-    else table_set_format (fp, row, col, row, col, var, val);
+    row1= row2= row;
+    col1= col2= col;
+    if (cell_mode == "row" || cell_mode == "table") { col1= 1; col2= -1; }
+    if (cell_mode == "column" || cell_mode == "table") { row1= 1; row2= -1; }
   }
+  table_context_scope context (*this, fp);
+  table_set_format (fp, row1, col1, row2, col2, var, val);
   table_correct_block_content ();
 }
 
@@ -1459,20 +1522,24 @@ edit_table_rep::cell_get_format (string var) {
 
 void
 edit_table_rep::cell_del_format (string var) {
+  path fp;
+  int row1, col1, row2, col2;
   if (selection_active_table (false)) {
-    int row1, col1, row2, col2;
-    path fp= selection_get_subtable (row1, col1, row2, col2);
-    table_del_format (fp, row1+1, col1+1, row2+1, col2+1, var);
+    fp= selection_get_subtable (row1, col1, row2, col2);
+    if (is_nil (fp)) return;
+    row1++; col1++; row2++; col2++;
   }
   else {
     int row, col;
-    path fp= search_format (row, col); row++; col++;
+    fp= search_format (row, col); row++; col++;
     if (is_nil (fp)) return;
-    if (cell_mode=="row") table_del_format (fp, row, 1, row, -1, var);
-    else if (cell_mode=="column") table_del_format (fp, 1, col, -1, col, var);
-    else if (cell_mode=="table") table_del_format (fp, 1, 1, -1, -1, var);
-    else table_del_format (fp, row, col, row, col, var);
+    row1= row2= row;
+    col1= col2= col;
+    if (cell_mode == "row" || cell_mode == "table") { col1= 1; col2= -1; }
+    if (cell_mode == "column" || cell_mode == "table") { row1= 1; row2= -1; }
   }
+  table_context_scope context (*this, fp);
+  table_del_format (fp, row1, col1, row2, col2, var);
   table_correct_block_content ();
 }
 

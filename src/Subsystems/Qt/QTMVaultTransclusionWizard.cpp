@@ -20,7 +20,6 @@
 #include "QTMVaultSearchWorker.hpp"
 #include "ATHENA/Data/enunciation_model.hpp"
 #include "ATHENA/Data/heading_word_count.hpp"
-#include "drd_mode.hpp"
 #include "namespaces.hpp"
 #include "new_buffer.hpp"
 #include "node_metadata.hpp"
@@ -1470,8 +1469,7 @@ TransclusionSearchPage::searchFile (
     }
 
     int matched= 0;
-    int oldMode= set_access_mode (DRD_ACCESS_SOURCE);
-    try {
+    {
       bool caseInsensitive= options.caseInsensitive;
       bool fuzzy= options.fuzzy;
       std::vector<VaultContentMatch> semanticMatches;
@@ -1536,11 +1534,6 @@ TransclusionSearchPage::searchFile (
         matched++;
       }
     }
-    catch (...) {
-      set_access_mode (oldMode);
-      throw;
-    }
-    set_access_mode (oldMode);
 
     if (matched <= 0) return 0;
     url root= url_system (from_qstring (options.root));

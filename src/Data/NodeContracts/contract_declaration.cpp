@@ -309,7 +309,7 @@ bool contributes_group (const std::shared_ptr<const declaration_chain>& chain) {
     [] (const auto& occurrence) { return contributes_group (occurrence); });
 }
 
-using group_events= std::map<std::uint64_t, declaration_event>;
+using group_events= declaration_group_events;
 void replace_group_events (group_events& groups,
                           const std::shared_ptr<const declaration_chain>& old,
                           const std::shared_ptr<const declaration_chain>& next) {
@@ -337,20 +337,20 @@ bool contract_scope::publish_declarations (
   std::optional<group_events> groups;
   auto projected_groups= extensions;
   if (contributes_group (previous) || contributes_group (chain)) {
-    groups= sources->groups;
+    groups= *sources->groups;
     replace_group_events (*groups, previous, chain);
-    if (*groups != sources->groups) projected_groups= materialize_groups (*groups);
+    if (*groups != *sources->groups) projected_groups= materialize_groups (*groups);
   }
   const auto old_value= find_declaration (target);
   materialize_declaration (target, std::move (value));
   const bool changed= find_declaration (target) != old_value || *projected_groups != *extensions;
   if (!sources.unique ()) sources= std::make_shared<declaration_source_state> (*sources);
-  if (groups) sources->groups= std::move (*groups);
+  if (groups) sources->groups= std::make_shared<const group_events> (std::move (*groups));
   if (chain && !chain->occurrences.empty ()) {
     sources->next_order= std::max (sources->next_order, chain->occurrences.back ().order + 1);
-    sources->targets.insert_or_assign (target, std::move (chain));
+    sources->targets= std::move (sources->targets).set (target, std::move (chain));
   }
-  else sources->targets.erase (target);
+  else sources->targets= std::move (sources->targets).erase (target);
   extensions= std::move (projected_groups);
   return changed;
 }
@@ -428,21 +428,24 @@ void contract_scope::discard_declarations (tree_label target) {
 void contract_scope::restore_declarations (
     const contract_scope& before, const std::vector<contract_target>& targets) {
   if (sources == before.sources || targets.empty ()) return;
-  bool groups_changed= false;
+  std::optional<group_events> groups;
   for (const auto& target: targets) {
     const auto original= before.declaration_history (target.label);
     const auto current= declaration_history (target.label);
     if (current == original) continue;
     if (!sources.unique ()) sources= std::make_shared<declaration_source_state> (*sources);
     if (contributes_group (current) || contributes_group (original)) {
-      replace_group_events (sources->groups, current, original);
-      groups_changed= true;
+      if (!groups) groups= *sources->groups;
+      replace_group_events (*groups, current, original);
     }
-    if (original) sources->targets.insert_or_assign (target.label, original);
-    else sources->targets.erase (target.label);
+    if (original) sources->targets= std::move (sources->targets).set (target.label, original);
+    else sources->targets= std::move (sources->targets).erase (target.label);
     sources->next_order= std::max (sources->next_order, before.sources->next_order);
   }
-  if (groups_changed) extensions= materialize_groups (sources->groups);
+  if (groups) {
+    extensions= materialize_groups (*groups);
+    sources->groups= std::make_shared<const group_events> (std::move (*groups));
+  }
 }
 
 bool apply_contract_declaration (contract_scope& scope, const declaration_event& event) {
@@ -563,19 +566,26 @@ bool evaluation_events_applicable (const contract_event_log& log, contract_scope
                                     const external_matcher& external,
                                     const package_matcher& packages) {
   return bool (resolve_evaluation_effects (log, std::move (input), lookup,
-                                          true, external, packages));
+    execution_resolution::cache_admission, external, packages));
 }
 
 std::optional<evaluation_effects> resolve_evaluation_effects (
     const contract_event_log& log, contract_scope input, const variable_lookup& lookup,
-    bool validate_reads, const external_matcher& external, const package_matcher& packages) {
+    execution_resolution mode, const external_matcher& external, const package_matcher& packages,
+    const evaluation_boundary_observer& boundary) {
+  const bool validate_reads= mode == execution_resolution::cache_admission;
   using variable_value= std::optional<node::frozen_tree>;
-  std::map<std::string, variable_value> variables;
+  evaluation_variable_overlay variables;
   struct saved_variable { std::string name; bool overridden; variable_value value; };
   struct saved_scope { contract_scope contracts; std::vector<saved_variable> variables; };
   std::vector<saved_scope> scopes;
   const bool accepted= walk_events (log, [&] (const auto& record) {
-    if (std::holds_alternative<evaluation_barrier> (record)) return false;
+    if (const auto* point= std::get_if<evaluation_boundary_handle> (&record)) {
+      if (boundary) boundary (*point, input, variables);
+      return true;
+    }
+    if (const auto* barrier= std::get_if<evaluation_barrier> (&record))
+      return !validate_reads && barrier->kind == evaluation_barrier_kind::layout_output;
     if (const auto* query= std::get_if<package_source_query> (&record))
       return !validate_reads || (packages && packages (*query));
     if (const auto* query= std::get_if<external_query> (&record))
@@ -583,8 +593,8 @@ std::optional<evaluation_effects> resolve_evaluation_effects (
     if (const auto* query= std::get_if<variable_query> (&record)) {
       if (!validate_reads || !lookup) return true;
       const auto changed= variables.find (query->name);
-      if (changed != variables.end ()) {
-        const auto& value= changed->second;
+      if (changed) {
+        const auto& value= *changed;
         return bool (value) == query->present &&
           (!query->value || (value && *query->value == *value));
       }
@@ -593,7 +603,7 @@ std::optional<evaluation_effects> resolve_evaluation_effects (
         (!query->value || (value && query->value->matches (*value)));
     }
     if (const auto* write= std::get_if<variable_write> (&record)) {
-      variables.insert_or_assign (write->name, write->value);
+      variables= std::move (variables).set (write->name, write->value);
       const string name (write->name.data (), write->name.size ());
       if (existing_tree_label (name)) {
         const auto label= as_tree_label (name);
@@ -650,8 +660,8 @@ std::optional<evaluation_effects> resolve_evaluation_effects (
        saved_scope saved {input, {}};
        for (const auto& target: targets) {
          const auto current= variables.find (target.name);
-         saved.variables.push_back ({target.name, current != variables.end (),
-           current == variables.end () ? variable_value {} : current->second});
+         saved.variables.push_back ({target.name, current != nullptr,
+           current ? *current : variable_value {}});
        }
        scopes.push_back (std::move (saved));
        input.enter_local_targets (targets);
@@ -659,8 +669,8 @@ std::optional<evaluation_effects> resolve_evaluation_effects (
      [&] (const auto& targets) {
        input.restore_targets (scopes.back ().contracts, targets);
        for (const auto& saved: scopes.back ().variables)
-         if (saved.overridden) variables.insert_or_assign (saved.name, saved.value);
-         else variables.erase (saved.name);
+         if (saved.overridden) variables= std::move (variables).set (saved.name, saved.value);
+         else variables= std::move (variables).erase (saved.name);
        scopes.pop_back ();
      });
   if (!accepted) return std::nullopt;
@@ -788,14 +798,15 @@ void contract_event_capture::read_variable (const string& name, bool present, co
     value && present ? std::optional<node::frozen_tree> (*value) : std::nullopt});
 }
 
-void contract_event_capture::write_variable (const string& name, const tree* value) {
+variable_write contract_event_capture::write_variable (const string& name, const tree* value) {
   const auto key= bytes (name);
   if (!events.empty ())
     if (const auto* previous= std::get_if<variable_write> (&events.back ()))
       if (previous->name == key &&
-          (value ? previous->value && previous->value->matches (*value) : !previous->value)) return;
-  record (variable_write {key,
-    value ? std::optional<node::frozen_tree> (*value) : std::nullopt});
+          (value ? previous->value && previous->value->matches (*value) : !previous->value)) return *previous;
+  variable_write write {key, value ? std::optional<node::frozen_tree> (*value) : std::nullopt};
+  record (write);
+  return write;
 }
 
 evaluation_boundary_handle contract_event_capture::mark_boundary () {

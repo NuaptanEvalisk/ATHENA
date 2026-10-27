@@ -27,6 +27,8 @@
 #include "native_interfaces.hpp"
 #include "native_node_groups.hpp"
 #include "node_metadata.hpp"
+#include "Typeset/Env/local_environment.hpp"
+#include <optional>
 
 namespace {
 
@@ -366,9 +368,11 @@ bool spell_live_current_word_impl (path start_path, path end_path, string& word)
   return true;
 }
 
-string spell_live_language_at (path start_path) {
+std::optional<string> spell_live_language_at (path start_path) {
   editor ed= get_current_editor ();
-  tree language= ed->get_env_value ("language", start_path);
+  const auto context= ed->cursor_context_at (start_path);
+  if (!context) return {};
+  tree language= context->value ("language");
   return is_atomic (language) ? as_string (language): ed->get_init_string ("language");
 }
 
@@ -836,7 +840,8 @@ object
 generic_spell_live_current_language () {
   path start_path, end_path;
   if (!spell_live_current_range (start_path, end_path)) return object (false);
-  return object (spell_live_language_at (start_path));
+  const auto language= spell_live_language_at (start_path);
+  return language ? object (*language) : object (false);
 }
 
 object
@@ -847,7 +852,9 @@ generic_spell_live_current_suggestions () {
       !spell_live_current_word_impl (start_path, end_path, word))
     return object (list<string> ());
 
-  tree checked= spell_check (spell_live_language_at (start_path), word);
+  const auto language= spell_live_language_at (start_path);
+  if (!language) return object (list<string> ());
+  tree checked= spell_check (*language, word);
   list<string> suggestions;
   if (is_tuple (checked))
     for (int i= 1; i < N (checked) && i <= 9; ++i)
@@ -1006,9 +1013,13 @@ void generic_spell_live_insert_current_word () {
     ed->set_message ("No live spelling error at cursor", "spell check");
     return;
   }
-  string language= spell_live_language_at (first);
-  spell_insert (language, word);
-  spell_done (language);
+  const auto language= spell_live_language_at (first);
+  if (!language) {
+    ed->set_message ("Spelling context is awaiting layout", "spell check");
+    return;
+  }
+  spell_insert (*language, word);
+  spell_done (*language);
   ed->set_message ("Added '" * word * "' to dictionary", "spell check");
 }
 

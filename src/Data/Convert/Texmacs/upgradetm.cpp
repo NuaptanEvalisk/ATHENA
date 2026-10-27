@@ -14,7 +14,8 @@
 #include "hashset.hpp"
 #include "path.hpp"
 #include "vars.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
 #include <stdio.h>
 #include "scheme.hpp"
 #include "tree_correct.hpp"
@@ -1898,8 +1899,8 @@ upgrade_quotes (tree t) {
     for (i=0; i<n; i++) {
       if (is_std_textual_env (as_string (L(t))))
         r[i]= upgrade_quotes (t[i]);
-      else if (standard_drd_for_thread ()->get_type_child (t, i) != TYPE_REGULAR ||
-               standard_drd_for_thread ()->get_env_child (t, i, MODE, "text") != "text")
+      else if (athena::contracts::editing_query {athena::contracts::builtin_contracts ()}.child_type (t, i) != TYPE_REGULAR ||
+               athena::contracts::editing_query {athena::contracts::builtin_contracts ()}.value (t, i, MODE, "text") != "text")
         r[i]= t[i];
       else r[i]= upgrade_quotes (t[i]);
     }

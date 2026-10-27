@@ -23,6 +23,7 @@
 #include "frame.hpp"
 #include "grid.hpp"
 #include "unicode_text.hpp"
+#include "Data/NodeContracts/evaluation_origin.hpp"
 #include <optional>
 #include <functional>
 
@@ -119,6 +120,9 @@ class box {
   friend inline int N (box b);
 };
 
+// Set only while producing boxes for one actual source occurrence.
+inline thread_local athena::contracts::evaluation_boundary_handle box_source_boundary;
+
 class box_rep: public abstract_struct {
 private:
   SI x0, y0;    // offset w.r.t. parent box
@@ -130,6 +134,7 @@ public:
   SI x4, y4;    // upper right corner (ink)
 
   path ip;      // corresponding inverse path in source tree
+  athena::contracts::evaluation_boundary_handle source_boundary;
 
   /****************************** main routines ******************************/
 
@@ -200,7 +205,10 @@ public:
   virtual cursor    find_cursor (path bp);
   virtual selection find_selection (path lbp, path rbp);
   virtual path      find_tree_path (path bp);
+  virtual athena::contracts::evaluation_boundary_handle find_source_boundary (path bp);
   virtual path      find_box_path (path p, bool& found);
+  virtual path find_occurrence_box_path (path source,
+    const athena::contracts::evaluation_boundary_handle& boundary, bool& found);
   virtual path      with_cursor_affinity (path bp, athena::text::caret_affinity affinity);
   // Logical sides present in this source fragment; absent for opaque/legacy
   // cursor positions. A wrapped-line endpoint has only one of the two sides.
@@ -281,7 +289,7 @@ ABSTRACT_NULL_CODE(box);
 extern int box_count;
 inline box_rep::box_rep (path ip2):
   x0(0), y0(0), x1(0), y1(0), x2(0), y2(0), x3(0), y3(0), x4(0), y4(0),
-  ip (ip2) { TM_DEBUG(box_count++); }
+  ip (ip2), source_boundary (box_source_boundary) { TM_DEBUG(box_count++); }
 inline box_rep::~box_rep () { TM_DEBUG(box_count--); }
 inline bool box_rep::test_in (SI x, SI y) {
   return (x>=x1) && (x<x2) && (y>=y1) && (y<y2); }

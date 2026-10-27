@@ -112,8 +112,10 @@ bridge_folded_hidden_rep::notify_assign (path p, tree u) {
 bool
 bridge_folded_hidden_rep::notify_macro (int type, string var, int level,
                                         path p, tree u) {
-  (void) type; (void) var; (void) level; (void) p; (void) u;
-  return false;
+  (void) type; (void) p; (void) u;
+  const bool affected= N(st) == 1 && env->depends (st[0], var, level);
+  if (affected) status= CORRUPTED;
+  return affected;
 }
 
 void
@@ -124,4 +126,7 @@ bridge_folded_hidden_rep::notify_change () {
 void
 bridge_folded_hidden_rep::my_typeset (int desired_status) {
   (void) desired_status;
+  // Screen folding suppresses boxes, not definitions or counters. The normal
+  // Bridge capture retains these effects for subsequent cache admission.
+  if (N(st) == 1) env->exec (st[0]);
 }

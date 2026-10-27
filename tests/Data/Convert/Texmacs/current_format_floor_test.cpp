@@ -8,7 +8,7 @@
 ******************************************************************************/
 
 #include "convert.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 
 #include <iostream>
 
@@ -23,7 +23,7 @@ contains_compound (tree t, string name) {
 
 int
 main () {
-  init_std_drd ();
+  athena::contracts::initialize_builtins ();
 
   tree native (DOCUMENT, compound ("body", tree (DOCUMENT, "")));
   if (is_snippet (native) || !is_snippet (tree (DOCUMENT, "paragraph")) ||

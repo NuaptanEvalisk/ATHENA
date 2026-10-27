@@ -24,7 +24,7 @@
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
 #include "ATHENA/Data/enunciation_model.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include <limits>
 #include <filesystem>
 #include <sqlite3.h>
@@ -34,7 +34,7 @@ using namespace athena::document;
 class TestXmlV3: public QObject {
   Q_OBJECT
 private slots:
-  void initTestCase () { init_std_drd (); }
+  void initTestCase () { athena::contracts::initialize_builtins (); }
 
   void provableNamesPreserveStoredTypeWithoutSplittingCommas () {
     namespace en= athena::enunciation;

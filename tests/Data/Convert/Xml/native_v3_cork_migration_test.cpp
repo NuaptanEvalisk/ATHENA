@@ -13,7 +13,7 @@
 #include "Xml/athena_document_xml.hpp"
 #include "Xml/legacy_cork.hpp"
 #include "Xml/math_v2_to_v3.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "node_metadata.hpp"
 
 using namespace athena::document;
@@ -22,7 +22,7 @@ using node_property= athena::node::property;
 class TestNativeV3CorkMigration: public QObject {
   Q_OBJECT
 private slots:
-  void initTestCase () { init_std_drd (); }
+  void initTestCase () { athena::contracts::initialize_builtins (); }
 
   void shippedEncodingAndImporterEvidence () {
     const auto directory= qEnvironmentVariable ("ATHENA_PATH") + "/langs/encoding";

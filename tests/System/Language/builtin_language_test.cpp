@@ -11,14 +11,14 @@
 
 #include "packrat_grammar.hpp"
 #include "convert.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "dictionary.hpp"
 
 class TestBuiltinLanguage: public QObject {
   Q_OBJECT
 
 private slots:
-  void initTestCase () { init_std_drd (); }
+  void initTestCase () { athena::contracts::initialize_builtins (); }
   void test_std_symbol_properties ();
   void test_std_math_inheritance ();
   void test_minimal_language ();

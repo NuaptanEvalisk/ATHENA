@@ -7,8 +7,9 @@
 ******************************************************************************/
 
 #include "impl_language.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
 #include "analyze.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "modification.hpp"
 #include "unicode_text.hpp"
 #include <KSyntaxHighlighting/AbstractHighlighter>
@@ -115,7 +116,7 @@ class program_highlighter final: public AbstractHighlighter {
           positions.push_back ({size_t(-1), 0, 0});
         }
         if (is_func (t, CONCAT) || is_func (t, DOCUMENT) ||
-            the_drd->is_accessible_child (t, i))
+            athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.accessible (t, i))
           append (t[i]);
       }
     }

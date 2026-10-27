@@ -22,7 +22,7 @@
 #include "node_metadata.hpp"
 #include "Scheme/Scheme/native_interfaces.hpp"
 #include "convert.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "file.hpp"
 #include "url.hpp"
 
@@ -155,7 +155,7 @@ first_hlink_target (tree value) {
 
 void
 TestVaultMapSqlite::initTestCase () {
-  init_std_drd ();
+  athena::contracts::initialize_builtins ();
 }
 
 void

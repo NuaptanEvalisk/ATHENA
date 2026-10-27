@@ -14,7 +14,8 @@
 #include "locale.hpp"
 #include "wencoding.hpp"
 #include "vars.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
 #include "analyze.hpp"
 
 static hashmap<string,tree> compressed;
@@ -39,8 +40,8 @@ compress_tree (tree t) {
   tree r= compound ("compressed", "");
   tree val (L(t));
   for (i=0; i<n; i++)
-    if (the_drd->is_accessible_child (t, i) &&
-        the_drd->get_env_child (t, i, MODE, "text") == "text") {
+    if (athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.accessible (t, i) &&
+        athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, MODE, "text") == "text") {
       val << compound ("decompressed");
       r << compress_tree (t[i]);
     }

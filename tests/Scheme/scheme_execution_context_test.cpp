@@ -10,7 +10,7 @@
 #include <QtTest/QtTest>
 
 #include "convert.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "scheme_execution_context.hpp"
 #include "System/Misc/crash_report.hpp"
 
@@ -33,18 +33,18 @@ private slots:
 
 void
 TestSchemeExecutionContext::restoresNestedContexts () {
-  drd_info outer_drd ("execution-context-outer");
-  drd_info inner_drd ("execution-context-inner");
+  athena::contracts::evaluation_state outer_state;
+  athena::contracts::evaluation_state inner_state;
   tree outer_document= make_document_tree ();
   tree inner_document= make_document_tree ();
-  drd_info* default_drd= &current_drd ();
+  athena::contracts::evaluation_state* default_state= &athena::contracts::current_evaluation_state ();
   tree* default_document= &current_document_tree ();
   SchemeExecutionContext outer (
-    nullptr, nullptr, &outer_drd, &outer_document,
+    nullptr, nullptr, &outer_state, &outer_document,
     ATHENA_NO_ACTOR, ATHENA_NO_VIEW, 1,
     SCHEME_CAPABILITY_GLOBAL);
   SchemeExecutionContext inner (
-    nullptr, nullptr, &inner_drd, &inner_document,
+    nullptr, nullptr, &inner_state, &inner_document,
     ATHENA_NO_ACTOR, ATHENA_NO_VIEW, 2,
     SCHEME_CAPABILITY_GLOBAL);
 
@@ -53,14 +53,14 @@ TestSchemeExecutionContext::restoresNestedContexts () {
     SchemeExecutionScope outer_scope (outer);
     QCOMPARE (current_scheme_execution_context (), &outer);
     QVERIFY (athena_crash_execution_report ().find ("command=1\n") != std::string::npos);
-    QCOMPARE (&current_drd (), &outer_drd);
+    QCOMPARE (&athena::contracts::current_evaluation_state (), &outer_state);
     QCOMPARE (&current_document_tree (), &outer_document);
     assign (path (0), tree (DOCUMENT, "outer"));
     {
       SchemeExecutionScope inner_scope (inner);
       QCOMPARE (current_scheme_execution_context (), &inner);
       QVERIFY (athena_crash_execution_report ().find ("command=2\n") != std::string::npos);
-      QCOMPARE (&current_drd (), &inner_drd);
+      QCOMPARE (&athena::contracts::current_evaluation_state (), &inner_state);
       QCOMPARE (&current_document_tree (), &inner_document);
       assign (path (0), tree (DOCUMENT, "inner"));
       QCOMPARE (subtree (inner_document, path (0)),
@@ -68,14 +68,14 @@ TestSchemeExecutionContext::restoresNestedContexts () {
     }
     QCOMPARE (current_scheme_execution_context (), &outer);
     QVERIFY (athena_crash_execution_report ().find ("command=1\n") != std::string::npos);
-    QCOMPARE (&current_drd (), &outer_drd);
+    QCOMPARE (&athena::contracts::current_evaluation_state (), &outer_state);
     QCOMPARE (&current_document_tree (), &outer_document);
     QCOMPARE (subtree (outer_document, path (0)),
               tree (DOCUMENT, "outer"));
   }
   QVERIFY (current_scheme_execution_context () == nullptr);
   QVERIFY (athena_crash_execution_report ().find ("command=0\n") != std::string::npos);
-  QCOMPARE (&current_drd (), default_drd);
+  QCOMPARE (&athena::contracts::current_evaluation_state (), default_state);
   QCOMPARE (&current_document_tree (), default_document);
 }
 
@@ -86,10 +86,10 @@ TestSchemeExecutionContext::isolatesConcurrentThreads () {
   std::atomic<bool> valid (true);
 
   auto worker= [&] (std::uint64_t command_id) {
-    drd_info local_drd ("execution-context-worker");
+    athena::contracts::evaluation_state local_state;
     tree local_document= make_document_tree ();
     SchemeExecutionContext context (
-      nullptr, nullptr, &local_drd, &local_document,
+      nullptr, nullptr, &local_state, &local_document,
       ATHENA_NO_ACTOR, ATHENA_NO_VIEW,
       command_id,
       SCHEME_CAPABILITY_GLOBAL);
@@ -99,7 +99,7 @@ TestSchemeExecutionContext::isolatesConcurrentThreads () {
     while (!release.load (std::memory_order_acquire)) std::this_thread::yield ();
     if (current_scheme_execution_context () != &context ||
         current_scheme_execution_context ()->command_id != command_id ||
-        &current_drd () != &local_drd ||
+        &athena::contracts::current_evaluation_state () != &local_state ||
         &current_document_tree () != &local_document ||
         the_exception != as_string ((int) command_id) ||
         athena_crash_execution_report ().find (
@@ -120,10 +120,10 @@ TestSchemeExecutionContext::isolatesConcurrentThreads () {
 
 void
 TestSchemeExecutionContext::latexExpansionAvoidsGuiRegistry () {
-  drd_info local_drd ("execution-context-latex");
+  athena::contracts::evaluation_state local_state;
   tree local_document= make_document_tree ();
   SchemeExecutionContext context (
-    nullptr, nullptr, &local_drd, &local_document,
+    nullptr, nullptr, &local_state, &local_document,
     ATHENA_NO_ACTOR, 7, 77, SCHEME_CAPABILITY_BUFFER);
 
   tree doc (TUPLE);

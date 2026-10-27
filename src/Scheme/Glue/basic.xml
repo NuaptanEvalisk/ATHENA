@@ -724,6 +724,12 @@
     <arg type="path" />
     <arg type="int" />
   </binding>
+  <binding name="tree-search-source" native="search_source" returns="array_path">
+    <arg type="content" />
+    <arg type="content" />
+    <arg type="path" />
+    <arg type="int" />
+  </binding>
   <binding name="tree-spell" native="spell" returns="array_path">
     <arg type="string" />
     <arg type="content" />
@@ -771,10 +777,6 @@
     <arg type="tree_label" />
     <arg type="int" />
   </binding>
-  <binding name="set-access-mode" native="set_access_mode" returns="int">
-    <arg type="int" />
-  </binding>
-  <binding name="get-access-mode" native="get_access_mode" returns="int" />
   <binding name="tree-assign" native="tree_assign" returns="tree">
     <arg type="tree" />
     <arg type="content" />
@@ -2833,9 +2835,6 @@
     <arg type="bool" />
   </binding>
   <binding name="switch-to-buffer" native="switch_to_buffer" returns="void">
-    <arg type="url" />
-  </binding>
-  <binding name="set-drd" native="set_current_drd" returns="void">
     <arg type="url" />
   </binding>
   <binding name="window-list" native="windows_list" returns="array_url" />

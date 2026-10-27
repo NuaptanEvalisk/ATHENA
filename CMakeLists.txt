@@ -390,6 +390,20 @@ if (NOT RESVGQT_INCLUDE_DIR OR NOT RESVG_LIBRARY)
 endif ()
 include(FetchContent)
 ### --------------------------------------------------------------------
+### Persistent native contract snapshots (Immer 0.9.1, Boost-1.0)
+### --------------------------------------------------------------------
+set(immer_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(immer_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(immer_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+set(immer_BUILD_EXTRAS OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+  immer
+  GIT_REPOSITORY https://github.com/arximboldi/immer.git
+  GIT_TAG        160f0d7025321e5dc1fc3f0b7742ca7621d43981
+)
+FetchContent_MakeAvailable(immer)
+set_property(DIRECTORY "${immer_SOURCE_DIR}" PROPERTY EXCLUDE_FROM_ALL TRUE)
+### --------------------------------------------------------------------
 ### Luau compiler and bytecode VM (namespace sorters; no native CodeGen/JIT)
 ### --------------------------------------------------------------------
 # Official Luau 0.741 is MIT licensed. Its required notice is shipped at
@@ -696,6 +710,7 @@ endif ()
 ### the include dirs
 ### --------------------------------------------------------------------
 set (ATHENA_Include_Dirs
+  ${immer_SOURCE_DIR}
   ${ATHENA_BINARY_DIR}/src/System/
   ${ATHENA_SOURCE_DIR}/src/Data/Convert
   ${ATHENA_SOURCE_DIR}/src/Data/Document

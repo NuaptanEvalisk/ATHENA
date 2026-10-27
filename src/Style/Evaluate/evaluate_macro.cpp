@@ -10,9 +10,9 @@
 ******************************************************************************/
 
 #include "evaluate_main.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
 #include "std_environment.hpp"
-#include "drd_mode.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 
 /******************************************************************************
 * Environment changes
@@ -380,8 +380,8 @@ expand (tree t, bool search_accessible) {
       r[i]= expand (t[i], search_accessible);
       if (search_accessible &&
 	  is_accessible (obtain_ip (r[i])) &&
-	  the_drd->is_accessible_child (t, i)
-	  // FIXME: should be drd->is_accessible_child (t, i)
+	  athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.accessible (t, i)
+	  // FIXME: should be athena::contracts::editing_query {contract_state.contracts}.accessible (t, i)
 	  )
 	return r[i];
     }

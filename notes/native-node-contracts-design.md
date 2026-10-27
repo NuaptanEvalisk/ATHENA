@@ -34,12 +34,45 @@ and their admission inputs.
 
 | Area | Observed state | Still required |
 | --- | --- | --- |
-| Static fields/groups | Native storage and JSON descriptions exist | Complete shared schema use and remaining positional consumers |
+| Static fields/groups | Native storage and JSON descriptions exist; bootstrap constructs a process-wide immutable native baseline directly, with thread-private parser code maps; `std_drd`, `tag_info`, its tuple codecs and obsolete DRD descriptor setters are removed | Complete shared schema use and remaining positional consumers |
 | Definition/declaration state | Paired checkpoints, histories, package origin, binding applicability, scoped pending attachment and source execution outcomes exist; normal bridge replacement handles invalid declarations | Complete ownership/receipts across the remaining preparation modes |
-| Replay | Captured variable/descriptor/binding/group reads and local entry/exit are handled; syntax fallback records environment reads | Complete derived-state and external-input receipts |
-| Preparation | Unique atomic occurrences and WITH boundaries are captured | Compound/metadata fields, folded source and repeated-display selection |
-| Inference | Authored/inferred storage is separated; candidate names avoid the ordinary full-value scan | Detached context-keyed analysis and bounded asynchronous publication |
-| Consumers | Some native field policies are in use | Remove `drd_update`, `restricted_exec` contract fallback and the positional facade |
+| Replay | Variable/descriptor/binding/group/syntax, reference/attachment and package-source reads are tracked; actual WITH_PACKAGE execution has scoped restoration | Complete derived-state and external-input receipts where required |
+| Preparation | Atomic/compound entry and exit contexts are indexed during real execution and admitted replay; prepared queries no longer reconstruct event prefixes or copy complete variable maps. Physical hits carry occurrence tokens through Unicode shaping and admitted reuse, including changed roots and merged spans; completed progressive prefixes and root outer boundaries are queryable, incomplete nodes have no exit context, and edits invalidate the execution base. Metadata inputs receive detached matching values/contracts before initialization, with live slot refresh; explicit conversion and interactive graphics evaluation restore matching state in temporary scopes | Cold-position preparation, newly edited fields, pending behavior for non-admitted occurrences and removal of query fallback |
+| Inference | Detached workers consume immutable binding/value/declaration resolutions; recursive groups and their callers require matching receipts; preparation retires stale published facts while new results are pending; analysis status is separate from schema types; exact admitted display hits can enter macro fields without waiting for inferred access, while authored/native restrictions still apply | Budgeted large-input capture/admission and remaining pending-state consumer policy |
+| Consumers | Native cursor navigation, search and selection receive explicit access/writability policy; all DRD read getters, global access modes and `drd_update` are removed; identity planning takes an explicit native scope; the refcounted `drd_info` owner is removed, and editor/evaluator share one native variable/contract state; menus no longer request analysis; cold identity preparation has its own style/init/preamble context, while metadata buffers do not create a document identity graph | Remove the isolated `restricted_exec` variable-query fallback; complete missing-occurrence preparation and remaining ambient query selection |
+
+Interactive environment refresh now requests detached analysis instead of
+running `synchronize` inside `typeset_preamble`. Cold style/source identity and
+offline preparation still use explicit synchronous analysis. Command/focus
+snapshots remain unavailable without an admitted cursor context; publication
+does not infer a mode by scanning source. Native action dispatch prepares dirty
+layout before checking those snapshots, matching keyboard dispatch. The right
+footer retains its last prepared field description while document statistics
+remain independent. Page-dimension getters read committed layout geometry, not
+the currently selected field's evaluator.
+
+Native delimiter, accent and variant content now uses the same environment
+scopes in layout, complete evaluation and both partial-evaluation routes. This
+does not authorize partial evaluation from a getter. MathBlock display scopes
+and MathGrid row numbering/label scopes are now shared by layout and AVD
+semantic projection. Direct table, row and cell layout also records its source
+boundaries, including wrappers that bypass the generic concater. Cold/newly
+edited table-field preparation still remains separate work.
+
+Macro completion selection now captures the invocation context before replacing
+the name. Argument preparation and recursive activation retain that bounded
+context, and command lookup happens before the replacement. The name field's
+display-only text style is not the invocation environment. General compound
+commands and command actions that query a newly created field still need their
+own prepared inputs; this is not a blanket pre-edit environment fallback.
+
+Inferred projections carry detached input/dependency evidence through scope
+inheritance and local restoration. A new analysis owner validates those receipts
+instead of clearing all inherited facts while its worker runs. Effective values
+and evidence use separate persistent maps, so renewing a receipt does not make
+every unchanged contract a value delta. This resolves that particular cold-fact
+loss; source identity handling of genuinely pending/ambiguous inference remains
+unfinished, as do query fallback removal and bounded large-input admission.
 
 The attachment and source-outcome implementations have successful
 production-library builds and focused temporary probes. Application deployment
@@ -194,8 +227,8 @@ The code still has the following concrete gaps:
 | --- | --- |
 | `typeset_preamble` captures an environment/input/contract checkpoint after live analysis | Complete baseline binding provenance and detached demand preparation |
 | `typeset_prepare` restores that pair; bridge replay checks captured reads | Complete derived-state/external-provider dependencies and source-bound execution records |
-| `with_package_definitions` extracts top-level ASSIGN nodes into WITH | An evaluated scoped package checkpoint, including declarations and nested inclusions; no syntactic assignment-only reconstruction |
-| `cur[path]` can select a captured unique source occurrence and retains its trace identity | Extend preparation to compound/metadata fields and explicit repeated-display selection |
+| `WITH_PACKAGE` executes and captures the package's actual write set | This replacement is implemented; complete the remaining field-preparation owners rather than reintroducing an assignment-only rewrite |
+| Physical hits select a captured occurrence before native cursor correction; exploratory checkpoints are separate from the published `cur[path]` entry | Complete metadata/progressive/source-mode fields, remaining explicit-policy callers and selection continuity across changed layout frames |
 | `restricted_exec` remains the fallback for unprepared positions | Complete folded/progressive/source-mode preparation and remove the heuristic path |
 | `drd_update` analyzes the cursor environment | Publish command state during preparation and remove menu-triggered analysis |
 | `macro_analysis::synchronize` consumes tracked value candidates and declaration changes | Select facts by complete binding/context dependencies rather than one current name-keyed graph |
@@ -321,15 +354,11 @@ The final package protocol shares immutable payloads while owner-local execution
 identities remain local. Only reuse a checkpoint when its captured inputs still
 apply. A cache miss follows normal package loading, not a special inference pass.
 
-`WITH_PACKAGE` is a separate remaining entry point. Both evaluators currently
-rewrite it through `with_package_definitions` in `new_buffer.cpp`, which only
-copies top-level assignments into a WITH. It does not execute package declarations,
-nested inclusions or conditional initialization. Do not route this through a
-source scan that merely recognizes more tags. Replace the extraction with the
-normal evaluated package machinery in an explicit temporary scope, selecting its
-paired values/contracts for the body and restoring the caller afterward. Its
-effects and reuse policy must be defined at that boundary, not by executing a
-package twice to recover missing declarations.
+`WITH_PACKAGE` now uses normal evaluated package execution in a temporary scope.
+The old `with_package_definitions` assignment-extraction helper and both rewrites
+have been removed. Package declarations, nested inclusions and conditional
+initialization participate in the captured scope. The obsolete standalone
+Style/Evaluate engine does not emulate this owner boundary.
 
 The scoped package boundary must have an explicit write set. Evaluate the
 package once against the caller's incoming values, capturing every assigned name
@@ -337,8 +366,8 @@ and declaration target, including nested inclusions and targets with no variable
 write. Install that completed paired state for the body. On exit, restore those
 names and targets from the incoming checkpoint; preserve unrelated body effects,
 as ordinary WITH does. A changed dependency invalidates the package record;
-opening a menu does not reload it. This is the target behavior, not a claim that
-the existing assignment-extraction helper already provides it.
+opening a menu does not reload it. The implementation has focused nested-package,
+restoration and package-source invalidation evidence in the implementation log.
 
 Persisting the new checkpoint is optional follow-up work. It must retain authored
 contributions, origins, dependency receipts and relative binding references, not
@@ -456,13 +485,13 @@ checkpoint even when they cannot be replayed under different inputs.
 
 ## UI Publication And Stale Frames
 
-Owner preparation precedes focus, footer, toolbar and menu snapshot publication.
-Today `update_menus` first attempts occurrence preparation, publishes these
-snapshots, and then calls `drd_update`. The fallback and synchronous analysis
-therefore remain; moving or deleting that call alone would not establish the
-required lifecycle.
-The cold source-adoption and hybrid inserter callers also need explicit prepared
-contexts before the old method can disappear.
+Owner preparation precedes focus, footer, toolbar and menu snapshot publication
+for admitted occurrences. `drd_update` and synchronous menu-triggered analysis
+are removed. Initial-value queries read their prepared baseline; displayed-field
+queries select the boundary index produced by execution or admitted replay.
+The remaining variable-query fallback for missing occurrences still executes
+the old approximate prefix. Removing it requires explicit source preparation
+for cold positions and freshly edited fields, not simply another getter rename.
 
 Keep the last frame visible while replacement layout is pending, but route edits
 through a current source address. Use existing observer rebasing where it proves
@@ -1073,7 +1102,7 @@ must distinguish contract-policy context from general rendering state:
 | --- | --- |
 | Accessibility/writability mode | Thread-local `drd_mode.cpp` policy, consulted by tree navigation and DRD getters; make policy selection explicit in prepared command context rather than equating it with a descriptor revision |
 | Frame and font-relative units | `env_semantics.cpp`, `env_length.cpp` and their native consumers; cached derived fields are not automatically reads of their original variables |
-| Reference and attachment reads | `exec_get_binding`, `exec_has_binding`, `exec_get_attachment` use distinct local/global maps, not the variable journal |
+| Reference and attachment reads | Provider identity, key presence and values are recorded separately from variable reads; reference writes still prohibit cache reuse, but do not prohibit reconstructing a completed execution's variable/contract context |
 | File/external callbacks | Their actual provider/context determines reuse; do not rerun arbitrary callbacks solely to answer a cursor query |
 
 Inspect the real owner before adding receipts. Do not claim a whole-renderer
@@ -1087,11 +1116,11 @@ For each subsequent change, the old owner must leave with its replacement:
 
 | Production entry point | Replacement owner | Removal condition |
 | --- | --- | --- |
-| `with_package_definitions` and both WITH_PACKAGE rewrites | Normal evaluator with a captured scoped package write set | Declarations, nested inclusions, reads and body scope use one evaluated record |
+| `with_package_definitions` and both WITH_PACKAGE rewrites (removed) | Normal evaluator with a captured scoped package write set | Implemented: declarations, nested inclusions, reads and body scope use one evaluated record |
 | `prepare_cursor_environment` atomic/path-only selection | Field occurrence preparation in bridge/concat plus editor publication | Compound, metadata, folded and repeated occurrences have explicit selection or pending state |
-| `drd_update` in menu update, source adoption and hybrid insertion | Prepared command/field publication at those callers | No caller needs cursor-time evaluation or synchronous inference |
+| `drd_update` in menu update, source adoption and hybrid insertion (removed) | Prepared command/field publication; independent cold source identity preparation | Implemented: menus read prepared state, hybrid preparation requests detached work, source adoption no longer depends on the cursor or approximate prefix |
 | `restricted_exec` for contract context | Owner preparation from admitted execution boundaries | No supported command depends on approximate prefix execution |
-| Name-keyed live `macro_analysis` adapter | Detached dependency-keyed service | Validated results publish without blocking native editing |
+| Name-keyed live `macro_analysis` adapter (replaced) | Detached service owned by `edit_env`, with captured resolution receipts | Worker publication and stale-result retirement have focused evidence; large-input capture/admission still need bounded preparation |
 | `drd_info` / positional `tag_info` contract operations | Native fields and prepared facts | Their last consumer is migrated; no parallel mutable authority remains |
 
 Do not remove evaluator functionality merely because DRD also used it: the

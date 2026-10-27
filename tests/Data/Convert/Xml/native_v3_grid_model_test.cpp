@@ -8,7 +8,7 @@
 #include <QtTest/QtTest>
 #include "Xml/athena_document_xml.hpp"
 #include "Xml/math_v2_to_v3.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
 
@@ -43,7 +43,7 @@ class TestNativeV3GridModel: public QObject {
   Q_OBJECT
   using property= athena::node::property;
 private slots:
-  void initTestCase () { init_std_drd (); }
+  void initTestCase () { athena::contracts::initialize_builtins (); }
 
   void missingPolicyIsCanonicalInherit () {
     const tree source= read_xml_v3 (grid_xml (row_xml ()), xml_kind::fragment);

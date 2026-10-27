@@ -25,8 +25,8 @@
 ******************************************************************************/
 
 #include "gui.hpp"
-#include "drd_std.hpp"
-#include "drd_info.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
+#include "Data/NodeContracts/evaluation_state.hpp"
 #include "convert.hpp"
 #include "formatter.hpp"
 #include "Format/format.hpp"
@@ -35,7 +35,7 @@
 void use_modules (tree t);
 
 void
-initialize_environment (edit_env& env, tree doc, drd_info& drd) {
+initialize_environment (edit_env& env, tree doc, athena::contracts::evaluation_state& contract_state) {
   tree style= extract (doc, "style");
   get_style_environment (style, env->base_file_name, true)->restore (*env.operator-> ());
   use_modules (env->read (THE_MODULES));
@@ -57,12 +57,12 @@ initialize_environment (edit_env& env, tree doc, drd_info& drd) {
 
 tree
 tree_extents (tree doc) {
-  drd_info drd ("none", std_drd);
+  athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
   hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
   hashmap<string,tree> h3 (UNINIT), h4 (UNINIT);
   hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
-  edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
-  initialize_environment (env, doc, drd);
+  edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+  initialize_environment (env, doc, contract_state);
   tree t= extract (doc, "body");
   lazy lz= make_lazy (env, t, path ());
   format vf= make_query_vstream_width (array<line_item>(), array<line_item>());
@@ -267,12 +267,12 @@ static box
 typeset_output_widget (tree doc, tree style, SI screen_width,
                       double widget_zoom, color& col) {
   doc= enrich_embedded_document (doc, style);
-  drd_info drd ("none", std_drd);
+  athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
   hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
   hashmap<string,tree> h3 (UNINIT), h4 (UNINIT);
   hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
-  edit_env env (drd, url_none (), h1, h2, h3, h4, h5, h6);
-  initialize_environment (env, doc, drd);
+  edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+  initialize_environment (env, doc, contract_state);
   tree t= extract (doc, "body");
   lazy lz= make_lazy (env, t, path ());
   format vf= make_query_vstream_width (array<line_item>(), array<line_item>());

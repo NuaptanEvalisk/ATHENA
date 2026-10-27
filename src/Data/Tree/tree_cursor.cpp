@@ -9,12 +9,12 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-#include "tree_cursor.hpp"
-#include "drd_std.hpp"
-#include "drd_mode.hpp"
+#include "cursor_navigation.hpp"
 #include "analyze.hpp"
 #include "utf8_edit.hpp"
 #include "vars.hpp"
+
+using athena::contracts::access_policy;
 
 /******************************************************************************
 * Finding a closest cursor inside a tree
@@ -51,47 +51,38 @@ closest_inside (tree t, path p) {
   else return path (p->item, closest_inside (t[p->item], p->next));
 }
 
-static bool
-is_modified_accessible (tree t, path p, bool activate, bool persistent) {
+bool
+cursor_navigation::is_modified_accessible (tree t, path p, bool activate, bool persistent,
+                                           bool mapped) const {
   if (p->item != 0) return false;
   t= t[0]; p= p->next;
-  if (is_atomic (t)) return is_accessible_cursor (t, p);
+  if (is_atomic (t)) return accessible_cursor (t, p, mapped);
   else if (is_atom (p) && !persistent) return false;
   else {
-    bool r;
-    int old= set_access_mode (activate? DRD_ACCESS_NORMAL: DRD_ACCESS_SOURCE);
-    if (persistent) r= is_accessible_cursor (t, p);
-    else r= the_drd->is_accessible_child (t, p->item);
-    set_access_mode (old);
-    if (!persistent) r= r && is_accessible_cursor (t[p->item], p->next);
-    return r;
+    const auto local= query.with_access (activate? access_policy::normal: access_policy::source);
+    if (persistent) return cursor_navigation (local).accessible_cursor (t, p, mapped);
+    return (mapped ? local.mapped_accessible (t, p->item) : local.accessible (t, p->item)) &&
+      accessible_cursor (t[p->item], p->next, mapped);
   }
 }
 
 static bool
 next_without_border (tree t, path p) {
   return false;
-  // Assuming that t is a concat, check whether p does not correspond
-  // to an inaccessible border position
-  int i= p->item + 1;
-  if (i >= N(t)) return false;
-  if (is_compound (t[i]) && the_drd->is_child_enforcing (t[i]))
-    return p->next == end (t[p->item]);
-  return false;
 }
 
-static int
-lowest_accessible_child (tree t) {
+int
+cursor_navigation::lowest_accessible_child (tree t) const {
   for (int i=0; i<N(t); i++)
-    if (the_drd->is_accessible_child (t, i))
+    if (query.accessible (t, i))
       return i;
   return 0;
 }
 
-static int
-highest_accessible_child (tree t) {
+int
+cursor_navigation::highest_accessible_child (tree t) const {
   for (int i=N(t)-1; i>=0; i--)
-    if (the_drd->is_accessible_child (t, i))
+    if (query.accessible (t, i))
       return i;
   return N(t) - 1;
 }
@@ -108,18 +99,27 @@ graphics_in_path (tree t, path p) {
 }
 
 bool
-is_accessible_cursor (tree t, path p) {
+cursor_navigation::is_accessible_cursor (tree t, path p) const {
+  return accessible_cursor (t, p, false);
+}
+
+bool
+cursor_navigation::is_mapped_cursor (tree t, path p) const {
+  return is_inside (t, p) && accessible_cursor (t, p, true);
+}
+
+bool
+cursor_navigation::accessible_cursor (tree t, path p, bool mapped) const {
   if (is_atomic (t) || is_atom (p)) {
-    if (get_writable_mode () == DRD_WRITABLE_INPUT &&
-        get_access_mode () != DRD_ACCESS_SOURCE)
+    if (query.input_only && query.access != access_policy::source)
       return false;
     else if (is_atomic (t))
       return is_inside (t, p);
-    else return !the_drd->is_child_enforcing (t);
+    else return !query.child_enforcing (t);
   }
   else if (0 > p->item || p->item >= N(t)) return false;
-  else if (the_drd->is_parent_enforcing (t) &&
-           get_access_mode () != DRD_ACCESS_SOURCE &&
+  else if (query.parent_enforcing (t) &&
+           query.access != access_policy::source &&
            !graphics_in_path (t, p) &&
            ((p->item == lowest_accessible_child (t) &&
              p->next == start (t[p->item])) ||
@@ -128,56 +128,35 @@ is_accessible_cursor (tree t, path p) {
     return false;
   else switch (L(t)) {
     case CONCAT:
-      if (!is_accessible_cursor (t[p->item], p->next)) return false;
+      if (!accessible_cursor (t[p->item], p->next, mapped)) return false;
       else return !next_without_border (t, p);
     case ACTIVE:
-      return is_modified_accessible (t, p, true, false);
+      return is_modified_accessible (t, p, true, false, mapped);
     case VAR_ACTIVE:
-      return is_modified_accessible (t, p, true, true);
+      return is_modified_accessible (t, p, true, true, mapped);
     case INACTIVE:
-      return is_modified_accessible (t, p, false, false);
+      return is_modified_accessible (t, p, false, false, mapped);
     case VAR_INACTIVE:
-      return is_modified_accessible (t, p, false, true);
+      return is_modified_accessible (t, p, false, true, mapped);
     default:
-      if (!the_drd->is_accessible_child (t, p->item) &&
-          get_access_mode () != DRD_ACCESS_SOURCE)
+      if (!(mapped ? query.mapped_accessible (t, p->item) : query.accessible (t, p->item)))
         return false;
-      else if (the_drd->get_env_child (t, p->item, MODE, "") == "src") {
-        int old_mode= set_access_mode (DRD_ACCESS_SOURCE);
-        bool r= is_func (t, RAW_DATA, 1) ? p == path (0, 0) :
-          is_accessible_cursor (t[p->item], p->next);
-        set_access_mode (old_mode);
-        return r;
-      }
-      else {
-        int old_mode= get_writable_mode ();
-        if (old_mode != DRD_WRITABLE_ANY) {
-          int w= the_drd->get_writability_child (t, p->item);
-          if (w == WRITABILITY_DISABLE)
-            set_writable_mode (DRD_WRITABLE_INPUT);
-          else if (w == WRITABILITY_ENABLE)
-            set_writable_mode (DRD_WRITABLE_NORMAL);
-        }
-        bool r= is_func (t, RAW_DATA, 1) ?
-          p == path (0, 0) &&
-            (get_writable_mode () != DRD_WRITABLE_INPUT ||
-             get_access_mode () == DRD_ACCESS_SOURCE) :
-          is_accessible_cursor (t[p->item], p->next);
-        set_writable_mode (old_mode);
-        return r;
-      }
+      const auto child= query.inside (t, p->item, mapped);
+      if (is_func (t, RAW_DATA, 1))
+        return p == path (0, 0) && (!child.input_only || child.access == access_policy::source);
+      return cursor_navigation (child).accessible_cursor (t[p->item], p->next, mapped);
     }
 }
 
 path
-closest_accessible (tree t, path p, int dir) {
+cursor_navigation::closest_accessible (tree t, path p, int dir) const {
   // Given a path p inside t, the path may be unaccessible
   // This routine returns the closest path to p inside t which is accessible
   // dir in {-1, 0, 1} specifies the search direction
   // The routine returns nil if there exists no accessible path inside t
   if (is_atomic (t)) return p;
   else if (is_nil (p)) return closest_accessible (t, path (0), dir);
-  else if (is_atom (p) && !the_drd->is_child_enforcing (t)) return p;
+  else if (is_atom (p) && !query.child_enforcing (t)) return p;
   else if (is_func (t, AROUND) && (p->item == 0 || p->item == 2)) {
     if (p->item == 0 && dir < 0) return path (0);
     if (p->item == 2 && dir > 0) return path (1);
@@ -194,18 +173,18 @@ closest_accessible (tree t, path p, int dir) {
       else if (dir == 1) {
         j= k+i;
         if (j >= n) {
-          if (the_drd->is_child_enforcing (t)) break;
+          if (query.child_enforcing (t)) break;
           return path (1);
         }
       }
       else {
         j= k-i;
         if (j < 0) {
-          if (the_drd->is_child_enforcing (t)) break;
+          if (query.child_enforcing (t)) break;
           return path (0);
         }
       }
-      if (the_drd->is_accessible_child (t, j)) {
+      if (query.accessible (t, j)) {
         // FIXME: certain tags modify source accessability props
         // FIXME: cells with non-trivial span may lead to unaccessability
         // FIXME: very dynamic markup should be treated after typesetting
@@ -220,7 +199,7 @@ closest_accessible (tree t, path p, int dir) {
         if (!is_nil (r)) {
           r= path (j, r);
           if (!is_concat (t) || !next_without_border (t, r)) {
-            if (the_drd->is_parent_enforcing (t) &&
+            if (query.parent_enforcing (t) &&
                 !graphics_in_path (t, p) &&
                 !is_accessible_cursor (t, p)) {
               if (r->item == lowest_accessible_child (t)) return path (0);
@@ -236,7 +215,7 @@ closest_accessible (tree t, path p, int dir) {
 }
 
 path
-closest_accessible_inside (tree t, path p, int dir) {
+cursor_navigation::closest_accessible_inside (tree t, path p, int dir) const {
   path q= closest_accessible (t, p, dir);
   if (!is_nil (q)) return q;
   if (dir <= 0) return path (0);
@@ -265,18 +244,18 @@ is_shifted (tree t, path p, int dir= -1, bool flag= false) {
   else return is_shifted (t[p->item], p->next, dir, false);
 }
 
-static path
-extreme (tree t, int dir) {
+path
+cursor_navigation::extreme (tree t, int dir) const {
   if (dir < 0) return start (t);
   else return end (t);
 }
 
 path
-shift (tree t, path p, int dir) {
+cursor_navigation::shift (tree t, path p, int dir) const {
   if (dir == 0 || is_nil (p) || is_atom (p)) return p;
   else if (is_concat (t) && p->next == extreme (t[p->item], dir)) {
     for (int i= p->item + dir; i >= 0 && i < N(t); i += dir)
-      if (the_drd -> is_accessible_child (t, i))
+      if (query.accessible (t, i))
         return path (i, extreme (t[i], -dir));
     return p;
   }
@@ -288,7 +267,7 @@ shift (tree t, path p, int dir) {
 ******************************************************************************/
 
 bool
-valid_cursor (tree t, path p, bool start_flag) {
+cursor_navigation::valid_cursor (tree t, path p, bool start_flag) const {
   if ((!is_nil (p)) && (!is_atom (p)) &&
       ((p->item < 0) || (p->item >= arity (t)))) {
     failed_error << "Testing valid cursor " << p << " in " << t << "\n";
@@ -298,11 +277,11 @@ valid_cursor (tree t, path p, bool start_flag) {
   if (is_nil (p)) return false;
   if (is_atomic (t) && !is_inside (t, p)) return false;
   if (is_atom (p)) {
-    if (the_drd->is_child_enforcing (t)) return false;
+    if (query.child_enforcing (t)) return false;
     if (start_flag) return (p->item!=0);
     return true;
   }
-  if (the_drd->is_parent_enforcing (t) &&
+  if (query.parent_enforcing (t) &&
       !graphics_in_path (t, p) &&
       ((p->item == lowest_accessible_child (t) &&
         p->next == start (t[p->item])) ||
@@ -349,8 +328,8 @@ invalid_cursor_inside_label (tree t, path p) {
          (p->next->item < 0 || p->next->item > N(t[p->item]->label));
 }
 
-static path
-pre_correct (tree t, path p) {
+path
+cursor_navigation::pre_correct (tree t, path p) const {
   //cout << "Precorrect " << p << " in " << t << "\n";
   if (invalid_cursor_inside_label (t, p)) {
     // Labels are zero-width anchors.  Stale cursor/selection/scroll positions
@@ -372,15 +351,15 @@ pre_correct (tree t, path p) {
 
   if (is_nil (p)) return pre_correct (t, path (0));
   if (is_atom (p)) {
-    if (!is_atomic (t) && the_drd->is_child_enforcing (t)) {
+    if (!is_atomic (t) && query.child_enforcing (t)) {
       if (p->item == 0) {
         for (int i=0; i<N(t); i++)
-          if (i == N(t)-1 || the_drd->is_accessible_child (t, i))
+          if (i == N(t)-1 || query.accessible (t, i))
             return path (i, pre_correct (t[i], path (0)));
       }
       else {
         for (int i=N(t)-1; i>=0; i--)
-          if (i == 0 || the_drd->is_accessible_child (t, i))
+          if (i == 0 || query.accessible (t, i))
             return path (i, pre_correct (t[i], path (right_index (t[i]))));
       }
       FAILED ("nullary tree with no border");
@@ -412,7 +391,7 @@ pre_correct (tree t, path p) {
       return path (1, 0, pre_correct (t[1][0], path (i)));
     }
   path r (p->item, pre_correct (t[p->item], p->next));
-  if (the_drd->is_parent_enforcing (t) &&
+  if (query.parent_enforcing (t) &&
       !graphics_in_path (t, p)) {
     if (r->item == lowest_accessible_child (t) &&
         !valid_cursor (t, p, false))
@@ -439,8 +418,8 @@ left_most (tree t, path p) {
   return false;
 }
 
-static path
-left_correct (tree t, path p) {
+path
+cursor_navigation::left_correct (tree t, path p) const {
   //cout << "Left correct " << p << " in " << t << "\n";
   if (is_nil (p)) FAILED ("invalid nil path");
   if (invalid_cursor_inside_label (t, p))
@@ -478,8 +457,8 @@ right_most (tree t, path p) {
   return false;
 }
 
-static path
-right_correct (tree t, path p) {
+path
+cursor_navigation::right_correct (tree t, path p) const {
   if (is_nil (p)) FAILED ("invalid nil path");
   if (invalid_cursor_inside_label (t, p))
     return label_boundary_for_invalid_cursor (t, p);
@@ -513,7 +492,7 @@ keep_positive (path p) {
 ******************************************************************************/
 
 path
-correct_cursor (tree t, path p, bool forwards) {
+cursor_navigation::correct_cursor (tree t, path p, bool forwards) const {
   //cout << "Correct cursor " << p << " in " << t << ", " << forwards << "\n";
   p= keep_positive (p);
   path pp= pre_correct (t, p);
@@ -528,34 +507,34 @@ correct_cursor (tree t, path p, bool forwards) {
 }
 
 path
-start (tree t, path p) {
+cursor_navigation::start (tree t, path p) const {
   //cout << "Start " << p << " in " << t << "\n";
   if ((!is_nil (p)) && (arity (parent_subtree (t, p)) == 0)) return p;
   return correct_cursor (t, p * 0);
 }
 
 path
-end (tree t, path p) {
+cursor_navigation::end (tree t, path p) const {
   //cout << "End " << p << " in " << t << "\n";
   if ((!is_nil (p)) && (arity (parent_subtree (t, p)) == 0)) return p;
   return correct_cursor (t, p * right_index (subtree (t, p)));
 }
 
-path start (tree t) { return start (t, path ()); }
-path end (tree t) { return end (t, path ()); }
+path cursor_navigation::start (tree t) const { return start (t, path ()); }
+path cursor_navigation::end (tree t) const { return end (t, path ()); }
 
 path
-up_correct (tree t, path p, bool active= true) {
+cursor_navigation::up_correct (tree t, path p, bool active) const {
   //cout << "Up correct " << p << " in " << t << "\n";
   if (is_nil (p)) return p;
   if ((p->item<0) || (p->item>=N(t))) return path ();
-  if (active && (!the_drd->is_accessible_child (t, p->item))) return path ();
+  if (active && !query.accessible (t, p->item)) return path ();
   return path (p->item,
                up_correct (t[p->item], p->next, !is_mod_active_once (t)));
 }
 
 path
-super_correct (tree t, path p, bool forwards) {
+cursor_navigation::super_correct (tree t, path p, bool forwards) const {
   path q= path_up (p);
   path r= up_correct (t, q);
   if (q != r) {

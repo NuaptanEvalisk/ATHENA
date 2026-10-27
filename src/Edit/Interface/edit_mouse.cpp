@@ -18,12 +18,12 @@
 #include "tm_timer.hpp"
 #include "link.hpp"
 #include "analyze.hpp"
-#include "drd_mode.hpp"
 #include "message.hpp"
 #include "scheme.hpp"
 #include "tree_select.hpp"
 #include "window.hpp"
 #include "vault.hpp"
+#include "Typeset/Env/local_environment.hpp"
 
   // These are tm-defined in graphics-utils.scm (looks like they shouldn't)
 #define ShiftMask     256
@@ -463,9 +463,10 @@ edit_interface_rep::mouse_message (string message, SI x, SI y) {
 color
 edit_interface_rep::mouse_clickable_color () {
   path sp= find_innermost_scroll (eb, tp);
-  path p= tree_path (sp, last_x, last_y, 0);
-  tree t= "#20A060";
-  if (rp <= p) t= get_env_value (CLICKABLE_COLOR, p);
+  path bp= find_scrolled_box_path (eb, sp, last_x, last_y, 0);
+  path p= eb->find_tree_path (bp);
+  const auto context= cursor_context_at (p, eb->find_source_boundary (bp));
+  tree t= context ? context->value (CLICKABLE_COLOR) : get_init_value (CLICKABLE_COLOR);
   if (!is_atomic (t)) t= "#20A060";
   return named_color (t->label);
 }
@@ -735,9 +736,7 @@ edit_interface_rep::update_mouse_loci () {
 #ifdef USE_EXCEPTIONS
   try {
 #endif
-  int old_mode= set_access_mode (DRD_ACCESS_SOURCE);
-  path cp= path_up (tree_path (path (), last_x, last_y, 0));
-  set_access_mode (old_mode);
+  path cp= path_up (tree_path (path (), last_x, last_y, 0, true));
   tree mt= subtree (et, cp);
   path p = cp;
   list<string> ids1, ids2;

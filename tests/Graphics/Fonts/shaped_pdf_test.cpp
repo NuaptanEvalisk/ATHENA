@@ -10,7 +10,7 @@
 #include "Pdf/pdf_hummus_renderer.hpp"
 #include "boot.hpp"
 #include "data_cache.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "font.hpp"
 #include "Boxes/construct.hpp"
 #include "Boxes/utf8_line.hpp"
@@ -390,7 +390,7 @@ static std::unique_ptr<QTemporaryDir> profile;
 
 static void run_tests (int, char **) {
   try {
-    init_std_drd ();
+    athena::contracts::initialize_builtins ();
     eval ("(define (standard-paper-size value) value)");
     set_user_preference ("texmacs->pdf:version", "1.4");
     require (athena::text::pdf_text_string ("e\xcc\x81") == "<FEFF00650301>",

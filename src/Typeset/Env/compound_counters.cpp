@@ -13,6 +13,8 @@
 #include "Table/table.hpp"
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
+#include "native_math_environment.hpp"
+#include "local_environment.hpp"
 #include <map>
 #include <optional>
 #include <stdexcept>
@@ -20,84 +22,27 @@
 
 namespace athena::avd {
 namespace {
-class local_value {
-  edit_env environment_;
-  string key_;
-  tree previous_;
-public:
-  local_value (edit_env environment, string key, tree value):
-    environment_ (environment), key_ (key),
-    previous_ (environment->local_begin (key, value)) {}
-  ~local_value () { environment_->local_end (key_, previous_); }
-};
-
-void require_equation_counter (edit_env environment) {
-  if (!environment->provides ("next-equation") ||
-      !environment->provides ("the-equation"))
-    throw std::invalid_argument ("Native AVD numbering requires equation counter macros");
-}
-
-tree advance_equation (edit_env environment) {
-  require_equation_counter (environment);
-  if (is_func (environment->exec (compound ("next-equation")), _ERROR))
-    throw std::invalid_argument ("Native AVD equation counter failed");
-  tree number= environment->exec (compound ("the-equation"));
-  if (is_func (number, _ERROR) || number == "")
-    throw std::invalid_argument ("Native AVD equation counter produced no number");
-  return number;
-}
-
 tree execute_grid (edit_env environment, const tree& grid,
                    std::optional<bool> block_numbering) {
-  using namespace math_v3;
-  validate_native_math_grid_layout (grid);
+  validate_native_math_grid_numbering (environment, grid, block_numbering);
   const bool row_numbers= native_math_grid_uses_row_numbering (grid);
-  // Validate the entire grid before advancing any row's counter.
-  for (int i= 0; i < N(grid); ++i) {
-    const auto tag= get_row_tag (grid[i]);
-    const auto policy= get_row_numbering (grid[i]);
-    if (!block_numbering && (tag || policy != row_numbering::inherit))
-      throw std::invalid_argument ("Row overrides require a direct MathBlock grid");
-    if (tag) validate_native_math_row_tag (*tag);
-    if (row_numbers && !tag && (policy == row_numbering::numbered ||
-        (policy == row_numbering::inherit && block_numbering.value_or (false))))
-      require_equation_counter (environment);
-  }
-  local_value mode (environment, MODE, "math");
-  local_value format (environment, CELL_FORMAT, tree (TFORMAT));
+  native_math_context_scope mode (*environment.operator-> (), native_math_context::math);
+  native_math_value_scope format (environment, CELL_FORMAT, tree (TFORMAT));
   tree result (grid, N(grid));
   for (int i= 0; i < N(grid); ++i) {
-    const tree outer_label= environment->read (THE_LABEL);
-    local_value row (environment, CELL_ROW_NR, as_string (i));
-    local_value label (environment, THE_LABEL, "");
-    local_value tags (environment, "the-tags", tree (TUPLE));
-    const auto tag= get_row_tag (grid[i]);
-    const auto policy= get_row_numbering (grid[i]);
-    const bool automatic= row_numbers && !tag &&
-      (policy == row_numbering::numbered ||
-       (policy == row_numbering::inherit && block_numbering.value_or (false)));
-    tree number= tag ? *tag : automatic ? advance_equation (environment) : tree ("");
-    const bool whole_block= !row_numbers && block_numbering.has_value ();
-    environment->local_begin (THE_LABEL,
-      whole_block ? outer_label : tree (QUOTE, number));
-    const auto id= node::id (grid[i]);
-    if (row_numbers && !id.empty ()) {
-      const tree bound= environment->exec (tree (SET_BINDING,
-        tree ("athena-node-" * string (id.data (), int (id.size ()))),
-        tree (QUOTE, number)));
-      if (!is_func (bound, HIDDEN_BINDING))
-        throw std::invalid_argument ("Native AVD row UUID binding failed");
-    }
-    if (tag || automatic) {
-      local_value tag_mode (environment, MODE,
+    native_math_row_scope row (environment, grid[i], i, row_numbers, block_numbering);
+    if (row.show_number) {
+      const tree number= row.number;
+      native_math_value_scope tag_mode (environment, MODE,
         native_math_row_tag_is_math (number) ? "math" : "text");
-      local_value shape (environment, FONT_SHAPE, "right");
-      local_value display (environment, MATH_DISPLAY, "false");
+      native_math_value_scope shape (environment, FONT_SHAPE, "right");
+      native_math_value_scope display (environment, MATH_DISPLAY, "false");
       (void) environment->exec (number);
     }
     // No block context is passed through exec: nested grids never inherit it.
     result[i]= environment->exec (grid[i]);
   }
+  node::copy_metadata (grid, result);
   return result;
 }
 } // namespace
@@ -113,16 +58,18 @@ tree exec_native_counter_node (edit_env environment, const tree& source) {
   if (grid) validate_native_math_grid_layout (source[0]);
   const bool row_numbers= grid && native_math_grid_uses_row_numbering (source[0]);
   if (numbered && !row_numbers) {
-    const tree number= advance_equation (environment);
+    const tree number= advance_native_equation (environment);
+    if (is_func (number, _ERROR))
+      throw std::invalid_argument (as_charp (number[0]->label));
     if (is_func (environment->read ("the-tags"), TUPLE) &&
         is_func (environment->exec (tree (SET_BINDING, number)), _ERROR))
       throw std::invalid_argument ("Native AVD block binding failed");
   }
-  local_value mode (environment, MODE, "math");
-  local_value display (environment, MATH_DISPLAY, "true");
+  native_math_context_scope context (*environment.operator-> (), native_math_context::display);
   tree result (source, 1);
   result[0]= grid ? execute_grid (environment, source[0], row_numbers && numbered) :
                     environment->exec (source[0]);
+  node::copy_metadata (source, result);
   return result;
 }
 

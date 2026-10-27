@@ -16,6 +16,19 @@
 class edit_table_rep: virtual public editor_rep {
 protected:
   string cell_mode;
+  path table_context_path;
+  std::shared_ptr<const evaluation_environment_checkpoint> table_context;
+  struct table_context_scope {
+    edit_table_rep& owner;
+    path previous_path;
+    std::shared_ptr<const evaluation_environment_checkpoint> previous;
+    table_context_scope (edit_table_rep& owner, path format);
+    ~table_context_scope ();
+    table_context_scope (const table_context_scope&)= delete;
+    table_context_scope& operator= (const table_context_scope&)= delete;
+  };
+  tree table_environment_value (path format, string variable);
+  void ensure_table_format (path format);
 
 protected:
   // Searching the format, a table, row or cell
@@ -65,6 +78,8 @@ protected:
   tree table_get_subtable (path p, int i1, int j1, int i2, int j2);
   tree table_get_subtable (path p, int i1, int j1, int i2, int j2, bool rec);
   void table_write_subtable (path fp, int row, int col, tree subt);
+  void table_write_subtable_unchecked (path fp, int row, int col, tree subt);
+  void table_cut_selection (path fp, int row1, int col1, int row2, int col2);
   void table_hor_insert_subtable (path fp, int col, tree subt);
   void table_ver_insert_subtable (path fp, int row, tree subt);
 

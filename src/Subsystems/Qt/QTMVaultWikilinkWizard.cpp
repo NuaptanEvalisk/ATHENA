@@ -19,7 +19,6 @@
 #include "QTMVaultPreviewWidget.hpp"
 #include "QTMVaultSearch.hpp"
 #include "QTMVaultSearchWorker.hpp"
-#include "drd_mode.hpp"
 #include "namespaces.hpp"
 #include "new_buffer.hpp"
 #include "node_metadata.hpp"
@@ -1180,9 +1179,8 @@ WikilinkSearchPage::searchFile (
   tree body, url u, const tree& query, const VaultSearchOptions& options,
   std::vector<WikilinkSearchResult>& hits) {
   try {
-    int oldMode= set_access_mode (DRD_ACCESS_SOURCE);
     std::vector<VaultContentMatch> matches;
-    try {
+    {
       QString enunciation= options.enunciation;
       bool caseInsensitive= options.caseInsensitive;
       bool fuzzy= options.fuzzy;
@@ -1206,11 +1204,6 @@ WikilinkSearchPage::searchFile (
         score_search_match_titles (body, query, path (), matches,
                                    caseInsensitive, fuzzy);
     }
-    catch (...) {
-      set_access_mode (oldMode);
-      throw;
-    }
-    set_access_mode (oldMode);
 
     int hitCount= (int) matches.size ();
     if (hitCount <= 0) return 0;

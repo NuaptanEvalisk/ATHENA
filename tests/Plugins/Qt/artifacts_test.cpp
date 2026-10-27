@@ -26,7 +26,7 @@
 #include "Data/Convert/Xml/vault_format_upgrade.hpp"
 #include "converter.hpp"
 #include "convert.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "node_metadata.hpp"
 
 #include <sqlite3.h>
@@ -204,7 +204,7 @@ private:
 
 void
 TestArtifacts::initTestCase () {
-  init_std_drd ();
+  athena::contracts::initialize_builtins ();
   qputenv ("ATHENA_ARTIFACT_WORKER_EXECUTABLE",
            (QCoreApplication::applicationDirPath () + "/../src/ATHENA.bin")
              .toUtf8 ());

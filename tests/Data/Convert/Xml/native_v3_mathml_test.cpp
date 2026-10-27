@@ -9,7 +9,7 @@
 #include <stdexcept>
 
 #include "convert.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
 #include "Xml/athena_document_xml.hpp"
@@ -54,7 +54,7 @@ bool native_only (const tree& source) {
 class TestNativeV3Mathml: public QObject {
   Q_OBJECT
 private slots:
-  void initTestCase () { init_std_drd (); }
+  void initTestCase () { athena::contracts::initialize_builtins (); }
 
   void scriptsAndLimitPolicies () {
     const tree scripts= formula (

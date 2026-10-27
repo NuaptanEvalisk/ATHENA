@@ -836,7 +836,9 @@ struct lazy_export_node_rep: public lazy_surround_rep {
 
 lazy
 make_lazy (edit_env env, tree t, path ip) {
+  source_occurrence_scope occurrence (*env.operator-> (), t, ip);
   lazy result= make_lazy_impl (env, t, ip);
+  occurrence.finish ();
   if (!athena::node_reference::export_node_destinations_active () ||
       athena::node_reference::export_node_destination (t) == "" ||
       result->type == LAZY_PARAGRAPH || result->type == LAZY_HIDDEN)

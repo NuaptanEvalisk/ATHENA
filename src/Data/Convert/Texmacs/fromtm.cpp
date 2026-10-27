@@ -12,7 +12,7 @@
 #include "convert.hpp"
 #include "path.hpp"
 #include "vars.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "node_metadata.hpp"
 #include "Xml/legacy_document_reader.hpp"
 #include <limits>
@@ -37,7 +37,7 @@ struct tm_reader {
   string closing_name;
 
   tm_reader (string buf2):
-    codes (standard_codes_for_thread ()),
+    codes (athena::contracts::builtin_codes ()),
     EXPAND_APPLY (EXPAND),
     backslash_ok (true),
     with_extensions (true),
@@ -419,7 +419,7 @@ texmacs_to_tree (string s) {
 
 namespace athena::document {
 tree read_legacy_markup_fragment (std::string_view input, codec_limits limits) {
-  init_std_drd ();
+  athena::contracts::initialize_builtins ();
   if (input.size () > limits.input_bytes || input.size () > std::numeric_limits<int>::max ())
     throw codec_exception (codec_error::resource_limit, "Legacy fragment exceeds size budget");
   tm_reader reader (string (input.data (), static_cast<int> (input.size ())));
@@ -431,7 +431,7 @@ tree read_legacy_markup_fragment (std::string_view input, codec_limits limits) {
 }
 
 tree read_legacy_markup (std::string_view input, codec_limits limits) {
-  init_std_drd ();
+  athena::contracts::initialize_builtins ();
   if (input.size () > limits.input_bytes || input.size () > std::numeric_limits<int>::max ())
     throw codec_exception (codec_error::resource_limit, "Legacy markup input exceeds size budget");
   string source (input.data (), static_cast<int> (input.size ()));

@@ -19,10 +19,10 @@
 #include <QTemporaryDir>
 
 #include "ATHENA/Data/document_node_model.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "node_metadata.hpp"
 #include "Xml/athena_document_xml.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 
 class TestTocPagination: public QObject {
   Q_OBJECT
@@ -32,7 +32,7 @@ private slots:
 };
 
 void TestTocPagination::paginatesLongBookToc() {
-  init_std_drd ();
+  athena::contracts::initialize_builtins ();
   QString pdfinfo= QStandardPaths::findExecutable ("pdfinfo");
   if (pdfinfo.isEmpty ())
     QSKIP ("pdfinfo is required for the PDF pagination regression test");
@@ -51,9 +51,9 @@ void TestTocPagination::paginatesLongBookToc() {
       string (number.constData (), number.size ()));
   }
   tree body (DOCUMENT, compound ("table-of-contents", "toc", entries));
-  init_std_drd ();
+  athena::contracts::initialize_builtins ();
   auto identified= athena::document_node::assign_detached_source_ids (
-    body, standard_drd_for_thread (), athena::document_node::standard_source_role,
+    body, athena::contracts::builtin_contracts (), athena::document_node::standard_source_role,
     [] (const athena::document_node::identity_request&) {
       return athena::node::new_id ();
     });

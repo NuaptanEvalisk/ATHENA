@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "Interface/edit_interface.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
 #include "ATHENA/Data/enunciation_slots.hpp"
 #include "Interface/selection_autoscroll.hpp"
 #include "ATHENA/Data/heading_word_count.hpp"
@@ -19,8 +20,9 @@
 #include "server.hpp"
 #include "tm_window.hpp"
 #include "data_cache.hpp"
-#include "drd_std.hpp"
-#include "drd_mode.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
+#include "cursor_navigation.hpp"
+#include "Typeset/Env/local_environment.hpp"
 #include "message.hpp"
 #include "tree_traverse.hpp"
 #include "boot.hpp"
@@ -162,7 +164,7 @@ edit_interface_rep::resume () {
   notify_change (THE_FOCUS + THE_EXTENTS);
   bench_cumul ("initialize editor focus state");
   {
-    with_borrowed_drd drd_scope (&drd);
+    athena::contracts::evaluation_state_scope evaluation_scope (&contract_state);
     bench_start ("make initial cursor accessible");
     path new_tp= make_cursor_accessible (tp, true);
     bench_cumul ("make initial cursor accessible");
@@ -642,7 +644,7 @@ edit_interface_rep::compute_env_rects (path p, rectangles& rs, bool recurse,
     if (recurse) compute_env_rects (path_up (p), rs, recurse, outline_width);
   }
   else if (is_atomic (st) ||
-           drd->is_child_enforcing (st) ||
+           athena::contracts::editing_query {contract_state.contracts}.child_enforcing (st) ||
            //is_document (st) || is_concat (st) ||
            is_func (st, TABLE) || is_func (st, SUBTABLE) ||
            is_func (st, ROW) || is_func (st, TFORMAT) ||
@@ -653,19 +655,20 @@ edit_interface_rep::compute_env_rects (path p, rectangles& rs, bool recurse,
             is_compound (subtree (et, path_up (p)), "input")))
     compute_env_rects (path_up (p), rs, recurse, outline_width);
   else {
-    int new_mode= DRD_ACCESS_NORMAL;
-    if (get_init_string (MODE) == "src") new_mode= DRD_ACCESS_SOURCE;
-    int old_mode= set_access_mode (new_mode);
+    using athena::contracts::access_policy;
+    const auto context= cursor_context_at (tp, cursor_source_boundary ());
+    const auto access= in_source () ? access_policy::source : access_policy::normal;
+    const cursor_navigation navigation ({context ? context->contract_context () : contract_state.contracts, access});
     tree st= subtree (et, p);
-    if (is_accessible_cursor (et, p * right_index (st)) || in_source ()) {
+    if (navigation.is_accessible_cursor (et, p * right_index (st)) || access == access_policy::source) {
       bool right;
       path p1= p * 0, p2= p * 1, q1, q2;
       if (is_script (subtree (et, p), right) ||
           is_func (st, TEXT_AT) ||
           is_func (st, MATH_AT))
         {
-          p1= start (et, p * 0);
-          p2= end   (et, p * 0);
+          p1= navigation.start (et, p * 0);
+          p2= navigation.end (et, p * 0);
         }
       if (is_func (st, CELL)) { q1= p1; q2= p2; }
       else selection_correct (p1, p2, q1, q2);
@@ -674,7 +677,6 @@ edit_interface_rep::compute_env_rects (path p, rectangles& rs, bool recurse,
         if (!recurse || get_preference ("show full context") == "on")
           rs << outlines (sel->rs, outline_width);
     }
-    set_access_mode (old_mode);
     if (recurse || N(rs) == 0)
       compute_env_rects (path_up (p), rs, recurse, outline_width);
   }
@@ -701,8 +703,10 @@ edit_interface_rep::notify_change (int env_set, int env_unset) {
     if (ui_endpoint != nullptr)
       ui_endpoint->invalidate_personal_macro_items ();
   }
-  if (env_set & THE_ENVIRONMENT)
+  if (env_set & THE_ENVIRONMENT) {
+    typeset_invalidate_env ();
     editor_style_command_flags_valid= false;
+  }
   if (env_set & (THE_TREE | THE_ENVIRONMENT | THE_EXTENTS | THE_CURSOR | THE_SELECTION))
     clear_link_peek ();
   env_change= (env_change | env_set) & (~env_unset);
@@ -733,7 +737,6 @@ edit_interface_rep::change_time () {
 
 void
 edit_interface_rep::update_menus () {
-  prepare_cursor_environment ();
   refresh_editor_style_command_flags ();
   publish_editor_command_state ();
   publish_focus_toolbar_state ();
@@ -741,7 +744,6 @@ edit_interface_rep::update_menus () {
   pending_idle_footer_update= false;
   (void) publish_ui (
     actor_command_kind::ui_set_modified, need_save () ? 1 : 0);
-  if (!gui_interrupted ()) drd_update ();
   cache_memorize ();
   last_update= last_change;
   pending_idle_menu_update= false;
@@ -752,6 +754,8 @@ actor_editor_command_snapshot
 editor_rep::editor_command_state_snapshot () {
   actor_editor_command_snapshot snapshot;
   if (buf == nullptr) return snapshot;
+  const auto context= cursor_context_at (the_path (), cursor_source_boundary ());
+  if (!context) return snapshot;
 
   snapshot.flags= ACTOR_EDITOR_COMMAND_STATE_VALID;
   if (buf->read_only)
@@ -760,13 +764,14 @@ editor_rep::editor_command_state_snapshot () {
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_SELECTION;
   if (selection_active_any () && !selection_active_small ())
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_NON_SMALL_SELECTION;
-  if (inside_active_graphics () && native_graphics_selection_active ())
+  if (inside_graphics (false) && context->value (PREAMBLE) == "false" &&
+      native_graphics_selection_active ())
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_GRAPHICS_SELECTION;
   path focus= focus_get ();
   if (test_subtree (focus))
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_FOCUS_NODE;
   const bool graphics_mode= inside_graphics (false);
-  const string mode= get_env_string (MODE);
+  const string mode= as_string (context->value (MODE));
   if (mode == "math" && !graphics_mode)
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_MATH_MODE;
   if (mode == "text" && !graphics_mode)
@@ -988,6 +993,8 @@ editor_rep::popup_menu_state_snapshot () {
       break;
     }
   if (!found) return snapshot;
+  const auto context= cursor_context_at (first, cursor_source_boundary ());
+  if (!context) return snapshot;
 
   tree selected= selection_compute (the_root (), first, last);
   if (!is_atomic (selected) || N(selected->label) == 0) return snapshot;
@@ -995,7 +1002,7 @@ editor_rep::popup_menu_state_snapshot () {
   snapshot.spell_word.assign (
     word.data (), static_cast<std::size_t> (N(word)));
 
-  tree language= get_env_value ("language", first);
+  tree language= context->value ("language");
   string lan= is_atomic (language) ? as_string (language):
                                     get_init_string ("language");
   tree checked= spell_check (lan, word);
@@ -1013,6 +1020,7 @@ actor_focus_toolbar_snapshot
 editor_rep::focus_toolbar_state_snapshot () {
   actor_focus_toolbar_snapshot snapshot;
   if (buf == nullptr || inside_graphics (false)) return snapshot;
+  if (!cursor_context_at (the_path (), cursor_source_boundary ())) return snapshot;
 
   path focus= focus_get ();
   if (!test_subtree (focus)) return snapshot;
@@ -1143,7 +1151,7 @@ editor_rep::focus_toolbar_state_snapshot () {
     }
   }
   for (int i=0; i<N(t); ++i)
-    if (!drd->is_accessible_child (t, i)) {
+    if (!athena::contracts::editing_query {contract_state.contracts}.accessible (t, i)) {
       snapshot.hidden_toggle_available= true;
       break;
     }
@@ -1871,9 +1879,10 @@ editor_rep::refresh_editor_style_command_flags () {
 void
 editor_rep::publish_editor_command_state () {
   if (ui_endpoint == nullptr) return;
-  string par_sep= get_env_string ("par-par-sep");
+  const auto context= cursor_context_at (the_path (), cursor_source_boundary ());
+  const string par_sep= context ? as_string (context->value ("par-par-sep")) : string ("");
   bool prominent_spacing=
-    !ends (par_sep, "fns") && !starts (par_sep, "0fn");
+    context && !ends (par_sep, "fns") && !starts (par_sep, "0fn");
   ui_endpoint->set_prominent_spacing_available (prominent_spacing);
   ui_endpoint->set_inside_table (inside ("table"));
   ui_endpoint->update_editor_command_state (editor_command_state_snapshot ());
@@ -2087,9 +2096,9 @@ edit_interface_rep::apply_changes () {
     SI old_heading_right= is_nil (eb) ? vx2 : eb->x2;
     SI x1, y1, x2, y2;
     typeset (x1, y1, x2, y2);
+    the_ghost_cursor ()= current_display_cursor (the_cursor ()->affinity);
     prepare_cursor_environment ();
     heading_cell_cache_valid= false;
-    the_ghost_cursor ()= eb->find_check_cursor (tp, the_cursor ()->affinity);
     SI heading_strip_width= 80 * pixel;
     invalidate (old_heading_right - heading_strip_width, vy1,
                 old_heading_right + 2 * pixel, vy2);
@@ -2316,6 +2325,8 @@ edit_interface_rep::apply_changes () {
     }
   }
   
+  complete_hybrid_after_layout ();
+
   // cout << "Handling locus highlighting\n";
   if (env_change & (THE_TREE+THE_ENVIRONMENT+THE_EXTENTS)) {
     update_mouse_loci ();
@@ -2471,8 +2482,8 @@ edit_interface_rep::get_window_extents () {
 
 cursor
 edit_interface_rep::search_cursor (path p) {
-  return eb->find_check_cursor (p, p == tp ? the_cursor ()->affinity :
-                                athena::text::caret_affinity::downstream);
+  if (p == tp) return current_display_cursor (the_cursor ()->affinity);
+  return eb->find_check_cursor (p);
 }
 
 selection

@@ -11,6 +11,7 @@
 ******************************************************************************/
 
 #include "concater.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
 #include "Env/local_environment.hpp"
 #include "analyze.hpp"
 #include "concater.hpp"
@@ -152,14 +153,19 @@ concater_rep::with_limits (int status) {
 
 void
 concater_rep::typeset (tree t, path ip) {
-  if (is_atomic (t) && is_accessible (ip) && env->source_occurrences && env->contract_events)
-    env->source_occurrences->record (t, ip);
+  if (!is_accessible (ip)) {
+    const path source= obtain_ip (t);
+    if (source != path (DETACHED)) ip= source;
+  }
+  source_occurrence_scope occurrence (*env.operator-> (), t, ip);
   if (!athena::node_reference::export_node_destinations_active ()) {
     typeset_impl (t, ip);
+    occurrence.finish ();
     return;
   }
   const int first= N(a);
   typeset_impl (t, ip);
+  occurrence.finish ();
   if (athena::node_reference::export_node_destination (t) == "") return;
   for (int i= first; i < N(a); ++i) {
     if (a[i]->type == CONTROL_ITEM || a[i]->type == MARKER_ITEM ||
@@ -202,13 +208,6 @@ concater_rep::typeset_impl (tree t, path ip) {
     cout << "Wrong ip: " << t << "\n"
 	 << "       ] " << obtain_ip (t) << " -> " << ip << "\n";
   */
-
-  if (!is_accessible (ip)) {
-    path ip2= obtain_ip (t);
-    //if (ip2 != ip) cout << t << ", " << ip << " -> " << ip2 << "\n";
-    if (ip2 != path (DETACHED))
-      ip= ip2;
-  }
 
   if (env->hl_lan != 0)
     env->lan->highlight (t);
@@ -267,7 +266,7 @@ concater_rep::typeset_impl (tree t, path ip) {
     break;
   case VAR_VSPACE:
     {
-      flag (env->drd->get_name (L(t)), ip, brown);
+      flag (athena::contracts::editing_query {env->contract_state.contracts}.name (L(t)), ip, brown);
       string mode = athena_labels_mode (env);
       if (mode == "hidden" && N(a) > 0 && a[N(a)-1]->type == CONTROL_ITEM && is_func (a[N(a)-1]->t, LABEL)) {
         // Suppress vspace* after hidden label
@@ -279,7 +278,7 @@ concater_rep::typeset_impl (tree t, path ip) {
     break;
   case VSPACE:
     {
-      flag (env->drd->get_name (L(t)), ip, brown);
+      flag (athena::contracts::editing_query {env->contract_state.contracts}.name (L(t)), ip, brown);
       string mode = athena_labels_mode (env);
       if (mode == "hidden" && N(a) > 0 && a[N(a)-1]->type == CONTROL_ITEM && is_func (a[N(a)-1]->t, LABEL)) {
         // Suppress vspace after hidden label
@@ -355,7 +354,7 @@ concater_rep::typeset_impl (tree t, path ip) {
   case NEW_LINE:
   case NEXT_LINE:
     {
-      string name= env->drd->get_name (L(t));
+      string name= athena::contracts::editing_query {env->contract_state.contracts}.name (L(t));
       flag (name, ip, brown);
       control (t, ip);
       break;
@@ -398,7 +397,7 @@ concater_rep::typeset_impl (tree t, path ip) {
   case VAR_NEW_DPAGE:
   case NEW_DPAGE:
     {
-      string name= env->drd->get_name (L(t));
+      string name= athena::contracts::editing_query {env->contract_state.contracts}.name (L(t));
       flag (name, ip, brown);
       control (t, ip);
       break;

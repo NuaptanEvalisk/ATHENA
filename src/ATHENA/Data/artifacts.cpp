@@ -27,7 +27,7 @@
 #include "Data/Convert/Xml/document_upgrade_file.hpp"
 #include "convert.hpp"
 #include "Data/Convert/Generic/conversion_executor.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "file.hpp"
 #include "scheme.hpp"
 #include "System/Boot/boot.hpp"
@@ -2245,7 +2245,7 @@ athena_artifacts_run_extract_worker (const fs::path& manifest,
                                      std::string& error) {
   // This CLI entrypoint precedes init_athena; XML labels must already map to
   // native DOCUMENT/CONCAT/etc. before decoding its first source tree.
-  init_std_drd ();
+  athena::contracts::initialize_builtins ();
   std::ifstream input (manifest, std::ios::binary);
   std::string bytes ((std::istreambuf_iterator<char> (input)), {});
   QJsonDocument request= QJsonDocument::fromJson (

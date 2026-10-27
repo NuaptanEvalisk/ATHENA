@@ -12,6 +12,10 @@
 #ifndef TREE_CURSOR_H
 #define TREE_CURSOR_H
 #include "path.hpp"
+class cursor_navigation;
+
+// Transitional entry for callers not yet supplied an explicit prepared context.
+cursor_navigation current_cursor_navigation ();
 
 bool is_inside (tree t, path p);
 path closest_inside (tree t, path p);

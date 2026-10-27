@@ -14,6 +14,7 @@
 #include "file.hpp"
 #include "scheme.hpp"
 #include "tree_traverse.hpp"
+#include "Typeset/Env/local_environment.hpp"
 #include "Qt/qt_utilities.hpp"
 #include <QApplication>
 #include <QClipboard>
@@ -45,8 +46,11 @@ tree math_fragment (editor_rep& editor) {
   if (is_compound (fragment, "math") || is_func (fragment, MATH_BLOCK) ||
       is_func (fragment, MATH_GRID)) return fragment;
   path start= editor.selection_get_start ();
-  if (editor.get_env_value ("mode", start) != "math") return fragment;
-  if (editor.get_env_value ("math-display", start) != "true")
+  const auto context= editor.cursor_context_at (start);
+  if (!context)
+    throw std::runtime_error ("Selection context is awaiting layout");
+  if (context->value ("mode") != "math") return fragment;
+  if (context->value ("math-display") != "true")
     return compound ("math", fragment);
   tree block (MATH_BLOCK, fragment);
   athena::node::metadata metadata;

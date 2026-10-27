@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "tree_math_stats.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
 #include "tree_analyze.hpp"
 #include "scheme.hpp"
 #include "packrat.hpp"
@@ -174,7 +175,7 @@ get_submode (tree t, int i, string mode) {
   if (is_func (t, WITH) && i == N(t)-1)
     for (int j=0; j<N(t)-1; j+=2)
       if (t[j] == MATH_FONT_FAMILY) return "text";
-  tree tmode= the_drd->get_env_child (t, i, MODE, mode);
+  tree tmode= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, MODE, mode);
   return (is_atomic (tmode)? tmode->label: string ("text"));
 }
 

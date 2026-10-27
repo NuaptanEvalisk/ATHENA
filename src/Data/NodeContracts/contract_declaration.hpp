@@ -50,9 +50,11 @@ struct declaration_chain {
   std::shared_ptr<const node_contract> baseline;
   std::vector<declaration_occurrence> occurrences;
 };
+using declaration_group_events= std::map<std::uint64_t, declaration_event>;
 struct declaration_source_state {
-  std::map<tree_label, std::shared_ptr<const declaration_chain>> targets;
-  std::map<std::uint64_t, declaration_event> groups;
+  immer::map<tree_label, std::shared_ptr<const declaration_chain>> targets;
+  std::shared_ptr<const declaration_group_events> groups=
+    std::make_shared<const declaration_group_events> ();
   std::uint64_t next_order= 0;
 };
 
@@ -117,11 +119,10 @@ struct package_source_query {
   std::int64_t modified;
   std::uintmax_t bytes;
 };
-// Identity of one executed boundary, owned by its source/expansion record.
-// A new execution creates a new token; admitted replay retains the token.
-struct evaluation_boundary {};
-using evaluation_boundary_handle= std::shared_ptr<const evaluation_boundary>;
-struct evaluation_barrier {};
+enum class evaluation_barrier_kind { unrecorded_context, layout_output };
+struct evaluation_barrier {
+  evaluation_barrier_kind kind= evaluation_barrier_kind::unrecorded_context;
+};
 using contract_event_record= std::variant<contract_event, definition_binding, contract_event_log,
   contract_query, contract_absence, group_query, definition_query, variable_query, variable_write,
   external_query, package_source_query,
@@ -157,12 +158,18 @@ using external_matcher= std::function<bool(const external_query&)>;
 using package_matcher= std::function<bool(const package_source_query&)>;
 struct evaluation_effects {
   contract_scope contracts;
-  std::map<std::string, std::optional<node::frozen_tree>> variables;
+  immer::map<std::string, std::optional<node::frozen_tree>> variables;
 };
+using evaluation_variable_overlay= decltype(evaluation_effects::variables);
+using evaluation_boundary_observer= std::function<void (
+  const evaluation_boundary_handle&, const contract_scope&, const evaluation_variable_overlay&)>;
+enum class execution_resolution { cache_admission, recorded_context };
 std::optional<evaluation_effects> resolve_evaluation_effects (
     const contract_event_log&, contract_scope input, const variable_lookup&,
-    bool validate_reads= true, const external_matcher& external= {},
-    const package_matcher& packages= {});
+    execution_resolution mode= execution_resolution::cache_admission,
+    const external_matcher& external= {},
+    const package_matcher& packages= {},
+    const evaluation_boundary_observer& boundary= {});
 bool evaluation_events_applicable (const contract_event_log&, contract_scope input,
                                     const variable_lookup&, const external_matcher& external= {},
                                     const package_matcher& packages= {});
@@ -227,7 +234,7 @@ public:
   void discard_since (std::size_t count);
   void record (contract_event_record event);
   void read_variable (const string&, bool present, const tree* value= nullptr);
-  void write_variable (const string&, const tree* value);
+  variable_write write_variable (const string&, const tree* value);
   evaluation_boundary_handle mark_boundary ();
   definition_payload previous_value (tree_label target, const tree& value) const;
   void commit (std::vector<contract_target> local_targets= {}, bool close_scope= true);

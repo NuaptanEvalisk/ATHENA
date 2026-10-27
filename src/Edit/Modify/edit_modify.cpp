@@ -137,6 +137,9 @@ edit_modify_rep::post_notify (path p) {
   if (!(rp <= p)) return;
   if (buf && buf->actor) buf->actor->source_changed ();
   athena::node_reference::source_changed ();
+  // The bridge trace changes only after layout. Source edits also invalidate
+  // path-query checkpoints before cursor correction can query the new tree.
+  typeset_invalidate_env ();
   selection_cancel ();
   cancel_alt_selections ();
   publish_live_spelling ();
@@ -412,7 +415,7 @@ edit_modify_rep::node_identities_active () {
 
 bool
 edit_modify_rep::adopt_node_identities () {
-  if (buf == nullptr) return false;
+  if (buf == nullptr || buf->field_environment) return false;
   if (buf->node_identities) return finish_node_identities ();
   // This explicit staged loader hook adopts a validated baseline, not an
   // undoable switch. Do not leave pre-activation anonymous history behind it.
@@ -422,13 +425,12 @@ edit_modify_rep::adopt_node_identities () {
     set_message ("Source identities require a fresh history baseline", "node model");
     return false;
   }
-  // A just-loaded editor need not have reached its first GUI idle/typesetting
-  // update. Resolve the source style/preamble DRD at this cold boundary rather
-  // than treating uninitialized macro child descriptors as an invalid source.
-  drd_update ();
+  // Cold identity validation has its own style/init/preamble context. It does
+  // not depend on a rendered cursor occurrence or mutate that occurrence.
+  const auto source_contracts= prepare_source_contracts ();
   auto state= std::make_unique<athena::document_node::source_identity_state> ();
   const auto errors= state->initialize_complete (
-    subtree (et, rp), drd, athena::document_node::standard_source_role);
+    subtree (et, rp), source_contracts, athena::document_node::standard_source_role);
   if (!errors.empty ()) {
     std_warning << "Source identity activation rejected: "
                 << string (errors.front ().detail.c_str ()) << LF;
@@ -445,7 +447,7 @@ edit_modify_rep::finish_node_identities () {
   if (buf == nullptr || !buf->node_identities || !buf->node_identities->pending ()) return true;
   auto& state= *buf->node_identities;
   tree& body= subtree (et, rp);
-  const auto plan= state.prepare (body, drd, athena::document_node::standard_source_role,
+  const auto plan= state.prepare (body, contract_state.contracts, athena::document_node::standard_source_role,
     [] (const athena::document_node::identity_request&) { return athena::node::new_id (); });
   if (!plan.ok ()) {
     global_cancel ();
@@ -466,7 +468,7 @@ edit_modify_rep::finish_node_identities () {
     // Artifact binding is metadata in the same undo transaction. Finalize any
     // newly identified bold source nodes before confirming that transaction.
     if (state.pending ()) {
-      const auto bound= state.prepare (body, drd,
+      const auto bound= state.prepare (body, contract_state.contracts,
         athena::document_node::standard_source_role,
         [] (const athena::document_node::identity_request&) { return athena::node::new_id (); });
       if (!bound.ok ()) throw std::runtime_error (bound.diagnostics.front ().detail);

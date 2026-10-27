@@ -11,7 +11,7 @@
 #include "ATHENA/Data/node_reference.hpp"
 #include "buffer_actor.hpp"
 #include "convert.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "formatter.hpp"
 #include "Format/format.hpp"
 #include "actor_ui_bridge.hpp"
@@ -274,10 +274,10 @@ bool edit_interface_rep::prepare_link_peek (link_peek_layer& peek, SI width) {
   const SI pad= 10*pixel;
   // Independent environment and reference tables keep preview assignments,
   // labels and page numbers out of the edited document's typesetter state.
-  drd_info preview_drd ("link-peek", std_drd);
+  athena::contracts::evaluation_state preview_state (athena::contracts::builtin_contracts ().snapshot ());
   hashmap<string,tree> r1 (UNINIT), r2 (UNINIT), a1 (UNINIT), a2 (UNINIT);
   hashmap<string,tree> t1 (UNINIT), t2 (UNINIT);
-  edit_env preview (preview_drd, source, r1, r2, a1, a2, t1, t2);
+  edit_env preview (preview_state, source, r1, r2, a1, a2, t1, t2);
   preview->write_default_env ();
   tree style= extract (document, "style");
   tree packages (USE_PACKAGE);

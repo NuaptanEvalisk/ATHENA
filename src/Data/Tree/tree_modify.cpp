@@ -10,7 +10,8 @@
 ******************************************************************************/
 
 #include "tree_modify.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "path.hpp"
 #include "new_document.hpp"
 #include "node_metadata.hpp"
@@ -63,8 +64,8 @@ correct_node (tree& t) {
   // NOTE: this routine should only modify t and its descendants,
   // but not any ancestors
   if (is_compound (t)) {
-    if (the_drd->contains (as_string (L(t))) &&
-        !the_drd->correct_arity (L(t), N(t)))
+    if (athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.contains (as_string (L(t))) &&
+        !athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.describe (L(t)).layout.accepts (N(t)))
       assign (t, "");
     if (is_concat (t))
       correct_concat_node (t, 0);

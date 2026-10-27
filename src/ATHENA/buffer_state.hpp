@@ -21,6 +21,7 @@
 #include "Data/artifact_live_cache.hpp"
 
 class buffer_actor;
+namespace athena::contracts { class detached_environment; }
 
 // This object is created, used, and destroyed by one BufferActor thread.  It
 // is deliberately absent from tm_buffer_rep, whose fields belong to the Qt /
@@ -40,6 +41,7 @@ struct buffer_document_state {
   bool realtime_save_paused= false;
   path root_path;
   new_data data;
+  std::shared_ptr<const athena::contracts::detached_environment> field_environment;
   link_repository links;
   bool notifier_attached;
   std::unique_ptr<athena::interop::document_nodes> interop_node_registry;

@@ -10,8 +10,9 @@
 ******************************************************************************/
 
 #include "packrat_parser.hpp"
+#include "Data/NodeContracts/syntax_query.hpp"
 #include "analyze.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "unicode_text.hpp"
 
 /******************************************************************************
@@ -54,7 +55,7 @@ packrat_parser_rep::serialize_atomic (tree t, path) {
 
 void
 packrat_parser_rep::serialize_compound (tree t, path p) {
-  tree r= the_drd->get_syntax (t, p);
+  tree r= athena::contracts::syntax_query {{athena::contracts::current_evaluation_state ().contracts}, athena::contracts::current_evaluation_state ().values}.expand (t, p);
   if (r != UNINIT)
     serialize (r, path (-1));
   else if (is_func (t, QUASI, 2)) {
@@ -173,7 +174,7 @@ packrat_parser_rep::serialize (tree t, path p) {
       break;
     case VALUE:
     case OR_VALUE: {
-      tree r= the_drd->get_syntax (t);
+      tree r= athena::contracts::syntax_query {{athena::contracts::current_evaluation_state ().contracts}, athena::contracts::current_evaluation_state ().values}.expand (t);
       //if (r != UNINIT) cout << "Rewrite " << t << " -> " << r << "\n";
       if (r != UNINIT) serialize (r, path (-1));
       else serialize_compound (t, p);

@@ -11,7 +11,7 @@
 
 #ifndef TREE_ANALYZE_H
 #define TREE_ANALYZE_H
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "language.hpp"
 #include "analyze.hpp"
 #include "vars.hpp"
@@ -92,7 +92,7 @@ array<int> symbol_priorities (array<tree> a);
 * DRD-based
 ******************************************************************************/
 
-drd_info get_document_drd (tree doc);
+athena::contracts::evaluation_state prepare_document_context (tree doc);
 bool is_correctable_child (tree t, int i, bool noaround= false);
 
 #endif // defined TREE_ANALYZE_H

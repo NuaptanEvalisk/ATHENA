@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include <QApplication>
+#include "Data/NodeContracts/editing_query.hpp"
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -19,7 +20,7 @@
 #include <QtTest/QtTest>
 #include "boot.hpp"
 #include "data_cache.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "gui.hpp"
 #include "scheme.hpp"
 #include "server.hpp"
@@ -57,10 +58,10 @@ void identify (tree& t, const char* id) {
 }
 
 struct Environment {
-  drd_info drd {"enunciation-presentation", std_drd};
+  athena::contracts::evaluation_state contract_state {athena::contracts::builtin_contracts ().snapshot ()};
   hashmap<string,tree> h1 {UNINIT}, h2 {UNINIT}, h3 {UNINIT};
   hashmap<string,tree> h4 {UNINIT}, h5 {UNINIT}, h6 {UNINIT};
-  edit_env env {drd, url_none (), h1, h2, h3, h4, h5, h6};
+  edit_env env {contract_state, url_none (), h1, h2, h3, h4, h5, h6};
   Environment () {
     env->write_default_env ();
     const string root (std::getenv ("ATHENA_PATH"));
@@ -184,7 +185,7 @@ private slots:
     context.h6 ("external-attachment")= "attachment-one";
     const auto capture= [&] (auto reader) {
       contract_event_log log;
-      contract_event_capture records (env->contract_events, log, &context.drd->contracts);
+      contract_event_capture records (env->contract_events, log, &context.contract_state.contracts);
       reader ();
       records.commit ();
       return log;
@@ -252,17 +253,17 @@ private slots:
     athena::contracts::contract_event_log cached;
     {
       athena::contracts::contract_event_capture record (
-        context.env->contract_events, cached, &context.drd->contracts);
+        context.env->contract_events, cached, &context.contract_state.contracts);
       scoped_package_environment scope (*context.env.operator-> (), tree (package));
       QCOMPARE (context.env->read ("package-parent"), tree ("scoped"));
-      QVERIFY (context.drd->contracts.definition (child_label));
-      QVERIFY (context.drd->contracts.declaration_history (child_label));
+      QVERIFY (context.contract_state.contracts.definition (child_label));
+      QVERIFY (context.contract_state.contracts.declaration_history (child_label));
       scope.finish ();
       record.commit ();
     }
     QCOMPARE (context.env->read ("package-parent"), tree ("outside"));
-    QVERIFY (!context.drd->contracts.definition (child_label));
-    QVERIFY (!context.drd->contracts.declaration_history (child_label));
+    QVERIFY (!context.contract_state.contracts.definition (child_label));
+    QVERIFY (!context.contract_state.contracts.declaration_history (child_label));
     QVERIFY (context.env->can_replay_events (cached));
     const tree result= context.env->exec (tree (WITH_PACKAGE, package,
       tree (DOCUMENT,
@@ -274,7 +275,7 @@ private slots:
     QCOMPARE (context.env->read ("package-parent"), tree ("outside"));
     QCOMPARE (context.env->read ("outside-write"), tree ("preserved"));
     QCOMPARE (context.env->read ("internal-only"), tree ("body-write"));
-    QVERIFY (!context.drd->contracts.definition (child_label));
+    QVERIFY (!context.contract_state.contracts.definition (child_label));
     QVERIFY (save (child, document (
       "<node tag='assign'><text>package-child</text><node tag='macro'>"
       "<text>x</text><text>changed nested package</text></node></node>")));
@@ -704,8 +705,8 @@ private slots:
     Environment context;
     edit_env env= context.env;
     tree t= source (), before= copy (t);
-    QVERIFY (context.drd->correct_arity (en::label (), 1));
-    QVERIFY (context.drd->is_accessible_child (t, 0));
+    QVERIFY (athena::contracts::editing_query {context.contract_state.contracts}.describe (en::label ()).layout.accepts (1));
+    QVERIFY (athena::contracts::editing_query {context.contract_state.contracts}.accessible (t, 0));
     QVERIFY (env->provides ("next-theorem"));
     tree plan= native_enunciation_macro (env.operator-> (), t);
     QVERIFY (is_func (plan, MACRO, 2));

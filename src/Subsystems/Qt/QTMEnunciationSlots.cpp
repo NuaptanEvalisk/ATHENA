@@ -220,7 +220,9 @@ class SlotInput: public QWidget {
   int natural_width= 0;
 public:
   SlotInput (QTMWidget* canvas, athena_actor_id actor, athena_view_id view,
-             const json& request): QWidget (canvas->presentationSurface ()), owner (canvas) {
+             const json& request,
+             std::shared_ptr<const athena::contracts::detached_environment> environment):
+    QWidget (canvas->presentationSurface ()), owner (canvas) {
     auto cleanup= qScopeGuard ([this] {
       { std::lock_guard<std::mutex> lock (sessions_mutex); sessions.erase (input_actor); }
       if (!is_nil (input)) send_destroy (input);
@@ -245,8 +247,7 @@ public:
     QPalette palette= this->palette ();
     palette.setColor (QPalette::Window, QColor (colors.foreground));
     setPalette (palette);
-    tree doc (WITH, "font", native (request.at ("font").get<std::string> ()));
-    doc << "font-base-size" << native (request.at ("font-size").get<std::string> ());
+    tree doc (WITH);
     doc << "athena-radioactive-links-suppressed" << "true"
         << "font-series" << "medium" << "font-shape" << "right"
         << "par-mode" << "left" << "scroll-bars" << "false";
@@ -257,7 +258,8 @@ public:
     url name ("tmfs://aux/enunciation-slot-" * native (node::new_id ()));
     if (tm_view source= concrete_runtime_view (view))
       set_current_view (abstract_view (source));
-    input= texmacs_input_widget (doc, compound ("style", style), name, xml::xml_format_version::v3);
+    input= texmacs_input_widget (doc, compound ("style", style), name,
+                                xml::xml_format_version::v3, std::move (environment));
     QWidget* content= concrete (input)->as_qwidget (this);
     layout->addWidget (content);
     QTMWidget* native_input= qobject_cast<QTMWidget*> (content);
@@ -348,6 +350,18 @@ public:
                           request.at ("width"), request.at ("height"));
     place ();
   }
+  void update_environment (const json& request,
+      std::shared_ptr<const athena::contracts::detached_environment> environment) {
+    if (closing || !environment || request.at ("node") != node_id ||
+        request.at ("field") != field || request.at ("index") != field_index) return;
+    const auto update= actor_continuation_registry::instance ().store ([environment] {
+      const auto* context= current_scheme_execution_context ();
+      context->editor->set_field_environment (environment);
+    });
+    if (!buffer_actor::submit_to (input_actor, actor_command_kind::run_native_continuation,
+          input_view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, update))
+      actor_continuation_registry::instance ().discard (update);
+  }
   void finish (std::function<void ()> after= {}) {
     if (closing && !after) return;
     closing= true;
@@ -401,7 +415,8 @@ std::unordered_map<athena_view_id, QPointer<SlotInput>> editors;
 }
 
 void qtm_enunciation_slot (QTMWidget* canvas, athena_actor_id actor,
-                           athena_view_id view, const std::string& request) {
+                           athena_view_id view, const std::string& request,
+                           std::shared_ptr<const athena::contracts::detached_environment> environment) {
   QPointer<SlotInput> previous= editors[view];
   if (request.empty () || !canvas || !canvas->presentationVisible ()) {
     editors.erase (view);
@@ -414,6 +429,12 @@ void qtm_enunciation_slot (QTMWidget* canvas, athena_actor_id actor,
       if (previous) previous->update_bounds (parsed);
       return;
     }
+    if (parsed.value ("context", false)) {
+      if (previous) previous->update_environment (parsed, std::move (environment));
+      return;
+    }
+    // The source has already superseded this request or left the field.
+    if (!environment) return;
     if (previous) {
       const std::string field= parsed.at ("field"), id= parsed.at ("node");
       const int index= parsed.at ("index");
@@ -440,7 +461,7 @@ void qtm_enunciation_slot (QTMWidget* canvas, athena_actor_id actor,
           actor_continuation_registry::instance ().discard (reopen);
       });
     }
-    else editors[view]= new SlotInput (canvas, actor, view, parsed);
+    else editors[view]= new SlotInput (canvas, actor, view, parsed, std::move (environment));
   }
   catch (const std::exception& error) { qWarning ("Title editor: %s", error.what ()); }
 }

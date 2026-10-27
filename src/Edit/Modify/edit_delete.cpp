@@ -10,6 +10,8 @@
 ******************************************************************************/
 
 #include "edit_text.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "tree_traverse.hpp"
 #include "analyze.hpp"
 #include "utf8_edit.hpp"
@@ -481,7 +483,8 @@ edit_text_rep::remove_structure_upwards () {
     is_func (st, TFORMAT) || is_func (st, TABLE) ||
     is_func (st, ROW) || is_func (st, CELL) ||
     is_compound (st, "shown") ||
-    drd->var_without_border (L(st));
+    ((athena::contracts::editing_query {contract_state.contracts}.describe (L(st)).border &
+      BORDER_INNER) != 0 && !athena::contracts::builtin_label (as_string (L(st))));
   remove (p * (last+1), N(st)-(last+1));
   remove (p * 0, last);
 

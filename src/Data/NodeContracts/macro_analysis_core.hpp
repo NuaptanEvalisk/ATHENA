@@ -3,11 +3,13 @@
 
 #include "field_layout.hpp"
 #include "property_authority.hpp"
+#include "inference.hpp"
 #include "node_metadata.hpp"
 #include <map>
 #include <memory>
 #include <string>
 #include <vector>
+#include <atomic>
 
 namespace athena::contracts {
 
@@ -18,6 +20,7 @@ struct analysis_field_input {
   property_authority environment_origin= property_authority::inferred;
   node::frozen_tree environment {tree (ATTR)};
   std::string name;
+  bool operator == (const analysis_field_input&) const;
 };
 
 struct analysis_contract_input {
@@ -30,6 +33,7 @@ struct analysis_contract_input {
   property_authority variable_type_origin= property_authority::inferred;
   property_authority with_origin= property_authority::inferred;
   std::vector<analysis_field_input> fields;
+  bool operator == (const analysis_contract_input&) const;
 };
 
 struct analysis_definition_input {
@@ -50,8 +54,7 @@ struct analysis_field_result {
   int type= 0, access= 0;
   node::frozen_tree environment {tree (ATTR)};
   std::string name;
-  bool conditional= false;
-  std::vector<std::string> conflicts;
+  field_analysis analysis;
   property_authority type_origin= property_authority::inferred;
   property_authority access_origin= property_authority::inferred;
   property_authority environment_origin= property_authority::inferred;
@@ -67,6 +70,7 @@ struct analysis_contract_result {
   property_authority layout_origin= property_authority::inferred;
   property_authority variable_type_origin= property_authority::inferred;
   property_authority with_origin= property_authority::inferred;
+  std::vector<std::string> dependencies;
 };
 
 // One analysis owner at a time. Inputs/results may cross threads; mutable
@@ -77,7 +81,8 @@ class macro_analysis_core {
 public:
   macro_analysis_core ();
   ~macro_analysis_core ();
-  std::vector<analysis_contract_result> apply (macro_analysis_input input);
+  std::vector<analysis_contract_result> apply (macro_analysis_input input,
+                                             const std::atomic<bool>* cancelled= nullptr);
 };
 
 } // namespace athena::contracts

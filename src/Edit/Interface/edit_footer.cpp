@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "edit_interface.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
 #include "gui_text.hpp"
 #include "utf8_edit.hpp"
 #include "tm_server.hpp"
@@ -221,9 +222,9 @@ edit_interface_rep::compute_operation_footer (tree st) {
     case INCLUDE:
       r= concat ("include ", verbatim (as_string (st[0]))); break;
     case INACTIVE:
-      r= concat ("inactive ", drd->get_name (L(st[0]))); break;
+      r= concat ("inactive ", athena::contracts::editing_query {contract_state.contracts}.name (L(st[0]))); break;
     case VAR_INACTIVE:
-      r= concat ("inactive ", drd->get_name (L(st[0]))); break;
+      r= concat ("inactive ", athena::contracts::editing_query {contract_state.contracts}.name (L(st[0]))); break;
     case LABEL:
       r= concat ("label: ", verbatim (as_string (st[0]))); break;
     case REFERENCE:
@@ -248,7 +249,7 @@ edit_interface_rep::compute_operation_footer (tree st) {
   if (r == "") {
     switch (L (st)) {
     case IMAGE: r= "image"; break;
-    default: r= drd->get_name (L(st));
+    default: r= athena::contracts::editing_query {contract_state.contracts}.name (L(st));
     }
   }
   if (last_item (tp) == 0) r= concat ("before ", r);
@@ -359,12 +360,15 @@ edit_interface_rep::compute_compound_footer (tree t, path p) {
   case SPECIFIC:
     return concat (up, "texmacs ");
   default:
-    return concat (up, drd->get_name (L(st)) * " ");
+    return concat (up, athena::contracts::editing_query {contract_state.contracts}.name (L(st)) * " ");
   }
 }
 
 void
 edit_interface_rep::set_right_footer () {
+  // Keep the previous field description until its replacement occurrence is
+  // prepared. Document statistics do not depend on this cursor context.
+  if (!cursor_context_at (tp, cursor_source_boundary ())) return;
   tree cf= compute_compound_footer (et, path_up (tp));
   tree st= subtree (et, path_up (tp));
   tree lf;
@@ -416,7 +420,7 @@ edit_interface_rep::set_hybrid_footer (tree st) {
       }
       // macro application
       tree f= get_env_value (name);
-      if (drd->contains (name) && (f == UNINIT))
+      if (athena::contracts::editing_query {contract_state.contracts}.contains (name) && (f == UNINIT))
         set_left_footer (concat (kbd ("return"), ": insert primitive ", name));
       else if (is_func (f, MACRO) || is_func (f, XMACRO))
         set_left_footer (concat (kbd ("return"), ": insert macro ", name));

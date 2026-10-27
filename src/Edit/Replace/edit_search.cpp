@@ -11,8 +11,8 @@
 
 #include "Replace/edit_replace.hpp"
 #include "Interface/edit_interface.hpp"
-#include "drd_std.hpp"
-#include "drd_mode.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
 #include "analyze.hpp"
 #include "tm_data.hpp"
 #include "tree_search.hpp"
@@ -115,7 +115,7 @@ edit_replace_rep::search_upwards_in_set (tree t) {
       if (is_atomic (t[i])) {
         string s= t[i]->label;
         if (is_quoted (s)) s= raw_unquote (s);
-        if (std_contains (s)) {
+        if (athena::contracts::builtin_label (s)) {
           tree_label l= as_tree_label (s);
           if (is_func (st, l)) return p;
         }
@@ -140,7 +140,7 @@ edit_replace_rep::search_previous_compound (path init, string which) {
         p= p * (N(st)-1);
       }
     }
-    if (drd->is_accessible_path (et, p) &&
+    if (athena::contracts::editing_query {contract_state.contracts}.accessible (et, p) &&
         is_compound (subtree (et, p), which))
       return p;
   }
@@ -160,7 +160,7 @@ edit_replace_rep::search_next_compound (path init, string which) {
         p= p * 0;
       }
     }
-    if (drd->is_accessible_path (et, p) &&
+    if (athena::contracts::editing_query {contract_state.contracts}.accessible (et, p) &&
         is_compound (subtree (et, p), which))
       return p;
   }
@@ -244,7 +244,7 @@ edit_replace_rep::test (path p, tree t) {
 ******************************************************************************/
 
 void
-edit_replace_rep::step_ascend (bool forward) {
+edit_replace_rep::step_ascend (bool forward, athena::contracts::access_policy access) {
   // cout << "Step ascend at " << search_at << "\n";
   search_at= path_add (path_up (search_at), forward? 1: -1);
   tree st;
@@ -254,21 +254,21 @@ edit_replace_rep::step_ascend (bool forward) {
     l = last_item (search_at);
     // cout << "  st= " << st << "\n";
     // cout << "  l = " << l << "\n";
-    if ((l<0) || (l>=N(st)) || drd->is_accessible_child (st, l)) break;
+    if ((l<0) || (l>=N(st)) || athena::contracts::editing_query {contract_state.contracts, access}.accessible (st, l)) break;
     search_at= path_add (search_at, forward? 1: -1);
   }
 
   if (forward) {
     if (l == N(st)) {
       if (is_atom (search_at / rp)) search_at= rp;
-      else step_ascend (forward);
+      else step_ascend (forward, access);
     }
     else step_descend (forward);
   }
   else {
     if (l == -1) {
       if (is_atom (search_at / rp)) search_at= rp;
-      else step_ascend (forward);
+      else step_ascend (forward, access);
     }
     else step_descend (forward);
   }
@@ -286,7 +286,8 @@ edit_replace_rep::step_descend (bool forward) {
 }
 
 void
-edit_replace_rep::step_horizontal (bool forward) {
+edit_replace_rep::step_horizontal (bool forward, athena::contracts::access_policy access) {
+  const athena::contracts::editing_query query {contract_state.contracts, access};
   // cout << "Step horizontal at " << search_at << "\n";
   if (search_at == rp) step_descend (forward);
   else {
@@ -295,7 +296,7 @@ edit_replace_rep::step_horizontal (bool forward) {
 
     // cout << "  st= " << st << "\n";
     if (forward) {
-      if (l == right_index (st)) step_ascend (forward);
+      if (l == right_index (st)) step_ascend (forward, access);
       else {
         if (is_atomic (st)) {
           search_at= path_up (search_at) * utf8_grapheme_next (st->label, l);
@@ -303,17 +304,17 @@ edit_replace_rep::step_horizontal (bool forward) {
         else {
           int i;
           for (i=l; i<N(st); i++)
-            if (drd->is_accessible_child (st, i)) {
+            if (query.accessible (st, i)) {
               search_at= path_up (search_at) * i;
               step_descend (forward);
               return;
             }
-          step_ascend (forward);
+          step_ascend (forward, access);
         }
       }
     }
     else {
-      if (l == 0) step_ascend (forward);
+      if (l == 0) step_ascend (forward, access);
       else {
         if (is_atomic (st)) {
           search_at= path_up (search_at) * utf8_grapheme_previous (st->label, l);
@@ -321,12 +322,12 @@ edit_replace_rep::step_horizontal (bool forward) {
         else {
           int i;
           for (i=l; i>=0; i--)
-            if (drd->is_accessible_child (st, i)) {
+            if (query.accessible (st, i)) {
               search_at= path_up (search_at) * i;
               step_descend (forward);
               return;
             }
-          step_ascend (forward);
+          step_ascend (forward, access);
         }
       }
     }
@@ -350,12 +351,10 @@ edit_replace_rep::next_match (bool forward) {
       notify_change (THE_SELECTION);
       return;
     }
-    int new_mode= DRD_ACCESS_HIDDEN;
+    auto access= athena::contracts::access_policy::hidden;
     if (get_init_string (MODE) == "src" || inside ("show-preamble"))
-      new_mode= DRD_ACCESS_SOURCE;
-    int old_mode= set_access_mode (new_mode);
-    step_horizontal (forward);
-    set_access_mode (old_mode);
+      access= athena::contracts::access_policy::source;
+    step_horizontal (forward, access);
   }
 }
 

@@ -17,7 +17,7 @@
 #include "ATHENA/Hodarium/revision_transfer.hpp"
 #include "node_metadata.hpp"
 #include "ATHENA/Data/enunciation_model.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include <fstream>
 #include <future>
 #include <sys/stat.h>
@@ -47,7 +47,7 @@ tree migrated () { return tree (DOCUMENT, tree (u8"caf\u00e9")); }
 class TestDocumentUpgrade: public QObject {
   Q_OBJECT
 private slots:
-  void initTestCase () { init_std_drd (); }
+  void initTestCase () { athena::contracts::initialize_builtins (); }
   void provableAttributionSavePreservesNames () {
     namespace node= athena::node;
     namespace en= athena::enunciation;

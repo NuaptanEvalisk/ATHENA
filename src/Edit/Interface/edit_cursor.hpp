@@ -31,11 +31,13 @@ protected:
 
   bool cursor_is_accessible ();
   path make_cursor_accessible (path p, bool forwards);
+  path make_cursor_accessible (path p, bool forwards, const cursor_navigation&);
   bool physical_border_jump_skips_accessible_child (
     path old_path, path new_path, bool forwards);
-  path tree_path (path sp, SI x, SI y, SI delta) override;
+  path tree_path (path sp, SI x, SI y, SI delta, bool source= false) override;
   path tree_path (path sp, SI x, SI y, SI delta,
-                  athena::text::caret_affinity* affinity);
+                  athena::text::caret_affinity* affinity, path* box_path= nullptr,
+                  bool source= false);
   bool cursor_move_sub (SI& x0, SI& y0, SI& delta, SI dx, SI dy);
   void cursor_move (SI dx, SI dy);
   void adjust_ghost_cursor (int status);

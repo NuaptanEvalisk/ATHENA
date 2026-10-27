@@ -9,7 +9,7 @@
 ******************************************************************************/
 #include "font.hpp"
 #include "data_cache.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "unicode_text.hpp"
 #include "shaped_line.hpp"
 #include "font_selection.hpp"
@@ -1338,7 +1338,7 @@ int main () {
   QTemporaryDir profile;
   if (!profile.isValid () || std::getenv ("ATHENA_PATH") == nullptr) return 1;
   qputenv ("ATHENA_HOME_PATH", profile.path ().toLocal8Bit ());
-  init_std_drd ();
+  athena::contracts::initialize_builtins ();
   try {
     const tree diagnostics_before= get_debug_messages ("Debugging console", 1000);
     check_text ();

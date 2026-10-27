@@ -19,7 +19,7 @@
 #include "ATHENA/Data/vault_maintenance_internal.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "convert.hpp"
-#include "drd_std.hpp"
+#include "Data/NodeContracts/execution_state.hpp"
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
 
@@ -121,7 +121,7 @@ bool contains (const tree& value, const string& text) {
 class NativeV3MaintenanceTest: public QObject {
   Q_OBJECT
 private slots:
-  void initTestCase () { init_std_drd (); }
+  void initTestCase () { athena::contracts::initialize_builtins (); }
 
   void transformsPreserveMetadataAndMath () {
     QTemporaryDir temporary;

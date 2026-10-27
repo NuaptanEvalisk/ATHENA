@@ -12,7 +12,7 @@
 #define ATHENA_DOCUMENT_NODE_MODEL_HPP
 
 #include "Kernel/Types/node_metadata.hpp"
-#include "drd_info.hpp"
+#include "Data/NodeContracts/contract_scope.hpp"
 #include "modification.hpp"
 
 #include <functional>
@@ -105,7 +105,7 @@ struct source_path_classification {
 // identity planning. `content=false` with no diagnostics means the path lies in
 // derived/data structure and must not become a source identity authority.
 source_path_classification classify_source_path (
-  const tree& body, const source_path& where, drd_info drd,
+  const tree& body, const source_path& where, const contracts::contract_scope& context,
   const role_resolver& roles, limits budget= {});
 
 // Input is the extracted DOCUMENT body, NOT its file envelope or a BODY wrapper.
@@ -113,12 +113,12 @@ source_path_classification classify_source_path (
 // CONCATs included), and semantic headings/enunciations even inside wrappers.
 // Existing IDs everywhere, including excluded data and property rich text, are
 // retained and reserved; duplicate source occurrences are rejected, not merged.
-// DRD access modes, heuristic macro expansion, Scheme, editor state, and source
-// properties do not execute. The caller supplies an owner-local DRD snapshot.
+// Heuristic macro expansion, Scheme, editor state and source properties do not
+// execute. The caller supplies an explicit read-only native contract scope.
 // Ambiguity/duplicates fail before allocator calls. Allocator side effects cannot
 // be rolled back if a later allocation fails; prefer a pure allocator.
 identity_result assign_detached_source_ids (
-  const tree& body, drd_info drd, const role_resolver& roles,
+  const tree& body, const contracts::contract_scope& context, const role_resolver& roles,
   const identity_allocator& allocate, limits budget= {});
 
 struct identity_edit_plan {
@@ -152,11 +152,11 @@ public:
   // mutating source. Failure leaves this index unusable. This is not migration
   // or a vault-global uniqueness check.
   std::vector<diagnostic> initialize_complete (
-    const tree&, drd_info, const role_resolver&, limits budget= {});
+    const tree&, const contracts::contract_scope&, const role_resolver&, limits budget= {});
   void observe (modification);
   bool pending () const { return !ready || dirty.has_value (); }
   std::uint64_t generation () const { return revision; }
-  identity_edit_plan prepare (const tree&, drd_info, const role_resolver&,
+  identity_edit_plan prepare (const tree&, const contracts::contract_scope&, const role_resolver&,
                               const identity_allocator&, limits budget= {}) const;
   // Uses native observer-aware modifications, hence joins the caller's undo
   // transaction. The owner must cancel that transaction if applying throws.

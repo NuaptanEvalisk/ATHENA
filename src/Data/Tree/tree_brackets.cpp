@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "tree_correct.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
 #include "tree_analyze.hpp"
 #include "scheme.hpp"
 #include "unicode_text.hpp"
@@ -492,7 +493,7 @@ upgrade_brackets_bis (tree t, string mode) {
     r= tree (t, n);
     athena::node::copy_metadata (t, r);
     for (i=0; i<n; i++) {
-      tree tmode= the_drd->get_env_child (t, i, MODE, mode);
+      tree tmode= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, MODE, mode);
       string smode= (is_atomic (tmode)? tmode->label: string ("text"));
       if (is_correctable_child (t, i, true))
         r[i]= upgrade_brackets_bis (t[i], smode);
@@ -513,7 +514,7 @@ upgrade_brackets_bis (tree t, string mode) {
 tree
 upgrade_brackets (tree t, string mode) {
   //cout << "Upgrade " << t << "\n";
-  with_drd drd (get_document_drd (t));
+  athena::contracts::owned_evaluation_scope contract_state (prepare_document_context (t));
   t= upgrade_above_below (t);
   return upgrade_brackets_bis (t, mode);
 }
@@ -538,7 +539,7 @@ upgrade_big_bis (tree t) {
 
 tree
 upgrade_big (tree t) {
-  with_drd drd (get_document_drd (t));
+  athena::contracts::owned_evaluation_scope contract_state (prepare_document_context (t));
   return upgrade_big_bis (t);
 }
 

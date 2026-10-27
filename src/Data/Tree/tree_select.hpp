@@ -18,6 +18,7 @@ bool right_most_inside (path p, tree t);
 path correct_right_most_inside (path p, tree t);
 
 void selection_correct (tree t, path i1, path i2, path& o1, path& o2);
+void selection_correct (const cursor_navigation&, tree t, path i1, path i2, path& o1, path& o2);
 tree selection_compute (tree t, path i1, path i2);
 
 path table_search_format (tree t, path p);
