@@ -913,7 +913,6 @@ edit_dynamic_rep::activate_hybrid (bool with_args_hint) {
 
 void
 edit_dynamic_rep::activate_hybrid (bool with_args_hint, const std::optional<command>& resolved) {
-  // WARNING: update edit_interface_rep::set_hybrid_footer when updating this
   const auto context= macro_invocation_context ();
   if (!context) {
     set_message ("Macro input is awaiting layout", "Macro input");

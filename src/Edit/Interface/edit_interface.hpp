@@ -338,8 +338,6 @@ public:
   tree compute_text_footer (tree st);
   tree compute_operation_footer (tree st);
   tree compute_compound_footer (tree t, path p);
-  bool set_latex_footer (tree st);
-  bool set_hybrid_footer (tree st);
   void set_left_footer (tree l);
   void append_left_footer (tree& l, string env_var);
   void set_left_footer ();

@@ -379,61 +379,6 @@ edit_interface_rep::set_right_footer () {
 }
 
 /******************************************************************************
-* Set footer with information about execution of latex command
-******************************************************************************/
-
-bool
-edit_interface_rep::set_latex_footer (tree st) {
-  if (is_atomic (st)) 
-    if (is_func (subtree (et, path_up (tp, 2)), LATEX, 1) ||
-        is_func (subtree (et, path_up (tp, 2)), HYBRID, 1)) {
-      string s= st->label;
-      string help;
-      command cmd;
-      if (sv->kbd_get_command (s, help, cmd)) {
-        set_left_footer (concat (kbd ("return"), ": " * help));
-        set_right_footer ("latex command");
-        return true;
-      }
-    }
-  return false;
-}
-
-bool
-edit_interface_rep::set_hybrid_footer (tree st) {
-  // WARNING: update edit_dynamic_rep::activate_hybrid when updating this
-  if (is_atomic (st))
-    if (is_func (subtree (et, path_up (tp, 2)), HYBRID, 1)) {
-      string msg;
-      // macro argument
-      string name= st->label;
-      path mp= search_upwards (MACRO);
-      if (!is_nil (mp)) {
-        tree mt= subtree (et, mp);
-        int i, n= N(mt)-1;
-        for (i=0; i<n; i++)
-          if (mt[i] == name) {
-            set_left_footer (concat (kbd ("return"), ": insert argument ", name));
-            set_right_footer ("hybrid command");
-            return true;
-          }
-      }
-      // macro application
-      tree f= get_env_value (name);
-      if (athena::contracts::editing_query {contract_state.contracts}.contains (name) && (f == UNINIT))
-        set_left_footer (concat (kbd ("return"), ": insert primitive ", name));
-      else if (is_func (f, MACRO) || is_func (f, XMACRO))
-        set_left_footer (concat (kbd ("return"), ": insert macro ", name));
-      else if (f != UNINIT)
-        set_left_footer (concat (kbd ("return"), ": insert value ", name));
-      else return false;
-      set_right_footer ("hybrid command");
-      return true;
-    }
-  return false;
-}
-
-/******************************************************************************
 * Update footer
 ******************************************************************************/
 
