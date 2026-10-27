@@ -227,6 +227,11 @@ tree evaluation_environment_checkpoint::value (string name) const {
   return (*values)[name];
 }
 
+tree evaluation_environment_checkpoint::effective_value (string name) const {
+  tree current= value (name);
+  return is_func (current, BACKUP, 2) ? current[0] : current;
+}
+
 evaluation_context_capture::evaluation_context_capture (
     edit_env_rep& owner, const evaluation_environment_checkpoint& base):
   env (owner), previous (owner.recorded_contexts), recorded {base, {}} {

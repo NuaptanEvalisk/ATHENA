@@ -466,8 +466,7 @@ edit_interface_rep::mouse_clickable_color () {
   path bp= find_scrolled_box_path (eb, sp, last_x, last_y, 0);
   path p= eb->find_tree_path (bp);
   const auto context= cursor_context_at (p, eb->find_source_boundary (bp));
-  tree t= context ? context->value (CLICKABLE_COLOR) : get_init_value (CLICKABLE_COLOR);
-  if (is_func (t, BACKUP, 2)) t= t[0];
+  tree t= context ? context->effective_value (CLICKABLE_COLOR) : get_init_value (CLICKABLE_COLOR);
   if (!is_atomic (t)) t= "#20A060";
   return named_color (t->label);
 }

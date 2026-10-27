@@ -766,18 +766,14 @@ editor_rep::editor_command_state_snapshot () {
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_SELECTION;
   if (selection_active_any () && !selection_active_small ())
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_NON_SMALL_SELECTION;
-  tree preamble= context->value (PREAMBLE);
-  if (is_func (preamble, BACKUP, 2)) preamble= preamble[0];
-  if (inside_graphics (false) && preamble == "false" &&
+  if (inside_graphics (false) && context->effective_value (PREAMBLE) == "false" &&
       native_graphics_selection_active ())
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_GRAPHICS_SELECTION;
   path focus= focus_get ();
   if (test_subtree (focus))
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_FOCUS_NODE;
   const bool graphics_mode= inside_graphics (false);
-  tree mode_value= context->value (MODE);
-  if (is_func (mode_value, BACKUP, 2)) mode_value= mode_value[0];
-  const string mode= as_string (mode_value);
+  const string mode= as_string (context->effective_value (MODE));
   if (mode == "math" && !graphics_mode)
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_MATH_MODE;
   if (mode == "text" && !graphics_mode)
@@ -1008,8 +1004,7 @@ editor_rep::popup_menu_state_snapshot () {
   snapshot.spell_word.assign (
     word.data (), static_cast<std::size_t> (N(word)));
 
-  tree language= context->value ("language");
-  if (is_func (language, BACKUP, 2)) language= language[0];
+  tree language= context->effective_value ("language");
   string lan= is_atomic (language) ? as_string (language):
                                     get_init_string ("language");
   tree checked= spell_check (lan, word);
@@ -1890,8 +1885,7 @@ void
 editor_rep::publish_editor_command_state () {
   if (ui_endpoint == nullptr) return;
   const auto context= editor_rep::cursor_context_at (the_path ());
-  tree separator= context ? context->value ("par-par-sep") : tree ("");
-  if (is_func (separator, BACKUP, 2)) separator= separator[0];
+  tree separator= context ? context->effective_value ("par-par-sep") : tree ("");
   const string par_sep= as_string (separator);
   bool prominent_spacing=
     context && !ends (par_sep, "fns") && !starts (par_sep, "0fn");

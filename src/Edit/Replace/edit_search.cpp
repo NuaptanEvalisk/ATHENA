@@ -244,12 +244,8 @@ void
 edit_replace_rep::source_mode_language_at (path p, string& mode, string& language) {
   const auto context= editor_rep::cursor_context_at (p);
   if (context) {
-    tree value= context->value (MODE);
-    if (is_func (value, BACKUP, 2)) value= value[0];
-    mode= as_string (value);
-    value= context->value (MODE_LANGUAGE (mode));
-    if (is_func (value, BACKUP, 2)) value= value[0];
-    language= as_string (value);
+    mode= as_string (context->effective_value (MODE));
+    language= as_string (context->effective_value (MODE_LANGUAGE (mode)));
     return;
   }
   // Searching may traverse source that has not been laid out. This remaining

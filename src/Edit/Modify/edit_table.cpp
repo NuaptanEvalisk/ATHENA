@@ -43,10 +43,7 @@ tree
 edit_table_rep::table_environment_value (path format, string variable) {
   const auto context= table_context && table_context_path == format ? table_context :
     editor_rep::cursor_context_at (format * 0);
-  if (context) {
-    tree value= context->value (variable);
-    return is_func (value, BACKUP, 2) ? value[0] : value;
-  }
+  if (context) return context->effective_value (variable);
   // New table macros and decoration payloads still need explicit preparation.
   return get_env_value (variable, format * 0);
 }

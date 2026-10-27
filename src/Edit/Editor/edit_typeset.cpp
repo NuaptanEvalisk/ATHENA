@@ -498,7 +498,7 @@ edit_typeset_rep::prepare_cursor_environment () {
   if (!selected && prepared_cursor && prepared_cursor->trace == ttt->br->contract_changes &&
       prepared_cursor->execution_base == ttt->execution_base) selected= prepared_cursor->boundary;
   const auto prepared= prepared_context_at (tp, selected);
-  if (!prepared || prepared->value (PREAMBLE) == "true") return;
+  if (!prepared || prepared->effective_value (PREAMBLE) == "true") return;
   prepared_cursor= prepared;
   prepared->restore (*env.operator-> ());
   env->style_init_env ();
@@ -699,8 +699,7 @@ edit_typeset_rep::defined_at_cursor (string var) {
 tree
 edit_typeset_rep::get_env_value (string var, path p) {
   if (const auto prepared= editor_rep::cursor_context_at (p)) {
-    tree value= prepared->value (var);
-    return is_func (value, BACKUP, 2) ? value[0] : value;
+    return prepared->effective_value (var);
   }
   typeset_exec_until (p);
   tree t= cur[p]->value (var);

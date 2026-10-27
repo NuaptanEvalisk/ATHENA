@@ -374,8 +374,7 @@ std::optional<string> spell_live_language_at (path start_path) {
   editor ed= get_current_editor ();
   const auto context= ed->cursor_context_at (start_path);
   if (!context) return {};
-  tree language= context->value ("language");
-  if (is_func (language, BACKUP, 2)) language= language[0];
+  tree language= context->effective_value ("language");
   return is_atomic (language) ? as_string (language): ed->get_init_string ("language");
 }
 
@@ -1327,8 +1326,7 @@ generic_parameter_get (string name, object mode_object) {
     editor ed= get_current_editor ();
     const auto prepared= ed->cursor_context_at (ed->the_path ());
     if (!prepared) return object ("");
-    value= prepared->value (name);
-    if (is_func (value, BACKUP, 2)) value= value[0];
+    value= prepared->effective_value (name);
   }
   else
     return object ("");

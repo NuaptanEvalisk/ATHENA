@@ -102,6 +102,8 @@ public:
   hashmap<string,tree> variables () const;
   bool contains (string name) const;
   tree value (string name) const;
+  // Editor-visible value, matching get_env_value without changing raw bindings.
+  tree effective_value (string name) const;
   const athena::contracts::contract_scope& contract_context () const { return contracts; }
   bool same_field_context (const evaluation_environment_checkpoint&) const;
   std::shared_ptr<const athena::contracts::detached_environment> detach () const;

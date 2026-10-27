@@ -1592,8 +1592,7 @@ tree
 edit_graphics_rep::native_graphics_environment_value (
     string name,
     const std::shared_ptr<const evaluation_environment_checkpoint>& prepared) {
-  tree value= prepared ? prepared->value (name) : get_env_value (name);
-  return is_func (value, BACKUP, 2) ? value[0] : value;
+  return prepared ? prepared->effective_value (name) : get_env_value (name);
 }
 
 tree

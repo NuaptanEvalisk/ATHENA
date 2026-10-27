@@ -51,12 +51,6 @@ focus_border_width (renderer ren) {
   return max ((SI) gui_focus_border_width, (SI) 1) * ren->pixel;
 }
 
-static tree
-effective_display_value (const evaluation_environment_checkpoint& context, string name) {
-  tree value= context.value (name);
-  return is_func (value, BACKUP, 2) ? value[0] : value;
-}
-
 static bool
 is_plain_white_background (tree bg) {
   return bg == "white" || bg == "#fff" || bg == "#FFF" ||
@@ -172,7 +166,7 @@ edit_interface_rep::draw_env (renderer ren) {
     if (!is_nil (env_rects)) {
       const auto context= cursor_context_at (tp, cursor_source_boundary ());
       color col= named_color (as_string (context ?
-        effective_display_value (*context, CONTEXT_COLOR) : get_init_value (CONTEXT_COLOR)));
+        context->effective_value (CONTEXT_COLOR) : get_init_value (CONTEXT_COLOR)));
       ren->set_pencil (pencil (col, ren->pixel));
       ren->draw_rectangles (env_rects);
     }
@@ -192,28 +186,28 @@ edit_interface_rep::draw_cursor (renderer ren) {
     const auto context= cursor_context_at (tp, cursor_source_boundary ());
     if (!context) return;
     cursor cu= get_cursor();
-    if (!(inside_graphics () && effective_display_value (*context, PREAMBLE) == "false")) {
+    if (!(inside_graphics () && context->effective_value (PREAMBLE) == "false")) {
       SI dw= 0;
       if (tremble_count > 3) dw= min (tremble_count - 3, 25) * pixel;
       cu->y1 -= 2*zpixel + dw; cu->y2 += 2*zpixel + dw;
       SI x1= cu->ox + ((SI) (cu->y1 * cu->slope)), y1= cu->oy + cu->y1;
       SI x2= cu->ox + ((SI) (cu->y2 * cu->slope)), y2= cu->oy + cu->y2;
-      string mode= as_string (effective_display_value (*context, MODE));
+      string mode= as_string (context->effective_value (MODE));
       string family, series;
       color cuc= gui_cursor_color;
       if (!cu->valid) cuc= green;
       ren->set_pencil (pencil (cuc, zpixel + dw));
       if ((mode == "text") || (mode == "src")) {
-        family= as_string (effective_display_value (*context, FONT_FAMILY));
-        series= as_string (effective_display_value (*context, FONT_SERIES));
+        family= as_string (context->effective_value (FONT_FAMILY));
+        series= as_string (context->effective_value (FONT_SERIES));
       }
       else if (mode == "math") {
-        family= as_string (effective_display_value (*context, MATH_FONT_FAMILY));
-        series= as_string (effective_display_value (*context, MATH_FONT_SERIES));
+        family= as_string (context->effective_value (MATH_FONT_FAMILY));
+        series= as_string (context->effective_value (MATH_FONT_SERIES));
       }
       else if (mode == "prog") {
-        family= as_string (effective_display_value (*context, PROG_FONT_FAMILY));
-        series= as_string (effective_display_value (*context, PROG_FONT_SERIES));
+        family= as_string (context->effective_value (PROG_FONT_FAMILY));
+        series= as_string (context->effective_value (PROG_FONT_SERIES));
       }
       SI lserif= (series=="bold"? 2*zpixel: zpixel) + dw;
       SI rserif= zpixel + dw;
@@ -272,7 +266,7 @@ edit_interface_rep::draw_selection (renderer ren, rectangle r) {
   }
   const auto context= cursor_context_at (tp, cursor_source_boundary ());
   const color match_color= named_color (as_string (context ?
-    effective_display_value (*context, MATCH_COLOR) : get_init_value (MATCH_COLOR)));
+    context->effective_value (MATCH_COLOR) : get_init_value (MATCH_COLOR)));
   for (int i=0; i<N(alt_selection_rects); i++) {
     ren->set_pencil (pencil (match_color, ren->pixel));
 #ifdef QTTEXMACS

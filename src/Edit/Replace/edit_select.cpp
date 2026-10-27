@@ -645,10 +645,7 @@ edit_select_rep::selection_get_env_value (string var) {
   // Keep the selected physical occurrence when the selection's source is an
   // ancestor of the caret, including repeated macro-argument presentations.
   const auto context= editor_rep::cursor_context_at (selected);
-  if (context) {
-    const tree value= context->value (var);
-    return is_func (value, BACKUP, 2) ? value[0] : value;
-  }
+  if (context) return context->effective_value (var);
   return get_env_value (var, selected);
 }
 

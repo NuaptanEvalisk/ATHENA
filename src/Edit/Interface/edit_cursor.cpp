@@ -34,21 +34,13 @@ cursor& edit_cursor_rep::the_ghost_cursor () { return mv; }
 
 #define DELTA (1<<23)
 
-static tree
-cursor_effective_value (
-    const std::shared_ptr<const evaluation_environment_checkpoint>& context,
-    string name, tree fallback= tree (UNINIT)) {
-  tree value= context ? context->value (name) : fallback;
-  return is_func (value, BACKUP, 2) ? value[0] : value;
-}
-
 path
 edit_cursor_rep::make_cursor_accessible (path p, bool forwards) {
   using athena::contracts::access_policy;
   const auto boundary= p == tp ? cursor_source_boundary () : nullptr;
   const auto context= cursor_context_at (p, boundary);
-  const auto mode= cursor_effective_value (context, MODE, get_init_value (MODE));
-  const auto access= mode == "src" || cursor_effective_value (context, PREAMBLE) == "true" ? access_policy::source :
+  const auto mode= context ? context->effective_value (MODE) : get_init_value (MODE);
+  const auto access= mode == "src" || (context && context->effective_value (PREAMBLE) == "true") ? access_policy::source :
     access_policy::normal;
   const cursor_navigation navigation ({context ? context->contract_context () : contract_state.contracts, access});
   if (boundary && context && cursor_occurrence_admitted (p, boundary) &&
@@ -99,8 +91,8 @@ edit_cursor_rep::tree_path (path sp, SI x, SI y, SI delta,
   const auto boundary= eb->find_source_boundary (bp);
   const auto context= cursor_context_at (stp, boundary);
   using athena::contracts::access_policy;
-  const auto mode= cursor_effective_value (context, MODE, get_init_value (MODE));
-  const auto access= source || mode == "src" || cursor_effective_value (context, PREAMBLE) == "true" ?
+  const auto mode= context ? context->effective_value (MODE) : get_init_value (MODE);
+  const auto access= source || mode == "src" || (context && context->effective_value (PREAMBLE) == "true") ?
     access_policy::source : access_policy::normal;
   const cursor_navigation navigation ({context ? context->contract_context () : contract_state.contracts, access});
   path p= stp;
@@ -674,8 +666,8 @@ edit_cursor_rep::cursor_is_accessible () {
   using athena::contracts::access_policy;
   const auto boundary= cursor_source_boundary ();
   const auto context= cursor_context_at (tp, boundary);
-  const auto access= context && (cursor_effective_value (context, MODE) == "src" ||
-      cursor_effective_value (context, PREAMBLE) == "true") ?
+  const auto access= context && (context->effective_value (MODE) == "src" ||
+      context->effective_value (PREAMBLE) == "true") ?
     access_policy::source : access_policy::normal;
   const cursor_navigation navigation ({context ? context->contract_context () : contract_state.contracts, access});
   if (boundary && context && cursor_occurrence_admitted (tp, boundary))
