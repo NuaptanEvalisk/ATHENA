@@ -28,6 +28,8 @@
 #include "native_node_groups.hpp"
 #include "node_metadata.hpp"
 #include "Typeset/Env/local_environment.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
+#include "Data/NodeContracts/descriptor_values.hpp"
 #include <optional>
 
 namespace {
@@ -1166,6 +1168,41 @@ generic_hidden_child (tree t, int i) {
 }
 
 namespace {
+string scoped_child_type (tree t, int i, const athena::contracts::editing_query& query) {
+  const auto name= athena::contracts::type_name (query.child_type (t, i));
+  return string (name.data (), name.size ());
+}
+
+bool scoped_variable_name (tree t, int i, const athena::contracts::editing_query& query) {
+  return query.child_type (t, i) == TYPE_VARIABLE && is_atomic (t[i]) && t[i] != "" &&
+    (is_compound (t, "with") || is_compound (t, "attr") ||
+     is_compound (t, "style-with") || is_compound (t, "style-with*"));
+}
+}
+
+bool
+generic_hidden_child (tree t, int i, const athena::contracts::editing_query& query) {
+  if (i < 0 || i >= N(t)) return false;
+  return !query.accessible (t, i) && !scoped_variable_name (t, i, query) &&
+         generic_type_to_format (scoped_child_type (t, i, query)) != "n.a.";
+}
+
+string
+generic_tree_child_name_star (tree t, int i, const athena::contracts::editing_query& query) {
+  if (i < 0 || i >= N(t)) return "";
+  string name= query.child_name (t, i);
+  if (name != "") return name;
+  if (i > 0 && scoped_variable_name (t, i - 1, query))
+    return replace (as_string (t[i-1]), "-", " ");
+  int hidden= 0;
+  for (int k=0; k<N(t); ++k)
+    if (generic_hidden_child (t, k, query)) ++hidden;
+  if (hidden > 1) return "";
+  const string type= scoped_child_type (t, i, query);
+  return type == "regular" ? string ("") : type;
+}
+
+namespace {
 
 int generic_hidden_child_count (tree t) {
   int count= 0;
@@ -1229,6 +1266,19 @@ bool
 generic_focus_set_hidden_child (tree t, int i, string value) {
   if (!generic_hidden_child (t, i)) return false;
   string type= get_child_type (t, i);
+  if (!generic_inputter_active (t[i], type)) return false;
+  tree encoded= scheme_tree_to_tree (generic_inputter_encode (value, type));
+  (void) tree_set (t, i, encoded);
+  try { (void) call ("focus-tree-modified", object (t)); }
+  catch (...) {}
+  return true;
+}
+
+bool
+generic_focus_set_hidden_child (tree t, int i, string value,
+    const athena::contracts::editing_query& query) {
+  if (!generic_hidden_child (t, i, query)) return false;
+  const string type= scoped_child_type (t, i, query);
   if (!generic_inputter_active (t[i], type)) return false;
   tree encoded= scheme_tree_to_tree (generic_inputter_encode (value, type));
   (void) tree_set (t, i, encoded);

@@ -11,6 +11,7 @@
 
 #include "Interface/edit_interface.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
+#include "Data/NodeContracts/descriptor_values.hpp"
 #include "ATHENA/Data/enunciation_slots.hpp"
 #include "Interface/selection_autoscroll.hpp"
 #include "ATHENA/Data/heading_word_count.hpp"
@@ -1023,7 +1024,9 @@ actor_focus_toolbar_snapshot
 editor_rep::focus_toolbar_state_snapshot () {
   actor_focus_toolbar_snapshot snapshot;
   if (buf == nullptr || inside_graphics (false)) return snapshot;
-  if (!editor_rep::cursor_context_at (the_path ())) return snapshot;
+  const auto context= editor_rep::cursor_context_at (the_path ());
+  if (!context) return snapshot;
+  const athena::contracts::editing_query fields {context->contract_context ()};
 
   path focus= focus_get ();
   if (!test_subtree (focus)) return snapshot;
@@ -1154,7 +1157,7 @@ editor_rep::focus_toolbar_state_snapshot () {
     }
   }
   for (int i=0; i<N(t); ++i)
-    if (!athena::contracts::editing_query {contract_state.contracts}.accessible (t, i)) {
+    if (!fields.accessible (t, i)) {
       snapshot.hidden_toggle_available= true;
       break;
     }
@@ -1165,12 +1168,13 @@ editor_rep::focus_toolbar_state_snapshot () {
   }
 
   for (int i=0; i<N(t); ++i) {
-    if (!generic_hidden_child (t, i)) continue;
-    const string type= get_child_type (t, i);
+    if (!generic_hidden_child (t, i, fields)) continue;
+    const auto type_name= athena::contracts::type_name (fields.child_type (t, i));
+    const string type (type_name.data (), type_name.size ());
     if (!generic_inputter_active (t[i], type)) continue;
     actor_focus_hidden_field_snapshot field;
     field.index= i;
-    string name= generic_tree_child_name_star (t, i);
+    string name= generic_tree_child_name_star (t, i, fields);
     string value= generic_inputter_decode (t[i], type);
     field.name.assign (name.data (), static_cast<std::size_t> (N(name)));
     field.type.assign (type.data (), static_cast<std::size_t> (N(type)));

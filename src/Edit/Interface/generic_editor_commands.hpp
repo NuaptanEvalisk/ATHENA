@@ -13,6 +13,8 @@
 
 #include "scheme.hpp"
 
+namespace athena::contracts { struct editing_query; }
+
 void generic_go_to_line (int line, object optional_from);
 void generic_go_to_column (int column, object optional_from);
 object generic_select_word (string word, tree t, int column);
@@ -101,12 +103,16 @@ bool generic_string_variable_name (tree t, int i);
 bool generic_hidden_child (tree t, int i);
 string generic_tree_child_name_star (tree t, int i);
 string generic_tree_child_long_name_star (tree t, int i);
+bool generic_hidden_child (tree t, int i, const athena::contracts::editing_query&);
+string generic_tree_child_name_star (tree t, int i, const athena::contracts::editing_query&);
 string generic_type_to_format (string type);
 string generic_type_to_width (string type);
 bool generic_inputter_active (tree t, string type);
 string generic_inputter_decode (tree t, string type);
 scheme_tree generic_inputter_encode (string value, string type);
 bool generic_focus_set_hidden_child (tree t, int i, string value);
+bool generic_focus_set_hidden_child (tree t, int i, string value,
+                                     const athena::contracts::editing_query&);
 bool generic_parameter_test (string name, object value, object mode);
 void generic_parameter_set (string name, object value, object mode);
 object generic_parameter_get (string name, object mode);

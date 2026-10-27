@@ -21,6 +21,7 @@
 #include "format_geometry.hpp"
 #include "native_dynamic_commands.hpp"
 #include "generic_editor_commands.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
 #include "Typeset/Env/local_environment.hpp"
 #include "language.hpp"
 #include "scheme.hpp"
@@ -1475,9 +1476,12 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
         break;
       }
     if (!allowed) return;
+    const auto context= ed->cursor_context_at (ed->the_path ());
+    if (!context) return;
+    const athena::contracts::editing_query fields {context->contract_context ()};
     (void) generic_focus_set_hidden_child (
       ed->the_subtree (focus), index,
-      native_action_string (action.value ("value")));
+      native_action_string (action.value ("value")), fields);
   }
   else if (op == "focus-automatic-section-rename") {
     actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
