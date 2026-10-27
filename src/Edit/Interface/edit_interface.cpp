@@ -993,7 +993,7 @@ editor_rep::popup_menu_state_snapshot () {
       break;
     }
   if (!found) return snapshot;
-  const auto context= cursor_context_at (first, cursor_source_boundary ());
+  const auto context= editor_rep::cursor_context_at (first);
   if (!context) return snapshot;
 
   tree selected= selection_compute (the_root (), first, last);

@@ -1202,8 +1202,7 @@ edit_select_rep::selection_cut (string key) {
     }
     else {
       selection_get (p1, p2);
-      go_to (p2);
-      if (p2 == p1) return;
+      if (p2 == p1) { go_to (p2); return; }
       path p= common (p1, p2);
       bool stable_right_boundary= false;
       if (N(p1) > N(p) && N(p2) > N(p)) {
@@ -1246,6 +1245,9 @@ edit_select_rep::selection_cut (string key) {
         }
         if (!move.token.empty ()) start_slave (move.marker);
       }
+      // Clipboard metadata must use the selected display before repositioning
+      // the caret for the actual cut.
+      go_to (p2);
       observer pos= position_new (stable_right_boundary? p2: p1);
       if (!is_nil (complete_object)) {
         const path parent_path= path_up (complete_object);
