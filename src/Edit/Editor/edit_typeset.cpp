@@ -926,7 +926,7 @@ edit_typeset_rep::conversion_context_at (path p) {
     if (has_changed (THE_ENVIRONMENT)) typeset_preamble ();
     return std::make_shared<const evaluation_environment_checkpoint> (*pre);
   }
-  const auto context= cursor_context_at (p, p == tp ? cursor_source_boundary () : nullptr);
+  const auto context= editor_rep::cursor_context_at (p);
   if (!context)
     throw std::runtime_error ("Conversion source context is not prepared");
   return context;
