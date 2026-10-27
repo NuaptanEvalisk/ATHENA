@@ -26,6 +26,14 @@ edit_table_rep::table_context_scope::table_context_scope (edit_table_rep& owner,
   owner.table_context= owner.editor_rep::cursor_context_at (format * 0);
 }
 
+edit_table_rep::table_context_scope::table_context_scope (
+    edit_table_rep& owner, path format,
+    std::shared_ptr<const evaluation_environment_checkpoint> prepared):
+  owner (owner), previous_path (owner.table_context_path), previous (owner.table_context) {
+  owner.table_context_path= format;
+  owner.table_context= std::move (prepared);
+}
+
 edit_table_rep::table_context_scope::~table_context_scope () {
   owner.table_context_path= previous_path;
   owner.table_context= std::move (previous);
@@ -1073,6 +1081,7 @@ edit_table_rep::table_ver_decorate (path fp, int row, int rbef, int raft) {
 void
 edit_table_rep::make_table (int nr_rows, int nr_cols) {
   //cout << "make_table " << nr_rows << ", " << nr_cols << "\n";
+  const auto insertion= cursor_context_at (tp, cursor_source_boundary ());
   tree T= empty_table (nr_rows, nr_cols);
   path p (0, 0, 0, 0);
   tree format_T (TFORMAT, T);
@@ -1081,7 +1090,7 @@ edit_table_rep::make_table (int nr_rows, int nr_cols) {
   int i1, j1, i2, j2;
   path fp= search_format ();
   if (is_nil (fp)) return;
-  typeset_invalidate_env (); // FIXME: dirty hack for getting correct limits
+  table_context_scope context (*this, fp, insertion);
   table_get_limits (fp, i1, j1, i2, j2);
   if ((nr_rows<i1) || (nr_cols<j1)) {
     T= empty_table (max (nr_rows, i1), max (nr_cols, j1));
@@ -1375,11 +1384,13 @@ edit_table_rep::table_set_format (string var, tree val) {
     int row1, col1, row2, col2;
     path fp= selection_get_subtable (row1, col1, row2, col2);
     if (is_nil (fp)) return;
+    table_context_scope context (*this, fp);
     table_set_format (fp, var, val);
   }
   else {
     path fp= search_format ();
     if (is_nil (fp)) return;
+    table_context_scope context (*this, fp);
     table_set_format (fp, var, val);
   }
 }
@@ -1404,11 +1415,13 @@ edit_table_rep::table_del_format (string var) {
     int row1, col1, row2, col2;
     path fp= selection_get_subtable (row1, col1, row2, col2);
     if (is_nil (fp)) return;
+    table_context_scope context (*this, fp);
     table_del_format (fp, var);
   }
   else {
     path fp= search_format ();
     if (is_nil (fp)) return;
+    table_context_scope context (*this, fp);
     table_del_format (fp, var);
   }
 }

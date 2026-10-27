@@ -23,6 +23,8 @@ protected:
     path previous_path;
     std::shared_ptr<const evaluation_environment_checkpoint> previous;
     table_context_scope (edit_table_rep& owner, path format);
+    table_context_scope (edit_table_rep& owner, path format,
+      std::shared_ptr<const evaluation_environment_checkpoint> prepared);
     ~table_context_scope ();
     table_context_scope (const table_context_scope&)= delete;
     table_context_scope& operator= (const table_context_scope&)= delete;
