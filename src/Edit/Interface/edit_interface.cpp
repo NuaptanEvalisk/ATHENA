@@ -766,7 +766,9 @@ editor_rep::editor_command_state_snapshot () {
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_SELECTION;
   if (selection_active_any () && !selection_active_small ())
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_NON_SMALL_SELECTION;
-  if (inside_graphics (false) && context->value (PREAMBLE) == "false" &&
+  tree preamble= context->value (PREAMBLE);
+  if (is_func (preamble, BACKUP, 2)) preamble= preamble[0];
+  if (inside_graphics (false) && preamble == "false" &&
       native_graphics_selection_active ())
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_GRAPHICS_SELECTION;
   path focus= focus_get ();

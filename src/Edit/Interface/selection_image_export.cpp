@@ -49,8 +49,12 @@ tree math_fragment (editor_rep& editor) {
   const auto context= editor.cursor_context_at (start);
   if (!context)
     throw std::runtime_error ("Selection context is awaiting layout");
-  if (context->value ("mode") != "math") return fragment;
-  if (context->value ("math-display") != "true")
+  tree mode= context->value ("mode");
+  tree display= context->value ("math-display");
+  if (is_func (mode, BACKUP, 2)) mode= mode[0];
+  if (is_func (display, BACKUP, 2)) display= display[0];
+  if (mode != "math") return fragment;
+  if (display != "true")
     return compound ("math", fragment);
   tree block (MATH_BLOCK, fragment);
   athena::node::metadata metadata;
