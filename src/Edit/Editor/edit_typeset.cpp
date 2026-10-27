@@ -1098,9 +1098,11 @@ edit_typeset_rep::texmacs_exec (tree t) {
 
 tree
 edit_typeset_rep::var_texmacs_exec (tree t) {
-  typeset_exec_until (tp);
+  const auto context= cursor_context_at (tp, cursor_source_boundary ());
+  if (!context) typeset_exec_until (tp);
   temporary_environment_scope execution (*env.operator-> ());
-  cur[tp]->restore (*env.operator-> ());
+  if (context) context->restore (*env.operator-> ());
+  else cur[tp]->restore (*env.operator-> ());
   env->style_init_env ();
   env->update ();
   return texmacs_exec (t);
