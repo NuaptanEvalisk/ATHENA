@@ -11,6 +11,7 @@
 
 #include "edit_interface.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
+#include "Typeset/Env/local_environment.hpp"
 #include "gui_text.hpp"
 #include "utf8_edit.hpp"
 #include "tm_server.hpp"
@@ -101,15 +102,15 @@ edit_interface_rep::set_right_footer (tree r) {
 }
 
 tree
-edit_interface_rep::compute_text_footer (tree st) {
+edit_interface_rep::compute_text_footer (
+    tree st, const evaluation_environment_checkpoint& context) {
   string r;
-  language lan= get_env_language ();
   int end  = last_item (tp);
   int start= utf8_grapheme_previous (st->label, end);
   r= st->label (start, end);
   if (r == "") r= "start";
   if (r == " ") r= "space";
-  if (r == "space" && get_env_string (MODE) == "math") r= "apply";
+  if (r == "space" && context.value (MODE) == "math") r= "apply";
   if (starts (r, "<")) return verbatim (r);
   return r;
 }
@@ -158,7 +159,8 @@ get_with_text (tree t) {
 }
 
 tree
-edit_interface_rep::compute_operation_footer (tree st) {
+edit_interface_rep::compute_operation_footer (
+    tree st, const athena::contracts::contract_scope& contracts) {
   tree r= "";
   if (N(st) >= 2) {
     switch (L (st)) {
@@ -222,9 +224,9 @@ edit_interface_rep::compute_operation_footer (tree st) {
     case INCLUDE:
       r= concat ("include ", verbatim (as_string (st[0]))); break;
     case INACTIVE:
-      r= concat ("inactive ", athena::contracts::editing_query {contract_state.contracts}.name (L(st[0]))); break;
+      r= concat ("inactive ", athena::contracts::editing_query {contracts}.name (L(st[0]))); break;
     case VAR_INACTIVE:
-      r= concat ("inactive ", athena::contracts::editing_query {contract_state.contracts}.name (L(st[0]))); break;
+      r= concat ("inactive ", athena::contracts::editing_query {contracts}.name (L(st[0]))); break;
     case LABEL:
       r= concat ("label: ", verbatim (as_string (st[0]))); break;
     case REFERENCE:
@@ -249,7 +251,7 @@ edit_interface_rep::compute_operation_footer (tree st) {
   if (r == "") {
     switch (L (st)) {
     case IMAGE: r= "image"; break;
-    default: r= athena::contracts::editing_query {contract_state.contracts}.name (L(st));
+    default: r= athena::contracts::editing_query {contracts}.name (L(st));
     }
   }
   if (last_item (tp) == 0) r= concat ("before ", r);
@@ -257,9 +259,10 @@ edit_interface_rep::compute_operation_footer (tree st) {
 }
 
 tree
-edit_interface_rep::compute_compound_footer (tree t, path p) {
+edit_interface_rep::compute_compound_footer (
+    tree t, path p, const athena::contracts::contract_scope& contracts) {
   if (!(rp < p)) return "";
-  tree up= compute_compound_footer (t, path_up (p));
+  tree up= compute_compound_footer (t, path_up (p), contracts);
   if (N(focus_get (false))+1 < N(p)) return up;
   tree st= subtree (t, path_up (p));
   int  l = last_item (p);
@@ -360,7 +363,7 @@ edit_interface_rep::compute_compound_footer (tree t, path p) {
   case SPECIFIC:
     return concat (up, "texmacs ");
   default:
-    return concat (up, athena::contracts::editing_query {contract_state.contracts}.name (L(st)) * " ");
+    return concat (up, athena::contracts::editing_query {contracts}.name (L(st)) * " ");
   }
 }
 
@@ -368,12 +371,14 @@ void
 edit_interface_rep::set_right_footer () {
   // Keep the previous field description until its replacement occurrence is
   // prepared. Document statistics do not depend on this cursor context.
-  if (!editor_rep::cursor_context_at (tp)) return;
-  tree cf= compute_compound_footer (et, path_up (tp));
+  const auto context= editor_rep::cursor_context_at (tp);
+  if (!context) return;
+  const auto& contracts= context->contract_context ();
+  tree cf= compute_compound_footer (et, path_up (tp), contracts);
   tree st= subtree (et, path_up (tp));
   tree lf;
-  if (is_atomic (st)) lf= compute_text_footer (st);
-  else lf= compute_operation_footer (st);
+  if (is_atomic (st)) lf= compute_text_footer (st, *context);
+  else lf= compute_operation_footer (st, contracts);
   if (N(focus_get (false))+1 >= N(tp)) cf= concat (cf, lf);
   set_right_footer (cf);
 }

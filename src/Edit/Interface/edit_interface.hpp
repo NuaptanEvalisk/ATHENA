@@ -335,9 +335,9 @@ public:
   void update_focus_loci ();
 
   /* the footer */
-  tree compute_text_footer (tree st);
-  tree compute_operation_footer (tree st);
-  tree compute_compound_footer (tree t, path p);
+  tree compute_text_footer (tree st, const evaluation_environment_checkpoint&);
+  tree compute_operation_footer (tree st, const athena::contracts::contract_scope&);
+  tree compute_compound_footer (tree t, path p, const athena::contracts::contract_scope&);
   void set_left_footer (tree l);
   void append_left_footer (tree& l, string env_var);
   void set_left_footer ();
