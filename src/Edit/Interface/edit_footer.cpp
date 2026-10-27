@@ -368,7 +368,7 @@ void
 edit_interface_rep::set_right_footer () {
   // Keep the previous field description until its replacement occurrence is
   // prepared. Document statistics do not depend on this cursor context.
-  if (!cursor_context_at (tp, cursor_source_boundary ())) return;
+  if (!editor_rep::cursor_context_at (tp)) return;
   tree cf= compute_compound_footer (et, path_up (tp));
   tree st= subtree (et, path_up (tp));
   tree lf;

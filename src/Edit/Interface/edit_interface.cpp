@@ -754,7 +754,7 @@ actor_editor_command_snapshot
 editor_rep::editor_command_state_snapshot () {
   actor_editor_command_snapshot snapshot;
   if (buf == nullptr) return snapshot;
-  const auto context= cursor_context_at (the_path (), cursor_source_boundary ());
+  const auto context= editor_rep::cursor_context_at (the_path ());
   if (!context) return snapshot;
 
   snapshot.flags= ACTOR_EDITOR_COMMAND_STATE_VALID;
@@ -1020,7 +1020,7 @@ actor_focus_toolbar_snapshot
 editor_rep::focus_toolbar_state_snapshot () {
   actor_focus_toolbar_snapshot snapshot;
   if (buf == nullptr || inside_graphics (false)) return snapshot;
-  if (!cursor_context_at (the_path (), cursor_source_boundary ())) return snapshot;
+  if (!editor_rep::cursor_context_at (the_path ())) return snapshot;
 
   path focus= focus_get ();
   if (!test_subtree (focus)) return snapshot;
@@ -1879,7 +1879,7 @@ editor_rep::refresh_editor_style_command_flags () {
 void
 editor_rep::publish_editor_command_state () {
   if (ui_endpoint == nullptr) return;
-  const auto context= cursor_context_at (the_path (), cursor_source_boundary ());
+  const auto context= editor_rep::cursor_context_at (the_path ());
   const string par_sep= context ? as_string (context->value ("par-par-sep")) : string ("");
   bool prominent_spacing=
     context && !ends (par_sep, "fns") && !starts (par_sep, "0fn");
