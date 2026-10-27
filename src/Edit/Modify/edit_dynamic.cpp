@@ -68,7 +68,7 @@ bool
 edit_dynamic_rep::in_source () {
   if (source_mode_during_edit) return *source_mode_during_edit;
   const auto context= macro_environment ? macro_environment :
-    cursor_context_at (tp, cursor_source_boundary ());
+    editor_rep::cursor_context_at (tp);
   if (context) return context->value (MODE) == "src" || context->value (PREAMBLE) == "true";
   return get_env_string (MODE) == "src";
 }

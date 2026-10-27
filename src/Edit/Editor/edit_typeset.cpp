@@ -623,15 +623,8 @@ define_style_macros (edit_env& env, tree t) {
 
 void
 edit_typeset_rep::typeset_exec_until (path p) {
-  // General queries use the same recorded occurrence as cursor preparation.
-  // A path-only cache may belong to a different display of the same argument.
-  const auto prepared= editor_rep::cursor_context_at (p);
-  if (prepared) {
-    if (N(cur) >= 25)
-      cur= hashmap<path,std::shared_ptr<const cursor_environment_checkpoint>> (nullptr);
-    cur (p)= std::static_pointer_cast<const cursor_environment_checkpoint> (prepared);
-    return;
-  }
+  // Only unprepared source queries enter the legacy path evaluator. Prepared
+  // occurrence checkpoints are consumed directly by the getters below.
   if (p == tp && inside_graphics (true) && p != closest_inside (et, p)) {
     //cout << "Warning: corrected cursor\n";
     tp= closest_inside (et, tp);
@@ -692,18 +685,26 @@ edit_typeset_rep::typeset_exec_until (path p) {
 
 tree
 edit_typeset_rep::get_full_env () {
+  if (const auto prepared= editor_rep::cursor_context_at (tp))
+    return (tree) prepared->variables ();
   typeset_exec_until (tp);
   return (tree) cur[tp]->variables ();
 }
 
 bool
 edit_typeset_rep::defined_at_cursor (string var) {
+  if (const auto prepared= editor_rep::cursor_context_at (tp))
+    return prepared->contains (var);
   typeset_exec_until (tp);
   return cur[tp]->contains (var);
 }
 
 tree
 edit_typeset_rep::get_env_value (string var, path p) {
+  if (const auto prepared= editor_rep::cursor_context_at (p)) {
+    tree value= prepared->value (var);
+    return is_func (value, BACKUP, 2) ? value[0] : value;
+  }
   typeset_exec_until (p);
   tree t= cur[p]->value (var);
   return is_func (t, BACKUP, 2)? t[0]: t;
@@ -1086,7 +1087,7 @@ edit_typeset_rep::texmacs_exec (tree t) {
 
 tree
 edit_typeset_rep::var_texmacs_exec (tree t) {
-  const auto context= cursor_context_at (tp, cursor_source_boundary ());
+  const auto context= editor_rep::cursor_context_at (tp);
   if (!context) typeset_exec_until (tp);
   temporary_environment_scope execution (*env.operator-> ());
   if (context) context->restore (*env.operator-> ());
