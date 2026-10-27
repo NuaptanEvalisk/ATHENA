@@ -635,7 +635,18 @@ edit_select_rep::selection_get_cursor_path () {
 tree
 edit_select_rep::selection_get_env_value (string var) {
   if (!selection_active_any ()) return get_env_value (var);
-  return get_env_value (var, selection_get_cursor_path ());
+  const path selected= selection_get_cursor_path ();
+  // Selection starts at a different offset from the caret even when both
+  // belong to one source leaf. Preserve the caret's physical occurrence for
+  // repeated macro-argument displays instead of reselecting by source path.
+  if (path_up (selected) == path_up (tp)) {
+    const auto context= cursor_context_at (selected, cursor_source_boundary ());
+    if (context) {
+      const tree value= context->value (var);
+      return is_func (value, BACKUP, 2) ? value[0] : value;
+    }
+  }
+  return get_env_value (var, selected);
 }
 
 /******************************************************************************
