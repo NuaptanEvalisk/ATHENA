@@ -38,7 +38,7 @@ path
 edit_cursor_rep::make_cursor_accessible (path p, bool forwards) {
   using athena::contracts::access_policy;
   const auto boundary= p == tp ? cursor_source_boundary () : nullptr;
-  const auto context= cursor_context_at (p, boundary);
+  const auto context= editor_rep::cursor_context_at (p);
   const auto mode= context ? context->effective_value (MODE) : get_init_value (MODE);
   const auto access= mode == "src" || (context && context->effective_value (PREAMBLE) == "true") ? access_policy::source :
     access_policy::normal;
@@ -665,7 +665,7 @@ bool
 edit_cursor_rep::cursor_is_accessible () {
   using athena::contracts::access_policy;
   const auto boundary= cursor_source_boundary ();
-  const auto context= cursor_context_at (tp, boundary);
+  const auto context= editor_rep::cursor_context_at (tp);
   const auto access= context && (context->effective_value (MODE) == "src" ||
       context->effective_value (PREAMBLE) == "true") ?
     access_policy::source : access_policy::normal;
