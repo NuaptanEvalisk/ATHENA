@@ -83,8 +83,11 @@ edit_dynamic_rep::find_dynamic (path p) {
   path parent= path_up (p);
   if (!(rp < parent)) return path ();
   tree source= subtree (et, parent);
+  const auto prepared= editor_rep::cursor_context_at (tp);
+  const athena::contracts::editing_query query {
+    prepared ? prepared->contract_context () : contract_state.contracts};
   if (L(source) >= START_EXTENSIONS ||
-      athena::contracts::editing_query {contract_state.contracts}.variable_arity (source))
+      query.variable_arity (source))
     return p;
   return find_dynamic (parent);
 }
@@ -238,6 +241,9 @@ edit_dynamic_rep::make_compound (tree_label l, int n= -1) {
 
 void
 edit_dynamic_rep::activate () {
+  const auto prepared= editor_rep::cursor_context_at (tp);
+  const athena::contracts::editing_query query {
+    prepared ? prepared->contract_context () : contract_state.contracts};
   path p= search_upwards (INACTIVE);
   if (is_nil (p)) return;
   tree st= subtree (et, p * 0);
@@ -251,7 +257,7 @@ edit_dynamic_rep::activate () {
     correct (path_up (p));
   }
   else {
-    bool acc= (p < path_up (tp) && athena::contracts::editing_query {contract_state.contracts}.accessible (st, tp[N(p)]));
+    bool acc= (p < path_up (tp) && query.accessible (st, tp[N(p)]));
     remove_node (p * 0);
     call ("notify-activated", object (subtree (et, p)));
     if (!acc) go_to (end (et, p));
@@ -265,13 +271,21 @@ edit_dynamic_rep::activate () {
 
 void
 edit_dynamic_rep::go_to_argument (path p, bool start_flag) {
+  go_to_argument (p, start_flag, editor_rep::cursor_context_at (tp));
+}
+
+void
+edit_dynamic_rep::go_to_argument (path p, bool start_flag,
+    const std::shared_ptr<const evaluation_environment_checkpoint>& prepared) {
+  const athena::contracts::editing_query query {
+    prepared ? prepared->contract_context () : contract_state.contracts};
   tree t= subtree (et, path_up (p));
   bool inactive= is_func (subtree (et, path_up (p, 2)), INACTIVE);
   int i= last_item (p), n= N(t);
   if (i < 0) go_to_start (path_up (p, inactive? 2: 1));
   else if (i >= n) go_to_end (path_up (p, inactive? 2: 1));
   else {
-    if ((!athena::contracts::editing_query {contract_state.contracts}.accessible (t, i)) &&
+    if ((!query.accessible (t, i)) &&
         (!inactive) && (!in_source ()))
       {
         insert_node (path_up (p) * 0, INACTIVE);
@@ -285,23 +299,28 @@ edit_dynamic_rep::go_to_argument (path p, bool start_flag) {
 
 void
 edit_dynamic_rep::insert_argument (path p, bool forward) {
+  const auto prepared= editor_rep::cursor_context_at (tp);
+  const athena::contracts::editing_query query {
+    prepared ? prepared->contract_context () : contract_state.contracts};
+  source_edit_scope source_scope (source_mode_during_edit, in_source ());
   tree t= subtree (et, path_up (p));
   int i= last_item (p), n= N(t), d= 1;
   if (is_func (t, WITH) ||
       is_func (t, STYLE_WITH) ||
       is_func (t, VAR_STYLE_WITH))
     if (i == n-1) i--;
-  if ((!in_source ()) || athena::contracts::editing_query {contract_state.contracts}.contains (as_string (L(t)))) {
-    if (forward) do i++; while ((i<=n) && (!athena::contracts::editing_query {contract_state.contracts}.describe (L(t)).layout.insertion (i, n)));
-    else while ((i>=0) && (!athena::contracts::editing_query {contract_state.contracts}.describe (L(t)).layout.insertion (i, n))) i--;
+  if ((!in_source ()) || query.contains (as_string (L(t)))) {
+    const auto& layout= query.describe (L(t)).layout;
+    if (forward) do i++; while ((i<=n) && (!layout.insertion (i, n)));
+    else while ((i>=0) && (!layout.insertion (i, n))) i--;
     if ((i<0) || (i>n)) return;
-    while (!athena::contracts::editing_query {contract_state.contracts}.describe (L(t)).layout.accepts (n+d)) d++;
+    while (!layout.accepts (n+d)) d++;
   }
   else if (forward) i++;
   path q= path_up (p) * i;
   tree ins (L(t), d);
   insert (q, ins);
-  go_to_argument (q, forward);
+  go_to_argument (q, forward, prepared);
 }
 
 void
@@ -315,29 +334,32 @@ edit_dynamic_rep::insert_argument (bool forward) {
 
 void
 edit_dynamic_rep::remove_empty_argument (path p, bool forward) {
+  const auto prepared= editor_rep::cursor_context_at (tp);
+  const athena::contracts::editing_query query {
+    prepared ? prepared->contract_context () : contract_state.contracts};
   tree t= subtree (et, path_up (p));
   int i= last_item (p), j, d, n= N(t);
   const bool source= in_source ();
-  bool src_flag= source && (!athena::contracts::editing_query {contract_state.contracts}.contains (as_string (L(t))));
+  source_edit_scope source_scope (source_mode_during_edit, source);
+  bool src_flag= source && (!query.contains (as_string (L(t))));
 
   for (d=1; d<=n-i; d++)
     if ((src_flag && (d==1)) ||
         ((!src_flag) &&
-         athena::contracts::editing_query {contract_state.contracts}.describe (L(t)).layout.accepts (n-d) &&
-         athena::contracts::editing_query {contract_state.contracts}.describe (L(t)).layout.insertion (i, n-d)))
+         query.describe (L(t)).layout.accepts (n-d) &&
+         query.describe (L(t)).layout.insertion (i, n-d)))
       {
         bool flag= true;
         for (j=0; j<d; j++)
           flag= flag && is_empty (t[i+j]);
         if (flag) {
-          source_edit_scope source_scope (source_mode_during_edit, source);
           remove (p, d);
           if ((d == n) && is_mod_active_once (subtree (et, path_up (p, 2)))) {
             remove_node (path_up (p, 2) * 0);
             go_to_border (path_up (p, 2), forward);
           }
-          else if (forward) go_to_argument (path_up (p) * i, true);
-          else go_to_argument (path_up (p) * (i-1), false);
+          else if (forward) go_to_argument (path_up (p) * i, true, prepared);
+          else go_to_argument (path_up (p) * (i-1), false, prepared);
           return;
         }
         else break;
@@ -374,20 +396,25 @@ edit_dynamic_rep::remove_empty_argument (path p, bool forward) {
     return;
   }
 
-  if (forward) go_to_argument (path_up (p) * (i+1), true);
-  else go_to_argument (path_up (p) * (i-1), false);
+  if (forward) go_to_argument (path_up (p) * (i+1), true, prepared);
+  else go_to_argument (path_up (p) * (i-1), false, prepared);
 }
 
 void
 edit_dynamic_rep::remove_argument (path p, bool forward) {
+  const auto prepared= editor_rep::cursor_context_at (tp);
+  const athena::contracts::editing_query query {
+    prepared ? prepared->contract_context () : contract_state.contracts};
+  source_edit_scope source_scope (source_mode_during_edit, in_source ());
   tree t= subtree (et, path_up (p));
   int i= last_item (p), n= N(t), d= 1;
-  if ((!in_source ()) || athena::contracts::editing_query {contract_state.contracts}.contains (as_string (L(t)))) {
-    if (forward) do i++; while (i<=n && !athena::contracts::editing_query {contract_state.contracts}.describe (L(t)).layout.insertion (i, n));
-    else while (i>=0 && !athena::contracts::editing_query {contract_state.contracts}.describe (L(t)).layout.insertion (i, n)) i--;
+  if ((!in_source ()) || query.contains (as_string (L(t)))) {
+    const auto& layout= query.describe (L(t)).layout;
+    if (forward) do i++; while (i<=n && !layout.insertion (i, n));
+    else while (i>=0 && !layout.insertion (i, n)) i--;
     if ((i<0) || (i>n)) return;
-    while (i>=d && !athena::contracts::editing_query {contract_state.contracts}.describe (L(t)).layout.accepts (n-d)) d++;
-    if (i<d || n<=d || !athena::contracts::editing_query {contract_state.contracts}.describe (L(t)).layout.insertion (i-d, n-d)) return;
+    while (i>=d && !layout.accepts (n-d)) d++;
+    if (i<d || n<=d || !layout.insertion (i-d, n-d)) return;
   }
   else {
     if (forward) i++;
@@ -395,7 +422,7 @@ edit_dynamic_rep::remove_argument (path p, bool forward) {
   }
   path q= path_up (p) * (i-d);
   remove (q, d);
-  go_to_argument (q, forward);
+  go_to_argument (q, forward, prepared);
 }
 
 void
@@ -441,7 +468,10 @@ void
 edit_dynamic_rep::back_in_general (tree t, path p, bool forward) {
   if (is_func (subtree (et, path_up (p, 2)), INACTIVE) || in_source ())
     if ((L(t) >= START_EXTENSIONS) && (last_item (p) == 0) && (!forward)) {
-      bool src_flag= in_source () && (!athena::contracts::editing_query {contract_state.contracts}.contains (as_string (L(t))));
+      const auto prepared= editor_rep::cursor_context_at (tp);
+      const athena::contracts::editing_query query {
+        prepared ? prepared->contract_context () : contract_state.contracts};
+      bool src_flag= in_source () && !query.contains (as_string (L(t)));
       tree u (COMPOUND, copy (as_string (L(t))));
       if (is_empty (t[0]) && src_flag) u << A (copy (t (1, N(t))));
       else u << A (copy (t));
@@ -823,13 +853,17 @@ edit_dynamic_rep::hybrid_keypress (string key) {
     return true;
   }
   if (prepared && (key == "A-right" || key == "A-left")) {
+    const auto invocation= macro_invocation_context ();
+    const athena::contracts::editing_query query {
+      invocation ? invocation->contract_context () : contract_state.contracts};
     tree_label tag= make_tree_label (st[0]->label);
+    const auto& layout= query.describe (tag).layout;
     int n= N(st[1]);
     if (key == "A-right") {
       int next= n+1;
-      while (next < 100 && !athena::contracts::editing_query {contract_state.contracts}.describe (tag).layout.accepts (next)) ++next;
+      while (next < 100 && !layout.accepts (next)) ++next;
       int at= n;
-      while (at >= 0 && !athena::contracts::editing_query {contract_state.contracts}.describe (tag).layout.insertion (at, n)) --at;
+      while (at >= 0 && !layout.insertion (at, n)) --at;
       if (next < 100 && at >= 0) {
         insert (p * 1 * at, tree (TUPLE, next-n));
         go_to (start (et, p * 1 * at));
@@ -837,9 +871,9 @@ edit_dynamic_rep::hybrid_keypress (string key) {
     }
     else {
       int previous= n-1;
-      while (previous >= 0 && !athena::contracts::editing_query {contract_state.contracts}.describe (tag).layout.accepts (previous)) --previous;
+      while (previous >= 0 && !layout.accepts (previous)) --previous;
       int at= previous;
-      while (at >= 0 && !athena::contracts::editing_query {contract_state.contracts}.describe (tag).layout.insertion (at, previous)) --at;
+      while (at >= 0 && !layout.insertion (at, previous)) --at;
       bool empty= at >= 0;
       for (int i= std::max (0, at); empty && i<at+n-previous; ++i)
         empty= is_empty (st[1][i]);

@@ -24,6 +24,8 @@ class edit_dynamic_rep: virtual public editor_rep {
   std::optional<bool> source_mode_during_edit;
   std::shared_ptr<const evaluation_environment_checkpoint> macro_environment;
   std::shared_ptr<const evaluation_environment_checkpoint> macro_invocation_context ();
+  void go_to_argument (path p, bool start_flag,
+    const std::shared_ptr<const evaluation_environment_checkpoint>& prepared);
   bool is_multi_paragraph_macro (tree t, bool pure);
   void finish_hybrid (bool accepted= false);
   bool activate_latex (bool report_error, const std::optional<command>& resolved);
