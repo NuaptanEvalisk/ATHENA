@@ -16,6 +16,7 @@
 #include "analyze.hpp"
 #include "tm_data.hpp"
 #include "tree_search.hpp"
+#include "Typeset/Env/local_environment.hpp"
 #include "utf8_edit.hpp"
 #include "unicode_text.hpp"
 
@@ -232,11 +233,29 @@ path
 edit_replace_rep::test (path p, tree t) {
   path q= test_sub (p, t);
   if (q == p) return p;
-  string mode= as_string (get_env_value (MODE, p));
-  string lan = as_string (get_env_value (MODE_LANGUAGE (mode), p));
+  string mode, lan;
+  source_mode_language_at (p, mode, lan);
   if (search_mode != mode) return p;
   if (search_lan != lan) return p;
   return q;
+}
+
+void
+edit_replace_rep::source_mode_language_at (path p, string& mode, string& language) {
+  const auto context= editor_rep::cursor_context_at (p);
+  if (context) {
+    tree value= context->value (MODE);
+    if (is_func (value, BACKUP, 2)) value= value[0];
+    mode= as_string (value);
+    value= context->value (MODE_LANGUAGE (mode));
+    if (is_func (value, BACKUP, 2)) value= value[0];
+    language= as_string (value);
+    return;
+  }
+  // Searching may traverse source that has not been laid out. This remaining
+  // path needs its own preparation lifecycle before query-time evaluation ends.
+  mode= as_string (get_env_value (MODE, p));
+  language= as_string (get_env_value (MODE_LANGUAGE (mode), p));
 }
 
 /******************************************************************************
@@ -368,8 +387,7 @@ edit_replace_rep::search_start (bool flag) {
   if (!flag) r= "backward search";
 
   forward     = flag;
-  search_mode = copy (get_env_string (MODE));
-  search_lan  = copy (get_env_string (MODE_LANGUAGE (search_mode)));
+  source_mode_language_at (tp, search_mode, search_lan);
   search_at   = tp;
   search_what = tree ("");
   where_stack = list<path> ();

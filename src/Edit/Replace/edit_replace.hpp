@@ -37,6 +37,7 @@ protected:
   bool        spell_dicmod;  // insert new words in personal dictionary?
 
 protected:
+  void source_mode_language_at (path p, string& mode, string& language);
   void spell_write (string s);
   tree spell_read ();
 
