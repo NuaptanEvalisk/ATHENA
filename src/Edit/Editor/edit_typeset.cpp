@@ -625,12 +625,11 @@ void
 edit_typeset_rep::typeset_exec_until (path p) {
   // General queries use the same recorded occurrence as cursor preparation.
   // A path-only cache may belong to a different display of the same argument.
-  const auto prepared= prepared_context_at (
-    p, p == tp ? cursor_source_boundary () : nullptr);
+  const auto prepared= editor_rep::cursor_context_at (p);
   if (prepared) {
     if (N(cur) >= 25)
       cur= hashmap<path,std::shared_ptr<const cursor_environment_checkpoint>> (nullptr);
-    cur (p)= prepared;
+    cur (p)= std::static_pointer_cast<const cursor_environment_checkpoint> (prepared);
     return;
   }
   // FIXME: we should ensure that p is inside the document

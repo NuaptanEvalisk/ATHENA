@@ -117,7 +117,7 @@ editor_rep::cursor_context_at (path source) {
       remaining= remaining->next;
     }
   }
-  return cursor_context_at (source, cursor_source_boundary ());
+  return cursor_context_at (source, source == tp ? cursor_source_boundary () : nullptr);
 }
 
 bool
