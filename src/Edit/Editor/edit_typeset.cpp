@@ -499,8 +499,6 @@ edit_typeset_rep::prepare_cursor_environment () {
       prepared_cursor->execution_base == ttt->execution_base) selected= prepared_cursor->boundary;
   const auto prepared= prepared_context_at (tp, selected);
   if (!prepared || prepared->value (PREAMBLE) == "true") return;
-  if (N(cur) >= 25) cur= hashmap<path,std::shared_ptr<const cursor_environment_checkpoint>> (nullptr);
-  cur (tp)= prepared;
   prepared_cursor= prepared;
   prepared->restore (*env.operator-> ());
   env->style_init_env ();
@@ -527,7 +525,6 @@ edit_typeset_rep::prepare_cursor_environment () {
   if (changed) {
     auto resolved= std::make_shared<const cursor_environment_checkpoint> (
       *env.operator-> (), prepared->trace, prepared->boundary, prepared->execution_base);
-    cur (tp)= resolved;
     prepared_cursor= resolved;
     for (auto& cached: cursor_contexts)
       if (cached == prepared) cached= resolved;
