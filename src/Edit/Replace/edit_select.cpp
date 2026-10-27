@@ -43,13 +43,16 @@ edit_select_rep::~edit_select_rep () {}
 
 path
 edit_select_rep::formula_root (path p) {
+  const auto prepared= editor_rep::cursor_context_at (p);
+  const athena::contracts::editing_query query {
+    prepared ? prepared->contract_context () : contract_state.contracts};
   while (p != rp) {
     tree st= subtree (et, path_up (p));
     if (path_up (p) != rp && is_func (st, DOCUMENT, 1))
       st= subtree (et, path_up (p, 2));
     if (is_func (st, CELL)) break;
     if (is_compound (st) && N(st) == 1) {
-      tree env= athena::contracts::editing_query {contract_state.contracts}.environment (st, 0, tree (ATTR));
+      tree env= query.environment (st, 0, tree (ATTR));
       tree mt= athena::contracts::field_environment_read (env, MODE);
       tree pt= athena::contracts::field_environment_read (env, "prog-language");
       if (mt == "math") break;
@@ -287,6 +290,9 @@ incomplete_script_selection (tree t, path lp, path rp) {
 
 void
 edit_select_rep::select_enlarge () {
+  const auto prepared= editor_rep::cursor_context_at (tp);
+  const athena::contracts::editing_query query {
+    prepared ? prepared->contract_context () : contract_state.contracts};
   path sp, sq;
   if (is_empty (cur_sel) && !is_nil (start (cur_sel))) {
     sp= path_up (start (cur_sel));
@@ -306,7 +312,7 @@ edit_select_rep::select_enlarge () {
 
   path p = common (cur_sel);
   tree st= subtree (et, p);
-  if (((athena::contracts::editing_query {contract_state.contracts}.describe (L(st)).border &
+  if (((query.describe (L(st)).border &
         BORDER_INNER) != 0 && !athena::contracts::builtin_label (as_string (L(st)))) ||
       is_func (st, TFORMAT) ||
       is_func (st, DOCUMENT, 1) ||
@@ -392,7 +398,7 @@ edit_select_rep::selection_active_enlarging () {
 void
 edit_select_rep::selection_correct (path i1, path i2, path& o1, path& o2) {
   using athena::contracts::access_policy;
-  const auto context= cursor_context_at (tp, cursor_source_boundary ());
+  const auto context= editor_rep::cursor_context_at (tp);
   const auto access= in_source () ? access_policy::source : access_policy::normal;
   selection_correct (i1, i2, o1, o2,
     cursor_navigation ({context ? context->contract_context () : contract_state.contracts, access}));
@@ -429,7 +435,7 @@ selection_table_path (tree et, path p) {
 selection
 edit_select_rep::compute_selection (path p1, path p2) {
   using athena::contracts::access_policy;
-  const auto context= cursor_context_at (tp, cursor_source_boundary ());
+  const auto context= editor_rep::cursor_context_at (tp);
   const auto access= in_source () ? access_policy::source : access_policy::normal;
   return compute_selection (p1, p2,
     cursor_navigation ({context ? context->contract_context () : contract_state.contracts, access}));
