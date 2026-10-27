@@ -1618,7 +1618,7 @@ edit_graphics_rep::native_graphics_get_property (string name) {
     return found ? common : tree ("default");
   }
 
-  const auto prepared= cursor_context_at (tp, cursor_source_boundary ());
+  const auto prepared= editor_rep::cursor_context_at (tp);
   path graphics= native_graphics_canvas_path ();
   if (is_nil (graphics)) return native_graphics_environment_value (name, prepared);
   tree fallback= native_graphics_environment_value (name, prepared);
@@ -1731,7 +1731,7 @@ edit_graphics_rep::native_graphics_get_props_at_mouse () {
   path target= native_graphics_style_target (
     this, graphics, native_graphics_group_hover_path_);
   if (is_nil (target) || !has_subtree (et, target)) return;
-  const auto prepared= cursor_context_at (tp, cursor_source_boundary ());
+  const auto prepared= editor_rep::cursor_context_at (tp);
   tree object= subtree (et, target);
   start_editing ();
   bool changed= false;
@@ -1765,7 +1765,7 @@ edit_graphics_rep::native_graphics_apply_props_at_mouse () {
   path target= native_graphics_style_target (
     this, graphics, native_graphics_group_hover_path_);
   if (is_nil (target) || !has_subtree (et, target)) return;
-  const auto prepared= cursor_context_at (tp, cursor_source_boundary ());
+  const auto prepared= editor_rep::cursor_context_at (tp);
   tree object= subtree (et, target);
   tree updated= copy (object);
   bool any= false;

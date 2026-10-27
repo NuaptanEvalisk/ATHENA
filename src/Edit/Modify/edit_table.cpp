@@ -1082,7 +1082,7 @@ void
 edit_table_rep::make_table (int nr_rows, int nr_cols,
     std::shared_ptr<const evaluation_environment_checkpoint> insertion) {
   //cout << "make_table " << nr_rows << ", " << nr_cols << "\n";
-  if (!insertion) insertion= cursor_context_at (tp, cursor_source_boundary ());
+  if (!insertion) insertion= editor_rep::cursor_context_at (tp);
   tree T= empty_table (nr_rows, nr_cols);
   path p (0, 0, 0, 0);
   tree format_T (TFORMAT, T);
@@ -1134,7 +1134,7 @@ void
 edit_table_rep::make_subtable (int nr_rows, int nr_cols) {
   path cp= search_upwards (CELL);
   if (is_nil (cp)) return;
-  const auto insertion= cursor_context_at (tp, cursor_source_boundary ());
+  const auto insertion= editor_rep::cursor_context_at (tp);
   tree T= empty_table (nr_rows, nr_cols);
   path p (0, 0, 0, 0);
   T= tree (TFORMAT, T);
