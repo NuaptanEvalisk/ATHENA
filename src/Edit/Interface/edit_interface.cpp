@@ -1890,7 +1890,9 @@ void
 editor_rep::publish_editor_command_state () {
   if (ui_endpoint == nullptr) return;
   const auto context= editor_rep::cursor_context_at (the_path ());
-  const string par_sep= context ? as_string (context->value ("par-par-sep")) : string ("");
+  tree separator= context ? context->value ("par-par-sep") : tree ("");
+  if (is_func (separator, BACKUP, 2)) separator= separator[0];
+  const string par_sep= as_string (separator);
   bool prominent_spacing=
     context && !ends (par_sep, "fns") && !starts (par_sep, "0fn");
   ui_endpoint->set_prominent_spacing_available (prominent_spacing);

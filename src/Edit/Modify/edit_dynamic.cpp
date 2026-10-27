@@ -51,6 +51,11 @@ struct macro_edit_scope {
     selected (selected), previous (selected) { selected= std::move (context); }
   ~macro_edit_scope () { selected= std::move (previous); }
 };
+
+tree effective_macro_value (const evaluation_environment_checkpoint& context, string name) {
+  tree value= context.value (name);
+  return is_func (value, BACKUP, 2) ? value[0] : value;
+}
 }
 
 std::shared_ptr<const evaluation_environment_checkpoint>
@@ -69,12 +74,9 @@ edit_dynamic_rep::in_source () {
   if (source_mode_during_edit) return *source_mode_during_edit;
   const auto context= macro_environment ? macro_environment :
     editor_rep::cursor_context_at (tp);
-  if (context) {
-    tree mode= context->value (MODE), preamble= context->value (PREAMBLE);
-    if (is_func (mode, BACKUP, 2)) mode= mode[0];
-    if (is_func (preamble, BACKUP, 2)) preamble= preamble[0];
-    return mode == "src" || preamble == "true";
-  }
+  if (context)
+    return effective_macro_value (*context, MODE) == "src" ||
+           effective_macro_value (*context, PREAMBLE) == "true";
   return get_env_string (MODE) == "src";
 }
 
@@ -167,7 +169,7 @@ edit_dynamic_rep::make_compound (tree_label l, int n= -1) {
     }
   }
   eval ("(use-modules (generic generic-edit))");
-  const tree definition= context ? context->value (tag) : get_env_value (tag);
+  const tree definition= context ? effective_macro_value (*context, tag) : get_env_value (tag);
   if (n == -1 && is_func (definition, MACRO) &&
       query.describe (l).layout_origin == athena::contracts::property_authority::inferred)
     n= N(definition)-1;
@@ -737,7 +739,7 @@ edit_dynamic_rep::prepare_hybrid () {
   macro_edit_scope invocation (macro_environment, context);
   const athena::contracts::editing_query query {context->contract_context ()};
   string name= st[0]->label;
-  tree f= context->value (name);
+  tree f= effective_macro_value (*context, name);
   tree_label tag= make_tree_label (name);
   int arity= 0;
   if (is_func (f, MACRO)) arity= N(f)-1;
@@ -969,7 +971,7 @@ edit_dynamic_rep::activate_hybrid (bool with_args_hint, const std::optional<comm
     if (N(input) == 3 && is_tuple (input[1])) {
       if (input[2] != "") return;
       tree_label label= make_tree_label (input[0]->label);
-      tree f= context->value (input[0]->label);
+      tree f= effective_macro_value (*context, input[0]->label);
       if ((!is_func (f, MACRO) && !is_func (f, XMACRO) &&
            !query.contains (input[0]->label)) ||
           (is_func (f, MACRO) && N(input[1]) != N(f)-1) ||
@@ -1033,7 +1035,7 @@ edit_dynamic_rep::activate_hybrid (bool with_args_hint, const std::optional<comm
 
   // built-in primitives, macro applications and values
   const bool source= in_source ();
-  tree f= context->value (name);
+  tree f= effective_macro_value (*context, name);
   {
     source_edit_scope source_scope (source_mode_during_edit, source);
     if ((query.contains (name) && (f == UNINIT)) ||
