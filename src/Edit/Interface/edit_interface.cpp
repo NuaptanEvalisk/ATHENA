@@ -614,10 +614,12 @@ focus_outline_width (SI pixel) {
 
 void
 edit_interface_rep::compute_env_rects (path p, rectangles& rs, bool recurse,
-                                       SI outline_width) {
+                                        SI outline_width) {
   if (p == rp) return;
   tree pt= subtree (et, path_up (p));
   tree st= subtree (et, p);
+  const auto context= editor_rep::cursor_context_at (tp);
+  const auto& contracts= context ? context->contract_context () : contract_state.contracts;
   if ((is_func (st, TABLE) || is_func (st, SUBTABLE) || is_func (st, MATH_GRID)) &&
       recurse && get_preference ("show table cells") == "on") {
     rectangles rl;
@@ -645,7 +647,7 @@ edit_interface_rep::compute_env_rects (path p, rectangles& rs, bool recurse,
     if (recurse) compute_env_rects (path_up (p), rs, recurse, outline_width);
   }
   else if (is_atomic (st) ||
-           athena::contracts::editing_query {contract_state.contracts}.child_enforcing (st) ||
+            athena::contracts::editing_query {contracts}.child_enforcing (st) ||
            //is_document (st) || is_concat (st) ||
            is_func (st, TABLE) || is_func (st, SUBTABLE) ||
            is_func (st, ROW) || is_func (st, TFORMAT) ||
@@ -657,9 +659,8 @@ edit_interface_rep::compute_env_rects (path p, rectangles& rs, bool recurse,
     compute_env_rects (path_up (p), rs, recurse, outline_width);
   else {
     using athena::contracts::access_policy;
-    const auto context= cursor_context_at (tp, cursor_source_boundary ());
     const auto access= in_source () ? access_policy::source : access_policy::normal;
-    const cursor_navigation navigation ({context ? context->contract_context () : contract_state.contracts, access});
+    const cursor_navigation navigation ({contracts, access});
     tree st= subtree (et, p);
     if (navigation.is_accessible_cursor (et, p * right_index (st)) || access == access_policy::source) {
       bool right;
