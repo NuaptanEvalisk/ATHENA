@@ -1270,8 +1270,15 @@ generic_parameter_get (string name, object mode_object) {
   tree value;
   if (mode.kind == GENERIC_PARAMETER_GLOBAL)
     value= get_current_editor ()->get_init_value (name);
-  else if (mode.kind == GENERIC_PARAMETER_LOCAL)
-    value= get_current_editor ()->get_env_value (name);
+  else if (mode.kind == GENERIC_PARAMETER_LOCAL) {
+    tree focus;
+    if (!parameter_focus_matches (mode, focus)) return object ("");
+    editor ed= get_current_editor ();
+    const auto prepared= ed->cursor_context_at (ed->the_path ());
+    if (!prepared) return object ("");
+    value= prepared->value (name);
+    if (is_func (value, BACKUP, 2)) value= value[0];
+  }
   else
     return object ("");
 
