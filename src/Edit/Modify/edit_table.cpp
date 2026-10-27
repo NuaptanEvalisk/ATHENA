@@ -1133,6 +1133,7 @@ void
 edit_table_rep::make_subtable (int nr_rows, int nr_cols) {
   path cp= search_upwards (CELL);
   if (is_nil (cp)) return;
+  const auto insertion= cursor_context_at (tp, cursor_source_boundary ());
   tree T= empty_table (nr_rows, nr_cols);
   path p (0, 0, 0, 0);
   T= tree (TFORMAT, T);
@@ -1141,6 +1142,9 @@ edit_table_rep::make_subtable (int nr_rows, int nr_cols) {
   p= path (0, p);
   assign (cp * 0, T);
   go_to (cp * path (0, p));
+  path fp= search_format ();
+  if (is_nil (fp)) return;
+  table_context_scope context (*this, fp, insertion);
   table_correct_block_content ();
   set_message (concat (kbd_shortcut ("(structured-insert-down)"),
                        ": new row",
