@@ -632,15 +632,6 @@ edit_typeset_rep::typeset_exec_until (path p) {
     cur (p)= std::static_pointer_cast<const cursor_environment_checkpoint> (prepared);
     return;
   }
-  // FIXME: we should ensure that p is inside the document
-  // if (!(rp <= p)) p= correct_cursor (et, rp * 0);
-
-  //time_t t1= texmacs_time ();
-  if (has_changed (THE_TREE + THE_ENVIRONMENT))
-    if (p != correct_cursor (et, rp * 0)) {
-      if (DEBUG_STD) std_warning << "resynchronizing for path " << p << "\n";
-      // apply_changes ();
-    }
   if (p == tp && inside_graphics (true) && p != closest_inside (et, p)) {
     //cout << "Warning: corrected cursor\n";
     tp= closest_inside (et, tp);
@@ -697,8 +688,6 @@ edit_typeset_rep::typeset_exec_until (path p) {
     define_style_macros (env, subtree (et, rp));
   cur (p)= std::make_shared<const cursor_environment_checkpoint> (
     *env.operator-> (), ttt->br->contract_changes);
-  //time_t t2= texmacs_time ();
-  //if (t2 - t1 >= 10) cout << "typeset_exec_until took " << t2-t1 << "ms\n";
 }
 
 tree
