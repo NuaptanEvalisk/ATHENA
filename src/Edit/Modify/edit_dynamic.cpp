@@ -216,7 +216,7 @@ edit_dynamic_rep::make_compound (tree_label l, int n= -1) {
         p= path (0, p);
       }
     insert_tree (t, p);
-    if (table_macro) make_table (1, 1);
+    if (table_macro) make_table (1, 1, context);
     if (sel != "") insert_tree (sel, end (sel));
     
     tree mess= concat ();

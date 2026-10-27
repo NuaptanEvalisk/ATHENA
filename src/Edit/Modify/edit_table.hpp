@@ -101,7 +101,8 @@ public:
   edit_table_rep ();
   ~edit_table_rep ();
 
-  void   make_table (int nr_rows, int nr_cols);
+  void   make_table (int nr_rows, int nr_cols,
+    std::shared_ptr<const evaluation_environment_checkpoint> insertion= {});
   void   make_subtable (int nr_rows, int nr_cols);
   void   destroy_table ();
   void   table_deactivate ();
