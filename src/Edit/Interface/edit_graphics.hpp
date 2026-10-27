@@ -43,6 +43,9 @@ private:
   bool native_graphics_coordinate_region (
     path graphics, native_ink_interaction_snapshot& region,
     frame* coordinate_frame= nullptr);
+  tree native_graphics_environment_value (
+    string name,
+    const std::shared_ptr<const evaluation_environment_checkpoint>& prepared);
 
 public:
   edit_graphics_rep ();
