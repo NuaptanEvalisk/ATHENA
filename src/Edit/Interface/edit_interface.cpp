@@ -771,7 +771,9 @@ editor_rep::editor_command_state_snapshot () {
   if (test_subtree (focus))
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_FOCUS_NODE;
   const bool graphics_mode= inside_graphics (false);
-  const string mode= as_string (context->value (MODE));
+  tree mode_value= context->value (MODE);
+  if (is_func (mode_value, BACKUP, 2)) mode_value= mode_value[0];
+  const string mode= as_string (mode_value);
   if (mode == "math" && !graphics_mode)
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_MATH_MODE;
   if (mode == "text" && !graphics_mode)
@@ -1003,6 +1005,7 @@ editor_rep::popup_menu_state_snapshot () {
     word.data (), static_cast<std::size_t> (N(word)));
 
   tree language= context->value ("language");
+  if (is_func (language, BACKUP, 2)) language= language[0];
   string lan= is_atomic (language) ? as_string (language):
                                     get_init_string ("language");
   tree checked= spell_check (lan, word);

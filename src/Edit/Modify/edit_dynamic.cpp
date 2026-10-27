@@ -69,7 +69,12 @@ edit_dynamic_rep::in_source () {
   if (source_mode_during_edit) return *source_mode_during_edit;
   const auto context= macro_environment ? macro_environment :
     editor_rep::cursor_context_at (tp);
-  if (context) return context->value (MODE) == "src" || context->value (PREAMBLE) == "true";
+  if (context) {
+    tree mode= context->value (MODE), preamble= context->value (PREAMBLE);
+    if (is_func (mode, BACKUP, 2)) mode= mode[0];
+    if (is_func (preamble, BACKUP, 2)) preamble= preamble[0];
+    return mode == "src" || preamble == "true";
+  }
   return get_env_string (MODE) == "src";
 }
 

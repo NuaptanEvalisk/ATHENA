@@ -75,7 +75,9 @@ edit_interface_rep::compute_text_footer (
   r= st->label (start, end);
   if (r == "") r= "start";
   if (r == " ") r= "space";
-  if (r == "space" && context.value (MODE) == "math") r= "apply";
+  tree mode= context.value (MODE);
+  if (is_func (mode, BACKUP, 2)) mode= mode[0];
+  if (r == "space" && mode == "math") r= "apply";
   if (starts (r, "<")) return verbatim (r);
   return r;
 }

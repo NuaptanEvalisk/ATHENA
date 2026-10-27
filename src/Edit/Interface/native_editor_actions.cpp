@@ -191,6 +191,7 @@ popup_spell_add (editor ed) {
     return;
   }
   tree language= context->value ("language");
+  if (is_func (language, BACKUP, 2)) language= language[0];
   string lan= is_atomic (language) ? as_string (language):
                                     ed->get_init_string ("language");
   spell_insert (lan, word);

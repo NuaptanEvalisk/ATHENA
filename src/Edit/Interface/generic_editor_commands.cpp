@@ -373,6 +373,7 @@ std::optional<string> spell_live_language_at (path start_path) {
   const auto context= ed->cursor_context_at (start_path);
   if (!context) return {};
   tree language= context->value ("language");
+  if (is_func (language, BACKUP, 2)) language= language[0];
   return is_atomic (language) ? as_string (language): ed->get_init_string ("language");
 }
 
