@@ -257,13 +257,14 @@ edit_cursor_rep::go_right_physical () {
 
 bool
 edit_cursor_rep::physical_border_jump_skips_accessible_child (
-  path old_path, path new_path, bool forwards) {
+  path old_path, path new_path, bool forwards,
+  const athena::contracts::contract_scope& contracts) {
   path parent= path_up (old_path);
   if (!(rp <= parent) || !has_subtree (et, parent)) return false;
   tree st= subtree (et, parent);
   bool has_accessible_child= false;
   for (int i=0; i<N(st); ++i)
-    has_accessible_child |= athena::contracts::editing_query {contract_state.contracts}.accessible (st, i);
+    has_accessible_child |= athena::contracts::editing_query {contracts}.accessible (st, i);
   if (!has_accessible_child) return false;
   if (forwards)
     return old_path == parent * 0 &&
@@ -337,6 +338,8 @@ void
 edit_cursor_rep::go_left () {
   if (has_changed (THE_TREE+THE_ENVIRONMENT)) return;
   path old_tp= copy (tp);
+  const auto old_context= editor_rep::cursor_context_at (old_tp);
+  const auto& contracts= old_context ? old_context->contract_context () : contract_state.contracts;
   const auto old_affinity= cu->affinity;
   const auto old_boundary= cursor_source_boundary ();
   go_left_physical ();
@@ -345,7 +348,7 @@ edit_cursor_rep::go_left () {
   path parent= path_up (old_tp);
   bool skipped_accessible_child=
     !in_source () &&
-    physical_border_jump_skips_accessible_child (old_tp, tp, false);
+    physical_border_jump_skips_accessible_child (old_tp, tp, false, contracts);
   if (tp != old_tp && !skipped_accessible_child &&
       cursor_is_accessible () &&
       inside_contiguous_document (et, old_tp, tp)) return;
@@ -353,10 +356,10 @@ edit_cursor_rep::go_left () {
     tree st= subtree (et, parent);
     bool has_accessible_child= false;
     for (int i=0; i<N(st); ++i)
-      has_accessible_child |= athena::contracts::editing_query {contract_state.contracts}.accessible (st, i);
+      has_accessible_child |= athena::contracts::editing_query {contracts}.accessible (st, i);
     path left_border= parent * 0;
     if (!has_accessible_child && old_tp == parent * right_index (st) &&
-        is_accessible_cursor (et, left_border)) {
+        cursor_navigation ({contracts}).is_accessible_cursor (et, left_border)) {
       go_to (left_border);
       select_from_cursor_if_active ();
       return;
@@ -371,6 +374,8 @@ void
 edit_cursor_rep::go_right () {
   if (has_changed (THE_TREE+THE_ENVIRONMENT)) return;
   path old_tp= copy (tp);
+  const auto old_context= editor_rep::cursor_context_at (old_tp);
+  const auto& contracts= old_context ? old_context->contract_context () : contract_state.contracts;
   const auto old_affinity= cu->affinity;
   const auto old_boundary= cursor_source_boundary ();
   go_right_physical ();
@@ -379,7 +384,7 @@ edit_cursor_rep::go_right () {
   path parent= path_up (old_tp);
   bool skipped_accessible_child=
     !in_source () &&
-    physical_border_jump_skips_accessible_child (old_tp, tp, true);
+    physical_border_jump_skips_accessible_child (old_tp, tp, true, contracts);
   if (tp != old_tp && !skipped_accessible_child &&
       cursor_is_accessible () &&
       inside_contiguous_document (et, old_tp, tp)) return;
@@ -387,10 +392,10 @@ edit_cursor_rep::go_right () {
     tree st= subtree (et, parent);
     bool has_accessible_child= false;
     for (int i=0; i<N(st); ++i)
-      has_accessible_child |= athena::contracts::editing_query {contract_state.contracts}.accessible (st, i);
+      has_accessible_child |= athena::contracts::editing_query {contracts}.accessible (st, i);
     path right_border= parent * right_index (st);
     if (!has_accessible_child && old_tp == parent * 0 &&
-        is_accessible_cursor (et, right_border)) {
+        cursor_navigation ({contracts}).is_accessible_cursor (et, right_border)) {
       go_to (right_border);
       select_from_cursor_if_active ();
       return;

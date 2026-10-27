@@ -33,7 +33,8 @@ protected:
   path make_cursor_accessible (path p, bool forwards);
   path make_cursor_accessible (path p, bool forwards, const cursor_navigation&);
   bool physical_border_jump_skips_accessible_child (
-    path old_path, path new_path, bool forwards);
+    path old_path, path new_path, bool forwards,
+    const athena::contracts::contract_scope& contracts);
   path tree_path (path sp, SI x, SI y, SI delta, bool source= false) override;
   path tree_path (path sp, SI x, SI y, SI delta,
                   athena::text::caret_affinity* affinity, path* box_path= nullptr,
