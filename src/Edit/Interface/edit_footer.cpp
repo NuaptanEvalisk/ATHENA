@@ -50,41 +50,6 @@ edit_interface_rep::set_left_footer (tree l) {
     actor_command_kind::ui_footer_left, ui_text (l));
 }
 
-void
-edit_interface_rep::append_left_footer (tree& l, string env_var) {
-  if (!is_concat (l)) l= concat (l);
-  string i= get_init_string (env_var);
-  string c= get_env_string (env_var);
-  if (c != i) l << (" " * c);
-}
-
-void
-edit_interface_rep::set_left_footer () {
-  tree s= concat ();
-  double base_sz= get_env_int (FONT_BASE_SIZE);
-  double sz= get_env_double (FONT_SIZE);
-  /*
-  tree the_style= get_style ();
-  for (int i=0; i<arity (the_style); i++)
-    s << " " << as_string (the_style[i]);
-  */
-  string mode= get_env_string (MODE);
-  string lan = get_env_string (MODE_LANGUAGE (mode));
-  if (mode == "prog") s << "program";
-  else if (as_string (get_init_value (MODE_LANGUAGE (mode))) != lan)
-    s << " " << lan;
-  else s << " " << mode;
-  s << " " << verbatim (main_family (get_env_string (FONT)));
-  append_left_footer (s, FONT_FAMILY);
-  s << " " << as_string ((int) ((base_sz+0.5)*sz));
-  append_left_footer (s, FONT_SERIES);
-  append_left_footer (s, FONT_SHAPE);
-  string r= get_env_string (COLOR);
-  if (r != "black") s << " " << r;
-  if (N(s) > 0 && s[0] == " ") s= s (1, N(s));
-  set_left_footer (s);
-}
-
 /******************************************************************************
 * Set right footer with information about cursor position
 ******************************************************************************/

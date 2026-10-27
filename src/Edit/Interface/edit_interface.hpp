@@ -339,8 +339,6 @@ public:
   tree compute_operation_footer (tree st, const athena::contracts::contract_scope&);
   tree compute_compound_footer (tree t, path p, const athena::contracts::contract_scope&);
   void set_left_footer (tree l);
-  void append_left_footer (tree& l, string env_var);
-  void set_left_footer ();
   void set_center_footer (tree c);
   void set_right_footer (tree r);
   void set_right_footer ();
