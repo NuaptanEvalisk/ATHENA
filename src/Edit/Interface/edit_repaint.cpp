@@ -164,7 +164,7 @@ void
 edit_interface_rep::draw_env (renderer ren) {
   if (!full_screen) {
     if (!is_nil (env_rects)) {
-      const auto context= cursor_context_at (tp, cursor_source_boundary ());
+      const auto context= editor_rep::cursor_context_at (tp);
       color col= named_color (as_string (context ?
         context->effective_value (CONTEXT_COLOR) : get_init_value (CONTEXT_COLOR)));
       ren->set_pencil (pencil (col, ren->pixel));
@@ -183,7 +183,7 @@ edit_interface_rep::draw_cursor (renderer ren) {
   if (get_preference ("draw cursor") == "on" &&
       cursor_blink_visible && !temp_invalid_cursor &&
       (got_focus || full_screen)) {
-    const auto context= cursor_context_at (tp, cursor_source_boundary ());
+    const auto context= editor_rep::cursor_context_at (tp);
     if (!context) return;
     cursor cu= get_cursor();
     if (!(inside_graphics () && context->effective_value (PREAMBLE) == "false")) {
@@ -264,7 +264,7 @@ edit_interface_rep::draw_selection (renderer ren, rectangle r) {
     ren->set_pencil (pencil (col, ren->pixel));
     ren->draw_rectangles (locus_rects);
   }
-  const auto context= cursor_context_at (tp, cursor_source_boundary ());
+  const auto context= editor_rep::cursor_context_at (tp);
   const color match_color= named_color (as_string (context ?
     context->effective_value (MATCH_COLOR) : get_init_value (MATCH_COLOR)));
   for (int i=0; i<N(alt_selection_rects); i++) {
