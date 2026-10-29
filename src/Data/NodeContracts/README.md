@@ -3119,8 +3119,9 @@ revisions and reference outputs keep their existing evaluator ownership.
 
 Scheme execution scopes borrow the native state on their checked owner thread.
 Standalone import/correction scopes own a value. `prepare_document_context`
-and `prepare_offline_document_context` return prepared native state; legacy
-import compilation uses a contract scope directly. The obsolete `set-drd`
+returns prepared native state; offline identity migration now requests exact
+source-entry scopes instead of the retired document-wide preparation cache.
+Legacy import compilation uses a contract scope directly. The obsolete `set-drd`
 binding and its two print-wrapper calls are removed; actor context selection
 already belongs to `SchemeExecutionScope`, not a URL-based Scheme setter.
 

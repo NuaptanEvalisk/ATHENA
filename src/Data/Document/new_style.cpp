@@ -35,11 +35,10 @@
 struct style_data_rep {
   hashmap<string,bool> style_busy;
   hashmap<tree,style_environment_ptr> styles;
-  hashmap<tree,style_environment_ptr> offline_documents;
 
   style_data_rep ():
     style_busy (false),
-    styles (nullptr), offline_documents (nullptr) {}
+    styles (nullptr) {}
 };
 
 static std::atomic<std::uint64_t> style_generation {1};
@@ -507,39 +506,6 @@ prepare_document_source_contracts (tree doc) {
 document_source_contract_preparation
 prepare_offline_document_source_contracts (tree doc, url source_name) {
   return prepare_document_source_contracts_impl (doc, source_name, true);
-}
-
-athena::contracts::evaluation_state
-prepare_offline_document_context (tree doc, url source_name) {
-  init_style_data ();
-  tree style= preprocess_style (extract (doc, "style"), source_name);
-  auto base= get_style_environment (style, source_name, false);
-
-  tree preamble= get_document_preamble (doc);
-  if (preamble == "") return base->context ();
-
-  tree key (TUPLE, copy (style), as_string (head (source_name)), copy (preamble));
-  if (sd->offline_documents->contains (key))
-    return sd->offline_documents[key]->context ();
-
-  // Preamble processing is the document-specific overlay.  Reuse the cached
-  // package environment/DRD and execute only the local preamble on top of it.
-  athena::contracts::evaluation_state contract_state= base->context ();
-  hashmap<string,tree> lref;
-  hashmap<string,tree> gref;
-  hashmap<string,tree> laux;
-  hashmap<string,tree> gaux;
-  hashmap<string,tree> latt;
-  hashmap<string,tree> gatt;
-  edit_env env (contract_state, source_name, lref, gref, laux, gaux, latt, gatt);
-  env->set_scheme_modules_enabled (false);
-  base->restore (*env.operator-> ());
-  env->update ();
-  env->exec (preamble);
-  env->analyze_contracts ();
-  sd->offline_documents(copy (key))=
-    std::make_shared<const style_environment> (*env.operator-> ());
-  return contract_state;
 }
 
 /******************************************************************************
