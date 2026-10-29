@@ -62,6 +62,8 @@ athena::contracts::evaluation_state prepare_document_context (tree doc);
 using document_source_contract_preparation= std::function<
   std::shared_ptr<const athena::contracts::contract_scope> (const std::vector<int>&)>;
 document_source_contract_preparation prepare_document_source_contracts (tree doc);
+document_source_contract_preparation prepare_offline_document_source_contracts (
+  tree doc, url source_name);
 athena::contracts::evaluation_state prepare_offline_document_context (tree doc, url source_name);
 
 array<string> get_style_names ();

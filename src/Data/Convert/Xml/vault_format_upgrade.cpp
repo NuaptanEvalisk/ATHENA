@@ -2345,6 +2345,8 @@ upgrade_vault_node_model (
       tree& body= document_body_ref (document.document);
       const auto source_state= prepare_offline_document_context (
         document.document, url ((staged / document.path).string ().c_str ()));
+      const auto source_roles= prepare_offline_document_source_contracts (
+        document.document, url ((staged / document.path).string ().c_str ()));
       for (const AthenaArtifactRecord& artifact: found->second) {
         path native;
         std::string locate_error;
@@ -2360,7 +2362,7 @@ upgrade_vault_node_model (
         node_path where= native_to_source_path (native);
         const auto classification= athena::document_node::classify_source_path (
           body, where, source_state.contracts,
-          athena::document_node::standard_source_role);
+          athena::document_node::standard_source_role, {}, source_roles);
         require (classification.ok (),
                  "Could not classify Artifact source " + artifact.uuid + " in " +
                  relative + (classification.diagnostics.empty () ? "" : ": " +

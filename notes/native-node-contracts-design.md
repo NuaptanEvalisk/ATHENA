@@ -385,6 +385,10 @@ source roles do not require these extra evaluations. A missing entry fails the
 identity plan before UUID allocation or mutation; regular transaction rollback
 continues to own failed edits. This does not establish a latency bound for large
 prefixes or confer source roles on macros with ambiguous inferred fields.
+Offline Artifact source classification uses the same BODY-relative role
+provider, with the staged document's own source path and package-resolution
+policy. It does not reclassify source objects using a single global preamble
+scope. This is a code-path alignment, not a new Vault migration run.
 
 The attachment and source-outcome implementations have successful
 production-library builds and focused temporary probes. Application deployment

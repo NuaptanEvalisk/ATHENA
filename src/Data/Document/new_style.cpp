@@ -401,24 +401,25 @@ prepare_document_context (tree doc) {
   return contract_state;
 }
 
-document_source_contract_preparation
-prepare_document_source_contracts (tree doc) {
-  const url none ("$PWD/none");
+static document_source_contract_preparation
+prepare_document_source_contracts_impl (tree doc, url source_name, bool offline) {
   const tree body= extract (doc, "body");
   // Most documents only use native or explicitly classified fields. Do not
   // execute styles again unless a custom source role actually needs inference.
   auto baseline= std::make_shared<std::shared_ptr<const evaluation_environment_checkpoint>> ();
-  return [doc, body, none, baseline] (const std::vector<int>& where)
+  return [doc, body, source_name, offline, baseline] (const std::vector<int>& where)
       -> std::shared_ptr<const athena::contracts::contract_scope> {
     if (!*baseline) {
       init_style_data ();
-      auto style= get_style_environment (extract (doc, "style"), none, true);
-      athena::contracts::evaluation_state state= style->context ();
+      const tree style= offline ?
+        preprocess_style (extract (doc, "style"), source_name) : extract (doc, "style");
+      auto prepared_style= get_style_environment (style, source_name, !offline);
+      athena::contracts::evaluation_state state= prepared_style->context ();
       athena::contracts::evaluation_state_scope owner (&state);
       hashmap<string,tree> refs, global_refs, aux, global_aux, attachments, global_attachments;
-      edit_env initial (state, none, refs, global_refs,
+      edit_env initial (state, source_name, refs, global_refs,
                         aux, global_aux, attachments, global_attachments);
-      style->restore (*initial.operator-> ());
+      prepared_style->restore (*initial.operator-> ());
       initial->style_init_env ();
       initial->update ();
       const tree preamble= get_document_preamble (doc);
@@ -432,7 +433,7 @@ prepare_document_source_contracts (tree doc) {
     athena::contracts::evaluation_state local ((*baseline)->contract_context ().snapshot ());
     athena::contracts::evaluation_state_scope owner (&local);
     hashmap<string,tree> refs, global_refs, aux, global_aux, attachments, global_attachments;
-    edit_env evaluation (local, none, refs, global_refs,
+    edit_env evaluation (local, source_name, refs, global_refs,
                          aux, global_aux, attachments, global_attachments);
     (*baseline)->restore (*evaluation.operator-> ());
     evaluation->style_init_env ();
@@ -441,6 +442,16 @@ prepare_document_source_contracts (tree doc) {
     evaluation->analyze_contracts ();
     return std::make_shared<const athena::contracts::contract_scope> (local.contracts);
   };
+}
+
+document_source_contract_preparation
+prepare_document_source_contracts (tree doc) {
+  return prepare_document_source_contracts_impl (doc, url ("$PWD/none"), false);
+}
+
+document_source_contract_preparation
+prepare_offline_document_source_contracts (tree doc, url source_name) {
+  return prepare_document_source_contracts_impl (doc, source_name, true);
 }
 
 athena::contracts::evaluation_state

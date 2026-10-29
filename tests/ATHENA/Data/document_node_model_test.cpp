@@ -544,6 +544,12 @@ void TestDocumentNodeModel::incremental_identities_use_source_entry_contracts ()
   QVERIFY (!node::id (source[0][0]).empty ());
   QVERIFY (!node::id (source[0][0][0]).empty ());
   QVERIFY (node::id (source[1][0]).empty ());
+  const auto visible= model::classify_source_path (
+    source, {0, 0}, athena::contracts::builtin_contracts (), {}, {}, entries);
+  const auto hidden= model::classify_source_path (
+    source, {1, 0}, athena::contracts::builtin_contracts (), {}, {}, entries);
+  QVERIFY (visible.ok () && visible.content);
+  QVERIFY (hidden.ok () && !hidden.content);
 
   model::source_identity_state missing;
   QVERIFY (missing.initialize (source).empty ());

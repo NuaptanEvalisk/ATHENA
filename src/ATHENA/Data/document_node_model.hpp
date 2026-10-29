@@ -110,7 +110,8 @@ struct source_path_classification {
 // derived/data structure and must not become a source identity authority.
 source_path_classification classify_source_path (
   const tree& body, const source_path& where, const contracts::contract_scope& context,
-  const role_resolver& roles, limits budget= {});
+  const role_resolver& roles, limits budget= {},
+  const source_contract_preparation& contexts= {});
 
 // Input is the extracted DOCUMENT body, NOT its file envelope or a BODY wrapper.
 // Assign root/nested content DOCUMENTs, their paragraph children (atoms and

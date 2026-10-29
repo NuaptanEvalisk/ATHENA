@@ -383,7 +383,8 @@ public:
 
 source_path_classification classify_source_path_impl (
     const tree& body, const source_path& selected, const contracts::contract_scope& descriptors,
-    const role_resolver& resolve, limits budget) {
+    const role_resolver& resolve, limits budget,
+    const source_contract_preparation& contexts) {
   source_path_classification result;
   try {
     const tree* current= &body;
@@ -397,7 +398,7 @@ source_path_classification classify_source_path_impl (
 
       if (depth == selected.size ()) {
         if (is_compound (*current) && !is_func (*current, DOCUMENT)) {
-          const auto contract= roles_for (*current, descriptors, resolve, prefix);
+          const auto contract= roles_for (*current, descriptors, resolve, prefix, contexts);
           if (contract.role == semantic_role::data) return result;
         }
         result.content= true;
@@ -419,7 +420,7 @@ source_path_classification classify_source_path_impl (
         }
       }
       else {
-        const auto contract= roles_for (*current, descriptors, resolve, prefix);
+        const auto contract= roles_for (*current, descriptors, resolve, prefix, contexts);
         if (contract.role == semantic_role::data) return result;
         next= contract.children[index];
         if (context == child_role::inline_content &&
@@ -843,8 +844,9 @@ identity_result assign_detached_source_ids (
 
 source_path_classification classify_source_path (
     const tree& body, const source_path& where, const contracts::contract_scope& descriptors,
-    const role_resolver& roles, limits budget) {
-  return classify_source_path_impl (body, where, descriptors, roles, budget);
+    const role_resolver& roles, limits budget,
+    const source_contract_preparation& contexts) {
+  return classify_source_path_impl (body, where, descriptors, roles, budget, contexts);
 }
 
 namespace {
