@@ -81,8 +81,8 @@ closest_inside (tree t, path p) {
     return path (max (0, min (1, p->item)));
   else if (is_func (t, RAW_DATA, 1))
     return path (0, 0);
-  else if (is_func (t, AROUND, 3) && p->item == 0) return path (0);
-  else if (is_func (t, AROUND, 3) && p->item == 2) return path (1);
+  else if (is_around (t) && p->item == 0) return path (0);
+  else if (is_around (t) && p->item == 2) return path (1);
   else return path (p->item, closest_inside (t[p->item], p->next));
 }
 
@@ -197,7 +197,7 @@ cursor_navigation::closest_accessible (tree t, path p, int dir) const {
   if (is_atomic (t)) return p;
   else if (is_nil (p)) return closest_accessible (t, path (0), dir);
   else if (is_atom (p) && !query.child_enforcing (t)) return p;
-  else if (is_func (t, AROUND) && (p->item == 0 || p->item == 2)) {
+  else if (is_around (t) && (p->item == 0 || p->item == 2)) {
     if (p->item == 0)
       return dir < 0 ? path (0) : path (1, child (t, 1).start (t[1]));
     return dir > 0 ? path (1) : path (1, child (t, 1).end (t[1]));
