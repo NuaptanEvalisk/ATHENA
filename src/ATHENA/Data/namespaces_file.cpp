@@ -13,6 +13,7 @@
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include "source_document_creation.hpp"
 #include "document_node_model.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 #include "document_node_copy.hpp"
 #include "boot.hpp"
 #include "file.hpp"
@@ -169,7 +170,7 @@ namespace_save_new_document (
     // A template creates new source objects, not another copy of its UUIDs.
     doc= athena::document_node::duplicate_source_nodes (doc);
     auto identities= athena::document_node::assign_detached_source_ids (
-      extract (doc, "body"), prepare_document_context (doc).contracts,
+      extract (doc, "body"), athena::contracts::builtin_contracts (),
       athena::document_node::standard_source_role,
       [] (const athena::document_node::identity_request&) {
         return athena::node::new_id ();

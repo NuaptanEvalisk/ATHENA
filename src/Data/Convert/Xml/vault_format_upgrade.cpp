@@ -27,6 +27,7 @@
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "new_style.hpp"
 #include "Data/NodeContracts/execution_state.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 #include "node_metadata.hpp"
 #include "unicode_text.hpp"
 #include <QCoreApplication>
@@ -2005,8 +2006,7 @@ upgrade_vault_node_model (
         athena::document_node::source_identity_state identities;
         const tree& body= document_body_ref (decoded.document);
         const auto diagnostics= identities.initialize_complete (
-          body, prepare_offline_document_context (
-                  decoded.document, url ((root / path).string ().c_str ())).contracts,
+          body, athena::contracts::builtin_contracts (),
           athena::document_node::standard_source_role, {},
           prepare_offline_document_source_contracts (
             decoded.document, url ((root / path).string ().c_str ())));
@@ -2071,8 +2071,7 @@ upgrade_vault_node_model (
             result.legacy_anchors_removed += removed.size ();
             athena::document_node::source_identity_state identities;
             const auto diagnostics= identities.initialize_complete (
-              body, prepare_offline_document_context (
-                      decoded.document, url ((staged / path).string ().c_str ())).contracts,
+              body, athena::contracts::builtin_contracts (),
               athena::document_node::standard_source_role, {},
               prepare_offline_document_source_contracts (
                 decoded.document, url ((staged / path).string ().c_str ())));
@@ -2292,9 +2291,7 @@ upgrade_vault_node_model (
       tree& body= document_body_ref (document.document);
       const std::string relative= document.path.generic_string ();
       auto identities= athena::document_node::assign_detached_source_ids (
-        body, prepare_offline_document_context (
-                document.document,
-                url ((staged / document.path).string ().c_str ())).contracts,
+        body, athena::contracts::builtin_contracts (),
         athena::document_node::standard_source_role,
         [&] (const athena::document_node::identity_request& request) {
           auto preferred_path= preferred[relative].find (request.where);
@@ -2348,8 +2345,6 @@ upgrade_vault_node_model (
       auto found= artifacts_by_document.find (relative);
       if (found == artifacts_by_document.end ()) continue;
       tree& body= document_body_ref (document.document);
-      const auto source_state= prepare_offline_document_context (
-        document.document, url ((staged / document.path).string ().c_str ()));
       const auto source_roles= prepare_offline_document_source_contracts (
         document.document, url ((staged / document.path).string ().c_str ()));
       for (const AthenaArtifactRecord& artifact: found->second) {
@@ -2366,7 +2361,7 @@ upgrade_vault_node_model (
         }
         node_path where= native_to_source_path (native);
         const auto classification= athena::document_node::classify_source_path (
-          body, where, source_state.contracts,
+          body, where, athena::contracts::builtin_contracts (),
           athena::document_node::standard_source_role, {}, source_roles);
         require (classification.ok (),
                  "Could not classify Artifact source " + artifact.uuid + " in " +
@@ -2491,9 +2486,7 @@ upgrade_vault_node_model (
       tree& body= document_body_ref (document.document);
       athena::document_node::source_identity_state identities;
       const auto diagnostics= identities.initialize_complete (
-        body, prepare_offline_document_context (
-                document.document,
-                url ((staged / document.path).string ().c_str ())).contracts,
+        body, athena::contracts::builtin_contracts (),
         athena::document_node::standard_source_role, {},
         prepare_offline_document_source_contracts (
           document.document, url ((staged / document.path).string ().c_str ())));
@@ -2539,8 +2532,7 @@ upgrade_vault_node_model (
       const tree& body= document_body_ref (decoded.document);
       athena::document_node::source_identity_state identities;
       const auto diagnostics= identities.initialize_complete (
-        body, prepare_offline_document_context (
-                decoded.document, url ((staged / path).string ().c_str ())).contracts,
+        body, athena::contracts::builtin_contracts (),
         athena::document_node::standard_source_role, {},
         prepare_offline_document_source_contracts (
           decoded.document, url ((staged / path).string ().c_str ())));

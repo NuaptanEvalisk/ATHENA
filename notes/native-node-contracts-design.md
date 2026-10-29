@@ -402,6 +402,12 @@ preambles are evaluated before custom-role entries in the editor as well as
 offline, and preamble-local reference/auxiliary/attachment writes are retained
 inside the detached preparation maps. The focused real-evaluator regression
 also covers a macro defined only in an invisible document preamble.
+The old editor-wide `prepare_source_contracts` pass is gone. Online activation,
+BufferActor replacement, new-document creation, namespace/interop creation,
+and offline migration pass the immutable builtin scope as the fallback only;
+their custom-role provider owns any required style, preamble and local-binding
+analysis. Documents with only native or explicit roles no longer pay for a
+second eager preamble analysis just to validate source identities.
 Offline source-identity initialization, label-cleanup verification, UUID
 assignment, write preflight, post-write validation and Artifact source
 classification all use the same BODY-relative role provider. Each phase uses

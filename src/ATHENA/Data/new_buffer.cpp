@@ -27,6 +27,7 @@
 #include "message.hpp"
 #include "new_document.hpp"
 #include "new_style.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 #include "merge_sort.hpp"
 #include "materials_document.hpp"
 #include "ATHENA/Data/node_reference_export.hpp"
@@ -52,9 +53,8 @@ tree
 new_source_document () {
   tree body (DOCUMENT, tree (""));
   new_data data;
-  tree document= attach_data (body, data);
   auto identities= athena::document_node::assign_detached_source_ids (
-    body, prepare_document_context (document).contracts,
+    body, athena::contracts::builtin_contracts (),
     athena::document_node::standard_source_role,
     [] (const athena::document_node::identity_request&) {
       return athena::node::new_id ();

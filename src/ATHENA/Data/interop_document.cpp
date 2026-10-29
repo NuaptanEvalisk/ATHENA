@@ -12,6 +12,7 @@
 #include "interop_document_nodes.hpp"
 #include "interop_document_source.hpp"
 #include "document_node_model.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 #include "interop_filesystem.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include "../Interop/traversal.hpp"
@@ -197,11 +198,12 @@ void complete_v2_identities (tree& source, const std::string& filename) {
   new_data data;
   tree body= detach_data (source, data);
   auto result= athena::document_node::assign_detached_source_ids (
-    body, prepare_offline_document_context (source, url_system (string (filename.c_str ()))).contracts,
+    body, athena::contracts::builtin_contracts (),
     athena::document_node::standard_source_role,
     [] (const athena::document_node::identity_request&) {
       return athena::node::new_id ();
-    });
+    }, {}, prepare_offline_document_source_contracts (
+      source, url_system (string (filename.c_str ()))));
   if (!result.ok ())
     throw std::invalid_argument (
       "XML v2 edit cannot produce a complete source identity baseline: " +

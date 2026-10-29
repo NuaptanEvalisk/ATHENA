@@ -12,6 +12,7 @@
 #include "interop_document_source.hpp"
 #include "interop_document_codec.hpp"
 #include "document_node_model.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 #include "document_node_copy.hpp"
 #include "source_document_creation.hpp"
 #include "new_style.hpp"
@@ -89,7 +90,7 @@ std::string new_filesystem_document_bytes (const value& encoded, int node_model_
       else if (athena::node::contains_metadata (doc))
         throw std::invalid_argument ("New documents must not import existing source identities");
       auto identities= athena::document_node::assign_detached_source_ids (
-        extract (doc, "body"), prepare_document_context (doc).contracts,
+        extract (doc, "body"), athena::contracts::builtin_contracts (),
         athena::document_node::standard_source_role,
         [] (const athena::document_node::identity_request&) { return athena::node::new_id (); },
         {}, prepare_document_source_contracts (doc));

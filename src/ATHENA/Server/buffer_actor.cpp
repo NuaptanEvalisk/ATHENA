@@ -12,6 +12,7 @@
 #include "ATHENA/Data/buffer_export.hpp"
 #include "ATHENA/Data/document_persistence.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 #include "ATHENA/Data/node_reference.hpp"
 #include "actor_lifetime.hpp"
 #include "System/Misc/crash_report.hpp"
@@ -351,7 +352,7 @@ replacement_node_identities (const tree& document, const tree& body) {
   auto next= std::make_unique<athena::document_node::source_identity_state> ();
   const auto contexts= prepare_document_source_contracts (document);
   const auto errors= next->initialize_complete (
-    body, prepare_document_context (document).contracts,
+    body, athena::contracts::builtin_contracts (),
     athena::document_node::standard_source_role, {}, contexts);
   if (!errors.empty ()) {
     std_warning << "Source replacement rejected: "
@@ -363,10 +364,9 @@ replacement_node_identities (const tree& document, const tree& body) {
 
 std::unique_ptr<athena::document_node::source_identity_state>
 prepare_replacement_node_identities (const tree& document, tree& body) {
-  const athena::contracts::evaluation_state contract_state= prepare_document_context (document);
   const auto contexts= prepare_document_source_contracts (document);
   const auto assigned= athena::document_node::assign_detached_source_ids (
-    body, contract_state.contracts, athena::document_node::standard_source_role,
+    body, athena::contracts::builtin_contracts (), athena::document_node::standard_source_role,
     [] (const athena::document_node::identity_request&) {
       return athena::node::new_id ();
     }, {}, contexts);
@@ -378,7 +378,8 @@ prepare_replacement_node_identities (const tree& document, tree& body) {
   body= *assigned.body;
   auto next= std::make_unique<athena::document_node::source_identity_state> ();
   const auto errors= next->initialize_complete (
-    body, contract_state.contracts, athena::document_node::standard_source_role, {}, contexts);
+    body, athena::contracts::builtin_contracts (),
+    athena::document_node::standard_source_role, {}, contexts);
   if (!errors.empty ()) {
     std_warning << "Source replacement rejected: "
                 << string (errors.front ().detail.c_str ()) << LF;
