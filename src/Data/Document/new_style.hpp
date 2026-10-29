@@ -39,6 +39,7 @@ bool install_style_file (const std::filesystem::path& source,
 void style_invalidate_cache ();
 std::uint64_t style_cache_generation ();
 class edit_env_rep;
+class evaluation_environment_checkpoint;
 
 // Owner-thread package state. Values and evaluated bindings are restored as
 // one unit; a package snapshot never owns a live analyzer or editor context.
@@ -61,6 +62,17 @@ athena::contracts::evaluation_state prepare_document_context (tree doc);
 // evaluated in its own scope and never publishes references or auxiliary data.
 using document_source_contract_preparation= std::function<
   std::shared_ptr<const athena::contracts::contract_scope> (const std::vector<int>&)>;
+struct source_contract_maps {
+  hashmap<string,tree> refs, global_refs, aux, global_aux;
+  hashmap<string,tree> attachments, global_attachments;
+  bool shared_aux= false, shared_attachments= false;
+};
+// One source-owner operation prepares its baseline only on first custom macro
+// and reuses increasing paragraph entries. No cache escapes that operation.
+document_source_contract_preparation prepare_source_contract_positions (
+  tree body, url source_name,
+  std::function<std::shared_ptr<const evaluation_environment_checkpoint> ()> baseline,
+  std::function<source_contract_maps ()> inputs= {});
 document_source_contract_preparation prepare_document_source_contracts (tree doc);
 document_source_contract_preparation prepare_offline_document_source_contracts (
   tree doc, url source_name);
