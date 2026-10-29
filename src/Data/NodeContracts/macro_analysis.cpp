@@ -133,9 +133,7 @@ bool macro_analysis::request (const contract_scope& scope,
     std::function<void ()> notify, const retained_analysis_value& retained) {
   return state->service.request (state->capture (scope, inputs, values, retained), std::move (notify));
 }
-bool macro_analysis::publish_ready (contract_scope& scope,
-    const evaluation_input_snapshot& inputs, const hashmap<string,tree>& values) {
-  state->capture (scope, inputs, values);
+bool macro_analysis::publish_ready (contract_scope& scope) {
   const auto proposal= state->service.poll ();
   const bool current= proposal && proposal->evidence->context->names == state->names &&
     proposal->evidence->context->symbols == state->labels;

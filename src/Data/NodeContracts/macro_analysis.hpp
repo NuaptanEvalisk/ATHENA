@@ -28,8 +28,8 @@ public:
   bool request (const contract_scope&, const evaluation_input_snapshot&,
                 const hashmap<string,tree>&, std::function<void ()> notify,
                 const retained_analysis_value& retained= {});
-  bool publish_ready (contract_scope&, const evaluation_input_snapshot&,
-                      const hashmap<string,tree>&);
+  // Publish against the exact input identities captured by the preceding request.
+  bool publish_ready (contract_scope&);
   bool pending () const;
 };
 

@@ -269,7 +269,7 @@ edit_env_rep::prepare_contracts (std::function<void ()> notify,
     return prepared->retained_value (name);
   };
   contract_analysis->request (contract_state.contracts, selected, env, std::move (notify), retained);
-  return contract_analysis->publish_ready (contract_state.contracts, selected, env);
+  return contract_analysis->publish_ready (contract_state.contracts);
 }
 
 void
