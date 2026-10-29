@@ -31,6 +31,7 @@
 #include "enunciation_presentation.hpp"
 #include "enunciation_surround.hpp"
 #include "Data/NodeContracts/contract_declaration.hpp"
+#include "new_style.hpp"
 #include "Typeset/Env/local_environment.hpp"
 #include "formatter.hpp"
 #include "Format/format.hpp"
@@ -177,6 +178,35 @@ bool has_link_target (box b, const AthenaArtifactRecord& record) {
 class EnunciationPresentationTest: public QObject {
   Q_OBJECT
 private slots:
+  void sourceIdentityPrefixesPreserveLocalDefinitions () {
+    const string name ("identity-prefix-probe");
+    const auto label= make_tree_label (name);
+    const auto macro= [] (const char* value) {
+      return tree (MACRO, "argument", tree (value));
+    };
+    tree body (DOCUMENT,
+      tree (ASSIGN, name, macro ("first")),
+      tree (CONCAT, "before ", tree (label, "payload")),
+      tree (WITH, name, macro ("local"),
+        tree (CONCAT, "inside ", tree (label, "payload"))),
+      tree (ASSIGN, name, macro ("later")),
+      tree (CONCAT, "after ", tree (label, "payload")));
+    tree document (DOCUMENT, compound ("style", tuple ("generic")),
+                   compound ("body", body));
+    const auto entries= prepare_document_source_contracts (document);
+    const auto read= [&] (const std::vector<int>& where) -> tree {
+      const auto context= entries (where);
+      if (!context) return tree (UNINIT);
+      const auto binding= context->definition (label);
+      return binding ? tree (binding->value->expression) : tree (UNINIT);
+    };
+    QCOMPARE (read ({1, 1}), macro ("first"));
+    QCOMPARE (read ({2, 2, 1}), macro ("local"));
+    QCOMPARE (read ({4, 1}), macro ("later"));
+    // Rewinding must not reuse a later paragraph's effective bindings.
+    QCOMPARE (read ({1, 1}), macro ("first"));
+  }
+
   void cachedContractReadsTrackReferenceAndAttachmentProviders () {
     using namespace athena::contracts;
     Environment context;

@@ -385,6 +385,16 @@ source roles do not require these extra evaluations. A missing entry fails the
 identity plan before UUID allocation or mutation; regular transaction rollback
 continues to own failed edits. This does not establish a latency bound for large
 prefixes or confer source roles on macros with ambiguous inferred fields.
+Cold and offline source-role preparation now retains one advancing top-level
+paragraph-entry checkpoint per detached document plan. It executes only the
+previously unvisited complete paragraphs between increasing source addresses;
+nested positions still prepare inside their own paragraph from the unmodified
+entry, and backward queries restart at the document baseline. The retained
+entry also captures isolated reference, auxiliary and attachment maps, not just
+variable and contract state. A focused real-evaluator test covers preceding
+definitions, WITH-local shadowing, later reassignment and backward lookup.
+This amortizes monotone paragraph prefixes; it is not a hard time budget for
+large individual paragraphs, macro analysis or non-monotone access.
 Offline source-identity initialization, label-cleanup verification, UUID
 assignment, write preflight, post-write validation and Artifact source
 classification all use the same BODY-relative role provider. Each phase uses

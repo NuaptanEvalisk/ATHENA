@@ -407,8 +407,17 @@ prepare_document_source_contracts_impl (tree doc, url source_name, bool offline)
   // Most documents only use native or explicitly classified fields. Do not
   // execute styles again unless a custom source role actually needs inference.
   auto baseline= std::make_shared<std::shared_ptr<const evaluation_environment_checkpoint>> ();
-  return [doc, body, source_name, offline, baseline] (const std::vector<int>& where)
+  struct prefix_state {
+    int paragraph= 0;
+    std::shared_ptr<const evaluation_environment_checkpoint> entry;
+    hashmap<string,tree> refs, global_refs, aux, global_aux;
+    hashmap<string,tree> attachments, global_attachments;
+  };
+  auto prefix= std::make_shared<prefix_state> ();
+  return [doc, body, source_name, offline, baseline, prefix] (const std::vector<int>& where)
       -> std::shared_ptr<const athena::contracts::contract_scope> {
+    if (where.empty () || !is_func (body, DOCUMENT) ||
+        where.front () < 0 || where.front () >= N(body)) return {};
     if (!*baseline) {
       init_style_data ();
       const tree style= offline ?
@@ -428,17 +437,45 @@ prepare_document_source_contracts_impl (tree doc, url source_name, bool offline)
       *baseline= std::make_shared<const evaluation_environment_checkpoint> (
         *initial.operator-> ());
     }
-    path at;
-    for (int index: where) at= at * index;
     athena::contracts::evaluation_state local ((*baseline)->contract_context ().snapshot ());
     athena::contracts::evaluation_state_scope owner (&local);
     hashmap<string,tree> refs, global_refs, aux, global_aux, attachments, global_attachments;
     edit_env evaluation (local, source_name, refs, global_refs,
                          aux, global_aux, attachments, global_attachments);
-    (*baseline)->restore (*evaluation.operator-> ());
+    // Source planning visits nodes in preorder. Retain just the latest root
+    // paragraph entry; replaying each entire prefix would be quadratic on a
+    // document with custom macros in many later paragraphs. The entry is
+    // captured before descending into a paragraph, so its WITH/macro scopes
+    // cannot leak into another source occurrence.
+    const bool forward= prefix->entry && where.front () >= prefix->paragraph;
+    const auto& start= forward ? prefix->entry : *baseline;
+    start->restore (*evaluation.operator-> ());
+    if (forward) {
+      refs= copy (prefix->refs);
+      global_refs= copy (prefix->global_refs);
+      aux= copy (prefix->aux);
+      global_aux= copy (prefix->global_aux);
+      attachments= copy (prefix->attachments);
+      global_attachments= copy (prefix->global_attachments);
+    }
     evaluation->style_init_env ();
     evaluation->update ();
-    if (!evaluation->exec_until (body, at * 0)) return {};
+    for (int i= forward ? prefix->paragraph : 0; i<where.front (); ++i)
+      (void) evaluation->exec (body[i]);
+    if (!prefix->entry || where.front () > prefix->paragraph) {
+      prefix->paragraph= where.front ();
+      prefix->entry= std::make_shared<const evaluation_environment_checkpoint> (
+        *evaluation.operator-> ());
+      prefix->refs= copy (refs);
+      prefix->global_refs= copy (global_refs);
+      prefix->aux= copy (aux);
+      prefix->global_aux= copy (global_aux);
+      prefix->attachments= copy (attachments);
+      prefix->global_attachments= copy (global_attachments);
+    }
+    path inside;
+    for (std::size_t i= 1; i<where.size (); ++i) inside= inside * where[i];
+    if (!evaluation->exec_until (body[where.front ()], inside * 0)) return {};
     evaluation->analyze_contracts ();
     return std::make_shared<const athena::contracts::contract_scope> (local.contracts);
   };
