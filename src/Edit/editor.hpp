@@ -421,7 +421,6 @@ public:
   virtual bool     is_length (string s) = 0;
   virtual double   divide_lengths (string l1, string l2) = 0;
   virtual void     init_update () = 0;
-  virtual athena::contracts::contract_scope prepare_source_contracts () = 0;
   virtual void     prepare_cursor_environment () = 0;
   virtual void set_field_environment (
     std::shared_ptr<const athena::contracts::detached_environment>) = 0;

@@ -420,27 +420,6 @@ edit_typeset_rep::prepare_initial_background () {
   initial_background= env->exec (value);
 }
 
-athena::contracts::contract_scope
-edit_typeset_rep::prepare_source_contracts () {
-  athena::contracts::evaluation_state contracts (athena::contracts::builtin_contracts ().snapshot ());
-  hashmap<string,tree> refs= copy (buf->data->ref);
-  hashmap<string,tree> global_refs= copy (grefs);
-  hashmap<string,tree> aux= copy (buf->data->aux);
-  hashmap<string,tree> attachments= copy (buf->data->att);
-  edit_env preparation (contracts, buf->master, refs, global_refs,
-                        aux, aux, attachments, attachments);
-  const tree style= preprocess_style (the_style, buf->master);
-  get_style_environment (style, buf->master, true)->restore (*preparation.operator-> ());
-  use_modules (preparation->read (THE_MODULES));
-  preparation->patch_env (init);
-  preparation->style_init_env ();
-  preparation->update ();
-  const tree preamble= get_document_preamble (subtree (et, rp));
-  if (preamble != "") preparation->exec (preamble);
-  preparation->analyze_contracts ();
-  return contracts.contracts;
-}
-
 std::shared_ptr<const evaluation_environment_checkpoint>
 edit_typeset_rep::prepare_macro_argument (
     tree invocation, int argument, const evaluation_environment_checkpoint& context) {

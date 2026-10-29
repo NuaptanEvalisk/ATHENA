@@ -113,7 +113,6 @@ public:
   double   divide_lengths (string l1, string l2);
 
   void     init_update ();
-  athena::contracts::contract_scope prepare_source_contracts () override;
 #ifdef EXPERIMENTAL
   void     environment_update ();
 #endif

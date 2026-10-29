@@ -18,6 +18,7 @@
 #include "ATHENA/Data/document_node_copy.hpp"
 #include "ATHENA/Data/node_reference.hpp"
 #include "ATHENA/buffer_actor.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 #ifdef EXPERIMENTAL
 #include "../../Style/Memorizer/clean_copy.hpp"
 #endif
@@ -425,13 +426,13 @@ edit_modify_rep::adopt_node_identities () {
     set_message ("Source identities require a fresh history baseline", "node model");
     return false;
   }
-  // Cold identity validation has its own style/init/preamble context. It does
-  // not depend on a rendered cursor occurrence or mutate that occurrence.
-  const auto source_contracts= prepare_source_contracts ();
+  // The source-entry provider owns style, preamble and local macro context.
+  // No second document-wide inference pass or caret scope is involved.
   const auto contracts_at= prepare_source_identity_contracts ();
   auto state= std::make_unique<athena::document_node::source_identity_state> ();
   const auto errors= state->initialize_complete (
-    subtree (et, rp), source_contracts, athena::document_node::standard_source_role,
+    subtree (et, rp), athena::contracts::builtin_contracts (),
+    athena::document_node::standard_source_role,
     {}, contracts_at);
   if (!errors.empty ()) {
     std_warning << "Source identity activation rejected: "
@@ -450,7 +451,8 @@ edit_modify_rep::finish_node_identities () {
   auto& state= *buf->node_identities;
   tree& body= subtree (et, rp);
   const auto contracts_at= prepare_source_identity_contracts ();
-  const auto plan= state.prepare (body, contract_state.contracts, athena::document_node::standard_source_role,
+  const auto plan= state.prepare (body, athena::contracts::builtin_contracts (),
+    athena::document_node::standard_source_role,
     [] (const athena::document_node::identity_request&) { return athena::node::new_id (); },
     {}, contracts_at);
   if (!plan.ok ()) {
@@ -475,7 +477,7 @@ edit_modify_rep::finish_node_identities () {
       // Artifact binding may have changed the source tree. Do not reuse the
       // pre-binding paragraph checkpoints for the second identity plan.
       const auto rebound_contracts= prepare_source_identity_contracts ();
-      const auto bound= state.prepare (body, contract_state.contracts,
+      const auto bound= state.prepare (body, athena::contracts::builtin_contracts (),
         athena::document_node::standard_source_role,
         [] (const athena::document_node::identity_request&) { return athena::node::new_id (); },
         {}, rebound_contracts);
