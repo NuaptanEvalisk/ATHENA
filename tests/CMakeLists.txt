@@ -1,7 +1,7 @@
 file (GLOB_RECURSE TEST_SRC_FILES CONFIGURE_DEPENDS "*.cpp")
 add_test(NAME shipped_macro_labels_generator_test
   COMMAND "${Python3_EXECUTABLE}"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Data/Drd/shipped-macro-labels-test.py")
+    "${CMAKE_CURRENT_SOURCE_DIR}/Data/NodeContracts/shipped-macro-labels-test.py")
 set_tests_properties(shipped_macro_labels_generator_test PROPERTIES TIMEOUT 15)
 
 list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/hodarium/.*_test\\.cpp$")

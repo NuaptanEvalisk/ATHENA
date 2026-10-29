@@ -3127,8 +3127,9 @@ already belongs to `SchemeExecutionScope`, not a URL-based Scheme setter.
 
 `drd_info.cpp/.hpp` and `drd_std.cpp/.hpp` are deleted. The cursor utility entry
 points now live in `Data/Tree/cursor_execution.cpp` and borrow native execution
-state. The remaining `Data/Drd` files are the tree-label and variable-name data,
-not a second contract implementation. Persisted `drd-props` style syntax still
+state. Tree-label registration belongs to `Kernel/Types`, native builtin tag
+declarations to `Data/NodeContracts`, and environment names to `Typeset/Env`.
+The obsolete `Data/Drd` directory is removed. Persisted `drd-props` syntax still
 feeds native declarations; its spelling is not an old runtime authority.
 
 The production library built with `-j16`

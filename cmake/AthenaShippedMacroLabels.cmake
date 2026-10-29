@@ -1,7 +1,7 @@
 include_guard(GLOBAL)
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
-set(ATHENA_SHIPPED_LABEL_DIR "${ATHENA_BINARY_DIR}/generated/athena-drd")
+set(ATHENA_SHIPPED_LABEL_DIR "${ATHENA_BINARY_DIR}/generated/athena-native-labels")
 set(ATHENA_SHIPPED_LABEL_HEADER "${ATHENA_SHIPPED_LABEL_DIR}/shipped_macro_labels.inc")
 file(GLOB_RECURSE ATHENA_SHIPPED_STYLE_SOURCES CONFIGURE_DEPENDS
   "${ATHENA_SOURCE_DIR}/ATHENA/packages/*.ats"
@@ -27,7 +27,7 @@ add_custom_target(athena_shipped_macro_labels DEPENDS "${ATHENA_SHIPPED_LABEL_HE
 function(athena_use_shipped_macro_labels target)
   add_dependencies(${target} athena_shipped_macro_labels)
   set_source_files_properties(
-    "${ATHENA_SOURCE_DIR}/src/Data/Drd/standard_tree_labels.cpp"
+    "${ATHENA_SOURCE_DIR}/src/Kernel/Types/standard_tree_labels.cpp"
     "${ATHENA_SOURCE_DIR}/src/Data/Convert/Xml/math_v2_to_v3.cpp"
     PROPERTIES INCLUDE_DIRECTORIES "${ATHENA_SHIPPED_LABEL_DIR}")
 endfunction()

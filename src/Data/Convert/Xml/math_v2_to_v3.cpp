@@ -39,7 +39,7 @@ const std::set<std::string>& cold_declarations () {
     std::set<std::string> result;
 #define init(label, name, ...) result.insert (ascii (name))
 #define init_var(name, ...) result.insert (ascii (name))
-#include "Data/Drd/standard_tree_labels.inc"
+#include "standard_tree_labels.inc"
 #undef init_var
 #undef init
 #define make_tree_label(name) result.insert (ascii (name))

@@ -48,8 +48,8 @@ add_library(athena_hodarium_node_core STATIC
   src/Kernel/Types/tree_label.cpp
   src/Kernel/Types/node_metadata.cpp
   src/Data/String/unicode_text.cpp
-  src/Data/Drd/standard_tree_labels.cpp
-  src/Data/Drd/vars.cpp
+  src/Kernel/Types/standard_tree_labels.cpp
+  src/Typeset/Env/vars.cpp
   src/Data/Convert/Xml/athena_document_xml.cpp
   src/Data/Convert/Xml/athena_document_xml_v3.cpp
   src/Data/Convert/Xml/native_xml_codec.cpp
@@ -90,7 +90,8 @@ foreach(directory
     Kernel/Abstractions Kernel/Containers Kernel/Types
     System System/Misc System/Files System/Classes System/Boot System/Language
     Graphics/Fonts
-    Data/String Data/Convert Data/Convert/Xml Data/Drd Data/Tree Data/Document
+    Data/String Data/Convert Data/Convert/Xml Data/NodeContracts Data/Tree Data/Document
+    Typeset/Env
     ATHENA ATHENA/Data)
   target_include_directories(athena_hodarium_node_core PUBLIC
     "${ATHENA_SOURCE_DIR}/src/${directory}")

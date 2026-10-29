@@ -1,4 +1,4 @@
-/* Standard tag names and DRD properties, shared with the native tree runtime.
+/* Standard source tags and native contract properties, shared with the tree runtime.
  * Define init(label, name, properties) and init_var(name, type, ...) before
  * inclusion when only label registration is required. GPL-3.0-or-later.
  */

@@ -14,7 +14,7 @@ CMake tracks edits, additions and removals in these two resource directories.
 
 The catalog registers names only. It does not load packages, execute Scheme,
 evaluate macro bodies, infer arities/accessibility, or modify the strict v3
-codec. The normal style/DRD engine still owns those semantics. Core label IDs
+codec. The native style/contract evaluator owns those semantics. Core label IDs
 are installed first; catalog registration reuses existing IDs.
 
 ## Boundaries
@@ -35,7 +35,7 @@ are installed first; catalog registration reuses existing IDs.
   evaluation are not executed. Mere tag occurrences do not declare labels.
 - Examples, user styles, downloaded plugins and custom extensions are not in
   the shipped standard catalog. Their labels must be explicitly registered by
-  their declaration/DRD owner before strict decoding. Unknown input cannot
+  their declaration/native contract owner before strict decoding. Unknown input cannot
   register itself, and the reader never loads a style to make it valid.
 - Editing installed `.ats` resources without rebuilding does not update the
   compiled catalog. A changed shipped resource set requires regeneration.
@@ -43,4 +43,4 @@ are installed first; catalog registration reuses existing IDs.
 The generator reports the catalog size and counts of computed declaration
 templates. These are observations, not hardcoded limits or completeness claims
 for dynamic styles. Native-owned placeholders (for example namespace-page
-fields) belong to the standard DRD declarations, not this style catalog.
+fields) belong to the builtin contract declarations, not this style catalog.

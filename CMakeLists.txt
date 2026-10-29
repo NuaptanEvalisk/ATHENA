@@ -714,7 +714,7 @@ set (ATHENA_Include_Dirs
   ${ATHENA_BINARY_DIR}/src/System/
   ${ATHENA_SOURCE_DIR}/src/Data/Convert
   ${ATHENA_SOURCE_DIR}/src/Data/Document
-  ${ATHENA_SOURCE_DIR}/src/Data/Drd
+  ${ATHENA_SOURCE_DIR}/src/Data/NodeContracts
   ${ATHENA_SOURCE_DIR}/src/Data/History
   ${ATHENA_SOURCE_DIR}/src/Data/Observers
   ${ATHENA_SOURCE_DIR}/src/Data/String
@@ -764,6 +764,7 @@ set (ATHENA_Include_Dirs
   ${ATHENA_SOURCE_DIR}/src/Typeset
   ${ATHENA_SOURCE_DIR}/src/Typeset/Bridge
   ${ATHENA_SOURCE_DIR}/src/Typeset/Concat
+  ${ATHENA_SOURCE_DIR}/src/Typeset/Env
   ${ATHENA_SOURCE_DIR}/src/Typeset/Page
 )
 
