@@ -395,6 +395,13 @@ variable and contract state. A focused real-evaluator test covers preceding
 definitions, WITH-local shadowing, later reassignment and backward lookup.
 This amortizes monotone paragraph prefixes; it is not a hard time budget for
 large individual paragraphs, macro analysis or non-monotone access.
+The editor now owns one of these providers per identity transaction rather
+than reevaluating the whole document for every custom role. It reopens the
+provider after Artifact binding may have mutated source. Authored document
+preambles are evaluated before custom-role entries in the editor as well as
+offline, and preamble-local reference/auxiliary/attachment writes are retained
+inside the detached preparation maps. The focused real-evaluator regression
+also covers a macro defined only in an invisible document preamble.
 Offline source-identity initialization, label-cleanup verification, UUID
 assignment, write preflight, post-write validation and Artifact source
 classification all use the same BODY-relative role provider. Each phase uses

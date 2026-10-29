@@ -472,9 +472,10 @@ static document_source_contract_preparation
 prepare_document_source_contracts_impl (tree doc, url source_name, bool offline) {
   // Most documents have only native or explicitly classified fields. Prepare
   // the style and preamble only if an actual custom field requests a context.
+  auto preamble_maps= std::make_shared<source_contract_maps> ();
   return prepare_source_contract_positions (
     extract (doc, "body"), source_name,
-    [doc, source_name, offline] ()
+    [doc, source_name, offline, preamble_maps] ()
         -> std::shared_ptr<const evaluation_environment_checkpoint> {
       init_style_data ();
       const tree style= offline ?
@@ -491,9 +492,11 @@ prepare_document_source_contracts_impl (tree doc, url source_name, bool offline)
       const tree preamble= get_document_preamble (doc);
       if (preamble != "") initial->exec (preamble);
       initial->analyze_contracts ();
+      *preamble_maps= {copy (refs), copy (global_refs), copy (aux), copy (global_aux),
+                       copy (attachments), copy (global_attachments)};
       return std::make_shared<const evaluation_environment_checkpoint> (
         *initial.operator-> ());
-    });
+    }, [preamble_maps] { return *preamble_maps; });
 }
 
 document_source_contract_preparation

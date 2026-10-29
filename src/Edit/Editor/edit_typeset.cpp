@@ -474,20 +474,37 @@ athena::document_node::source_contract_preparation
 edit_typeset_rep::prepare_source_identity_contracts () {
   // Keep the baseline and advancing paragraph entry private to one identity
   // transaction. The editor never borrows its caret/display occurrence here.
+  auto source_maps= std::make_shared<source_contract_maps> ();
   return prepare_source_contract_positions (
     subtree (et, rp), buf->master,
-    [this] { return prepare_document_context (); },
-    [this] {
-      source_contract_maps maps;
-      maps.refs= copy (buf->data->ref);
-      maps.global_refs= copy (grefs);
-      maps.aux= copy (buf->data->aux);
-      maps.attachments= copy (buf->data->att);
+    [this, source_maps] () -> std::shared_ptr<const evaluation_environment_checkpoint> {
+      const auto base= prepare_document_context ();
+      source_maps->refs= copy (buf->data->ref);
+      source_maps->global_refs= copy (grefs);
+      source_maps->aux= copy (buf->data->aux);
+      source_maps->attachments= copy (buf->data->att);
       // The live command evaluator uses the same local/global aux and
       // attachment stores. Keep those aliases in its isolated preparation.
-      maps.shared_aux= maps.shared_attachments= true;
-      return maps;
-    });
+      source_maps->shared_aux= source_maps->shared_attachments= true;
+      // Source identity activation includes the author's document preamble.
+      // Unlike display cursor preparation, role planning needs its definitions
+      // even when they are not part of the visible BODY traversal.
+      const tree preamble= get_document_preamble (subtree (et, rp));
+      if (preamble == "") return base;
+      athena::contracts::evaluation_state state (base->contract_context ().snapshot ());
+      athena::contracts::evaluation_state_scope owner (&state);
+      edit_env preparation (state, buf->master,
+                            source_maps->refs, source_maps->global_refs,
+                            source_maps->aux, source_maps->aux,
+                            source_maps->attachments, source_maps->attachments);
+      base->restore (*preparation.operator-> ());
+      preparation->style_init_env ();
+      preparation->update ();
+      preparation->exec (preamble);
+      preparation->analyze_contracts ();
+      return std::make_shared<const evaluation_environment_checkpoint> (
+        *preparation.operator-> ());
+    }, [source_maps] { return *source_maps; });
 }
 
 std::shared_ptr<const evaluation_environment_checkpoint>

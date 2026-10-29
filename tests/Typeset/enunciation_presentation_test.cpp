@@ -205,6 +205,20 @@ private slots:
     QCOMPARE (read ({4, 1}), macro ("later"));
     // Rewinding must not reuse a later paragraph's effective bindings.
     QCOMPARE (read ({1, 1}), macro ("first"));
+
+    // The source owner must resolve authored preamble definitions before
+    // interpreting later custom macro fields, even when that preamble is not
+    // presented as part of the editable paragraph sequence.
+    tree prelude (DOCUMENT, tree (ASSIGN, name, macro ("preamble")));
+    tree with_preamble (DOCUMENT, compound ("style", tuple ("generic")),
+      compound ("body", tree (DOCUMENT,
+        compound ("hide-preamble", prelude),
+        tree (CONCAT, "body ", tree (label, "payload")))));
+    const auto preamble_entry= prepare_document_source_contracts (with_preamble) ({1, 1});
+    QVERIFY (preamble_entry);
+    const auto preamble_binding= preamble_entry->definition (label);
+    QVERIFY (preamble_binding);
+    QCOMPARE (tree (preamble_binding->value->expression), macro ("preamble"));
   }
 
   void cachedContractReadsTrackReferenceAndAttachmentProviders () {
