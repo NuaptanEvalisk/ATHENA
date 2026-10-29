@@ -470,6 +470,28 @@ edit_typeset_rep::prepare_tree_position (
   return std::make_shared<const evaluation_environment_checkpoint> (*preparation.operator-> ());
 }
 
+std::shared_ptr<const athena::contracts::contract_scope>
+edit_typeset_rep::prepare_source_identity_contract (path relative) {
+  // Source identities refer to source addresses, not a selected display of a
+  // macro argument. Resolve the actual prefix in an isolated command evaluator.
+  const auto document= prepare_document_context ();
+  const auto entry= prepare_tree_position (subtree (et, rp), relative * 0, *document);
+  if (!entry) return {};
+  athena::contracts::evaluation_state state (entry->contract_context ().snapshot ());
+  athena::contracts::evaluation_state_scope owner (&state);
+  hashmap<string,tree> refs= copy (buf->data->ref);
+  hashmap<string,tree> global_refs= copy (grefs);
+  hashmap<string,tree> aux= copy (buf->data->aux);
+  hashmap<string,tree> attachments= copy (buf->data->att);
+  edit_env inference (state, buf->master, refs, global_refs,
+                      aux, aux, attachments, attachments);
+  entry->restore (*inference.operator-> ());
+  inference->style_init_env ();
+  inference->update ();
+  inference->analyze_contracts ();
+  return std::make_shared<const athena::contracts::contract_scope> (state.contracts);
+}
+
 std::shared_ptr<const evaluation_environment_checkpoint>
 editor_rep::prepare_source_position (path position) {
   std::shared_ptr<const evaluation_environment_checkpoint> document_context;

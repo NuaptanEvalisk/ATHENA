@@ -401,6 +401,48 @@ prepare_document_context (tree doc) {
   return contract_state;
 }
 
+document_source_contract_preparation
+prepare_document_source_contracts (tree doc) {
+  const url none ("$PWD/none");
+  const tree body= extract (doc, "body");
+  // Most documents only use native or explicitly classified fields. Do not
+  // execute styles again unless a custom source role actually needs inference.
+  auto baseline= std::make_shared<std::shared_ptr<const evaluation_environment_checkpoint>> ();
+  return [doc, body, none, baseline] (const std::vector<int>& where)
+      -> std::shared_ptr<const athena::contracts::contract_scope> {
+    if (!*baseline) {
+      init_style_data ();
+      auto style= get_style_environment (extract (doc, "style"), none, true);
+      athena::contracts::evaluation_state state= style->context ();
+      athena::contracts::evaluation_state_scope owner (&state);
+      hashmap<string,tree> refs, global_refs, aux, global_aux, attachments, global_attachments;
+      edit_env initial (state, none, refs, global_refs,
+                        aux, global_aux, attachments, global_attachments);
+      style->restore (*initial.operator-> ());
+      initial->style_init_env ();
+      initial->update ();
+      const tree preamble= get_document_preamble (doc);
+      if (preamble != "") initial->exec (preamble);
+      initial->analyze_contracts ();
+      *baseline= std::make_shared<const evaluation_environment_checkpoint> (
+        *initial.operator-> ());
+    }
+    path at;
+    for (int index: where) at= at * index;
+    athena::contracts::evaluation_state local ((*baseline)->contract_context ().snapshot ());
+    athena::contracts::evaluation_state_scope owner (&local);
+    hashmap<string,tree> refs, global_refs, aux, global_aux, attachments, global_attachments;
+    edit_env evaluation (local, none, refs, global_refs,
+                         aux, global_aux, attachments, global_attachments);
+    (*baseline)->restore (*evaluation.operator-> ());
+    evaluation->style_init_env ();
+    evaluation->update ();
+    if (!evaluation->exec_until (body, at * 0)) return {};
+    evaluation->analyze_contracts ();
+    return std::make_shared<const athena::contracts::contract_scope> (local.contracts);
+  };
+}
+
 athena::contracts::evaluation_state
 prepare_offline_document_context (tree doc, url source_name) {
   init_style_data ();

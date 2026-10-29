@@ -16,8 +16,10 @@
 #include "Data/NodeContracts/evaluation_inputs.hpp"
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 
 tree preprocess_style (tree st, url name);
 
@@ -54,6 +56,12 @@ style_environment_ptr get_style_environment (tree style, url source_name,
                                              bool scheme_modules);
 tree get_document_preamble (tree t);
 athena::contracts::evaluation_state prepare_document_context (tree doc);
+// Isolated source-entry role preparation for detached document identity work.
+// The document preamble is prepared once; each requested source position is
+// evaluated in its own scope and never publishes references or auxiliary data.
+using document_source_contract_preparation= std::function<
+  std::shared_ptr<const athena::contracts::contract_scope> (const std::vector<int>&)>;
+document_source_contract_preparation prepare_document_source_contracts (tree doc);
 athena::contracts::evaluation_state prepare_offline_document_context (tree doc, url source_name);
 
 array<string> get_style_names ();

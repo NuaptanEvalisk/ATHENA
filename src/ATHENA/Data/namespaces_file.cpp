@@ -173,7 +173,7 @@ namespace_save_new_document (
       athena::document_node::standard_source_role,
       [] (const athena::document_node::identity_request&) {
         return athena::node::new_id ();
-      });
+      }, {}, prepare_document_source_contracts (doc));
     if (!identities.ok ()) {
       error= std_to_tm (identities.diagnostics.front ().detail);
       return false;

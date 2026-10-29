@@ -82,6 +82,7 @@ private slots:
   void property_drafts_reject_conflicts_and_protected_changes ();
   void incremental_identities_keep_text_edits_local ();
   void incremental_identities_classify_inserted_bodies ();
+  void incremental_identities_use_source_entry_contracts ();
   void incremental_identities_reserve_rich_property_owners ();
   void incremental_identities_reject_stale_plans_and_rebase_batches ();
   void incremental_identities_rebuild_after_applied_rollback ();
@@ -506,6 +507,51 @@ void TestDocumentNodeModel::incremental_identities_classify_inserted_bodies () {
   QVERIFY (!node::id (source[1][0][0]).empty ());
   auto noop= state.prepare (source, athena::contracts::builtin_contracts (), {}, {});
   QVERIFY (noop.ok () && noop.changes.empty ());
+}
+
+void TestDocumentNodeModel::incremental_identities_use_source_entry_contracts () {
+  const auto tag= make_tree_label ("test-local-identity-role");
+  auto content= std::make_shared<athena::contracts::contract_scope> (
+    athena::contracts::builtin_contracts ());
+  auto data= std::make_shared<athena::contracts::contract_scope> (
+    athena::contracts::builtin_contracts ());
+  athena::contracts::node_contract role;
+  role.layout= {1, 0, athena::contracts::arity_kind::fixed,
+                  athena::contracts::field_mapping::detailed};
+  role.fields.resize (1);
+  role.fields[0].type= TYPE_REGULAR;
+  role.fields[0].accessible= ACCESSIBLE_ALWAYS;
+  role.attributes.emplace ("name-0", node::frozen_tree (tree ("body")));
+  content->replace (tag, role);
+  role.fields[0].type= TYPE_CODE;
+  data->replace (tag, role);
+
+  tree source (DOCUMENT,
+    tree (tag, tree (DOCUMENT, "Visible")),
+    tree (tag, tree (DOCUMENT, "Hidden")));
+  model::source_identity_state state;
+  QVERIFY (state.initialize (source).empty ());
+  const model::source_contract_preparation entries= [&] (const model::source_path& where)
+      -> std::shared_ptr<const athena::contracts::contract_scope> {
+    if (where == model::source_path {0}) return content;
+    if (where == model::source_path {1}) return data;
+    return {};
+  };
+  const auto plan= state.prepare (source, athena::contracts::builtin_contracts (), {},
+                                  deterministic_id, {}, entries);
+  QVERIFY (plan.ok ());
+  state.apply (source, plan);
+  QVERIFY (!node::id (source[0][0]).empty ());
+  QVERIFY (!node::id (source[0][0][0]).empty ());
+  QVERIFY (node::id (source[1][0]).empty ());
+
+  model::source_identity_state missing;
+  QVERIFY (missing.initialize (source).empty ());
+  const auto incomplete= missing.prepare (source, athena::contracts::builtin_contracts (), {},
+    deterministic_id, {}, [] (const model::source_path&)
+        -> std::shared_ptr<const athena::contracts::contract_scope> { return {}; });
+  QVERIFY (has_issue (incomplete.diagnostics, model::issue::unsupported_ambiguous_role));
+  QVERIFY (incomplete.changes.empty ());
 }
 
 void TestDocumentNodeModel::incremental_identities_reserve_rich_property_owners () {

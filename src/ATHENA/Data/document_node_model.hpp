@@ -67,6 +67,10 @@ struct role_declaration {
 // The standard resolver consumes the shared registry, not a second kind list.
 using role_resolver=
   std::function<std::optional<role_declaration> (const tree&)>;
+// Source-entry contracts for custom macros. The provider owns preparation;
+// identity planning does not evaluate the document or borrow the caret scope.
+using source_contract_preparation=
+  std::function<std::shared_ptr<const contracts::contract_scope> (const source_path&)>;
 std::optional<role_declaration> standard_source_role (const tree&);
 
 enum class identity_role { body, paragraph, heading, enunciation };
@@ -119,7 +123,8 @@ source_path_classification classify_source_path (
 // be rolled back if a later allocation fails; prefer a pure allocator.
 identity_result assign_detached_source_ids (
   const tree& body, const contracts::contract_scope& context, const role_resolver& roles,
-  const identity_allocator& allocate, limits budget= {});
+  const identity_allocator& allocate, limits budget= {},
+  const source_contract_preparation& contexts= {});
 
 struct identity_edit_plan {
   std::vector<modification> changes;
@@ -152,12 +157,14 @@ public:
   // mutating source. Failure leaves this index unusable. This is not migration
   // or a vault-global uniqueness check.
   std::vector<diagnostic> initialize_complete (
-    const tree&, const contracts::contract_scope&, const role_resolver&, limits budget= {});
+    const tree&, const contracts::contract_scope&, const role_resolver&, limits budget= {},
+    const source_contract_preparation& contexts= {});
   void observe (modification);
   bool pending () const { return !ready || dirty.has_value (); }
   std::uint64_t generation () const { return revision; }
   identity_edit_plan prepare (const tree&, const contracts::contract_scope&, const role_resolver&,
-                              const identity_allocator&, limits budget= {}) const;
+                              const identity_allocator&, limits budget= {},
+                              const source_contract_preparation& contexts= {}) const;
   // Uses native observer-aware modifications, hence joins the caller's undo
   // transaction. The owner must cancel that transaction if applying throws.
   void apply (tree& body, const identity_edit_plan&);

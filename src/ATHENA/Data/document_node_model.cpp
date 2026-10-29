@@ -170,7 +170,8 @@ role_declaration native_roles (const tree& source,
 }
 
 role_declaration roles_for (const tree& source, const contracts::contract_scope& descriptors,
-                            const role_resolver& resolve, const source_path& where) {
+                            const role_resolver& resolve, const source_path& where,
+                            const source_contract_preparation& contexts= {}) {
   if (excluded (source)) return {semantic_role::data, "", {}};
   if (is_func (source, WITH) || is_func (source, STYLE_WITH) ||
       is_func (source, VAR_STYLE_WITH)) {
@@ -236,8 +237,13 @@ role_declaration roles_for (const tree& source, const contracts::contract_scope&
   // Style editing declarations cannot change persisted primitive structure.
   // Primitives not yet described by named native fields still take their
   // physical roles from the immutable native baseline, never a cursor scope.
-  const auto& source_contracts= contracts::builtin_label (as_string (L(source))) ?
-    contracts::builtin_contracts () : descriptors;
+  const bool builtin= contracts::builtin_label (as_string (L(source)));
+  const auto prepared= !builtin && contexts ? contexts (where) : nullptr;
+  if (!builtin && contexts && !prepared)
+    fail (where, issue::unsupported_ambiguous_role,
+          "Source-entry contract is not prepared for " + bytes (as_string (L(source))));
+  const auto& source_contracts= builtin ? contracts::builtin_contracts () :
+    prepared ? *prepared : descriptors;
   if (!athena::contracts::editing_query {source_contracts}.contains (as_string (L(source))))
     fail (where, issue::unsupported_ambiguous_role, "No native or explicit body-role contract for " +
           bytes (as_string (L(source))));
@@ -298,6 +304,7 @@ role_declaration roles_for (const tree& source, const contracts::contract_scope&
 class identity_planner {
   const contracts::contract_scope& descriptors;
   const role_resolver& resolve;
+  source_contract_preparation contexts;
   traversal_budget budget;
   source_path where;
   source_path scope;
@@ -337,7 +344,7 @@ class identity_planner {
       }
       return;
     }
-    const auto contract= roles_for (source, descriptors, resolve, where);
+    const auto contract= roles_for (source, descriptors, resolve, where, contexts);
     if (contract.role == semantic_role::data) return;
     if (contract.role == semantic_role::enunciation)
       candidates.push_back ({where, identity_role::enunciation, contract.category});
@@ -358,8 +365,9 @@ class identity_planner {
   }
 
 public:
-  identity_planner (const contracts::contract_scope& value, const role_resolver& resolver, limits limit):
-    descriptors (value), resolve (resolver), budget {limit} {}
+  identity_planner (const contracts::contract_scope& value, const role_resolver& resolver,
+                    limits limit, source_contract_preparation prepare= {}):
+    descriptors (value), resolve (resolver), contexts (std::move (prepare)), budget {limit} {}
   std::vector<identity_request> inspect (const tree& body, source_path selected= {}) {
     scope= std::move (selected);
     const tree* target= &body;
@@ -791,7 +799,8 @@ std::optional<role_declaration> standard_source_role (const tree& source) {
 
 identity_result assign_detached_source_ids (
     const tree& body, const contracts::contract_scope& descriptors, const role_resolver& roles,
-    const identity_allocator& allocate, limits budget) {
+    const identity_allocator& allocate, limits budget,
+    const source_contract_preparation& contexts) {
   identity_result result;
   try {
     if (!is_func (body, DOCUMENT))
@@ -800,7 +809,7 @@ identity_result assign_detached_source_ids (
       if (tagged (body[i], "body") || tagged (body[i], "TeXmacs"))
         fail ({i}, issue::invalid_body, "Extract the body from the file envelope first");
     auto reserved= identity_audit (budget).inspect (body);
-    const auto candidates= identity_planner (descriptors, roles, budget).inspect (body);
+    const auto candidates= identity_planner (descriptors, roles, budget, contexts).inspect (body);
     std::vector<assigned_identity> pending;
     for (const auto& request: candidates) {
       if (!node::id (at (body, request.where)).empty ()) continue;
@@ -867,10 +876,11 @@ std::vector<diagnostic> source_identity_state::initialize (const tree& body, lim
 }
 
 std::vector<diagnostic> source_identity_state::initialize_complete (
-    const tree& body, const contracts::contract_scope& descriptors, const role_resolver& roles, limits budget) {
+    const tree& body, const contracts::contract_scope& descriptors, const role_resolver& roles,
+    limits budget, const source_contract_preparation& contexts) {
   auto errors= initialize (body, budget);
   if (!errors.empty ()) return errors;
-  const auto plan= prepare (body, descriptors, roles, {}, budget);
+  const auto plan= prepare (body, descriptors, roles, {}, budget, contexts);
   if (!plan.ok ()) {
     ready= false;
     return plan.diagnostics;
@@ -896,7 +906,8 @@ void source_identity_state::observe (modification mod) {
 }
 
 identity_edit_plan source_identity_state::prepare (const tree& body, const contracts::contract_scope& descriptors,
-    const role_resolver& roles, const identity_allocator& allocate, limits budget) const {
+    const role_resolver& roles, const identity_allocator& allocate, limits budget,
+    const source_contract_preparation& contexts) const {
   identity_edit_plan plan;
   plan.revision= revision;
   try {
@@ -905,7 +916,7 @@ identity_edit_plan source_identity_state::prepare (const tree& body, const contr
     if (!dirty) return plan;
     plan.scope= *dirty;
     // Classify the ancestry first, validating the selected path before access.
-    const auto candidates= identity_planner (descriptors, roles, budget).inspect (body, *dirty);
+    const auto candidates= identity_planner (descriptors, roles, budget, contexts).inspect (body, *dirty);
     std::map<source_path, std::set<std::string>> local;
     auto reserved= identity_audit (budget).inspect (at (body, *dirty), &local);
     for (auto& entry: local) {

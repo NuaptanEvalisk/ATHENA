@@ -178,6 +178,8 @@ protected:
     tree invocation, int argument, const evaluation_environment_checkpoint& context) = 0;
   virtual std::shared_ptr<const evaluation_environment_checkpoint> prepare_tree_position (
     tree source, path position, const evaluation_environment_checkpoint& context) = 0;
+  virtual std::shared_ptr<const athena::contracts::contract_scope>
+    prepare_source_identity_contract (path relative) = 0;
   std::shared_ptr<const evaluation_environment_checkpoint> prepare_source_position (path position);
   std::shared_ptr<const evaluation_environment_checkpoint> prepare_source_position (
     path position, std::shared_ptr<const evaluation_environment_checkpoint>& document_context);

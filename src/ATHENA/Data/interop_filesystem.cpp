@@ -91,7 +91,8 @@ std::string new_filesystem_document_bytes (const value& encoded, int node_model_
       auto identities= athena::document_node::assign_detached_source_ids (
         extract (doc, "body"), prepare_document_context (doc).contracts,
         athena::document_node::standard_source_role,
-        [] (const athena::document_node::identity_request&) { return athena::node::new_id (); });
+        [] (const athena::document_node::identity_request&) { return athena::node::new_id (); },
+        {}, prepare_document_source_contracts (doc));
       if (!identities.ok ()) throw std::invalid_argument (identities.diagnostics.front ().detail);
       doc= change_doc_attr (doc, "body", std::move (*identities.body));
       bytes= athena::document::encode_native_xml_bytes (doc, version);

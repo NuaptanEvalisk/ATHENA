@@ -349,8 +349,10 @@ run_native_editor_command (editor_rep* editor,
 std::unique_ptr<athena::document_node::source_identity_state>
 replacement_node_identities (const tree& document, const tree& body) {
   auto next= std::make_unique<athena::document_node::source_identity_state> ();
+  const auto contexts= prepare_document_source_contracts (document);
   const auto errors= next->initialize_complete (
-    body, prepare_document_context (document).contracts, athena::document_node::standard_source_role);
+    body, prepare_document_context (document).contracts,
+    athena::document_node::standard_source_role, {}, contexts);
   if (!errors.empty ()) {
     std_warning << "Source replacement rejected: "
                 << string (errors.front ().detail.c_str ()) << LF;
@@ -362,11 +364,12 @@ replacement_node_identities (const tree& document, const tree& body) {
 std::unique_ptr<athena::document_node::source_identity_state>
 prepare_replacement_node_identities (const tree& document, tree& body) {
   const athena::contracts::evaluation_state contract_state= prepare_document_context (document);
+  const auto contexts= prepare_document_source_contracts (document);
   const auto assigned= athena::document_node::assign_detached_source_ids (
     body, contract_state.contracts, athena::document_node::standard_source_role,
     [] (const athena::document_node::identity_request&) {
       return athena::node::new_id ();
-    });
+    }, {}, contexts);
   if (!assigned.ok ()) {
     std_warning << "Source replacement rejected: "
                 << string (assigned.diagnostics.front ().detail.c_str ()) << LF;
@@ -375,7 +378,7 @@ prepare_replacement_node_identities (const tree& document, tree& body) {
   body= *assigned.body;
   auto next= std::make_unique<athena::document_node::source_identity_state> ();
   const auto errors= next->initialize_complete (
-    body, contract_state.contracts, athena::document_node::standard_source_role);
+    body, contract_state.contracts, athena::document_node::standard_source_role, {}, contexts);
   if (!errors.empty ()) {
     std_warning << "Source replacement rejected: "
                 << string (errors.front ().detail.c_str ()) << LF;

@@ -374,6 +374,18 @@ asked which contract custom macro bodies should have; no removal of this
 support or blanket content/data classification has been made while that
 decision is open.
 
+Live identity finalization now requests an explicit contract at each custom
+macro's BODY-relative source entry. Its preparation executes the relevant
+prefix in an isolated evaluator, resolves local definitions and declarations,
+then supplies the result to the identity planner without borrowing the caret's
+display context. The same source-entry policy is used when adopting a source
+buffer. Detached load/replacement and template creation prepare an independent
+document preamble and source prefix. Native fields and explicitly declared
+source roles do not require these extra evaluations. A missing entry fails the
+identity plan before UUID allocation or mutation; regular transaction rollback
+continues to own failed edits. This does not establish a latency bound for large
+prefixes or confer source roles on macros with ambiguous inferred fields.
+
 The attachment and source-outcome implementations have successful
 production-library builds and focused temporary probes. Application deployment
 evidence is recorded separately in the implementation README; these checks do
