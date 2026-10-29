@@ -198,10 +198,9 @@ cursor_navigation::closest_accessible (tree t, path p, int dir) const {
   else if (is_nil (p)) return closest_accessible (t, path (0), dir);
   else if (is_atom (p) && !query.child_enforcing (t)) return p;
   else if (is_func (t, AROUND) && (p->item == 0 || p->item == 2)) {
-    if (p->item == 0 && dir < 0) return path (0);
-    if (p->item == 2 && dir > 0) return path (1);
-    if (p->item == 0) return path (1, child (t, 1).start (t[1]));
-    if (p->item == 2) return path (1, child (t, 1).end (t[1]));
+    if (p->item == 0)
+      return dir < 0 ? path (0) : path (1, child (t, 1).start (t[1]));
+    return dir > 0 ? path (1) : path (1, child (t, 1).end (t[1]));
   }
   else {
     int i, k= p->item, n= N(t);
