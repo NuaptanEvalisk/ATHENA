@@ -2007,7 +2007,9 @@ upgrade_vault_node_model (
         const auto diagnostics= identities.initialize_complete (
           body, prepare_offline_document_context (
                   decoded.document, url ((root / path).string ().c_str ())).contracts,
-          athena::document_node::standard_source_role);
+          athena::document_node::standard_source_role, {},
+          prepare_offline_document_source_contracts (
+            decoded.document, url ((root / path).string ().c_str ())));
         require (diagnostics.empty (),
                  "Invalid migrated identity baseline in " + path.string () +
                  (diagnostics.empty () ? "" : ": " +
@@ -2071,7 +2073,9 @@ upgrade_vault_node_model (
             const auto diagnostics= identities.initialize_complete (
               body, prepare_offline_document_context (
                       decoded.document, url ((staged / path).string ().c_str ())).contracts,
-              athena::document_node::standard_source_role);
+              athena::document_node::standard_source_role, {},
+              prepare_offline_document_source_contracts (
+                decoded.document, url ((staged / path).string ().c_str ())));
             require (diagnostics.empty (),
                      "Label cleanup invalidated identity baseline in " +
                      path.generic_string ());
@@ -2299,7 +2303,8 @@ upgrade_vault_node_model (
           return deterministic_uuid (
             relative, role_name (request.role), request.where,
             request.category);
-        });
+        }, {}, prepare_offline_document_source_contracts (
+          document.document, url ((staged / document.path).string ().c_str ())));
       require (identities.ok (),
                "Could not assign source identities in " + relative +
                (identities.diagnostics.empty () ? "" : ": " +
@@ -2489,7 +2494,9 @@ upgrade_vault_node_model (
         body, prepare_offline_document_context (
                 document.document,
                 url ((staged / document.path).string ().c_str ())).contracts,
-        athena::document_node::standard_source_role);
+        athena::document_node::standard_source_role, {},
+        prepare_offline_document_source_contracts (
+          document.document, url ((staged / document.path).string ().c_str ())));
       require (diagnostics.empty (),
                "Migrated identity baseline is incomplete in " +
                document.path.generic_string () +
@@ -2534,7 +2541,9 @@ upgrade_vault_node_model (
       const auto diagnostics= identities.initialize_complete (
         body, prepare_offline_document_context (
                 decoded.document, url ((staged / path).string ().c_str ())).contracts,
-        athena::document_node::standard_source_role);
+        athena::document_node::standard_source_role, {},
+        prepare_offline_document_source_contracts (
+          decoded.document, url ((staged / path).string ().c_str ())));
       require (diagnostics.empty (),
                "Post-write identity validation failed: " + path.string ());
       collect_ids (body, path.generic_string (), validated_ids);
