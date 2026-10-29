@@ -260,10 +260,15 @@ edit_env_rep::analyze_contracts () {
 }
 
 bool
-edit_env_rep::prepare_contracts (std::function<void ()> notify) {
+edit_env_rep::prepare_contracts (std::function<void ()> notify,
+                               const evaluation_environment_checkpoint* prepared) {
   if (!contract_analysis) contract_analysis= std::make_unique<athena::contracts::macro_analysis> ();
   const auto selected= inputs.snapshot ();
-  contract_analysis->request (contract_state.contracts, selected, env, std::move (notify));
+  athena::contracts::retained_analysis_value retained;
+  if (prepared) retained= [prepared] (const string& name) {
+    return prepared->retained_value (name);
+  };
+  contract_analysis->request (contract_state.contracts, selected, env, std::move (notify), retained);
   return contract_analysis->publish_ready (contract_state.contracts, selected, env);
 }
 

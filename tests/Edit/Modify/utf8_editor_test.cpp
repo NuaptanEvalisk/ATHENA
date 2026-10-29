@@ -983,7 +983,8 @@ private slots:
       athena::contracts::owned_evaluation_scope use (contract_state);
       tree doc (DOCUMENT, tree (LABEL, "anchor"), "tail");
       path start_in (0, 0), end_in (0, 1), start_out, end_out;
-      ::selection_correct (doc, start_in, end_in, start_out, end_out);
+      ::selection_correct (cursor_navigation ({contract_state.contracts}),
+        doc, start_in, end_in, start_out, end_out);
       QVERIFY (start_out == start_in);
       QVERIFY (end_out == end_in);
       QCOMPARE (selection_compute (doc, start_out, end_out),

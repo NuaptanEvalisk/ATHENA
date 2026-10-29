@@ -12,7 +12,6 @@
 #include "tree_search.hpp"
 #include "analyze.hpp"
 #include "boot.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
 #include "language.hpp"
 #include "vars.hpp"
 #include "hashset.hpp"
@@ -22,8 +21,6 @@
 #include "locale.hpp"
 #include <chrono>
 
-thread_local int spell_max_hits= 1000000;
-void spell (range_set& sel, tree t, tree what, path p);
 thread_local hashset<tree_label> spell_ignore;
 
 /******************************************************************************
@@ -47,11 +44,9 @@ merge (range_set& sel, range_set ssel) {
 }
 
 static bool
-is_accessible_for_spell (tree t, int i) {
-  if (spell_ignore->contains (L(t))) return false;
-  if (is_func (t, RAW_DATA) || is_func (t, NAMED_SYMBOL)) return false;
-  return athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.accessible (t, i) ||
-    is_func (t, HIDDEN);
+spell_ignored (tree t) {
+  return spell_ignore->contains (L(t)) ||
+    is_func (t, RAW_DATA) || is_func (t, NAMED_SYMBOL);
 }
 
 /******************************************************************************
@@ -82,99 +77,18 @@ spell_string (tree lan, range_set& sel, string s,
   }
 }
 
-void
-spell (tree mode, tree lan, range_set& sel, tree t, path p) {
-  if (N(sel) > spell_max_hits) return;
-  if (is_atomic (t)) {
-    if (mode == "text")
-      spell_string (lan, sel, t->label, p, 0, N(t->label)); }
-  else
-    for (int i=0; i<N(t); i++)
-      if (is_accessible_for_spell (t, i)) {
-        tree smode= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, MODE, mode);
-        tree slan = athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, LANGUAGE, lan);
-        spell (smode, slan, sel, t[i], p * i);
-      }
-}
-
-void
-spell (tree mode, tree lan, range_set& sel, tree t, path p, path pos) {
-  if (is_atomic (t)) spell (mode, lan, sel, t, p);
-  else {
-    if (is_nil (pos)) spell (mode, lan, sel, t, p);
-    else {
-      int hits= 0;
-      array<range_set> sub (N(t));
-      if (pos->item >= 0 && pos->item < N(t))
-        if (is_accessible_for_spell (t, pos->item)) {
-          int i= pos->item;
-          tree smode= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, MODE, mode);
-          tree slan = athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, LANGUAGE, lan);
-          spell (smode, slan, sub[i], t[i], p * i);
-          hits += N(sub[i]);
-        }
-      for (int d=1; d<N(t); d++)
-        for (int e=0; e<=1; e++) {
-          if (hits > spell_max_hits) break;
-          int i= (e==0? pos->item + d: pos->item - d);
-          if (i >= 0 && i < N(t))
-            if (is_accessible_for_spell (t, i)) {
-              tree smode= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, MODE, mode);
-              tree slan = athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, LANGUAGE, lan);
-              spell (smode, slan, sub[i], t[i], p * i);
-              hits += N(sub[i]);
-            }
-        }
-      for (int i=0; i<N(t); i++) sel << sub[i];
-    }
-  }
-}
-
-void
-spell (tree mode, tree lan, range_set& sel, tree t,
-       path p, path pos1, path pos2) {
-  if (is_nil (pos1) || is_nil (pos2));
-  else if (is_atomic (t))
-    { if (mode == "text") spell_string (lan, sel, t->label,
-                  p, max (pos1->item, 0), min (pos2->item, N(t->label))); }
-  else if (pos1 == path (0) && pos2 == path (1))
-    spell (mode, lan, sel, t, p);
-  else if (!is_atom (pos1) && !is_atom (pos2) && pos1->item == pos2->item)
-    spell (mode, lan, sel, t[pos1->item],
-           p * pos1->item, pos1->next, pos2->next);
-  else {
-    int i1= 0, i2= N(t);
-    if (!is_atom (pos1)) i1= max (pos1->item, i1);
-    if (!is_atom (pos2)) i2= min (pos2->item + 1, i2);
-    int hits= 0;
-    array<range_set> sub (N(t));
-    for (int i=i1; i<i2; i++) {
-      if (hits > spell_max_hits) break;
-      if (is_accessible_for_spell (t, i)) {
-        tree smode= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, MODE, mode);
-        tree slan = athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, LANGUAGE, lan);
-        if (i == i1 && !is_atom (pos1) && i1 + 1 < i2)
-          spell (smode, slan, sub[i], t[i],
-                 p * i, pos1->next, path (right_index (t[i])));
-        else if (i == i2 - 1 && !is_atom (pos2) && i1 + 1 < i2)
-          spell (smode, slan, sub[i], t[i],
-                 p * i, path (0), pos2->next);
-        else
-          spell (smode, slan, sub[i], t[i], p * i);
-        hits += N(sub[i]);
-      }
-    }
-    for (int i=i1; i<i2; i++) sel << sub[i];
-  }
-}
-
 /******************************************************************************
 * Front end
 ******************************************************************************/
 
-incremental_spell::frame::frame (tree t2, tree mode2, tree lan2,
-                                path p2, path focus2):
-  t (t2), mode (mode2), lan (lan2), p (p2), focus (focus2) {
+bool spelling_context::same_entry (const spelling_context& other) const {
+  return contracts && other.contracts && boundary == other.boundary &&
+    mode == other.mode && language == other.language &&
+    contracts->same_state (*other.contracts);
+}
+
+incremental_spell::frame::frame (tree t2, path p2, path focus2):
+  t (t2), p (p2), focus (focus2) {
   if (!is_atomic (t) && !is_nil (focus))
     pivot= max (0, min (N(t)-1, focus->item));
   if (is_atomic (t)) {
@@ -196,20 +110,22 @@ incremental_spell::frame::frame (tree t2, tree mode2, tree lan2,
 void
 incremental_spell::reset () {
   stack.clear ();
+  waiting.clear ();
   errors.clear ();
   initialized= false;
 }
 
 void
-incremental_spell::start (tree t, tree mode, tree lan, path root, path focus) {
+incremental_spell::start (tree t, path root, path focus) {
   reset ();
   spell_initialize ();
-  stack.emplace_back (t, mode, lan, root, focus);
+  stack.emplace_back (t, root, focus);
   initialized= true;
 }
 
 bool
-incremental_spell::step (int word_budget, int node_budget, int milliseconds) {
+incremental_spell::step (const spelling_context_lookup& lookup,
+                        int word_budget, int node_budget, int milliseconds) {
   auto deadline= std::chrono::steady_clock::now () +
                 std::chrono::milliseconds (milliseconds);
   int chars= 4096;
@@ -217,8 +133,22 @@ incremental_spell::step (int word_budget, int node_budget, int milliseconds) {
   while (!stack.empty () && word_budget > 0 && node_budget > 0 && chars > 0 &&
          std::chrono::steady_clock::now () < deadline) {
     frame& f= stack.back ();
+    if (!is_atomic (f.t) && spell_ignored (f.t)) {
+      stack.pop_back ();
+      --node_budget;
+      continue;
+    }
+    if (!f.context.contracts) {
+      f.context= lookup (f.p);
+      if (!f.context.contracts) {
+        waiting.push_back (f.p);
+        stack.pop_back ();
+        --node_budget;
+        continue;
+      }
+    }
     if (is_atomic (f.t)) {
-      if (f.mode != "text" || !is_atomic (f.lan) ||
+      if (f.context.mode != "text" || !is_atomic (f.context.language) ||
           (f.word == f.words.size () && f.offset >= f.limit && f.stop == 0)) {
         stack.pop_back ();
         --node_budget;
@@ -237,7 +167,7 @@ incremental_spell::step (int word_budget, int node_budget, int milliseconds) {
         int begin= f.offset, end= begin + min (4096, f.limit - begin);
         while (end > begin && !athena::text::scalar_boundary (
                  {s.data (), std::size_t (N(s))}, end)) --end;
-        string locale= language_to_locale (f.lan->label);
+        string locale= language_to_locale (f.context.language->label);
         auto segments= athena::text::word_segments (
           {s.data () + begin, std::size_t (end - begin)},
           {locale.data (), std::size_t (N(locale))});
@@ -263,7 +193,7 @@ incremental_spell::step (int word_budget, int node_budget, int milliseconds) {
       }
       if (f.word == f.words.size ()) continue;
       const auto word= f.words[f.word++];
-      if (!spell_string (f.lan, s (word.begin, word.end))) {
+      if (!spell_string (f.context.language, s (word.begin, word.end))) {
         errors[f.p * int (word.begin)]= f.p * int (word.end);
         changed= true;
       }
@@ -276,16 +206,24 @@ incremental_spell::step (int word_budget, int node_budget, int milliseconds) {
              (n & 1)? f.pivot + (n+1)/2: f.pivot - n/2;
       --node_budget;
       if (n >= 2*N(f.t)) { stack.pop_back (); continue; }
-      if (i < 0 || i >= N(f.t) || !is_accessible_for_spell (f.t, i)) continue;
-      tree mode= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (f.t, i, MODE, f.mode);
-      tree lan= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (f.t, i, LANGUAGE, f.lan);
+      if (i < 0 || i >= N(f.t)) continue;
+      // Inferred access may await analysis. A provisional child still has to
+      // obtain its actual display context before any of its text is checked.
+      athena::contracts::editing_query query {*f.context.contracts};
+      if (!is_func (f.t, HIDDEN) && !query.mapped_accessible (f.t, i)) continue;
       path focus= !is_nil (f.focus) && i == f.focus->item?
                   f.focus->next: path ();
-      frame child (f.t[i], mode, lan, f.p * i, focus);
+      frame child (f.t[i], f.p * i, focus);
       stack.push_back (std::move (child));
     }
   }
   return changed;
+}
+
+bool incremental_spell::pending_at (path source) const {
+  for (path prefix: waiting)
+    if (prefix <= source) return true;
+  return false;
 }
 
 range_set
@@ -373,15 +311,16 @@ bool incremental_spell_cache::path_order::operator () (path a, path b) const {
 }
 
 void incremental_spell_cache::reset () {
-  jobs.clear ();
+  invalidate ();
   errors.clear ();
-  rebuild= true;
   initialized= false;
 }
 
 void incremental_spell_cache::invalidate () {
   jobs.clear ();
-  rebuild= true;
+  runnable.clear ();
+  layout.reset ();
+  review= review_remaining= 0;
 }
 
 void incremental_spell_cache::change (tree before, modification mod) {
@@ -401,6 +340,7 @@ void incremental_spell_cache::change (tree before, modification mod) {
   errors.insert (retained.begin (), retained.end ());
   if (!is_nil (p)) {
     jobs[p->item]= job ();
+    runnable.insert (p->item);
     return;
   }
   // Root child edits only change neighbouring blocks and their indices.
@@ -420,52 +360,94 @@ void incremental_spell_cache::change (tree before, modification mod) {
     }
     for (int i=0; i<added; ++i) moved.emplace (at+i, job ());
     jobs.swap (moved);
+    runnable.clear ();
+    for (const auto& item: jobs)
+      if (!item.second.complete) runnable.insert (item.first);
   }
   else invalidate ();
 }
 
-bool incremental_spell_cache::step (tree body, tree mode, tree language, path focus) {
-  if (rebuild) {
-    jobs.clear ();
-    for (int i=0; i<N(body); ++i) jobs.emplace (i, job ());
-    rebuild= false;
-    initialized= true;
+void incremental_spell_cache::prepare (
+    int block, const spelling_context_lookup& lookup) {
+  job& work= jobs[block];
+  if (work.checked == generation) return;
+  work.checked= generation;
+  spelling_context entry= lookup (path (block));
+  if (!entry.contracts) {
+    work.scan.reset ();
+    work.context= {};
+    work.complete= false;
+    runnable.erase (block);
+    return;
   }
+  if (!entry.same_entry (work.context) || work.scan.pending ()) {
+    work.scan.reset ();
+    work.complete= false;
+  }
+  work.context= std::move (entry);
+  if (!work.complete) runnable.insert (block);
+}
+
+bool incremental_spell_cache::step (
+    tree body, const spelling_context_lookup& lookup,
+    std::shared_ptr<const void> current_layout, path focus) {
+  if (!current_layout) return false;
+  if (layout != current_layout) {
+    layout= std::move (current_layout);
+    ++generation;
+    review_remaining= N(body);
+  }
+  initialized= true;
   auto deadline= std::chrono::steady_clock::now () + std::chrono::milliseconds (4);
+  const auto review_deadline= deadline - std::chrono::milliseconds (2);
   bool changed= false;
-  int pivot= is_nil (focus)? 0: focus->item;
+  int pivot= is_nil (focus)? 0: max (0, min (N(body)-1, focus->item));
+  if (N(body) > 0) prepare (pivot, lookup);
+  // Layout changes can invalidate untouched later blocks. Review receipts in
+  // bounded round-robin slices, without restarting at zero on each keystroke.
+  for (int n=0; review_remaining > 0 && n<64 &&
+       std::chrono::steady_clock::now () < review_deadline; ++n) {
+    if (review >= N(body)) review= 0;
+    prepare (review++, lookup);
+    --review_remaining;
+  }
   while (std::chrono::steady_clock::now () < deadline) {
-    auto chosen= jobs.lower_bound (pivot);
-    if (chosen != jobs.begin ()) {
+    auto chosen= runnable.lower_bound (pivot);
+    if (chosen != runnable.begin ()) {
       auto previous= chosen;
       --previous;
-      if (chosen == jobs.end () || pivot-previous->first < chosen->first-pivot)
+      if (chosen == runnable.end () || pivot-*previous < *chosen-pivot)
         chosen= previous;
     }
-    if (chosen == jobs.end ()) break;
-    int i= chosen->first;
-    job& work= chosen->second;
-    bool accessible= is_accessible_for_spell (body, i);
-    if (accessible && !work.scan.initialized) {
-      tree child_mode= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (body, i, MODE, mode);
-      tree child_language= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (body, i, LANGUAGE, language);
-      work.scan.start (body[i], child_mode, child_language, path (),
+    if (chosen == runnable.end ()) break;
+    int i= *chosen;
+    prepare (i, lookup);
+    job& work= jobs.at (i);
+    if (!work.context.contracts) continue;
+    if (!work.scan.initialized) {
+      work.scan.start (body[i], path (),
         !is_nil (focus) && i == pivot? focus->next: path ());
     }
-    if (accessible) {
-      work.scan.step ();
-      if (!work.scan.done ()) break;
-    }
-    // Publish a complete replacement, never an empty intermediate result.
+    int remaining= int (std::chrono::duration_cast<std::chrono::milliseconds> (
+      deadline - std::chrono::steady_clock::now ()).count ());
+    if (remaining <= 0) break;
+    work.scan.step ([&] (path p) { return lookup (path (i, p)); },
+                    64, 256, remaining);
+    if (!work.scan.done ()) break;
+    // Unprepared branches retain their old marks. A missing display context
+    // never publishes a false "no spelling errors" result for that subtree.
     auto first= errors.lower_bound (path (i));
     auto last= errors.lower_bound (path (i+1));
-    errors.erase (first, last);
-    if (accessible) {
-      range_set result= work.scan.selections (path ());
-      for (int n=0; n+1<N(result); n+=2)
-        errors.emplace (path (i, result[n]), path (i, result[n+1]));
+    while (first != last) {
+      if (work.scan.pending_at (first->first->next)) ++first;
+      else first= errors.erase (first);
     }
-    jobs.erase (chosen);
+    range_set result= work.scan.selections (path ());
+    for (int n=0; n+1<N(result); n+=2)
+      errors.emplace (path (i, result[n]), path (i, result[n+1]));
+    runnable.erase (i);
+    work.complete= true;
+    if (!work.scan.pending ()) work.scan.reset ();
     changed= true;
   }
   return changed;
@@ -475,40 +457,4 @@ range_set incremental_spell_cache::selections (path root) const {
   range_set result;
   for (const auto& hit: errors) result << root * hit.first << root * hit.second;
   return result;
-}
-
-range_set
-spell (string lan, tree t, path p, int limit) {
-  spell_initialize ();
-  spell_max_hits= limit;
-  range_set sel;
-  //cout << "Spell " << what << "\n";
-  spell ("text", lan, sel, t, p);
-  //cout << "Selected " << sel << "\n";
-  spell_max_hits= 1000000;
-  return sel;
-}
-
-range_set
-spell (string lan, tree t, path p, path pos, int limit) {
-  spell_initialize ();
-  spell_max_hits= limit;
-  range_set sel;
-  //cout << "Spell " << what << "\n";
-  spell ("text", lan, sel, t, p, pos);
-  //cout << "Selected " << sel << "\n";
-  spell_max_hits= 1000000;
-  return sel;
-}
-
-range_set
-spell (string lan, tree t, path p, path pos1, path pos2, int limit) {
-  spell_initialize ();
-  spell_max_hits= limit;
-  range_set sel;
-  //cout << "Spell " << what << "\n";
-  spell ("text", lan, sel, t, p, pos1, pos2);
-  //cout << "Selected " << sel << "\n";
-  spell_max_hits= 1000000;
-  return sel;
 }

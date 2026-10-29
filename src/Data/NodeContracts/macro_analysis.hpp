@@ -7,8 +7,13 @@
 #include "contract_scope.hpp"
 #include <functional>
 #include <memory>
+#include <optional>
 
 namespace athena::contracts {
+
+// Synchronous owner lookup only. An empty result means the paired input has no
+// retained frozen payload, not that the variable is absent.
+using retained_analysis_value= std::function<std::optional<node::frozen_tree> (const string&)>;
 
 // Owner-side capture/publication. No evaluator or DRD is retained. Detached
 // analysis is keyed by the captured resolution, including binding identity.
@@ -21,7 +26,8 @@ public:
   void synchronize (contract_scope&, const evaluation_input_snapshot& inputs,
                     const hashmap<string, tree>& definitions);
   bool request (const contract_scope&, const evaluation_input_snapshot&,
-                const hashmap<string,tree>&, std::function<void ()> notify);
+                const hashmap<string,tree>&, std::function<void ()> notify,
+                const retained_analysis_value& retained= {});
   bool publish_ready (contract_scope&, const evaluation_input_snapshot&,
                       const hashmap<string,tree>&);
   bool pending () const;

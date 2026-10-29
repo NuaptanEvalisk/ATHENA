@@ -25,6 +25,7 @@
 #include <functional>
 #include <thread>
 #include <unordered_map>
+#include <unordered_set>
 
 class editor_rep;
 class tm_buffer_rep;
@@ -96,6 +97,11 @@ public:
     std::uint64_t argument1= 0, std::uint64_t argument2= 0,
     std::uint64_t argument3= 0);
 
+  // Analysis workers carry IDs only. Readiness survives a full command ring
+  // and is consumed on the owner between commands, once per notified view.
+  static void notify_contracts_ready (athena_actor_id actor_id,
+                                      athena_view_id view_id);
+
   static bool invoke_on (
     athena_actor_id actor_id, actor_command_kind kind,
     athena_view_id view_id= ATHENA_NO_VIEW,
@@ -155,6 +161,9 @@ public:
   bool retire_saved_document (const std::string& expected_storage,
     const std::function<bool()>& publish);
   void invalidate_typesetting (path p);
+  // Owner-thread only. Retain one ready activation per view until the normal
+  // FIFO command queue accepts it; never perform source edits during layout.
+  void queue_hybrid_activation (athena_view_id view_id, std::uint64_t token);
 
   // Fixed dispatch is public only for the Guile C trampoline.  Callers submit
   // command ids; they never invoke this directly.
@@ -191,6 +200,7 @@ private:
     actor_command_record record;
   };
   std::unordered_map<athena_response_id, response_state> responses_;
+  std::unordered_set<athena_view_id> contracts_ready_;
 
   struct implementation;
   std::unique_ptr<implementation> impl_;
@@ -209,6 +219,8 @@ private:
              actor_command_record* result= nullptr);
   void run_in_guile ();
   void execute (actor_command_record& command);
+  void publish_ready_contracts ();
+  void flush_hybrid_activations ();
   void publish_tmfs_title (editor_rep* preferred_editor);
 
   static void thread_entry (buffer_actor* actor);

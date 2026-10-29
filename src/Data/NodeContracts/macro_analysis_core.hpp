@@ -10,6 +10,8 @@
 #include <string>
 #include <vector>
 #include <atomic>
+#include <chrono>
+#include <optional>
 
 namespace athena::contracts {
 
@@ -81,8 +83,12 @@ class macro_analysis_core {
 public:
   macro_analysis_core ();
   ~macro_analysis_core ();
-  std::vector<analysis_contract_result> apply (macro_analysis_input input,
-                                             const std::atomic<bool>* cancelled= nullptr);
+  // One batch at a time. Only a completed batch exposes results; the worker
+  // may resume its private state on another thread, never concurrently.
+  void begin (macro_analysis_input input);
+  std::optional<std::vector<analysis_contract_result>> resume (
+    std::chrono::steady_clock::time_point deadline,
+    const std::atomic<bool>* cancelled= nullptr);
 };
 
 } // namespace athena::contracts

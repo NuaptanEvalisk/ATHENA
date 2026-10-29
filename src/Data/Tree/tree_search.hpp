@@ -14,6 +14,10 @@
 #include "tree_select.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
 
+range_set search (const athena::contracts::source_contract_preparation&,
+                  athena::contracts::access_policy, tree t, tree what, path p,
+                  bool case_insensitive, int limit= 1000000);
+
 range_set search (const athena::contracts::editing_query&, tree t, tree what,
                   path p, int limit= 1000000);
 range_set search (const athena::contracts::editing_query&, tree t, tree what,
@@ -34,8 +38,5 @@ range_set previous_search_hit (range_set sel, path cur, bool strict);
 range_set next_search_hit (range_set sel, path cur, bool strict);
 range_set navigate_search_hit (path cur, bool fw, bool extreme, bool strict);
 
-range_set spell (string lan, tree t, path p, int limit= 1000000);
-range_set spell (string lan, tree t, path p, path pos, int limit);
-range_set spell (string lan, tree t, path p, path pos1, path pos2, int limit);
 
 #endif // defined TREE_SEARCH_H

@@ -51,20 +51,24 @@ void
 set_table_pairs (editor_rep* ed,
                  std::initializer_list<std::pair<string,string>> values) {
   if (ed == nullptr) return;
-  for (const auto& [name, value]: values)
-    ed->table_set_format (name, tree (value));
+  ed->with_table_context ([&] {
+    for (const auto& [name, value]: values)
+      ed->table_set_format (name, tree (value));
+  });
 }
 
 void
 set_cell_pairs (editor_rep* ed,
                 std::initializer_list<std::pair<string,string>> values) {
   if (ed == nullptr) return;
-  selection_keeper selection (ed);
-  for (const auto& [name, value]: values) {
+  ed->with_table_context ([&] {
+    selection_keeper selection (ed);
+    for (const auto& [name, value]: values) {
+      selection.restore ();
+      ed->cell_set_format (name, tree (value));
+    }
     selection.restore ();
-    ed->cell_set_format (name, tree (value));
-  }
-  selection.restore ();
+  });
 }
 
 bool
@@ -112,8 +116,7 @@ enum border_bits: unsigned {
 };
 
 void
-set_borders (editor_rep* ed, string value, unsigned mask) {
-  if (ed == nullptr) return;
+apply_borders (editor_rep* ed, string value, unsigned mask) {
   array<int> extents= ed->table_get_extents ();
   array<int> cells= ed->table_which_cells ();
   if (N(extents) != 2 || N(cells) != 4) return;
@@ -163,6 +166,12 @@ set_borders (editor_rep* ed, string value, unsigned mask) {
     }
   }
   original.restore ();
+}
+
+void
+set_borders (editor_rep* ed, string value, unsigned mask) {
+  if (ed != nullptr)
+    ed->with_table_context ([&] { apply_borders (ed, value, mask); });
 }
 
 bool
@@ -269,37 +278,41 @@ void insert_big_table (editor_rep* ed) { insert_table_wrapper (ed, true); }
 void
 cell_set_format_star (editor_rep* ed, string var, string value) {
   if (ed == nullptr) return;
-  selection_keeper selection (ed);
-  selection.restore ();
-  ed->cell_set_format (var, tree (value));
-  selection.restore ();
-  if (var == "cell-hmode" && value == "auto")
-    ed->cell_set_format ("cell-width", tree (""));
-  else if (var == "cell-width" && value != "" &&
-           ed->cell_get_format ("cell-hmode") == "auto")
-    ed->cell_set_format ("cell-hmode", tree ("exact"));
-  else if (var == "cell-vmode" && value == "auto")
-    ed->cell_set_format ("cell-height", tree (""));
-  else if (var == "cell-height" && value != "" &&
-           ed->cell_get_format ("cell-vmode") == "auto")
-    ed->cell_set_format ("cell-vmode", tree ("exact"));
-  selection.restore ();
+  ed->with_table_context ([&] {
+    selection_keeper selection (ed);
+    selection.restore ();
+    ed->cell_set_format (var, tree (value));
+    selection.restore ();
+    if (var == "cell-hmode" && value == "auto")
+      ed->cell_set_format ("cell-width", tree (""));
+    else if (var == "cell-width" && value != "" &&
+             ed->cell_get_format ("cell-hmode") == "auto")
+      ed->cell_set_format ("cell-hmode", tree ("exact"));
+    else if (var == "cell-vmode" && value == "auto")
+      ed->cell_set_format ("cell-height", tree (""));
+    else if (var == "cell-height" && value != "" &&
+             ed->cell_get_format ("cell-vmode") == "auto")
+      ed->cell_set_format ("cell-vmode", tree ("exact"));
+    selection.restore ();
+  });
 }
 
 void
 table_set_format_star (editor_rep* ed, string var, string value) {
   if (ed == nullptr) return;
-  ed->table_set_format (var, tree (value));
-  if (var == "table-hmode" && value == "auto")
-    ed->table_set_format ("table-width", tree (""));
-  else if (var == "table-width" && value != "" &&
-           ed->table_get_format ("table-hmode") == "auto")
-    ed->table_set_format ("table-hmode", tree ("exact"));
-  else if (var == "table-vmode" && value == "auto")
-    ed->table_set_format ("table-height", tree (""));
-  else if (var == "table-height" && value != "" &&
-           ed->table_get_format ("table-vmode") == "auto")
-    ed->table_set_format ("table-vmode", tree ("exact"));
+  ed->with_table_context ([&] {
+    ed->table_set_format (var, tree (value));
+    if (var == "table-hmode" && value == "auto")
+      ed->table_set_format ("table-width", tree (""));
+    else if (var == "table-width" && value != "" &&
+             ed->table_get_format ("table-hmode") == "auto")
+      ed->table_set_format ("table-hmode", tree ("exact"));
+    else if (var == "table-vmode" && value == "auto")
+      ed->table_set_format ("table-height", tree (""));
+    else if (var == "table-height" && value != "" &&
+             ed->table_get_format ("table-vmode") == "auto")
+      ed->table_set_format ("table-vmode", tree ("exact"));
+  });
 }
 
 void table_set_automatic_width (editor_rep* ed) {
@@ -397,10 +410,8 @@ void cell_set_span_selection (editor_rep* ed) {
   if (N(cells) != 4) return;
   ed->table_go_to (cells[0], cells[2]);
   ed->selection_cancel ();
-  ed->cell_set_format (
-    "cell-row-span", tree (as_string (cells[1] + 1 - cells[0])));
-  ed->cell_set_format (
-    "cell-col-span", tree (as_string (cells[3] + 1 - cells[2])));
+  cell_set_span (ed, as_string (cells[1] + 1 - cells[0]),
+                     as_string (cells[3] + 1 - cells[2]));
 }
 
 void cell_set_halign (editor_rep* ed, string value) {

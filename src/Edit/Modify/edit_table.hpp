@@ -79,7 +79,8 @@ protected:
   void table_remove (path fp, int row, int col, int nr_rows, int nr_cols);
   tree table_get_subtable (path p, int i1, int j1, int i2, int j2);
   tree table_get_subtable (path p, int i1, int j1, int i2, int j2, bool rec);
-  void table_write_subtable (path fp, int row, int col, tree subt);
+  void table_write_subtable (path fp, int row, int col, tree subt,
+    std::shared_ptr<const evaluation_environment_checkpoint> prepared= {});
   void table_write_subtable_unchecked (path fp, int row, int col, tree subt);
   void table_cut_selection (path fp, int row1, int col1, int row2, int col2);
   void table_hor_insert_subtable (path fp, int col, tree subt);
@@ -131,6 +132,7 @@ public:
   void   table_resize_notify ();
   void   set_cell_mode (string mode);
   string get_cell_mode ();
+  void   with_table_context (const std::function<void ()>& action);
   void   cell_set_format (string var, tree val);
   string cell_get_format (string var);
   void   cell_del_format (string var);

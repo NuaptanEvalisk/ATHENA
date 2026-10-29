@@ -25,6 +25,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <limits>
+#include <stdexcept>
 #include <utility>
 
 /******************************************************************************
@@ -1589,13 +1590,6 @@ edit_graphics_rep::native_graphics_selection_supports_property (string name) {
 }
 
 tree
-edit_graphics_rep::native_graphics_environment_value (
-    string name,
-    const std::shared_ptr<const evaluation_environment_checkpoint>& prepared) {
-  return prepared ? prepared->effective_value (name) : get_env_value (name);
-}
-
-tree
 edit_graphics_rep::native_graphics_get_property (string name) {
   if (native_graphics_edit_props_active () &&
       native_graphics_selection_supports_property (name)) {
@@ -1617,10 +1611,11 @@ edit_graphics_rep::native_graphics_get_property (string name) {
     return found ? common : tree ("default");
   }
 
-  const auto prepared= editor_rep::cursor_context_at (tp);
   path graphics= native_graphics_canvas_path ();
-  if (is_nil (graphics)) return native_graphics_environment_value (name, prepared);
-  tree fallback= native_graphics_environment_value (name, prepared);
+  const auto prepared= editor_rep::cursor_context_at (is_nil (graphics) ? tp : graphics * 0);
+  if (!prepared) throw std::runtime_error ("Graphics properties are awaiting layout");
+  tree fallback= prepared->effective_value (name);
+  if (is_nil (graphics)) return fallback;
   return native_ink_property (graphics, name, fallback);
 }
 
@@ -1730,10 +1725,10 @@ edit_graphics_rep::native_graphics_get_props_at_mouse () {
   path target= native_graphics_style_target (
     this, graphics, native_graphics_group_hover_path_);
   if (is_nil (target) || !has_subtree (et, target)) return;
-  const auto prepared= editor_rep::cursor_context_at (tp);
+  const auto prepared= editor_rep::cursor_context_at (graphics * 0);
+  if (!prepared) throw std::runtime_error ("Graphics properties are awaiting layout");
   tree object= subtree (et, target);
-  start_editing ();
-  bool changed= false;
+  std::vector<std::pair<string, tree>> properties;
   for (const string& property: native_graphics_all_properties ()) {
     if (property == "gid" ||
         !native_graphics_property_supported (object, property))
@@ -1743,10 +1738,12 @@ edit_graphics_rep::native_graphics_get_props_at_mouse () {
       object, property, tree (UNINIT));
     if (value == tree (UNINIT))
       value= native_ink_property (
-         graphics, canvas, native_graphics_environment_value (canvas, prepared));
-    changed= native_drawing_set_graphics_property (
-      graphics, canvas, value) || changed;
+         graphics, canvas, prepared->effective_value (canvas));
+    properties.emplace_back (canvas, std::move (value));
   }
+  if (properties.empty ()) return;
+  start_editing ();
+  const bool changed= native_drawing_set_graphics_properties (graphics, properties);
   end_editing ();
   if (changed) {
     mark_native_ink_interaction_dirty ();
@@ -1764,7 +1761,8 @@ edit_graphics_rep::native_graphics_apply_props_at_mouse () {
   path target= native_graphics_style_target (
     this, graphics, native_graphics_group_hover_path_);
   if (is_nil (target) || !has_subtree (et, target)) return;
-  const auto prepared= editor_rep::cursor_context_at (tp);
+  const auto prepared= editor_rep::cursor_context_at (graphics * 0);
+  if (!prepared) throw std::runtime_error ("Graphics properties are awaiting layout");
   tree object= subtree (et, target);
   tree updated= copy (object);
   bool any= false;
@@ -1774,7 +1772,7 @@ edit_graphics_rep::native_graphics_apply_props_at_mouse () {
       continue;
     string canvas= native_graphics_canvas_property_name (property);
     tree value= native_ink_property (
-       graphics, canvas, native_graphics_environment_value (canvas, prepared));
+       graphics, canvas, prepared->effective_value (canvas));
     if (is_atomic (value) && value->label == "default") {
       bool removed= false;
       updated= native_remove_object_property_impl (

@@ -74,23 +74,6 @@ int main (int argc, char** argv) {
   ispell_done ("english");
   CHECK (!ispell_test ("english", "zzqqxxzz"));
   CHECK (!check_word ("english", "zzqqxxzz"));
-  // Native displays establish math mode for every spell traversal, while
-  // explicit text inside a formula remains eligible for spelling checks.
-  tree display (MATH_BLOCK, tree (CONCAT, "qzxqzxqzx",
-    tree (WITH, "mode", "text", "qzxqzxqzx")));
-  CHECK (athena::contracts::editing_query {athena::contracts::builtin_contracts ()}.value (display, 0, "mode", "text") == "math");
-  tree math_doc (DOCUMENT, display,
-    tree (MATH_GRID, tree (ROW, tree (CELL, "qzxqzxqzx"))), "qzxqzxqzx");
-  incremental_spell math_scan;
-  math_scan.start (math_doc, "text", "english", path (0), path ());
-  for (int i=0; !math_scan.done () && i<100; ++i) math_scan.step ();
-  CHECK (math_scan.done ());
-  range_set math_hits= math_scan.selections (path ());
-  CHECK (N(math_hits) == 4);
-  CHECK (math_hits[0] == path (0, 0, 0) * path (1, 2, 0));
-  CHECK (math_hits[2] == path (0, 2, 0));
-  range_set full_math_hits= spell ("english", math_doc, path (0));
-  CHECK (full_math_hits == math_hits);
   std::thread writer ([] {
     ispell_insert ("english", "zzqqxxzz");
     ispell_done ("english");
@@ -103,14 +86,18 @@ int main (int argc, char** argv) {
 
   tree doc (DOCUMENT);
   for (int i=0; i<100; ++i) doc << tree ("hello qzxqzxqzx");
+  spelling_context context {
+    std::make_shared<const athena::contracts::contract_scope> (
+      athena::contracts::builtin_contracts ()), {}, "text", "english"};
+  const spelling_context_lookup lookup= [&] (path) { return context; };
   incremental_spell scan;
-  scan.start (doc, "text", "english", path (0), path (70, 0));
-  scan.step (2, 16, 1000);
+  scan.start (doc, path (0), path (70, 0));
+  scan.step (lookup, 2, 16, 1000);
   CHECK (!scan.done ());
   range_set hits= scan.selections (path ());
   CHECK (N(hits) == 2 && hits[0] == path (0, 70, 6));
   int steps= 0;
-  while (!scan.done () && ++steps < 1000) scan.step (4, 16, 1000);
+  while (!scan.done () && ++steps < 1000) scan.step (lookup, 4, 16, 1000);
   CHECK (scan.done () && steps > 1);
   hits= scan.selections (path ());
   CHECK (N(hits) == 200);
@@ -119,8 +106,9 @@ int main (int argc, char** argv) {
   CHECK (scan.done () && !scan.initialized);
 
   const string unicode= u8"\u00e9cole\u2003qzx\u00e9\u00a0e\u0301qq";
-  scan.start (tree (unicode), "text", "french", path (0), path ());
-  while (!scan.done ()) scan.step (1, 16, 1000);
+  context.language= "french";
+  scan.start (tree (unicode), path (0), path ());
+  while (!scan.done ()) scan.step (lookup, 1, 16, 1000);
   hits= scan.selections (path ());
   CHECK (N(hits) == 4);
   CHECK (hits[0] == path (0, 9) && hits[1] == path (0, 14));
@@ -130,8 +118,8 @@ int main (int argc, char** argv) {
   string boundary;
   for (int i= 0; i < 4093; ++i) boundary << ' ';
   boundary << unicode;
-  scan.start (tree (boundary), "text", "french", path (0), path ());
-  while (!scan.done ()) scan.step (1, 16, 1000);
+  scan.start (tree (boundary), path (0), path ());
+  while (!scan.done ()) scan.step (lookup, 1, 16, 1000);
   hits= scan.selections (path ());
   CHECK (N(hits) == 4);
   CHECK (hits[0] == path (0, 4102) && hits[1] == path (0, 4107));
@@ -140,25 +128,26 @@ int main (int argc, char** argv) {
   // Many nodes and a very long atom must yield even with no misspellings.
   string large;
   for (int i=0; i<10000; ++i) large << 'a';
-  scan.start (tree (large), "text", "english", path (0), path ());
-  scan.step (64, 256, 1000);
+  context.language= "english";
+  scan.start (tree (large), path (0), path ());
+  scan.step (lookup, 64, 256, 1000);
   CHECK (!scan.done ());
-  while (!scan.done ()) scan.step (64, 256, 1000);
+  while (!scan.done ()) scan.step (lookup, 64, 256, 1000);
   CHECK (N(scan.selections (path ())) == 0);
   large << " qzxqzxqzx";
-  scan.start (tree (large), "text", "english", path (0), path ());
-  while (!scan.done ()) scan.step (64, 256, 1000);
+  scan.start (tree (large), path (0), path ());
+  while (!scan.done ()) scan.step (lookup, 64, 256, 1000);
   hits= scan.selections (path ());
   CHECK (N(hits) == 2 && hits[0] == path (0, 10001));
-  scan.start (tree ("qzxqzxqzx hello qzxqzxqzx"), "text", "english",
-              path (0), path (16));
-  scan.step (1, 16, 1000);
+  scan.start (tree ("qzxqzxqzx hello qzxqzxqzx"), path (0), path (16));
+  scan.step (lookup, 1, 16, 1000);
   hits= scan.selections (path ());
   CHECK (N(hits) == 2 && hits[0] == path (0, 16));
-  while (!scan.done ()) scan.step (64, 256, 1000);
+  while (!scan.done ()) scan.step (lookup, 64, 256, 1000);
   CHECK (N(scan.selections (path ())) == 4);
-  scan.start (doc, "math", "english", path (0), path (70, 0));
-  while (!scan.done ()) scan.step (64, 256, 1000);
+  context.mode= "math";
+  scan.start (doc, path (0), path (70, 0));
+  while (!scan.done ()) scan.step (lookup, 64, 256, 1000);
   CHECK (N(scan.selections (path ())) == 0);
   std::cout << "Hunspell and incremental spelling passed\n";
   return 0;

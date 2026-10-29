@@ -17,6 +17,7 @@
 #include "cursor_navigation.hpp"
 #include "analyze.hpp"
 #include "Typeset/Env/local_environment.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 
 /******************************************************************************
 * Constructor and destructor
@@ -36,16 +37,16 @@ cursor& edit_cursor_rep::the_ghost_cursor () { return mv; }
 
 path
 edit_cursor_rep::make_cursor_accessible (path p, bool forwards) {
-  using athena::contracts::access_policy;
   const auto boundary= p == tp ? cursor_source_boundary () : nullptr;
   const auto context= editor_rep::cursor_context_at (p);
-  const auto mode= context ? context->effective_value (MODE) : get_init_value (MODE);
-  const auto access= mode == "src" || (context && context->effective_value (PREAMBLE) == "true") ? access_policy::source :
-    access_policy::normal;
-  const cursor_navigation navigation ({context ? context->contract_context () : contract_state.contracts, access});
-  if (boundary && context && cursor_occurrence_admitted (p, boundary) &&
-      navigation.is_mapped_cursor (et, p)) return p;
-  return make_cursor_accessible (p, forwards, navigation);
+  if (!context) return path ();
+  path result;
+  if (!with_admitted_navigation (*context, [&] (const cursor_navigation& navigation) {
+    if (boundary && cursor_occurrence_admitted (p, boundary) &&
+        navigation.is_mapped_cursor (subtree (et, rp), p / rp)) result= p;
+    else result= make_cursor_accessible (p, forwards, navigation);
+  })) return path ();
+  return result;
 }
 
 path
@@ -53,10 +54,10 @@ edit_cursor_rep::make_cursor_accessible (
     path p, bool forwards, const cursor_navigation& navigation) {
   path start_p= p;
   bool inverse= false;
+  tree st= subtree (et, rp);
   while (navigation.contracts ().access != athena::contracts::access_policy::source &&
-         !navigation.is_accessible_cursor (et, p)) {
+         !navigation.is_accessible_cursor (st, p / rp)) {
     ASSERT (rp <= p, "path outside document");
-    tree st = subtree (et, rp);
     path sp = p / rp;
     path pp = sp;
     int  dir= (forwards ^ inverse)? 1: -1;
@@ -88,19 +89,23 @@ edit_cursor_rep::tree_path (path sp, SI x, SI y, SI delta,
                             bool source) {
   path bp= find_scrolled_box_path (eb, sp, x, y, delta);
   path stp= eb->find_tree_path (bp);
+  if (!(rp < stp)) return path ();
   const auto boundary= eb->find_source_boundary (bp);
-  const auto context= cursor_context_at (stp, boundary);
+  const auto context= source ? std::shared_ptr<const evaluation_environment_checkpoint> {} :
+    display_context_at (stp, bp);
   using athena::contracts::access_policy;
-  const auto mode= context ? context->effective_value (MODE) : get_init_value (MODE);
-  const auto access= source || mode == "src" || (context && context->effective_value (PREAMBLE) == "true") ?
-    access_policy::source : access_policy::normal;
-  const cursor_navigation navigation ({context ? context->contract_context () : contract_state.contracts, access});
   path p= stp;
-  if (!(boundary && context && cursor_occurrence_admitted (stp, boundary) &&
-        navigation.is_mapped_cursor (et, stp))) {
-    p= navigation.correct_cursor (et, stp);
-    p= make_cursor_accessible (p, searching_forwards, navigation);
-  }
+  const auto resolve= [&] (const cursor_navigation& navigation) {
+    tree body= subtree (et, rp);
+    if (!(boundary && context && cursor_occurrence_admitted (stp, boundary) &&
+          navigation.is_mapped_cursor (body, stp / rp))) {
+      p= rp * navigation.correct_cursor (body, stp / rp);
+      p= make_cursor_accessible (p, searching_forwards, navigation);
+    }
+  };
+  if (source)
+    resolve (cursor_navigation ({athena::contracts::builtin_contracts (), access_policy::source}));
+  else if (!context || !with_admitted_navigation (*context, resolve, bp)) return path ();
   if (affinity)
     *affinity= p == stp ? eb->find_cursor (bp)->affinity :
       athena::text::caret_affinity::downstream;
@@ -108,8 +113,11 @@ edit_cursor_rep::tree_path (path sp, SI x, SI y, SI delta,
   return p;
 }
 
-bool
+std::optional<bool>
 edit_cursor_rep::cursor_move_sub (SI& x0, SI& y0, SI& d0, SI dx, SI dy) {
+  struct pending_hit {};
+  const SI original_x= x0, original_y= y0, original_delta= d0;
+  try {
   path sp= find_innermost_scroll (eb, tp);
   searching_forwards= dx == 1 || dy == -1;
 
@@ -117,10 +125,12 @@ edit_cursor_rep::cursor_move_sub (SI& x0, SI& y0, SI& d0, SI dx, SI dy) {
   athena::text::caret_affinity ref_affinity;
   path ref_bp;
   path ref_p= tree_path (sp, x0, y0, d0, &ref_affinity, &ref_bp);
+  if (is_nil (ref_p)) return {};
   const auto same_position= [&] (SI x, SI y, SI delta) {
     athena::text::caret_affinity side;
     path bp;
     const path p= tree_path (sp, x, y, delta, &side, &bp);
+    if (is_nil (p)) throw pending_hit {};
     return p == ref_p && side == ref_affinity &&
       (is_nil (bp) || is_nil (ref_bp) ||
        eb->find_source_boundary (bp) == eb->find_source_boundary (ref_bp));
@@ -172,6 +182,7 @@ edit_cursor_rep::cursor_move_sub (SI& x0, SI& y0, SI& d0, SI dx, SI dy) {
       }
       else {  // exceptional case
         ref_p= tree_path (sp, x0, y0, d0- dx*DELTA, &ref_affinity, &ref_bp);
+        if (is_nil (ref_p)) throw pending_hit {};
         for (i=1; i<DELTA; i=i<<1)
           if (same_position (x0, y0, d0- dx*i)) break;
         for (d=i>>2; d>=1; d=d>>1)
@@ -182,18 +193,21 @@ edit_cursor_rep::cursor_move_sub (SI& x0, SI& y0, SI& d0, SI dx, SI dy) {
   }
 
   path bp;
-  tp= tree_path (sp, x0, y0, d0, &cu->affinity, &bp);
+  const path target= tree_path (sp, x0, y0, d0, &cu->affinity, &bp);
+  if (is_nil (target)) throw pending_hit {};
+  tp= target;
   remember_cursor_display (bp);
   return true;
+  }
+  catch (const pending_hit&) {
+    x0= original_x; y0= original_y; d0= original_delta;
+    return {};
+  }
 }
 
-void
+std::optional<bool>
 edit_cursor_rep::cursor_move (SI dx, SI dy) {
-  //time_t t1= texmacs_time ();
-  //stretched_print ((tree) eb, false);
-  cursor_move_sub (mv->ox, mv->oy, mv->delta, dx, dy);
-  //time_t t2= texmacs_time ();
-  //if (t2 - t1 >= 10) cout << "cursor_move took " << t2-t1 << "ms\n";
+  return cursor_move_sub (mv->ox, mv->oy, mv->delta, dx, dy);
 }
 
 /******************************************************************************
@@ -226,50 +240,44 @@ edit_cursor_rep::notify_cursor_moved (int status) {
 
 void
 edit_cursor_rep::go_to (SI x, SI y, bool absolute) {
-  if (has_changed (THE_TREE+THE_ENVIRONMENT)) return;
+  (void) move_to_physical (x, y, absolute);
+}
+
+bool
+edit_cursor_rep::move_to_physical (SI x, SI y, bool absolute) {
+  if (has_changed (THE_TREE+THE_ENVIRONMENT)) return false;
   path bp;
-  tp= tree_path (absolute? path (): find_innermost_scroll (eb, tp),
-                 x, y, 0, &cu->affinity, &bp);
+  const path target= tree_path (absolute? path (): find_innermost_scroll (eb, tp),
+                              x, y, 0, &cu->affinity, &bp);
+  if (is_nil (target)) return false;
+  tp= target;
   remember_cursor_display (bp);
   notify_cursor_moved (CENTER);
   mv->ox   = x;
   mv->oy   = y;
   mv->delta= 0;
+  return true;
 }
 
 void
 edit_cursor_rep::go_left_physical () {
-  if (has_changed (THE_TREE+THE_ENVIRONMENT)) return;
-  adjust_ghost_cursor (VERTICAL);
-  cursor_move (-1, 0);
-  notify_cursor_moved (HORIZONTAL);
-  select_from_cursor_if_active ();
+  (void) move_horizontal_physical (false);
 }
 
 void
 edit_cursor_rep::go_right_physical () {
-  if (has_changed (THE_TREE+THE_ENVIRONMENT)) return;
-  adjust_ghost_cursor (VERTICAL);
-  cursor_move (1, 0);
-  notify_cursor_moved (HORIZONTAL);
-  select_from_cursor_if_active ();
+  (void) move_horizontal_physical (true);
 }
 
 bool
-edit_cursor_rep::physical_border_jump_skips_accessible_child (
-  path old_path, path new_path, bool forwards,
-  const athena::contracts::contract_scope& contracts) {
-  path parent= path_up (old_path);
-  if (!(rp <= parent) || !has_subtree (et, parent)) return false;
-  tree st= subtree (et, parent);
-  bool has_accessible_child= false;
-  for (int i=0; i<N(st); ++i)
-    has_accessible_child |= athena::contracts::editing_query {contracts}.accessible (st, i);
-  if (!has_accessible_child) return false;
-  if (forwards)
-    return old_path == parent * 0 &&
-           new_path == parent * right_index (st);
-  return old_path == parent * right_index (st) && new_path == parent * 0;
+edit_cursor_rep::move_horizontal_physical (bool forwards) {
+  if (has_changed (THE_TREE+THE_ENVIRONMENT)) return false;
+  const cursor original= copy (mv);
+  adjust_ghost_cursor (VERTICAL);
+  if (!cursor_move (forwards ? 1 : -1, 0)) { mv= original; return false; }
+  notify_cursor_moved (HORIZONTAL);
+  select_from_cursor_if_active ();
+  return true;
 }
 
 void
@@ -277,10 +285,11 @@ edit_cursor_rep::go_up () {
   if (has_changed (THE_TREE+THE_ENVIRONMENT)) return;
   path scroll_p= find_innermost_scroll (eb, tp);
   path start_p= tree_path (scroll_p, -(1 << 30), 1 << 30, 0);
-  if (tp == start_p) return;
+  if (is_nil (start_p) || tp == start_p) return;
   path old_p= tp;
+  const cursor original= copy (mv);
   adjust_ghost_cursor (HORIZONTAL);
-  cursor_move (0, 1);
+  if (!cursor_move (0, 1)) { mv= original; return; }
   notify_cursor_moved (VERTICAL);
   if (tp == old_p) tp= start_p;
   select_from_cursor_if_active ();
@@ -291,10 +300,11 @@ edit_cursor_rep::go_down () {
   if (has_changed (THE_TREE+THE_ENVIRONMENT)) return;
   path scroll_p= find_innermost_scroll (eb, tp);
   path end_p= tree_path (scroll_p, 1 << 30, -(1 << 30), 0);
-  if (tp == end_p) return;
+  if (is_nil (end_p) || tp == end_p) return;
   path old_p= tp;
+  const cursor original= copy (mv);
   adjust_ghost_cursor (HORIZONTAL);
-  cursor_move (0, -1);
+  if (!cursor_move (0, -1)) { mv= original; return; }
   notify_cursor_moved (VERTICAL);
   if (tp == old_p) tp= end_p;
   select_from_cursor_if_active ();
@@ -336,73 +346,64 @@ edit_cursor_rep::go_page_down () {
 
 void
 edit_cursor_rep::go_left () {
-  if (has_changed (THE_TREE+THE_ENVIRONMENT)) return;
-  path old_tp= copy (tp);
-  const auto old_context= editor_rep::cursor_context_at (old_tp);
-  const auto& contracts= old_context ? old_context->contract_context () : contract_state.contracts;
-  const auto old_affinity= cu->affinity;
-  const auto old_boundary= cursor_source_boundary ();
-  go_left_physical ();
-  if (tp == old_tp && (cu->affinity != old_affinity ||
-                      cursor_source_boundary () != old_boundary)) return;
-  path parent= path_up (old_tp);
-  bool skipped_accessible_child=
-    !in_source () &&
-    physical_border_jump_skips_accessible_child (old_tp, tp, false, contracts);
-  if (tp != old_tp && !skipped_accessible_child &&
-      cursor_is_accessible () &&
-      inside_contiguous_document (et, old_tp, tp)) return;
-  if (!in_source () && rp <= parent) {
-    tree st= subtree (et, parent);
-    bool has_accessible_child= false;
-    for (int i=0; i<N(st); ++i)
-      has_accessible_child |= athena::contracts::editing_query {contracts}.accessible (st, i);
-    path left_border= parent * 0;
-    if (!has_accessible_child && old_tp == parent * right_index (st) &&
-        cursor_navigation ({contracts}).is_accessible_cursor (et, left_border)) {
-      go_to (left_border);
-      select_from_cursor_if_active ();
-      return;
-    }
-  }
-  path p= make_cursor_accessible (previous_valid (et, old_tp), false);
-  if (rp < p) go_to (p);
-  select_from_cursor_if_active ();
+  go_horizontal (false);
 }
 
 void
 edit_cursor_rep::go_right () {
+  go_horizontal (true);
+}
+
+void
+edit_cursor_rep::go_horizontal (bool forwards) {
   if (has_changed (THE_TREE+THE_ENVIRONMENT)) return;
-  path old_tp= copy (tp);
+  const path old_tp= copy (tp), parent= path_up (tp);
   const auto old_context= editor_rep::cursor_context_at (old_tp);
-  const auto& contracts= old_context ? old_context->contract_context () : contract_state.contracts;
+  if (!old_context) return;
+  const bool source= old_context->effective_value (MODE) == "src" ||
+                    old_context->effective_value (PREAMBLE) == "true";
+  const std::optional<path> display= cursor_display_root == eb &&
+      cursor_display_source == tp && !is_nil (cursor_display_path) ?
+    std::optional<path> (cursor_display_path) : std::nullopt;
+  const cursor old_cu= copy (cu), old_mv= copy (mv);
   const auto old_affinity= cu->affinity;
   const auto old_boundary= cursor_source_boundary ();
-  go_right_physical ();
-  if (tp == old_tp && (cu->affinity != old_affinity ||
-                      cursor_source_boundary () != old_boundary)) return;
-  path parent= path_up (old_tp);
-  bool skipped_accessible_child=
-    !in_source () &&
-    physical_border_jump_skips_accessible_child (old_tp, tp, true, contracts);
-  if (tp != old_tp && !skipped_accessible_child &&
-      cursor_is_accessible () &&
-      inside_contiguous_document (et, old_tp, tp)) return;
-  if (!in_source () && rp <= parent) {
-    tree st= subtree (et, parent);
-    bool has_accessible_child= false;
-    for (int i=0; i<N(st); ++i)
-      has_accessible_child |= athena::contracts::editing_query {contracts}.accessible (st, i);
-    path right_border= parent * right_index (st);
-    if (!has_accessible_child && old_tp == parent * 0 &&
-        cursor_navigation ({contracts}).is_accessible_cursor (et, right_border)) {
-      go_to (right_border);
-      select_from_cursor_if_active ();
-      return;
-    }
+  const tree st= subtree (et, parent);
+  bool has_accessible_child= false;
+  if (!source && is_compound (st) && !with_admitted_navigation (*old_context,
+      [&] (const cursor_navigation& navigation) {
+        const auto entry= navigation.at (parent / rp);
+        for (int i=0; i<N(st); ++i)
+          has_accessible_child |= entry.contracts ().accessible (st, i);
+      }, display)) return;
+  adjust_ghost_cursor (VERTICAL);
+  if (!cursor_move (forwards ? 1 : -1, 0)) { mv= old_mv; return; }
+  const path near_border= parent * (forwards ? 0 : right_index (st));
+  const path far_border= parent * (forwards ? right_index (st) : 0);
+  const bool skipped_child= !source && has_accessible_child &&
+    old_tp == near_border && tp == far_border;
+  // Physical movement already admitted the hit and its field permissions.
+  if ((tp == old_tp && (cu->affinity != old_affinity ||
+                       cursor_source_boundary () != old_boundary)) ||
+      (tp != old_tp && !skipped_child && inside_contiguous_document (et, old_tp, tp))) {
+    notify_cursor_moved (HORIZONTAL);
+    select_from_cursor_if_active ();
+    return;
   }
-  path p= make_cursor_accessible (next_valid (et, old_tp), true);
-  if (rp < p) go_to (p);
+  path target;
+  if (!with_admitted_navigation (*old_context, [&] (const cursor_navigation& navigation) {
+    tree body= subtree (et, rp);
+    if (!source && !has_accessible_child && old_tp == near_border &&
+        navigation.is_accessible_cursor (body, far_border / rp)) target= far_border;
+    else target= make_cursor_accessible (
+      rp * navigation.move_valid (body, old_tp / rp, forwards), forwards, navigation);
+  }, display)) {
+    tp= old_tp; cu= old_cu; mv= old_mv;
+    remember_cursor_display (display ? *display : path ());
+    return;
+  }
+  if (rp < target) go_to (target);
+  else notify_cursor_moved (HORIZONTAL);
   select_from_cursor_if_active ();
 }
 
@@ -418,7 +419,7 @@ edit_cursor_rep::go_start_line () {
     path old_display= cursor_display_path;
     const auto old_boundary= cursor_source_boundary ();
     adjust_ghost_cursor (VERTICAL);
-    cursor_move (-1, 0);
+    if (!cursor_move (-1, 0)) { mv= old_mv; return; }
     if (first_pass) notify_cursor_moved (HORIZONTAL);
     if ((tp == old_tp && cu->affinity == old_cu->affinity &&
          cursor_source_boundary () == old_boundary) ||
@@ -447,7 +448,7 @@ edit_cursor_rep::go_end_line () {
     path old_display= cursor_display_path;
     const auto old_boundary= cursor_source_boundary ();
     adjust_ghost_cursor (VERTICAL);
-    cursor_move (1, 0);
+    if (!cursor_move (1, 0)) { mv= old_mv; return; }
     if (first_pass) notify_cursor_moved (HORIZONTAL);
     if ((tp == old_tp && cu->affinity == old_cu->affinity &&
          cursor_source_boundary () == old_boundary) ||
@@ -474,24 +475,28 @@ edit_cursor_rep::adjust_cursor () {
   cursor mv= copy (cu);
   SI dx= PIXEL << 8, ddelta= 0;
   path p= tree_path (sp, mv->ox, mv->oy, mv->delta);
+  if (is_nil (p)) return;
   if (p != tp) {
     // cout << "Cursors don't match\n";
     while (dx != 0 || ddelta != 0) {
       // cout << "  " << tp << ", " << p << "\n";
       p= tree_path (sp, mv->ox, mv->oy, mv->delta);
+      if (is_nil (p)) return;
       int eps= (path_inf (p, tp)? 1: -1);
       if (p == tp) eps= (mv->ox < cu->ox? 1: -1);
       if (p == tp && mv->ox == cu->ox) eps= (mv->delta < cu->delta? 1: -1);
       if (dx > 0) {
-        if (p != tp ||
-            tree_path (sp, mv->ox + eps * dx, mv->oy, mv->delta) == tp)
+        const path candidate= p != tp ? p : tree_path (sp, mv->ox + eps * dx, mv->oy, mv->delta);
+        if (is_nil (candidate)) return;
+        if (p != tp || candidate == tp)
           mv->ox += eps * dx;
         dx >>= 1;
         if (dx == 0) ddelta= DELTA;
       }
       else if (ddelta > 0) {
-        if (p != tp ||
-            tree_path (sp, mv->ox, mv->oy, mv->delta + eps * ddelta) == tp)
+        const path candidate= p != tp ? p : tree_path (sp, mv->ox, mv->oy, mv->delta + eps * ddelta);
+        if (is_nil (candidate)) return;
+        if (p != tp || candidate == tp)
           mv->delta += eps * ddelta;
         ddelta >>= 1;
       }
@@ -503,12 +508,16 @@ edit_cursor_rep::adjust_cursor () {
 void
 edit_cursor_rep::go_to_here () {
   cu= current_display_cursor (cu->affinity);
-  if (!cu->valid || !valid_cursor (et, tp)) {
-    tp= super_correct (et, tp);
-    cu= current_display_cursor ();
-  }
-  if (!cu->valid || !valid_cursor (et, tp)) {
-    tp= make_cursor_accessible (tp, false);
+  const auto context= editor_rep::cursor_context_at (tp);
+  path corrected= tp;
+  if (context && with_admitted_navigation (*context, [&] (const cursor_navigation& navigation) {
+    tree body= subtree (et, rp);
+    if (!cu->valid || !navigation.valid_cursor (body, corrected / rp))
+      corrected= rp * navigation.super_correct (body, corrected / rp);
+    if (!cu->valid || !navigation.valid_cursor (body, corrected / rp))
+      corrected= make_cursor_accessible (corrected, false, navigation);
+  }) && corrected != tp) {
+    tp= corrected;
     cu= current_display_cursor ();
   }
   if (cu->valid) adjust_cursor ();
@@ -559,8 +568,10 @@ edit_cursor_rep::go_to (path p) {
 
 void
 edit_cursor_rep::go_to_correct (path p) {
-  p= correct_cursor (et, p);
-  go_to (p);
+  // Mutation observers need structural correction before a new layout exists.
+  // Invocation-specific borders are applied by go_to_here after admission.
+  const cursor_navigation structural ({athena::contracts::builtin_contracts ()});
+  go_to (rp * structural.correct_cursor (subtree (et, rp), p / rp));
 }
 
 void
@@ -663,24 +674,15 @@ search_label (tree t, string which) {
 
 bool
 edit_cursor_rep::cursor_is_accessible () {
-  using athena::contracts::access_policy;
   const auto boundary= cursor_source_boundary ();
   const auto context= editor_rep::cursor_context_at (tp);
-  const auto access= context && (context->effective_value (MODE) == "src" ||
-      context->effective_value (PREAMBLE) == "true") ?
-    access_policy::source : access_policy::normal;
-  const cursor_navigation navigation ({context ? context->contract_context () : contract_state.contracts, access});
-  if (boundary && context && cursor_occurrence_admitted (tp, boundary))
-    return navigation.is_mapped_cursor (et, tp);
-  return navigation.is_accessible_cursor (et, tp);
-}
-
-void
-edit_cursor_rep::show_cursor_if_hidden () {
-  if (!cursor_is_accessible () && !in_source ()) {
-    eval ("(use-modules (utils edit variants))");
-    eval ("(cursor-show-hidden)");
-  }
+  bool accessible= false;
+  if (!context || !with_admitted_navigation (*context, [&] (const cursor_navigation& navigation) {
+    tree body= subtree (et, rp);
+    accessible= boundary && cursor_occurrence_admitted (tp, boundary) ?
+      navigation.is_mapped_cursor (body, tp / rp) : navigation.is_accessible_cursor (body, tp / rp);
+  })) throw std::runtime_error ("Cursor accessibility is awaiting layout");
+  return accessible;
 }
 
 path

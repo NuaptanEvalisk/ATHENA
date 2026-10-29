@@ -11,6 +11,7 @@
 
 #include "edit_table.hpp"
 #include "Env/local_environment.hpp"
+#include <stdexcept>
 
 /******************************************************************************
 * Constructors and destructors
@@ -22,14 +23,17 @@ edit_table_rep::~edit_table_rep () {}
 edit_table_rep::table_context_scope::table_context_scope (edit_table_rep& owner, path format):
   owner (owner), previous_path (owner.table_context_path), previous (owner.table_context) {
   if (owner.table_context && owner.table_context_path == format) return;
+  auto prepared= owner.editor_rep::cursor_context_at (format * 0);
+  if (!prepared) throw std::runtime_error ("Table context is awaiting layout");
   owner.table_context_path= format;
-  owner.table_context= owner.editor_rep::cursor_context_at (format * 0);
+  owner.table_context= std::move (prepared);
 }
 
 edit_table_rep::table_context_scope::table_context_scope (
     edit_table_rep& owner, path format,
     std::shared_ptr<const evaluation_environment_checkpoint> prepared):
   owner (owner), previous_path (owner.table_context_path), previous (owner.table_context) {
+  if (!prepared) throw std::runtime_error ("Table context is awaiting layout");
   owner.table_context_path= format;
   owner.table_context= std::move (prepared);
 }
@@ -43,9 +47,16 @@ tree
 edit_table_rep::table_environment_value (path format, string variable) {
   const auto context= table_context && table_context_path == format ? table_context :
     editor_rep::cursor_context_at (format * 0);
-  if (context) return context->effective_value (variable);
-  // New table macros and decoration payloads still need explicit preparation.
-  return get_env_value (variable, format * 0);
+  if (!context) throw std::runtime_error ("Table context is awaiting layout");
+  return context->effective_value (variable);
+}
+
+void
+edit_table_rep::with_table_context (const std::function<void ()>& action) {
+  const path format= search_format ();
+  if (is_nil (format)) return;
+  table_context_scope context (*this, format);
+  with_selection_context (action);
 }
 
 /******************************************************************************
@@ -835,9 +846,12 @@ shift_subtable (tree st, int sh_row, int sh_col) {
 
 void
 edit_table_rep::table_write_subtable (
-  path fp, int row, int col, tree subt)
+  path fp, int row, int col, tree subt,
+  std::shared_ptr<const evaluation_environment_checkpoint> prepared)
 {
-  table_context_scope context (*this, fp);
+  if (!prepared) prepared= table_context && table_context_path == fp ? table_context :
+    editor_rep::cursor_context_at (fp * 0);
+  table_context_scope context (*this, fp, std::move (prepared));
   int sub_rows, sub_cols;
   int min_rows, min_cols, max_rows, max_cols;
   ::table_get_extents (subt, sub_rows, sub_cols);
@@ -1080,6 +1094,10 @@ edit_table_rep::make_table (int nr_rows, int nr_cols,
     std::shared_ptr<const evaluation_environment_checkpoint> insertion) {
   //cout << "make_table " << nr_rows << ", " << nr_cols << "\n";
   if (!insertion) insertion= editor_rep::cursor_context_at (tp);
+  if (!insertion) {
+    set_message ("Table insertion is awaiting layout", "Table insertion");
+    return;
+  }
   tree T= empty_table (nr_rows, nr_cols);
   path p (0, 0, 0, 0);
   tree format_T (TFORMAT, T);
@@ -1119,6 +1137,7 @@ edit_table_rep::make_table (int nr_rows, int nr_cols,
     }
   }
 
+  table_context_scope relocated (*this, search_format (), insertion);
   table_correct_block_content ();
   set_message (concat (kbd_shortcut ("(structured-insert-down)"),
                        ": new row",
@@ -1131,19 +1150,25 @@ void
 edit_table_rep::make_subtable (int nr_rows, int nr_cols) {
   path cp= search_upwards (CELL);
   if (is_nil (cp)) return;
-  const auto insertion= editor_rep::cursor_context_at (tp);
+  int row, col;
+  path parent= search_format (row, col);
+  if (is_nil (parent)) return;
+  table_context_scope context (*this, parent);
+  const tree block= table_get_format (parent, row+1, col+1, row+1, col+1, CELL_BLOCK);
+  const tree hyphen= table_get_format (parent, row+1, col+1, row+1, col+1, CELL_HYPHEN);
+  const bool document= block == "yes" || (block == "auto" && is_atomic (hyphen) && hyphen != "n");
   tree T= empty_table (nr_rows, nr_cols);
+  if (document)
+    for (int i=0; i<nr_rows; ++i)
+      for (int j=0; j<nr_cols; ++j) T[i][j][0]= tree (DOCUMENT, "");
   path p (0, 0, 0, 0);
+  if (document) p= p * 0;
   T= tree (TFORMAT, T);
   p= path (N(T)-1, p);
   T= tree (SUBTABLE, T);
   p= path (0, p);
   assign (cp * 0, T);
   go_to (cp * path (0, p));
-  path fp= search_format ();
-  if (is_nil (fp)) return;
-  table_context_scope context (*this, fp, insertion);
-  table_correct_block_content ();
   set_message (concat (kbd_shortcut ("(structured-insert-down)"),
                        ": new row",
                        kbd_shortcut ("(structured-insert-right)"),

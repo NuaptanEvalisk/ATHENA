@@ -1243,6 +1243,12 @@
   <binding name="make-cd" native="athena_make_commutative_diagram" returns="void" />
   <binding name="in-commutative-diagram?" native="athena_in_commutative_diagramP" returns="bool" />
   <binding name="graphics-selection-active?" native="athena_graphics_selection_activeP" returns="bool" />
+  <binding name="native-graphics-grid-query" native="native_graphics_grid_query" returns="scheme_tree" exceptions="scheme">
+    <arg type="string" /><arg type="bool" />
+  </binding>
+  <binding name="native-graphics-grid-command" native="native_graphics_grid_command" returns="void" exceptions="scheme">
+    <arg type="string" /><arg type="scheme_tree" /><arg type="bool" />
+  </binding>
   <binding name="native-graphics-edit-props-active?" native="athena_graphics_edit_props_activeP" returns="bool" />
   <binding name="native-graphics-selection-supports-property?" native="athena_graphics_selection_supports_propertyP" returns="bool"><arg type="string" /></binding>
   <binding name="graphics-get-property" native="athena_graphics_get_property" returns="scheme_tree"><arg type="string" /></binding>

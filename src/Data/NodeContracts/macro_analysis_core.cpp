@@ -99,7 +99,9 @@ struct usage {
 };
 
 void dependencies (const tree& source, std::set<std::string>& result,
-                   const std::map<tree_label, std::string>& symbols) {
+                   const std::map<tree_label, std::string>& symbols,
+                   const std::atomic<bool>* cancelled) {
+  check_cancelled (cancelled);
   if (is_atomic (source)) return;
   result.insert (symbols.at (L(source)));
   if (is_func (source, MACRO) || is_func (source, XMACRO)) return;
@@ -110,10 +112,13 @@ void dependencies (const tree& source, std::set<std::string>& result,
   if (is_func (source, MAP_ARGS) && N(source) >= 3)
     for (int i=0; i<2; ++i)
       if (is_atomic (source[i])) result.insert (bytes (source[i]->label));
-  for (int i=0; i<N(source); ++i) dependencies (source[i], result, symbols);
+  for (int i=0; i<N(source); ++i)
+    dependencies (source[i], result, symbols, cancelled);
 }
 
-int minimal_arguments (const tree& source, const tree& formal) {
+int minimal_arguments (const tree& source, const tree& formal,
+                       const std::atomic<bool>* cancelled) {
+  check_cancelled (cancelled);
   if (is_atomic (source) || is_func (source, MACRO) || is_func (source, XMACRO)) return 0;
   if (is_func (source, ARG, 2) && source[0] == formal && is_int (source[1]))
     return as_int (source[1]) + 1;
@@ -125,7 +130,7 @@ int minimal_arguments (const tree& source, const tree& formal) {
   }
   int count= 0;
   for (int i=0; i<N(source); ++i)
-    count= std::max (count, minimal_arguments (source[i], formal));
+    count= std::max (count, minimal_arguments (source[i], formal, cancelled));
   return count;
 }
 
@@ -213,6 +218,21 @@ struct macro_analysis_core::impl {
   std::map<std::string, definition> definitions;
   std::map<std::string, std::set<std::string>> dependants;
   std::set<std::string> dirty;
+  struct batch {
+    enum class phase { symbols, contracts, definitions, removals, closure,
+                       signatures, reset, evaluate, output };
+    phase current= phase::symbols;
+    macro_analysis_input input;
+    std::size_t offset= 0;
+    std::deque<std::string> queue;
+    std::set<std::string> queued, removed;
+    std::set<std::string>::const_iterator next;
+    std::vector<analysis_contract_result> output;
+    explicit batch (macro_analysis_input value): input (std::move (value)),
+      removed (input.removed.begin (), input.removed.end ()) {}
+    void advance (phase value) { current= value; offset= 0; }
+  };
+  std::unique_ptr<batch> active;
 
   void remember_symbol (tree_label label) {
     if (symbols.count (label)) return;
@@ -235,7 +255,10 @@ struct macro_analysis_core::impl {
         for (int i=0; i<(L(value) == MAP_ARGS ? 2 : 1) && i<N(value); ++i)
           if (is_atomic (value[i]) && existing_tree_label (value[i]->label))
             remember_symbol (as_tree_label (value[i]->label));
-      for (int i=0; i<N(value); ++i) pending.push_back (&value[i]);
+      for (int i=0; i<N(value); ++i) {
+        check_cancelled (cancelled);
+        pending.push_back (&value[i]);
+      }
     }
   }
 
@@ -292,9 +315,11 @@ struct macro_analysis_core::impl {
   }
 
   usage argument (const tree& value, const tree& formal,
-                  const environment& context, int expected= TYPE_UNKNOWN,
+                  const environment& context, const std::atomic<bool>* cancelled,
+                  int expected= TYPE_UNKNOWN,
                   bool visible= true, bool guaranteed= true,
                   bool ready= true, bool ambiguous_type= false) const {
+    check_cancelled (cancelled);
     usage result;
     if (is_atomic (value)) return result;
     if (value == formal || (is_func (value, QUOTE_ARG, 1) &&
@@ -310,10 +335,10 @@ struct macro_analysis_core::impl {
     }
     if (is_func (value, MACRO) || is_func (value, XMACRO)) return result;
     if ((is_func (value, IF) || is_func (value, VAR_IF)) && N(value) >= 2) {
-      usage first= argument (value[1], formal, context, expected, visible, guaranteed, ready, ambiguous_type);
+      usage first= argument (value[1], formal, context, cancelled, expected, visible, guaranteed, ready, ambiguous_type);
       usage second;
       if (N(value) == 3)
-        second= argument (value[2], formal, context, expected, visible, guaranteed, ready, ambiguous_type);
+        second= argument (value[2], formal, context, cancelled, expected, visible, guaranteed, ready, ambiguous_type);
       result.join (first);
       result.join (second);
       result.guaranteed= first.guaranteed && second.guaranteed;
@@ -322,12 +347,12 @@ struct macro_analysis_core::impl {
     if (is_func (value, CASE) && N(value) >= 2) {
       bool all= (N(value) & 1) != 0;
       for (int i=1; i<N(value); i+=2) {
-        const auto branch= argument (value[i], formal, context, expected, visible, guaranteed, ready, ambiguous_type);
+        const auto branch= argument (value[i], formal, context, cancelled, expected, visible, guaranteed, ready, ambiguous_type);
         all= all && branch.guaranteed;
         result.join (branch);
       }
       if (N(value) & 1) {
-        const auto branch= argument (value[N(value)-1], formal, context, expected, visible, guaranteed, ready, ambiguous_type);
+        const auto branch= argument (value[N(value)-1], formal, context, cancelled, expected, visible, guaranteed, ready, ambiguous_type);
         all= all && branch.guaranteed;
         result.join (branch);
       }
@@ -337,10 +362,12 @@ struct macro_analysis_core::impl {
     if (is_func (value, WITH) && N(value) > 0) {
       environment local= context;
       bool dynamic= false;
-      for (int i=0; i+1<N(value); i+=2)
+      for (int i=0; i+1<N(value); i+=2) {
+        check_cancelled (cancelled);
         if (is_atomic (value[i])) local[bytes (value[i]->label)]= value[i+1];
         else dynamic= true;
-      result= argument (value[N(value)-1], formal, local, expected, visible, guaranteed, ready, ambiguous_type);
+      }
+      result= argument (value[N(value)-1], formal, local, cancelled, expected, visible, guaranteed, ready, ambiguous_type);
       result.dynamic_environment |= dynamic;
       return result;
     }
@@ -354,13 +381,13 @@ struct macro_analysis_core::impl {
       }
       const int last= N(value)-1;
       return argument (value[last], formal, child_environment (value, last, local),
-                       expected, visible, guaranteed, ready, ambiguous_type);
+                       cancelled, expected, visible, guaranteed, ready, ambiguous_type);
     }
     if (is_func (value, COMPOUND) && N(value) > 0 && is_atomic (value[0])) {
       const auto found= labels.find (bytes (value[0]->label));
       if (found == labels.end ()) return result;
       const tree expanded (found->second, A (value (1, N(value))));
-      return argument (expanded, formal, context, expected, visible, guaranteed, ready, ambiguous_type);
+      return argument (expanded, formal, context, cancelled, expected, visible, guaranteed, ready, ambiguous_type);
     }
     if (is_func (value, MAP_ARGS) && N(value) >= 3 && value[2] == formal[0]) {
       if (!is_atomic (value[0]) || !is_atomic (value[1]) ||
@@ -387,14 +414,16 @@ struct macro_analysis_core::impl {
                                    outer_info.layout.extra+1);
       bool all= true, any= false;
       for (int count=first_count; count<=last_count; ++count) {
+        check_cancelled (cancelled);
         if (!outer_info.layout.accepts (count)) continue;
         tree expansion (outer, count);
         for (int i=0; i<count; ++i) {
+          check_cancelled (cancelled);
           const tree forwarded (ARG, value[2], as_string (start+i));
           expansion[i]= value[0] == "identity" ? forwarded :
             tree (labels.at (bytes (value[0]->label)), forwarded, as_string (start+i));
         }
-        const auto branch= argument (expansion, formal, context, expected,
+        const auto branch= argument (expansion, formal, context, cancelled, expected,
                                      visible, guaranteed, ready, ambiguous_type);
         result.join (branch);
         all= all && branch.guaranteed;
@@ -405,6 +434,7 @@ struct macro_analysis_core::impl {
     }
     const auto& info= descriptor (value);
     for (int i=0; i<N(value); ++i) {
+      check_cancelled (cancelled);
       const int index= info.layout.index (i, N(value));
       if (index < 0 || index >= int(info.children.size ())) continue;
       const auto& field= info.children[index];
@@ -416,19 +446,21 @@ struct macro_analysis_core::impl {
         if (const auto* inferred= inferred_field (value, index))
           certain= certain && inferred->guaranteed;
       result.join (argument (value[i], formal, child_environment (value, i, context),
-                             type, access, certain, ready && context_ready (value, index),
+                             cancelled, type, access, certain, ready && context_ready (value, index),
                              field.analysis.type == inference_state::ambiguous));
     }
     return result;
   }
 
-  bool with_like (const tree& value, const tree& formal) const {
+  bool with_like (const tree& value, const tree& formal,
+                  const std::atomic<bool>* cancelled) const {
+    check_cancelled (cancelled);
     if (value == tree (ARG, formal)) return true;
     if (is_atomic (value)) return false;
     if ((is_func (value, IF) || is_func (value, VAR_IF)) && N(value) == 3)
-      return with_like (value[1], formal) && with_like (value[2], formal);
+      return with_like (value[1], formal, cancelled) && with_like (value[2], formal, cancelled);
     return N(value)>0 && descriptor (value).with_like &&
-      with_like (value[N(value)-1], formal);
+      with_like (value[N(value)-1], formal, cancelled);
   }
 
   void reset (const std::string& name) {
@@ -452,14 +484,15 @@ struct macro_analysis_core::impl {
     }
   }
 
-  void initialize_signature (const std::string& name, definition& definition) {
+  void initialize_signature (const std::string& name, definition& definition,
+                             const std::atomic<bool>* cancelled) {
     const tree value= definition.source;
     auto& info= contracts[name];
     if (info.layout_origin == property_authority::inferred) {
       if (is_func (value, MACRO) && N(value)>0)
         info.layout= {N(value)-1, 0, arity_kind::fixed, field_mapping::detailed};
       else if (is_func (value, XMACRO, 2))
-        info.layout= {minimal_arguments (value[1], value[0]), 1,
+        info.layout= {minimal_arguments (value[1], value[0], cancelled), 1,
                        arity_kind::repeated_suffix, field_mapping::detailed};
       else info.layout= {};
       info.children.resize (info.layout.fields ());
@@ -470,7 +503,8 @@ struct macro_analysis_core::impl {
     definition.fields.resize (info.children.size ());
   }
 
-  bool evaluate (const std::string& name, definition& definition) {
+  bool evaluate (const std::string& name, definition& definition,
+                 const std::atomic<bool>* cancelled) {
     auto& info= contracts.at (name);
     if (!needs_analysis (info)) return false;
     const auto before= info;
@@ -491,14 +525,15 @@ struct macro_analysis_core::impl {
         infer (info.variable_type, VAR_MACRO_PARAMETER, info.variable_type_origin);
       }
       infer (info.type, type, info.type_origin);
-      infer (info.with_like, macro && last>0 && with_like (value[last], value[last-1]),
+      infer (info.with_like, macro && last>0 && with_like (value[last], value[last-1], cancelled),
              info.with_origin);
       for (int i=0; i<int(definition.fields.size ()); ++i) {
+        check_cancelled (cancelled);
         if (macro && i>=last) break;
         const tree formal= macro ? tree (ARG, value[i]) : tree (ARG, value[0], as_string (i));
         auto& usage= definition.fields[i];
         auto& child= info.children[i];
-        usage.join (argument (value[last], formal, environment {}));
+        usage.join (argument (value[last], formal, environment {}, cancelled));
         infer (child.type, usage.type (), child.type_origin);
         infer (child.access, usage.visible ? ACCESSIBLE_ALWAYS : ACCESSIBLE_NEVER,
                child.access_origin);
@@ -550,71 +585,123 @@ struct macro_analysis_core::impl {
     return before != info || previous_fields != definition.fields;
   }
 
-  std::vector<analysis_contract_result> apply (macro_analysis_input input,
-                                              const std::atomic<bool>* cancelled) {
-    for (auto& [label, name]: input.symbols) {
-      symbols[label]= name;
-      labels[name]= label;
-    }
-    for (const auto& item: input.contracts) {
-      contracts[item.name]= contract (item);
-      dirty.insert (item.name);
-    }
-    for (const auto& item: input.changed) {
-      check_cancelled (cancelled);
+  bool step (const std::atomic<bool>* cancelled) {
+    auto& work= *active;
+    auto& input= work.input;
+    using phase= batch::phase;
+    check_cancelled (cancelled);
+    switch (work.current) {
+    case phase::symbols:
+      if (input.symbols.empty ()) work.advance (phase::contracts);
+      else {
+        const auto item= input.symbols.begin ();
+        symbols[item->first]= item->second;
+        labels[item->second]= item->first;
+        input.symbols.erase (item);
+      }
+      break;
+    case phase::contracts:
+      if (work.offset == input.contracts.size ()) work.advance (phase::definitions);
+      else {
+        const auto& item= input.contracts[work.offset++];
+        contracts[item.name]= contract (item);
+        dirty.insert (item.name);
+      }
+      break;
+    case phase::definitions: {
+      if (work.offset == input.changed.size ()) { work.advance (phase::removals); break; }
+      const auto& item= input.changed[work.offset++];
       auto& definition= definitions[item.name];
-      for (const auto& dependency: definition.dependencies)
+      for (const auto& dependency: definition.dependencies) {
+        check_cancelled (cancelled);
         dependants[dependency].erase (item.name);
+      }
       definition.source= tree (item.expression);
       const tree& value= definition.source;
       discover_symbols (value, cancelled);
       definition.dependencies.clear ();
       if ((is_func (value, MACRO) || is_func (value, XMACRO)) && N(value)>0)
-        dependencies (value[N(value)-1], definition.dependencies, symbols);
-      else dependencies (value, definition.dependencies, symbols);
-      for (const auto& dependency: definition.dependencies)
+        dependencies (value[N(value)-1], definition.dependencies, symbols, cancelled);
+      else dependencies (value, definition.dependencies, symbols, cancelled);
+      for (const auto& dependency: definition.dependencies) {
+        check_cancelled (cancelled);
         dependants[dependency].insert (item.name);
+      }
       dirty.insert (item.name);
+      break;
     }
-    for (const auto& name: input.removed) {
+    case phase::removals: {
+      if (work.offset == input.removed.size ()) {
+        work.queue.assign (dirty.begin (), dirty.end ());
+        work.advance (phase::closure);
+        break;
+      }
+      const auto& name= input.removed[work.offset++];
       auto found= definitions.find (name);
-      if (found == definitions.end ()) continue;
-      for (const auto& dependency: found->second.dependencies)
+      if (found == definitions.end ()) break;
+      for (const auto& dependency: found->second.dependencies) {
+        check_cancelled (cancelled);
         dependants[dependency].erase (name);
+      }
       definitions.erase (found);
       dirty.insert (name);
+      break;
     }
-    std::deque<std::string> queue (dirty.begin (), dirty.end ());
-    while (!queue.empty ()) {
-      check_cancelled (cancelled);
-      const std::string name= queue.front (); queue.pop_front ();
-      for (const auto& dependant: dependants[name])
-        if (dirty.insert (dependant).second) queue.push_back (dependant);
+    case phase::closure: {
+      if (work.queue.empty ()) {
+        work.next= dirty.begin ();
+        work.advance (phase::signatures);
+        break;
+      }
+      const std::string name= work.queue.front (); work.queue.pop_front ();
+      for (const auto& dependant: dependants[name]) {
+        check_cancelled (cancelled);
+        if (dirty.insert (dependant).second) work.queue.push_back (dependant);
+      }
+      break;
     }
-    for (const auto& name: dirty) {
+    case phase::signatures: {
+      if (work.next == dirty.end ()) {
+        work.next= dirty.begin ();
+        work.advance (phase::reset);
+        break;
+      }
+      const auto& name= *work.next++;
       const auto found= definitions.find (name);
-      if (found != definitions.end ()) initialize_signature (name, found->second);
+      if (found != definitions.end ()) initialize_signature (name, found->second, cancelled);
+      break;
     }
-    for (const auto& name: dirty)
-      if (definitions.count (name) ||
-          std::find (input.removed.begin (), input.removed.end (), name) != input.removed.end ())
-        reset (name);
-    queue.assign (dirty.begin (), dirty.end ());
-    std::set<std::string> queued= dirty;
-    while (!queue.empty ()) {
-      check_cancelled (cancelled);
-      const std::string name= queue.front (); queue.pop_front (); queued.erase (name);
+    case phase::reset: {
+      if (work.next == dirty.end ()) {
+        work.queue.assign (dirty.begin (), dirty.end ());
+        work.queued= dirty;
+        work.advance (phase::evaluate);
+        break;
+      }
+      const auto& name= *work.next++;
+      if (definitions.count (name) || work.removed.count (name)) reset (name);
+      break;
+    }
+    case phase::evaluate: {
+      if (work.queue.empty ()) {
+        work.next= dirty.begin ();
+        work.advance (phase::output);
+        break;
+      }
+      const std::string name= work.queue.front (); work.queue.pop_front (); work.queued.erase (name);
       const auto found= definitions.find (name);
-      if (found == definitions.end () || !evaluate (name, found->second)) continue;
-      for (const auto& dependant: dependants[name])
-        if (dirty.count (dependant) && queued.insert (dependant).second)
-          queue.push_back (dependant);
+      if (found == definitions.end () || !evaluate (name, found->second, cancelled)) break;
+      for (const auto& dependant: dependants[name]) {
+        check_cancelled (cancelled);
+        if (dirty.count (dependant) && work.queued.insert (dependant).second)
+          work.queue.push_back (dependant);
+      }
+      break;
     }
-    std::vector<analysis_contract_result> output;
-    for (const auto& name: dirty) {
-      if (!definitions.count (name) &&
-          std::find (input.removed.begin (), input.removed.end (), name) == input.removed.end ())
-        continue;
+    case phase::output: {
+      if (work.next == dirty.end ()) return true;
+      const auto& name= *work.next++;
+      if (!definitions.count (name) && !work.removed.count (name)) break;
       const auto& info= contracts.at (name);
       analysis_contract_result result {name, info.layout, info.type,
                                         info.variable_type, info.with_like, {}};
@@ -625,22 +712,35 @@ struct macro_analysis_core::impl {
       const auto source= definitions.find (name);
       if (source != definitions.end ())
         result.dependencies.assign (source->second.dependencies.begin (), source->second.dependencies.end ());
-      for (const auto& child: info.children)
+      for (const auto& child: info.children) {
+        check_cancelled (cancelled);
         result.fields.push_back ({child.type, child.access,
           node::frozen_tree (child.environment), child.name, child.analysis,
           child.type_origin, child.access_origin, child.environment_origin});
-      output.push_back (std::move (result));
+      }
+      work.output.push_back (std::move (result));
+      break;
     }
-    dirty.clear ();
-    return output;
+    }
+    return false;
   }
 };
 
 macro_analysis_core::macro_analysis_core (): state (std::make_unique<impl> ()) {}
 macro_analysis_core::~macro_analysis_core ()= default;
-std::vector<analysis_contract_result>
-macro_analysis_core::apply (macro_analysis_input input, const std::atomic<bool>* cancelled) {
-  return state->apply (std::move (input), cancelled);
+void macro_analysis_core::begin (macro_analysis_input input) {
+  state->active= std::make_unique<impl::batch> (std::move (input));
 }
-
+std::optional<std::vector<analysis_contract_result>> macro_analysis_core::resume (
+    std::chrono::steady_clock::time_point deadline, const std::atomic<bool>* cancelled) {
+  do {
+    if (state->step (cancelled)) {
+      auto output= std::move (state->active->output);
+      state->active.reset ();
+      state->dirty.clear ();
+      return output;
+    }
+  } while (std::chrono::steady_clock::now () < deadline);
+  return {};
+}
 } // namespace athena::contracts

@@ -22,7 +22,6 @@ protected:
   void wrap_paragraph_concat (path p);
   path prepare_for_insert ();
   void get_deletion_point (path& p, int& l, int& r, tree& t, tree& u, bool f);
-  void remove_structure_upwards (const athena::contracts::contract_scope& contracts);
 
 public:
   edit_text_rep ();

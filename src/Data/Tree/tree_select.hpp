@@ -17,8 +17,10 @@
 bool right_most_inside (path p, tree t);
 path correct_right_most_inside (path p, tree t);
 
-void selection_correct (tree t, path i1, path i2, path& o1, path& o2);
-void selection_correct (const cursor_navigation&, tree t, path i1, path i2, path& o1, path& o2);
+// Mapped endpoints must have been admitted against their physical occurrence.
+// Structural adjustment does not transfer that permission to a different path.
+void selection_correct (const cursor_navigation&, tree t, path i1, path i2, path& o1, path& o2,
+                        bool mapped_i1= false, bool mapped_i2= false);
 tree selection_compute (tree t, path i1, path i2);
 
 path table_search_format (tree t, path p);

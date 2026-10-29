@@ -14,6 +14,7 @@
 #include "convert.hpp"
 #include "tree_select.hpp"
 #include "cursor_navigation.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 #include "Typeset/Env/local_environment.hpp"
 #include "tm_buffer.hpp"
 #include "utf8_edit.hpp"
@@ -25,6 +26,7 @@
 
 #include <filesystem>
 #include <stdexcept>
+#include <vector>
 
 /******************************************************************************
 * Constructor and destructor
@@ -37,21 +39,40 @@ edit_select_rep::edit_select_rep ():
   focus_p (), focus_hold (false) {}
 edit_select_rep::~edit_select_rep () {}
 
+void
+edit_select_rep::with_selection_context (const std::function<void ()>& action) {
+  if (selection_environment) { action (); return; }
+  const auto prepared= editor_rep::cursor_context_at (tp);
+  if (!prepared) throw std::runtime_error ("Selection context is awaiting layout");
+  selection_environment= prepared;
+  try { action (); }
+  catch (...) { selection_environment.reset (); throw; }
+  selection_environment.reset ();
+}
+
+bool
+edit_select_rep::selection_in_source () {
+  if (!selection_environment) return in_source ();
+  return selection_environment->effective_value (MODE) == "src" ||
+         selection_environment->effective_value (PREAMBLE) == "true";
+}
+
 /******************************************************************************
 * Finding a formula root for the Formula AST Viewer
 ******************************************************************************/
 
 path
 edit_select_rep::formula_root (path p) {
-  const auto prepared= editor_rep::cursor_context_at (p);
-  const athena::contracts::editing_query query {
-    prepared ? prepared->contract_context () : contract_state.contracts};
+  std::shared_ptr<const evaluation_environment_checkpoint> document_context;
   while (p != rp) {
-    tree st= subtree (et, path_up (p));
+    path owner= path_up (p);
+    tree st= subtree (et, owner);
     if (path_up (p) != rp && is_func (st, DOCUMENT, 1))
-      st= subtree (et, path_up (p, 2));
+      st= subtree (et, owner= path_up (p, 2));
     if (is_func (st, CELL)) break;
     if (is_compound (st) && N(st) == 1) {
+      const auto prepared= prepare_source_position (owner * 0, document_context);
+      const athena::contracts::editing_query query {prepared->contract_context ()};
       tree env= query.environment (st, 0, tree (ATTR));
       tree mt= athena::contracts::field_environment_read (env, MODE);
       tree pt= athena::contracts::field_environment_read (env, "prog-language");
@@ -142,7 +163,7 @@ edit_select_rep::select (path p1, path p2) {
     return;
   }
   if (p1 != p2) {
-    if (!in_source () && is_table_selection (et, p1, p2, false)) {
+    if (!selection_in_source () && is_table_selection (et, p1, p2, false)) {
       int r1, c1, r2, c2, rows, cols;
       path fp= find_subtable_selection (et, p1, p2, r1, c1, r2, c2);
       path owner= equation_array_owner (et, fp);
@@ -239,7 +260,8 @@ edit_select_rep::select_enlarge_text () {
   tree st= subtree (et, p);
   ASSERT (is_atomic (st), "non textual tree");
   string s= st->label;
-  string mode= get_env_string (MODE);
+  const auto prepared= prepare_source_position (p * 0);
+  const tree mode= prepared->effective_value (MODE);
   int i1= last_item (start (cur_sel)), j1= i1;
   int i2= last_item (end   (cur_sel)), j2= i2;
   path q= path_up (p);
@@ -290,9 +312,6 @@ incomplete_script_selection (tree t, path lp, path rp) {
 
 void
 edit_select_rep::select_enlarge () {
-  const auto prepared= editor_rep::cursor_context_at (tp);
-  const athena::contracts::editing_query query {
-    prepared ? prepared->contract_context () : contract_state.contracts};
   path sp, sq;
   if (is_empty (cur_sel) && !is_nil (start (cur_sel))) {
     sp= path_up (start (cur_sel));
@@ -312,8 +331,13 @@ edit_select_rep::select_enlarge () {
 
   path p = common (cur_sel);
   tree st= subtree (et, p);
-  if (((query.describe (L(st)).border &
-        BORDER_INNER) != 0 && !athena::contracts::builtin_label (as_string (L(st)))) ||
+  bool inner_border= false;
+  if (is_compound (st) && !athena::contracts::builtin_label (as_string (L(st)))) {
+    const auto prepared= prepare_source_position (p * 0);
+    const athena::contracts::editing_query query {prepared->contract_context ()};
+    inner_border= (query.describe (L(st)).border & BORDER_INNER) != 0;
+  }
+  if (inner_border ||
       is_func (st, TFORMAT) ||
       is_func (st, DOCUMENT, 1) ||
       is_script (st) ||
@@ -395,20 +419,33 @@ edit_select_rep::selection_active_enlarging () {
 * Get the selection
 ******************************************************************************/
 
+bool
+edit_select_rep::selection_try_correct (path i1, path i2, path& o1, path& o2) {
+  if (i1 == i2) { o1= i1; o2= i2; return true; }
+  const auto context= selection_environment ? selection_environment : editor_rep::cursor_context_at (tp);
+  if (!context) return false;
+  path first, last;
+  if (!with_admitted_navigation (*context, [&] (const cursor_navigation& navigation) {
+    selection_correct (i1, i2, first, last, navigation);
+  })) return false;
+  o1= first; o2= last;
+  return true;
+}
+
 void
 edit_select_rep::selection_correct (path i1, path i2, path& o1, path& o2) {
-  using athena::contracts::access_policy;
-  const auto context= editor_rep::cursor_context_at (tp);
-  const auto access= in_source () ? access_policy::source : access_policy::normal;
-  selection_correct (i1, i2, o1, o2,
-    cursor_navigation ({context ? context->contract_context () : contract_state.contracts, access}));
+  if (!selection_try_correct (i1, i2, o1, o2))
+    throw std::runtime_error ("Selection context is awaiting layout");
 }
 
 void
 edit_select_rep::selection_correct (path i1, path i2, path& o1, path& o2,
                                     const cursor_navigation& navigation) {
   ASSERT (rp <= i1 && rp <= i2, "paths not inside document");
-  ::selection_correct (navigation, subtree (et, rp), i1 / rp, i2 / rp, o1, o2);
+  const auto boundary= cursor_source_boundary ();
+  ::selection_correct (navigation, subtree (et, rp), i1 / rp, i2 / rp, o1, o2,
+    boundary && cursor_occurrence_admitted (i1, boundary),
+    boundary && cursor_occurrence_admitted (i2, boundary));
   o1= rp * o1; o2= rp * o2;
 }
 
@@ -430,15 +467,6 @@ selection_table_path (tree et, path p) {
     p= path_up (p);
   }
   return path ();
-}
-
-selection
-edit_select_rep::compute_selection (path p1, path p2) {
-  using athena::contracts::access_policy;
-  const auto context= editor_rep::cursor_context_at (tp);
-  const auto access= in_source () ? access_policy::source : access_policy::normal;
-  return compute_selection (p1, p2,
-    cursor_navigation ({context ? context->contract_context () : contract_state.contracts, access}));
 }
 
 selection
@@ -499,7 +527,8 @@ selection
 edit_select_rep::compute_selection (range_set sel) {
   if (is_empty (sel)) return selection ();
   // Highlight source ranges without promoting a search hit to its macro.
-  const cursor_navigation navigation ({contract_state.contracts, athena::contracts::access_policy::source});
+  const cursor_navigation navigation ({athena::contracts::builtin_contracts (),
+    athena::contracts::access_policy::source});
   rectangles rs;
   for (int i=0; i+1<N(sel); i+=2) {
     selection ssel= compute_selection (sel[i], sel[i+1], navigation);
@@ -513,23 +542,31 @@ edit_select_rep::selection_get (selection& sel) {
   sel= compute_selection (cur_sel);
 }
 
-void
-edit_select_rep::selection_get (path& p1, path& p2) {
+bool
+edit_select_rep::selection_try_get (path& p1, path& p2) {
+  if (is_empty (cur_sel)) {
+    p1= start (cur_sel); p2= end (cur_sel);
+    return true;
+  }
   if (selection_active_table ()) {
     int row1, col1, row2, col2;
-    path fp= selection_get_subtable (row1, col1, row2, col2);
+    path fp= find_subtable_selection (et, start (cur_sel), end (cur_sel),
+                                      row1, col1, row2, col2);
     p1= fp * 0;
     p2= fp * 1;
   }
   else {
-    selection_correct (start (cur_sel), end (cur_sel), p1, p2);
-    if (!in_source () && p1 != p2) {
+    if (!selection_try_correct (start (cur_sel), end (cur_sel), p1, p2)) return false;
+    if (!selection_in_source () && p1 != p2) {
       const path grid= common (p1, p2);
+      const cursor_navigation native_navigation ({athena::contracts::builtin_contracts (),
+        athena::contracts::access_policy::normal});
       if (grid != rp && !is_nil (grid) && has_subtree (et, grid) &&
           is_func (subtree (et, grid), MATH_GRID) &&
           is_func (subtree (et, path_up (grid)), MATH_BLOCK, 1) &&
           ((p1 == grid * 0 && p2 == grid * 1) ||
-           (p1 == ::start (et, grid) && p2 == ::end (et, grid)))) {
+           (p1 == native_navigation.start (et, grid) &&
+            p2 == native_navigation.end (et, grid)))) {
         // A whole display grid carries the MathBlock numbering context. Move
         // the real enclosing object, not a synthetic wrapper with copied IDs.
         p1= path_up (grid) * 0;
@@ -537,11 +574,13 @@ edit_select_rep::selection_get (path& p1, path& p2) {
       }
     }
   }
-  /*
-  selection sel; selection_get (sel);
-  p1= sel->start;
-  p2= sel->end;
-  */
+  return true;
+}
+
+void
+edit_select_rep::selection_get (path& p1, path& p2) {
+  if (!selection_try_get (p1, p2))
+    throw std::runtime_error ("Selection context is awaiting layout");
 }
 
 path
@@ -640,13 +679,12 @@ edit_select_rep::selection_get_cursor_path () {
 
 tree
 edit_select_rep::selection_get_env_value (string var) {
-  if (!selection_active_any ()) return get_env_value (var);
   const path selected= selection_get_cursor_path ();
   // Keep the selected physical occurrence when the selection's source is an
   // ancestor of the caret, including repeated macro-argument presentations.
   const auto context= editor_rep::cursor_context_at (selected);
-  if (context) return context->effective_value (var);
-  return get_env_value (var, selected);
+  if (!context) throw std::runtime_error ("Selection context is awaiting layout");
+  return context->effective_value (var);
 }
 
 /******************************************************************************
@@ -793,11 +831,13 @@ edit_select_rep::selection_set_range_set (range_set sel) {
 void
 edit_select_rep::selection_set (
     string key, tree t, bool persistant, string move_token) {
-  selecting= shift_selecting= false;
-  string mode= as_string (selection_get_env_value (MODE));
+  const path selected= selection_get_cursor_path ();
+  const auto prepared= editor_rep::cursor_context_at (selected);
+  if (!prepared) throw std::runtime_error ("Selection context is awaiting layout");
+  string mode= as_string (prepared->effective_value (MODE));
   if (mode != "src" && (is_equation_array (t) || is_func (t, MATH_BLOCK)))
     mode= "text";
-  string lan = as_string (selection_get_env_value (MODE_LANGUAGE (mode)));
+  string lan= as_string (prepared->effective_value (MODE_LANGUAGE (mode)));
   tree sel= move_token == "" ?
     tuple ("texmacs", t, mode, lan) :
     tuple ("texmacs", t, mode, lan,
@@ -812,7 +852,7 @@ edit_select_rep::selection_set (
      nicely copying graphics into text, text into graphics, etc. */
   string s, sh, sv;
   if (key == "primary" || key == "mouse") {
-    const path context= selection_get_cursor_path ();
+    const path context= selected;
     if (selection_export == "verbatim") t= exec_verbatim (t, context);
     if (selection_export == "html") {
         if (mode == "math") 
@@ -840,6 +880,7 @@ edit_select_rep::selection_set (
   }
   if (!::set_selection (key, sel, s, sv, sh, selection_export))
     throw std::runtime_error ("Cannot publish clipboard selection");
+  selecting= shift_selecting= false;
   if (!persistant) selection_cancel ();
 }
 
@@ -857,15 +898,10 @@ edit_select_rep::selection_copy (string key) {
     return;
   }
   if (selection_active_any ()) {
-    path old_tp= tp;
-    selection sel; selection_get (sel);
-    go_to (sel->end);
     tree t= selection_get ();
     if (!in_source ())
       t= equation_array_clipboard (et, start (cur_sel), end (cur_sel), t);
-    go_to (sel->start);
     selection_set (key, t, !emacs);
-    go_to (old_tp);
   }
 }
 
@@ -876,16 +912,119 @@ edit_select_rep::selection_get (string key) {
   return t;
 }
 
-void
-edit_select_rep::selection_validate_paste (tree selection) {
+struct native_paste_plan {
+  struct table_destination {
+    tree source;
+    std::shared_ptr<const evaluation_environment_checkpoint> context;
+  };
+  tree selection;
+  std::string move_token;
+  string mode, language;
+  bool graphics= false;
+  std::vector<table_destination> tables;
+
+  std::shared_ptr<const evaluation_environment_checkpoint> table_context (tree source) const {
+    for (const auto& table: tables)
+      if (strong_equal (table.source, source)) return table.context;
+    throw std::runtime_error ("Paste destination table changed after preparation");
+  }
+};
+
+std::shared_ptr<const native_paste_plan>
+edit_select_rep::selection_prepare_paste (tree selection) {
+  return prepare_paste (selection, editor_rep::cursor_context_at (tp), inside_active_graphics ());
+}
+
+std::shared_ptr<native_paste_plan>
+edit_select_rep::prepare_paste (tree selection,
+    std::shared_ptr<const evaluation_environment_checkpoint> context, bool graphics) {
   if (!buf) throw std::runtime_error ("Paste target has no storage version");
   if (buf->read_only) throw std::runtime_error ("This view is read-only");
   athena::document::validate_clipboard_paste (selection, buf->storage_version);
+  auto prepared= std::make_shared<native_paste_plan> ();
+  prepared->selection= copy (plain_clipboard_envelope (selection));
+  prepared->move_token= source_move_token (selection);
+  prepared->graphics= graphics;
+  if (prepared->graphics) return prepared;
+
+  if (!context) throw std::runtime_error ("Paste destination is awaiting layout");
+  prepared->mode= as_string (context->effective_value (MODE));
+  const string language= MODE_LANGUAGE (prepared->mode);
+  prepared->language= as_string (context->effective_value (language));
   const tree content= selection[1];
-  if (!inside_active_graphics () && get_env_string (MODE) == "math" &&
+  if (prepared->mode == "math" &&
       selection[2] == "text" &&
       !(is_compound (content, "math", 1) && !athena::node::get (content)))
     throw std::invalid_argument ("Cannot paste text into a formula");
+  tree payload= content;
+  if (is_compound (payload, "math", 1) || is_compound (payload, "text", 1))
+    payload= payload[0];
+  if (is_func (payload, TABLE) || is_func (payload, TFORMAT) ||
+      is_equation_array (content)) {
+    for (path owner= path_up (tp); rp < owner; owner= path_up (owner))
+      if (is_func (subtree (et, owner), TABLE)) {
+        const path format= ::table_search_format (et, owner);
+        const auto entry= editor_rep::cursor_context_at (format * 0);
+        if (!entry) throw std::runtime_error ("Paste destination table is awaiting layout");
+        prepared->tables.push_back ({subtree (et, format), entry});
+      }
+  }
+  return prepared;
+}
+
+void
+edit_select_rep::selection_validate_paste (tree selection) {
+  (void) selection_prepare_paste (selection);
+}
+
+void
+edit_select_rep::selection_wrap (tree wrapper, path position) {
+  const auto outer= editor_rep::cursor_context_at (selection_get_cursor_path ());
+  if (!outer) {
+    set_message ("Selection context is awaiting layout", "Wrap selection");
+    return;
+  }
+  const auto destination= prepare_tree_position (wrapper, position, *outer);
+  if (!destination) {
+    set_message ("Insertion template does not expose this field", "Wrap selection");
+    return;
+  }
+
+  tree content= selection_get ();
+  string mode= as_string (outer->effective_value (MODE));
+  if (mode != "src") {
+    path first, last;
+    selection_get (first, last);
+    content= equation_array_clipboard (et, first, last, content);
+    if (is_equation_array (content) || is_func (content, MATH_BLOCK)) mode= "text";
+  }
+  const tree language= outer->effective_value (MODE_LANGUAGE (mode));
+  if (!buf) throw std::runtime_error ("Selection has no storage version");
+  const tree envelope= athena::document::clipboard_with_version (
+    tuple ("texmacs", content, mode, language), buf->storage_version);
+  auto prepared= prepare_paste (envelope, destination, false);
+
+  // A template can introduce its own table. Its entry is not the current
+  // document's table entry or the environment inside the prospective cell.
+  const path inner_table= ::table_search_format (wrapper, path_up (position));
+  const tree candidate= subtree (wrapper, inner_table);
+  std::shared_ptr<const evaluation_environment_checkpoint> template_table;
+  if (is_func (candidate, TABLE) ||
+      (is_func (candidate, TFORMAT) && N(candidate)>0 &&
+       is_func (candidate[N(candidate)-1], TABLE))) {
+    template_table= prepare_tree_position (wrapper, inner_table * 0, *outer);
+    if (!template_table) {
+      set_message ("Insertion template does not expose its table", "Wrap selection");
+      return;
+    }
+  }
+
+  selection_cut ("none");
+  insert_tree (wrapper, position);
+  if (template_table)
+    prepared->tables.insert (prepared->tables.begin (),
+      {subtree (et, search_format ()), std::move (template_table)});
+  apply_paste (*prepared, true);
 }
 
 void
@@ -899,30 +1038,22 @@ edit_select_rep::selection_paste (string key) {
 
   tree t; string s;
   if (!::get_selection (key, t, s, selection_import)) return;
-  if (is_tuple (t, "texmacs", 3) || is_tuple (t, "texmacs", 4))
-    selection_validate_paste (t);
+  if (is_tuple (t, "texmacs", 3) || is_tuple (t, "texmacs", 4)) {
+    const auto prepared= selection_prepare_paste (t);
+    selection_apply_paste (*prepared);
+    return;
+  }
   const auto validate_import= [&] (const tree& content) {
     const tree envelope= athena::document::clipboard_with_version (
       tuple ("texmacs", content, "text", "english"), buf->storage_version);
     athena::document::validate_clipboard_paste (envelope, buf->storage_version);
   };
-  const std::string move_token= source_move_token (t);
-  auto discard_move= [&] {
-    if (!move_token.empty ())
-      athena::document_node::invalidate_source_move (move_token);
-  };
-  t= plain_clipboard_envelope (t);
-  if (inside_active_graphics ()) {
-    discard_move ();
-    if (is_tuple (t, "texmacs", 3)) {
-      if (athena::node::contains_metadata (t[1]))
-        t[1]= athena::document_node::duplicate_source_nodes (t[1]);
-      (void) native_graphics_paste_selection (t[1]);
-    }
-    return;
-  }
+  if (inside_active_graphics ()) return;
+  const auto context= editor_rep::cursor_context_at (tp);
+  if (!context) throw std::runtime_error ("Paste destination is awaiting layout");
+  const string mode= as_string (context->effective_value (MODE));
   if (is_tuple (t, "extern-utf8", 1)) {
-    bool wrap= get_env_string (MODE) != "prog" &&
+    bool wrap= mode != "prog" &&
       get_preference ("verbatim->texmacs:wrap", "off") == "on";
     tree doc= verbatim_to_tree (as_string (t[1]), wrap, "utf-8");
     if (is_func (doc, DOCUMENT, 1)) doc= doc[0];
@@ -931,7 +1062,6 @@ edit_select_rep::selection_paste (string key) {
     return;
   }
   if (is_tuple (t, "extern", 1)) {
-    string mode= get_env_string (MODE);
     string s   = as_string (t[1]);
     if (mode == "prog")
       if (selection_import == "latex" || selection_import == "html")
@@ -953,98 +1083,126 @@ edit_select_rep::selection_paste (string key) {
     validate_import (doc);
     if (!is_empty (doc)) insert_tree (doc);
   }
-  if (is_tuple (t, "texmacs", 3)) {
-    string mode= get_env_string (MODE);
-    string lan = get_env_string (MODE_LANGUAGE (mode));
-    if (mode == "math" && is_equation_array (t[1])) {
-      if (athena::node::contains_metadata (t[1]))
+}
+
+void
+edit_select_rep::selection_apply_paste (const native_paste_plan& prepared) {
+  apply_paste (prepared, false);
+}
+
+void
+edit_select_rep::apply_paste (const native_paste_plan& prepared, bool local_transfer) {
+  tree t= copy (prepared.selection);
+  const std::string& move_token= prepared.move_token;
+  auto discard_move= [&] {
+    if (!move_token.empty ())
+      athena::document_node::invalidate_source_move (move_token);
+  };
+  if (prepared.graphics) {
+    discard_move ();
+    if (!local_transfer && athena::node::contains_metadata (t[1]))
+      t[1]= athena::document_node::duplicate_source_nodes (t[1]);
+    (void) native_graphics_paste_selection (t[1]);
+    return;
+  }
+  const string mode= prepared.mode;
+  const string lan= prepared.language;
+  if (mode == "math" && is_equation_array (t[1])) {
+    if (!local_transfer && athena::node::contains_metadata (t[1]))
+      t[1]= athena::document_node::duplicate_source_nodes (t[1]);
+    int row, col;
+    path fp= search_format (row, col);
+    tree content= t[1][0];
+    while (is_func (content, DOCUMENT, 1)) content= content[0];
+    if (!is_nil (fp) && !is_nil (equation_array_owner (et, fp)) &&
+        (is_func (content, TFORMAT) || is_func (content, TABLE))) {
+      discard_move ();
+      table_write_subtable (fp, row, col, content,
+        prepared.table_context (subtree (et, fp)));
+      return;
+    }
+  }
+  bool transformed= false;
+  if (is_compound (t[1], "text", 1) && mode == "text" &&
+      !athena::node::get (t[1])) {
+    t= tuple ("texmacs", t[1][0], "text", lan);
+    transformed= true;
+  }
+  if (is_compound (t[1], "math", 1) && mode == "math" &&
+      !athena::node::get (t[1])) {
+    t= tuple ("texmacs", t[1][0], "math", lan);
+    transformed= true;
+  }
+  {
+    const bool direct_mode=
+      (t[2] == mode) || (t[2] == "src") || (mode == "src");
+    tree wrapper;
+    path wrapper_body;
+    if (!direct_mode && ((t[2] == "math") || (mode == "math"))) {
+      transformed= true;
+      if (t[2] == "math") {
+        wrapper= compound ("math", "");
+        wrapper_body= path (0);
+      }
+      else {
+        wrapper= tree (WITH, copy (MODE), copy (t[2]), "");
+        wrapper_body= path (2);
+      }
+    }
+    if (is_func (t[1], TFORMAT) || is_func (t[1], TABLE)) {
+      if (!is_nil (wrapper_body)) insert_tree (wrapper, wrapper_body * 0);
+      discard_move ();
+      if (!local_transfer && athena::node::contains_metadata (t[1]))
         t[1]= athena::document_node::duplicate_source_nodes (t[1]);
       int row, col;
       path fp= search_format (row, col);
-      tree content= t[1][0];
-      while (is_func (content, DOCUMENT, 1)) content= content[0];
-      if (!is_nil (fp) && !is_nil (equation_array_owner (et, fp)) &&
-          (is_func (content, TFORMAT) || is_func (content, TABLE))) {
-        discard_move ();
-        table_write_subtable (fp, row, col, content);
-        return;
-      }
-    }
-    bool transformed= false;
-    if (is_compound (t[1], "text", 1) && mode == "text" &&
-        !athena::node::get (t[1])) {
-      t= tuple ("texmacs", t[1][0], "text", lan);
-      transformed= true;
-    }
-    if (is_compound (t[1], "math", 1) && mode == "math" &&
-        !athena::node::get (t[1])) {
-      t= tuple ("texmacs", t[1][0], "math", lan);
-      transformed= true;
-    }
-    if (mode == "math" && t[2] == "text") {
-      discard_move ();
-      set_message ("Error: invalid paste of text into a formula", "paste");
+      if (is_nil (fp)) insert_tree (compound (copy (TABULAR), t[1]));
+      else table_write_subtable (fp, row, col, t[1],
+        prepared.table_context (subtree (et, fp)));
     }
     else {
-      const bool direct_mode=
-        (t[2] == mode) || (t[2] == "src") || (mode == "src");
-      if (!direct_mode && ((t[2] == "math") || (mode == "math"))) {
-        transformed= true;
-        if (t[2] == "math")
-          insert_tree (compound ("math", ""), path (0, 0));
-        else if (t[2] == "text")
-          insert_tree (compound ("text", ""), path (0, 0));
-        else
-          insert_tree (tree (WITH, copy (MODE), copy (t[2]), ""), path (2, 0));
+      bool preserve_identity= local_transfer;
+      if (!move_token.empty () && !transformed && direct_mode &&
+          athena::node::contains_metadata (t[1]) &&
+          buf != nullptr && buf->actor != nullptr &&
+          node_identities_active ()) {
+        const std::string vault_key= source_move_vault_key (buf);
+        const athena::document_node::source_move_endpoint target {
+          buf->actor->id (), runtime_view_id};
+        auto claim= athena::document_node::reserve_source_move (
+          move_token, t[1], vault_key, target);
+        if (claim) {
+          bool source_valid= false;
+          if (claim->source.actor == target.actor) {
+            // Two views of the same mutable document share one owner/history
+            // domain; do not pretend that is a cross-document move.
+            if (claim->source.view == target.view)
+              source_valid=
+                source_move_cut_marker_present (claim->marker);
+          }
+          else
+            source_valid= remote_source_move_marker_is_current (
+              claim->source, claim->marker);
+          if (source_valid) {
+            start_slave (claim->marker);
+            source_move_paste_pending (
+              string (claim->token.data (), (int) claim->token.size ()),
+              claim->marker);
+            preserve_identity= true;
+          }
+          else athena::document_node::invalidate_source_move (claim->token);
+        }
       }
-      if (is_func (t[1], TFORMAT) || is_func (t[1], TABLE)) {
+      if (!preserve_identity) {
         discard_move ();
         if (athena::node::contains_metadata (t[1]))
           t[1]= athena::document_node::duplicate_source_nodes (t[1]);
-        int row, col;
-        path fp= search_format (row, col);
-        if (is_nil (fp)) insert_tree (compound (copy (TABULAR), t[1]));
-        else table_write_subtable (fp, row, col, t[1]);
       }
+      if (is_nil (wrapper_body)) insert_tree (t[1]);
       else {
-        bool preserve_identity= false;
-        if (!move_token.empty () && !transformed && direct_mode &&
-            athena::node::contains_metadata (t[1]) &&
-            buf != nullptr && buf->actor != nullptr &&
-            node_identities_active ()) {
-          const std::string vault_key= source_move_vault_key (buf);
-          const athena::document_node::source_move_endpoint target {
-            buf->actor->id (), runtime_view_id};
-          auto claim= athena::document_node::reserve_source_move (
-            move_token, t[1], vault_key, target);
-          if (claim) {
-            bool source_valid= false;
-            if (claim->source.actor == target.actor) {
-              // Two views of the same mutable document share one owner/history
-              // domain; do not pretend that is a cross-document move.
-              if (claim->source.view == target.view)
-                source_valid=
-                  source_move_cut_marker_present (claim->marker);
-            }
-            else
-              source_valid= remote_source_move_marker_is_current (
-                claim->source, claim->marker);
-            if (source_valid) {
-              start_slave (claim->marker);
-              source_move_paste_pending (
-                string (claim->token.data (), (int) claim->token.size ()),
-                claim->marker);
-              preserve_identity= true;
-            }
-            else athena::document_node::invalidate_source_move (claim->token);
-          }
-        }
-        if (!preserve_identity) {
-          discard_move ();
-          if (athena::node::contains_metadata (t[1]))
-          t[1]= athena::document_node::duplicate_source_nodes (t[1]);
-        }
-        insert_tree (t[1]);
+        tree payload= copy (simplify_correct (t[1]));
+        wrapper[wrapper_body->item]= payload;
+        insert_tree (wrapper, wrapper_body * end (payload));
       }
     }
   }
@@ -1319,14 +1477,20 @@ edit_select_rep::manual_focus_release () {
   focus_hold= false;
 }
 
-path
-edit_select_rep::focus_search (path p, bool skip_flag, bool up_flag) {
+bool
+edit_select_rep::focus_try_search (path p, bool skip_flag, bool up_flag, path& result) {
   //cout << "Search focus " << p << ", " << skip_flag << ", " << up_flag << "\n";
-  if (!(rp < p)) return rp;
+  if (!(rp < p)) { result= rp; return true; }
   tree st= subtree (et, p);
-  if (!skip_flag) return p;
-  if (none_accessible (st) && p == path_up (tp) && last_item (tp) != 0)
-    return p;
+  if (!skip_flag) { result= p; return true; }
+  if (is_compound (st) && p == path_up (tp) && last_item (tp) != 0) {
+    const auto entry= editor_rep::cursor_context_at (p * 0);
+    if (!entry) return false;
+    if (athena::contracts::editing_query {entry->contract_context ()}.no_fields_editable (L(st))) {
+      result= p;
+      return true;
+    }
+  }
   if (is_atomic (st) ||
       is_func (st, DOCUMENT) ||
       is_func (st, CONCAT) ||
@@ -1339,17 +1503,22 @@ edit_select_rep::focus_search (path p, bool skip_flag, bool up_flag) {
       is_compound (st, "slide") ||
       is_compound (st, "with-screen-color") ||
       up_flag)
-    return focus_search (path_up (p), skip_flag, false);
-  return p;
+    return focus_try_search (path_up (p), skip_flag, false, result);
+  result= p;
+  return true;
 }
 
-path
-edit_select_rep::focus_get (bool skip_flag) {
+bool
+edit_select_rep::focus_try_get (path& result, bool skip_flag) {
   //cout << "Search focus " << focus_p << ", " << skip_flag << "\n";
   if (!is_nil (focus_p))
-    return focus_search (focus_p, skip_flag, false);
-  if (selection_active_any ())
-    return focus_search (selection_get_path (), skip_flag, false);
+    return focus_try_search (focus_p, skip_flag, false, result);
+  if (selection_active_any ()) {
+    path first, last;
+    if (!selection_try_get (first, last)) return false;
+    const path selected= first == last && !is_empty (cur_sel) ? path_up (first) : common (first, last);
+    return focus_try_search (selected, skip_flag, false, result);
+  }
   else {
     tree st= subtree (et, path_up (tp));
     if (is_compound (st, "float")) skip_flag= false;
@@ -1361,8 +1530,16 @@ edit_select_rep::focus_get (bool skip_flag) {
     if (is_compound (st, "note-footnote*")) skip_flag= false;
     if (is_compound (st, "folded-comment")) skip_flag= false;
     if (is_compound (st, "cite-detail")) skip_flag= false;
-    return focus_search (path_up (tp), skip_flag, true);
+    return focus_try_search (path_up (tp), skip_flag, true, result);
   }
+}
+
+path
+edit_select_rep::focus_get (bool skip_flag) {
+  path result;
+  if (!focus_try_get (result, skip_flag))
+    throw std::runtime_error ("Focus context is awaiting layout");
+  return result;
 }
 
 /******************************************************************************

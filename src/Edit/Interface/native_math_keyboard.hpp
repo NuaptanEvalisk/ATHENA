@@ -8,6 +8,11 @@
 
 #include "command.hpp"
 #include "string.hpp"
+#include <memory>
+
+class evaluation_environment_checkpoint;
+command native_math_prepare_command (
+  command cmd, std::shared_ptr<const evaluation_environment_checkpoint> context);
 
 // Returns true when the native math registry owns this exact/prefix sequence.
 // Output status follows server::get_keycomb: 1 = command, 2 = shorthand text.

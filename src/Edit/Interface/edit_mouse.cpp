@@ -300,7 +300,7 @@ edit_interface_rep::table_resize_handle_at (SI x, SI y, path& best_fp,
 
   for (int probe=0; probe<5; probe++) {
     path hit= tree_path (path (), probe_x[probe], probe_y[probe], 0);
-    if (!(rp <= hit)) continue;
+    if (is_nil (hit) || !(rp <= hit)) continue;
     path structural= path_up (hit);
     if (!(rp <= structural) || !has_subtree (et, structural)) continue;
     path fp= ::table_search_format (et, structural);
@@ -465,7 +465,7 @@ edit_interface_rep::mouse_clickable_color () {
   path sp= find_innermost_scroll (eb, tp);
   path bp= find_scrolled_box_path (eb, sp, last_x, last_y, 0);
   path p= eb->find_tree_path (bp);
-  const auto context= cursor_context_at (p, eb->find_source_boundary (bp));
+  const auto context= display_context_at (p, bp);
   tree t= context ? context->effective_value (CLICKABLE_COLOR) : get_init_value (CLICKABLE_COLOR);
   if (!is_atomic (t)) t= "#20A060";
   return named_color (t->label);
@@ -481,13 +481,13 @@ edit_interface_rep::mouse_click (SI x, SI y) {
 
 bool
 edit_interface_rep::mouse_extra_click (SI x, SI y) {
-  go_to (x, y);
+  if (!move_to_physical (x, y)) return false;
   if (mouse_message ("double-click", x, y)) return true;
   if (!is_nil (mouse_ids)) {
     call ("link-follow-ids", object (mouse_ids), object ("double-click"));
     return true;
   }
-  go_to (x, y);
+  if (!move_to_physical (x, y)) return false;
   path p1, p2;
   get_selection (p1, p2);
   if ((p1==p2) || path_less (tp, p1) || path_less (p2, tp)) select (tp, tp);
@@ -503,13 +503,14 @@ edit_interface_rep::mouse_adjust_selection (SI x, SI y, int mods) {
   if (inside_graphics () || mods <=1) return;
   if (mouse_message ("drag", x, y)) return;
   SI hit_x= selection_hit_x (eb, x);
-  go_to (hit_x, y);
+  if (!move_to_physical (hit_x, y)) return;
   end_x= x;
   end_y= y;
   path sp= find_innermost_scroll (eb, tp);
   path p1= tree_path (sp, selection_hit_x (eb, start_x), start_y, 0);
   path p2= tree_path (sp, selection_hit_x (eb, end_x), end_y, 0);
   path p3= tree_path (sp, hit_x, y, 0);
+  if (is_nil (p1) || is_nil (p2) || is_nil (p3)) return;
   
   bool p1_p2= path_inf (p1, p2);
   bool p1_p3= path_inf (p1, p3);
@@ -551,13 +552,14 @@ void
 edit_interface_rep::mouse_drag (SI x, SI y) {
   if (inside_graphics ()) return;
   if (mouse_message ("drag", x, y)) return;
-  go_to (selection_hit_x (eb, x), y);
+  if (!move_to_physical (selection_hit_x (eb, x), y)) return;
   end_x  = x;
   end_y  = y;
   selection_visible ();
   path sp= find_innermost_scroll (eb, tp);
   path p1= tree_path (sp, selection_hit_x (eb, start_x), start_y, 0);
   path p2= tree_path (sp, selection_hit_x (eb, end_x), end_y, 0);
+  if (is_nil (p1) || is_nil (p2)) return;
   if (path_inf (p2, p1)) {
     path temp= p1;
     p1= p2;
@@ -579,12 +581,13 @@ edit_interface_rep::mouse_select (SI x, SI y, int mods, bool drag) {
   }
   bool b0= inside_graphics (false);
   SI hit_x= selection_hit_x (eb, x);
-  go_to (hit_x, y);
+  if (!move_to_physical (hit_x, y)) return;
   if ((!b0 && inside_graphics (false)) || (b0 && !inside_graphics (false)))
     drag= false;
   if (!drag) {
     path sp= find_innermost_scroll (eb, tp);
     path p0= tree_path (sp, hit_x, y, 0);
+    if (is_nil (p0)) return;
     set_selection (p0, p0);
     notify_change (THE_SELECTION);
   }
@@ -597,7 +600,7 @@ void
 edit_interface_rep::mouse_paste (SI x, SI y) { (void) x; (void) y;
   if (unix_primary_selection_disabled ()) return;
   if (mouse_message ("paste", x, y)) return;
-  go_to (x, y);
+  if (!move_to_physical (x, y)) return;
   selection_paste ("mouse");
 }
 
@@ -736,7 +739,13 @@ edit_interface_rep::update_mouse_loci () {
 #ifdef USE_EXCEPTIONS
   try {
 #endif
-  path cp= path_up (tree_path (path (), last_x, last_y, 0, true));
+  const path hit= tree_path (path (), last_x, last_y, 0, true);
+  if (is_nil (hit)) {
+    locus_new_rects= rectangles ();
+    mouse_ids= list<string> ();
+    return;
+  }
+  path cp= path_up (hit);
   tree mt= subtree (et, cp);
   path p = cp;
   list<string> ids1, ids2;
@@ -1070,7 +1079,8 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
     return;
   }
 
-  path mouse_tree_path= tree_path (path (), x, y, 0);
+  // Region dispatch is a source hit, independent of editable-field admission.
+  path mouse_tree_path= tree_path (path (), x, y, 0, true);
   bool over_commutative_diagram= false;
   tree mouse_tree= et;
   for (path p= mouse_tree_path; !is_nil (p); p= p->next) {

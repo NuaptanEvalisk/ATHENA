@@ -16,27 +16,12 @@
 (texmacs-module (graphics graphics-main)
   (:use (graphics graphics-utils)))
 
-;; TODO: Have a look at if there is still some part of the previous
-;;   mess due to unsafe synchro (fetching grids, egrid-as-vgrid?, etc.)
-
-;; REMARK: Otherwise, except for some details described in FIXMEs comments
-;;   below, this code is clean.
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Commutative diagrams
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (tm-define (graphics-set-notebook-grid)
-  (graphics-set-visual-grid 'cartesian)
-  (graphics-set-unit "1cm")
-  (graphics-set-grid-aspect 'detailed 2 #t)
-  (graphics-set-grid-color 'subunits "#e0e0ff")
-  (delayed
-    (:idle 1)
-    (graphics-set-grid-color 'units "#e0e0ff")
-    (delayed
-      (:idle 1)
-      (graphics-set-grid-color 'axes "#e0e0ff"))))
+  (native-graphics-grid-command "notebook" "" #t))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; 3D transformations
@@ -109,233 +94,69 @@
 ;; Grids
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define graphics-current-type #f)
-(tm-define graphics-current-center #f)
-(tm-define graphics-current-step #f)
-(tm-define graphics-current-astep #f)
-(tm-define graphics-current-base #f)
+;; Each native command plans both grids before changing the source.
+(define (grid-query? property visual?)
+  (== (native-graphics-grid-query property visual?) "true"))
 
-(tm-define egrid-as-vgrid? #t)
-
-;; Fetching/Setting a grid
-(define default-polar-astep 24)
-(define default-polar-nsubd 10)
-(define (graphics-fetch-grid-vars type visual?)
-  (set! graphics-current-type (if type (symbol->string type) "empty"))
-  (set! graphics-current-center '(point "0" "0"))
-  (set! graphics-current-step
-	(if (or visual?
-		(== graphics-current-type "logarithmic")) "1" "0.1"))
-  (set! graphics-current-astep
-	(f2s (if visual?
-		 default-polar-astep
-		 (* default-polar-astep default-polar-nsubd))))
-  (set! graphics-current-base "10")
-  (with grid (tree->stree (get-env-tree (if visual? "gr-grid" "gr-edit-grid")))
-    (cond ((match? grid '(tuple "empty"))
-	   (set! graphics-current-type "empty"))
-	  ((match? grid '(tuple "cartesian"))
-	   (set! graphics-current-type "cartesian"))
-	  ((match? grid '(tuple "cartesian" :%1))
-	   (set! graphics-current-type "cartesian")
-	   (set! graphics-current-step (list-ref grid 2)))
-	  ((match? grid '(tuple "cartesian" :%2))
-	   (set! graphics-current-type "cartesian")
-	   (set! graphics-current-center (list-ref grid 2))
-	   (set! graphics-current-step (list-ref grid 3)))
-	  ((match? grid '(tuple "polar"))
-	   (set! graphics-current-type "polar"))
-	  ((match? grid '(tuple "polar" :%1))
-	   (set! graphics-current-type "polar")
-	   (set! graphics-current-step (list-ref grid 2)))
-	  ((match? grid '(tuple "polar" :%2))
-	   (set! graphics-current-type "polar")
-	   (set! graphics-current-step (list-ref grid 2))
-	   (set! graphics-current-astep (list-ref grid 3)))
-	  ((match? grid '(tuple "polar" :%3))
-	   (set! graphics-current-type "polar")
-	   (set! graphics-current-center (list-ref grid 2))
-	   (set! graphics-current-step (list-ref grid 3))
-	   (set! graphics-current-astep (list-ref grid 4)))
-	  ((match? grid '(tuple "logarithmic"))
-	   (set! graphics-current-type "logarithmic"))
-	  ((match? grid '(tuple "logarithmic" :%1))
-	   (set! graphics-current-type "logarithmic")
-	   (set! graphics-current-step (list-ref grid 2)))
-	  ((match? grid '(tuple "logarithmic" :%2))
-	   (set! graphics-current-type "logarithmic")
-	   (set! graphics-current-step (list-ref grid 2))
-	   (set! graphics-current-base (list-ref grid 3)))
-	  ((match? grid '(tuple "logarithmic" :%3))
-	   (set! graphics-current-type "logarithmic")
-	   (set! graphics-current-center (list-ref grid 2))
-	   (set! graphics-current-step (list-ref grid 3))
-	   (set! graphics-current-base (list-ref grid 4))))))
+(define (grid-number-string value)
+  (cond ((string? value) value)
+        ((number? value) (number->string value))
+        (else "")))
 
 (tm-define (graphics-get-grid-type visual?)
-  (graphics-fetch-grid-vars #f visual?)
-  (string->symbol graphics-current-type))
-
-(define (get-actual-grid-type visual?)
-  (with grid (tree->stree (get-env-tree (if visual? "gr-grid" "gr-edit-grid")))
-    (and (pair? grid) (> (length grid) 1) (cadr grid))))
-
-(define (graphics-set-grid visual?)
-  (let* ((type     (string->symbol graphics-current-type))
-	 (center   graphics-current-center)
-	 (step     graphics-current-step)
-	 (astep    graphics-current-astep)
-	 (base     graphics-current-base)
-	 (prop     (if visual? "gr-grid" "gr-edit-grid"))
-	 (prop-old (if visual? "gr-grid-old" "gr-edit-grid-old"))
-	 (the-grid #f))
-    (cond ((== type 'empty)
-	   (set! the-grid `(tuple "empty")))
-	  ((== type 'cartesian)
-	   (set! the-grid `(tuple "cartesian" ,center ,step)))
-	  ((== type 'polar)
-	   (set! the-grid `(tuple "polar" ,center ,step ,astep)))
-	  ((== type 'logarithmic)
-	   (set! the-grid `(tuple "logarithmic" ,center ,step ,base))))
-    (if the-grid
-        (with grid-old (tree->stree (get-env-tree prop-old))
-          (if (and (== (get-actual-grid-type visual?) "empty")
-                   (> (length grid-old) 1)
-                   (== (cadr the-grid) (cadr grid-old)))
-              (graphics-set-property prop grid-old)
-              (begin
-                (graphics-set-property prop the-grid)
-                (if (!= type 'empty)
-                    (graphics-set-property prop-old the-grid))))))
-    (if visual? (update-edit-grid 'grid-change))))
+  (string->symbol (native-graphics-grid-query "type" visual?)))
 
 (define (grids-defaulted?)
-  (with p (cDr (cursor-path))
-    (and (== (get-upwards-property p "gr-grid") nothing)
-         (== (get-upwards-property p "gr-grid-old") nothing)
-         (== (get-upwards-property p "gr-edit-grid") nothing)
-         (== (get-upwards-property p "gr-edit-grid-old") nothing)
-         (== (get-upwards-property p "gr-edit-grid-aspect") nothing)
-         (== (get-upwards-property p "gr-grid-aspect") nothing)
-         (== (get-upwards-property p "gr-grid-aspect-props") nothing))))
+  (grid-query? "defaulted" #t))
 
 (tm-define (graphics-reset-grids)
   (:check-mark "*" grids-defaulted?)
-  (graphics-remove-property "gr-grid")
-  (graphics-remove-property "gr-grid-old")
-  (if (grid-as-visual-grid?)
-      (begin
-        (graphics-remove-property "gr-edit-grid")
-        (graphics-remove-property "gr-edit-grid-old")
-        (graphics-remove-property "gr-edit-grid-aspect")
-        (graphics-remove-property "gr-grid-aspect")
-        (graphics-remove-property "gr-grid-aspect-props"))))
+  (native-graphics-grid-command "reset" "" #t))
 
 (define (visual-type-has-value? type)
-  (graphics-fetch-grid-vars #f #t)
-  (set! type (cadr type))
-  (== type (string->symbol graphics-current-type)))
+  (== (cadr type) (graphics-get-grid-type #t)))
 
 (tm-define (graphics-set-visual-grid type)
   (:check-mark "*" visual-type-has-value?)
-  (graphics-fetch-grid-vars type #t)
-  (with new-polar? #f
-    (if (and (== type 'polar)
-             (!= type (string->symbol graphics-current-type)))
-        (let* ((aspect (graphics-grid-aspect #t))
-               (nsubds (aspect-ref aspect 3)))
-          (if nsubds (set! nsubds (cadr nsubds)))
-          (set! new-polar? #t)
-          (graphics-set-grid-aspect 'detailed nsubds #t)
-          (set! graphics-current-astep (f2s default-polar-astep))))
-    (set! graphics-current-type (symbol->string type))
-    (graphics-set-grid #t)
-    (graphics-fetch-grid-vars type #t)
-    (if new-polar?
-        (begin
-          (set! graphics-current-type (symbol->string type))
-          (set! graphics-current-astep (f2s default-polar-astep))
-          (update-edit-grid 'grid-change)))))
+  (native-graphics-grid-command "type" (symbol->string type) #t))
 
 (define (edit-type-has-value? type)
-  (graphics-fetch-grid-vars #f #f)
-  (set! type (cadr type))
-  (if (== type 'default) (set! type 'empty))
-  (== type (string->symbol graphics-current-type)))
+  (with value (cadr type)
+    (== (if (== value 'default) 'empty value)
+        (graphics-get-grid-type #f))))
 
 (tm-define (graphics-set-edit-grid type)
   (:check-mark "*" edit-type-has-value?)
-  (cond ((or (== type 'default)
-	     (== type 'grid-change))
-	 (let* ((aspect (graphics-grid-aspect-props))
-		(nsubds0 (cadr (list-ref aspect (- (length aspect) 1))))
-		(nsubds (if (number? nsubds0)
-			    nsubds0
-			    (if (string? nsubds0)
-				(string->number nsubds0)
-				#f))))
-           (if (or (== nsubds #f) (not (grid-aspect-show-subunits?)))
-               (set! nsubds 1))
-           (if (== type 'default)
-               (graphics-fetch-grid-vars 'cartesian #t))
-           (if (!= graphics-current-type "logarithmic")
-               (graphics-set-grid-aspect 'update nsubds #f))
-           (graphics-set-grid #f)))
-	(else
-	  (grid-as-visual-grid! #f)
-	  (graphics-fetch-grid-vars type #f)
-	  (set! graphics-current-type (symbol->string type))
-	  (graphics-set-grid #f))))
+  (native-graphics-grid-command "type" (symbol->string type) #f))
 
-(define (update-edit-grid cmd)
-  (if egrid-as-vgrid?
-      (graphics-set-edit-grid cmd)))
-
-;; Setting grid properties
 (tm-define (graphics-set-grid-center x y visual?)
-  (if (not visual?) (grid-as-visual-grid! #f))
-  (graphics-fetch-grid-vars #f visual?)
-  (set! graphics-current-center `(point ,x ,y))
-  (graphics-set-grid visual?))
+  (native-graphics-grid-command "center" `(point ,x ,y) visual?))
 
 (define (grid-step-has-value? val visual?)
-  (graphics-fetch-grid-vars #f visual?)
-  (string-number=? val graphics-current-step))
+  (string-number=? val (native-graphics-grid-query "step" visual?)))
 
 (tm-define (graphics-set-grid-step val visual?)
   (:check-mark "*" grid-step-has-value?)
-  (if (not visual?) (grid-as-visual-grid! #f))
-  (graphics-fetch-grid-vars #f visual?)
-  (set! graphics-current-step val)
-  (graphics-set-grid visual?))
+  (native-graphics-grid-command "step" val visual?))
 
 (define (grid-astep-has-value? val visual?)
-  (graphics-fetch-grid-vars #f visual?)
-  (string-number=? val graphics-current-astep))
+  (string-number=? val (native-graphics-grid-query "astep" visual?)))
 
 (tm-define (graphics-set-grid-astep val visual?)
   (:check-mark "*" grid-astep-has-value?)
-  (if (not visual?) (grid-as-visual-grid! #f))
-  (graphics-fetch-grid-vars #f visual?)
-  (set! graphics-current-astep val)
-  (graphics-set-grid visual?))
+  (native-graphics-grid-command "astep" val visual?))
 
 (define (grid-base-has-value? val visual?)
-  (graphics-fetch-grid-vars #f visual?)
-  (== val graphics-current-base))
+  (== val (native-graphics-grid-query "base" visual?)))
 
 (tm-define (graphics-set-grid-base val visual?)
   (:check-mark "*" grid-base-has-value?)
-  (if (not visual?) (grid-as-visual-grid! #f))
-  (graphics-fetch-grid-vars #f visual?)
-  (set! graphics-current-base val)
-  (graphics-set-grid visual?))
+  (native-graphics-grid-command "base" val visual?))
 
 (tm-define (graphics-interactive-set-grid-center visual?)
   (:interactive #t)
   (interactive
-      (lambda (x y)
-	(graphics-set-grid-center x y visual?))
+    (lambda (x y) (graphics-set-grid-center x y visual?))
     "Center's x-coordinate" "Center's y-coordinate"))
 
 (tm-define (graphics-interactive-set-grid-step visual?)
@@ -353,109 +174,37 @@
   (interactive (lambda (x) (graphics-set-grid-base x visual?))
     "Logarithmic base"))
 
-;; Setting visual grid aspect properties
 (tm-define (graphics-set-grid-aspect-properties c0 c1 s2 c2)
   (:argument c0 "Color axes")
   (:argument c1 "Color units")
   (:argument s2 "Subdivisions per unit")
   (:argument c2 "Color subdivisions")
-  (with aspect `(tuple (tuple "axes" ,c0) (tuple "1" ,c1) (tuple ,s2 ,c2))
-    (graphics-set-property "gr-grid-aspect" aspect)
-    (graphics-set-property "gr-grid-aspect-props" aspect))
-  (update-edit-grid 'default))
-
-(define (cmp-aspect-items x y)
-  (if (== (cadr x) "axes") #t
-      (if (== (cadr y) "axes") #f
-          (let* ((xval (s2f (cadr x)))
-                 (yval (s2f (cadr y))))
-            (< xval yval)))))
-
-(define (graphics-grid-aspect-props)
-  (define res #f)
-  (with aspect
-      ;;(tree->stree (get-env-tree "gr-grid-aspect-props"))
-      (get-upwards-property
-       (cDr (cursor-path)) "gr-grid-aspect-props")
-    ;;FIXME: The synchro still doesn't work with (get-env-tree),
-    ;;  so we proceed differently. Take this into account everywhere
-    ;;  else (depends on if (get-env-tree) is gonna be fixed or not.
-    ;;  If not, then we should avoid using it, and rely on the way
-    ;;  above (if it doesn't raises other problems...)).
-    (if (match? aspect '(tuple (tuple :%2) (tuple :%2) :*))
-	(set! res aspect)
-	(begin
-	  (set! aspect (graphics-path-property
-                        (graphics-graphics-path) "gr-grid-aspect"))
-	  (if (match? aspect '(tuple (tuple :%2) (tuple :%2) :*))
-	      (set! res aspect)
-	      (set! res (get-default-val "gr-grid-aspect"))))))
-  (cons 'tuple (sort (cdr res) cmp-aspect-items)))
-
-(define (graphics-grid-aspect visual?)
-  (with gr (if visual? "gr-grid-aspect" "gr-edit-grid-aspect")
-    (with aspect (tree->stree (get-env-tree gr))
-      (if (not (match? aspect '(tuple (tuple :%2) (tuple :%2) :*)))
-          (set! res (get-default-val gr)))
-      (cons 'tuple (sort (cdr aspect) cmp-aspect-items)))))
+  (native-graphics-grid-command "aspect-properties"
+    `(tuple (tuple "axes" ,c0) (tuple "1" ,c1) (tuple ,s2 ,c2)) #t))
 
 (define (aspect-ref a i)
   (and (pair? a) (integer? i) (> (length a) i) (list-ref a i)))
 
 (define (nsubd-has-value? type nsubd visual?)
-  (with aspect (graphics-grid-aspect visual?)
-    (with ref (aspect-ref aspect 3)
-      (if ref
-          (if (number? nsubd)
-              (== (number->string nsubd) (cadr ref))
-              (let* ((aspect (get-default-val
-                              (if visual?
-                                  "gr-grid-aspect"
-                                  "gr-edit-grid-aspect")))
-                     (val (cadr (list-ref aspect 3))))
-                (== (cadr ref) val)))
-          #f))))
+  (with ref (aspect-ref (native-graphics-grid-query "aspect" visual?) 3)
+    (and ref
+         (if nsubd
+             (== (grid-number-string nsubd) (cadr ref))
+             (with default-ref
+                 (aspect-ref (native-graphics-grid-query "default-aspect" visual?) 3)
+               (and default-ref (== (cadr ref) (cadr default-ref))))))))
 
 (tm-define (graphics-set-grid-aspect type nsubd visual?)
   (:check-mark "*" nsubd-has-value?)
-  (if visual?
-      (with aspect (graphics-grid-aspect-props)
-	(cond ((== type 'units-only)
-	       (graphics-set-property "gr-grid-aspect-props" aspect)
-	       (set-cdr! (cddr aspect) '())
-	       (graphics-set-property "gr-grid-aspect" aspect))
-	      ((== type 'detailed)
-	       (if nsubd
-		   (set-car! (cdr (list-ref aspect 3))
-                             (or (and (string? nsubd) nsubd)
-                                 (number->string nsubd)))
-		   (set-car! (cdr (list-ref aspect 3))
-			     (cadr (list-ref
-                                    (get-default-val "gr-grid-aspect")
-                                    3))))
-	       (graphics-set-property "gr-grid-aspect" aspect)
-	       (graphics-set-property "gr-grid-aspect-props" aspect)))
-	(update-edit-grid 'default))
-      (with aspect
-          `(tuple (tuple "axes" "none") (tuple "1" "none")
-                  (tuple ,(number->string nsubd) "none"))
-	(if (not nsubd)
-	    (set-car! (cdr (list-ref aspect 3))
-		      (cadr (list-ref
-                             (get-default-val "gr-edit-grid-aspect")
-                             3))))
-	(graphics-set-property "gr-edit-grid-aspect" aspect)
-	(if (!= type 'update)
-	    (grid-as-visual-grid! #f)))))
+  (native-graphics-grid-command "aspect"
+    `(tuple ,(symbol->string type) ,(grid-number-string nsubd)) visual?))
 
 (tm-define (graphics-interactive-set-grid-nsubds visual?)
   (:interactive #t)
   (interactive
-      (lambda (x)
-        (graphics-set-grid-aspect 'detailed (string->number x) visual?))
+    (lambda (x) (graphics-set-grid-aspect 'detailed (string->number x) visual?))
     "Number of subunit steps"))
 
-;; Setting visual grid aspect properties (colors)
 (define (grid-aspect-ofs where)
   (cond ((== where 'axes) 1)
         ((== where 'units) 2)
@@ -464,112 +213,47 @@
 
 (define (grid-color-has-value? where color)
   (let* ((i (grid-aspect-ofs (cadr where)))
-	 (aspect (graphics-grid-aspect #t))
-	 (aspect-props (graphics-grid-aspect-props))
-	 (ref (aspect-ref aspect i))
-	 (ref-props (aspect-ref aspect-props i)))
-    (if (== color "default")
-	(let* ((aspect (get-default-val "gr-grid-aspect"))
-	       (ref2 (aspect-ref aspect i)))
-          (and ref2 (or ref ref-props)
-               (== (caddr ref2) (if ref (caddr ref) (caddr ref-props)))))
-	(if ref
-	    (== color (caddr ref))
-	    (== color (caddr ref-props))))))
+         (ref (or (aspect-ref (native-graphics-grid-query "aspect" #t) i)
+                  (aspect-ref (native-graphics-grid-query "aspect-props" #t) i))))
+    (and ref
+         (if (== color "default")
+             (with default-ref
+                 (aspect-ref (native-graphics-grid-query "default-aspect" #t) i)
+               (and default-ref (== (caddr default-ref) (caddr ref))))
+             (== color (caddr ref))))))
 
 (tm-define (graphics-set-grid-color where color)
   (:check-mark "*" grid-color-has-value?)
-  (define i 0)
-  (let* ((i (grid-aspect-ofs where))
-	 (aspect (graphics-grid-aspect #t))
-	 (aspect-props (graphics-grid-aspect-props)))
-    (if i
-        (begin
-          (if (== color "default")
-              (let* ((aspect (get-default-val "gr-grid-aspect"))
-                     (ref2 (aspect-ref aspect i)))
-                (set! color (caddr ref2))))
-          (set-car! (cddr (list-ref aspect-props i)) color)
-          (graphics-set-property "gr-grid-aspect-props" aspect-props)
-          (if (and (pair? aspect) (> (length aspect) 3))
-              (begin
-                (set-car! (cddr (list-ref aspect i)) color)
-                (graphics-set-property "gr-grid-aspect" aspect)))))))
+  (native-graphics-grid-command "color" `(tuple ,(symbol->string where) ,color) #t))
 
-;; Grid interface elements
 (tm-define (grid-as-visual-grid?)
-  (!= (tree->stree (get-env-tree "gr-as-visual-grid")) "off"))
-
-(define (grid-as-visual-grid! b)
-  (set! egrid-as-vgrid? b)
-  (graphics-set-property "gr-as-visual-grid" (if b "on" "off")))
+  (grid-query? "linked" #t))
 
 (tm-define (grid-toggle-as-visual-grid)
   (:check-mark "v" grid-as-visual-grid?)
-  (grid-as-visual-grid! (not (grid-as-visual-grid?)))
-  (update-edit-grid 'default))
-
-(define (grid-aspect-show-subunits?)
-  (with aspect (tree->stree (get-env-tree "gr-grid-aspect"))
-    (and (pair? aspect) (> (length aspect) 3))))
+  (native-graphics-grid-command "link" "" #t))
 
 (tm-define (grid-show-subunits?)
-  (let* ((grid (tree->stree (get-env-tree "gr-grid")))
-	 (aspect (tree->stree (get-env-tree "gr-grid-aspect"))))
-    (and (pair? grid) (pair? aspect) (> (length aspect) 3))))
+  (grid-query? "subunits" #t))
 
 (tm-define (grid-toggle-show-subunits)
   (:check-mark "v" grid-show-subunits?)
-  (if (grid-show-subunits?)
-      (graphics-set-grid-aspect 'units-only #f #t)
-      (graphics-set-grid-aspect 'detailed #f #t)))
+  (native-graphics-grid-command "subunits" "" #t))
 
-;; Toggling grids
-
-(define (test-grid*? visual?)
-  (let* ((prop (if visual? "gr-grid" "gr-edit-grid"))
-	 (prop-old (if visual? "gr-grid-old" "gr-edit-grid-old"))
-	 (p (cDr (cursor-path)))
-	 (gr (get-upwards-property p prop))
-	 (gr-old (get-upwards-property p prop-old)))
-    (if (!= gr-old nothing)
-        (and (!= gr nothing) (!= (cadr gr) "empty"))
-        (!= gr nothing))))
-
-(define (graphics-toggle-grid* visual?)
-  (let* ((prop (if visual? "gr-grid" "gr-edit-grid"))
-	 (prop-old (if visual? "gr-grid-old" "gr-edit-grid-old"))
-	 (p (cDr (cursor-path)))
-	 (gr (get-upwards-property p prop))
-	 (gr-old (get-upwards-property p prop-old)))
-    (if (!= gr-old nothing)
-        (if (or (== gr nothing)
-                (== (cadr gr) "empty"))
-            (graphics-set-property prop gr-old)
-            (graphics-set-property prop '(tuple "empty")))
-        (if (!= gr nothing)
-            (begin
-              (graphics-set-property prop '(tuple "empty"))
-              (graphics-set-property prop-old gr))))))
-
-(define (test-visual-grid?) (test-grid*? #t))
+(define (test-visual-grid?) (grid-query? "enabled" #t))
 (tm-define (graphics-toggle-visual-grid)
   (:check-mark "v" test-visual-grid?)
-  (graphics-toggle-grid* #t))
+  (native-graphics-grid-command "toggle" "" #t))
 
-(define (test-logical-grid?) (test-grid*? #f))
+(define (test-logical-grid?) (grid-query? "enabled" #f))
 (tm-define (graphics-toggle-logical-grid)
   (:check-mark "v" test-logical-grid?)
-  (graphics-toggle-grid* #f))
+  (native-graphics-grid-command "toggle" "" #f))
 
-(define (test-grid?) (and (test-grid*? #f) (test-grid*? #t)))
+(define (test-grid?) (and (test-logical-grid?) (test-visual-grid?)))
 (tm-define (graphics-toggle-grid)
   (:check-mark "v" test-grid?)
-  (if (grids-defaulted?)
-      (graphics-set-visual-grid 'cartesian)
-      (begin
-        (graphics-toggle-grid* #t)
-        (graphics-toggle-grid* #f))))
+  (native-graphics-grid-command "toggle-both" "" #t))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Graphics edit mode

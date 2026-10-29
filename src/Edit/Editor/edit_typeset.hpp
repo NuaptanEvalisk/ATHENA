@@ -23,7 +23,6 @@ struct cursor_environment_checkpoint;
 class edit_typeset_rep: virtual public editor_rep {
 protected:
   tree the_style;                         // document style
-  hashmap<path,std::shared_ptr<const cursor_environment_checkpoint>> cur;
   std::shared_ptr<const cursor_environment_checkpoint> prepared_cursor;
   std::vector<std::shared_ptr<const cursor_environment_checkpoint>> cursor_contexts;
   std::unique_ptr<evaluation_environment_checkpoint> pre; // styles/init state
@@ -71,8 +70,13 @@ protected:
   std::shared_ptr<const cursor_environment_checkpoint> prepared_context_at (
     path source, athena::contracts::evaluation_boundary_handle selected);
   std::shared_ptr<const evaluation_environment_checkpoint> conversion_context_at (path source);
+  std::shared_ptr<const evaluation_environment_checkpoint> prepare_document_context () override;
   void prepare_initial_background ();
   void prepare_page_geometry ();
+  std::shared_ptr<const evaluation_environment_checkpoint> prepare_macro_argument (
+    tree invocation, int argument, const evaluation_environment_checkpoint& context) override;
+  std::shared_ptr<const evaluation_environment_checkpoint> prepare_tree_position (
+    tree source, path position, const evaluation_environment_checkpoint& context) override;
 
 public:
   edit_typeset_rep ();
@@ -83,6 +87,8 @@ public:
     std::shared_ptr<const athena::contracts::detached_environment>) override;
   std::shared_ptr<const evaluation_environment_checkpoint> cursor_context_at (
     path source, athena::contracts::evaluation_boundary_handle selected) override;
+  std::shared_ptr<const evaluation_environment_checkpoint> occurrence_context_at (
+    path source, path anchor, athena::contracts::evaluation_boundary_handle selected) override;
   bool cursor_occurrence_admitted (
     path source, const athena::contracts::evaluation_boundary_handle& selected) override;
   bool set_enunciation_editing_id (const std::string& id) override;
@@ -170,7 +176,6 @@ public:
   void     typeset_preamble ();
   void     typeset_prepare ();
   void     typeset_invalidate_env ();
-  void     typeset_exec_until (path p);
   void     typeset_invalidate (path p);
   void     typeset_invalidate_presentation (path p);
   void     typeset_invalidate_all ();

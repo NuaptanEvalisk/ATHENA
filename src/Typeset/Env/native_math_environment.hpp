@@ -8,10 +8,17 @@ class native_math_value_scope {
   edit_env environment;
   string name;
   tree previous;
+  bool finished= false;
 public:
   native_math_value_scope (edit_env env, string key, tree value):
     environment (env), name (key), previous (env->local_begin (key, value)) {}
-  ~native_math_value_scope () { environment->local_end (name, previous); }
+  native_math_value_scope (edit_env_rep& env, string key, tree value):
+    native_math_value_scope (edit_env (&env), key, value) {}
+  void finish (bool remain_inside= false) {
+    if (!remain_inside) environment->local_end (name, previous);
+    finished= true;
+  }
+  ~native_math_value_scope () { if (!finished) finish (); }
   const tree& outer_value () const { return previous; }
   native_math_value_scope (const native_math_value_scope&)= delete;
   native_math_value_scope& operator= (const native_math_value_scope&)= delete;
@@ -32,4 +39,9 @@ public:
   bool show_number;
   native_math_row_scope (edit_env, const tree& source, int index,
                          bool row_numbering, std::optional<bool> block_numbering);
+  void finish (bool remain_inside) {
+    tags.finish (remain_inside);
+    label.finish (remain_inside);
+    row.finish (remain_inside);
+  }
 };

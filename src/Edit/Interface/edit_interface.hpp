@@ -30,6 +30,7 @@
 #define INPUT_COMPLETE    4
 
 string MODE_LANGUAGE (string mode);
+struct source_occurrence;
 
 struct heading_cell_bracket {
   int  level;
@@ -62,6 +63,7 @@ protected:
   bool          cursor_blink_visible;
   string        sh_s;          // current string for shortcuts
   double        sh_mark;       // 0 or mark for undoing shortcut
+  std::shared_ptr<const evaluation_environment_checkpoint> shortcut_environment;
   bool          pre_edit_skip; // temporarily disabled pre-edit mechanism
   string        pre_edit_s;    // pre-edit string
   double        pre_edit_mark; // 0 or mark for undoing pre-edit
@@ -141,9 +143,34 @@ protected:
   bool complete_hybrid ();
   void complete_hybrid_after_layout ();
   bool completion_index_valid= false;
-  std::map<int, std::map<std::string, int>> completion_chunks;
-  std::map<std::string, int> completion_words;
+  struct completion_scan_frame {
+    path position;
+    int next= -1;
+    std::shared_ptr<const evaluation_environment_checkpoint> context;
+    std::vector<athena::text::word_span> words;
+  };
+  struct completion_chunk {
+    std::map<std::string, int> words, scanning;
+    std::vector<completion_scan_frame> stack;
+    std::shared_ptr<const source_occurrence> occurrence;
+    std::shared_ptr<const evaluation_environment_checkpoint> context;
+    std::uint64_t checked= 0;
+    bool complete= false, pending= false;
+  };
+  std::map<int, completion_chunk> completion_chunks;
+  std::map<std::string, std::map<int, int>> completion_words;
   std::set<int> completion_dirty_chunks;
+  std::shared_ptr<const evaluation_environment_checkpoint> completion_layout;
+  std::uint64_t completion_generation= 0;
+  int completion_review= 0, completion_review_remaining= 0;
+  bool completion_waiting= false;
+  bool completion_requested= false;
+  path pending_text_completion;
+  string pending_text_original, pending_text_prefix;
+  bool pending_text_realtime= false;
+  void update_completion_index ();
+  void complete_text_after_layout ();
+  bool complete_text (string prefix, bool realtime);
   array<string> indexed_completions (string prefix);
   struct link_peek_layer {
     string target;
@@ -257,8 +284,8 @@ public:
   void apply_changes ();
 
   /* miscellaneous */
-  void compute_env_rects (path p, rectangles& rs, bool recurse,
-                          SI outline_width);
+  void compute_env_rects (path p, path focus, rectangles& rs, bool recurse,
+                         SI outline_width, const cursor_navigation&);
   void cursor_visible ();
   void selection_visible ();
   void full_screen_mode (bool flag);
@@ -277,6 +304,7 @@ public:
   bool in_search_mode ();
   bool in_spell_mode ();
   bool kbd_get_command (string which, string& help, command& cmd);
+  void cancel_pre_edit ();
   void interrupt_shortcut ();
   bool try_shortcut (string comb);
   tree kbd (string s);

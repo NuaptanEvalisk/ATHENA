@@ -26,6 +26,7 @@
 #include "Typeset/Env/local_environment.hpp"
 #include "message.hpp"
 #include "tree_traverse.hpp"
+#include "tree_select.hpp"
 #include "boot.hpp"
 #include "buffer_actor.hpp"
 #include "actor_ui_bridge.hpp"
@@ -169,7 +170,7 @@ edit_interface_rep::resume () {
     bench_start ("make initial cursor accessible");
     path new_tp= make_cursor_accessible (tp, true);
     bench_cumul ("make initial cursor accessible");
-    if (new_tp != tp) {
+    if (!is_nil (new_tp) && new_tp != tp) {
       notify_change (THE_CURSOR);
       tp= new_tp;
     }
@@ -387,8 +388,8 @@ edit_interface_rep::cursor_visible () {
   cursor cu= get_cursor ();
   if (selection_active_any ()) {
     path p1, p2;
-    selection_get (p1, p2);
-    if (selection_covers_range (p1, p2, start (et, rp), end (et, rp)))
+    if (selection_try_get (p1, p2) &&
+        selection_covers_range (p1, p2, start (et, rp), end (et, rp)))
       return;
   }
   if (is_nil (sp)) {
@@ -613,13 +614,10 @@ focus_outline_width (SI pixel) {
 }
 
 void
-edit_interface_rep::compute_env_rects (path p, rectangles& rs, bool recurse,
-                                        SI outline_width) {
+edit_interface_rep::compute_env_rects (path p, path focus, rectangles& rs, bool recurse,
+                                      SI outline_width, const cursor_navigation& navigation) {
   if (p == rp) return;
-  tree pt= subtree (et, path_up (p));
   tree st= subtree (et, p);
-  const auto context= editor_rep::cursor_context_at (tp);
-  const auto& contracts= context ? context->contract_context () : contract_state.contracts;
   if ((is_func (st, TABLE) || is_func (st, SUBTABLE) || is_func (st, MATH_GRID)) &&
       recurse && get_preference ("show table cells") == "on") {
     rectangles rl;
@@ -644,10 +642,9 @@ edit_interface_rep::compute_env_rects (path p, rectangles& rs, bool recurse,
         }
     }
     rs << simplify (rl);
-    if (recurse) compute_env_rects (path_up (p), rs, recurse, outline_width);
+    if (recurse) compute_env_rects (path_up (p), focus, rs, recurse, outline_width, navigation);
   }
   else if (is_atomic (st) ||
-            athena::contracts::editing_query {contracts}.child_enforcing (st) ||
            //is_document (st) || is_concat (st) ||
            is_func (st, TABLE) || is_func (st, SUBTABLE) ||
            is_func (st, ROW) || is_func (st, TFORMAT) ||
@@ -655,32 +652,38 @@ edit_interface_rep::compute_env_rects (path p, rectangles& rs, bool recurse,
            (is_func (st, WITH) && is_graphical (st[N(st)-1])) ||
            (is_func (st, WITH) && is_graphical_text (st[N(st)-1])) ||
            (is_compound (st, "math", 1) &&
-            is_compound (subtree (et, path_up (p)), "input")))
-    compute_env_rects (path_up (p), rs, recurse, outline_width);
+            is_compound (subtree (et, path_up (p)), "input")) ||
+           navigation.at (p / rp).contracts ().child_enforcing (st))
+    compute_env_rects (path_up (p), focus, rs, recurse, outline_width, navigation);
   else {
     using athena::contracts::access_policy;
-    const auto access= in_source () ? access_policy::source : access_policy::normal;
-    const cursor_navigation navigation ({contracts, access});
-    tree st= subtree (et, p);
-    if (navigation.is_accessible_cursor (et, p * right_index (st)) || access == access_policy::source) {
+    tree body= subtree (et, rp);
+    if (navigation.contracts ().access == access_policy::source ||
+        navigation.is_accessible_cursor (body, p / rp * right_index (st))) {
       bool right;
       path p1= p * 0, p2= p * 1, q1, q2;
       if (is_script (subtree (et, p), right) ||
           is_func (st, TEXT_AT) ||
           is_func (st, MATH_AT))
         {
-          p1= navigation.start (et, p * 0);
-          p2= navigation.end (et, p * 0);
+          p1= rp * navigation.start (body, p / rp * 0);
+          p2= rp * navigation.end (body, p / rp * 0);
         }
       if (is_func (st, CELL)) { q1= p1; q2= p2; }
-      else selection_correct (p1, p2, q1, q2);
+      else {
+        const auto boundary= cursor_source_boundary ();
+        ::selection_correct (navigation, body, p1 / rp, p2 / rp, q1, q2,
+          boundary && cursor_occurrence_admitted (p1, boundary),
+          boundary && cursor_occurrence_admitted (p2, boundary));
+        q1= rp * q1; q2= rp * q2;
+      }
       selection sel= eb->find_check_selection (q1, q2);
-      if (N(focus_get ()) >= N(p))
+      if (N(focus) >= N(p))
         if (!recurse || get_preference ("show full context") == "on")
           rs << outlines (sel->rs, outline_width);
     }
     if (recurse || N(rs) == 0)
-      compute_env_rects (path_up (p), rs, recurse, outline_width);
+      compute_env_rects (path_up (p), focus, rs, recurse, outline_width, navigation);
   }
 }
 
@@ -759,17 +762,26 @@ editor_rep::editor_command_state_snapshot () {
   const auto context= editor_rep::cursor_context_at (the_path ());
   if (!context) return snapshot;
 
+  bool small_selection= false;
+  if (selection_active_any ()) {
+    path first, last;
+    if (!selection_try_get (first, last)) return snapshot;
+    small_selection= !selection_active_table () && first != last &&
+      !is_multi_paragraph (subtree (et, common (first, last)));
+  }
+  path focus;
+  if (!focus_try_get (focus)) return snapshot;
+
   snapshot.flags= ACTOR_EDITOR_COMMAND_STATE_VALID;
   if (buf->read_only)
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_READ_ONLY;
   if (selection_active_any ())
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_SELECTION;
-  if (selection_active_any () && !selection_active_small ())
+  if (selection_active_any () && !small_selection)
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_NON_SMALL_SELECTION;
   if (inside_graphics (false) && context->effective_value (PREAMBLE) == "false" &&
       native_graphics_selection_active ())
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_GRAPHICS_SELECTION;
-  path focus= focus_get ();
   if (test_subtree (focus))
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_FOCUS_NODE;
   const bool graphics_mode= inside_graphics (false);
@@ -1024,10 +1036,12 @@ editor_rep::focus_toolbar_state_snapshot () {
   if (buf == nullptr || inside_graphics (false)) return snapshot;
   const auto context= editor_rep::cursor_context_at (the_path ());
   if (!context) return snapshot;
-  const athena::contracts::editing_query fields {context->contract_context ()};
-
-  path focus= focus_get ();
+  path focus;
+  if (!focus_try_get (focus)) return snapshot;
   if (!test_subtree (focus)) return snapshot;
+  const auto entry= editor_rep::cursor_context_at (focus * 0);
+  if (!entry) return snapshot;
+  const athena::contracts::editing_query fields {entry->contract_context ()};
   tree t= the_subtree (focus);
   snapshot.flags= ACTOR_FOCUS_TOOLBAR_VALID;
 
@@ -1976,6 +1990,7 @@ edit_interface_rep::apply_changes () {
   }
   
   if (env_change == 0) {
+    complete_text_after_layout ();
     if (pending_idle_menu_update &&
         idle_time (INTERRUPTED_EVENT) >= 1000/6)
       update_menus ();
@@ -2257,14 +2272,24 @@ edit_interface_rep::apply_changes () {
     rectangles old_foc_rects= foc_rects;
     env_rects= rectangles ();
     foc_rects= rectangles ();
-    path pp= path_up (tp);
-    tree pt= subtree (et, pp);
-    if (none_accessible (pt));
-    else pp= path_up (pp);
-    if (full_context || table_cells)
-      compute_env_rects (pp, env_rects, true, pixel);
-    if (show_focus)
-      compute_env_rects (pp, foc_rects, false, focus_outline_width (pixel));
+    const auto context= editor_rep::cursor_context_at (tp);
+    path focus;
+    rectangles next_env, next_focus;
+    if (context && focus_try_get (focus) &&
+        with_admitted_navigation (*context, [&] (const cursor_navigation& navigation) {
+          path pp= path_up (tp);
+          tree pt= subtree (et, pp);
+          if (rp < pp && (is_atomic (pt) ||
+              !navigation.at (pp / rp).contracts ().no_fields_editable (L(pt))))
+            pp= path_up (pp);
+          if (full_context || table_cells)
+            compute_env_rects (pp, focus, next_env, true, pixel, navigation);
+          if (show_focus)
+            compute_env_rects (pp, focus, next_focus, false, focus_outline_width (pixel), navigation);
+        })) {
+      env_rects= next_env;
+      foc_rects= next_focus;
+    }
     if (env_rects != old_env_rects) {
       invalidate (old_env_rects);
       invalidate (env_rects);
@@ -2332,6 +2357,8 @@ edit_interface_rep::apply_changes () {
   }
   
   complete_hybrid_after_layout ();
+  complete_text_after_layout ();
+  prepare_pending_hybrid_activation ();
 
   // cout << "Handling locus highlighting\n";
   if (env_change & (THE_TREE+THE_ENVIRONMENT+THE_EXTENTS)) {

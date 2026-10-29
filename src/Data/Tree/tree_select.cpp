@@ -11,7 +11,7 @@
 
 #include "tree_select.hpp"
 #include "cursor_navigation.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 #include "analyze.hpp"
 #include "node_metadata.hpp"
 
@@ -19,6 +19,16 @@ path closest_up (tree t, path p);
 
 namespace {
 class selection_request: private cursor_navigation {
+  path mapped_first, mapped_last;
+  selection_request child_request (tree t, int child) const {
+    return selection_request (is_atomic (t[child]) ?
+      static_cast<const cursor_navigation&> (*this) : at (path (child)), path (), path ());
+  }
+  bool accessible_endpoint (tree t, path p) const {
+    return ((!is_nil (mapped_first) && p == mapped_first) ||
+            (!is_nil (mapped_last) && p == mapped_last)) ?
+      is_mapped_cursor (t, p) : is_accessible_cursor (t, p);
+  }
   void selection_adjust_border (tree, path, path, path&, path&);
   void adjust_right_script (tree, path&);
   void adjust_left_script (tree, path&);
@@ -27,7 +37,8 @@ class selection_request: private cursor_navigation {
   void selection_adjust (tree, path, path, path&, path&);
   void selection_make_accessible (tree, path, path, path&, path&);
 public:
-  explicit selection_request (const cursor_navigation& context): cursor_navigation (context) {}
+  selection_request (const cursor_navigation& context, path first, path last):
+    cursor_navigation (context), mapped_first (first), mapped_last (last) {}
   void correct (tree, path, path, path&, path&);
 };
 }
@@ -66,13 +77,15 @@ correct_right_most_inside (path p, tree t) {
 void
 selection_request::selection_adjust_border (tree t, path i1, path i2, path& o1, path& o2) {
   o1= i1; o2= i2;
+  if (contracts ().access == athena::contracts::access_policy::source) return;
   if (is_compound (t) && !is_atom (i1) && !is_atom (i2) &&
       i1->item == i2->item) {
     path O1, O2;
-    selection_adjust_border (t[i1->item], i1->next, i2->next, O1, O2);
+    auto child= child_request (t, i1->item);
+    child.selection_adjust_border (t[i1->item], i1->next, i2->next, O1, O2);
     const auto label= L(t[i1->item]);
-    if ((contracts ().describe (label).border & BORDER_INNER) != 0 &&
-        !athena::contracts::builtin_label (as_string (label)) &&
+    if (!athena::contracts::builtin_label (as_string (label)) &&
+        (child.contracts ().describe (label).border & BORDER_INNER) != 0 &&
         (O1->item != O2->item)) {
       o1= path (0);
       o2= path (1);
@@ -91,7 +104,7 @@ selection_request::adjust_right_script (tree t, path& o1) {
     if (is_right_script_prime (st)) {
       tree pt= t[o1->item-1];
       if (!is_atomic (pt))
-        o1= path (o1->item-1, start (pt));
+        o1= path (o1->item-1, at (path (o1->item-1)).start (pt));
       else {
         string s= pt->label;
         int pos= N(s);
@@ -117,7 +130,7 @@ selection_request::adjust_left_script (tree t, path& o2) {
     tree st= t[o2->item];
     if (is_left_script_prime (st)) {
       tree nt= t[o2->item+1];
-      if (!is_atomic (nt)) o2= path (o2->item+1, end (nt));
+      if (!is_atomic (nt)) o2= path (o2->item+1, at (path (o2->item+1)).end (nt));
       else {
         string s= nt->label;
         int pos= 0;
@@ -177,7 +190,7 @@ selection_request::selection_adjust (tree t, path i1, path i2, path& o1, path& o
     }
   }
   else if (i1->item == i2->item) {
-    selection_adjust (t[i1->item], i1->next, i2->next, o1, o2);
+    child_request (t, i1->item).selection_adjust (t[i1->item], i1->next, i2->next, o1, o2);
     o1= path (i1->item, o1);
     o2= path (i2->item, o2);
     adjust_right_script (t, o1);
@@ -189,18 +202,20 @@ selection_request::selection_adjust (tree t, path i1, path i2, path& o1, path& o
     tree_label l= L(t);
     if ((l==DOCUMENT) || (l==PARA) || (l==CONCAT)) {
       if (is_compound (t[i1->item], "slide"))
-        o1= path (i1->item, start (t[i1->item]));
+        o1= path (i1->item, at (path (i1->item)).start (t[i1->item]));
       else if (is_compound (t[i1->item])) {
         path mid;
-        selection_adjust (t[i1->item], i1->next, end (t[i1->item]), o1, mid);
+        auto child= child_request (t, i1->item);
+        child.selection_adjust (t[i1->item], i1->next, child.end (t[i1->item]), o1, mid);
         o1= path (i1->item, o1);
       }
       else o1= i1;
       if (is_compound (t[i2->item], "slide"))
-        o2= path (i2->item, end (t[i2->item]));
+        o2= path (i2->item, at (path (i2->item)).end (t[i2->item]));
       else if (is_compound (t[i2->item])) {
         path mid;
-        selection_adjust (t[i2->item], start(t[i2->item]), i2->next, mid, o2);
+        auto child= child_request (t, i2->item);
+        child.selection_adjust (t[i2->item], child.start (t[i2->item]), i2->next, mid, o2);
         o2= path (i2->item, o2);
       }
       else o2= i2;
@@ -233,13 +248,13 @@ selection_request::selection_make_accessible (tree t, path i1, path i2, path& o1
     if (is_compound (st) && i1 == whole * 0 && i2 == whole * 1)
       return;
   }
-  if (!is_accessible_cursor (t, o1))
+  if (!accessible_endpoint (t, o1))
     o1= move_accessible (t, o1, false);
-  if (!is_accessible_cursor (t, o1))
+  if (!accessible_endpoint (t, o1))
     o1= move_accessible (t, o1, true);
-  if (!is_accessible_cursor (t, o2))
+  if (!accessible_endpoint (t, o2))
     o2= move_accessible (t, o2, true);
-  if (!is_accessible_cursor (t, o2))
+  if (!accessible_endpoint (t, o2))
     o2= move_accessible (t, o2, false);
   if (path_inf (o1, o2))
     o1= shift (t, o1, 1);
@@ -269,12 +284,10 @@ selection_request::correct (tree t, path i1, path i2, path& o1, path& o2) {
 }
 
 void selection_correct (const cursor_navigation& context, tree t,
-                        path i1, path i2, path& o1, path& o2) {
-  selection_request (context).correct (t, i1, i2, o1, o2);
-}
-
-void selection_correct (tree t, path i1, path i2, path& o1, path& o2) {
-  selection_correct (current_cursor_navigation (), t, i1, i2, o1, o2);
+                        path i1, path i2, path& o1, path& o2,
+                        bool mapped_i1, bool mapped_i2) {
+  selection_request (context, mapped_i1 ? i1 : path (), mapped_i2 ? i2 : path ())
+    .correct (t, i1, i2, o1, o2);
 }
 
 /******************************************************************************

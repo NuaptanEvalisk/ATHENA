@@ -11,12 +11,16 @@
 #include "generic_editor_commands.hpp"
 #include "Scheme/Scheme/native_interfaces.hpp"
 #include "Subsystems/Qt/QTMReverseHierarchyGraph.hpp"
+#include "Typeset/Env/local_environment.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
 #include <unordered_map>
+#include <map>
+#include <optional>
+#include <stdexcept>
 #include <vector>
 
 namespace {
@@ -40,13 +44,14 @@ tree native_tree (const QJsonValue& value) {
   return result;
 }
 
-void make_section (editor ed, string tag) {
+void make_section (editor ed, string tag,
+                   const std::shared_ptr<const evaluation_environment_checkpoint>& context) {
   if (ed->selection_active_any ()) {
     if (!ed->selection_active_small ()) return;
-    ed->make_compound (as_tree_label (tag));
+    ed->make_compound (as_tree_label (tag), -1, context);
     return;
   }
-  if (!ed->make_return_after ()) ed->make_compound (as_tree_label (tag));
+  if (!ed->make_return_after ()) ed->make_compound (as_tree_label (tag), -1, context);
 }
 
 void make_doc_data (editor ed) {
@@ -62,14 +67,14 @@ void make_abstract_data (editor ed) {
   ed->insert_tree (value, path (0, 0, 0));
 }
 
-void make_aux (editor ed, string env, string var, string fallback) {
-  string aux= ed->defined_at_cursor (var) ? ed->get_env_string (var) : fallback;
+void make_aux (editor ed, string env, string aux) {
   if (ed->make_return_after ()) return;
   tree value (as_tree_label (env), tree (aux), tree (DOCUMENT, ""));
   ed->insert_tree (value);
 }
 
-void make_item (editor ed) {
+void make_item (editor ed,
+                const std::shared_ptr<const evaluation_environment_checkpoint>& context) {
   if (ed->make_return_after ()) return;
   tree descriptions (TUPLE, 5);
   descriptions[0]= "description";
@@ -78,7 +83,7 @@ void make_item (editor ed) {
   descriptions[3]= "description-dash";
   descriptions[4]= "description-long";
   const string label= ed->inside_which (descriptions);
-  ed->make_compound (as_tree_label (label == "" ? "item" : "item*"));
+  ed->make_compound (as_tree_label (label == "" ? "item" : "item*"), -1, context);
 }
 
 struct latex_binding {
@@ -133,7 +138,30 @@ native_latex_registry& registry () {
   return value;
 }
 
-void execute_action (const QJsonObject& action) {
+using latex_invocation_inputs= std::map<int, string>;
+
+latex_invocation_inputs prepare_binding_inputs (
+    int index, const evaluation_environment_checkpoint* context) {
+  const auto& actions= registry ().bindings.at (index).actions;
+  latex_invocation_inputs result;
+  for (int i=0; i<actions.size (); ++i) {
+    ASSERT (actions[i].isObject (), "native LaTeX command action must be an object");
+    const auto action= actions[i].toObject ();
+    const auto op= action.value ("op");
+    if (!context && (op == "make" || op == "make-section" ||
+                     op == "make-item" || op == "make-aux"))
+      throw std::runtime_error ("LaTeX insertion context is awaiting preparation");
+    if (op != "make-aux") continue;
+    const string var= native_string (action.value ("var"));
+    result.emplace (i, context->contains (var) ?
+      as_string (context->effective_value (var)) : native_string (action.value ("fallback")));
+  }
+  return result;
+}
+
+void execute_action (const QJsonObject& action,
+                     const latex_invocation_inputs& inputs, int position,
+                     const std::shared_ptr<const evaluation_environment_checkpoint>& context) {
   editor ed= get_current_editor ();
   ASSERT (!is_nil (ed), "native LaTeX command without editor");
   const string op= native_string (action.value ("op"));
@@ -142,7 +170,7 @@ void execute_action (const QJsonObject& action) {
     ed->make_with (native_string (action.value ("var")),
                    native_string (action.value ("value")));
   else if (op == "make")
-    ed->make_compound (as_tree_label (native_string (action.value ("tag"))));
+    ed->make_compound (as_tree_label (native_string (action.value ("tag"))), -1, context);
   else if (op == "emulate-keyboard")
     ed->emulate_keyboard (native_string (action.value ("keys")));
   else if (op == "insert-big")
@@ -167,42 +195,67 @@ void execute_action (const QJsonObject& action) {
   else if (op == "make-sqrt") ed->make_sqrt ();
   else if (op == "make-neg") ed->make_neg ();
   else if (op == "make-section")
-    make_section (ed, native_string (action.value ("tag")));
+    make_section (ed, native_string (action.value ("tag")), context);
   else if (op == "insert-native-math-block") ed->make_native_math_block (false);
   else if (op == "make-doc-data") make_doc_data (ed);
   else if (op == "make-abstract-data") make_abstract_data (ed);
   else if (op == "make-aux")
-    make_aux (ed, native_string (action.value ("env")),
-              native_string (action.value ("var")),
-              native_string (action.value ("fallback")));
-  else if (op == "make-item") make_item (ed);
+    make_aux (ed, native_string (action.value ("env")), inputs.at (position));
+  else if (op == "make-item") make_item (ed, context);
   else if (op == "make-label") generic_make_label ();
   else if (op == "make-cd") athena_make_commutative_diagram ();
   else if (op == "insert-reverse-hierarchy-graph") reverse_hierarchy_graph_insert ();
   else FAILED ("unknown native LaTeX command action");
 }
 
-void run_binding (int index) {
+void run_binding (int index, const latex_invocation_inputs& inputs,
+                  const std::shared_ptr<const evaluation_environment_checkpoint>& context) {
   auto& r= registry ();
   ASSERT (index >= 0 && index < (int) r.bindings.size (),
           "invalid native LaTeX command binding");
+  int position= 0;
   for (const QJsonValue& value: r.bindings[(std::size_t) index].actions) {
     ASSERT (value.isObject (), "native LaTeX command action must be an object");
-    execute_action (value.toObject ());
+    execute_action (value.toObject (), inputs, position++, context);
   }
 }
 
 class native_latex_command_rep final: public command_rep {
   int index;
+  std::optional<latex_invocation_inputs> inputs;
+  std::shared_ptr<const evaluation_environment_checkpoint> context;
 public:
   explicit native_latex_command_rep (int i): index (i) {}
-  void apply () override { run_binding (index); }
+  native_latex_command_rep (int i, latex_invocation_inputs prepared,
+                            std::shared_ptr<const evaluation_environment_checkpoint> context):
+    index (i), inputs (std::move (prepared)), context (std::move (context)) {}
+  void apply () override {
+    if (inputs) run_binding (index, *inputs, context);
+    else {
+      editor ed= get_current_editor ();
+      ASSERT (!is_nil (ed), "native LaTeX command without editor");
+      const auto selected= ed->cursor_context_at (ed->the_path ());
+      run_binding (index, prepare_binding_inputs (index, selected.get ()), selected);
+    }
+  }
+  command prepare (std::shared_ptr<const evaluation_environment_checkpoint> context) const {
+    auto inputs= prepare_binding_inputs (index, context.get ());
+    return command (tm_new<native_latex_command_rep> (
+      index, std::move (inputs), std::move (context)));
+  }
   tm_ostream& print (tm_ostream& out) override {
     return out << "<native-latex-command>";
   }
 };
 
 } // namespace
+
+command native_latex_prepare_command (
+    command cmd, std::shared_ptr<const evaluation_environment_checkpoint> context) {
+  if (auto* native= dynamic_cast<native_latex_command_rep*> (cmd.operator-> ()))
+    return native->prepare (context);
+  return cmd;
+}
 
 bool native_latex_get_command (string which, string& help, command& cmd) {
   auto& r= registry ();

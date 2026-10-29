@@ -10,11 +10,46 @@
 ******************************************************************************/
 
 #include "cursor_navigation.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 #include "analyze.hpp"
 #include "utf8_edit.hpp"
 #include "vars.hpp"
 
 using athena::contracts::access_policy;
+
+cursor_navigation::cursor_navigation (
+    const cursor_context_preparation& prepare, path source, bool input_only):
+  owned (prepare (source)),
+  query {owned.access == access_policy::source ?
+    athena::contracts::builtin_contracts () : *owned.contracts, owned.access, input_only},
+  preparation (prepare), source (source) {}
+
+cursor_navigation
+cursor_navigation::at (path relative) const {
+  if (!preparation || is_nil (relative) || query.access == access_policy::source) return *this;
+  return cursor_navigation (preparation, source * relative, query.input_only);
+}
+
+cursor_navigation
+cursor_navigation::child (tree t, int index, athena::contracts::editing_query policy) const {
+  if (policy.access == access_policy::source)
+    return cursor_navigation ({athena::contracts::builtin_contracts (), policy.access, policy.input_only});
+  if (!preparation || is_atomic (t[index]) || query.access == access_policy::source)
+    return cursor_navigation (policy);
+  return cursor_navigation (preparation, source * index, policy.input_only);
+}
+
+cursor_navigation
+cursor_navigation::child (tree t, int index) const {
+  return child (t, index, query);
+}
+
+bool
+cursor_navigation::path_accessible (tree t, path p) const {
+  if (is_nil (p)) return true;
+  return query.accessible (t, p->item) &&
+    child (t, p->item).path_accessible (t[p->item], p->next);
+}
 
 /******************************************************************************
 * Finding a closest cursor inside a tree
@@ -55,14 +90,19 @@ bool
 cursor_navigation::is_modified_accessible (tree t, path p, bool activate, bool persistent,
                                            bool mapped) const {
   if (p->item != 0) return false;
+  const auto outer= child (t, 0);
   t= t[0]; p= p->next;
-  if (is_atomic (t)) return accessible_cursor (t, p, mapped);
+  if (is_atomic (t)) return outer.accessible_cursor (t, p, mapped);
   else if (is_atom (p) && !persistent) return false;
   else {
-    const auto local= query.with_access (activate? access_policy::normal: access_policy::source);
-    if (persistent) return cursor_navigation (local).accessible_cursor (t, p, mapped);
+    const auto local= outer.query.with_access (activate? access_policy::normal: access_policy::source);
+    if (persistent) {
+      auto active= outer;
+      active.query.access= local.access;
+      return active.accessible_cursor (t, p, mapped);
+    }
     return (mapped ? local.mapped_accessible (t, p->item) : local.accessible (t, p->item)) &&
-      accessible_cursor (t[p->item], p->next, mapped);
+      outer.child (t, p->item).accessible_cursor (t[p->item], p->next, mapped);
   }
 }
 
@@ -122,13 +162,13 @@ cursor_navigation::accessible_cursor (tree t, path p, bool mapped) const {
            query.access != access_policy::source &&
            !graphics_in_path (t, p) &&
            ((p->item == lowest_accessible_child (t) &&
-             p->next == start (t[p->item])) ||
+             p->next == child (t, p->item).start (t[p->item])) ||
             (p->item == highest_accessible_child (t) &&
-             p->next == end (t[p->item]))))
+             p->next == child (t, p->item).end (t[p->item]))))
     return false;
   else switch (L(t)) {
     case CONCAT:
-      if (!accessible_cursor (t[p->item], p->next, mapped)) return false;
+      if (!child (t, p->item).accessible_cursor (t[p->item], p->next, mapped)) return false;
       else return !next_without_border (t, p);
     case ACTIVE:
       return is_modified_accessible (t, p, true, false, mapped);
@@ -141,10 +181,10 @@ cursor_navigation::accessible_cursor (tree t, path p, bool mapped) const {
     default:
       if (!(mapped ? query.mapped_accessible (t, p->item) : query.accessible (t, p->item)))
         return false;
-      const auto child= query.inside (t, p->item, mapped);
+      const auto policy= query.inside (t, p->item, mapped);
       if (is_func (t, RAW_DATA, 1))
-        return p == path (0, 0) && (!child.input_only || child.access == access_policy::source);
-      return cursor_navigation (child).accessible_cursor (t[p->item], p->next, mapped);
+        return p == path (0, 0) && (!policy.input_only || policy.access == access_policy::source);
+      return child (t, p->item, policy).accessible_cursor (t[p->item], p->next, mapped);
     }
 }
 
@@ -160,8 +200,8 @@ cursor_navigation::closest_accessible (tree t, path p, int dir) const {
   else if (is_func (t, AROUND) && (p->item == 0 || p->item == 2)) {
     if (p->item == 0 && dir < 0) return path (0);
     if (p->item == 2 && dir > 0) return path (1);
-    if (p->item == 0) return path (1, start (t[1]));
-    if (p->item == 2) return path (1, end (t[1]));
+    if (p->item == 0) return path (1, child (t, 1).start (t[1]));
+    if (p->item == 2) return path (1, child (t, 1).end (t[1]));
   }
   else {
     int i, k= p->item, n= N(t);
@@ -195,7 +235,7 @@ cursor_navigation::closest_accessible (tree t, path p, int dir) const {
         int  sdir= (j == k? dir: (j < k? -1: 1));
         path prop= (p == path (0)? p: path (ind));
         path sp2 = (is_nil (sp)? prop: sp);
-        path r   = closest_accessible (t[j], sp2, sdir);
+        path r   = child (t, j).closest_accessible (t[j], sp2, sdir);
         if (!is_nil (r)) {
           r= path (j, r);
           if (!is_concat (t) || !next_without_border (t, r)) {
@@ -253,13 +293,13 @@ cursor_navigation::extreme (tree t, int dir) const {
 path
 cursor_navigation::shift (tree t, path p, int dir) const {
   if (dir == 0 || is_nil (p) || is_atom (p)) return p;
-  else if (is_concat (t) && p->next == extreme (t[p->item], dir)) {
+  else if (is_concat (t) && p->next == child (t, p->item).extreme (t[p->item], dir)) {
     for (int i= p->item + dir; i >= 0 && i < N(t); i += dir)
       if (query.accessible (t, i))
-        return path (i, extreme (t[i], -dir));
+        return path (i, child (t, i).extreme (t[i], -dir));
     return p;
   }
-  else return path (p->item, shift (t[p->item], p->next, dir));
+  else return path (p->item, child (t, p->item).shift (t[p->item], p->next, dir));
 }
 
 /******************************************************************************
@@ -284,13 +324,13 @@ cursor_navigation::valid_cursor (tree t, path p, bool start_flag) const {
   if (query.parent_enforcing (t) &&
       !graphics_in_path (t, p) &&
       ((p->item == lowest_accessible_child (t) &&
-        p->next == start (t[p->item])) ||
+        p->next == child (t, p->item).start (t[p->item])) ||
        (p->item == highest_accessible_child (t) &&
-        p->next == end (t[p->item]))))
+        p->next == child (t, p->item).end (t[p->item]))))
     return false;
   if (is_concat (t)) {
     if (next_without_border (t, p)) return false;
-    return valid_cursor (t[p->item], p->next, start_flag || (p->item!=0));
+    return child (t, p->item).valid_cursor (t[p->item], p->next, start_flag || (p->item!=0));
   }
   if (is_mod_active_once (t))
     return is_atomic (t[0]) || (!is_atom (p->next));
@@ -305,7 +345,7 @@ cursor_navigation::valid_cursor (tree t, path p, bool start_flag) const {
         N(t[1]) > 0 && is_right_script_prime (t[1][0])) return false;
   }
   if (is_func (t, RAW_DATA, 1)) return p == path (0, 0);
-  return valid_cursor (t[p->item], p->next, false);
+  return child (t, p->item).valid_cursor (t[p->item], p->next, false);
 }
 
 static path
@@ -355,12 +395,12 @@ cursor_navigation::pre_correct (tree t, path p) const {
       if (p->item == 0) {
         for (int i=0; i<N(t); i++)
           if (i == N(t)-1 || query.accessible (t, i))
-            return path (i, pre_correct (t[i], path (0)));
+            return path (i, child (t, i).pre_correct (t[i], path (0)));
       }
       else {
         for (int i=N(t)-1; i>=0; i--)
           if (i == 0 || query.accessible (t, i))
-            return path (i, pre_correct (t[i], path (right_index (t[i]))));
+            return path (i, child (t, i).pre_correct (t[i], path (right_index (t[i]))));
       }
       FAILED ("nullary tree with no border");
     }
@@ -372,11 +412,12 @@ cursor_navigation::pre_correct (tree t, path p) const {
   }
   if (is_mod_active_once (t) && is_compound (t[0]) && is_atom (p->next)) {
     if (N (t[0]) == 0) return path (0);
+    const auto outer= child (t, 0);
     t= t[0]; p= p->next;
-    if (p->item==0) return path (0, path (0, pre_correct (t[0], path (0))));
+    if (p->item==0) return path (0, path (0, outer.child (t, 0).pre_correct (t[0], path (0))));
     else {
       int l=N(t)-1;
-      return path (0, path (l, pre_correct (t[l], path (right_index (t[l])))));
+      return path (0, path (l, outer.child (t, l).pre_correct (t[l], path (right_index (t[l])))));
     }
   }
   if (is_prime (t)) {
@@ -388,9 +429,9 @@ cursor_navigation::pre_correct (tree t, path p) const {
       is_compound (t[1], "math", 1) && (p->item == 1))
     {
       int i= (p->next->item == 0? 0: right_index (t[1][0]));
-      return path (1, 0, pre_correct (t[1][0], path (i)));
+      return path (1, 0, child (t, 1).child (t[1], 0).pre_correct (t[1][0], path (i)));
     }
-  path r (p->item, pre_correct (t[p->item], p->next));
+  path r (p->item, child (t, p->item).pre_correct (t[p->item], p->next));
   if (query.parent_enforcing (t) &&
       !graphics_in_path (t, p)) {
     if (r->item == lowest_accessible_child (t) &&
@@ -437,9 +478,9 @@ cursor_navigation::left_correct (tree t, path p) const {
   int i=p->item;
   if (is_atom (p)) return p;
   if (is_concat (t) && (i>0) && left_most (t[i], p->next))
-    return path (i-1, pre_correct (t[i-1], path (right_index (t[i-1]))));
+    return path (i-1, child (t, i-1).pre_correct (t[i-1], path (right_index (t[i-1]))));
   if (is_prime (t)) return path (0);
-  return path (i, left_correct (t[i], p->next));
+  return path (i, child (t, i).left_correct (t[i], p->next));
 }
 
 static bool
@@ -475,9 +516,9 @@ cursor_navigation::right_correct (tree t, path p) const {
   int i=p->item;
   if (is_atom (p)) return p;
   if (is_concat (t) && (i<N(t)-1) && right_most (t[i], p->next))
-    return path (i+1, pre_correct (t[i+1], path (0)));
+    return path (i+1, child (t, i+1).pre_correct (t[i+1], path (0)));
   if (is_prime (t)) return path (1);
-  return path (i, right_correct (t[i], p->next));
+  return path (i, child (t, i).right_correct (t[i], p->next));
 }
 
 static path
@@ -530,7 +571,7 @@ cursor_navigation::up_correct (tree t, path p, bool active) const {
   if ((p->item<0) || (p->item>=N(t))) return path ();
   if (active && !query.accessible (t, p->item)) return path ();
   return path (p->item,
-               up_correct (t[p->item], p->next, !is_mod_active_once (t)));
+               child (t, p->item).up_correct (t[p->item], p->next, !is_mod_active_once (t)));
 }
 
 path

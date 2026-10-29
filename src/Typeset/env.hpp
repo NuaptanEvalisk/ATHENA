@@ -131,6 +131,7 @@ class edit_env;
 class source_occurrence_capture;
 class source_occurrence_scope;
 class evaluation_context_capture;
+class evaluation_environment_checkpoint;
 struct source_occurrence_block;
 using source_occurrence_log= std::shared_ptr<const source_occurrence_block>;
 class ornament_parameters;
@@ -267,19 +268,19 @@ public:
 
 private:
   tree exec_formatting (tree t, string v);
-  void exec_until_formatting (tree t, path p, string v);
+  bool exec_until_formatting (tree t, path p, string v);
   bool exec_until_formatting (tree t, path p, string var, int l, string v);
   tree exec_table (tree t);
-  void exec_until_table (tree t, path p);
+  bool exec_until_table (tree t, path p);
   bool exec_until_table (tree t, path p, string var, int level);
   tree exec_assign (tree t);
   tree exec_provide (tree t);
   tree exec_with (tree t);
-  void exec_until_with (tree t, path p);
+  bool exec_until_with (tree t, path p);
   bool exec_until_with (tree t, path p, string var, int level);
   tree exec_drd_props (tree t);
   tree exec_compound (tree t);
-  void exec_until_compound (tree t, path p);
+  bool exec_until_compound (tree t, path p);
   bool exec_until_compound (tree t, path p, string var, int level);
   tree exec_provides (tree t);
   tree exec_value (tree t);
@@ -460,7 +461,7 @@ public:
 
   /* execution of trees and setting environment variables */
   tree   exec (tree t);
-  void   exec_until (tree t, path p);
+  bool   exec_until (tree t, path p);
   athena::contracts::contract_event_capture* contract_events= nullptr;
   source_occurrence_capture* source_occurrences= nullptr;
   source_occurrence_scope* active_source_occurrence= nullptr;
@@ -471,7 +472,9 @@ public:
   void synchronize_definition_value (string name, const tree& value);
   void initialize_value_inputs ();
   void analyze_contracts ();
-  bool prepare_contracts (std::function<void ()> notify);
+  // Optional checkpoint must be the context just restored into this evaluator.
+  bool prepare_contracts (std::function<void ()> notify,
+                          const evaluation_environment_checkpoint* prepared= nullptr);
   // Admission failure leaves the live environment and capture unchanged.
   bool replay_contract_events (const athena::contracts::contract_event_log&, bool record);
   bool can_replay_events (const athena::contracts::contract_event_log&);

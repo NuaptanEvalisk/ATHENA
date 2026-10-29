@@ -178,7 +178,7 @@ void replace_ranges (std::vector<source_range> ranges, std::string clipboard_xml
     member.actor= range.actor;
     member.view= range.view;
     const bool insert= range.actor == ranges.front ().actor && !clipboard_xml.empty ();
-    auto replacement= std::make_shared<tree> ();
+    auto replacement= std::make_shared<std::shared_ptr<const native_paste_plan>> ();
     auto effective= std::make_shared<std::pair<path, path>> ();
     member.prepare= [range, insert, clipboard_xml, replacement, effective] (editor_rep& editor) {
       require_writable ();
@@ -190,13 +190,13 @@ void replace_ranges (std::vector<source_range> ranges, std::string clipboard_xml
       editor.select (positions.first, positions.second);
       editor.selection_get (effective->first, effective->second);
       if (insert) {
-        *replacement= athena::document::read_clipboard_xml (clipboard_xml);
+        const tree selection= athena::document::read_clipboard_xml (clipboard_xml);
         const path cursor= editor.the_path ();
         editor.go_to (effective->first);
         try {
           if (editor.inside_active_graphics ())
             throw std::runtime_error ("Compound replacement does not support a graphics destination");
-          editor.selection_validate_paste (*replacement);
+          *replacement= editor.selection_prepare_paste (selection);
         }
         catch (...) { editor.go_to (cursor); throw; }
         editor.go_to (cursor);
@@ -208,17 +208,7 @@ void replace_ranges (std::vector<source_range> ranges, std::string clipboard_xml
       editor.start_slave (marker);
       editor.select (effective->first, effective->second);
       editor.selection_cut ("none");
-      if (insert) {
-        const string key= "avd-replacement-" * as_string (marker);
-        editor.selection_raw_set (key, *replacement);
-        try {
-          if (editor.selection_raw_get (key) != *replacement)
-            throw std::runtime_error ("Could not install compound replacement clipboard");
-          editor.selection_paste (key);
-        }
-        catch (...) { editor.selection_clear (key); throw; }
-        editor.selection_clear (key);
-      }
+      if (insert) editor.selection_apply_paste (**replacement);
       if (!editor.finish_node_identities ())
         throw std::runtime_error ("Compound deletion could not preserve source identities");
     };

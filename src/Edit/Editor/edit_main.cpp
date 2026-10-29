@@ -105,19 +105,26 @@ editor_rep::cursor_source_boundary () {
 std::shared_ptr<const evaluation_environment_checkpoint>
 editor_rep::cursor_context_at (path source) {
   if (cursor_display_root == eb && cursor_display_source == tp &&
-      !is_nil (cursor_display_path)) {
-    box displayed= eb;
-    path remaining= cursor_display_path;
-    while (true) {
-      const auto& boundary= displayed->source_boundary;
-      if (boundary && cursor_occurrence_admitted (source, boundary))
-        return cursor_context_at (source, boundary);
-      if (is_nil (remaining) || displayed->subnr () == 0) break;
-      displayed= displayed[remaining->item];
-      remaining= remaining->next;
-    }
+      !is_nil (cursor_display_path))
+    return display_context_at (source, cursor_display_path);
+  return cursor_context_at (source,
+    path_up (source) <= path_up (tp) ? cursor_source_boundary () : nullptr);
+}
+
+std::shared_ptr<const evaluation_environment_checkpoint>
+editor_rep::display_context_at (path source, path display) {
+  const path anchor= eb->find_tree_path (display);
+  box displayed= eb;
+  path remaining= display;
+  while (true) {
+    const auto& boundary= displayed->source_boundary;
+    if (boundary && cursor_occurrence_admitted (source, boundary))
+      return occurrence_context_at (source, anchor, boundary);
+    if (is_nil (remaining) || displayed->subnr () == 0) break;
+    displayed= displayed[remaining->item];
+    remaining= remaining->next;
   }
-  return cursor_context_at (source, source == tp ? cursor_source_boundary () : nullptr);
+  return occurrence_context_at (source, anchor, eb->find_source_boundary (display));
 }
 
 bool

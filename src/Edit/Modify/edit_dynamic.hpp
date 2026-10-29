@@ -16,6 +16,7 @@
 #include <optional>
 
 class edit_dynamic_rep: virtual public editor_rep {
+  void show_cursor_if_hidden () override;
   double hybrid_mark= 0;
   path hybrid_selection_start, hybrid_selection_end;
   tree hybrid_owner;
@@ -23,10 +24,19 @@ class edit_dynamic_rep: virtual public editor_rep {
   std::vector<hybrid_draft> hybrid_drafts;
   std::optional<bool> source_mode_during_edit;
   std::shared_ptr<const evaluation_environment_checkpoint> macro_environment;
+  struct pending_hybrid_activation {
+    std::uint64_t token, source_epoch;
+    path caret, first, last;
+    bool with_args_hint, queued= false;
+    std::optional<command> resolved;
+  };
+  std::optional<pending_hybrid_activation> pending_activation;
+  std::uint64_t next_activation_token= 0;
+  bool pending_activation_current ();
   std::shared_ptr<const evaluation_environment_checkpoint> macro_invocation_context ();
   void go_to_argument (path p, bool start_flag,
-    const std::shared_ptr<const evaluation_environment_checkpoint>& prepared);
-  bool is_multi_paragraph_macro (tree t, bool pure);
+    const evaluation_environment_checkpoint& prepared);
+  bool make_compound (tree_label l, int n, path replace_input);
   void finish_hybrid (bool accepted= false);
   bool activate_latex (bool report_error, const std::optional<command>& resolved);
   void activate_hybrid (bool with_args_hint, const std::optional<command>& resolved);
@@ -38,6 +48,8 @@ public:
   path find_dynamic (path p);
 
   void make_compound (tree_label l, int n);
+  bool make_compound (tree_label l, int n,
+    const std::shared_ptr<const evaluation_environment_checkpoint>& context);
   void activate ();
 
   void go_to_argument (path p, bool start_flag);
@@ -69,6 +81,8 @@ public:
   bool activate_latex ();
   bool activate_latex (bool report_error);
   void activate_hybrid (bool with_args_hint);
+  void prepare_pending_hybrid_activation ();
+  void resume_pending_hybrid_activation (std::uint64_t token);
   void activate_symbol ();
 
   bool make_return_before ();

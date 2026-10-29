@@ -10,6 +10,7 @@
 
 #include "ATHENA/Data/document_node_model.hpp"
 #include "Data/NodeContracts/native_fields.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
 #include "ATHENA/Data/heading_word_count.hpp"
 #include "ATHENA/Data/document_node_copy.hpp"
@@ -232,10 +233,15 @@ role_declaration roles_for (const tree& source, const contracts::contract_scope&
   if (N(source) == 0)
     return {semantic_role::content, "", {}};
 
-  if (!athena::contracts::editing_query {descriptors}.contains (as_string (L(source))))
+  // Style editing declarations cannot change persisted primitive structure.
+  // Primitives not yet described by named native fields still take their
+  // physical roles from the immutable native baseline, never a cursor scope.
+  const auto& source_contracts= contracts::builtin_label (as_string (L(source))) ?
+    contracts::builtin_contracts () : descriptors;
+  if (!athena::contracts::editing_query {source_contracts}.contains (as_string (L(source))))
     fail (where, issue::unsupported_ambiguous_role, "No native or explicit body-role contract for " +
           bytes (as_string (L(source))));
-  const auto& info= descriptors.resolve (L(source));
+  const auto& info= source_contracts.resolve (L(source));
   if (!info.layout.accepts (N(source)))
     fail (where, issue::unsupported_ambiguous_role, "Arity does not match node contract");
 

@@ -730,27 +730,6 @@
     <arg type="path" />
     <arg type="int" />
   </binding>
-  <binding name="tree-spell" native="spell" returns="array_path">
-    <arg type="string" />
-    <arg type="content" />
-    <arg type="path" />
-    <arg type="int" />
-  </binding>
-  <binding name="tree-spell-at" native="spell" returns="array_path">
-    <arg type="string" />
-    <arg type="content" />
-    <arg type="path" />
-    <arg type="path" />
-    <arg type="int" />
-  </binding>
-  <binding name="tree-spell-selection" native="spell" returns="array_path">
-    <arg type="string" />
-    <arg type="content" />
-    <arg type="path" />
-    <arg type="path" />
-    <arg type="path" />
-    <arg type="int" />
-  </binding>
   <binding name="previous-search-hit" native="previous_search_hit" returns="array_path">
     <arg type="array_path" />
     <arg type="path" />

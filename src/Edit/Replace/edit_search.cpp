@@ -19,6 +19,7 @@
 #include "Typeset/Env/local_environment.hpp"
 #include "utf8_edit.hpp"
 #include "unicode_text.hpp"
+#include <stdexcept>
 
 /******************************************************************************
 * Constructor and destructor
@@ -130,6 +131,7 @@ edit_replace_rep::search_upwards_in_set (tree t) {
 path
 edit_replace_rep::search_previous_compound (path init, string which) {
   path p= init;
+  source_search_preparation preparation;
   while (true) {
     if (p == rp) return init;
     if (last_item (p) == 0) p= path_up (p);
@@ -141,8 +143,7 @@ edit_replace_rep::search_previous_compound (path init, string which) {
         p= p * (N(st)-1);
       }
     }
-    if (athena::contracts::editing_query {contract_state.contracts}.accessible (et, p) &&
-        is_compound (subtree (et, p), which))
+    if (is_compound (subtree (et, p), which) && search_source_accessible (p, preparation))
       return p;
   }
 }
@@ -150,6 +151,7 @@ edit_replace_rep::search_previous_compound (path init, string which) {
 path
 edit_replace_rep::search_next_compound (path init, string which) {
   path p= init;
+  source_search_preparation preparation;
   while (true) {
     if (p == rp) return init;
     if (last_item (p) == (N (subtree (et, path_up (p))) - 1)) p= path_up (p);
@@ -161,8 +163,7 @@ edit_replace_rep::search_next_compound (path init, string which) {
         p= p * 0;
       }
     }
-    if (athena::contracts::editing_query {contract_state.contracts}.accessible (et, p) &&
-        is_compound (subtree (et, p), which))
+    if (is_compound (subtree (et, p), which) && search_source_accessible (p, preparation))
       return p;
   }
 }
@@ -229,29 +230,53 @@ edit_replace_rep::test_sub (path p, tree t) {
   }
 }
 
-path
-edit_replace_rep::test (path p, tree t) {
-  path q= test_sub (p, t);
-  if (q == p) return p;
-  string mode, lan;
-  source_mode_language_at (p, mode, lan);
-  if (search_mode != mode) return p;
-  if (search_lan != lan) return p;
-  return q;
+std::shared_ptr<const evaluation_environment_checkpoint>
+edit_replace_rep::prepare_search_target (path p, source_search_preparation& preparation) {
+  const path leaf= path_up (p);
+  if (preparation.selected && preparation.leaf == leaf && is_atomic (subtree (et, leaf)))
+    return preparation.selected;
+  auto context= prepare_source_position (p, preparation.root);
+  preparation.leaf= leaf;
+  preparation.selected= context;
+  return context;
 }
 
 void
-edit_replace_rep::source_mode_language_at (path p, string& mode, string& language) {
-  const auto context= editor_rep::cursor_context_at (p);
-  if (context) {
-    mode= as_string (context->effective_value (MODE));
-    language= as_string (context->effective_value (MODE_LANGUAGE (mode)));
-    return;
+edit_replace_rep::source_mode_language (
+    const evaluation_environment_checkpoint& context, string& mode, string& language) {
+  mode= as_string (context.effective_value (MODE));
+  language= as_string (context.effective_value (MODE_LANGUAGE (mode)));
+}
+
+std::shared_ptr<const evaluation_environment_checkpoint>
+edit_replace_rep::prepare_search_entry (path source, source_search_preparation& preparation) {
+  if (!preparation.traversal || preparation.traversal_source != source) {
+    preparation.traversal= prepare_search_target (source * 0, preparation);
+    preparation.traversal_source= source;
   }
-  // Searching may traverse source that has not been laid out. This remaining
-  // path needs its own preparation lifecycle before query-time evaluation ends.
-  mode= as_string (get_env_value (MODE, p));
-  language= as_string (get_env_value (MODE_LANGUAGE (mode), p));
+  return preparation.traversal;
+}
+
+bool
+edit_replace_rep::search_source_accessible (path source, int child,
+    athena::contracts::access_policy access, source_search_preparation& preparation) {
+  const tree node= subtree (et, source);
+  if (is_atomic (node) || child < 0 || child >= N(node)) return false;
+  if (access == athena::contracts::access_policy::source) return true;
+  const auto context= prepare_search_entry (source, preparation);
+  return athena::contracts::editing_query {
+    context->contract_context (), access}.accessible (node, child);
+}
+
+bool
+edit_replace_rep::search_source_accessible (path source, source_search_preparation& preparation) {
+  path parent= rp;
+  for (path relative= source / rp; !is_nil (relative); relative= relative->next) {
+    if (!search_source_accessible (parent, relative->item,
+          athena::contracts::access_policy::normal, preparation)) return false;
+    parent= parent * relative->item;
+  }
+  return true;
 }
 
 /******************************************************************************
@@ -259,7 +284,8 @@ edit_replace_rep::source_mode_language_at (path p, string& mode, string& languag
 ******************************************************************************/
 
 void
-edit_replace_rep::step_ascend (bool forward, athena::contracts::access_policy access) {
+edit_replace_rep::step_ascend (bool forward, athena::contracts::access_policy access,
+                              source_search_preparation& preparation) {
   // cout << "Step ascend at " << search_at << "\n";
   search_at= path_add (path_up (search_at), forward? 1: -1);
   tree st;
@@ -269,21 +295,22 @@ edit_replace_rep::step_ascend (bool forward, athena::contracts::access_policy ac
     l = last_item (search_at);
     // cout << "  st= " << st << "\n";
     // cout << "  l = " << l << "\n";
-    if ((l<0) || (l>=N(st)) || athena::contracts::editing_query {contract_state.contracts, access}.accessible (st, l)) break;
+    if ((l<0) || (l>=N(st)) ||
+        search_source_accessible (path_up (search_at), l, access, preparation)) break;
     search_at= path_add (search_at, forward? 1: -1);
   }
 
   if (forward) {
     if (l == N(st)) {
       if (is_atom (search_at / rp)) search_at= rp;
-      else step_ascend (forward, access);
+      else step_ascend (forward, access, preparation);
     }
     else step_descend (forward);
   }
   else {
     if (l == -1) {
       if (is_atom (search_at / rp)) search_at= rp;
-      else step_ascend (forward, access);
+      else step_ascend (forward, access, preparation);
     }
     else step_descend (forward);
   }
@@ -302,7 +329,13 @@ edit_replace_rep::step_descend (bool forward) {
 
 void
 edit_replace_rep::step_horizontal (bool forward, athena::contracts::access_policy access) {
-  const athena::contracts::editing_query query {contract_state.contracts, access};
+  source_search_preparation preparation;
+  step_horizontal (forward, access, preparation);
+}
+
+void
+edit_replace_rep::step_horizontal (bool forward, athena::contracts::access_policy access,
+                                  source_search_preparation& preparation) {
   // cout << "Step horizontal at " << search_at << "\n";
   if (search_at == rp) step_descend (forward);
   else {
@@ -311,7 +344,7 @@ edit_replace_rep::step_horizontal (bool forward, athena::contracts::access_polic
 
     // cout << "  st= " << st << "\n";
     if (forward) {
-      if (l == right_index (st)) step_ascend (forward, access);
+      if (l == right_index (st)) step_ascend (forward, access, preparation);
       else {
         if (is_atomic (st)) {
           search_at= path_up (search_at) * utf8_grapheme_next (st->label, l);
@@ -319,17 +352,17 @@ edit_replace_rep::step_horizontal (bool forward, athena::contracts::access_polic
         else {
           int i;
           for (i=l; i<N(st); i++)
-            if (query.accessible (st, i)) {
+            if (search_source_accessible (path_up (search_at), i, access, preparation)) {
               search_at= path_up (search_at) * i;
               step_descend (forward);
               return;
             }
-          step_ascend (forward, access);
+          step_ascend (forward, access, preparation);
         }
       }
     }
     else {
-      if (l == 0) step_ascend (forward, access);
+      if (l == 0) step_ascend (forward, access, preparation);
       else {
         if (is_atomic (st)) {
           search_at= path_up (search_at) * utf8_grapheme_previous (st->label, l);
@@ -337,12 +370,12 @@ edit_replace_rep::step_horizontal (bool forward, athena::contracts::access_polic
         else {
           int i;
           for (i=l; i>=0; i--)
-            if (query.accessible (st, i)) {
+            if (search_source_accessible (path_up (search_at), i, access, preparation)) {
               search_at= path_up (search_at) * i;
               step_descend (forward);
               return;
             }
-          step_ascend (forward, access);
+          step_ascend (forward, access, preparation);
         }
       }
     }
@@ -352,24 +385,30 @@ edit_replace_rep::step_horizontal (bool forward, athena::contracts::access_polic
 void
 edit_replace_rep::next_match (bool forward) {
   // cout << "Next match at " << search_at << "\n";
+  source_search_preparation preparation;
   while (true) {
     if (search_at == rp) {
       set_selection (tp, tp);
       notify_change (THE_SELECTION);
       return;
     }
-    search_end= test (search_at, search_what);
+    search_end= test_sub (search_at, search_what);
     if (search_end != search_at) {
-      go_to (copy (search_end));
-      show_cursor_if_hidden ();
-      set_selection (search_at, search_end);
-      notify_change (THE_SELECTION);
-      return;
+      const auto context= prepare_search_target (search_at, preparation);
+      string mode, language;
+      source_mode_language (*context, mode, language);
+      if (search_mode == mode && search_lan == language) {
+        go_to (copy (search_end));
+        show_cursor_if_hidden ();
+        set_selection (search_at, search_end);
+        notify_change (THE_SELECTION);
+        return;
+      }
     }
     auto access= athena::contracts::access_policy::hidden;
     if (get_init_string (MODE) == "src" || inside ("show-preamble"))
       access= athena::contracts::access_policy::source;
-    step_horizontal (forward, access);
+    step_horizontal (forward, access, preparation);
   }
 }
 
@@ -382,8 +421,10 @@ edit_replace_rep::search_start (bool flag) {
   string r ("forward search");
   if (!flag) r= "backward search";
 
+  source_search_preparation preparation;
+  const auto context= prepare_search_target (tp, preparation);
+  source_mode_language (*context, search_mode, search_lan);
   forward     = flag;
-  source_mode_language_at (tp, search_mode, search_lan);
   search_at   = tp;
   search_what = tree ("");
   where_stack = list<path> ();
@@ -526,8 +567,14 @@ edit_replace_rep::document_search (tree what, bool case_insensitive) {
     return 0;
   }
 
-  document_search_sels=
-    search (subtree (et, rp), what, rp, case_insensitive, 1000000);
+  source_search_preparation preparation;
+  const athena::contracts::source_contract_preparation prepare= [&] (path source) {
+    const auto context= prepare_search_entry (source, preparation);
+    return std::shared_ptr<const athena::contracts::contract_scope> (
+      context, &context->contract_context ());
+  };
+  document_search_sels= search (prepare, athena::contracts::access_policy::normal,
+    subtree (et, rp), what, rp, case_insensitive, 1000000);
   set_alt_selection ("alternate", document_search_sels);
   document_search_index= 0;
   if (N(document_search_sels) < 2) {

@@ -120,10 +120,6 @@
   (with action (if forwards? alternate-unfold alternate-fold)
     (action t)))
 
-(tm-define (tree-show-hidden t)
-  (:require (toggle-context? t))
-  (alternate-toggle t))
-
 (tm-define (structured-minimize t)
   (:require (toggle-second-context? t))
   (alternate-toggle t))
@@ -322,12 +318,6 @@
        (variant-circulate-in t (node-group-members "big-switch-tag") forward?)
        (switch-normalize-hidden t)
        (switch-select t i)))
-
-(tm-define (tree-show-hidden t)
-  (:require (switch-context? t))
-  (with i (tree-down-index t)
-    (if (hidden-context? (tree-ref t i))
-        (switch-select t i))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; User interface to overlays

@@ -14,6 +14,7 @@
 #include <new>
 #include <stdexcept>
 #include <unordered_map>
+#include <utility>
 
 actor_command_transport::actor_command_transport (std::size_t slot_count):
   slot_count_ (slot_count), records_ (), submissions_ (slot_count),
@@ -143,18 +144,28 @@ actor_command_transport::try_command (readable_command& command) {
 
 bool
 actor_command_transport::wait_command (readable_command& command) {
+  event received;
+  do { received= wait_event (command); } while (received == event::wakeup);
+  return received == event::command;
+}
+
+actor_command_transport::event
+actor_command_transport::wait_event (readable_command& command) {
+  command= {};
   athena_slot_id slot;
   {
     std::unique_lock<std::mutex> guard (wait_lock_);
     command_ready_.wait (guard, [this] {
-      return closed_.load (std::memory_order_acquire) ||
+      return closed_.load (std::memory_order_acquire) || wake_pending_ ||
              submission_read_.value.load (std::memory_order_relaxed) !=
                submission_write_.value.load (std::memory_order_acquire);
     });
     std::uint64_t read=
       submission_read_.value.load (std::memory_order_relaxed);
+    const bool wake= std::exchange (wake_pending_, false);
     if (read == submission_write_.value.load (std::memory_order_acquire))
-      return false;
+      return !closed_.load (std::memory_order_acquire) && wake ?
+        event::wakeup : event::closed;
 
     slot= submissions_[read % slot_count_];
     submission_read_.value.store (read + 1, std::memory_order_release);
@@ -162,7 +173,7 @@ actor_command_transport::wait_command (readable_command& command) {
   command_space_.notify_one ();
   command.slot= slot;
   command.record= &records_[slot];
-  return true;
+  return event::command;
 }
 
 bool
@@ -184,6 +195,16 @@ actor_command_transport::complete (athena_slot_id slot) {
   }
   completion_ready_.notify_one ();
   return true;
+}
+
+void
+actor_command_transport::wake () noexcept {
+  {
+    std::lock_guard<std::mutex> guard (wait_lock_);
+    if (closed_.load (std::memory_order_acquire)) return;
+    wake_pending_= true;
+  }
+  command_ready_.notify_one ();
 }
 
 void

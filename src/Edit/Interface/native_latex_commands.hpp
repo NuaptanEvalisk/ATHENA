@@ -9,8 +9,15 @@
 #include "command.hpp"
 #include "string.hpp"
 #include "tree.hpp"
+#include <memory>
+
+class evaluation_environment_checkpoint;
 
 bool native_latex_get_command (string which, string& help, command& cmd);
+// Resolve invocation inputs before a caller consumes its macro input draft.
+// Non-native commands are returned unchanged.
+command native_latex_prepare_command (
+  command cmd, std::shared_ptr<const evaluation_environment_checkpoint> context);
 int native_latex_command_count ();
 tree native_latex_command_catalog ();
 

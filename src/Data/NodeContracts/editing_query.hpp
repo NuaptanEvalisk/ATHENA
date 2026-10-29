@@ -3,10 +3,16 @@
 
 #include "contract_scope.hpp"
 #include "path.hpp"
+#include <functional>
 
 namespace athena::contracts {
 
 enum class access_policy { normal, hidden, source };
+
+// Explicit owner-side source traversal. The caller prepares each visited
+// source entry and retains it through the returned alias; no ambient fallback.
+using source_contract_preparation=
+  std::function<std::shared_ptr<const contract_scope> (path)>;
 
 // A read over one owner-prepared context. Recursive navigation copies policy,
 // never changes the evaluator or another query's accessibility state.

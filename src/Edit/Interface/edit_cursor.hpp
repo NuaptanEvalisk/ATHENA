@@ -32,18 +32,17 @@ protected:
   bool cursor_is_accessible ();
   path make_cursor_accessible (path p, bool forwards);
   path make_cursor_accessible (path p, bool forwards, const cursor_navigation&);
-  bool physical_border_jump_skips_accessible_child (
-    path old_path, path new_path, bool forwards,
-    const athena::contracts::contract_scope& contracts);
+  void go_horizontal (bool forwards);
   path tree_path (path sp, SI x, SI y, SI delta, bool source= false) override;
   path tree_path (path sp, SI x, SI y, SI delta,
                   athena::text::caret_affinity* affinity, path* box_path= nullptr,
                   bool source= false);
-  bool cursor_move_sub (SI& x0, SI& y0, SI& delta, SI dx, SI dy);
-  void cursor_move (SI dx, SI dy);
+  std::optional<bool> cursor_move_sub (SI& x0, SI& y0, SI& delta, SI dx, SI dy);
+  std::optional<bool> cursor_move (SI dx, SI dy);
+  bool move_horizontal_physical (bool forwards);
+  bool move_to_physical (SI x, SI y, bool absolute= true) override;
   void adjust_ghost_cursor (int status);
   void notify_cursor_moved (int status);
-  void show_cursor_if_hidden ();
 
 public:
   edit_cursor_rep ();

@@ -131,6 +131,7 @@ enum class actor_command_kind: std::uint32_t {
   invoke_scheme_handle_tree,
   evaluate_widget_handle,
   run_native_continuation,
+  resume_hybrid_activation,
   rename_buffer,
   save_buffer,
   realtime_save_buffer,
@@ -155,6 +156,7 @@ enum class actor_command_kind: std::uint32_t {
   activate_outline_entry,
   set_master_buffer,
   notify_environment,
+  contracts_ready,
   query_modified,
   query_autosaved,
   mark_modified,
@@ -250,6 +252,8 @@ public:
     actor_command_record* record= nullptr;
   };
 
+  enum class event { command, wakeup, closed };
+
   explicit actor_command_transport (std::size_t slot_count= 64);
   ~actor_command_transport ();
 
@@ -265,8 +269,13 @@ public:
   // Single consumer API.
   bool try_command (readable_command& command);
   bool wait_command (readable_command& command);
+  // A command also consumes a pending wake. Event consumers drain their
+  // out-of-band state after either a command or a wakeup.
+  event wait_event (readable_command& command);
   bool complete (athena_slot_id slot);
 
+  // Coalesced out-of-band signal; usable even when all command slots are busy.
+  void wake () noexcept;
   void close () noexcept;
   bool is_closed () const noexcept;
   std::size_t slot_count () const noexcept;
@@ -290,6 +299,7 @@ private:
 
   std::atomic<bool> closed_ {false};
   mutable std::mutex wait_lock_;
+  bool wake_pending_= false;
   std::condition_variable command_ready_;
   std::condition_variable command_space_;
   std::condition_variable completion_ready_;

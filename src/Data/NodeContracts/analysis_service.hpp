@@ -52,8 +52,12 @@ using analysis_proposal_ptr= std::shared_ptr<const analysis_proposal>;
 // read. Return the affected components, including their dependent closure.
 std::vector<std::size_t> reject_analysis (const analysis_evidence&, const analysis_resolutions&);
 
-// One detached engine per execution owner; one batch in flight. The latest
-// demand is coalesced while work runs. poll() never waits. notify must carry only
+// One detached engine per execution owner; one resumable batch in flight. The latest
+// demand is coalesced while work runs. Only an exact-demand result is published
+// or notifies the owner; superseded work is retained for later cache hits.
+// Worker slices rejoin the FIFO without exposing partial results. A slice can
+// overrun during one recursive definition analysis or dependency-index pass.
+// poll() never waits. notify must carry only
 // a detached wake-up/actor address, not an editor or evaluator pointer.
 class analysis_service {
   struct impl;
@@ -63,8 +67,13 @@ public:
   ~analysis_service ();
   analysis_service (const analysis_service&)= delete;
   analysis_service& operator= (const analysis_service&)= delete;
+  void cancel ();
+  // Transfer worker-safe state only, never an editor/evaluator or raw tree.
+  // Cancellation is separate so closing an owner takes effect immediately.
+  static void release_on_worker (std::shared_ptr<const void>);
   bool request (analysis_context_ptr, std::function<void ()> notify);
   analysis_proposal_ptr poll ();
+  // Unsatisfied current demand, not superseded work still finishing in flight.
   bool pending () const;
   // Explicit offline preparation uses an independent engine, never waits on
   // or borrows a running background engine.

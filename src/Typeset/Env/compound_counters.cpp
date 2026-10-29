@@ -22,13 +22,13 @@
 
 namespace athena::avd {
 namespace {
-tree execute_grid (edit_env environment, const tree& grid,
-                   std::optional<bool> block_numbering) {
+template<typename Visit>
+bool visit_grid (edit_env environment, const tree& grid,
+                 std::optional<bool> block_numbering, Visit visit) {
   validate_native_math_grid_numbering (environment, grid, block_numbering);
   const bool row_numbers= native_math_grid_uses_row_numbering (grid);
   native_math_context_scope mode (*environment.operator-> (), native_math_context::math);
   native_math_value_scope format (environment, CELL_FORMAT, tree (TFORMAT));
-  tree result (grid, N(grid));
   for (int i= 0; i < N(grid); ++i) {
     native_math_row_scope row (environment, grid[i], i, row_numbers, block_numbering);
     if (row.show_number) {
@@ -39,19 +39,53 @@ tree execute_grid (edit_env environment, const tree& grid,
       native_math_value_scope display (environment, MATH_DISPLAY, "false");
       (void) environment->exec (number);
     }
-    // No block context is passed through exec: nested grids never inherit it.
-    result[i]= environment->exec (grid[i]);
+    if (const auto reached= visit (i)) {
+      row.finish (*reached);
+      format.finish (*reached);
+      mode.finish (*reached);
+      return *reached;
+    }
   }
+  return false;
+}
+
+template<typename Visit>
+bool visit_cells (edit_env environment, const tree& row, Visit visit) {
+  for (int i= 0; i < N(row); ++i) {
+    native_math_value_scope column (environment, CELL_COL_NR, as_string (i));
+    if (const auto reached= visit (i)) {
+      column.finish (*reached);
+      return *reached;
+    }
+  }
+  return false;
+}
+
+tree execute_row (edit_env environment, const tree& row) {
+  tree result (row, N(row));
+  visit_cells (environment, row, [&] (int i) -> std::optional<bool> {
+    result[i]= environment->exec (row[i]);
+    return std::nullopt;
+  });
+  node::copy_metadata (row, result);
+  return result;
+}
+
+tree execute_grid (edit_env environment, const tree& grid,
+                   std::optional<bool> block_numbering) {
+  tree result (grid, N(grid));
+  visit_grid (environment, grid, block_numbering, [&] (int i) -> std::optional<bool> {
+    result[i]= execute_row (environment, grid[i]);
+    return std::nullopt;
+  });
   node::copy_metadata (grid, result);
   return result;
 }
-} // namespace
 
-tree exec_native_counter_node (edit_env environment, const tree& source) {
-  if (is_func (source, MATH_GRID))
-    return execute_grid (environment, source, std::nullopt);
+template<typename Visit>
+bool visit_block (edit_env environment, const tree& source, Visit visit) {
   if (!is_func (source, MATH_BLOCK, 1) || !math_v3::valid_native_math (source))
-    throw std::invalid_argument ("Invalid native MathBlock during AVD counter evaluation");
+    throw std::invalid_argument ("Invalid native MathBlock during semantic evaluation");
   const bool numbered= std::get<bool> (
     node::get (source)->properties.at ("math:block-numbered").data);
   const bool grid= is_func (source[0], MATH_GRID);
@@ -63,14 +97,79 @@ tree exec_native_counter_node (edit_env environment, const tree& source) {
       throw std::invalid_argument (as_charp (number[0]->label));
     if (is_func (environment->read ("the-tags"), TUPLE) &&
         is_func (environment->exec (tree (SET_BINDING, number)), _ERROR))
-      throw std::invalid_argument ("Native AVD block binding failed");
+      throw std::invalid_argument ("Native block binding failed");
   }
   native_math_context_scope context (*environment.operator-> (), native_math_context::display);
+  const bool reached= visit (row_numbers && numbered);
+  context.finish (reached);
+  return reached;
+}
+
+bool prepare_grid (edit_env environment, const tree& grid, path p,
+                   std::optional<bool> block_numbering) {
+  return visit_grid (environment, grid, block_numbering, [&] (int i) -> std::optional<bool> {
+    if (i != p->item) { (void) execute_row (environment, grid[i]); return std::nullopt; }
+    const path target= p->next;
+    if (is_atom (target)) {
+      if (target->item != 0) (void) execute_row (environment, grid[i]);
+      return true;
+    }
+    return visit_cells (environment, grid[i], [&] (int j) -> std::optional<bool> {
+      if (j != target->item) { (void) environment->exec (grid[i][j]); return std::nullopt; }
+      return environment->exec_until (grid[i][j], target->next);
+    });
+  });
+}
+
+bool prepare_grid (edit_env environment, const tree& grid, path p, string argument,
+                   int level, std::optional<bool> block_numbering) {
+  return visit_grid (environment, grid, block_numbering, [&] (int i) -> std::optional<bool> {
+    const bool reached= visit_cells (environment, grid[i], [&] (int j) -> std::optional<bool> {
+      if (environment->exec_until (grid[i][j], p, argument, level)) return true;
+      return std::nullopt;
+    });
+    return reached ? std::optional<bool> (true) : std::nullopt;
+  });
+}
+} // namespace
+
+tree exec_native_counter_node (edit_env environment, const tree& source) {
+  if (is_func (source, MATH_GRID))
+    return execute_grid (environment, source, std::nullopt);
   tree result (source, 1);
-  result[0]= grid ? execute_grid (environment, source[0], row_numbers && numbered) :
-                    environment->exec (source[0]);
+  visit_block (environment, source, [&] (bool numbering) {
+    // Nested grids never inherit the enclosing block's numbering policy.
+    result[0]= is_func (source[0], MATH_GRID) ? execute_grid (environment, source[0], numbering) :
+                                             environment->exec (source[0]);
+    return false;
+  });
   node::copy_metadata (source, result);
   return result;
+}
+
+bool exec_native_counter_until (edit_env environment, const tree& source, path p) {
+  if (is_func (source, MATH_GRID)) return prepare_grid (environment, source, p, std::nullopt);
+  if (p->item != 0) return false;
+  return visit_block (environment, source, [&] (bool numbering) {
+    if (is_func (source[0], MATH_GRID) && !is_atom (p->next))
+      return prepare_grid (environment, source[0], p->next, numbering);
+    if (is_func (source[0], MATH_GRID) && p->next->item != 0) {
+      (void) execute_grid (environment, source[0], numbering);
+      return true;
+    }
+    return environment->exec_until (source[0], p->next);
+  });
+}
+
+bool exec_native_counter_until (edit_env environment, const tree& source, path p,
+                                string argument, int level) {
+  if (is_func (source, MATH_GRID))
+    return prepare_grid (environment, source, p, argument, level, std::nullopt);
+  return visit_block (environment, source, [&] (bool numbering) {
+    return is_func (source[0], MATH_GRID) ?
+      prepare_grid (environment, source[0], p, argument, level, numbering) :
+      environment->exec_until (source[0], p, argument, level);
+  });
 }
 
 tree evaluate_counter_state (edit_env environment, const tree& source,

@@ -11,7 +11,6 @@
 
 #include "edit_text.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
 #include "Typeset/Env/local_environment.hpp"
 #include "tree_traverse.hpp"
 #include "analyze.hpp"
@@ -470,30 +469,25 @@ edit_text_rep::remove_structure (bool forward) {
 
 void
 edit_text_rep::remove_structure_upwards () {
-  const auto prepared= editor_rep::cursor_context_at (tp);
-  remove_structure_upwards (
-    prepared ? prepared->contract_context () : contract_state.contracts);
-}
-
-void
-edit_text_rep::remove_structure_upwards (
-    const athena::contracts::contract_scope& contracts) {
   path p= path_up (tp);
   while ((rp < p) && is_format (subtree (et, path_up (p)))) p= path_up (p);
   if (!(rp < p)) return;
   int last= last_item (p);
   p= path_up (p);
   tree st= subtree (et, p);
+  bool recurse=
+    is_func (st, TFORMAT) || is_func (st, TABLE) ||
+    is_func (st, ROW) || is_func (st, CELL) ||
+    is_compound (st, "shown");
+  if (!recurse && !athena::contracts::builtin_label (as_string (L(st)))) {
+    const auto prepared= prepare_source_position (p * 0);
+    recurse= (athena::contracts::editing_query {prepared->contract_context ()}.
+      describe (L(st)).border & BORDER_INNER) != 0;
+  }
   if (is_func (st, AROUND, 3) ||
       is_func (st, VAR_AROUND, 3) ||
       is_func (st, BIG_AROUND, 2))
     pre_remove_around (p);
-  bool recurse=
-    is_func (st, TFORMAT) || is_func (st, TABLE) ||
-    is_func (st, ROW) || is_func (st, CELL) ||
-    is_compound (st, "shown") ||
-    ((athena::contracts::editing_query {contracts}.describe (L(st)).border &
-      BORDER_INNER) != 0 && !athena::contracts::builtin_label (as_string (L(st))));
   remove (p * (last+1), N(st)-(last+1));
   remove (p * 0, last);
 
@@ -517,5 +511,5 @@ edit_text_rep::remove_structure_upwards (
   }
   else correct (p);
 
-  if (recurse) remove_structure_upwards (contracts);
+  if (recurse) remove_structure_upwards ();
 }

@@ -37,7 +37,23 @@ protected:
   bool        spell_dicmod;  // insert new words in personal dictionary?
 
 protected:
-  void source_mode_language_at (path p, string& mode, string& language);
+  struct source_search_preparation {
+    std::shared_ptr<const evaluation_environment_checkpoint> root, selected, traversal;
+    path leaf, traversal_source;
+  };
+  std::shared_ptr<const evaluation_environment_checkpoint> prepare_search_target (
+    path p, source_search_preparation& preparation);
+  std::shared_ptr<const evaluation_environment_checkpoint> prepare_search_entry (
+    path source, source_search_preparation& preparation);
+  void source_mode_language (const evaluation_environment_checkpoint&,
+                            string& mode, string& language);
+  bool search_source_accessible (path source, int child,
+    athena::contracts::access_policy, source_search_preparation&);
+  bool search_source_accessible (path source, source_search_preparation&);
+  void step_ascend (bool forward, athena::contracts::access_policy,
+                   source_search_preparation&);
+  void step_horizontal (bool forward, athena::contracts::access_policy,
+                        source_search_preparation&);
   void spell_write (string s);
   tree spell_read ();
 
@@ -61,8 +77,6 @@ public:
 
   /* search and replace */
   path test_sub (path p, tree t);
-  path test (path p, tree t);
-  void step_ascend (bool forward, athena::contracts::access_policy access);
   void step_descend (bool forward);
   void step_horizontal (bool forward,
     athena::contracts::access_policy access= athena::contracts::access_policy::normal);

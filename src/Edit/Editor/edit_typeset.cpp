@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include <climits>
+#include <stdexcept>
 #include "edit_typeset.hpp"
 #include "prooftrack_presentation.hpp"
 #include "heading_word_count.hpp"
@@ -27,6 +28,7 @@
 #include "scheme.hpp"
 #include "node_metadata_transform.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
+#include "cursor_navigation.hpp"
 #include "Data/NodeContracts/detached_environment.hpp"
 #include "buffer_actor.hpp"
 #ifdef EXPERIMENTAL
@@ -74,7 +76,6 @@ struct cursor_environment_checkpoint: evaluation_environment_checkpoint {
 edit_typeset_rep::edit_typeset_rep ():
   editor_rep (), // NOTE: ignored by the compiler, but suppresses warning
   the_style (TUPLE),
-  cur (nullptr),
   init (UNINIT), fin (UNINIT), grefs (UNINIT),
   folded_headings (), folded_tocs (), unfolded_tocs (),
   fold_view_active (false), fold_view_rebuild (false),
@@ -440,6 +441,121 @@ edit_typeset_rep::prepare_source_contracts () {
   return contracts.contracts;
 }
 
+std::shared_ptr<const evaluation_environment_checkpoint>
+edit_typeset_rep::prepare_macro_argument (
+    tree invocation, int argument, const evaluation_environment_checkpoint& context) {
+  return prepare_tree_position (invocation, path (argument, 0), context);
+}
+
+std::shared_ptr<const evaluation_environment_checkpoint>
+edit_typeset_rep::prepare_tree_position (
+    tree source, path position, const evaluation_environment_checkpoint& context) {
+  if (!is_inside (source, position))
+    throw std::invalid_argument ("Source preparation has an invalid destination");
+  // Command preparation evaluates the selected source/prospective subtree. Its outputs must
+  // not publish counters, references or auxiliary data into the live document.
+  athena::contracts::evaluation_state state (context.contract_context ().snapshot ());
+  athena::contracts::evaluation_state_scope owner (&state);
+  hashmap<string,tree> refs= copy (buf->data->ref);
+  hashmap<string,tree> global_refs= copy (grefs);
+  hashmap<string,tree> aux= copy (buf->data->aux);
+  hashmap<string,tree> attachments= copy (buf->data->att);
+  edit_env preparation (state, buf->master, refs, global_refs,
+                        aux, aux, attachments, attachments);
+  context.restore (*preparation.operator-> ());
+  preparation->style_init_env ();
+  preparation->update ();
+  preparation->compound_counter_execution= true;
+  if (!preparation->exec_until (source, position)) return {};
+  return std::make_shared<const evaluation_environment_checkpoint> (*preparation.operator-> ());
+}
+
+std::shared_ptr<const evaluation_environment_checkpoint>
+editor_rep::prepare_source_position (path position) {
+  std::shared_ptr<const evaluation_environment_checkpoint> document_context;
+  return prepare_source_position (position, document_context);
+}
+
+bool
+editor_rep::with_admitted_navigation (
+    const evaluation_environment_checkpoint& policy,
+    const std::function<void (const cursor_navigation&)>& action,
+    const std::optional<path>& display) {
+  using athena::contracts::access_policy;
+  if (policy.effective_value (MODE) == "src" || policy.effective_value (PREAMBLE) == "true") {
+    action (cursor_navigation ({athena::contracts::builtin_contracts (), access_policy::source}));
+    return true;
+  }
+  struct pending_context {};
+  const cursor_context_preparation prepare= [&] (path node) -> navigation_context {
+    const auto entry= display ? display_context_at (node * 0, *display) :
+      editor_rep::cursor_context_at (node * 0);
+    if (!entry) throw pending_context {};
+    const bool source= entry->effective_value (MODE) == "src" ||
+                       entry->effective_value (PREAMBLE) == "true";
+    return {{entry, &entry->contract_context ()},
+      source ? access_policy::source : access_policy::normal};
+  };
+  try {
+    action (cursor_navigation (prepare, rp));
+    return true;
+  }
+  catch (const pending_context&) { return false; }
+}
+
+path
+editor_rep::prepare_command_boundary (path root, path target, bool at_start,
+    const evaluation_environment_checkpoint& context) {
+  using athena::contracts::access_policy;
+  const tree source= subtree (et, root);
+  struct path_order {
+    bool operator () (path a, path b) const { return path_less (a, b); }
+  };
+  std::map<path, std::shared_ptr<const evaluation_environment_checkpoint>, path_order> entries;
+  entries.emplace (path (), std::make_shared<const evaluation_environment_checkpoint> (context));
+  const cursor_context_preparation prepare= [&] (path relative) -> navigation_context {
+    auto found= entries.find (relative);
+    if (found == entries.end ()) {
+      const auto entry= prepare_tree_position (source, relative * 0, context);
+      if (!entry) throw std::runtime_error ("Command boundary has no evaluable field context");
+      found= entries.emplace (relative, entry).first;
+    }
+    const auto& entry= found->second;
+    const bool source_mode= entry->effective_value (MODE) == "src" ||
+                           entry->effective_value (PREAMBLE) == "true";
+    return {{entry, &entry->contract_context ()},
+      source_mode ? access_policy::source : access_policy::normal};
+  };
+  const cursor_navigation navigation (prepare, path ());
+  return root * (at_start ? navigation.start (source, target / root) :
+                           navigation.end (source, target / root));
+}
+
+std::shared_ptr<const evaluation_environment_checkpoint>
+editor_rep::prepare_source_position (
+    path position, std::shared_ptr<const evaluation_environment_checkpoint>& document_context) {
+  auto context= editor_rep::cursor_context_at (position);
+  if (!context) {
+    path source= path_up (position);
+    while (rp < source) {
+      context= editor_rep::cursor_context_at (source * 0);
+      if (context) break;
+      source= path_up (source);
+    }
+    if (!context) {
+      if (!document_context) document_context= prepare_document_context ();
+      context= document_context;
+    }
+    context= prepare_tree_position (subtree (et, source), position / source, *context);
+  }
+  if (!context) {
+    const string where= as_string (position / rp);
+    throw std::runtime_error ("Command source has no evaluable context at " +
+      std::string (where.data (), N(where)));
+  }
+  return context;
+}
+
 void edit_typeset_rep::set_field_environment (
     std::shared_ptr<const athena::contracts::detached_environment> context) {
   buf->field_environment= std::move (context);
@@ -478,6 +594,22 @@ edit_typeset_rep::prepared_context_at (
 std::shared_ptr<const evaluation_environment_checkpoint>
 edit_typeset_rep::cursor_context_at (
     path position, athena::contracts::evaluation_boundary_handle selected) {
+  return occurrence_context_at (position, tp, std::move (selected));
+}
+
+std::shared_ptr<const evaluation_environment_checkpoint>
+edit_typeset_rep::occurrence_context_at (
+    path position, path anchor, athena::contracts::evaluation_boundary_handle selected) {
+  if (!ttt->execution_base || !(rp < anchor) ||
+      !has_subtree (et, path_up (anchor))) return {};
+  if (selected && path_up (position) < path_up (anchor)) {
+    const auto leaf= find_source_occurrence (ttt->br->source_occurrences,
+      path_up (anchor), subtree (et, path_up (anchor)), selected);
+    if (leaf && (leaf->boundary == selected || leaf->end_boundary == selected))
+      for (auto parent= leaf->parent; parent; parent= parent->parent)
+        if (cursor_occurrence_admitted (position, parent->boundary))
+          return prepared_context_at (position, parent->boundary);
+  }
   return prepared_context_at (position, std::move (selected));
 }
 
@@ -498,7 +630,17 @@ edit_typeset_rep::prepare_cursor_environment () {
   if (!selected && prepared_cursor && prepared_cursor->trace == ttt->br->contract_changes &&
       prepared_cursor->execution_base == ttt->execution_base) selected= prepared_cursor->boundary;
   const auto prepared= prepared_context_at (tp, selected);
-  if (!prepared || prepared->effective_value (PREAMBLE) == "true") return;
+  if (!prepared) return;
+  path input= search_upwards (HYBRID);
+  if (is_nil (input)) input= search_upwards (LATEX);
+  if (is_nil (input)) prepare_source_signatures (*prepared);
+  else {
+    if (is_func (subtree (et, path_up (input)), INACTIVE)) input= path_up (input);
+    // The name field has display-only text mode, even in source authoring.
+    if (const auto invocation= editor_rep::cursor_context_at (input * 0))
+      prepare_source_signatures (*invocation);
+  }
+  if (prepared->effective_value (PREAMBLE) == "true") return;
   prepared_cursor= prepared;
   prepared->restore (*env.operator-> ());
   env->style_init_env ();
@@ -508,20 +650,12 @@ edit_typeset_rep::prepare_cursor_environment () {
     const auto actor= context->actor_id;
     const auto view= context->view_id;
     wake= [actor, view] {
-      const auto continuation= actor_continuation_registry::instance ().store ([] {
-        const auto* context= current_scheme_execution_context ();
-        if (!context || !context->editor) return;
-        context->editor->prepare_cursor_environment ();
-        context->editor->notify_change (THE_CURSOR | THE_FOCUS);
-      });
-      if (!buffer_actor::try_submit_to (actor, actor_command_kind::run_native_continuation,
-          view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, continuation))
-        actor_continuation_registry::instance ().discard (continuation);
+      buffer_actor::notify_contracts_ready (actor, view);
     };
   }
   // A retained context can already be ready; publication still validates it
   // against this owner rather than trusting the worker or the cursor path.
-  const bool changed= env->prepare_contracts (std::move (wake));
+  const bool changed= env->prepare_contracts (std::move (wake), prepared.get ());
   if (changed) {
     auto resolved= std::make_shared<const cursor_environment_checkpoint> (
       *env.operator-> (), prepared->trace, prepared->boundary, prepared->execution_base);
@@ -551,149 +685,23 @@ edit_typeset_rep::environment_update () {
 void
 edit_typeset_rep::typeset_invalidate_env () {
   ttt->execution_base.reset ();
-  cur= hashmap<path,std::shared_ptr<const cursor_environment_checkpoint>> (nullptr);
   prepared_cursor.reset ();
   cursor_contexts.clear ();
-}
-
-static void
-restricted_exec (edit_env env, tree t, int end) {
-  if (is_func (t, ASSIGN, 2) && end == 2)
-    env->exec (t);
-  else if (is_document (t) || is_concat (t))
-    for (int i=0; i < min (end, 10); i++)
-      restricted_exec (env, t[i], arity (t[i]));
-  else if (is_compound (t, "hide-preamble", 1) ||
-           is_compound (t, "show-preamble", 1))
-    env->exec (t[0]);
-}
-
-static tree
-filter_format (tree fm, int i, int n) {
-  array<tree> r;
-  for (int k=0; k<N(fm); k++)
-    if (is_func (fm[k], CWITH) && N(fm[k]) >= 4 &&
-        is_int (fm[k][0]) && is_int (fm[k][1])) {
-      int j1= as_int (fm[k][0]->label);
-      int j2= as_int (fm[k][1]->label);
-      if (j1 > 0) j1--; else j1 += n;
-      if (j2 > 0) j2--; else j2 += n;
-      if (i >= j1 && i <= j2) r << fm[k] (2, N(fm[k]));
-    }
-  return tree (TFORMAT, r);
-}
-
-static void
-table_descend (tree& t, path& p, tree& fm) {
-  while (!is_nil (p)) {
-    if (L(t) == TFORMAT && p->item == N(t) - 1) {
-      array<tree> r;
-      for (int k=0; k<N(t)-1; k++)
-        if (is_func (t[k], CWITH, 6) &&
-            is_atomic (t[k][4]) &&
-            !starts (t[k][4]->label, "cell-"))
-          r << t[k];
-      fm= tree (TFORMAT, r);
-      t= t[N(t)-1];
-      p= p->next;
-    }
-    else if ((L(t) == TABLE || L(t) == ROW) &&
-             p->item >= 0 && p->item < N(t)) {
-      fm= filter_format (fm, p->item, N(t));
-      t= t[p->item];
-      p= p->next;
-    }
-    else break;
-  }
-}
-
-static void
-define_style_macros (edit_env& env, tree t) {
-  if (is_document (t) || is_concat (t)) {
-    int i, n=N(t);
-    for (i=0; i<n; i++)
-      define_style_macros (env, t[i]);
-  }
-  else if (is_func (t, ASSIGN, 2) && is_atomic (t[0]))
-    env->write (t[0]->label, t[1]);
-}
-
-void
-edit_typeset_rep::typeset_exec_until (path p) {
-  // Only unprepared source queries enter the legacy path evaluator. Prepared
-  // occurrence checkpoints are consumed directly by the getters below.
-  if (p == tp && inside_graphics (true) && p != closest_inside (et, p)) {
-    //cout << "Warning: corrected cursor\n";
-    tp= closest_inside (et, tp);
-    p = tp;
-  }
-
-  //cout << "Exec until " << p << LF;
-  if (cur[p] && !cur[p]->boundary && cur[p]->trace == ttt->br->contract_changes) return;
-  if (N(cur)>=25)
-    cur= hashmap<path,std::shared_ptr<const cursor_environment_checkpoint>> (nullptr);
-  // This remaining variable-query fallback must not replace the prepared
-  // contract owner selected by the displayed cursor occurrence.
-  temporary_environment_scope temporary (*env.operator-> ());
-  typeset_prepare ();
-  if (!(rp <= p)) {
-    failed_error << "Erroneous path " << p << "\n";
-    FAILED ("invalid typesetting path");
-  }
-  if (rp < p) {
-    tree t= subtree (et, rp);
-    path q= path_up (p / rp);
-    while (!is_nil (q)) {
-      int i= q->item;
-      restricted_exec (env, t, i);
-      if (L(t) == TFORMAT && i == N(t) - 1) {
-        tree fm= tree (TFORMAT);
-        table_descend (t, q, fm);
-        if (!is_nil (q))
-          for (int k=0; k<N(fm); k++)
-            if (is_func (fm[k], CWITH, 2))
-              env->write (fm[k][0]->label, fm[k][1]);
-      }
-      else {
-        tree w= athena::contracts::editing_query {contract_state.contracts}.environment (t, i, tree (ATTR));
-        if (w == "") break;
-        //cout << "t= " << t << "\n";
-        //cout << "i= " << i << "\n";
-        //cout << "w= " << w << "\n";
-        tree ww (w, N(w));
-        for (int j=0; j<N(w); j+=2) {
-          //cout << w[j] << " := " << env->exec (w[j+1]) << "\n";
-          ww[j+1]= env->exec (w[j+1]);
-        }
-        for (int j=0; j<N(w); j+=2)
-          env->write (w[j]->label, ww[j+1]);
-        t= t[i];
-        q= q->next;
-      }
-    }
-  }
-  if (env->read (PREAMBLE) == "true")
-    env->write (MODE, "src");
-  if (env->read (MODE) == "src" && env->read (PREAMBLE) != "true")
-    define_style_macros (env, subtree (et, rp));
-  cur (p)= std::make_shared<const cursor_environment_checkpoint> (
-    *env.operator-> (), ttt->br->contract_changes);
 }
 
 tree
 edit_typeset_rep::get_full_env () {
   if (const auto prepared= editor_rep::cursor_context_at (tp))
     return (tree) prepared->variables ();
-  typeset_exec_until (tp);
-  return (tree) cur[tp]->variables ();
+  throw std::runtime_error ("Cursor environment is awaiting preparation");
 }
 
 bool
 edit_typeset_rep::defined_at_cursor (string var) {
   if (const auto prepared= editor_rep::cursor_context_at (tp))
     return prepared->contains (var);
-  typeset_exec_until (tp);
-  return cur[tp]->contains (var);
+  throw std::runtime_error ("Cursor environment is awaiting preparation for " +
+    std::string (var.data (), N(var)));
 }
 
 tree
@@ -701,23 +709,12 @@ edit_typeset_rep::get_env_value (string var, path p) {
   if (const auto prepared= editor_rep::cursor_context_at (p)) {
     return prepared->effective_value (var);
   }
-  typeset_exec_until (p);
-  tree t= cur[p]->value (var);
-  return is_func (t, BACKUP, 2)? t[0]: t;
+  throw std::runtime_error ("Cursor environment is awaiting preparation for " +
+    std::string (var.data (), N(var)));
 }
 
 tree
 edit_typeset_rep::get_env_value (string var) {
- /* FIXME: tp is wrong (and consequently, crashes TeXmacs)
-  *   when we call this routine from inside the code which
-  *   is triggered by a button, for example.
-  *
-  * Test: fire TeXmacs, then open a new Graphics, then click
-  *   on the icon for going in spline mode. Then it crashes,
-  *   because we call (get-env-tree) from inside the Scheme.
-  *   If we call (get-env-tree-at ... (cDr (cursor-path))),
-  *   then it works.
-  */
   return get_env_value (var, tp);
 }
 
@@ -905,12 +902,17 @@ prefix_specific (hashmap<string,tree>& H, string prefix) {
 }
 
 std::shared_ptr<const evaluation_environment_checkpoint>
+edit_typeset_rep::prepare_document_context () {
+  if (has_changed (THE_ENVIRONMENT)) typeset_preamble ();
+  return std::make_shared<const evaluation_environment_checkpoint> (*pre);
+}
+
+std::shared_ptr<const evaluation_environment_checkpoint>
 edit_typeset_rep::conversion_context_at (path p) {
   if (p == rp * 0) {
     // Whole-document expansion starts before its body effects. This is an
     // explicit conversion operation, not a getter preparing a missing cursor.
-    if (has_changed (THE_ENVIRONMENT)) typeset_preamble ();
-    return std::make_shared<const evaluation_environment_checkpoint> (*pre);
+    return prepare_document_context ();
   }
   const auto context= editor_rep::cursor_context_at (p);
   if (!context)
@@ -1084,10 +1086,9 @@ edit_typeset_rep::texmacs_exec (tree t) {
 tree
 edit_typeset_rep::var_texmacs_exec (tree t) {
   const auto context= editor_rep::cursor_context_at (tp);
-  if (!context) typeset_exec_until (tp);
+  if (!context) throw std::runtime_error ("Evaluation context is awaiting preparation");
   temporary_environment_scope execution (*env.operator-> ());
-  if (context) context->restore (*env.operator-> ());
-  else cur[tp]->restore (*env.operator-> ());
+  context->restore (*env.operator-> ());
   env->style_init_env ();
   env->update ();
   return texmacs_exec (t);

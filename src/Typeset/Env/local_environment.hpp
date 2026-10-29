@@ -6,6 +6,11 @@
 
 // These records retain actor-owned source/argument handles. They are not worker
 // inputs; detached native events refer only to the separate boundary token.
+struct source_occurrence_ancestor {
+  athena::contracts::evaluation_boundary_handle boundary;
+  std::shared_ptr<const source_occurrence_ancestor> parent;
+};
+
 struct source_occurrence {
   std::vector<int> address;
   tree value;
@@ -17,6 +22,7 @@ struct source_occurrence {
   bool secure;
   athena::contracts::evaluation_boundary_handle boundary;
   athena::contracts::evaluation_boundary_handle end_boundary;
+  std::shared_ptr<const source_occurrence_ancestor> parent;
   void restore_context (edit_env_rep&) const;
 };
 
@@ -66,6 +72,7 @@ class source_occurrence_scope {
   tree source;
   path address;
   std::shared_ptr<source_occurrence> occurrence;
+  std::shared_ptr<const source_occurrence_ancestor> ancestry;
   athena::contracts::evaluation_boundary_handle previous_box_boundary;
 public:
   source_occurrence_scope (edit_env_rep&, tree, path inverse_address);
@@ -73,6 +80,7 @@ public:
   source_occurrence_scope (const source_occurrence_scope&)= delete;
   source_occurrence_scope& operator= (const source_occurrence_scope&)= delete;
   void finish (bool reached_end= true);
+  std::shared_ptr<const source_occurrence_ancestor> enclosing ();
 };
 
 // Owner-local captured evaluation state. It is not a transferable snapshot:
@@ -102,6 +110,7 @@ public:
   hashmap<string,tree> variables () const;
   bool contains (string name) const;
   tree value (string name) const;
+  std::optional<athena::node::frozen_tree> retained_value (const string& name) const;
   // Editor-visible value, matching get_env_value without changing raw bindings.
   tree effective_value (string name) const;
   const athena::contracts::contract_scope& contract_context () const { return contracts; }
@@ -133,6 +142,7 @@ public:
   void write (const string&, const tree*);
   void mark (const athena::contracts::evaluation_boundary_handle&);
   void rebase ();
+  void rebase (const evaluation_environment_checkpoint&);
   state snapshot () const { return recorded; }
   void restore (state value) { recorded= std::move (value); }
   prepared_context_index contexts () const { return recorded.boundaries; }
@@ -218,6 +228,7 @@ struct local_environment_binding {
 using local_environment_bindings= std::vector<local_environment_binding>;
 
 bool evaluate_local_environment (edit_env_rep&, const tree&, local_environment_bindings&);
+local_environment_bindings table_cell_environment (edit_env_rep&, tree format);
 
 enum class native_math_context { math, display, script, lower, upper, inherited };
 native_math_context native_script_position (tree_label, int child);

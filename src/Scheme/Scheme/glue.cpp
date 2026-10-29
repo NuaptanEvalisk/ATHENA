@@ -12,6 +12,7 @@
 #include "glue.hpp"
 #include "native_interfaces.hpp"
 #include "native_node_groups.hpp"
+#include "native_graphics_grid.hpp"
 #include "scheme.hpp"
 #include "utf8_edit.hpp"
 

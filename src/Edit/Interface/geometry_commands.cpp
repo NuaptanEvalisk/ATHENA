@@ -231,9 +231,7 @@ void graphical_text_vertical (tree t, bool down) {
 
 void insert_wrapper (tree t, string message, string context) {
   editor ed= get_current_editor ();
-  const bool selection= ed->selection_active_small ();
-  if (selection) ed->selection_cut ("wrapbuf");
-  else ed->selection_cancel ();
+  if (!ed->selection_active_small ()) ed->selection_cancel ();
   ed->var_insert_tree (t, path (0, 0));
   object left= call ("kbd-find-inv-system-binding", string_to_object ("(geometry-left)"));
   object right= call ("kbd-find-inv-system-binding", string_to_object ("(geometry-right)"));
@@ -241,7 +239,6 @@ void insert_wrapper (tree t, string message, string context) {
     message << " using " << as_string (left) << ", " << as_string (right) << ", etc. or ";
   else message << " using the keyboard or ";
   ed->set_message (message * "via the fields in the focus bar", context);
-  if (selection) ed->selection_paste ("wrapbuf");
 }
 
 } // namespace

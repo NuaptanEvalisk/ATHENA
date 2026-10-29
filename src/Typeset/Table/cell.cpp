@@ -69,7 +69,8 @@ cell_rep::typeset (tree fm, tree t, path iq, bool native_math) {
 
   tree old_color;
   if (color_set) old_color= env->local_begin (COLOR, native_color);
-  cell_local_begin (fm);
+  const auto bindings= table_cell_environment (*env.operator-> (), fm);
+  local_environment_scope cell_scope (*env.operator-> (), bindings);
   if (is_func (t, SUBTABLE, 1)) {
     lsep= rsep= bsep= tsep= 0;
     T= table (env, 2);
@@ -140,7 +141,7 @@ cell_rep::typeset (tree fm, tree t, path iq, bool native_math) {
       env->local_end (PAGE_MEDIUM, old1);
     }
   }
-  cell_local_end (fm);
+  cell_scope.finish ();
   if (color_set) env->local_end (COLOR, old_color);
 
   if (decoration != "") {
@@ -166,36 +167,6 @@ cell_rep::typeset (tree fm, tree t, path iq, bool native_math) {
     }
   }
   occurrence.finish ();
-}
-
-void
-cell_rep::cell_local_begin (tree fm) {
-  int i, l= N(fm);
-  for (i=0; i<l; i++) {
-    tree with= fm[i];
-    if (is_func (with, CWITH, 2) &&
-        is_atomic (with[0]) &&
-        !starts (with[0]->label, "cell-")) {
-      tree old= env->local_begin (with[0]->label, with[1]);
-      string v= with[0]->label * "-" * as_string (i);
-      var (v)= old;
-    }
-  }
-}
-
-void
-cell_rep::cell_local_end (tree fm) {
-  int i, l= N(fm);
-  for (i=l-1; i>=0; i--) {
-    tree with= fm[i];
-    if (is_func (with, CWITH, 2) &&
-        is_atomic (with[0]) &&
-        !starts (with[0]->label, "cell-")) {
-      string v= with[0]->label * "-" * as_string (i);
-      tree old= var [v];
-      env->local_end (with[0]->label, old);
-    }
-  }
 }
 
 /******************************************************************************

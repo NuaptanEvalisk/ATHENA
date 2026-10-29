@@ -12,6 +12,7 @@
 #include "Ispell/ispell.hpp"
 #include "scheme.hpp"
 #include "vars.hpp"
+#include "Bridge/impl_typesetter.hpp"
 
 void
 edit_interface_rep::live_spelling_announce (modification mod) {
@@ -49,8 +50,21 @@ edit_interface_rep::update_live_spelling () {
     live_spelling_dirty= false;
   }
   path focus= tree_path (path (), vx1, vy2, 0);
+  if (is_nil (focus)) return;
   if (!(rp <= focus)) focus= tp;
-  if (live_spelling.step (subtree (et, rp), get_init_string (MODE),
-                         get_init_string (LANGUAGE), focus / rp))
+  const auto layout= get_typesetter ();
+  if (!layout->execution_base) return;
+  tree body= subtree (et, rp);
+  const spelling_context_lookup lookup= [&] (path relative) -> spelling_context {
+    const auto occurrence= find_source_occurrence (
+      layout->br->source_occurrences, rp * relative, subtree (body, relative));
+    if (!occurrence) return {};
+    const auto* prepared= layout->execution_contexts.find (occurrence->boundary);
+    if (!prepared) return {};
+    const auto& context= *prepared;
+    return {{context, &context->contract_context ()}, occurrence->boundary,
+            context->effective_value (MODE), context->effective_value (LANGUAGE)};
+  };
+  if (live_spelling.step (body, lookup, layout->execution_base, focus / rp))
     publish_live_spelling ();
 }

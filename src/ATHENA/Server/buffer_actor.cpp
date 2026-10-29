@@ -400,7 +400,7 @@ athena_actor_id next_actor_id= 1;
 struct actor_wait_request {
   actor_command_transport* transport;
   actor_command_transport::readable_command* command;
-  bool received;
+  actor_command_transport::event received;
 };
 
 struct actor_dispatch_request {
@@ -474,6 +474,7 @@ struct buffer_actor::implementation {
 
   buffer_document_state state;
   std::unordered_map<athena_view_id, actor_view> views;
+  std::unordered_map<athena_view_id, std::uint64_t> hybrid_activations;
 
   implementation (buffer_actor* actor, string name, string master,
                   string title, bool read_only, int last_save):
@@ -668,6 +669,20 @@ buffer_actor::try_submit_to (
   return actor == nullptr ? actor_command_ticket {} : actor->try_submit (
     kind, view_id, payload0, payload1, capabilities, argument0, argument1,
     argument2, argument3, argument4, argument5, argument6, argument7);
+}
+
+void
+buffer_actor::notify_contracts_ready (athena_actor_id actor_id,
+                                     athena_view_id view_id) {
+  auto lifetime= acquire_actor (actor_id);
+  buffer_actor* actor= lifetime.get ();
+  if (actor == nullptr) return;
+  {
+    std::lock_guard<std::mutex> guard (actor->state_lock_);
+    if (!actor->accepting_ || !actor->started_) return;
+    if (!actor->contracts_ready_.insert (view_id).second) return;
+  }
+  actor->commands_.wake ();
 }
 
 bool
@@ -1005,7 +1020,7 @@ buffer_actor::guile_entry (void* raw_actor) {
 void*
 buffer_actor::wait_without_guile (void* raw_request) {
   actor_wait_request* request= static_cast<actor_wait_request*> (raw_request);
-  request->received= request->transport->wait_command (*request->command);
+  request->received= request->transport->wait_event (*request->command);
   return nullptr;
 }
 
@@ -1031,11 +1046,20 @@ buffer_actor::run_in_guile () {
 
   while (true) {
     actor_command_transport::readable_command command;
-    actor_wait_request request= {&commands_, &command, false};
+    actor_wait_request request= {
+      &commands_, &command, actor_command_transport::event::closed};
     scm_without_guile (wait_without_guile, &request);
-    if (!request.received) break;
+    if (request.received == actor_command_transport::event::closed) break;
+
+    if (request.received == actor_command_transport::event::wakeup) {
+      publish_ready_contracts ();
+      flush_hybrid_activations ();
+      scheme_runtime_safe_point ();
+      continue;
+    }
 
     execute (*command.record);
+    publish_ready_contracts ();
     actor_command_record completed= *command.record;
     std::uint64_t command_id= completed.command_id;
     {
@@ -1051,6 +1075,7 @@ buffer_actor::run_in_guile () {
       ++completed_commands_;
     }
     (void) commands_.complete (command.slot);
+    flush_hybrid_activations ();
     completed_condition_.notify_all ();
     scheme_runtime_safe_point ();
   }
@@ -1064,6 +1089,43 @@ buffer_actor::run_in_guile () {
   }
   started_condition_.notify_all ();
   completed_condition_.notify_all ();
+}
+
+void
+buffer_actor::queue_hybrid_activation (athena_view_id view_id, std::uint64_t token) {
+  ASSERT (is_owner_thread (), "hybrid activation belongs to its BufferActor");
+  impl_->hybrid_activations.insert_or_assign (view_id, token);
+}
+
+void
+buffer_actor::flush_hybrid_activations () {
+  auto& pending= impl_->hybrid_activations;
+  for (auto it= pending.begin (); it != pending.end ();) {
+    if (!try_submit (actor_command_kind::resume_hybrid_activation, it->first,
+        ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, it->second))
+      // A full ring has queued work; a busy producer either publishes another
+      // command or closes the actor. Retry after consumption, without spinning.
+      break;
+    it= pending.erase (it);
+  }
+}
+
+void
+buffer_actor::publish_ready_contracts () {
+  std::unordered_set<athena_view_id> ready;
+  {
+    std::lock_guard<std::mutex> guard (state_lock_);
+    ready.swap (contracts_ready_);
+    if (!accepting_) return;
+  }
+  for (const auto view: ready) {
+    actor_command_record signal;
+    signal.view_id= view;
+    signal.kind= actor_command_kind::contracts_ready;
+    signal.capabilities= SCHEME_CAPABILITY_BUFFER;
+    // Signals have no mailbox ticket and do not advance command completion.
+    execute (signal);
+  }
 }
 
 void
@@ -1081,6 +1143,8 @@ buffer_actor::execute (actor_command_record& command) {
       context, dispatch_actor_command, &request);
   }
   catch (...) { request.failure= std::current_exception (); }
+  // Dispatch can destroy the view. Do not reuse its pre-dispatch pointer.
+  editor= current_editor (command.view_id);
   if (editor != nullptr && editor->ui_endpoint != nullptr &&
       (command.kind == actor_command_kind::apply_changes ||
        command.kind == actor_command_kind::progressive_typeset ||
@@ -1115,6 +1179,7 @@ buffer_actor::dispatch (actor_command_record& command) {
     break;
   }
   case actor_command_kind::destroy_view:
+    impl_->hybrid_activations.erase (command.view_id);
     if (editor != nullptr) {
       editor->buf= nullptr;
       impl_->views.erase (command.view_id);
@@ -1900,6 +1965,16 @@ buffer_actor::dispatch (actor_command_record& command) {
     for (auto& entry: impl_->views)
       entry.second.instance->notify_change (THE_ENVIRONMENT);
     break;
+  case actor_command_kind::contracts_ready:
+    if (editor != nullptr) {
+      editor->prepare_cursor_environment ();
+      editor->notify_change (THE_CURSOR | THE_FOCUS);
+    }
+    break;
+  case actor_command_kind::resume_hybrid_activation:
+    if (editor != nullptr)
+      editor->resume_pending_hybrid_activation (command.argument[0]);
+    break;
   case actor_command_kind::query_modified:
   case actor_command_kind::query_autosaved: {
     bool autosave= command.kind == actor_command_kind::query_autosaved;
@@ -2257,7 +2332,8 @@ buffer_actor::dispatch (actor_command_record& command) {
        command.kind == actor_command_kind::mouse ||
        command.kind == actor_command_kind::replace_document ||
        command.kind == actor_command_kind::replace_body ||
-       command.kind == actor_command_kind::activate_outline_entry))
+       command.kind == actor_command_kind::activate_outline_entry) &&
+      editor->cursor_context_at (editor->the_path ()))
     editor->ui_endpoint->set_wheel_capture (
       editor->inside_active_graphics ());
 

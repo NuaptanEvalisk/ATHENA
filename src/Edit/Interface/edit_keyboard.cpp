@@ -17,6 +17,7 @@
 #include "utf8_edit.hpp"
 #include "unicode_text.hpp"
 #include "native_math_keyboard.hpp"
+#include "native_latex_commands.hpp"
 #include "ATHENA/Data/enunciation_slots.hpp"
 #include <algorithm>
 
@@ -65,6 +66,7 @@ edit_interface_rep::set_input_mode (int mode) {
 
 void
 edit_interface_rep::set_input_normal () {
+  pending_text_completion= path ();
   set_input_mode (INPUT_NORMAL);
 }
 
@@ -97,6 +99,7 @@ edit_interface_rep::interrupt_shortcut () {
   if (sh_mark != 0) mark_end (sh_mark);
   sh_s= "";
   sh_mark= 0;
+  shortcut_environment.reset ();
 }
 
 bool
@@ -111,6 +114,13 @@ edit_interface_rep::try_shortcut (string comb) {
   //cout << "Try " << comb << " -> " << shorth << ", " << help
   //<< "; " << sh_mark << ", " << status << "\n";
   if (status != 0) {
+    const auto invocation= status >= 3 || sh_mark == 0 ?
+      editor_rep::cursor_context_at (tp) : shortcut_environment;
+    const int action_status= status >= 3 ? status - 3 : status;
+    if ((action_status & 1) != 0) {
+      cmd= native_math_prepare_command (cmd, invocation);
+      cmd= native_latex_prepare_command (cmd, invocation);
+    }
     if (status >= 3) {
       interrupt_shortcut ();
       status -= 3;
@@ -119,11 +129,13 @@ edit_interface_rep::try_shortcut (string comb) {
     else {
       if (sh_mark != 0 && !mark_cancel (sh_mark)) {
         sh_mark= 0;
+        shortcut_environment.reset ();
         return false;
       }
     }
     sh_s= comb;
     sh_mark= new_marker ();
+    shortcut_environment= invocation;
     mark_start (sh_mark);
     archive_state ();
     string rew_s= sv->kbd_post_rewrite (sh_s);
@@ -160,14 +172,21 @@ std_accent (string s) {
 }
 
 void
+edit_interface_rep::cancel_pre_edit () {
+  if (pre_edit_mark == 0) return;
+  ASSERT (sh_mark == 0, "invalid shortcut during pre-edit");
+  mark_cancel (pre_edit_mark);
+  pre_edit_s= "";
+  pre_edit_mark= 0;
+  // Undo restores source, not its admitted display context. Prepare that
+  // restored position before keyboard routing or Scheme insertion reads it.
+  apply_changes ();
+}
+
+void
 edit_interface_rep::key_press (string gkey) {
   string key= gkey;
-  if (pre_edit_mark != 0) {
-    ASSERT (sh_mark == 0, "invalid shortcut during pre-edit");
-    mark_cancel (pre_edit_mark);
-    pre_edit_s= "";
-    pre_edit_mark= 0;
-  }
+  cancel_pre_edit ();
   if (starts (key, "pre-edit:")) {
     string s= key (9, N(key));
     int i, n= N(s), pos= N(s);
@@ -302,6 +321,7 @@ edit_interface_rep::kbd_shortcut (string cmd) {
 void
 edit_interface_rep::handle_keypress (string key, time_t t) {
   if (buf == nullptr) return;
+  pending_text_completion= path ();
   if (athena::enunciation::title_input_key (*this, key)) return;
   if (image_resize_active) {
     image_resize_finish ();
@@ -392,12 +412,7 @@ edit_interface_rep::handle_text_input (string text, time_t t) {
       apply_changes ();
     start_editing ();
     started= true;
-    if (pre_edit_mark != 0) {
-      ASSERT (sh_mark == 0, "invalid shortcut during pre-edit");
-      mark_cancel (pre_edit_mark);
-      pre_edit_s= "";
-      pre_edit_mark= 0;
-    }
+    cancel_pre_edit ();
     if (pre_edit_skip) {
       string converted= native_math_keyboard_context_active () ?
         native_math_downgrade_pre_edit (text) : string ("");

@@ -453,6 +453,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
             auto hit= [&] (const MouseEndpoint& endpoint) {
               const auto point= from_qpoint (endpoint.position);
               const path target= editor.document_position_at (point.x1, point.x2);
+              if (is_nil (target)) throw std::runtime_error ("Selection hit is awaiting layout");
               if (!(root <= target)) throw std::runtime_error ("Selection is outside the source body");
               return target / root;
             };

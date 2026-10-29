@@ -12,6 +12,7 @@
 #include "edit_interface.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
 #include "Typeset/Env/local_environment.hpp"
+#include "Bridge/impl_typesetter.hpp"
 #include "hashmap.hpp"
 #include "hashset.hpp"
 #include "analyze.hpp"
@@ -23,35 +24,89 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <algorithm>
+#include <chrono>
 
 /******************************************************************************
 * Finding completions in text
 ******************************************************************************/
 
+static bool
+source_authoring (const evaluation_environment_checkpoint& context) {
+  return context.effective_value (MODE) == "src" &&
+         context.effective_value (PREAMBLE) != "true";
+}
+
 static void
-find_completions (
-  const athena::contracts::contract_scope& contracts, tree t, std::map<std::string, int>& words)
-{
-  if (is_atomic (t)) {
-    string s= t->label;
-    std::string_view text (s.data (), N(s));
-    for (const auto& span: athena::text::word_segments (text))
-      if (span.lexical)
-        ++words[std::string (text.substr (span.begin, span.end - span.begin))];
+collect_source_signatures (const tree& source,
+    std::map<std::string, athena::contracts::definition_signature>& signatures) {
+  if (is_func (source, ASSIGN, 2) && is_atomic (source[0])) {
+    const string name= source[0]->label;
+    signatures[std::string (name.data (), N(name))]=
+      athena::contracts::signature_of (source[1]);
   }
-  else {
-    int i, n= N(t);
-    for (i=0; i<n; i++)
-      if (athena::contracts::editing_query {contracts}.accessible (t, i))
-        find_completions (contracts, t[i], words);
+  else if (is_func (source, DOCUMENT) || is_func (source, CONCAT))
+    for (int i=0; i<N(source); ++i)
+      collect_source_signatures (source[i], signatures);
+}
+
+void
+editor_rep::prepare_source_signatures (const evaluation_environment_checkpoint& context) {
+  if (!source_authoring (context)) return;
+  const tree body= subtree (et, rp);
+  if (!source_signatures_valid) {
+    source_signature_chunks.clear ();
+    source_signature_origins.clear ();
+    source_signatures.clear ();
+    source_signature_dirty_chunks.clear ();
+    for (int i=0; i<N(body); ++i) source_signature_dirty_chunks.insert (i);
+    source_signatures_valid= true;
   }
+  for (int index: source_signature_dirty_chunks) {
+    auto& chunk= source_signature_chunks[index];
+    std::set<std::string> changed;
+    for (const auto& entry: chunk) {
+      changed.insert (entry.first);
+      source_signature_origins[entry.first].erase (index);
+    }
+    chunk.clear ();
+    if (index < N(body)) collect_source_signatures (body[index], chunk);
+    for (const auto& entry: chunk) {
+      changed.insert (entry.first);
+      source_signature_origins[entry.first][index]= entry.second;
+    }
+    for (const auto& name: changed) {
+      auto& origins= source_signature_origins[name];
+      if (origins.empty ()) {
+        source_signature_origins.erase (name);
+        source_signatures.erase (name);
+      }
+      else source_signatures[name]= origins.rbegin ()->second;
+    }
+  }
+  source_signature_dirty_chunks.clear ();
+}
+
+std::optional<athena::contracts::definition_signature>
+editor_rep::source_signature (string name, const evaluation_environment_checkpoint& context) const {
+  if (!source_authoring (context)) return {};
+  const auto found= source_signatures.find (std::string (name.data (), N(name)));
+  if (found == source_signatures.end ()) return {};
+  return found->second;
 }
 
 void
 edit_interface_rep::source_indexes_changed (path p, bool text_only) {
   path relative= p / rp;
   if (is_nil (relative)) completion_index_valid= false;
-  else if (completion_index_valid) completion_dirty_chunks.insert (relative->item);
+  else if (completion_index_valid) {
+    auto& chunk= completion_chunks[relative->item];
+    chunk.complete= false;
+    chunk.stack.clear ();
+    chunk.scanning.clear ();
+    completion_dirty_chunks.insert (relative->item);
+  }
+  if (is_nil (relative)) source_signatures_valid= false;
+  else if (source_signatures_valid) source_signature_dirty_chunks.insert (relative->item);
 
   // Text edits do not move graphics paths. Graphics properties may still change
   // the set of active pen regions, so invalidate those explicitly.
@@ -67,8 +122,11 @@ edit_interface_rep::source_indexes_changed (path p, bool text_only) {
   if (!text_only) mark_native_ink_interaction_dirty ();
 }
 
-array<string>
-edit_interface_rep::indexed_completions (string prefix) {
+void
+edit_interface_rep::update_completion_index () {
+  if (!completion_requested) return;
+  const auto layout= get_typesetter ();
+  if (!layout->execution_base) return;
   tree body= subtree (et, rp);
   if (!completion_index_valid) {
     completion_chunks.clear ();
@@ -76,26 +134,154 @@ edit_interface_rep::indexed_completions (string prefix) {
     completion_dirty_chunks.clear ();
     for (int i=0; i<N(body); ++i) completion_dirty_chunks.insert (i);
     completion_index_valid= true;
+    completion_layout.reset ();
   }
-  for (int i: completion_dirty_chunks) {
+  if (completion_layout != layout->execution_base) {
+    completion_layout= layout->execution_base;
+    ++completion_generation;
+    completion_review_remaining= N(body);
+    completion_waiting= false;
+  }
+  const auto occurrence_at= [&] (path p) {
+    return find_source_occurrence (layout->br->source_occurrences,
+      rp * p, subtree (body, p));
+  };
+  const auto context_at= [&] (const std::shared_ptr<const source_occurrence>& occurrence)
+      -> std::shared_ptr<const evaluation_environment_checkpoint> {
+    if (!occurrence) return {};
+    const auto* context= layout->execution_contexts.find (occurrence->boundary);
+    return context ? *context : nullptr;
+  };
+  const auto prepare= [&] (int i) {
     auto& chunk= completion_chunks[i];
-    for (const auto& word: chunk) {
-      auto found= completion_words.find (word.first);
-      found->second-= word.second;
-      if (found->second == 0) completion_words.erase (found);
+    if (chunk.checked == completion_generation) return;
+    chunk.checked= completion_generation;
+    const auto occurrence= occurrence_at (path (i));
+    const auto context= context_at (occurrence);
+    if (!context || chunk.occurrence != occurrence || !chunk.context ||
+        !context->contract_context ().same_state (chunk.context->contract_context ()) ||
+        context->effective_value (MODE) != chunk.context->effective_value (MODE) ||
+        context->effective_value (PREAMBLE) != chunk.context->effective_value (PREAMBLE) ||
+        chunk.pending) {
+      chunk.complete= false;
+      chunk.stack.clear ();
+      chunk.scanning.clear ();
     }
-    chunk.clear ();
-    if (i < N(body) && athena::contracts::editing_query {contract_state.contracts}.accessible (body, i))
-      find_completions (contract_state.contracts, body[i], chunk);
-    for (const auto& word: chunk) completion_words[word.first]+= word.second;
+    chunk.context= context;
+    chunk.occurrence= occurrence;
+    if (!context) completion_waiting= true;
+    if (context && !chunk.complete) completion_dirty_chunks.insert (i);
+    else completion_dirty_chunks.erase (i);
+  };
+  const auto deadline= std::chrono::steady_clock::now () + std::chrono::milliseconds (4);
+  const path focus= tp / rp;
+  const int pivot= is_nil (focus)? 0: max (0, min (N(body)-1, focus->item));
+  if (N(body) > 0) prepare (pivot);
+  for (int n=0; completion_review_remaining > 0 && n<64 &&
+       std::chrono::steady_clock::now () < deadline; ++n) {
+    if (completion_review >= N(body)) completion_review= 0;
+    prepare (completion_review++);
+    --completion_review_remaining;
   }
-  completion_dirty_chunks.clear ();
+  int budget= 256;
+  while (!completion_dirty_chunks.empty () && budget > 0 &&
+         std::chrono::steady_clock::now () < deadline) {
+    auto next= completion_dirty_chunks.lower_bound (pivot);
+    if (next == completion_dirty_chunks.end ()) next= completion_dirty_chunks.begin ();
+    const int i= *next;
+    prepare (i);
+    auto& chunk= completion_chunks[i];
+    if (!chunk.context) continue;
+    if (chunk.stack.empty ()) {
+      chunk.pending= false;
+      chunk.stack.push_back ({path (i), -1, chunk.context, {}});
+    }
+    while (!chunk.stack.empty () && budget-- > 0 &&
+           std::chrono::steady_clock::now () < deadline) {
+      auto& frame= chunk.stack.back ();
+      const tree t= subtree (body, frame.position);
+      if (is_atomic (t)) {
+        const std::string_view text (t->label.data (), N(t->label));
+        if (frame.next == -1) {
+          frame.words= athena::text::word_segments (text);
+          frame.next= 0;
+        }
+        if (frame.next < int (frame.words.size ())) {
+          const auto& word= frame.words[frame.next++];
+          if (word.lexical)
+            ++chunk.scanning[std::string (text.substr (word.begin, word.end-word.begin))];
+        }
+        else chunk.stack.pop_back ();
+        continue;
+      }
+      if (frame.next == -1) {
+        if (!frame.context) frame.context= context_at (occurrence_at (frame.position));
+        if (!frame.context) {
+          chunk.pending= true;
+          completion_waiting= true;
+          chunk.stack.pop_back ();
+          continue;
+        }
+        frame.next= 0;
+      }
+      if (frame.next == N(t)) { chunk.stack.pop_back (); continue; }
+      const int child= frame.next++;
+      const bool source= frame.context->effective_value (MODE) == "src" ||
+                         frame.context->effective_value (PREAMBLE) == "true";
+      const athena::contracts::editing_query query {frame.context->contract_context (),
+        source ? athena::contracts::access_policy::source : athena::contracts::access_policy::normal};
+      if (query.accessible (t, child))
+        chunk.stack.push_back ({frame.position * child, -1, {}, {}});
+      else if (query.mapped_accessible (t, child)) {
+        const path target= frame.position * child;
+        const auto mapped= context_at (occurrence_at (target));
+        if (mapped) chunk.stack.push_back ({target, -1, mapped, {}});
+        else {
+          const auto& contract= query.describe (t);
+          const int field= contract.layout.index (child, N(t));
+          if (field < 0 || field >= int (contract.fields.size ()) ||
+              contract.fields[field].analysis.access != athena::contracts::inference_state::resolved) {
+            chunk.pending= true;
+            completion_waiting= true;
+          }
+        }
+      }
+    }
+    if (!chunk.stack.empty ()) continue;
+    for (const auto& word: chunk.words) {
+      auto found= completion_words.find (word.first);
+      found->second.erase (i);
+      if (found->second.empty ()) completion_words.erase (found);
+    }
+    chunk.words= std::move (chunk.scanning);
+    chunk.scanning.clear ();
+    for (const auto& word: chunk.words) completion_words[word.first][i]= word.second;
+    chunk.complete= true;
+    completion_dirty_chunks.erase (i);
+  }
+}
+
+array<string>
+edit_interface_rep::indexed_completions (string prefix) {
+  // Candidate lookup never prepares a source or scans a document. A word from
+  // an unreviewed layout generation must not leak through its old contribution.
+  const auto layout= get_typesetter ();
+  if (!completion_index_valid || !layout->execution_base ||
+      completion_layout != layout->execution_base) return {};
   std::string key (prefix.data (), N(prefix));
   std::vector<std::pair<std::string, int>> matches;
   for (auto it= completion_words.lower_bound (key);
        it != completion_words.end () && it->first.compare (0, key.size (), key) == 0;
        ++it)
-    if (it->first != key) matches.push_back (*it);
+    if (it->first != key) {
+      int frequency= 0;
+      for (const auto& source: it->second) {
+        const auto& chunk= completion_chunks.at (source.first);
+        if (chunk.complete && chunk.checked == completion_generation)
+          frequency+= source.second;
+      }
+      if (frequency > 0) matches.emplace_back (it->first, frequency);
+    }
   if (get_preference ("text autocompletion sorting", "alphabetical") == "frequency")
     std::stable_sort (matches.begin (), matches.end (),
       [] (const auto& a, const auto& b) { return a.second > b.second; });
@@ -120,6 +306,12 @@ completion_word_prefix (string s, int end) {
 * Completion mode
 ******************************************************************************/
 
+static bool
+reference_completion_context (editor_rep& ed) {
+  return ed.inside (LABEL) || ed.inside (REFERENCE) || ed.inside (PAGEREF) ||
+    ed.inside (as_tree_label ("eqref")) || ed.inside (as_tree_label ("smart-ref"));
+}
+
 bool
 edit_interface_rep::complete_try () {
   if (hybrid_name_context ()) return complete_hybrid ();
@@ -128,9 +320,7 @@ edit_interface_rep::complete_try () {
   string s= st->label, ss;
   int end= last_item (tp);
   array<string> a;
-  if (inside (LABEL) || inside (REFERENCE) || inside (PAGEREF) ||
-      inside (as_tree_label ("eqref")) ||
-      inside (as_tree_label ("smart-ref"))) {
+  if (reference_completion_context (*this)) {
     if (end != N(s)) return false;
     ss= copy (s);
     tree t= get_labels ();
@@ -142,7 +332,7 @@ edit_interface_rep::complete_try () {
   else {
     ss= completion_word_prefix (s, end);
     if (ss == "") return false;
-    a= indexed_completions (ss);
+    return complete_text (ss, false);
   }
   if (N(a) == 0) return false;
   complete_start (ss, a);
@@ -153,7 +343,7 @@ bool
 edit_interface_rep::complete_try_realtime () {
   if (hybrid_name_context ()) return complete_hybrid ();
   if (get_preference ("realtime text autocompletion", "on") != "on" ||
-      get_init_string (MODE) != "text" || inside (HYBRID))
+      inside (HYBRID))
     return false;
 
   tree st= subtree (et, path_up (tp));
@@ -165,7 +355,59 @@ edit_interface_rep::complete_try_realtime () {
   std::string_view text (prefix.data (), N(prefix));
   if (prefix == "" || athena::text::next_scalar (text, 0) == text.size ())
     return false;
-  return complete_try ();
+  return complete_text (prefix, true);
+}
+
+bool
+edit_interface_rep::complete_text (string prefix, bool realtime) {
+  const bool reference= reference_completion_context (*this);
+  if (reference) {
+    const tree text= subtree (et, path_up (tp));
+    if (last_item (tp) != N(text->label)) return false;
+    prefix= text->label;
+  }
+  completion_requested= true;
+  pending_text_completion= copy (tp);
+  pending_text_original= copy (subtree (et, path_up (tp))->label);
+  pending_text_prefix= prefix;
+  pending_text_realtime= realtime;
+  const auto context= editor_rep::cursor_context_at (tp);
+  if (!context) return !realtime;
+  if (realtime && context->effective_value (MODE) != "text") {
+    pending_text_completion= path ();
+    return false;
+  }
+  array<string> choices;
+  if (reference) {
+    const tree labels= get_labels ();
+    for (int i=0; i<N(labels); ++i)
+      if (is_atomic (labels[i]) && starts (labels[i]->label, prefix))
+        choices << labels[i]->label (N(prefix), N(labels[i]->label));
+  }
+  else choices= indexed_completions (prefix);
+  if (N(choices) == 0) {
+    // A manual Tab awaiting the index must not report a failed completion.
+    const auto layout= get_typesetter ();
+    return !realtime && (!completion_index_valid || !layout->execution_base ||
+      completion_layout != layout->execution_base || completion_review_remaining > 0 ||
+      !completion_dirty_chunks.empty () || completion_waiting);
+  }
+  complete_start (prefix, choices);
+  return true;
+}
+
+void
+edit_interface_rep::complete_text_after_layout () {
+  update_completion_index ();
+  if (is_nil (pending_text_completion)) return;
+  const tree text= subtree (et, path_up (tp));
+  if (tp != pending_text_completion || !is_atomic (text) ||
+      text->label != pending_text_original || input_mode != INPUT_NORMAL ||
+      (pending_text_realtime && get_preference ("realtime text autocompletion", "on") != "on")) {
+    pending_text_completion= path ();
+    return;
+  }
+  (void) complete_text (pending_text_prefix, pending_text_realtime);
 }
 
 bool
@@ -173,7 +415,9 @@ edit_interface_rep::complete_hybrid () {
   pending_hybrid_completion= path ();
   tree text= subtree (et, path_up (tp));
   if (!is_atomic (text) || last_item (tp) != N(text->label) || text == "") return false;
-  const auto context= cursor_context_at (tp, cursor_source_boundary ());
+  path input= search_upwards (HYBRID);
+  if (is_func (subtree (et, path_up (input)), INACTIVE)) input= path_up (input);
+  const auto context= editor_rep::cursor_context_at (input * 0);
   if (!context) {
     pending_hybrid_completion= copy (tp);
     pending_hybrid_prefix= copy (text->label);
@@ -182,19 +426,27 @@ edit_interface_rep::complete_hybrid () {
   string prefix= text->label;
   std::map<std::string, string> catalog;
   const auto contracts= context->contract_context ().snapshot ();
-  for (auto label: contracts.definition_labels ()) {
-    const auto binding= contracts.definition (label);
-    if (!binding) continue;
-    const auto& parameters= binding->value->signature;
-    if (parameters.kind == athena::contracts::definition_kind::value) continue;
-    string name (binding->name.data (), binding->name.size ()), signature= name;
+  const auto add_signature= [&] (const std::string& key,
+      const athena::contracts::definition_signature& parameters) {
+    if (parameters.kind == athena::contracts::definition_kind::value) {
+      catalog.erase (key);
+      return;
+    }
+    string name (key.data (), key.size ()), signature= name;
     if (parameters.kind == athena::contracts::definition_kind::macro) {
       for (const auto& parameter: parameters.parameters)
         signature= signature * "  [" * string (parameter.data (), parameter.size ()) * "]";
     }
     else signature= signature * "  [...]";
-    catalog[std::string (name.data (), N(name))]= signature;
+    catalog[key]= signature;
+  };
+  for (auto label: contracts.definition_labels ()) {
+    const auto binding= contracts.definition (label);
+    if (!binding) continue;
+    add_signature (binding->name, binding->value->signature);
   }
+  if (source_authoring (*context))
+    for (const auto& entry: source_signatures) add_signature (entry.first, entry.second);
   tree commands= native_latex_command_catalog ();
   for (int i=0; i<N(commands); ++i) {
     string name= commands[i][0]->label;

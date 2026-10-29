@@ -31,7 +31,8 @@ struct macro_analysis::impl {
   }
 
   analysis_context_ptr capture (const contract_scope& scope,
-      const evaluation_input_snapshot& inputs, hashmap<string,tree> values) {
+      const evaluation_input_snapshot& inputs, hashmap<string,tree> values,
+      const retained_analysis_value& retained= {}) {
     const auto changed_values= inputs.changed_since (consumed_inputs);
     auto pending= changed_values;
     const auto include= [&] (tree_label label) {
@@ -62,7 +63,10 @@ struct macro_analysis::impl {
           entry.value= entry.binding->value->expression;
         }
         else if (old && !changed_values.count (name)) entry.value= old->value;
-        else entry.value= node::frozen_tree (value);
+        else {
+          if (retained) entry.value= retained (key);
+          if (!entry.value) entry.value= node::frozen_tree (value);
+        }
       }
       if (existing_tree_label (key)) {
         const auto label= as_tree_label (key);
@@ -102,13 +106,9 @@ struct macro_analysis::impl {
   bool accept (const analysis_proposal_ptr& proposal, contract_scope& scope) {
     if (!proposal) return false;
     if (!proposal->error.empty ()) throw std::runtime_error (proposal->error);
-    if (proposal == last_accepted && proposal->evidence->context->names == names &&
-        scope.same_state (last_publication)) return false;
+    if (proposal == last_accepted && scope.same_state (last_publication)) return false;
     const auto before= scope;
     scope.replace_inference (proposal->projections, proposal->provenance, proposal->receipts);
-    for (auto index: reject_analysis (*proposal->evidence, *names))
-      for (const auto& name: proposal->evidence->dependencies.components[index].members)
-        scope.clear_inference (as_tree_label (native (name)));
     last_publication= scope;
     last_accepted= proposal;
     last_pruned_inputs= names;
@@ -119,7 +119,10 @@ struct macro_analysis::impl {
 };
 
 macro_analysis::macro_analysis (): state (std::make_unique<impl> ()) {}
-macro_analysis::~macro_analysis ()= default;
+macro_analysis::~macro_analysis () {
+  state->service.cancel ();
+  analysis_service::release_on_worker (std::shared_ptr<impl> (state.release ()));
+}
 void macro_analysis::synchronize (contract_scope& scope,
     const evaluation_input_snapshot& inputs, const hashmap<string,tree>& values) {
   const auto context= state->capture (scope, inputs, values);
@@ -127,19 +130,21 @@ void macro_analysis::synchronize (contract_scope& scope,
 }
 bool macro_analysis::request (const contract_scope& scope,
     const evaluation_input_snapshot& inputs, const hashmap<string,tree>& values,
-    std::function<void ()> notify) {
-  return state->service.request (state->capture (scope, inputs, values), std::move (notify));
+    std::function<void ()> notify, const retained_analysis_value& retained) {
+  return state->service.request (state->capture (scope, inputs, values, retained), std::move (notify));
 }
 bool macro_analysis::publish_ready (contract_scope& scope,
     const evaluation_input_snapshot& inputs, const hashmap<string,tree>& values) {
   state->capture (scope, inputs, values);
   const auto proposal= state->service.poll ();
-  if (proposal && proposal->error.empty ()) {
+  const bool current= proposal && proposal->evidence->context->names == state->names &&
+    proposal->evidence->context->symbols == state->labels;
+  if (current && proposal->error.empty ()) {
     state->last_error.clear ();
     return state->accept (proposal, scope);
   }
   const bool retired= state->retire_stale (scope);
-  if (!proposal) return retired;
+  if (!current) return retired;
   if (proposal->error != state->last_error)
     std_warning << "Native macro analysis: " << native (proposal->error) << LF;
   state->last_error= proposal->error;

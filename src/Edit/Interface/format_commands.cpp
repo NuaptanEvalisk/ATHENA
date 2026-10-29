@@ -685,20 +685,20 @@ void format_make_multi_with (object properties) {
   if (N (wrapper) == 0) return;
   editor ed= get_current_editor ();
   if (ed->selection_active_table ()) {
-    array<int> cells= ed->table_which_cells ();
-    bool multiple= N (cells) == 4 &&
-      (cells[0] != cells[1] || cells[2] != cells[3]);
-    std::array<int, 4> selected {};
-    if (multiple)
-      for (int i= 0; i < 4; ++i) selected[i]= cells[i];
-    for (int i= 0; i < N (wrapper); i+= 2) {
-      // cell_set_format corrects table structure and collapses a multi-cell
-      // selection.  Re-establish the original range before every later
-      // property so one make-multi-with applies all pairs to the same cells.
-      if (i > 0 && multiple) restore_cells (selected);
-      ed->cell_set_format (as_string (wrapper[i]), wrapper[i + 1]);
-    }
-    restore_cells_after_command (cells);
+    ed->with_table_context ([&] {
+      array<int> cells= ed->table_which_cells ();
+      bool multiple= N (cells) == 4 &&
+        (cells[0] != cells[1] || cells[2] != cells[3]);
+      std::array<int, 4> selected {};
+      if (multiple)
+        for (int i= 0; i < 4; ++i) selected[i]= cells[i];
+      for (int i= 0; i < N (wrapper); i+= 2) {
+        // Re-establish the range after each property's structure correction.
+        if (i > 0 && multiple) restore_cells (selected);
+        ed->cell_set_format (as_string (wrapper[i]), wrapper[i + 1]);
+      }
+      restore_cells_after_command (cells);
+    });
   }
   else if (ed->selection_active_any ()) {
     tree selected= ed->selection_get ();

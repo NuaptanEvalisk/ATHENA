@@ -22,6 +22,8 @@ tree capture_counter_state (edit_env, const tree& inherited);
 // Called only with an isolated evaluation environment, never the live layout.
 tree evaluate_counter_state (edit_env, const tree& source, const tree& incoming,
                              document::xml_format_version);
-// Native dispatch used by exec while evaluate_counter_state enables it.
+// Native semantic dispatch shared by counter projection and source preparation.
 tree exec_native_counter_node (edit_env, const tree&);
+bool exec_native_counter_until (edit_env, const tree&, path);
+bool exec_native_counter_until (edit_env, const tree&, path, string argument, int level);
 } // namespace athena::avd

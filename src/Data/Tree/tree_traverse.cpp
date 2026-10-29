@@ -201,15 +201,16 @@ cursor_navigation::move_any (tree t, path p, bool forward) const {
     }
   }
   else if ((forward && l==0) || (!forward && l==1)) {
+    const auto entry= at (q);
     int i, n= N(st);
     if (forward) {
       for (i=0; i<n; i++)
-        if (query.accessible (st, i))
+        if (entry.contracts ().accessible (st, i))
           return q * path (i, 0);
     }
     else {
       for (i=n-1; i>=0; i--)
-        if (query.accessible (st, i))
+        if (entry.contracts ().accessible (st, i))
           return q * path (i, right_index (st[i]));
     }
     return q * (1-l);
@@ -219,15 +220,16 @@ cursor_navigation::move_any (tree t, path p, bool forward) const {
   l = last_item (q);
   q = path_up (q);
   st= subtree (t, q);
+  const auto parent= at (q);
   int i, n= N(st);
   if (forward) {
     for (i=l+1; i<n; i++)
-      if (query.accessible (st, i))
+      if (parent.contracts ().accessible (st, i))
         return q * path (i, 0);
   }
   else {
     for (i=l-1; i>=0; i--)
-      if (query.accessible (st, i)) {
+      if (parent.contracts ().accessible (st, i)) {
         return q * path (i, right_index (st[i]));
     }
   }
@@ -293,8 +295,9 @@ inside_graphics (tree t, path p) {
 path
 cursor_navigation::move_valid (tree t, path p, bool forward) const {
   // NOTE: extra hook for moving inside graphical text
-  const auto traversal= query.accessible (t, p) ? *this :
-    cursor_navigation (query.with_access (athena::contracts::access_policy::source));
+  auto traversal= *this;
+  if (!path_accessible (t, p))
+    traversal.query.access= athena::contracts::access_policy::source;
   path q= move_valid_sub (traversal, t, p, forward);
   if (!inside_graphics (t, p)) return q;
   if (inside_contiguous_document (t, p, q)) return q;

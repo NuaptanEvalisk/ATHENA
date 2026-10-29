@@ -29,6 +29,8 @@
 #include "new_style.hpp"
 #include "node_metadata.hpp"
 #include "local_environment.hpp"
+#include "native_math_environment.hpp"
+#include "Table/table.hpp"
 #include <filesystem>
 #include <stdexcept>
 
@@ -2432,36 +2434,38 @@ edit_env_rep::exec_frame_inverse (tree t) {
 * Partial evaluation of trees
 ******************************************************************************/
 
-void
+bool
 edit_env_rep::exec_until (tree t, path p) {
   // cout << "Execute " << t << " until " << p << "\n";
-  if (is_nil (p)) return;
+  if (is_nil (p)) return true;
   if (is_atom (p)) {
     if (p->item!=0)
       (void) exec (t);
-    return;
+    return true;
   }
+  if (L(t) == MATH_BLOCK || L(t) == MATH_GRID)
+    return athena::avd::exec_native_counter_until (edit_env (this), t, p);
 
   switch (L(t)) {
   case DELIMITED:
   case MATH_ACCENT:
   case MATH_VARIANT: {
-    if (!athena::math_v3::valid_native_math (t)) return;
+    if (!athena::math_v3::valid_native_math (t)) return false;
     const int body= athena::contracts::native_field_index (L(t), "expression");
-    if (p->item != body) return;
+    if (p->item != body) return false;
     native_math_context_scope context (*this, t);
-    exec_until (t[body], p->next);
-    context.finish (true);
-    return;
+    const bool reached= exec_until (t[body], p->next);
+    context.finish (reached);
+    return reached;
   }
   case MATH_SCRIPTS:
   case MATH_ANNOTATION:
   case MATH_LONG_ARROW: {
     native_math_context_scope mode (*this, native_math_context::math);
     if (p->item == 0) {
-      exec_until (t[0], p->next);
-      mode.finish (true);
-      return;
+      const bool reached= exec_until (t[0], p->next);
+      mode.finish (reached);
+      return reached;
     }
     (void) exec (t[0]);
     native_math_context_scope scripts (*this, native_math_context::script);
@@ -2470,104 +2474,118 @@ edit_env_rep::exec_until (tree t, path p) {
       (void) exec (t[i]);
     }
     native_math_context_scope position (*this, native_script_position (L(t), p->item));
-    exec_until (t[p->item], p->next);
-    position.finish (true);
-    scripts.finish (true);
-    mode.finish (true);
-    return;
+    const bool reached= exec_until (t[p->item], p->next);
+    position.finish (reached);
+    scripts.finish (reached);
+    mode.finish (reached);
+    return reached;
   }
   case DATOMS:
-    exec_until_formatting (t, p, ATOM_DECORATIONS);
-    return;
+    return exec_until_formatting (t, p, ATOM_DECORATIONS);
   case DLINES:
-    exec_until_formatting (t, p, LINE_DECORATIONS);
-    return;
+    return exec_until_formatting (t, p, LINE_DECORATIONS);
   case DPAGES:
-    exec_until_formatting (t, p, PAGE_DECORATIONS);
-    return;
+    return exec_until_formatting (t, p, PAGE_DECORATIONS);
   case TFORMAT:
-    exec_until_formatting (t, p, CELL_FORMAT);
-    return;
+    return exec_until_formatting (t, p, CELL_FORMAT);
   case TABLE:
-    exec_until_table (t, p);
-    return;
+    return exec_until_table (t, p);
   case WITH:
-    exec_until_with (t, p);
-    return;
+    return exec_until_with (t, p);
   case WITH_PACKAGE:
     if (N(t) == 2 && p->item == 1) {
       scoped_package_environment scope (*this, t[0]);
-      exec_until (t[1], p->next);
-      scope.finish (true);
+      const bool reached= exec_until (t[1], p->next);
+      scope.finish (reached);
+      return reached;
     }
-    return;
+    return false;
   case COMPOUND:
-    exec_until_compound (t, p);
-    return;
+    return exec_until_compound (t, p);
   case MARK:
   case VAR_MARK:
-    if (p->item == 1) exec_until (t[1], p->next);
-    return;
+    return p->item == 1 && exec_until (t[1], p->next);
   case STYLE_WITH:
   case VAR_STYLE_WITH:
-    if (p->item == (N(t)-1)) exec_until (t[N(t)-1], p->next);
-    return;
+    return p->item == N(t)-1 && exec_until (t[N(t)-1], p->next);
   case STYLE_ONLY:
   case VAR_STYLE_ONLY:
   case ACTIVE:
   case VAR_ACTIVE:
   case INACTIVE:
   case VAR_INACTIVE:
-    exec_until_compound (t, p);
-    return;
+    return exec_until_compound (t, p);
   case HLINK:
   case ACTION:
-    exec_until_compound (t, p);
-    return;
+    return exec_until_compound (t, p);
   default:
     if (L(t) < START_EXTENSIONS) {
       int i;
       for (i=0; i<p->item; i++) (void) exec (t[i]);
-      exec_until (t[p->item], p->next);
+      return exec_until (t[p->item], p->next);
     }
-    else exec_until_compound (t, p);
-    return;
+    else return exec_until_compound (t, p);
   }
 }
 
-void
+bool
 edit_env_rep::exec_until_formatting (tree t, path p, string v) {
   int n= N(t);
-  if (p->item != n-1) return;
+  if (p->item != n-1) return false;
   tree oldv= read (v);
   tree newv= oldv * t (0, n-1);
   monitored_write_update (v, newv);
-  exec_until (t[n-1], p->next);
+  return exec_until (t[n-1], p->next);
 }
 
-void
+bool
 edit_env_rep::exec_until_table (tree t, path p) {
-  // should execute values in oldv
-  monitored_write_update (CELL_FORMAT, tree (TFORMAT));
-  int i;
-  for (i=0; i<p->item; i++)
-    (void) exec (t[i]);
-  exec_until (t[p->item], p->next);
-  return;
+  array<tree> rows (N(t));
+  extract_format (read (CELL_FORMAT), A(rows), N(t));
+  native_math_value_scope format (*this, CELL_FORMAT, tree (TFORMAT));
+  for (int i=0; i<=p->item; ++i) {
+    native_math_value_scope row (*this, CELL_ROW_NR, as_string (i));
+    if (i == p->item && is_atom (p->next)) {
+      const bool reached= exec_until (t[i], p->next);
+      row.finish (reached);
+      format.finish (reached);
+      return reached;
+    }
+    array<tree> cells (N(t[i]));
+    extract_format (rows[i], A(cells), N(t[i]));
+    for (int j=0; j<N(t[i]); ++j) {
+      native_math_value_scope column (*this, CELL_COL_NR, as_string (j));
+      const auto bindings= table_cell_environment (*this, cells[j]);
+      local_environment_scope cell (*this, bindings, true);
+      const bool target= i == p->item && j == p->next->item;
+      if (target) {
+        const bool reached= exec_until (t[i][j], p->next->next);
+        cell.finish (reached);
+        column.finish (reached);
+        row.finish (reached);
+        format.finish (reached);
+        return reached;
+      }
+      (void) exec (t[i][j]);
+      cell.finish ();
+    }
+  }
+  return false;
 }
 
-void
+bool
 edit_env_rep::exec_until_with (tree t, path p) {
   const int n= N(t);
-  if (((n&1) != 1) || (p->item != n-1)) return;
+  if (((n&1) != 1) || (p->item != n-1)) return false;
   local_environment_bindings bindings;
-  if (!evaluate_local_environment (*this, t, bindings)) return;
+  if (!evaluate_local_environment (*this, t, bindings)) return false;
   local_environment_scope scope (*this, bindings, true);
-  exec_until (t[n-1], p->next);
-  scope.finish (true);
+  const bool reached= exec_until (t[n-1], p->next);
+  scope.finish (reached);
+  return reached;
 }
 
-void
+bool
 edit_env_rep::exec_until_compound (tree t, path p) {
   int d; tree f;
   if (athena::program::is_program (t)) {
@@ -2582,14 +2600,14 @@ edit_env_rep::exec_until_compound (tree t, path p) {
     d= 1;
     f= t[0];
     if (is_compound (f)) f= exec (f);
-    if (is_compound (f)) return;
+    if (is_compound (f)) return false;
     string fname= f->label;
-    if (!provides (fname)) return;
+    if (!provides (fname)) return false;
     f= read (fname);
   }
   else {
     string fname= as_string (L(t));
-    if (!provides (fname)) return;
+    if (!provides (fname)) return false;
     d= 0;
     f= read (fname);
   }
@@ -2597,13 +2615,14 @@ edit_env_rep::exec_until_compound (tree t, path p) {
   string var;
   if (L(f) == XMACRO) var= f[0]->label;
   else {
-    if ((p->item < d) || (p->item >= N(f)) ||
-	is_compound (f[p->item-d])) return;
+    if ((p->item < d) || (p->item-d >= N(f)-1) ||
+	is_compound (f[p->item-d])) return false;
     var= f[p->item-d]->label;
   }
 
   if (is_applicable (f)) {
     int i, n=N(f)-1, m=N(t)-d;
+    bool reached;
     macro_arg= list<hashmap<string,tree> >
       (hashmap<string,tree> (UNINIT), macro_arg);
     macro_src= list<hashmap<string,path> >
@@ -2613,7 +2632,7 @@ edit_env_rep::exec_until_compound (tree t, path p) {
 	macro_arg->item (f[0]->label)= t;
 	macro_src->item (f[0]->label)= obtain_ip (t);
       }
-      (void) exec_until (f[n], p, var, 0);
+      reached= exec_until (f[n], p, var, 0);
     }
     else {
       for (i=0; i<n; i++)
@@ -2622,11 +2641,13 @@ edit_env_rep::exec_until_compound (tree t, path p) {
 	  macro_arg->item (f[i]->label)= st;
 	  macro_src->item (f[i]->label)= obtain_ip (st);
 	}
-      (void) exec_until (f[n], p->next, var, 0);
+      reached= exec_until (f[n], p->next, var, 0);
     }
     macro_arg= macro_arg->next;
     macro_src= macro_src->next;
+    return reached;
   }
+  return false;
 }
 
 bool
@@ -2634,6 +2655,8 @@ edit_env_rep::exec_until (tree t, path p, string var, int level) {
   // cout << "Execute " << t << " until " << p
   //      << " inside " << var << " level " << level << "\n";
   if (is_atomic (t)) return false;
+  if (L(t) == MATH_BLOCK || L(t) == MATH_GRID)
+    return athena::avd::exec_native_counter_until (edit_env (this), t, p, var, level);
   switch (L(t)) {
   case DELIMITED:
   case MATH_ACCENT:
@@ -2840,14 +2863,27 @@ edit_env_rep::exec_until_formatting (
 
 bool
 edit_env_rep::exec_until_table (tree t, path p, string var, int level) {
-  tree oldv= read (CELL_FORMAT);
-  // should execute values in oldv
-  monitored_write_update (CELL_FORMAT, tree (TFORMAT));
-  int i, n= N(t);
-  for (i=0; i<n; i++)
-    if (exec_until (t[i], p, var, level))
-      return true;
-  monitored_write_update (CELL_FORMAT, oldv);
+  array<tree> rows (N(t));
+  extract_format (read (CELL_FORMAT), A(rows), N(t));
+  native_math_value_scope format (*this, CELL_FORMAT, tree (TFORMAT));
+  for (int i=0; i<N(t); ++i) {
+    native_math_value_scope row (*this, CELL_ROW_NR, as_string (i));
+    array<tree> cells (N(t[i]));
+    extract_format (rows[i], A(cells), N(t[i]));
+    for (int j=0; j<N(t[i]); ++j) {
+      native_math_value_scope column (*this, CELL_COL_NR, as_string (j));
+      const auto bindings= table_cell_environment (*this, cells[j]);
+      local_environment_scope cell (*this, bindings, true);
+      if (exec_until (t[i][j], p, var, level)) {
+        cell.finish (true);
+        column.finish (true);
+        row.finish (true);
+        format.finish (true);
+        return true;
+      }
+      cell.finish ();
+    }
+  }
   return false;
 }
 
@@ -2944,7 +2980,7 @@ edit_env_rep::exec_until_arg (tree t, path p, string var, int level) {
 	    p  = p->next;
 	  }
 	}
-	if (found) exec_until (arg, p);
+	if (found) found= exec_until (arg, p);
 	else exec (arg);
       }
       else found= exec_until (arg, p, var, level-1);

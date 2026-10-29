@@ -37,9 +37,39 @@ and their admission inputs.
 | Static fields/groups | Native storage and JSON descriptions exist; bootstrap constructs a process-wide immutable native baseline directly, with thread-private parser code maps; `std_drd`, `tag_info`, its tuple codecs and obsolete DRD descriptor setters are removed | Complete shared schema use and remaining positional consumers |
 | Definition/declaration state | Paired checkpoints, histories, package origin, binding applicability, scoped pending attachment and source execution outcomes exist; normal bridge replacement handles invalid declarations | Complete ownership/receipts across the remaining preparation modes |
 | Replay | Variable/descriptor/binding/group/syntax, reference/attachment and package-source reads are tracked; actual WITH_PACKAGE execution has scoped restoration | Complete derived-state and external-input receipts where required |
-| Preparation | Atomic/compound entry and exit contexts are indexed during real execution and admitted replay; prepared queries no longer reconstruct event prefixes or copy complete variable maps. Physical hits carry occurrence tokens through Unicode shaping and admitted reuse, including changed roots and merged spans; completed progressive prefixes and root outer boundaries are queryable, incomplete nodes have no exit context, and edits invalidate the execution base. Metadata inputs receive detached matching values/contracts before initialization, with live slot refresh; explicit conversion and interactive graphics evaluation restore matching state in temporary scopes | Cold-position preparation, newly edited fields, pending behavior for non-admitted occurrences and removal of query fallback |
+| Preparation | Atomic/compound entry and exit contexts are indexed during real execution and admitted replay; prepared queries no longer reconstruct event prefixes or copy complete variable maps. Physical hits carry occurrence tokens through Unicode shaping and admitted reuse, including changed roots and merged spans; completed progressive prefixes and root outer boundaries are queryable, incomplete nodes have no exit context, and edits invalidate the execution base. Metadata inputs receive detached matching values/contracts before initialization, with live slot refresh; explicit conversion and interactive graphics evaluation restore matching state in temporary scopes | Cold-position preparation, newly edited fields and pending behavior for non-admitted occurrences now exposed by strict reads |
 | Inference | Detached workers consume immutable binding/value/declaration resolutions; recursive groups and their callers require matching receipts; preparation retires stale published facts while new results are pending; analysis status is separate from schema types; exact admitted display hits can enter macro fields without waiting for inferred access, while authored/native restrictions still apply | Budgeted large-input capture/admission and remaining pending-state consumer policy |
-| Consumers | Native cursor navigation, search and selection receive explicit access/writability policy; all DRD read getters, global access modes and `drd_update` are removed; identity planning takes an explicit native scope; the refcounted `drd_info` owner is removed, and editor/evaluator share one native variable/contract state; menus no longer request analysis; cold identity preparation has its own style/init/preamble context, while metadata buffers do not create a document identity graph | Remove the isolated `restricted_exec` variable-query fallback; complete missing-occurrence preparation and remaining ambient query selection |
+| Consumers | Native cursor navigation, search and selection receive explicit access/writability policy; all DRD read getters, global access modes and `drd_update` are removed; identity planning takes an explicit native scope; the refcounted `drd_info` owner is removed, and editor/evaluator share one native variable/contract state; menus no longer request analysis; cold identity preparation has its own style/init/preamble context, while metadata buffers do not create a document identity graph. `restricted_exec`, `typeset_exec_until` and the boundaryless path cache are removed; source authoring has a separate signature index | Complete missing-occurrence preparation and remaining ambient query selection before deployment |
+
+The worktree now rejects unprepared environment reads instead of reconstructing
+an approximation. The removed path scanned only ten preceding siblings, ignored
+some table scopes and supplied an unscoped source-definition catalogue. Its
+removal is not evidence that all callers are ready: live spelling now consumes
+admitted layout contexts with explicit pending branches, while several compound
+command lifecycles still need explicit preparation. Do not deploy this intermediate
+cutover merely because the production target builds.
+
+Source-authoring discovery now has a separate owner-prepared signature index.
+It records literal top-level assignments without executing their expressions,
+updates affected paragraph entries, and restores earlier definitions when a
+shadowing assignment is removed. Completion and hybrid insertion use signatures
+only in source mode; runtime bindings and source-identity roles remain separate.
+The input's outer invocation context selects this mode, not the name field's
+display-only text mode. Verification status is recorded in the implementation
+README.
+
+Native LaTeX commands capture auxiliary prefixes and compound insertion context
+before consuming their draft. Native keyboard shortcut chains retain their
+original insertion checkpoint before cancelling the previous visible result;
+only their compound insertion actions consume it. Prospective argument fields
+still require their own evaluation. The retained checkpoint is not a blanket
+replacement for queries in newly created fields or Scheme command bodies.
+
+IME draft replacement and commit explicitly prepare the restored source through
+the normal owner layout path after cancelling the pre-edit marker, before mode
+routing or Scheme insertion. Text and math replacement/commit transitions have
+passed a temporary real-actor check; this does not establish GUI composition
+timing or remove the other missing-context lifecycles.
 
 Interactive environment refresh now requests detached analysis instead of
 running `synchronize` inside `typeset_preamble`. Cold style/source identity and
@@ -51,11 +81,130 @@ footer retains its last prepared field description while document statistics
 remain independent. Page-dimension getters read committed layout geometry, not
 the currently selected field's evaluator.
 
+Hidden-source search and manual spelling now explicitly prepare candidate
+positions before comparing their mode and language. They reuse an admitted
+source ancestor when available, otherwise prepare from the document's initial
+environment with the native evaluator. The isolated preparation does not publish
+its reference, auxiliary or attachment outputs, or register a display occurrence.
+It is command preparation, not a fallback in environment getters. Candidate
+context reuse is limited to one unchanged atomic leaf in one synchronous scan;
+an unreachable source field reports failure rather than inventing a context.
+The legacy search/spelling stepper and previous/next-compound lookup now choose
+accessibility from each visited source node's entry context, with command-local
+reuse for sibling queries. The native search bar now explicitly supplies this
+preparation to the structured matcher too. Cascaded matching and result-border
+correction carry the physical source path through every descent; they do not
+identify contexts by a shared tree object or by the query pattern. The ordinary
+single-context cursor/search APIs do not gain an implicit preparation fallback.
+Pending inferred fields and a bound on prefix execution remain separate
+obligations.
+
+Live spelling reads admitted source-entry contexts without executing hidden
+prefixes. Mode/language come from actual layout, and parent field permissions
+remain native/authored-authoritative. Missing or ambiguous contexts park only
+the affected branch while retaining its committed marks. New layout receipts
+are reviewed incrementally, allowing an earlier definition to invalidate later
+untouched blocks without rescanning unchanged admitted blocks. A temporary
+real-actor probe verified native math/text scopes, local macro language/access,
+forward invalidation and pending/reuse behavior; production built with `-j16`.
+The old unused recursive spelling entrypoints and Scheme exports are removed.
+This does not complete the other compound preparation or owner-side capture
+obligations, and the strict-cutover binary is still not deployed.
+
+Dynamic argument edits now prepare the target invocation's entry context, not
+the caret field's context. An argument can locally rebind the same macro, so a
+valid caret checkpoint is not authority for its enclosing invocation's arity
+or field permissions. Insertion/removal retain the invocation checkpoint across
+mutation for argument navigation. Source-mode policy is retained over that
+operation as well. Macro-input argument shortcuts retain the draft and report
+pending layout instead of consulting ambient contracts when their invocation
+context is missing.
+
+The existing explicit source-preparation algorithm is shared by search and
+these editing commands through `prepare_source_position`. It first selects an
+admitted context, otherwise evaluates from a prepared ancestor or document
+initial context in the existing isolated source evaluator. Its optional root
+memo belongs to one unchanged synchronous search; editing commands do not
+retain it across mutations. Environment getters still do not execute source.
+Verification for this slice is recorded in the implementation README.
+
+Upward structural deletion now prepares the entry of each node being removed,
+and repeats preparation after an inner removal invalidates layout. It no longer
+passes one caret-field contract through ancestor recursion. Native structural
+cases remain independent of inferred border policy. Opposing local border
+declarations and consecutive ancestor removal passed a temporary real-actor
+check. Selection enlargement likewise reads each selected ancestor's entry;
+text enlargement reads the selected text's mode, and formula-root discovery
+queries each inspected wrapper's own entry. Those command changes are separate
+from recursive selection correction and the other ambient consumers. Selection
+geometry is also requested during repaint and cannot use cold prefix execution
+as a substitute for admitted contexts.
+
+The selection correction algorithm now advances an explicit navigation provider
+when entering a subtree, including border checks and script-adjacent endpoints.
+Source-only range highlighting skips custom border promotion and uses the
+immutable native baseline, not the current caret's contract scope. The unused
+two-path geometry overload carrying another ambient fallback has been removed.
+The normal selection getter now supplies a per-node admitted-context provider.
+Missing context returns pending without publishing partial endpoints or
+executing a source prefix. Menu snapshots, focus rectangle selection correction
+and scroll checks consume that result; commands requiring definite boundaries
+stop with an explicit awaiting-layout error. A retained table-command checkpoint
+selects source-editing policy only, not contracts for other nodes. No automatic
+command replay is claimed. The unused ambient tree-selection entry is removed; its one existing
+test call now passes explicit navigation.
+
+Focus lookup now exposes pending state to command and toolbar snapshots. Hidden
+field visibility uses the focused invocation's entry, not a local declaration
+inside its caret field. Focus outlines share the read-only admitted navigation
+provider with selection correction, traverse relative to the document root and
+publish geometry only after the whole calculation succeeds. This removes the
+focus path's ambient fallback without evaluating source during repaint. A
+temporary real-actor check covered opposing invocation/caret visibility and
+unprepared selections; production built with `-j16`. The source-only selection
+geometry overload remains independent of these pending contract queries.
+
+Physical hits now select contexts through their box path and source-occurrence
+ancestry, independently of `tp`. The per-node navigation provider accepts this
+explicit display anchor; physical correction no longer uses a single hit-leaf
+scope or an ambient fallback for every ancestor. Unadmitted hits return pending,
+not a cursor position. Physical movement preserves its pre-step coordinates on
+pending, and mouse selection/paste consume an explicit movement result rather
+than acting at the old cursor. Source-only region dispatch stays independent of
+field admission so it does not suppress scroll or existing resize completion.
+Implementation evidence is recorded in the README.
+
+Keyboard logical compensation and initial cursor correction on resume now use
+the same admitted per-node navigation. A pending logical correction rolls back
+the physical candidate, including its occurrence and ghost cursor, before
+publishing any selection change. Explicit hidden-source jumps use native group
+policies to reveal hidden, folded and switch content, preparing the actual
+source entries rather than interpreting a missing display context as hidden.
+Mutation-observer correction uses the immutable native field baseline before
+new layout exists; it does not execute a source prefix on every edit.
+
+This does not finish cursor command boundaries: `go_to_start/end` and their
+paragraph/document variants still call implicit tree-navigation helpers, often
+from compound mutations. They need command-owned contexts, not a cold source
+scan per keystroke. Text completion now scans admitted per-node entries in
+resumable actor-owned slices. Its word index retains per-paragraph contributions
+and layout receipts: unreviewed or invalidated contributions are excluded until
+readmitted, including later paragraphs affected by preceding declarations.
+Displayed fields can supply occurrence evidence while optional inference is
+pending, without overriding authored visibility. Candidate lookup does not
+evaluate source or tokenize the document. Deferred popup requests retain their
+exact source position/text and are cancelled on input or cursor changes.
+Source identity inference and bounded analysis capture/admission remain
+unfinished, and the strict-cutover binary is not yet deployed. Implementation
+evidence is recorded in the README.
+
 Native delimiter, accent and variant content now uses the same environment
 scopes in layout, complete evaluation and both partial-evaluation routes. This
 does not authorize partial evaluation from a getter. MathBlock display scopes
-and MathGrid row numbering/label scopes are now shared by layout and AVD
-semantic projection. Direct table, row and cell layout also records its source
+and MathGrid row numbering/label scopes are now shared by layout, AVD
+semantic projection and explicit source-position preparation, including macro
+argument traversal. Semantic grid execution also tracks the physical cell
+column. Direct table, row and cell layout also records its source
 boundaries, including wrappers that bypass the generic concater. Cold/newly
 edited table-field preparation still remains separate work.
 
@@ -66,6 +215,145 @@ display-only text style is not the invocation environment. General compound
 commands and command actions that query a newly created field still need their
 own prepared inputs; this is not a blanket pre-edit environment fallback.
 
+Existing table edits retain the actual table-entry checkpoint for their bounded
+mutations. Format queries no longer insert a source wrapper; nested TFORMAT and
+subtable layout record their inherited format contexts. Table macro construction
+now prepares the prospective argument through the existing native evaluator
+before its own source mutation, using separate reference/auxiliary outputs. It
+does not equate the call-site environment with the macro argument environment.
+Subtable insertion prepares empty cell bodies from the parent cell's effective
+block/hyphen rules. Table queries now require an admitted entry or the explicit
+command-local table context; their legacy variable-query fallback is removed.
+Multi-property commands retain that context across dimensions, padding, borders,
+spans and selected-cell formatting. They also retain the invocation cursor's
+selection navigation policy for restoring selections after mutation, separately
+from the table entry and without substituting it for new-field evaluation.
+Missing-context continuations remain open.
+
+Native clipboard paste now has owner-local prepare/apply data: the validated
+payload, target mode/language, move provenance and available table-entry context
+are captured before a compound range cut. Table destinations are associated with
+their retained source objects, including enclosing tables, rather than stale
+numeric paths. AVD replacement applies that data
+directly, without republishing a temporary clipboard or rereading the mutated
+target's mode. Ordinary cross-mode content is inserted with its wrapper in one
+operation. Local balloon, marginal-note and geometry wrapping uses the shared
+`var_insert_tree` path, which now prepares the prospective field
+through the native evaluator before cutting its selection, validates the local
+transfer and retains the table entry where the template introduces a table.
+Partial evaluation reports whether it actually reached the field. Table cell
+mode/language bindings share their construction and scope with layout rather
+than discarding CWITH during preparation. Non-graphics paste no longer queries
+legacy mode/language on an unprepared target. Pending targets and range cuts that
+change the insertion owner's semantics still require completion.
+
+Transparent source ancestors retain a lightweight boundary lineage from actual
+evaluation, so the selected display leaf can disambiguate ancestors even when
+table layout records both rigid and lazy occurrences. Each ancestor boundary is
+checked at the current source address before use; the lineage does not retain
+parent source trees or argument environments. Compound insertion now declines
+before mutation when its invocation context is unavailable. Hybrid activation
+consumes its input only after compound/table preparation succeeds and does not
+finish the input session or insert its selection after a declined operation.
+Hybrid activation now retains a pre-mutation request when its invocation context
+is missing. After layout admits the context, it queues a separate BufferActor
+editing transaction rather than mutating during layout. The request is cancelled
+by later source changes, keyboard input, caret movement or selection changes;
+callbacks carry only a numeric request token. This is not generic command replay
+and does not yet handle unresolved inferred field policies or prospective table
+preparation failure.
+
+Ready hybrid requests are now retained by the BufferActor until the ordinary
+FIFO mailbox accepts their token. The actor retries after returning command
+slots, without blocking on the producer gate or rerunning layout merely to
+retry submission. Queued source edits and caret/selection changes still precede
+the activation and cancel stale requests. Closing a view withdraws its retained
+request. A real-actor saturation probe verified delivery after 127 queued
+commands and cancellation by an earlier queued caret movement.
+
+Analysis capture can reuse frozen variable overrides from the checkpoint just
+restored into its evaluator. The lookup is synchronous and owner-local; the
+worker receives only the retained immutable value. Cold baseline values and
+definition capture still need their own bounded-input treatment.
+
+Restoring an existing checkpoint now rebases the execution-context recorder
+directly on that immutable checkpoint, retaining its accumulated boundaries.
+It does not recapture a second variable table from the restored evaluator.
+Detached field environments likewise merge the checkpoint's baseline and frozen
+overrides directly, without materializing and refreezing the overrides. The
+evaluator still receives its own mutable table and detached tree values remain
+isolated between owners. These remove duplicate work, not the remaining full
+baseline capture or large-input budgeting obligations. A legacy hashmap copy
+copies its table entries, not the trees referenced by those entries.
+
+Detached analysis now checks owner cancellation inside macro argument and
+dependency traversal, variable-arity signature discovery, dependency fan-out,
+result projection and dependency-index construction. Boost still owns SCC
+computation; a cancellable component property map checks its vertex/edge work
+without replacing Tarjan's algorithm. This improves cancellation within one
+large analysis, not just between macros.
+
+Detached batches now retain their input, dependency-closure, signature/reset,
+fixed-point and output progress. The existing worker pool returns unfinished
+batches to its FIFO after a four-millisecond soft slice; fact projection and
+provenance construction also retain their progress. One owner has at most one
+running batch plus its coalesced latest demand, and only completed exact-demand
+results can be published. Superseded batches still finish into the existing
+cache without notifying the editor. Offline preparation uses the same stages
+without yielding to the scheduler. This is inter-batch fairness, not a hard
+latency guarantee: input diff, an individual recursive definition/large fan-out,
+the Boost dependency-index pass and large allocations/destruction may overrun a
+slice. Owner capture and stale-fact retirement remain separate budget obligations.
+
+Closing an analysis owner now marks its service cancelled immediately but gives
+its detached capture/result state to the existing worker executor for release.
+Superseded queued requests and unconsumed completions are released there too.
+One coalesced reclamation task drains retained objects outside the scheduler
+mutex, yielding between objects after a soft time slice; a full worker queue
+retains the releases until a finishing task can admit them. This addresses
+owner-thread destruction, not input capture or stale-inference invalidation.
+An individual destructor is not preempted. During process shutdown, after the
+executor starts draining, late destruction is synchronous rather than posting
+to a dying executor.
+
+Completed analysis now signals its BufferActor through retained per-view
+readiness, not a best-effort native continuation in the bounded command ring.
+Repeated notifications coalesce; either a normal command or an independent
+wakeup drains them on the owner. Closed owners discard readiness and closed
+views are looked up again before dispatch. This guarantees notification delivery
+under mailbox pressure without giving workers editor access or changing FIFO
+ordering of source-edit commands. It does not resolve the separate retry policy
+for arbitrary commands; the specific hybrid retry policy is described above.
+
+The graphics grid command chain now has a native pre-mutation update plan.
+It captures the admitted canvas-entry context, authored properties and initial
+aspect defaults before computing visual/logical grid changes. Scheme keeps
+command names, interactive prompts and checkmarks, but no longer owns mutable
+current-grid globals or reads an environment after property writes. Link state
+comes from the current canvas, not a cross-document Scheme variable. Notebook
+grid setup also uses one plan instead of delayed color-setting callbacks.
+Missing canvas preparation is rejected before any source mutation; this does
+not install a getter fallback or authorize queries in newly created fields.
+Build/runtime verification is recorded separately in the implementation README.
+
+Graphics style sampling now collects all object properties and canvas defaults
+before one source assignment. It no longer reads defaults after earlier writes
+or reuses the original canvas path after wrapping it in WITH. Style application
+and ordinary canvas-property queries select the prepared canvas-entry context,
+not a locally styled text object's cursor environment. The nullable prepared
+value helper and its generic-getter fallback are removed. Missing preparation
+is detected before the style transaction; automatic retry for such commands
+remains separate from the existing hybrid activation continuation.
+
+Opening the hybrid inserter captures source mode before cutting its selected
+content, so insertion does not query an invalidated cursor after the cut.
+The BufferActor's post-command wheel-capture notification publishes only with
+an admitted cursor context; source replacement without layout retains the
+previous UI state until a later layout/apply command can publish the new state.
+It no longer turns a completed replacement into a failed command solely by
+querying PREAMBLE before preparation. Editing commands still require their own
+prepared inputs; the UI notification gate does not supply a default mode.
+
 Inferred projections carry detached input/dependency evidence through scope
 inheritance and local restoration. A new analysis owner validates those receipts
 instead of clearing all inherited facts while its worker runs. Effective values
@@ -73,6 +361,18 @@ and evidence use separate persistent maps, so renewing a receipt does not make
 every unchanged contract a value delta. This resolves that particular cold-fact
 loss; source identity handling of genuinely pending/ambiguous inference remains
 unfinished, as do query fallback removal and bounded large-input admission.
+
+The source-identity gap has a semantic decision as well as a lifecycle bug.
+`finish_node_identities` supplies the cursor's ambient contract scope to a
+planner traversing source ancestry and the affected subtree. For non-native
+macros, `roles_for` uses inferred child type/accessibility/environment and
+parameter names to classify persistent content. Replacing that scope with the
+global preamble scope would still misclassify local bindings. Two policies are
+not interchangeable: native/explicit source-role authority, or retained
+per-binding inference with explicit pending preparation. The user has been
+asked which contract custom macro bodies should have; no removal of this
+support or blanket content/data classification has been made while that
+decision is open.
 
 The attachment and source-outcome implementations have successful
 production-library builds and focused temporary probes. Application deployment

@@ -24,11 +24,14 @@ class tree_search_request: private cursor_navigation {
   bool injective_match_flag, cascaded_match_flag;
   tree_label WILDCARD, SELECT_REGION;
   void merge (range_set&, range_set);
-  bool is_accessible_for_search (tree, int);
+  cursor_navigation navigation (path) const;
+  path source_start (tree, path) const;
+  path source_end (tree, path) const;
+  bool is_accessible_for_search (tree, int, path);
   bool match_atomic (athena::text::literal_search&, tree, int, int, int&, int&);
-  bool match (tree, tree);
-  bool match_cascaded (tree, tree);
-  bool match_math_grid_row (tree, tree);
+  bool match (tree, tree, path);
+  bool match_cascaded (tree, tree, path);
+  bool match_math_grid_row (tree, tree, path);
   bool search_concat (tree, tree, int, int, path, path, path&, path&);
   void search_string (range_set&, string, tree, path);
   void search_compound (range_set&, tree, tree, path);
@@ -38,6 +41,7 @@ class tree_search_request: private cursor_navigation {
   void select_cascaded (range_set&, tree, tree, path);
   bool select_math_grid (range_set&, tree, tree, path);
 public:
+  const athena::contracts::source_contract_preparation* preparation= nullptr;
   bool case_insensitive_match_flag;
   tree_search_request (athena::contracts::editing_query, int limit);
   bool contains_select_region (tree);
@@ -166,8 +170,27 @@ tree_search_request::merge (range_set& sel, range_set ssel) {
   }
 }
 
+cursor_navigation
+tree_search_request::navigation (path p) const {
+  if (preparation)
+    return cursor_navigation ([this] (path source) -> navigation_context {
+      return {(*preparation) (source), contracts ().access};
+    }, p, contracts ().input_only);
+  return cursor_navigation (contracts ());
+}
+
+path
+tree_search_request::source_start (tree t, path p) const {
+  return is_atomic (t) ? start (t) : navigation (p).start (t);
+}
+
+path
+tree_search_request::source_end (tree t, path p) const {
+  return is_atomic (t) ? end (t) : navigation (p).end (t);
+}
+
 bool
-tree_search_request::is_accessible_for_search (tree t, int i) {
+tree_search_request::is_accessible_for_search (tree t, int i, path p) {
   if (is_func (t, RAW_DATA) || is_func (t, NAMED_SYMBOL)) return false;
   // A native mathematical descriptor is part of the node's representation,
   // not an expression child. Source access mode exposes physical tree slots
@@ -175,7 +198,7 @@ tree_search_request::is_accessible_for_search (tree t, int i) {
   // delimiter endpoints into free-text search results. Structural math queries
   // still compare these descriptors in match()/select_direct().
   if (athena::math_v3::hidden_search_descriptor_slot (t, i)) return false;
-  return contracts ().accessible (t, i) || is_func (t, HIDDEN);
+  return is_func (t, HIDDEN) || navigation (p).contracts ().accessible (t, i);
 }
 
 /******************************************************************************
@@ -236,12 +259,12 @@ tree_search_request::match_atomic (athena::text::literal_search& source, tree wh
 ******************************************************************************/
 
 bool
-tree_search_request::match_cascaded (tree t, tree what) {
-  if (match (t, what)) return true;
+tree_search_request::match_cascaded (tree t, tree what, path p) {
+  if (match (t, what, p)) return true;
   if (cascaded_match_flag && is_compound (t))
     for (int i=0; i<N(t); i++)
-      if (is_accessible_for_search (t, i))
-        if (match_cascaded (t[i], what))
+      if (is_accessible_for_search (t, i, p))
+        if (match_cascaded (t[i], what, p * i))
           return true;
   return false;
 }
@@ -250,7 +273,7 @@ tree_search_request::match_cascaded (tree t, tree what) {
 // under the user's injective-search preference. Keep ordinary table search
 // unchanged: ROW/CELL only acquire this constraint inside MATH_GRID.
 bool
-tree_search_request::match_math_grid_row (tree source, tree query) {
+tree_search_request::match_math_grid_row (tree source, tree query, path p) {
   if (!is_func (source, ROW) || !is_func (query, ROW) ||
       N(source) != N(query) || !search_properties_match (source, query))
     return false;
@@ -261,13 +284,13 @@ tree_search_request::match_math_grid_row (tree source, tree query) {
       if (!athena::node::content_equal (source[i][0], query[i][0]))
         return false;
     }
-    else if (!match_cascaded (source[i][0], query[i][0])) return false;
+    else if (!match_cascaded (source[i][0], query[i][0], p * i * 0)) return false;
   }
   return true;
 }
 
 bool
-tree_search_request::match (tree t, tree what) {
+tree_search_request::match (tree t, tree what, path p) {
   // A query with typed properties is a constraint on a real source node, not
   // merely on its flattened text. Text-vs-CONCAT matching is valid for a plain
   // pattern, but it cannot satisfy properties attached to the CONCAT wrapper.
@@ -295,7 +318,7 @@ tree_search_request::match (tree t, tree what) {
     int cur=0;
     for (int i=0; i<N(t); i++) {
       if (cur >= N(what)) return true;
-      if (match_cascaded (t[i], what[cur])) cur++;
+      if (match_cascaded (t[i], what[cur], p * i)) cur++;
     }
     return cur >= N(what);
   }
@@ -303,7 +326,7 @@ tree_search_request::match (tree t, tree what) {
     if (L(t) != L(what) || N(t) != N(what)) return false;
     if (L(what) == MATH_GRID) {
       for (int i=0; i<N(what); ++i)
-        if (!match_math_grid_row (t[i], what[i])) return false;
+        if (!match_math_grid_row (t[i], what[i], p * i)) return false;
       return true;
     }
     for (int i=0; i<N(t); i++)
@@ -316,7 +339,7 @@ tree_search_request::match (tree t, tree what) {
         // the global blank-match wildcard for free-text search.
         if (!athena::node::content_equal (t[i], what[i])) return false;
       }
-      else if (!match_cascaded (t[i], what[i])) return false;
+      else if (!match_cascaded (t[i], what[i], p * i)) return false;
     return true;
   }
 }
@@ -342,13 +365,13 @@ tree_search_request::search_concat (tree t, tree what, int pos, int i,
       range_set sel;
       search (sel, t[pos], swhat, p * pos);
       if (N(sel) != 0) {
-        bool c1= (i == 0 || sel[0] == (p * pos) * start (t[pos]));
-        bool c2= (j == N(what) || sel[N(sel)-1] == (p * pos) * end (t[pos]));
+        bool c1= (i == 0 || sel[0] == (p * pos) * source_start (t[pos], p * pos));
+        bool c2= (j == N(what) || sel[N(sel)-1] == (p * pos) * source_end (t[pos], p * pos));
         if (j<N(what) && is_func (what[j], WILDCARD, 1)) c2= true;
         if (i == 0) p1= sel[N(sel)-2];
         if (j == N(what)) p2= sel[1];
         if (i == 0 && is_func (what[0], WILDCARD, 1))
-          p1= (p * 0) * start (t[0]);
+          p1= (p * 0) * source_start (t[0], p * 0);
         if (c1 && c2 && (i > 0 || path_less_eq (cur, p1))) {
           if (j >= N(what)) return true;
           if (search_concat (t, what, pos+1, j, p, cur, p1, p2)) return true;
@@ -361,13 +384,13 @@ tree_search_request::search_concat (tree t, tree what, int pos, int i,
   }
   else if (is_func (what[i], WILDCARD, 1)) {
     if (i == 0) {
-      p1= (p * 0) * start (t[0]);
+      p1= (p * 0) * source_start (t[0], p * 0);
       if (!path_less_eq (cur, p1)) return false;
     }
     if (i+1 < N(what) && is_func (what[i+1], WILDCARD, 1))
       return search_concat (t, what, pos, i+1, p, cur, p1, p2);
     if (i+1 >= N(what)) {
-      p2= (p * (N(t)-1)) * end (t[N(t)-1]);
+      p2= (p * (N(t)-1)) * source_end (t[N(t)-1], p * (N(t)-1));
       return true;
     }
     if (search_concat (t, what, pos, i+1, p, cur, p1, p2)) return true;
@@ -378,8 +401,8 @@ tree_search_request::search_concat (tree t, tree what, int pos, int i,
     range_set sel;
     search (sel, t[pos], what[i], p * pos);
     if (N(sel) != 0) {
-      bool c1= (i == 0 || sel[0] == (p * pos) * start (t[pos]));
-      bool c2= (i == N(what)-1 || sel[N(sel)-1] == (p * pos) * end (t[pos]));
+      bool c1= (i == 0 || sel[0] == (p * pos) * source_start (t[pos], p * pos));
+      bool c2= (i == N(what)-1 || sel[N(sel)-1] == (p * pos) * source_end (t[pos], p * pos));
       if (i == 0) p1= sel[0];
       if (i == N(what)-1) p2= sel[1];
       if (c1 && c2 && (i > 0 || path_less_eq (cur, p1))) {
@@ -430,12 +453,12 @@ tree_search_request::search_string (range_set& sel, string s, tree what, path p)
 
 void
 tree_search_request::search_compound (range_set& sel, tree t, tree what, path p) {
-  if (match (t, what)) {
-    merge (sel, simple_range (p * start (t), p * end (t)));
+  if (match (t, what, p)) {
+    merge (sel, simple_range (p * source_start (t, p), p * source_end (t, p)));
     return;
   }
   for (int i=0; i<N(t); i++)
-    if (is_accessible_for_search (t, i))
+    if (is_accessible_for_search (t, i, p))
       search (sel, t[i], what, p * i);
 }
 
@@ -448,15 +471,15 @@ tree_search_request::search_concat (range_set& sel, tree t, tree what, path p) {
     if (N(ssel) != 0) {
       if (is_func (what[0], WILDCARD, 1))
         for (int i=0; i+1<N(ssel); i++)
-          ssel[i]= (p * 0) * start (t[0]);
+          ssel[i]= (p * 0) * source_start (t[0], p * 0);
       if (is_func (what[N(what)-1], WILDCARD, 1))
         for (int i=0; i+1<N(ssel); i++)
-          ssel[i+1]= (p * (N(t)-1)) * end (t[N(t)-1]);
+          ssel[i+1]= (p * (N(t)-1)) * source_end (t[N(t)-1], p * (N(t)-1));
       merge (sel, ssel);
       pos++;
       continue;
     }
-    path p1, p2, cur= (p * 0) * start (t[0]);
+    path p1, p2, cur= (p * 0) * source_start (t[0], p * 0);
     if (N(sel) != 0) cur= sel[N(sel)-1];
     if (search_concat (t, what, pos, 0, p, cur, p1, p2)) {
       merge (sel, simple_range (p1, p2));
@@ -482,7 +505,7 @@ tree_search_request::search_document (range_set& sel, tree t, tree what, path p)
     bool found= false;
     range_set fsel;
     search (fsel, t[i], what[0], p * i);
-    if (N(fsel) != 0 && fsel[N(fsel)-1] == (p * i) * end (t[i]))
+    if (N(fsel) != 0 && fsel[N(fsel)-1] == (p * i) * source_end (t[i], p * i))
       if (N(sel) == 0 || path_less_eq (sel[N(sel)-1], fsel[N(fsel)-2])) {
         int cur= 1;
         for (int j=i+1; j<N(t); j++) {
@@ -490,7 +513,7 @@ tree_search_request::search_document (range_set& sel, tree t, tree what, path p)
             range_set lsel;
             search (lsel, t[j], what[cur], p * j);
             if (N(lsel) != 0) {
-              if (lsel[0] != (p * j) * start (t[j])) break;
+              if (lsel[0] != (p * j) * source_start (t[j], p * j)) break;
               merge (sel, simple_range (fsel[N(fsel) - 2], lsel[1]));
               found= true;
               i= j-1;
@@ -501,8 +524,8 @@ tree_search_request::search_document (range_set& sel, tree t, tree what, path p)
             range_set msel;
             search (msel, t[j], what[cur], p * j);
             if (N(msel) == 0) break;
-            if (msel[0] != (p * j) * start (t[j])) break;
-            if (msel[N(msel)-1] != (p * j) * end (t[j])) break;
+            if (msel[0] != (p * j) * source_start (t[j], p * j)) break;
+            if (msel[N(msel)-1] != (p * j) * source_end (t[j], p * j)) break;
             cur++;
             if (cur >= N(what)) break;
           }
@@ -544,7 +567,7 @@ tree_search_request::search (range_set& sel, tree t, tree what, path p, path pos
       int hits= 0;
       array<range_set> sub (N(t));
       if (pos->item >= 0 && pos->item < N(t))
-        if (is_accessible_for_search (t, pos->item)) {
+        if (is_accessible_for_search (t, pos->item, p)) {
           search (sub[pos->item], t[pos->item], what, p * pos->item, pos->next);
           hits += N(sub[pos->item]);
         }
@@ -553,7 +576,7 @@ tree_search_request::search (range_set& sel, tree t, tree what, path p, path pos
           if (hits / 2 >= search_max_hits) break;
           int i= (e==0? pos->item + d: pos->item - d);
           if (i >= 0 && i < N(t))
-            if (is_accessible_for_search (t, i)) {
+            if (is_accessible_for_search (t, i, p)) {
               search (sub[i], t[i], what, p * i);
               hits += N(sub[i]);
             }
@@ -608,7 +631,7 @@ tree_search_request::select_math_grid (range_set& matched, tree source, tree que
         if (!athena::node::content_equal (actual_body, pattern_body))
           return false;
       }
-      else if (!match_cascaded (actual_body, pattern_body)) return false;
+      else if (!match_cascaded (actual_body, pattern_body, p * row * column * 0)) return false;
     }
   }
   if (N(pending) == 0) return false;
@@ -640,7 +663,7 @@ tree_search_request::select_direct (range_set& sel, tree t, tree what, path p) {
       else if (is_atomic (what[i]) && what[i]->label == "") {
         if (!athena::node::content_equal (t[i], what[i])) return;
       }
-      else if (!match_cascaded (t[i], what[i])) return;
+      else if (!match_cascaded (t[i], what[i], p * i)) return;
     }
     merge (sel, pending);
     return;
@@ -655,12 +678,12 @@ tree_search_request::select_direct (range_set& sel, tree t, tree what, path p) {
       for (int i2=i+1; i2<N(t); i2++)
         if (cur2 >= N(what)) break;
         else if (contains_select_region (what[cur2])) return;
-        else if (match_cascaded (t[i2], what[cur2])) cur2++;
+        else if (match_cascaded (t[i2], what[cur2], p * i2)) cur2++;
       if (cur2 >= N(what)) merge (sel, ssel);
       continue;
     }
     else {
-      if (match_cascaded (t[i], what[cur])) cur++;
+      if (match_cascaded (t[i], what[cur], p * i)) cur++;
       if (cur >= N(what)) return;
     }
 }
@@ -668,7 +691,7 @@ tree_search_request::select_direct (range_set& sel, tree t, tree what, path p) {
 void
 tree_search_request::select_cascaded (range_set& sel, tree t, tree what, path p) {
   for (int i=0; i<N(t); i++)
-    if (is_accessible_for_search (t, i))
+    if (is_accessible_for_search (t, i, p))
       select (sel, t[i], what, p*i);  
 }
 
@@ -679,7 +702,7 @@ tree_search_request::select (range_set& sel, tree t, tree what, path p) {
     // Compare the nested query against the source instead of treating the
     // instruction's absent properties as missing mathematical policies.
     if (is_empty (what[0]))
-      merge (sel, simple_range (p * start (t), p * end (t)));
+      merge (sel, simple_range (p * source_start (t, p), p * source_end (t, p)));
     else if (contains_select_region (what[0]))
       // A caller may already have chosen a subexpression inside a structured
       // query. Preserve that selection through an enclosing Vault math scope
@@ -701,6 +724,20 @@ tree_search_request::select (range_set& sel, tree t, tree what, path p) {
 /******************************************************************************
 * Front end
 ******************************************************************************/
+
+range_set
+search (const athena::contracts::source_contract_preparation& prepare,
+        athena::contracts::access_policy access, tree t, tree what, path p,
+        bool case_insensitive, int limit) {
+  const auto initial= prepare (p);
+  tree_search_request request ({*initial, access}, limit);
+  request.preparation= &prepare;
+  request.case_insensitive_match_flag= case_insensitive;
+  range_set sel;
+  if (request.contains_select_region (what)) request.select (sel, t, what, p);
+  else request.search (sel, t, what, p);
+  return sel;
+}
 
 range_set
 search (const athena::contracts::editing_query& context, tree t, tree what, path p, int limit) {

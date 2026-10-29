@@ -21,6 +21,8 @@
 #include "Qt/qt_simple_widget.hpp"
 #include "server.hpp"
 #include "Data/NodeContracts/evaluation_state.hpp"
+#include <map>
+#include <set>
 #ifdef EXPERIMENTAL
 #  include "../Style/Environment/environment.hpp"
 #  include "../Style/Memorizer/memorizer.hpp"
@@ -45,6 +47,7 @@ typedef tm_view_rep* tm_view;
 class modification;
 class editor;
 class evaluation_environment_checkpoint;
+struct native_paste_plan;
 namespace athena::contracts { class detached_environment; }
 struct heading_cell_range {
   int  level;
@@ -118,6 +121,15 @@ protected:
   bool         progressive_typeset_continue;
   std::uint32_t editor_style_command_flags= 0;
   bool editor_style_command_flags_valid= false;
+  using source_signature_map= std::map<std::string, athena::contracts::definition_signature>;
+  bool source_signatures_valid= false;
+  std::map<int, source_signature_map> source_signature_chunks;
+  std::map<std::string, std::map<int, athena::contracts::definition_signature>> source_signature_origins;
+  std::set<int> source_signature_dirty_chunks;
+  source_signature_map source_signatures;
+  void prepare_source_signatures (const evaluation_environment_checkpoint&);
+  std::optional<athena::contracts::definition_signature> source_signature (
+    string name, const evaluation_environment_checkpoint&) const;
 #ifdef EXPERIMENTAL
   environment  ste;  // environment for style rewriting
   tree         cct;  // clean copy of the document tree
@@ -161,6 +173,17 @@ protected:
   /* protected routines from edit_typeset */
   virtual void   typeset_preamble () = 0;
   virtual void   typeset_invalidate_env () = 0;
+  virtual std::shared_ptr<const evaluation_environment_checkpoint> prepare_document_context () = 0;
+  virtual std::shared_ptr<const evaluation_environment_checkpoint> prepare_macro_argument (
+    tree invocation, int argument, const evaluation_environment_checkpoint& context) = 0;
+  virtual std::shared_ptr<const evaluation_environment_checkpoint> prepare_tree_position (
+    tree source, path position, const evaluation_environment_checkpoint& context) = 0;
+  std::shared_ptr<const evaluation_environment_checkpoint> prepare_source_position (path position);
+  std::shared_ptr<const evaluation_environment_checkpoint> prepare_source_position (
+    path position, std::shared_ptr<const evaluation_environment_checkpoint>& document_context);
+  path prepare_command_boundary (path root, path target, bool at_start,
+    const evaluation_environment_checkpoint& context);
+  virtual void selection_wrap (tree wrapper, path position) = 0;
   virtual void   typeset (SI& x1, SI& y1, SI& x2, SI& y2) = 0;
 
   /* protected subroutines for deletion of content */
@@ -180,9 +203,17 @@ protected:
   virtual void back_in_text_at (tree t, path p, bool forward) = 0;
 
   /* other protected subroutines */
+  virtual void with_selection_context (const std::function<void ()>& action) = 0;
+  virtual bool selection_try_correct (path, path, path&, path&) = 0;
+  // Read-only traversal rooted at rp; false means an entry is not admitted.
+  bool with_admitted_navigation (const evaluation_environment_checkpoint&,
+    const std::function<void (const cursor_navigation&)>&,
+    const std::optional<path>& display= {});
   virtual tree kbd (string s) = 0;
   virtual tree kbd_shortcut (string s) = 0;
+  // A nil path means the physical hit is awaiting an admitted layout context.
   virtual path tree_path (path sp, SI x, SI y, SI delta, bool source= false) = 0;
+  virtual bool move_to_physical (SI x, SI y, bool absolute= true) = 0;
   virtual void apply_changes () = 0;
   virtual path search_format () = 0;
   virtual path search_format (int& row, int& col) = 0;
@@ -190,7 +221,8 @@ protected:
   virtual void table_get_extents (path fp, int& nr_rows, int& nr_cols) = 0;
   virtual void table_bound (path fp, int& i1, int& j1, int& i2, int& j2) = 0;
   virtual tree table_get_subtable (path p, int i1, int j1, int i2, int j2) = 0;
-  virtual void table_write_subtable (path fp, int row, int col, tree subt) = 0;
+  virtual void table_write_subtable (path fp, int row, int col, tree subt,
+    std::shared_ptr<const evaluation_environment_checkpoint> prepared= {}) = 0;
   virtual void table_cut_selection (path fp, int row1, int col1, int row2, int col2) = 0;
   virtual void table_del_format (path fp, int I1, int J1,
 				 int I2, int J2, string var) = 0;
@@ -394,6 +426,9 @@ public:
   virtual std::shared_ptr<const evaluation_environment_checkpoint> cursor_context_at (
     path source, athena::contracts::evaluation_boundary_handle selected) = 0;
   std::shared_ptr<const evaluation_environment_checkpoint> cursor_context_at (path source);
+  virtual std::shared_ptr<const evaluation_environment_checkpoint> occurrence_context_at (
+    path source, path anchor, athena::contracts::evaluation_boundary_handle selected) = 0;
+  std::shared_ptr<const evaluation_environment_checkpoint> display_context_at (path source, path display);
   virtual bool cursor_occurrence_admitted (
     path source, const athena::contracts::evaluation_boundary_handle& selected) = 0;
 #ifdef EXPERIMENTAL
@@ -593,6 +628,7 @@ public:
   virtual void   table_resize_notify () = 0;
   virtual void   set_cell_mode (string mode) = 0;
   virtual string get_cell_mode () = 0;
+  virtual void   with_table_context (const std::function<void ()>& action) = 0;
   virtual void   cell_set_format (string var, tree val) = 0;
   virtual string cell_get_format (string var) = 0;
   virtual void   cell_del_format (string var= "") = 0;
@@ -602,6 +638,8 @@ public:
   virtual bool in_source () = 0;
   virtual path find_dynamic (path p) = 0;
   virtual void make_compound (tree_label l, int n=-1) = 0;
+  virtual bool make_compound (tree_label l, int n,
+    const std::shared_ptr<const evaluation_environment_checkpoint>& context) = 0;
   virtual void activate () = 0;
   virtual void go_to_argument (path p, bool start_flag) = 0;
   virtual void insert_argument (path p, bool forward) = 0;
@@ -622,6 +660,8 @@ public:
   virtual void choose_hybrid (string name, bool activate) = 0;
   virtual bool activate_latex () = 0;
   virtual void activate_hybrid (bool with_args_hint) = 0;
+  virtual void prepare_pending_hybrid_activation () = 0;
+  virtual void resume_pending_hybrid_activation (std::uint64_t token) = 0;
   virtual void activate_symbol () = 0;
   virtual bool make_return_before () = 0;
   virtual bool make_return_after () = 0;
@@ -659,9 +699,9 @@ public:
   virtual tree selection_raw_get (string key) = 0;
   virtual void selection_correct (path i1, path i2, path& o1, path& o2) = 0;
   virtual path selection_get_subtable (int& i1, int& j1, int& i2, int& j2) = 0;
-  virtual selection compute_selection (path p1, path p2) = 0;
   virtual selection compute_selection (range_set sel) = 0;
   virtual void selection_get (selection& sel) = 0;
+  virtual bool selection_try_get (path& start, path& end) = 0;
   virtual void selection_get (path& start, path& end) = 0;
   virtual path selection_get_start () = 0;
   virtual path selection_get_end () = 0;
@@ -680,6 +720,8 @@ public:
   virtual void selection_set_range_set (range_set sel) = 0;
   virtual void selection_copy (string key= "primary") = 0;
   virtual void selection_validate_paste (tree selection) = 0;
+  virtual std::shared_ptr<const native_paste_plan> selection_prepare_paste (tree selection) = 0;
+  virtual void selection_apply_paste (const native_paste_plan& prepared) = 0;
   virtual void selection_paste (string key= "primary") = 0;
   virtual void selection_clear (string key= "primary") = 0;
   virtual void selection_cancel () = 0;
@@ -698,6 +740,7 @@ public:
   virtual void manual_focus_set (path p, bool force= true) = 0;
   virtual void manual_focus_release () = 0;
   virtual path focus_get (bool skip_flag= true) = 0;
+  virtual bool focus_try_get (path& result, bool skip_flag= true) = 0;
 
   virtual void set_alt_selection (string s, range_set sel) = 0;
   virtual range_set get_alt_selection (string s) = 0;

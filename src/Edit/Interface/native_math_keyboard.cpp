@@ -14,6 +14,7 @@
 #include "native_keyboard_prefixes.hpp"
 #include "utf8_edit.hpp"
 #include "auto_close.hpp"
+#include "Typeset/Env/local_environment.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -21,6 +22,7 @@
 #include <QJsonParseError>
 #include <unordered_map>
 #include <vector>
+#include <stdexcept>
 
 namespace {
 
@@ -231,7 +233,8 @@ void native_kbd_space () {
   if (native_allow_math_space_after (previous)) ed->insert_tree (tree (" "));
 }
 
-void execute_action (const QJsonObject& action) {
+void execute_action (const QJsonObject& action,
+    const std::shared_ptr<const evaluation_environment_checkpoint>& context) {
   editor ed= get_current_editor ();
   ASSERT (!is_nil (ed), "native math action without editor");
   const string op= native_string (action.value ("op"));
@@ -272,7 +275,7 @@ void execute_action (const QJsonObject& action) {
       ed.operator-> (), native_tree (action.value ("value")));
   else if (op == "make") {
     ASSERT (action.value ("tag").isString (), "make action needs tag");
-    ed->make_compound (as_tree_label (native_string (action.value ("tag"))));
+    ed->make_compound (as_tree_label (native_string (action.value ("tag"))), -1, context);
   }
   else if (op == "make-hybrid") ed->make_hybrid ();
   else if (op == "math-make-math") {
@@ -299,22 +302,46 @@ void execute_action (const QJsonObject& action) {
   else FAILED ("unknown native math keyboard action");
 }
 
-void run_binding (int group, int binding) {
+void run_binding (int group, int binding,
+    const std::shared_ptr<const evaluation_environment_checkpoint>& context) {
   const auto& r= registry ();
   ASSERT (group >= 0 && group < (int) r.groups.size (), "invalid native math group");
   const auto& bindings= r.groups[(std::size_t) group].bindings;
   ASSERT (binding >= 0 && binding < (int) bindings.size (), "invalid native math binding");
   for (const QJsonValue& value: bindings[(std::size_t) binding].actions) {
     ASSERT (value.isObject (), "native math action must be an object");
-    execute_action (value.toObject ());
+    execute_action (value.toObject (), context);
   }
 }
 
 class native_math_command_rep final: public command_rep {
   int group, binding;
+  std::shared_ptr<const evaluation_environment_checkpoint> context;
 public:
   native_math_command_rep (int g, int b): group (g), binding (b) {}
-  void apply () override { run_binding (group, binding); }
+  native_math_command_rep (int g, int b,
+      std::shared_ptr<const evaluation_environment_checkpoint> context):
+    group (g), binding (b), context (std::move (context)) {}
+  bool needs_context () const {
+    const auto& actions= registry ().groups[group].bindings[binding].actions;
+    for (const auto& value: actions)
+      if (value.toObject ().value ("op") == "make") return true;
+    return false;
+  }
+  void apply () override {
+    auto selected= context;
+    if (!selected && needs_context ()) {
+      editor ed= get_current_editor ();
+      ASSERT (!is_nil (ed), "native math command without editor");
+      selected= ed->cursor_context_at (ed->the_path ());
+      if (!selected) throw std::runtime_error ("Math insertion context is awaiting preparation");
+    }
+    run_binding (group, binding, selected);
+  }
+  command prepare (std::shared_ptr<const evaluation_environment_checkpoint> context) const {
+    if (!context) throw std::runtime_error ("Math insertion context is awaiting preparation");
+    return command (tm_new<native_math_command_rep> (group, binding, std::move (context)));
+  }
   tm_ostream& print (tm_ostream& out) override {
     return out << "<native-math-keyboard-command>";
   }
@@ -364,6 +391,13 @@ void simplify_native_variant (
 }
 
 } // namespace
+
+command native_math_prepare_command (
+    command cmd, std::shared_ptr<const evaluation_environment_checkpoint> context) {
+  if (auto* native= dynamic_cast<native_math_command_rep*> (cmd.operator-> ());
+      native && native->needs_context ()) return native->prepare (std::move (context));
+  return cmd;
+}
 
 bool native_math_keyboard_get_keycomb (
   string& combination, int& status, command& cmd, string& shorthand, string& help) {

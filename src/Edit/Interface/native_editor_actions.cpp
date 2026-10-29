@@ -1448,16 +1448,14 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
         return;
       ed->table_go_to (cells[0], cells[2]);
       ed->selection_cancel ();
-      ed->cell_set_format (
-        "cell-row-span", tree (as_string (cells[1] + 1 - cells[0])));
-      ed->cell_set_format (
-        "cell-col-span", tree (as_string (cells[3] + 1 - cells[2])));
+      athena::table_commands::cell_set_span (
+        ed.operator-> (), as_string (cells[1] + 1 - cells[0]),
+        as_string (cells[3] + 1 - cells[2]));
     }
     else if (id == "table-reset-cell-span" &&
              state.has (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT) &&
              state.table_reset_span_available) {
-      ed->cell_set_format ("cell-row-span", tree ("1"));
-      ed->cell_set_format ("cell-col-span", tree ("1"));
+      athena::table_commands::cell_set_span (ed.operator-> (), "1", "1");
     }
   }
   else if (op == "focus-hidden-field") {

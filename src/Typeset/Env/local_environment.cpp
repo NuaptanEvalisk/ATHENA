@@ -107,7 +107,8 @@ source_occurrence_capture::record (tree source, path ip) {
   auto occurrence= std::make_shared<source_occurrence> (source_occurrence {
     key, source, env.src, env.macro_arg, env.macro_src, env.cur_file_name,
     env.package_origin, env.secure,
-    env.mark_execution_boundary (), {}});
+    env.mark_execution_boundary (), {},
+    env.active_source_occurrence ? env.active_source_occurrence->enclosing () : nullptr});
   entries.push_back ({key, key, {}, {}, occurrence, {}});
   return occurrence;
 }
@@ -139,6 +140,17 @@ void source_occurrence_scope::finish (bool reached_end) {
     }
     occurrence.reset ();
   }
+}
+
+std::shared_ptr<const source_occurrence_ancestor> source_occurrence_scope::enclosing () {
+  for (auto* scope= this; scope; scope= scope->previous)
+    if (scope->occurrence) {
+      if (!scope->ancestry)
+        scope->ancestry= std::make_shared<const source_occurrence_ancestor> (
+          source_occurrence_ancestor {scope->occurrence->boundary, scope->occurrence->parent});
+      return scope->ancestry;
+    }
+  return {};
 }
 
 void source_occurrence_capture::reuse (const source_occurrence_log& child) {
@@ -227,6 +239,12 @@ tree evaluation_environment_checkpoint::value (string name) const {
   return (*values)[name];
 }
 
+std::optional<athena::node::frozen_tree>
+evaluation_environment_checkpoint::retained_value (const string& name) const {
+  const auto* changed= overrides.find (std::string (name.data (), N(name)));
+  return changed ? *changed : std::nullopt;
+}
+
 tree evaluation_environment_checkpoint::effective_value (string name) const {
   tree current= value (name);
   return is_func (current, BACKUP, 2) ? current[0] : current;
@@ -264,6 +282,10 @@ void evaluation_context_capture::mark (
 
 void evaluation_context_capture::rebase () {
   recorded.current= evaluation_environment_checkpoint (env);
+}
+
+void evaluation_context_capture::rebase (const evaluation_environment_checkpoint& restored) {
+  recorded.current= restored;
 }
 
 std::optional<athena::contracts::evaluation_effects>
@@ -322,14 +344,17 @@ evaluation_environment_checkpoint::detach () const {
   result->inputs= inputs;
   result->package= package_origin;
   result->secure= secure;
-  auto materialized= variables ();
-  auto keys= iterate (materialized);
+  auto keys= iterate (*values);
   while (keys->busy ()) {
     const string key= keys->next ();
+    const std::string name (key.data (), N(key));
+    if (overrides.find (name)) continue;
     const auto binding= existing_tree_label (key) ? contracts.definition (as_tree_label (key)) : nullptr;
-    result->values.emplace (std::string (key.data (), N(key)),
-      binding ? binding->value->expression : athena::node::frozen_tree (materialized[key]));
+    result->values.emplace (name,
+      binding ? binding->value->expression : athena::node::frozen_tree ((*values)[key]));
   }
+  for (const auto& [name, value]: overrides)
+    if (value) result->values.emplace (name, *value);
   for (auto frame= arguments; !is_nil (frame); frame= frame->next) {
     athena::contracts::detached_environment::variables frozen;
     auto args= frame->item;
@@ -394,7 +419,7 @@ void evaluation_environment_checkpoint::restore (edit_env_rep& state) const {
   state.cur_file_name= file_name;
   state.package_origin= package_origin;
   state.secure= secure;
-  if (state.recorded_contexts) state.recorded_contexts->rebase ();
+  if (state.recorded_contexts) state.recorded_contexts->rebase (*this);
 }
 
 evaluation_environment_transaction::evaluation_environment_transaction (edit_env_rep& state):
@@ -586,6 +611,19 @@ void native_math_context_scope::finish (bool remain_inside) {
 
 native_math_context_scope::~native_math_context_scope () {
   if (!finished) finish ();
+}
+
+local_environment_bindings table_cell_environment (edit_env_rep& env, tree format) {
+  local_environment_bindings result;
+  for (int i=0; i<N(format); ++i) {
+    const tree binding= format[i];
+    if (is_func (binding, CWITH, 2) && is_atomic (binding[0]) &&
+        !starts (binding[0]->label, "cell-")) {
+      const string name= binding[0]->label;
+      result.push_back ({name, binding[1], env.read (name), env.provides (name)});
+    }
+  }
+  return result;
 }
 
 local_environment_scope::local_environment_scope (

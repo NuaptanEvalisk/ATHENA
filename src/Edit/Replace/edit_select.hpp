@@ -28,11 +28,20 @@ protected:
   path      focus_p;
   bool      focus_hold;
   hashmap<string,range_set> alt_sels;
+  std::shared_ptr<const evaluation_environment_checkpoint> selection_environment;
 
 protected:
+  void with_selection_context (const std::function<void ()>& action);
+  bool selection_in_source ();
+  bool selection_try_correct (path, path, path&, path&);
   void get_selection (path& start, path& end);
   void set_selection (path start, path end);
   void raw_cut (path start, path end);
+  void selection_wrap (tree wrapper, path position);
+  std::shared_ptr<native_paste_plan> prepare_paste (
+    tree selection, std::shared_ptr<const evaluation_environment_checkpoint> context,
+    bool graphics);
+  void apply_paste (const native_paste_plan& prepared, bool local_transfer);
 
 public:
   edit_select_rep ();
@@ -63,10 +72,10 @@ public:
   void selection_correct (path i1, path i2, path& o1, path& o2);
   void selection_correct (path i1, path i2, path& o1, path& o2, const cursor_navigation&);
   path selection_get_subtable (int& row1, int& col1, int& row2, int& col2);
-  selection compute_selection (path p1, path p2);
   selection compute_selection (path p1, path p2, const cursor_navigation&);
   selection compute_selection (range_set sel);
   void selection_get (selection& sel);
+  bool selection_try_get (path& start, path& end);
   void selection_get (path& start, path& end);
   path selection_get_start ();
   path selection_get_end ();
@@ -85,6 +94,8 @@ public:
   void selection_set_range_set (range_set sel);
   void selection_copy (string key= "primary");
   void selection_validate_paste (tree selection);
+  std::shared_ptr<const native_paste_plan> selection_prepare_paste (tree selection);
+  void selection_apply_paste (const native_paste_plan& prepared);
   void selection_paste (string key= "primary");
   void selection_clear (string key= "primary");
   void selection_cancel ();
@@ -102,8 +113,9 @@ public:
   path manual_focus_get ();
   void manual_focus_set (path p, bool force);
   void manual_focus_release ();
-  path focus_search (path p, bool skip_flag, bool up_flag);
+  bool focus_try_search (path p, bool skip_flag, bool up_flag, path& result);
   path focus_get (bool skip_flag);
+  bool focus_try_get (path& result, bool skip_flag= true);
 
   void set_alt_selection (string s, range_set sel);
   range_set get_alt_selection (string s);

@@ -974,19 +974,19 @@ void generic_yank_paragraph () {
 
 void generic_make_balloon () {
   editor ed= get_current_editor ();
-  bool wrap= ed->selection_active_small ();
-  if (wrap) {
-    if (ed->inside ("slideshow")) call ("clipboard-cut", object ("wrapbuf"));
-    else ed->selection_cut ("wrapbuf");
+  const bool wrap= ed->selection_active_small ();
+  if (wrap && ed->inside ("slideshow")) {
+    call ("clipboard-cut", object ("wrapbuf"));
+    ed->var_insert_tree (
+      compound ("inactive", compound ("hover-balloon", "", "", "left", "Bottom")),
+      path (0, 0, 0));
+    call ("clipboard-paste", object ("wrapbuf"));
+    return;
   }
-  else ed->selection_cancel ();
+  if (!wrap) ed->selection_cancel ();
   ed->var_insert_tree (
     compound ("inactive", compound ("hover-balloon", "", "", "left", "Bottom")),
     path (0, 0, 0));
-  if (wrap) {
-    if (ed->inside ("slideshow")) call ("clipboard-paste", object ("wrapbuf"));
-    else ed->selection_paste ("wrapbuf");
-  }
 }
 
 void generic_spell_live_replace_current_word (string replacement) {
@@ -1054,13 +1054,10 @@ generic_make_note_footnote () {
 void
 generic_make_marginal_note () {
   editor ed= get_current_editor ();
-  bool wrap= ed->selection_active_small ();
-  if (wrap) ed->selection_cut ("wrapbuf");
-  else ed->selection_cancel ();
+  if (!ed->selection_active_small ()) ed->selection_cancel ();
   ed->var_insert_tree (
     compound ("inactive", compound ("marginal-note", "normal", "c", "")),
     path (0, 2, 0));
-  if (wrap) ed->selection_paste ("wrapbuf");
 }
 
 bool

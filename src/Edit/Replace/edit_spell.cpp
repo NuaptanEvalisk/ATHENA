@@ -35,7 +35,9 @@ edit_replace_rep::spell_start () {
   }
 
   /********** initialize spell checker ***********/
-  source_mode_language_at (spell_p, search_mode, search_lan);
+  source_search_preparation preparation;
+  const auto context= prepare_search_target (spell_p, preparation);
+  source_mode_language (*context, search_mode, search_lan);
 
   string message= ispell_start (search_lan);
   if (starts (message, "Error: ")) {
@@ -118,6 +120,7 @@ message_ispell (tree t) {
 
 void
 edit_replace_rep::spell_next () {
+  source_search_preparation preparation;
   while (true) {
     if (path_inf (spell_end_p, search_at))
       search_at= rp;
@@ -127,6 +130,13 @@ edit_replace_rep::spell_next () {
     }
     search_end= test_spellable (search_at);
     if (search_end != search_at) {
+      const auto context= prepare_search_target (search_at, preparation);
+      string mode, lan;
+      source_mode_language (*context, mode, lan);
+      if (search_mode != mode || search_lan != lan) {
+        step_horizontal (forward, athena::contracts::access_policy::normal, preparation);
+        continue;
+      }
       spell_t= ispell_check (search_lan, spell_s);
       if (is_atomic (spell_t) && starts (spell_t->label, "Error: ")) {
         spell_end ();
@@ -134,18 +144,14 @@ edit_replace_rep::spell_next () {
         return;
       }
       if (spell_t != "ok") {
-        string mode, lan;
-        source_mode_language_at (search_at, mode, lan);
-        if ((search_mode == mode) && (search_lan == lan)) {
-          set_selection (search_at, search_end);
-          notify_change (THE_SELECTION);
-          go_to (copy (search_end));
-          set_message (message_ispell (spell_t), "spelling error");
-          return;
-        }
+        set_selection (search_at, search_end);
+        notify_change (THE_SELECTION);
+        go_to (copy (search_end));
+        set_message (message_ispell (spell_t), "spelling error");
+        return;
       }
     }
-    step_horizontal (forward);
+    step_horizontal (forward, athena::contracts::access_policy::normal, preparation);
   }
 }
 
