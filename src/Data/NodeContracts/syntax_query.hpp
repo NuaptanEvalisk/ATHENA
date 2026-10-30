@@ -2,6 +2,7 @@
 #pragma once
 #include "editing_query.hpp"
 #include "hashmap.hpp"
+#include <functional>
 
 namespace athena::contracts {
 
@@ -10,6 +11,8 @@ namespace athena::contracts {
 struct syntax_query {
   editing_query contracts;
   const hashmap<string,tree>& values;
+  // Consumers retaining expanded syntax must retain its actual read set too.
+  std::function<void(const string&, const tree&)> read_definition {};
   tree definition (string name) const;
   tree expand (tree source, path address= path (-1)) const;
 };

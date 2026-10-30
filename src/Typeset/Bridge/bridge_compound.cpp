@@ -11,7 +11,6 @@
 
 #include "bridge.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
 #include "enunciation_surround.hpp"
 #include "program_presentation.hpp"
 #include "radioactive_link_scope.hpp"
@@ -374,7 +373,7 @@ bridge_compound_rep::my_typeset (int desired_status) {
     int d= athena_enunciation_background_delta (st);
     tree body_t= st[d + 1];
     initialize (body_t, 0, body_t);
-    if (!athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.child_enforcing (st))
+    if (!athena::contracts::editing_query {env->contract_state.contracts}.child_enforcing (st))
       ttt->insert_marker (st, ip);
     array<page_item> items;
     stack_border border;
@@ -388,7 +387,7 @@ bridge_compound_rep::my_typeset (int desired_status) {
   if (athena_is_enunciation_surround (st)) {
     tree r= athena_enunciation_surround_rewrite (env, st);
     initialize (r, 0, r);
-    if (!athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.child_enforcing (st))
+    if (!athena::contracts::editing_query {env->contract_state.contracts}.child_enforcing (st))
       ttt->insert_marker (st, ip);
     tree color= athena_enunciation_surround_color (st);
     if (is_atomic (color) && color->label == "none")
@@ -407,7 +406,7 @@ bridge_compound_rep::my_typeset (int desired_status) {
   if (athena_is_proof_qed_layout (st)) {
     tree r= athena_proof_qed_layout_rewrite (env, st);
     initialize (r, 0, r);
-    if (!athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.child_enforcing (st))
+    if (!athena::contracts::editing_query {env->contract_state.contracts}.child_enforcing (st))
       ttt->insert_marker (st, ip);
     body->typeset (desired_status);
     return;
@@ -501,7 +500,7 @@ bridge_compound_rep::my_typeset (int desired_status) {
       }
     initialize (f[n], d, f);
     // /*IF_NON_CHILD_ENFORCING(st)*/ ttt->insert_marker (st, ip);
-    if (!athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.child_enforcing (st))
+    if (!athena::contracts::editing_query {env->contract_state.contracts}.child_enforcing (st))
       ttt->insert_marker (st, ip);
     bool suppress_links= athena_suppresses_radioactive_links (macro_name);
     tree old_radioactive_scope;
@@ -518,7 +517,7 @@ bridge_compound_rep::my_typeset (int desired_status) {
   else {
     initialize (f, d, f);
     // /*IF_NON_CHILD_ENFORCING(st)*/ ttt->insert_marker (st, ip);
-    if (!athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.child_enforcing (st))
+    if (!athena::contracts::editing_query {env->contract_state.contracts}.child_enforcing (st))
       ttt->insert_marker (st, ip);
     body->typeset (desired_status);
   }

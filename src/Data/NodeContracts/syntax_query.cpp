@@ -8,13 +8,17 @@ namespace athena::contracts {
 tree syntax_query::definition (string name) const {
   if (existing_tree_label (name)) {
     const tree syntax= contracts.describe (as_tree_label (name)).attribute ("syntax");
-    if (syntax != "") return syntax;
+    if (syntax != "") {
+      if (read_definition) read_definition (name, syntax);
+      return syntax;
+    }
   }
   else observe_contract_absence (contracts.scope, name);
   auto variables= values;
   const bool present= variables->contains (name);
   tree value= present ? variables[name] : tree (UNINIT);
   observe_contract_variable (contracts.scope, name, present, present ? &value : nullptr);
+  if (read_definition) read_definition (name, value);
   return value;
 }
 

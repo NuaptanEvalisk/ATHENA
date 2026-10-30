@@ -12,7 +12,6 @@
 #include "packrat_parser.hpp"
 #include "Data/NodeContracts/syntax_query.hpp"
 #include "analyze.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
 #include "unicode_text.hpp"
 
 /******************************************************************************
@@ -54,14 +53,15 @@ packrat_parser_rep::serialize_atomic (tree t, path) {
 }
 
 void
-packrat_parser_rep::serialize_compound (tree t, path p) {
-  tree r= athena::contracts::syntax_query {{athena::contracts::current_evaluation_state ().contracts}, athena::contracts::current_evaluation_state ().values}.expand (t, p);
+packrat_parser_rep::serialize_compound (
+    tree t, path p, const athena::contracts::syntax_query& syntax) {
+  tree r= syntax.expand (t, p);
   if (r != UNINIT)
-    serialize (r, path (-1));
+    serialize (r, path (-1), syntax);
   else if (is_func (t, QUASI, 2)) {
     tree tt= t[0];
     path pp= as_path (t[1]);
-    serialize (tt, pp);
+    serialize (tt, pp, syntax);
   }
   else {
     emit_token (encode_terminal (compound ("tm-node-open", as_string (L(t)))),
@@ -69,14 +69,15 @@ packrat_parser_rep::serialize_compound (tree t, path p) {
     for (int i=0; i<N(t); i++) {
       if (i != 0)
         emit_token (encode_terminal (compound ("tm-node-separator")), "<|>");
-      serialize (t[i], p * i);
+      serialize (t[i], p * i, syntax);
     }
     emit_token (encode_terminal (compound ("tm-node-close")), "</>");
   }
 }
 
 void
-packrat_parser_rep::serialize (tree t, path p) {
+packrat_parser_rep::serialize (
+    tree t, path p, const athena::contracts::syntax_query& syntax) {
   if (is_nil (p) || p->item != -1)
     current_start (p)= N(current_string);
   if (is_atomic (t)) serialize_atomic (t, p);
@@ -95,28 +96,28 @@ packrat_parser_rep::serialize (tree t, path p) {
     case DOCUMENT:
     case PARA:
       for (int i=0; i<N(t); i++) {
-        serialize (t[i], p * i);
+        serialize (t[i], p * i, syntax);
         emit_token (encode_token ("\n"), "\n");
       }
       break;
     case SURROUND:
-      serialize (t[0], p * 0);
-      serialize (t[2], p * 2);
-      serialize (t[1], p * 1);
+      serialize (t[0], p * 0, syntax);
+      serialize (t[2], p * 2, syntax);
+      serialize (t[1], p * 1, syntax);
       break;
     case CONCAT:
       for (int i=0; i<N(t); i++)
-        serialize (t[i], p * i);
+        serialize (t[i], p * i, syntax);
       break;
     case RIGID:
     case HGROUP:
-      serialize (t[0], p * 0);
+      serialize (t[0], p * 0, syntax);
       break;
     case HIDDEN:
       break;
     case FREEZE:
     case UNFREEZE:
-      serialize (t[0], p * 0);
+      serialize (t[0], p * 0, syntax);
       break;
     case HSPACE:
     case VAR_VSPACE:
@@ -128,7 +129,7 @@ packrat_parser_rep::serialize (tree t, path p) {
     case SHIFT:
     case RESIZE:
     case CLIPPED:
-      serialize (t[0], p * 0);
+      serialize (t[0], p * 0, syntax);
       break;
 
     case WITH_LIMITS:
@@ -156,35 +157,35 @@ packrat_parser_rep::serialize (tree t, path p) {
 
     case WIDE:
     case NEG:
-      serialize (t[0], p * 0);
+      serialize (t[0], p * 0, syntax);
       break;
     case SYNTAX:
-      serialize (t[1], path (-1));
+      serialize (t[1], path (-1), syntax);
       break;
     case TFORMAT:
     case TWITH:
     case CWITH:
     case CELL:
-      serialize (t[N(t)-1], p * (N(t)-1));
+      serialize (t[N(t)-1], p * (N(t)-1), syntax);
       break;
 
     case WITH:
       if (t[0] == "mode" && t[1] != "math");
-      else serialize (t[N(t)-1], p * (N(t)-1));
+      else serialize (t[N(t)-1], p * (N(t)-1), syntax);
       break;
     case VALUE:
     case OR_VALUE: {
-      tree r= athena::contracts::syntax_query {{athena::contracts::current_evaluation_state ().contracts}, athena::contracts::current_evaluation_state ().values}.expand (t);
+      tree r= syntax.expand (t);
       //if (r != UNINIT) cout << "Rewrite " << t << " -> " << r << "\n";
-      if (r != UNINIT) serialize (r, path (-1));
-      else serialize_compound (t, p);
+      if (r != UNINIT) serialize (r, path (-1), syntax);
+      else serialize_compound (t, p, syntax);
       break;
     }
 
     case STYLE_WITH:
     case VAR_STYLE_WITH:
     case LOCUS:
-      serialize (t[N(t)-1], p * (N(t)-1));
+      serialize (t[N(t)-1], p * (N(t)-1), syntax);
       break;
     case ID:
     case HARD_ID:
@@ -196,7 +197,7 @@ packrat_parser_rep::serialize (tree t, path p) {
       break;
     case HLINK:
     case ACTION:
-      serialize (t[0], p * 0);
+      serialize (t[0], p * 0, syntax);
       break;
     case SET_BINDING:
     case GET_BINDING:
@@ -211,16 +212,16 @@ packrat_parser_rep::serialize (tree t, path p) {
       break;
 
     case SPECIFIC:
-      serialize (t[1], p * 1);
+      serialize (t[1], p * 1, syntax);
       break;
     case FLAG:
       break;
     case HYPHENATE_AS:
-      serialize (t[1], p * 1);
+      serialize (t[1], p * 1, syntax);
       break;
 
     default:
-      serialize_compound (t, p);
+      serialize_compound (t, p, syntax);
       break;
     }
   if (is_nil (p) || p->item != -1)

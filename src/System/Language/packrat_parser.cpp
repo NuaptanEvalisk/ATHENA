@@ -39,12 +39,16 @@ make_packrat_parser (string lan, tree in) {
   static thread_local tree           last_in    = "";
   static thread_local packrat_parser last_par;
   static thread_local size_t last_revision= 0;
+  const auto& state= athena::contracts::current_evaluation_state ();
+  const athena::contracts::syntax_query syntax {{state.contracts}, state.values};
   packrat_grammar gr= find_packrat_grammar (lan);
   if (is_nil (last_par) || lan != last_lan || in != last_in ||
-      last_revision != packrat_grammar_revision ()) {
+      last_revision != packrat_grammar_revision () || !last_par->syntax_matches (syntax)) {
+    tree next_in= copy (in);
+    packrat_parser next (gr, next_in, syntax);
     last_lan   = lan;
-    last_in    = copy (in);
-    last_par   = packrat_parser (gr, last_in);
+    last_in    = next_in;
+    last_par   = next;
     last_revision= packrat_grammar_revision ();
   }
   return last_par;
@@ -57,13 +61,19 @@ make_packrat_parser (string lan, tree in, path in_pos) {
   static thread_local path           last_in_pos= path ();
   static thread_local packrat_parser last_par;
   static thread_local size_t last_revision= 0;
+  const auto& state= athena::contracts::current_evaluation_state ();
+  const athena::contracts::syntax_query syntax {{state.contracts}, state.values};
   packrat_grammar gr= find_packrat_grammar (lan);
   if (is_nil (last_par) || lan != last_lan || in != last_in ||
-      in_pos != last_in_pos || last_revision != packrat_grammar_revision ()) {
+      in_pos != last_in_pos || last_revision != packrat_grammar_revision () ||
+      !last_par->syntax_matches (syntax)) {
+    tree next_in= copy (in);
+    path next_pos= copy (in_pos);
+    packrat_parser next (gr, next_in, syntax, next_pos);
     last_lan   = lan;
-    last_in    = copy (in);
-    last_in_pos= copy (in_pos);
-    last_par   = packrat_parser (gr, last_in, last_in_pos);
+    last_in    = next_in;
+    last_in_pos= next_pos;
+    last_par   = next;
     last_revision= packrat_grammar_revision ();
   }
   return last_par;
@@ -73,13 +83,26 @@ make_packrat_parser (string lan, tree in, path in_pos) {
 * Setting up the input
 ******************************************************************************/
 
+bool
+packrat_parser_rep::syntax_matches (const athena::contracts::syntax_query& syntax) const {
+  for (const auto& read: syntax_definitions)
+    if (syntax.definition (read.first) != read.second) return false;
+  return true;
+}
+
 void
-packrat_parser_rep::set_input (tree t) {
+packrat_parser_rep::set_input (tree t, const athena::contracts::syntax_query& syntax) {
   current_string= "";
   current_tree  = t;
   current_input= array<C> ();
   current_token_bytes= {0};
-  serialize (t, path ());
+  auto observed= syntax;
+  observed.read_definition= [this, &syntax] (const string& name, const tree& value) {
+    if (syntax_definitions.find (name) == syntax_definitions.end ())
+      syntax_definitions.emplace (name, copy (value));
+    if (syntax.read_definition) syntax.read_definition (name, value);
+  };
+  serialize (t, path (), observed);
   if (DEBUG_FLATTEN)
     debug_packrat << "Input " << current_string << "\n";
 }

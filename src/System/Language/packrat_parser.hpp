@@ -12,6 +12,8 @@
 #ifndef PACKRAT_PARSER_H
 #define PACKRAT_PARSER_H
 #include "packrat_grammar.hpp"
+#include "Data/NodeContracts/syntax_query.hpp"
+#include <map>
 #include <vector>
 
 #define PACKRAT_UNDEFINED ((C) (-2))
@@ -37,19 +39,21 @@ public:
   array<C>                  current_input;
   hashmap<D,C>              current_cache;
   hashmap<D,tree>           current_production;
+  std::map<string,tree>     syntax_definitions;
 
 protected:
   void emit_token (C token, string display);
   void serialize_atomic (tree t, path p);
-  void serialize_compound (tree t, path p);
-  void serialize (tree t, path p);
-  void set_input (tree t);
+  void serialize_compound (tree t, path p, const athena::contracts::syntax_query& syntax);
+  void serialize (tree t, path p, const athena::contracts::syntax_query& syntax);
+  void set_input (tree t, const athena::contracts::syntax_query& syntax);
   void set_cursor (path t_pos);
   path decode_path (tree t, path p, int pos);
   int  encode_path (tree t, path p, path pos);
 
 public:
   packrat_parser_rep (packrat_grammar gr);
+  bool syntax_matches (const athena::contracts::syntax_query& syntax) const;
 
   int  decode_string_position (C pos);
   C    encode_string_position (int i);
@@ -74,15 +78,18 @@ public:
 
 class packrat_parser {
   CONCRETE_NULL (packrat_parser);
-  inline packrat_parser (packrat_grammar gr, tree t, path t_pos= path ());
+  inline packrat_parser (packrat_grammar gr, tree t,
+                         const athena::contracts::syntax_query& syntax,
+                         path t_pos= path ());
 };
 CONCRETE_NULL_CODE (packrat_parser);
 
 inline packrat_parser::packrat_parser
-  (packrat_grammar gr, tree t, path t_pos):
+  (packrat_grammar gr, tree t, const athena::contracts::syntax_query& syntax,
+   path t_pos):
     rep (tm_new<packrat_parser_rep> (gr)) {
       try {
-        rep->set_input (t);
+        rep->set_input (t, syntax);
         rep->set_cursor (t_pos);
       }
       catch (...) {

@@ -13,7 +13,6 @@
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
 #include "ATHENA/Data/transclusion_cache.hpp"
 #include "ATHENA/Data/node_reference.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
 #include <optional>
 
 static thread_local array<string> active_transclusion_bridges;
@@ -152,7 +151,7 @@ bridge_transclude_rep::my_typeset (int desired_status) {
     has_resolved= true;
   }
   initialize (env->rewrite (resolved));
-  if (!athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.child_enforcing (st))
+  if (!athena::contracts::editing_query {env->contract_state.contracts}.child_enforcing (st))
     ttt->insert_marker (st, ip);
   tree old_radioactive_scope= env->local_begin (
     "athena-radioactive-links-in-transclusion", "true");

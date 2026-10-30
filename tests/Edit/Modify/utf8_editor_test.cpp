@@ -1080,10 +1080,10 @@ private slots:
          tree (CONCAT, alpha, backassign, "1"),
          tree (CONCAT, alpha, "\342\211\244", "1"),
          tree (FRAC, alpha, "\360\235\224\270")}) {
-      packrat_parser parser (gr, expression);
+      packrat_parser parser (gr, expression, symbols);
       QVERIFY (parser->parse (rule ("Main"), 0) == N(parser->current_input));
     }
-    packrat_parser literal (gr, tree ("<alpha>"));
+    packrat_parser literal (gr, tree ("<alpha>"), symbols);
     QCOMPARE (literal->parse (rule ("Letter-symbol"), 0), PACKRAT_FAILED);
 
     const string tokens= "sin" * alpha * "e\314\201<alpha>12.3..";
@@ -1103,6 +1103,9 @@ private slots:
       "(loop (cdr members)))))")));
   }
   void unicodePackrat () {
+    const hashmap<string,tree> values (UNINIT);
+    const athena::contracts::syntax_query syntax {
+      {athena::contracts::builtin_contracts ()}, values};
     packrat_grammar_rep grammar ("utf8-packrat-test");
     packrat_grammar gr (&grammar);
     const string text= "A\xe4\xb8\xad" "e\xcc\x81\xf0\x90\x90\x80" "<alpha>";
@@ -1120,7 +1123,7 @@ private slots:
       return encode_symbol (compound ("symbol", name));
     };
 
-    packrat_parser plain (gr, tree (text));
+    packrat_parser plain (gr, tree (text), syntax);
     QCOMPARE (N(plain->current_input), 12);
     QCOMPARE (plain->parse (rule ("Text"), 0), 12);
     const int bytes[]= {0, 1, 4, 5, 7, 11, 12, 13, 14, 15, 16, 17, 18};
@@ -1135,7 +1138,7 @@ private slots:
 
     tree node= compound ("utf8-packrat-node", "\xe4\xb8\xad",
                                              "\xf0\x90\x90\x80");
-    packrat_parser structured (gr, node);
+    packrat_parser structured (gr, node, syntax);
     QCOMPARE (structured->parse (rule ("Node"), 0), 5);
     QCOMPARE (structured->parse (PACKRAT_TM_ANY, 0), 5);
     QCOMPARE (structured->encode_tree_position (path (0, 3)), 2);
@@ -1145,39 +1148,39 @@ private slots:
     QCOMPARE (structured->encode_tree_position (path (2, 0)), PACKRAT_FAILED);
 
     // The same diagnostic bytes must never let text impersonate a tree.
-    packrat_parser lookalike (gr, tree (structured->current_string));
+    packrat_parser lookalike (gr, tree (structured->current_string), syntax);
     QCOMPARE (lookalike->parse (rule ("Node"), 0), PACKRAT_FAILED);
     QCOMPARE (lookalike->parse (PACKRAT_TM_OPEN, 0), PACKRAT_FAILED);
     QCOMPARE (lookalike->parse (PACKRAT_TM_LEAF, 0), N(lookalike->current_input));
 
-    packrat_parser named (gr, symbol);
+    packrat_parser named (gr, symbol, syntax);
     QCOMPARE (named->parse (rule ("Symbol"), 0), 1);
     QCOMPARE (named->parse (rule ("Char"), 0), 1);
     QVERIFY (named->decode_tree_position (0) == path (0));
     QVERIFY (named->decode_tree_position (1) == path (1));
     QCOMPARE (named->encode_tree_position (path (0, 0)), PACKRAT_FAILED);
-    packrat_parser name_text (gr, tree ("legacy:custom-symbol"));
+    packrat_parser name_text (gr, tree ("legacy:custom-symbol"), syntax);
     QCOMPARE (name_text->parse (rule ("Symbol"), 0), PACKRAT_FAILED);
-    packrat_parser other_name (gr, tree (NAMED_SYMBOL, "legacy:other-symbol"));
+    packrat_parser other_name (gr, tree (NAMED_SYMBOL, "legacy:other-symbol"), syntax);
     QCOMPARE (other_name->parse (rule ("Symbol"), 0), PACKRAT_FAILED);
 
-    packrat_parser ranged (gr, tree ("\xf0\x90\x90\x81"));
+    packrat_parser ranged (gr, tree ("\xf0\x90\x90\x81"), syntax);
     QCOMPARE (ranged->parse (rule ("Range"), 0), 1);
     QCOMPARE (grammar.decode_as_string (0x10401), "\xf0\x90\x90\x81");
-    packrat_parser binary (gr, tree (RAW_DATA, string ("\xff\x80\0", 3)));
+    packrat_parser binary (gr, tree (RAW_DATA, string ("\xff\x80\0", 3)), syntax);
     QCOMPARE (N(binary->current_input), 2);
     QCOMPARE (binary->parse (PACKRAT_TM_ANY, 0), 2);
-    packrat_parser nul (gr, tree (string ("\0", 1)));
+    packrat_parser nul (gr, tree (string ("\0", 1)), syntax);
     QCOMPARE (N(nul->current_input), 1);
     QCOMPARE (nul->current_input[0], 0);
-    QVERIFY_EXCEPTION_THROWN (packrat_parser (gr, tree (string ("\xff", 1))),
+    QVERIFY_EXCEPTION_THROWN (packrat_parser (gr, tree (string ("\xff", 1)), syntax),
                               std::invalid_argument);
 
     packrat_parser builtin (find_packrat_grammar ("std-math"),
-                            tree (FRAC, "1", "2"));
+                            tree (FRAC, "1", "2"), syntax);
     QVERIFY (builtin->parse (rule ("Main"), 0) == N(builtin->current_input));
     grammar.define ("Node", compound ("tm-any"));
-    packrat_parser nested (gr, compound ("utf8-packrat-node", node, symbol));
+    packrat_parser nested (gr, compound ("utf8-packrat-node", node, symbol), syntax);
     QCOMPARE (nested->parse (rule ("Node"), 0), N(nested->current_input));
   }
   void unicodeSearchAndReplace () {
