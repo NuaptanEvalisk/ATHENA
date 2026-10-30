@@ -10,7 +10,6 @@
 ******************************************************************************/
 
 #include "new_style.hpp"
-#include "Data/NodeContracts/syntax_query.hpp"
 #include "Data/NodeContracts/source_environment.hpp"
 #include "file.hpp"
 #include "data_cache.hpp"
@@ -370,35 +369,6 @@ get_document_preamble (tree t) {
     }
     return "";
   }
-}
-
-athena::contracts::evaluation_state
-prepare_document_context (tree doc) {
-  init_style_data ();
-  tree style= extract (doc, "style");
-  if (is_snippet (doc)) {
-    if (athena::contracts::syntax_query {{athena::contracts::current_evaluation_state ().contracts}, athena::contracts::current_evaluation_state ().values}.definition ("theorem") != tree (UNINIT))
-      return athena::contracts::current_evaluation_state ();
-    style= tree (TUPLE, "generic");
-  }
-  url none= url ("$PWD/none");
-  auto base= get_style_environment (style, none, true);
-  athena::contracts::evaluation_state contract_state= base->context ();
-  tree p= get_document_preamble (doc);
-  if (p != "") {
-    hashmap<string,tree> lref;
-    hashmap<string,tree> gref;
-    hashmap<string,tree> laux;
-    hashmap<string,tree> gaux;
-    hashmap<string,tree> latt;
-    hashmap<string,tree> gatt;
-    edit_env env (contract_state, none, lref, gref, laux, gaux, latt, gatt);
-    base->restore (*env.operator-> ());
-    env->update ();
-    env->exec (p);
-    env->analyze_contracts ();
-  }
-  return contract_state;
 }
 
 template<typename Result, typename Capture>

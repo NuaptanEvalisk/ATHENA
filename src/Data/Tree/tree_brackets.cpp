@@ -10,13 +10,23 @@
 ******************************************************************************/
 
 #include "tree_correct.hpp"
+#include "tree_math_context.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
 #include "tree_analyze.hpp"
 #include "scheme.hpp"
 #include "unicode_text.hpp"
 #include "node_metadata.hpp"
 
-static array<tree> upgrade_brackets (array<tree> a, int level);
+class bracket_upgrader {
+  const math_correction_source& source;
+  array<tree> simplify_matching (array<tree>, array<int>, int);
+  array<tree> prefix_split (array<tree>, array<int>, int);
+  array<tree> infix_split (array<tree>, array<int>, array<int>, int);
+  array<tree> postfix_split (array<tree>, array<int>, int);
+public:
+  explicit bracket_upgrader (const math_correction_source& source): source (source) {}
+  array<tree> upgrade_brackets (array<tree>, int level= 0);
+};
 
 /******************************************************************************
 * Extra routines for symbol types
@@ -256,8 +266,8 @@ make_around (tree l, tree m) {
   return tree (BIG_AROUND, make_small (l), m);
 }
 
-static array<tree>
-simplify_matching (array<tree> a, array<int> tp_in, int level) {
+array<tree>
+bracket_upgrader::simplify_matching (array<tree> a, array<int> tp_in, int level) {
   //cout << "Simplify matching " << a << ", " << tp_in << "\n";
   array<int> tp= copy (tp_in);
   int last_open= -1;
@@ -314,8 +324,8 @@ add_missing_right (array<tree> a, array<int> tp) {
 * Splitting concats with big operators
 ******************************************************************************/
 
-static array<tree>
-prefix_split (array<tree> a, array<int> tp, int level) {
+array<tree>
+bracket_upgrader::prefix_split (array<tree> a, array<int> tp, int level) {
   for (int i=1; i<N(tp); i++)
     if (tp[i] == SYMBOL_OPEN_BIG) {
       array<tree> r= range (a, 0, i);
@@ -325,8 +335,8 @@ prefix_split (array<tree> a, array<int> tp, int level) {
   return a;
 }
 
-static array<tree>
-infix_split (array<tree> a, array<int> tp_in, array<int> pri, int level) {
+array<tree>
+bracket_upgrader::infix_split (array<tree> a, array<int> tp_in, array<int> pri, int level) {
   array<int> tp= upgrade_probable (tp_in);
   int weakest= PRIORITY_RADICAL;
   for (int i=0; i<N(tp); i++)
@@ -346,8 +356,8 @@ infix_split (array<tree> a, array<int> tp_in, array<int> pri, int level) {
   return a;
 }
 
-static array<tree>
-postfix_split (array<tree> a, array<int> tp_in, int level) {
+array<tree>
+bracket_upgrader::postfix_split (array<tree> a, array<int> tp_in, int level) {
   array<int> tp= upgrade_probable (tp_in);
   int i= N(a);
   while (i>0 &&
@@ -383,9 +393,11 @@ is_concat_big (tree t) {
   return true;
 }
 
-tree
+static tree
 upgrade_above_below (tree t) {
   if (is_atomic (t)) return t;
+  if (is_func (t, ASSIGN) || is_func (t, MACRO) || is_func (t, XMACRO) ||
+      is_func (t, QUOTE) || is_func (t, QUASI) || is_func (t, QUASIQUOTE)) return t;
   else if (is_concat (t)) {
     tree r (CONCAT);
     athena::node::copy_metadata (t, r);
@@ -401,7 +413,7 @@ upgrade_above_below (tree t) {
     tree r (t, n);
     athena::node::copy_metadata (t, r);
     for (i=0; i<n; i++)
-      r[i]= upgrade_above_below (t[i]);
+      r[i]= is_func (t, WITH) && i != n-1 ? t[i] : upgrade_above_below (t[i]);
     if (athena::node::contains_metadata (r)) return r;
     if (is_func (r, ABOVE, 2)) {
       if (is_func (r[0], BIG))
@@ -423,14 +435,19 @@ upgrade_above_below (tree t) {
 * Master routine for upgrading brackets
 ******************************************************************************/
 
-static array<tree>
-upgrade_brackets (array<tree> a, int level) {
-  array<int> tp= symbol_types (a);
+array<tree>
+bracket_upgrader::upgrade_brackets (array<tree> a, int level) {
+  array<int> tp= source.types (a);
   // make_around extracts delimiter/operator text, not the original node.
   // Do not let a heuristic replace an explicitly identified delimiter.
   for (int i= 0; i < N(a); ++i)
-    if ((tp[i] >= SYMBOL_OPEN_BIG) && athena::node::contains_metadata (a[i]))
-      return a;
+    if (tp[i] >= SYMBOL_OPEN_BIG) {
+      if (athena::node::contains_metadata (a[i])) return a;
+      // Classification does not authorize replacing an arbitrary macro with a
+      // delimiter string. make_small can preserve only these source forms.
+      if (!is_atomic (a[i]) && !is_func (a[i], LEFT) && !is_func (a[i], MID) &&
+          !is_func (a[i], RIGHT) && !is_func (a[i], BIG)) return a;
+    }
   //cout << "Upgrade " << a << ", " << tp << "\n";
   if (admits_brackets (tp)) {
     //cout << "  Downgrade dubious\n";
@@ -451,7 +468,7 @@ upgrade_brackets (array<tree> a, int level) {
     //cout << "  Detect dummy substitution\n";
     if (replace_dummies (a) != a) {
       array<tree> a2= replace_dummies (a);
-      array<int> tp2= symbol_types (a2);
+      array<int> tp2= source.types (a2);
       r= simplify_matching (a2, detect_probable (a2, tp2), level);
       if (r != a2) return upgrade_brackets (r, level);
     }
@@ -484,63 +501,46 @@ upgrade_brackets (array<tree> a, int level) {
   return a;
 }
 
-static tree
-upgrade_brackets_bis (tree t, string mode) {
-  //cout << "Upgrade " << t << ", " << mode << "\n";
-  tree r= t;
-  if (is_compound (t)) {
-    int i, n= N(t);
-    r= tree (t, n);
-    athena::node::copy_metadata (t, r);
-    for (i=0; i<n; i++) {
-      tree tmode= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, MODE, mode);
-      string smode= (is_atomic (tmode)? tmode->label: string ("text"));
-      if (is_correctable_child (t, i, true))
-        r[i]= upgrade_brackets_bis (t[i], smode);
-      else r[i]= t[i];
-    }
-  }
-      
-  if (mode == "math") {
-    array<tree> a= concat_tokenize_source (r);
-    a= upgrade_brackets (a, 0);
-    tree ret= concat_recompose_source (r, a);
-    //if (ret != r) cout << "< " << r << LF << "> " << ret << LF;
-    return ret;
-  }
-  else return r;
+tree
+upgrade_brackets (tree t, const correction_context_factory& contexts, string mode) {
+  t= upgrade_above_below (t);
+  const tree input= mode == "" ? t : tree (WITH, MODE, mode, t);
+  math_correction_source source (contexts (input));
+  bracket_upgrader corrector (source);
+  const tree result= source.map (input, [&] (tree r, bool math) {
+    const bool expression= is_atomic (r) || is_concat (r) || is_func (r, LEFT) ||
+      is_func (r, MID) || is_func (r, RIGHT) || is_func (r, BIG);
+    if (!math || !expression) return r;
+    return concat_recompose_source (r, corrector.upgrade_brackets (concat_tokenize_source (r)));
+  }, {true, false});
+  return mode == "" ? result : result[2];
 }
 
 tree
 upgrade_brackets (tree t, string mode) {
-  //cout << "Upgrade " << t << "\n";
-  athena::contracts::owned_evaluation_scope contract_state (prepare_document_context (t));
-  t= upgrade_above_below (t);
-  return upgrade_brackets_bis (t, mode);
+  return correct_detached_math (t, [mode] (tree body, const correction_context_factory& contexts) {
+    return upgrade_brackets (body, contexts, mode);
+  });
 }
 
 tree
-upgrade_big_bis (tree t) {
-  if (is_atomic (t)) return t;
-  int i, n= N(t);
-  tree r (t, n);
-  athena::node::copy_metadata (t, r);
-  for (i=0; i<n; i++)
-    r[i]= upgrade_big_bis (t[i]);
-  if (is_concat (r))
-    for (int j=0; j<N(r); j++)
-      if (is_func (r[j], BIG)) {
-        array<tree> a= concat_tokenize_source (r);
-        a= upgrade_brackets (a, 0);
-        return concat_recompose_source (r, a);
-      }
-  return r;
+upgrade_big (tree t, const correction_context_factory& contexts) {
+  math_correction_source source (contexts (t));
+  bracket_upgrader corrector (source);
+  return source.map (t, [&] (tree r, bool) {
+    if (is_concat (r))
+      for (int i=0; i<N(r); ++i)
+        if (is_func (r[i], BIG))
+          return concat_recompose_source (r, corrector.upgrade_brackets (concat_tokenize_source (r)));
+    return r;
+  }, {false, false});
 }
 
 tree
 upgrade_big (tree t) {
-  athena::contracts::owned_evaluation_scope contract_state (prepare_document_context (t));
-  return upgrade_big_bis (t);
+  return correct_detached_math (t, [] (tree body, const correction_context_factory& contexts) {
+    return upgrade_big (body, contexts);
+  });
 }
 
 /******************************************************************************
@@ -642,15 +642,31 @@ is_simple_matching (string l, string r) {
     (l == "|" && r == "|");
 }
 
+static correction_context_factory
+child_correction_contexts (const correction_context_factory& contexts, tree parent, int child) {
+  tree snapshot= parent (0, N(parent));
+  athena::node::copy_metadata (parent, snapshot);
+  return [contexts, snapshot, child] (tree stage) {
+    tree input= snapshot (0, N(snapshot));
+    athena::node::copy_metadata (snapshot, input);
+    input[child]= stage;
+    const auto prepare= contexts (input);
+    return [prepare, child] (path address) { return prepare (path (child) * address); };
+  };
+}
+
 static tree
-move_brackets_sub (tree t, bool in) {
+move_brackets_sub (tree t, bool in, const correction_context_factory& contexts) {
   //cout << t << INDENT << LF;
+  if (is_func (t, ASSIGN) || is_func (t, MACRO) || is_func (t, XMACRO) ||
+      is_func (t, QUOTE) || is_func (t, QUASI) || is_func (t, QUASIQUOTE)) return t;
   if (is_compound (t)) {
     int i, n= N(t);
-    tree r= tree (t, n);
+    tree r= t (0, n);
     athena::node::copy_metadata (t, r);
     for (i=0; i<n; i++)
-      r[i]= move_brackets_sub (t[i], in);
+      if (!is_func (t, WITH) || i == n-1)
+        r[i]= move_brackets_sub (t[i], in, child_correction_contexts (contexts, r, i));
     t= r;
   }
 
@@ -674,9 +690,10 @@ move_brackets_sub (tree t, bool in) {
                         array<tree> c= concat_decompose (t);
                         a << tree (s (0, 1));
                         c[i]= compound ("math", concat_recompose (a));
-                        c[i]= upgrade_brackets (c[i]);
                         c[i+1]= s (1, N(s));
-                        r= move_brackets_sub (concat_recompose (c), in);
+                        c[i]= upgrade_brackets (c[i],
+                          child_correction_contexts (contexts, tree (CONCAT, c), i));
+                        r= move_brackets_sub (concat_recompose (c), in, contexts);
                         search= false;
                       }
                       else if (j == 0 && !in) {
@@ -686,7 +703,7 @@ move_brackets_sub (tree t, bool in) {
                         c[i]= compound ("math", concat_recompose (a));
                         c= append (range (c, 0, i),
                                    append (x, range (c, i, N(c))));
-                        r= move_brackets_sub (concat_recompose (c), in);
+                        r= move_brackets_sub (concat_recompose (c), in, contexts);
                         search= false;
                       }
                     }
@@ -702,9 +719,10 @@ move_brackets_sub (tree t, bool in) {
                         array<tree> c= concat_decompose (t);
                         a= append (tree (s (l-1, l)), a);
                         c[i]= compound ("math", concat_recompose (a));
-                        c[i]= upgrade_brackets (c[i]);
                         c[i-1]= s (0, l-1);
-                        r= move_brackets_sub (concat_recompose (c), in);
+                        c[i]= upgrade_brackets (c[i],
+                          child_correction_contexts (contexts, tree (CONCAT, c), i));
+                        r= move_brackets_sub (concat_recompose (c), in, contexts);
                         search= false;
                       }
                       else if (j == N(a)-1 && !in) {
@@ -714,7 +732,7 @@ move_brackets_sub (tree t, bool in) {
                         c[i]= compound ("math", concat_recompose (a));
                         c= append (range (c, 0, i+1),
                                    append (x, range (c, i+1, N(c))));
-                        r= move_brackets_sub (concat_recompose (c), in);
+                        r= move_brackets_sub (concat_recompose (c), in, contexts);
                         search= false;
                       }
                     }
@@ -733,5 +751,7 @@ move_brackets_sub (tree t, bool in) {
 
 tree
 move_brackets (tree t) {
-  return move_brackets_sub (move_brackets_sub (t, true), false);
+  return correct_detached_math (t, [] (tree body, const correction_context_factory& contexts) {
+    return move_brackets_sub (move_brackets_sub (body, true, contexts), false, contexts);
+  });
 }

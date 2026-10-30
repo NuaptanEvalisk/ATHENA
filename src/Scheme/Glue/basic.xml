@@ -785,13 +785,6 @@
     <arg type="content" />
     <arg type="string" />
   </binding>
-  <binding name="tree-upgrade-brackets" native="upgrade_brackets" returns="tree">
-    <arg type="content" />
-    <arg type="string" />
-  </binding>
-  <binding name="tree-upgrade-big" native="upgrade_big" returns="tree">
-    <arg type="content" />
-  </binding>
   <binding name="tree-downgrade-brackets" native="downgrade_brackets" returns="tree">
     <arg type="content" />
     <arg type="bool" />

@@ -10,6 +10,7 @@
 #include <QApplication>
 #include "Data/NodeContracts/editing_query.hpp"
 #include "Data/NodeContracts/builtin_contracts.hpp"
+#include "Data/NodeContracts/syntax_query.hpp"
 #include <QClipboard>
 #include <QMimeData>
 #include <QScopedValueRollback>
@@ -367,8 +368,11 @@ private slots:
     auto missing= typeset_concat (env, unknown, path (0));
     QCOMPARE (N(missing), 1);
     QCOMPARE (missing[0]->b[0]->get_leaf_string (), string ("[missing symbol]"));
-    QCOMPARE (symbol_type (tree (NAMED_SYMBOL, "texmacs:mathD")), SYMBOL_BASIC);
-    QCOMPARE (symbol_type (tree (NAMED_SYMBOL, "texmacs:mathcatalan")), SYMBOL_BASIC);
+    const hashmap<string,tree> symbol_values (UNINIT);
+    const athena::contracts::syntax_query symbols {
+      {athena::contracts::builtin_contracts ()}, symbol_values};
+    QCOMPARE (symbol_type (tree (NAMED_SYMBOL, "texmacs:mathD"), symbols), SYMBOL_BASIC);
+    QCOMPARE (symbol_type (tree (NAMED_SYMBOL, "texmacs:mathcatalan"), symbols), SYMBOL_BASIC);
   }
   void symbolDeletion_data () {
     QTest::addColumn<bool> ("forward");
@@ -1062,7 +1066,10 @@ private slots:
     for (int i= 0; i < N(members); ++i)
       if (members[i] == backassign) found= true;
     QVERIFY (found);
-    QCOMPARE (symbol_type (backassign), SYMBOL_INFIX);
+    const hashmap<string,tree> symbol_values (UNINIT);
+    const athena::contracts::syntax_query symbols {
+      {athena::contracts::builtin_contracts ()}, symbol_values};
+    QCOMPARE (symbol_type (backassign, symbols), SYMBOL_INFIX);
     QCOMPARE (symbol_priority (backassign), symbol_priority (tree ("\342\211\224")));
 
     auto gr= find_packrat_grammar ("std-math");

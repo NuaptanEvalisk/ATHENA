@@ -30,8 +30,10 @@ tree superfluous_invisible_correct (tree t);
 tree superfluous_invisible_correct (tree, const correction_context_factory&);
 tree missing_invisible_correct (tree t, int force= -1);
 tree missing_invisible_correct (tree, int force, const correction_context_factory&);
-tree upgrade_brackets (tree t, string mode= "text");
+tree upgrade_brackets (tree t, string mode= "");
+tree upgrade_brackets (tree, const correction_context_factory&, string mode= "");
 tree upgrade_big (tree t);
+tree upgrade_big (tree, const correction_context_factory&);
 tree downgrade_brackets (tree t, bool del_miss= false, bool big_dot= true);
 tree downgrade_big (tree t);
 tree move_brackets (tree t);
@@ -39,6 +41,6 @@ tree move_brackets (tree t);
 tree latex_correct (tree t);
 tree automatic_correct (tree t, string version);
 tree manual_correct (tree t);
-tree manual_correct (tree, const correction_context_factory&, string mode);
+tree manual_correct (tree, const correction_context_factory&);
 
 #endif // defined TREE_CORRECT_H

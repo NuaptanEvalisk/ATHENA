@@ -5600,3 +5600,38 @@ explicit missing-entry failure, both existing generated bindings, attached
 versus proposed source, manual homoglyph correction, and fresh values following
 an edit without another layout. No permanent test suite was added. The batch
 stops here; bracket migration and scheduled analysis/statistics remain open.
+
+### Source-Owned Bracket Correction (2026-10-30)
+
+Bracket upgrading and big-operator grouping now use `math_correction_source`.
+Their native editor commands capture the attached source entry or proposal
+insertion environment; detached calls prepare the document envelope. Every
+rewritten stage gets its own source provider. The manual-correction mode
+adapter is gone, along with ambient symbol classification, child eligibility
+and the free `prepare_document_context(tree)` fallback. The editor's explicit
+document-preparation member is a different API and remains in use.
+
+Local syntax classification does not authorize lossy delimiter serialization.
+The existing matcher can encode atomic or native LEFT/MID/RIGHT/BIG delimiters,
+not arbitrary macro invocations. A sequence containing a custom delimiter is
+therefore preserved rather than replacing its source with `<nobracket>`.
+Custom operator syntax still participates in grouping: a trailing macro that
+locally means an infix operator stays outside a big operator's body, while the
+same shared macro under a basic-symbol definition stays inside it.
+
+Legacy bracket movement carries a parent-source factory through recursion.
+After moving a delimiter, it prepares the reconstructed parent and then the
+changed math child, retaining preceding assignments and surrounding bindings.
+Definition/quotation templates and WITH binding values are not rewritten as
+display content. Existing bracket/big Scheme names now use generated editor
+bindings with exception conversion; no Scheme behavior or new API was added.
+
+Production built with `-j16` (`/tmp/athena-native-brackets-build.log`). The
+temporary source/actor check passed at 23:34
+(`/tmp/athena-source-brackets-probe.log`): source/initial/forced modes,
+custom-delimiter source preservation, shared macro grouping, template/envelope
+preservation, missing-entry errors, parent contexts after bracket movement,
+both runtime bindings, and attached versus proposed inputs. Existing native
+test callers were adapted to the explicit symbol-query signature, without
+running or expanding that suite. This completes the bounded math-correction
+batch; scheduled statistics, analysis responsiveness and final deployment remain.

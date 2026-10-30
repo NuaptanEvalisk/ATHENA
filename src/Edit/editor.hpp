@@ -502,6 +502,8 @@ public:
   tree correct_math (tree source);
   tree correct_superfluous_invisible (tree source);
   tree correct_missing_invisible (tree source, int force);
+  tree correct_brackets (tree source, string mode);
+  tree correct_big_operators (tree source);
   virtual void update_math_statistics ()= 0;
   virtual int math_statistics_occurrences (string id, tree source)= 0;
   virtual int math_statistics_role (string id, tree source)= 0;

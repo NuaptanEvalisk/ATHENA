@@ -191,13 +191,6 @@ with_recompose (tree w, array<tree> a) {
 ******************************************************************************/
 
 int
-symbol_type (tree t) {
-  return symbol_type (t, athena::contracts::syntax_query {
-    {athena::contracts::current_evaluation_state ().contracts},
-    athena::contracts::current_evaluation_state ().values});
-}
-
-int
 symbol_type (tree t, const athena::contracts::syntax_query& query) {
   tree r= query.expand (t);
   if (r != UNINIT) {
@@ -275,14 +268,6 @@ symbol_type (tree t, const athena::contracts::syntax_query& query) {
     default:
       return SYMBOL_BASIC;
   }
-}
-
-array<int>
-symbol_types (array<tree> a) {
-  array<int> tp (N(a));
-  for (int i=0; i<N(a); i++)
-    tp[i]= symbol_type (a[i]);
-  return tp;
 }
 
 /******************************************************************************
@@ -373,12 +358,6 @@ symbol_priorities (array<tree> a) {
 /******************************************************************************
 * Further routines
 ******************************************************************************/
-
-bool
-is_correctable_child (tree t, int i, bool noaround) {
-  return is_correctable_child (t, i, athena::contracts::editing_query {
-    athena::contracts::current_evaluation_state ().contracts}, noaround);
-}
 
 bool
 is_correctable_child (tree t, int i,

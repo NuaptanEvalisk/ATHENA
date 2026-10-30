@@ -15,16 +15,17 @@ wrapper correction and source-value preparation documented below. Commit these
 working changes now; do not hold them for the entire DRD replacement. The
 owner-side analysis capture slice is committed separately as `d8bbbfec2`.
 
-The attempted bracket/symbol migration is withdrawn from this delivery. Its
+The first bracket/symbol experiment was withdrawn from that delivery. Its
 targeted check exposed a custom macro used as a delimiter being normalized in
 isolation before the surrounding token sequence was processed. The old matcher
 also cannot recover a delimiter glyph from an arbitrary macro invocation.
-Resolve that representation boundary before migrating the bracket stage; do
-not treat the failed temporary probe as acceptance evidence.
+The later source-owned bracket implementation described below separates symbol
+classification from lossless delimiter rewriting. The failed experimental
+probe is not acceptance evidence for either delivery.
 
-Remaining work is divided into three independently deliverable changes:
+The follow-up work is divided into independently deliverable changes:
 
-1. Explicit contexts for the remaining math correctors and syntax consumers.
+1. Completed: explicit contexts for the remaining math correctors and syntax consumers.
    Completion: those named consumers no longer borrow ambient state; detached
    imports and editor commands retain their own source environment, and the
    concrete token-provenance case passes. Do not redesign mathematical parsing.
@@ -60,12 +61,32 @@ source-owned C++ stages. Each stage prepares its own rewritten input, keeps
 token occurrence paths across recomposition, and distinguishes source tokens
 from syntax substituted from a definition. Existing invisible-correction
 Scheme names now dispatch to native editor commands; there is no new Scheme
-implementation. Bracket upgrading and its remaining ambient symbol facade are
-still pending, as are the separately listed statistics and analysis work.
+implementation. Its production build and runtime evidence are recorded below;
+the subsequent bracket delivery is described separately.
 Production built with `-j16` (`/tmp/athena-native-invisible-build.log`); the
 targeted source/actor check passed at 23:16
 (`/tmp/athena-source-invisible-probe.log`). This batch is ready to commit
-independently of bracket correction.
+independently of bracket correction and is committed as `f81552dee`.
+
+Bracket and big-operator correction now share the source-math preparation
+helper. Detached documents retain their initial/preamble environments; native
+editor commands use the attached source entry or proposal insertion context.
+Legacy bracket movement reconstructs the parent source before preparing its
+changed math child, retaining surrounding assignments and WITH bindings.
+Custom delimiter macros remain intact when the delimiter writer cannot encode
+them losslessly; their local syntax still participates in symbol classification.
+The ambient symbol/eligibility facades and free document-context fallback are
+removed. Existing Scheme names use generated native editor bindings, with no
+new Scheme implementation. Scheduled statistics and analysis responsiveness
+remain separate deliveries, not additions to this bracket batch.
+
+The bracket batch built with `-j16`
+(`/tmp/athena-native-brackets-build.log`). Its targeted runtime check passed at
+23:34 (`/tmp/athena-source-brackets-probe.log`), including the earlier failed
+custom-delimiter representation case, local big-operator classification,
+parent context after bracket movement, and both existing generated bindings.
+No additional permanent tests were added. Final deployment still follows the
+separate statistics and analysis deliveries.
 
 The committed baseline through `5ddc3edeb` has removed `Data/Drd`, the eager
 editor-wide `prepare_source_contracts` API, and the obsolete offline document

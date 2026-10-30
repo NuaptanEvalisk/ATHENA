@@ -11,7 +11,7 @@
 
 #ifndef TREE_ANALYZE_H
 #define TREE_ANALYZE_H
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
 #include "language.hpp"
 #include "analyze.hpp"
 #include "vars.hpp"
@@ -67,9 +67,7 @@ tree with_recompose (tree w, array<tree> a);
 #define SYMBOL_DUBIOUS_MIDDLE    17
 #define SYMBOL_DUBIOUS_CLOSE     18
 
-int symbol_type (tree t);
 int symbol_type (tree t, const athena::contracts::syntax_query&);
-array<int> symbol_types (array<tree> a);
 
 /******************************************************************************
 * Symbol priorities
@@ -95,11 +93,9 @@ int symbol_priority (tree t);
 array<int> symbol_priorities (array<tree> a);
 
 /******************************************************************************
-* DRD-based
+* Correction eligibility
 ******************************************************************************/
 
-athena::contracts::evaluation_state prepare_document_context (tree doc);
-bool is_correctable_child (tree t, int i, bool noaround= false);
 bool is_correctable_child (tree t, int i,
   const athena::contracts::editing_query& query, bool noaround= false);
 

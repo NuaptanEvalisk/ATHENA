@@ -35,7 +35,8 @@ math_correction_source::context (tree t) const {
 }
 
 tree math_correction_source::map (tree t, path address,
-    const std::function<tree (tree, bool)>& transform, bool literal) {
+    const std::function<tree (tree, bool)>& transform, bool literal,
+    math_correction_options options) {
   if (is_func (t, ASSIGN) || is_func (t, MACRO) || is_func (t, XMACRO) ||
       is_func (t, QUOTE) || is_func (t, QUASI) || is_func (t, QUASIQUOTE)) return t;
   const auto prepared= entry (address);
@@ -45,12 +46,13 @@ tree math_correction_source::map (tree t, path address,
     result= tree (t, N(t));
     athena::node::copy_metadata (t, result);
     for (int i=0; i<N(t); ++i) {
-      if ((!is_func (t, WITH) || i == N(t)-1) && is_correctable_child (t, i, query)) {
+      if ((!is_func (t, WITH) || i == N(t)-1) &&
+          is_correctable_child (t, i, query, options.skip_bracket_bodies)) {
         bool child_literal= literal && query.value (t, i, MODE, UNINIT) == UNINIT;
-        if (is_func (t, WITH) && i == N(t)-1)
+        if (options.literal_fonts && is_func (t, WITH) && i == N(t)-1)
           for (int j=0; j+1<N(t); j+=2)
             if (t[j] == MATH_FONT_FAMILY) child_literal= true;
-        result[i]= map (t[i], address * i, transform, child_literal);
+        result[i]= map (t[i], address * i, transform, child_literal, options);
       }
       else {
         // Distinct occurrences of a shared macro need distinct output handles.
@@ -64,9 +66,10 @@ tree math_correction_source::map (tree t, path address,
   return transform (result, !literal && prepared->effective_value (MODE) == "math");
 }
 
-tree math_correction_source::map (tree t, const std::function<tree (tree, bool)>& transform) {
+tree math_correction_source::map (tree t, const std::function<tree (tree, bool)>& transform,
+                                 math_correction_options options) {
   origins.clear ();
-  return map (t, path (), transform, false);
+  return map (t, path (), transform, false, options);
 }
 
 int math_correction_source::classify (tree t) const {

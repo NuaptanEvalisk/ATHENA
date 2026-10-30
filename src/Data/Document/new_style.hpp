@@ -56,7 +56,6 @@ using style_environment_ptr= std::shared_ptr<const style_environment>;
 style_environment_ptr get_style_environment (tree style, url source_name,
                                              bool scheme_modules);
 tree get_document_preamble (tree t);
-athena::contracts::evaluation_state prepare_document_context (tree doc);
 // Isolated source-entry role preparation for detached document identity work.
 // The document preamble is prepared once; each requested source position is
 // evaluated in its own scope and never publishes references or auxiliary data.

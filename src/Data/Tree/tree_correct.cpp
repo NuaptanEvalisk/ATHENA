@@ -1061,12 +1061,9 @@ manual_correct (tree t) {
 }
 
 tree
-manual_correct (tree t, const correction_context_factory& contexts, string mode) {
+manual_correct (tree t, const correction_context_factory& contexts) {
   t= with_correct (t, athena::contracts::source_contracts (contexts (t)));
   t= superfluous_with_correct (t, contexts (t));
-  // Only the legacy bracket pass still needs the temporary mode adapter.
-  const bool math= mode == "math";
-  const tree result= upgrade_brackets (math ? compound ("math", t) : t);
-  t= math && is_compound (result, "math", 1) ? result[0] : result;
+  t= upgrade_brackets (t, contexts);
   return manual_correct_math (t, contexts);
 }

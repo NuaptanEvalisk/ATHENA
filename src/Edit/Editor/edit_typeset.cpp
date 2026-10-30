@@ -1144,7 +1144,7 @@ editor_rep::correct_math (tree source) {
   const auto entry= prepare_tree_entry (source);
   return manual_correct (source, [this, entry] (tree stage) {
     return correction_environments (stage, entry);
-  }, as_string (entry->effective_value (MODE)));
+  });
 }
 
 tree
@@ -1159,6 +1159,22 @@ tree
 editor_rep::correct_missing_invisible (tree source, int force) {
   const auto entry= prepare_tree_entry (source);
   return missing_invisible_correct (source, force, [this, entry] (tree stage) {
+    return correction_environments (stage, entry);
+  });
+}
+
+tree
+editor_rep::correct_brackets (tree source, string mode) {
+  const auto entry= prepare_tree_entry (source);
+  return upgrade_brackets (source, [this, entry] (tree stage) {
+    return correction_environments (stage, entry);
+  }, mode);
+}
+
+tree
+editor_rep::correct_big_operators (tree source) {
+  const auto entry= prepare_tree_entry (source);
+  return upgrade_big (source, [this, entry] (tree stage) {
     return correction_environments (stage, entry);
   });
 }

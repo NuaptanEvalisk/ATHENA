@@ -23,6 +23,13 @@
     <arg type="content" />
     <arg type="int" />
   </binding>
+  <binding name="tree-upgrade-brackets" native="correct_brackets" returns="tree" exceptions="scheme">
+    <arg type="content" />
+    <arg type="string" />
+  </binding>
+  <binding name="tree-upgrade-big" native="correct_big_operators" returns="tree" exceptions="scheme">
+    <arg type="content" />
+  </binding>
   <binding name="math-stats-update" native="update_math_statistics" returns="void" />
   <binding name="math-stats-occurrences" native="math_statistics_occurrences" returns="int">
     <arg type="string" />

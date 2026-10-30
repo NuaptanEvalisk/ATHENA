@@ -6,17 +6,24 @@
 
 // One correction stage owns the source positions of its rewritten tokens.
 // The provider refers to that stage's original tree, never its evolving output.
+struct math_correction_options {
+  bool skip_bracket_bodies= false;
+  bool literal_fonts= true;
+};
+
 class math_correction_source {
   athena::contracts::source_environment_preparation prepare;
   struct origin { tree retained; path address; };
   std::unordered_map<const tree_rep*, origin> origins;
   void retain (tree, path);
-  tree map (tree, path, const std::function<tree (tree, bool)>&, bool literal);
+  tree map (tree, path, const std::function<tree (tree, bool)>&, bool literal,
+            math_correction_options);
 public:
   explicit math_correction_source (athena::contracts::source_environment_preparation);
   std::shared_ptr<const evaluation_environment_checkpoint> entry (path) const;
   std::shared_ptr<const evaluation_environment_checkpoint> context (tree) const;
-  tree map (tree, const std::function<tree (tree, bool)>&);
+  tree map (tree, const std::function<tree (tree, bool)>&,
+            math_correction_options= {});
   int classify (tree) const;
   array<int> types (array<tree>) const;
 };
