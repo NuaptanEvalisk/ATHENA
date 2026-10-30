@@ -27,12 +27,33 @@ struct reference { std::string id; };
 // property copies share the immutable payload (including across actors).
 class frozen_tree {
   std::shared_ptr<const tree> value;
+  explicit frozen_tree (std::shared_ptr<const tree> owned): value (std::move (owned)) {}
+  friend class frozen_tree_builder;
 public:
   frozen_tree (const tree& source): value (std::make_shared<const tree> (copy (source))) {}
   operator tree () const { return copy (*value); }
   bool matches (const tree& source) const;
+  bool shares_storage (const frozen_tree& other) const { return value == other.value; }
   bool operator == (const frozen_tree& other) const;
   int hash () const;
+};
+
+// Cooperative owner-side freezing. Source must remain unchanged between
+// advances; callers discard the builder if its source receipt changes.
+class frozen_tree_builder {
+  struct frame {
+    tree source, output;
+    int child= -1;
+  };
+  std::vector<frame> pending;
+  tree output;
+  bool ready= false;
+public:
+  explicit frozen_tree_builder (tree source);
+  frozen_tree_builder (const frozen_tree_builder&)= delete;
+  frozen_tree_builder& operator= (const frozen_tree_builder&)= delete;
+  bool advance (unsigned budget);
+  frozen_tree finish ();
 };
 struct rich_text { frozen_tree content; };
 

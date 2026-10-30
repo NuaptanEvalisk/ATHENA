@@ -229,6 +229,45 @@ bool frozen_tree::matches (const tree& source) const {
 }
 int frozen_tree::hash () const { return frozen_hash (*value); }
 
+frozen_tree_builder::frozen_tree_builder (tree source) {
+  pending.push_back ({std::move (source), tree ()});
+}
+
+bool frozen_tree_builder::advance (unsigned budget) {
+  while (!pending.empty () && budget-- != 0) {
+    auto& current= pending.back ();
+    if (current.child == -1) {
+      current.output= is_atomic (current.source) ?
+        tree (copy (current.source->label)) : tree (L(current.source), N(current.source));
+      copy_metadata (current.source, current.output);
+      current.child= 0;
+    }
+    else if (is_compound (current.source) && current.child < N(current.source)) {
+      const tree child= current.source[current.child++];
+      pending.push_back ({child, tree ()});
+    }
+    else {
+      tree result= std::move (current.output);
+      pending.pop_back ();
+      if (pending.empty ()) {
+        output= std::move (result);
+        ready= true;
+      }
+      else {
+        auto& parent= pending.back ();
+        parent.output[parent.child-1]= std::move (result);
+      }
+    }
+  }
+  return ready;
+}
+
+frozen_tree frozen_tree_builder::finish () {
+  if (!ready) throw std::logic_error ("Cannot publish an incomplete frozen tree");
+  ready= false;
+  return frozen_tree (std::make_shared<const tree> (std::move (output)));
+}
+
 bool valid_id (const std::string& value) {
   if (value.size () != 36) return false;
   bool nonzero= false;

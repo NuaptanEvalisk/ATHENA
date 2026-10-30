@@ -5675,3 +5675,40 @@ cursor moves preserve buffer statistics, local rules and actor isolation hold,
 and closing a view with pending work completes normally. No permanent test
 suite was added. This completes the scheduled-statistics delivery; analysis
 responsiveness and final integration/deployment remain open.
+
+### Persistent Input Receipts And Cooperative Freezing (2026-10-31)
+
+`evaluation_inputs::record` now updates one persistent receipt-map branch.
+Taking a snapshot returns the retained immutable root instead of draining a
+mutable map of all writes since the last checkpoint. Repeated assignments still
+receive distinct receipts, deletions remove the name, and restored branches
+retain their previous receipt identities. Baseline construction remains an
+explicit complete initialization.
+
+Interactive analysis capture now retains an owner-side `frozen_tree_builder`
+when a value cannot finish in one slice. It traverses a bounded number of tree
+actions per advance, preserving the ordinary deep-copy and metadata semantics.
+Only the completed detached tree becomes a `frozen_tree`; publication does not
+perform another full copy. A changed receipt discards that partial freeze before
+continuing, and the name stays unresolved until the replacement is complete.
+The builder is noncopyable, and closing the analysis owner destroys its partial
+freeze on that owner before transferring detached analysis state to the worker.
+Capture compares retained payload identities, leaving semantic equality to the
+detached analysis stage rather than comparing large frozen values on capture.
+
+This removes checkpoint batch folding and whole-tree freezing from interactive
+capture, not all remaining owner-side bulk work. Input/scope diff enumeration,
+dependency closure retirement, and the latter's semantic comparisons remain
+explicit follow-up work before completion and deployment.
+
+Production built with `-j16`
+(`/tmp/athena-native-capture-receipts-final-build.log`). The temporary native
+check passed at 00:30 (`/tmp/athena-capture-receipts-probe.log`): immutable
+receipt checkpoints survive repeated assignments, removals and restored
+branches; sliced freezing preserves metadata and detached ownership; incomplete
+freezes cannot publish; edits supersede partial large captures; unrelated
+inference remains usable while capture is pending; and closing an owner during
+freezing releases its source handles on the owner. The completed background
+projection is compared semantically, not by pointer identity across independent
+analysis engines. No permanent test suite was added. This batch is complete;
+the remaining analysis work and final deployment above are not.

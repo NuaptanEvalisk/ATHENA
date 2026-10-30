@@ -6,7 +6,7 @@ analysis transfer rules and implementation evidence live in
 This document does not declare the replacement complete. It makes the next
 ownership changes explicit rather than adding another independent subsystem.
 
-## Current Checkpoint: 2026-10-30
+## Current Checkpoint: 2026-10-31
 
 ### Bounded Delivery
 
@@ -37,6 +37,14 @@ The follow-up work is divided into independently deliverable changes:
    work in an interactive request. Preserve cancellation and exact-demand
    publication; this is not a hard-real-time guarantee for every worker or
    standard-library operation. Explicit offline preparation may be synchronous.
+
+   Input snapshots now retain the receipt-map root directly; each write updates
+   one persistent branch instead of leaving a batch for the next checkpoint.
+   Large value freezing now resumes over owner slices and discards partial work
+   when the input receipt changes. Capture compares immutable payload identity,
+   not entire value trees. Remaining: input/scope difference enumeration and
+   dependency retirement, including its semantic comparisons. Do not mark this
+   third delivery complete based on snapshot/freezing checks alone.
 
 For each change, stop after its concrete exit conditions, build the production
 target with `-j16`, use a focused runtime check only where the ownership or

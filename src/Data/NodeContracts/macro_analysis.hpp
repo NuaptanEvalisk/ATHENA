@@ -19,8 +19,9 @@ using retained_analysis_value= std::function<std::optional<node::frozen_tree> (c
 // analysis is keyed by the captured resolution, including binding identity.
 // request() materializes inputs cooperatively and notifies the owner for another
 // slice. Only complete inputs reach the worker; pending names invalidate their
-// existing inference dependants. Input-diff enumeration and a single tree freeze
-// are not interruptible. synchronize() is the explicit unbounded offline path.
+// existing inference dependants. Large values freeze over several owner slices;
+// input-diff enumeration and dependency retirement remain synchronous.
+// synchronize() is the explicit unbounded offline path.
 class macro_analysis {
   struct impl;
   std::unique_ptr<impl> state;

@@ -10,6 +10,13 @@ namespace athena::contracts {
 namespace {
 std::string bytes (const string& value) { return std::string (value.data (), N(value)); }
 string native (const std::string& value) { return string (value.data (), value.size ()); }
+
+bool same_capture (const analysis_resolution* a, const analysis_resolution& b) {
+  if (!a) return !b.binding && !b.value && !b.declaration;
+  return a->binding == b.binding && a->declaration == b.declaration &&
+    bool (a->value) == bool (b.value) &&
+    (!a->value || a->value->shares_storage (*b.value));
+}
 }
 
 struct macro_analysis::impl {
@@ -21,6 +28,8 @@ struct macro_analysis::impl {
   std::shared_ptr<const analysis_resolutions> last_pruned_inputs;
   evaluation_input_snapshot consumed_inputs;
   std::set<std::string> pending_names, changed_values;
+  std::string freezing_name;
+  std::unique_ptr<node::frozen_tree_builder> freezing;
   analysis_proposal_ptr last_accepted;
   bool initialized= false;
   std::string last_error;
@@ -44,6 +53,7 @@ struct macro_analysis::impl {
       consumed_inputs= inherited->inputs;
     }
     const auto changed= inputs.changed_since (consumed_inputs);
+    if (freezing && changed.count (freezing_name)) freezing.reset ();
     changed_values.insert (changed.begin (), changed.end ());
     pending_names.insert (changed.begin (), changed.end ());
     const auto include= [&] (tree_label label) {
@@ -68,7 +78,7 @@ struct macro_analysis::impl {
     const auto deadline= std::chrono::steady_clock::now () + std::chrono::milliseconds (4);
     unsigned processed= 0;
     while (!pending_names.empty ()) {
-      const auto name= *pending_names.begin ();
+      const auto name= freezing ? freezing_name : *pending_names.begin ();
       const auto previous= names->find (name);
       const auto old= previous ? *previous : nullptr;
       const string key= native (name);
@@ -86,7 +96,15 @@ struct macro_analysis::impl {
         else if (old && !changed_values.count (name)) entry.value= old->value;
         else {
           if (retained) entry.value= retained (key);
-          if (!entry.value) entry.value= node::frozen_tree (value);
+          if (!entry.value && bounded) {
+            if (!freezing) {
+              freezing_name= name;
+              freezing= std::make_unique<node::frozen_tree_builder> (value);
+            }
+            if (!freezing->advance (128)) return {};
+            entry.value= freezing->finish ();
+          }
+          else if (!entry.value) entry.value= node::frozen_tree (value);
         }
       }
       if (existing_tree_label (key)) {
@@ -95,13 +113,15 @@ struct macro_analysis::impl {
         entry.binding= scope.definition (label);
         entry.declaration= scope.find_declaration (label);
       }
-      if (!same_analysis_resolution (old.get (), &entry)) {
+      // Semantic equality belongs to detached analysis, not to input capture.
+      if (!same_capture (old.get (), entry)) {
         if (!names.unique ()) names= std::make_shared<analysis_resolutions> (*names);
         *names= std::move (*names).set (
           name, std::make_shared<const analysis_resolution> (std::move (entry)));
       }
       changed_values.erase (name);
-      pending_names.erase (pending_names.begin ());
+      pending_names.erase (name);
+      freezing.reset ();
       if (bounded && (++processed >= 128 || std::chrono::steady_clock::now () >= deadline)) break;
     }
     if (!pending_names.empty ()) return {};
@@ -144,6 +164,8 @@ struct macro_analysis::impl {
 macro_analysis::macro_analysis (): state (std::make_unique<impl> ()) {}
 macro_analysis::~macro_analysis () {
   state->service.cancel ();
+  // An unfinished freeze still holds owner-local source handles.
+  state->freezing.reset ();
   analysis_service::release_on_worker (std::shared_ptr<impl> (state.release ()));
 }
 void macro_analysis::synchronize (contract_scope& scope,

@@ -1,7 +1,6 @@
 // Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later.
 #pragma once
 
-#include <map>
 #include <memory>
 #include <set>
 #include <string>
@@ -21,12 +20,11 @@ public:
 };
 
 class evaluation_inputs {
-  mutable evaluation_input_snapshot current;
-  mutable std::map<std::string, bool> pending;
+  evaluation_input_snapshot current;
 public:
   void record (std::string name, bool present);
   void reset (evaluation_input_snapshot snapshot);
-  evaluation_input_snapshot snapshot () const;
+  evaluation_input_snapshot snapshot () const { return current; }
 };
 
 } // namespace athena::contracts

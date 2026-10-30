@@ -34,28 +34,20 @@ std::set<std::string> evaluation_input_snapshot::changed_since (
 }
 
 void evaluation_inputs::record (std::string name, bool present) {
-  pending.insert_or_assign (std::move (name), present);
-}
-
-void evaluation_inputs::reset (evaluation_input_snapshot snapshot) {
-  current= std::move (snapshot);
-  pending.clear ();
-}
-
-evaluation_input_snapshot evaluation_inputs::snapshot () const {
-  if (pending.empty ()) return current;
   using root= evaluation_input_snapshot::root;
   auto next= current.base ? std::make_shared<root> (*current.base) : std::make_shared<root> ();
   // Even an assignment to an existing name receives a new receipt. Presence
   // alone cannot identify a changed value or a branch restored from a snapshot.
-  const auto revision= std::make_shared<const root::revision> ();
-  for (const auto& [name, present]: pending) {
-    if (present) next->names= std::move (next->names).set (name, revision);
-    else next->names= std::move (next->names).erase (name);
-  }
+  // Persist the single changed branch here; taking a checkpoint never drains
+  // an accumulated batch on the editor's preparation path.
+  if (present) next->names= std::move (next->names).set (
+    std::move (name), std::make_shared<const root::revision> ());
+  else next->names= std::move (next->names).erase (name);
   current.base= std::move (next);
-  pending.clear ();
-  return current;
+}
+
+void evaluation_inputs::reset (evaluation_input_snapshot snapshot) {
+  current= std::move (snapshot);
 }
 
 } // namespace athena::contracts
