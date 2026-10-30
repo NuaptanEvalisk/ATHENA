@@ -3,8 +3,10 @@
 
 #include "macro_analysis_core.hpp"
 #include "contract_scope.hpp"
+#include "evaluation_inputs.hpp"
 #include <functional>
 #include <optional>
+#include <set>
 
 namespace athena::contracts {
 
@@ -22,6 +24,7 @@ using analysis_symbols= immer::map<tree_label, std::string>;
 struct analysis_context {
   std::shared_ptr<const analysis_resolutions> names;
   std::shared_ptr<const analysis_symbols> symbols;
+  evaluation_input_snapshot inputs;
 };
 using analysis_context_ptr= std::shared_ptr<const analysis_context>;
 using analysis_facts= immer::map<std::string, std::shared_ptr<const analysis_contract_result>>;
@@ -50,7 +53,8 @@ using analysis_proposal_ptr= std::shared_ptr<const analysis_proposal>;
 
 // A successful proposal is invalidated only by changed receipts its components
 // read. Return the affected components, including their dependent closure.
-std::vector<std::size_t> reject_analysis (const analysis_evidence&, const analysis_resolutions&);
+std::vector<std::size_t> reject_analysis (const analysis_evidence&, const analysis_resolutions&,
+                                        const std::set<std::string>& unresolved= {});
 
 // One detached engine per execution owner; one resumable batch in flight. The latest
 // demand is coalesced while work runs. Only an exact-demand result is published

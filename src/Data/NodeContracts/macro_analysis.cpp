@@ -2,6 +2,7 @@
 #include "macro_analysis.hpp"
 #include "analysis_service.hpp"
 #include "tm_ostream.hpp"
+#include <chrono>
 #include <stdexcept>
 #include <utility>
 
@@ -19,6 +20,7 @@ struct macro_analysis::impl {
   contract_scope last_pruned_scope;
   std::shared_ptr<const analysis_resolutions> last_pruned_inputs;
   evaluation_input_snapshot consumed_inputs;
+  std::set<std::string> pending_names, changed_values;
   analysis_proposal_ptr last_accepted;
   bool initialized= false;
   std::string last_error;
@@ -32,22 +34,41 @@ struct macro_analysis::impl {
 
   analysis_context_ptr capture (const contract_scope& scope,
       const evaluation_input_snapshot& inputs, hashmap<string,tree> values,
-      const retained_analysis_value& retained= {}) {
-    const auto changed_values= inputs.changed_since (consumed_inputs);
-    auto pending= changed_values;
+      const retained_analysis_value& retained, bool bounded) {
+    if (!initialized && !scope.inference_sources ().empty ()) {
+      // A restored style already has analyzed inputs. Starting a new owner
+      // must not retire all those facts while it incrementally captures them.
+      const auto& inherited= scope.inference_sources ().begin ()->first->context;
+      names= std::make_shared<analysis_resolutions> (*inherited->names);
+      labels= std::make_shared<analysis_symbols> (*inherited->symbols);
+      consumed_inputs= inherited->inputs;
+    }
+    const auto changed= inputs.changed_since (consumed_inputs);
+    changed_values.insert (changed.begin (), changed.end ());
+    pending_names.insert (changed.begin (), changed.end ());
     const auto include= [&] (tree_label label) {
-      symbol (label);
-      pending.insert (bytes (as_string (label)));
+      const auto name= bytes (as_string (label));
+      const auto previous= names->find (name);
+      if (!previous || (*previous)->binding != scope.definition (label) ||
+          (*previous)->declaration != scope.find_declaration (label))
+        pending_names.insert (name);
     };
     if (!initialized) {
+      for (const auto& [label, name]: *labels) include (label);
       for (auto label: scope.snapshot ().labels ()) include (label);
       for (auto label: scope.snapshot ().definition_labels ()) include (label);
     }
     else {
-      for (auto label: scope.changed_declarations (observed)) pending.insert (bytes (as_string (label)));
-      for (auto label: scope.changed_definitions (observed)) pending.insert (bytes (as_string (label)));
+      for (auto label: scope.changed_declarations (observed)) include (label);
+      for (auto label: scope.changed_definitions (observed)) include (label);
     }
-    for (const auto& name: pending) {
+    observed= scope;
+    consumed_inputs= inputs;
+    initialized= true;
+    const auto deadline= std::chrono::steady_clock::now () + std::chrono::milliseconds (4);
+    unsigned processed= 0;
+    while (!pending_names.empty ()) {
+      const auto name= *pending_names.begin ();
       const auto previous= names->find (name);
       const auto old= previous ? *previous : nullptr;
       const string key= native (name);
@@ -79,18 +100,20 @@ struct macro_analysis::impl {
         *names= std::move (*names).set (
           name, std::make_shared<const analysis_resolution> (std::move (entry)));
       }
+      changed_values.erase (name);
+      pending_names.erase (pending_names.begin ());
+      if (bounded && (++processed >= 128 || std::chrono::steady_clock::now () >= deadline)) break;
     }
-    observed= scope;
-    consumed_inputs= inputs;
-    initialized= true;
-    return std::make_shared<const analysis_context> (analysis_context {names, labels});
+    if (!pending_names.empty ()) return {};
+    return std::make_shared<const analysis_context> (analysis_context {names, labels, inputs});
   }
 
   bool retire_stale (contract_scope& scope) {
-    if (last_pruned_inputs == names && scope.same_state (last_pruned_scope)) return false;
+    if (pending_names.empty () && last_pruned_inputs == names &&
+        scope.same_state (last_pruned_scope)) return false;
     auto draft= scope;
     for (const auto& [evidence, count]: scope.inference_sources ())
-      for (auto index: reject_analysis (*evidence, *names))
+      for (auto index: reject_analysis (*evidence, *names, pending_names))
         for (const auto& name: evidence->dependencies.components[index].members) {
           const auto label= as_tree_label (native (name));
           if (draft.inference_evidence (label) == evidence) draft.clear_inference (label);
@@ -125,17 +148,25 @@ macro_analysis::~macro_analysis () {
 }
 void macro_analysis::synchronize (contract_scope& scope,
     const evaluation_input_snapshot& inputs, const hashmap<string,tree>& values) {
-  const auto context= state->capture (scope, inputs, values);
+  const auto context= state->capture (scope, inputs, values, {}, false);
   state->accept (state->service.run (context), scope);
 }
 bool macro_analysis::request (const contract_scope& scope,
     const evaluation_input_snapshot& inputs, const hashmap<string,tree>& values,
     std::function<void ()> notify, const retained_analysis_value& retained) {
-  return state->service.request (state->capture (scope, inputs, values, retained), std::move (notify));
+  const auto context= state->capture (scope, inputs, values, retained, true);
+  if (!context) {
+    // Re-enter through the owner's coalesced mailbox, never through a retained
+    // evaluator callback. The next slice reads the then-current input receipts.
+    if (notify) notify ();
+    return true;
+  }
+  return state->service.request (context, std::move (notify));
 }
 bool macro_analysis::publish_ready (contract_scope& scope) {
   const auto proposal= state->service.poll ();
-  const bool current= proposal && proposal->evidence->context->names == state->names &&
+  const bool current= state->pending_names.empty () && proposal &&
+    proposal->evidence->context->names == state->names &&
     proposal->evidence->context->symbols == state->labels;
   if (current && proposal->error.empty ()) {
     state->last_error.clear ();
@@ -148,6 +179,8 @@ bool macro_analysis::publish_ready (contract_scope& scope) {
   state->last_error= proposal->error;
   return retired;
 }
-bool macro_analysis::pending () const { return state->service.pending (); }
+bool macro_analysis::pending () const {
+  return !state->pending_names.empty () || state->service.pending ();
+}
 
 } // namespace athena::contracts

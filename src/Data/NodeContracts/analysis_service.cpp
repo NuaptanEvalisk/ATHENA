@@ -346,7 +346,8 @@ struct detached_engine {
 } // namespace
 
 std::vector<std::size_t> reject_analysis (
-    const analysis_evidence& proposal, const analysis_resolutions& current) {
+    const analysis_evidence& proposal, const analysis_resolutions& current,
+    const std::set<std::string>& unresolved) {
   std::vector<std::size_t> rejected;
   std::unordered_set<std::size_t> seen;
   const auto mark= [&] (std::size_t index) {
@@ -364,6 +365,11 @@ std::vector<std::size_t> reject_analysis (
     [&] (const auto& before, const auto& after) {
       changed (after.first, before.second.get (), after.second.get ());
     }));
+  for (const auto& name: unresolved) {
+    const auto readers= proposal.dependencies.readers.find (name);
+    if (readers != proposal.dependencies.readers.end ())
+      for (auto index: readers->second) mark (index);
+  }
   for (std::size_t i=0; i<rejected.size (); ++i)
     for (auto dependant: proposal.dependencies.components[rejected[i]].dependants)
       mark (dependant);
