@@ -67,6 +67,51 @@ bool same_context (const analysis_context_ptr& a, const analysis_context_ptr& b)
     a->inputs.same_snapshot (b->inputs) && a->scope_inputs == b->scope_inputs;
 }
 
+analysis_capture_plan_ptr prepare_capture_plan (analysis_capture_request_ptr source,
+                                               const std::atomic<bool>& cancelled) {
+  auto result= std::make_shared<analysis_capture_plan> ();
+  result->source= std::move (source);
+  try {
+    check_cancelled (cancelled);
+    const auto& request= *result->source;
+    const auto& scope= request.scope;
+    const auto& baseline= request.baseline;
+    std::map<std::string, bool> pending;
+    for (const auto& name: request.inputs.changed_since (
+           baseline ? baseline->inputs : evaluation_input_snapshot {})) {
+      check_cancelled (cancelled);
+      pending[name]= true;
+    }
+    const auto include= [&] (tree_label label) {
+      check_cancelled (cancelled);
+      const string native= as_string (label);
+      const std::string name (native.data (), N(native));
+      const auto previous= baseline ? baseline->names->find (name) : nullptr;
+      if (!previous || (*previous)->binding != scope.definition (label) ||
+          (*previous)->declaration != scope.find_declaration (label))
+        pending.try_emplace (name, false);
+    };
+    if (request.baseline_scope) {
+      for (auto label: scope.changed_declarations (*request.baseline_scope)) include (label);
+      for (auto label: scope.changed_definitions (*request.baseline_scope)) include (label);
+    }
+    else {
+      if (baseline) for (const auto& [label, name]: *baseline->symbols) include (label);
+      const auto snapshot= scope.snapshot ();
+      for (auto label: snapshot.labels ()) include (label);
+      for (auto label: snapshot.definition_labels ()) include (label);
+    }
+    result->items.reserve (pending.size ());
+    for (const auto& [name, changed]: pending) {
+      check_cancelled (cancelled);
+      result->items.push_back ({name, changed});
+    }
+  }
+  catch (const std::exception& error) { result->error= error.what (); }
+  catch (...) { result->error= "Unhandled analysis input planning failure"; }
+  return result;
+}
+
 analysis_contract_input detach_contract (const std::string& name, const node_contract& info,
                                          const std::atomic<bool>& cancelled) {
   analysis_contract_input result;
@@ -353,6 +398,8 @@ struct analysis_service::impl {
   std::atomic<bool> cancelled {false};
   bool busy= false, queued= false;
   analysis_context_ptr requested, running;
+  analysis_capture_request_ptr planning;
+  analysis_capture_plan_ptr planned;
   std::function<void ()> notify;
   analysis_proposal_ptr completed;
   std::vector<analysis_proposal_ptr> retained;
@@ -389,7 +436,7 @@ struct analysis_service::impl {
   }
 
   static void enqueue (const std::shared_ptr<impl>& owner) {
-    if (owner->busy || owner->queued || (!owner->requested && !owner->running)) return;
+    if (owner->busy || owner->queued || (!owner->planning && !owner->requested && !owner->running)) return;
     owner->queued= true;
     dispatch ().waiting.push_back (owner);
   }
@@ -428,25 +475,33 @@ struct analysis_service::impl {
     while (!waiting.empty ()) {
       const auto& owner= waiting.front ();
       if (owner->cancelled.load (std::memory_order_relaxed) ||
-          (!owner->requested && !owner->running)) {
+          (!owner->planning && !owner->requested && !owner->running)) {
         owner->queued= false;
         queue.retired.push_back (std::move (waiting.front ()));
         waiting.pop_front ();
         continue;
       }
-      const auto context= owner->running ? owner->running : owner->requested;
+      const auto plan= owner->planning;
+      const auto context= plan ? nullptr : (owner->running ? owner->running : owner->requested);
       owner->busy= true;
-      if (!workers ().post ([owner, context] {
-            const auto result= owner->cancelled.load (std::memory_order_relaxed) ?
+      if (!workers ().post ([owner, context, plan] {
+            const auto planned= plan ? prepare_capture_plan (plan, owner->cancelled) : nullptr;
+            const auto result= plan || owner->cancelled.load (std::memory_order_relaxed) ?
               nullptr : owner->advance (context);
             std::function<void ()> wake;
             // Releasing a large detached graph must not hold the global
             // scheduler mutex that editor-side request/poll also acquire.
             analysis_proposal_ptr retired;
+            analysis_capture_plan_ptr retired_plan;
             {
               std::lock_guard<std::mutex> lock (dispatch ().mutex);
               owner->busy= false;
               if (!owner->cancelled.load (std::memory_order_relaxed)) {
+                if (planned && owner->planning == plan) {
+                  retired_plan= std::exchange (owner->planned, planned);
+                  owner->planning.reset ();
+                  wake= owner->notify;
+                }
                 if (result) {
                   owner->running.reset ();
                   retired= owner->retain (result);
@@ -469,7 +524,7 @@ struct analysis_service::impl {
         owner->busy= false;
         return;
       }
-      owner->running= context;
+      if (!plan) owner->running= context;
       owner->queued= false;
       waiting.pop_front ();
     }
@@ -500,11 +555,15 @@ bool analysis_service::request (analysis_context_ptr context, std::function<void
   const auto owner= state;
   analysis_context_ptr retired_request;
   analysis_proposal_ptr retired_completion;
+  analysis_capture_request_ptr retired_planning;
+  analysis_capture_plan_ptr retired_plan;
   std::function<void ()> retired_notify;
   bool admitted= false;
   {
     std::lock_guard<std::mutex> lock (impl::dispatch ().mutex);
     retired_request= std::exchange (owner->requested, context);
+    retired_planning= std::exchange (owner->planning, {});
+    retired_plan= std::exchange (owner->planned, {});
     retired_notify= std::exchange (owner->notify, std::move (notify));
     retired_completion= std::exchange (owner->completed, {});
     for (const auto& ready: owner->retained)
@@ -522,7 +581,46 @@ bool analysis_service::request (analysis_context_ptr context, std::function<void
   }
   release_on_worker (std::move (retired_request));
   release_on_worker (std::move (retired_completion));
+  release_on_worker (std::move (retired_planning));
+  release_on_worker (std::move (retired_plan));
   return admitted;
+}
+
+void analysis_service::request_plan (analysis_capture_request_ptr source,
+                                    std::function<void ()> notify) {
+  analysis_capture_request_ptr retired_planning;
+  analysis_capture_plan_ptr retired_plan;
+  analysis_context_ptr retired_request;
+  analysis_proposal_ptr retired_completion;
+  std::function<void ()> retired_notify;
+  std::function<void ()> wake;
+  {
+    std::lock_guard<std::mutex> lock (impl::dispatch ().mutex);
+    retired_notify= std::exchange (state->notify, std::move (notify));
+    if (state->planned && state->planned->source == source) wake= state->notify;
+    if (state->planning != source && (!state->planned || state->planned->source != source)) {
+      retired_planning= std::exchange (state->planning, std::move (source));
+      retired_plan= std::exchange (state->planned, {});
+      retired_request= std::exchange (state->requested, {});
+      retired_completion= std::exchange (state->completed, {});
+    }
+    impl::enqueue (state);
+    impl::pump ();
+  }
+  release_on_worker (std::move (retired_planning));
+  release_on_worker (std::move (retired_plan));
+  release_on_worker (std::move (retired_request));
+  release_on_worker (std::move (retired_completion));
+  if (wake && !state->cancelled.load (std::memory_order_relaxed)) wake ();
+}
+
+analysis_capture_plan_ptr analysis_service::poll_plan () {
+  std::lock_guard<std::mutex> lock (impl::dispatch ().mutex);
+  return std::exchange (state->planned, {});
+}
+
+analysis_capture_plan_ptr analysis_service::plan_now (analysis_capture_request_ptr source) {
+  return prepare_capture_plan (std::move (source), state->cancelled);
 }
 
 analysis_proposal_ptr analysis_service::poll () {
@@ -532,15 +630,32 @@ analysis_proposal_ptr analysis_service::poll () {
 
 bool analysis_service::pending () const {
   std::lock_guard<std::mutex> lock (impl::dispatch ().mutex);
-  return bool (state->requested);
+  return bool (state->planning) || bool (state->requested);
 }
 
 analysis_proposal_ptr analysis_service::run (analysis_context_ptr context) {
+  analysis_context_ptr retired_request;
+  analysis_proposal_ptr retired_completion, cached;
+  analysis_capture_request_ptr retired_planning;
+  analysis_capture_plan_ptr retired_plan;
+  std::function<void ()> retired_notify;
   {
     std::lock_guard<std::mutex> lock (impl::dispatch ().mutex);
+    // Offline preparation supersedes the demand, not the worker's engine.
+    // Already running work can finish into its cache without notifying us.
+    retired_request= std::exchange (state->requested, {});
+    retired_completion= std::exchange (state->completed, {});
+    retired_planning= std::exchange (state->planning, {});
+    retired_plan= std::exchange (state->planned, {});
+    retired_notify= std::exchange (state->notify, {});
     for (const auto& ready: state->retained)
-      if (same_context (ready->evidence->context, context)) return ready;
+      if (same_context (ready->evidence->context, context)) { cached= ready; break; }
   }
+  release_on_worker (std::move (retired_request));
+  release_on_worker (std::move (retired_completion));
+  release_on_worker (std::move (retired_planning));
+  release_on_worker (std::move (retired_plan));
+  if (cached) return cached;
   detached_engine offline;
   const auto result= offline.evaluate (std::move (context), state->cancelled);
   // Cold preparation and later interactive requests use the same immutable

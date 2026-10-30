@@ -5783,3 +5783,41 @@ replacement, removal, partial-result rejection and independent inference checks
 also passed. The temporary caller explicitly polls publication after observing
 worker completion; completion alone is not owner publication. No permanent
 test suite was added, and no executable has been deployed for this batch.
+
+### Detached Input Planning (2026-10-31)
+
+Initial label enumeration and input/declaration/binding difference computation
+now run in the existing analysis worker scheduler. A plan contains only an
+immutable native scope, input receipts, a complete capture baseline and an
+ordered list of names. It never retains live evaluator values, source trees or
+an editor callback. The owner reads actual values from its then-current
+environment and consumes the list within the existing slice budget, without
+performing a bulk merge into a pending-name set.
+
+Input or scope changes supersede the requested plan. Partly captured maps and
+the partial freezer are discarded, and capture restarts from the last complete
+baseline. Restoring that baseline readmits it directly, rather than retaining
+values written into a newer partial capture. Detached plans and maps retire on
+workers; the partial freezer's live source handles still die on their owner.
+The latest receipts are installed for bounded inference admission even while
+the input plan is pending.
+
+Planning shares the existing coalesced per-owner queue with analysis. A stale
+plan cannot publish or notify the current request. Attaching a notifier after
+the matching plan is already ready wakes the owner without regenerating it.
+Explicit offline preparation uses the same planner synchronously and
+supersedes pending asynchronous demand without waiting on or borrowing its
+engine. There is no new Scheme API or executor.
+
+Production built with `-j16` (`/tmp/athena-async-input-planning-build.log`). The
+temporary native check passed at 01:20
+(`/tmp/athena-async-input-planning-probe.log`): worker-thread planning and late
+notifications, exact coalesced demand, no actual-value reads in the initial
+interactive request, slice limits, admission before planning completes,
+baseline restoration, mid-capture edits/removals/declarations, superseded large
+freezes, pending-owner close and offline handoff. Bounded admission and
+receipt-only publication checks also passed. No permanent test suite was added.
+
+This completes the planned analysis-responsiveness implementation delivery.
+The overall DRD cutover remains subject to the final integration audit and
+local executable deployment; neither is implied by this focused check.

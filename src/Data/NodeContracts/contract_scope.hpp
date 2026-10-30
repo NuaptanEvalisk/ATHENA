@@ -173,6 +173,7 @@ public:
   const contract_entries& locals () const { return entries; }
   const group_extensions& groups () const { return *extensions; }
   bool same_state (const contract_scope& other) const;
+  // Changed declaration identities, excluding inferred projections.
   std::vector<tree_label> changed_declarations (const contract_scope& other) const;
   bool contracts_differ (const contract_scope& other) const;
   std::vector<tree_label> changed_definitions (const contract_scope& other) const;

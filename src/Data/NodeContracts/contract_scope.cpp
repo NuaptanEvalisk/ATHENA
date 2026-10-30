@@ -346,7 +346,7 @@ std::vector<tree_label> contract_scope::changed_declarations (const contract_sco
   std::vector<tree_label> changed;
   for (auto label: candidates) {
     const auto a= find_declaration (label), b= other.find_declaration (label);
-    if (a != b && (!a || !b || !(*a == *b))) changed.push_back (label);
+    if (a != b) changed.push_back (label);
   }
   return changed;
 }

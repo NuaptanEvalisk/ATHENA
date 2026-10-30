@@ -33,6 +33,23 @@ struct analysis_context {
 using analysis_context_ptr= std::shared_ptr<const analysis_context>;
 using analysis_facts= immer::map<std::string, std::shared_ptr<const analysis_contract_result>>;
 
+// Immutable native inputs only. Live evaluator values are read later by their
+// owner, after this plan has been matched against the current demand.
+struct analysis_capture_request {
+  contract_scope scope;
+  evaluation_input_snapshot inputs;
+  analysis_context_ptr baseline;
+  std::optional<contract_scope> baseline_scope;
+};
+using analysis_capture_request_ptr= std::shared_ptr<const analysis_capture_request>;
+struct analysis_capture_item { std::string name; bool value_changed; };
+struct analysis_capture_plan {
+  analysis_capture_request_ptr source;
+  std::vector<analysis_capture_item> items;
+  std::string error;
+};
+using analysis_capture_plan_ptr= std::shared_ptr<const analysis_capture_plan>;
+
 struct analysis_component {
   std::vector<std::string> reads;
   std::vector<std::size_t> prerequisites;
@@ -74,6 +91,9 @@ public:
   // Transfer worker-safe state only, never an editor/evaluator or raw tree.
   // Cancellation is separate so closing an owner takes effect immediately.
   static void release_on_worker (std::shared_ptr<const void>);
+  void request_plan (analysis_capture_request_ptr, std::function<void ()> notify);
+  analysis_capture_plan_ptr poll_plan ();
+  analysis_capture_plan_ptr plan_now (analysis_capture_request_ptr);
   bool request (analysis_context_ptr, std::function<void ()> notify);
   analysis_proposal_ptr poll ();
   // Unsatisfied current demand, not superseded work still finishing in flight.

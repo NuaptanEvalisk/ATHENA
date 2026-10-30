@@ -14,63 +14,99 @@ string native (const std::string& value) { return string (value.data (), value.s
 
 struct macro_analysis::impl {
   analysis_service service;
-  std::shared_ptr<analysis_resolutions> names= std::make_shared<analysis_resolutions> ();
-  std::shared_ptr<analysis_symbols> labels= std::make_shared<analysis_symbols> ();
-  contract_scope observed, last_publication;
+  std::shared_ptr<const analysis_resolutions> names= std::make_shared<analysis_resolutions> ();
+  std::shared_ptr<const analysis_symbols> labels= std::make_shared<analysis_symbols> ();
+  contract_scope last_publication;
   contract_scope last_visible_scope;
-  evaluation_input_snapshot consumed_inputs;
-  std::set<std::string> pending_names, changed_values;
-  std::string freezing_name;
+  evaluation_input_snapshot latest_inputs;
+  analysis_context_ptr baseline;
+  std::optional<contract_scope> baseline_scope;
+  analysis_capture_request_ptr wanted;
+  analysis_capture_plan_ptr plan;
+  std::size_t offset= 0;
   std::unique_ptr<node::frozen_tree_builder> freezing;
   analysis_proposal_ptr last_accepted;
-  bool initialized= false;
+  bool initialized= false, capture_pending= false, capture_failed= false;
   std::string last_error;
 
   void symbol (tree_label label) {
     if (labels->count (label)) return;
-    if (!labels.unique ()) labels= std::make_shared<analysis_symbols> (*labels);
     const auto name= bytes (as_string (label));
-    *labels= std::move (*labels).set (label, name);
+    labels= std::make_shared<const analysis_symbols> (labels->set (label, name));
+  }
+
+  void release_capture () {
+    // Only the partial freezer retains live owner-side source handles.
+    freezing.reset ();
+    analysis_service::release_on_worker (std::exchange (plan, {}));
+    analysis_service::release_on_worker (std::exchange (wanted, {}));
+    offset= 0;
+    capture_pending= capture_failed= false;
+  }
+
+  void restore_baseline () {
+    analysis_service::release_on_worker (std::exchange (names,
+      baseline ? baseline->names : std::make_shared<const analysis_resolutions> ()));
+    analysis_service::release_on_worker (std::exchange (labels,
+      baseline ? baseline->symbols : std::make_shared<const analysis_symbols> ()));
   }
 
   analysis_context_ptr capture (const contract_scope& scope,
       const evaluation_input_snapshot& inputs, hashmap<string,tree> values,
-      const retained_analysis_value& retained, bool bounded) {
-    if (!initialized && !scope.inference_sources ().empty ()) {
-      // A restored style already has analyzed inputs. Starting a new owner
-      // must not retire all those facts while it incrementally captures them.
-      const auto& inherited= scope.inference_sources ().begin ()->first->context;
-      names= std::make_shared<analysis_resolutions> (*inherited->names);
-      labels= std::make_shared<analysis_symbols> (*inherited->symbols);
-      consumed_inputs= inherited->inputs;
-    }
-    const auto changed= inputs.changed_since (consumed_inputs);
-    if (freezing && changed.count (freezing_name)) freezing.reset ();
-    changed_values.insert (changed.begin (), changed.end ());
-    pending_names.insert (changed.begin (), changed.end ());
-    const auto include= [&] (tree_label label) {
-      const auto name= bytes (as_string (label));
-      const auto previous= names->find (name);
-      if (!previous || (*previous)->binding != scope.definition (label) ||
-          (*previous)->declaration != scope.find_declaration (label))
-        pending_names.insert (name);
-    };
+      const retained_analysis_value& retained, bool bounded,
+      const std::function<void ()>& notify) {
+    latest_inputs= inputs;
     if (!initialized) {
-      for (const auto& [label, name]: *labels) include (label);
-      for (auto label: scope.snapshot ().labels ()) include (label);
-      for (auto label: scope.snapshot ().definition_labels ()) include (label);
+      if (!scope.inference_sources ().empty ()) {
+        baseline= scope.inference_sources ().begin ()->first->context;
+        if (baseline->scope_inputs == scope.input_identity ()) baseline_scope= scope;
+        restore_baseline ();
+      }
+      initialized= true;
     }
-    else {
-      for (auto label: scope.changed_declarations (observed)) include (label);
-      for (auto label: scope.changed_definitions (observed)) include (label);
+    if (baseline && baseline->inputs.same_snapshot (inputs) &&
+        baseline->scope_inputs == scope.input_identity ()) {
+      if (wanted) {
+        release_capture ();
+        restore_baseline ();
+      }
+      return baseline;
     }
-    observed= scope;
-    consumed_inputs= inputs;
-    initialized= true;
+    if (!wanted || !wanted->inputs.same_snapshot (inputs) ||
+        wanted->scope.input_identity () != scope.input_identity ()) {
+      release_capture ();
+      restore_baseline ();
+      wanted= std::make_shared<const analysis_capture_request> (
+        analysis_capture_request {scope, inputs, baseline, baseline_scope});
+      capture_pending= true;
+    }
+    if (capture_failed) return {};
+    if (!plan) {
+      if (!bounded) plan= service.plan_now (wanted);
+      else {
+        auto ready= service.poll_plan ();
+        if (ready && ready->source == wanted) plan= std::move (ready);
+        else analysis_service::release_on_worker (std::move (ready));
+        if (!plan) {
+          service.request_plan (wanted, notify);
+          return {};
+        }
+      }
+      if (!plan->error.empty ()) {
+        if (!bounded) throw std::runtime_error (plan->error);
+        if (plan->error != last_error)
+          std_warning << "Native macro input planning: " << native (plan->error) << LF;
+        last_error= plan->error;
+        capture_failed= true;
+        capture_pending= false;
+        return {};
+      }
+    }
     const auto deadline= std::chrono::steady_clock::now () + std::chrono::milliseconds (4);
     unsigned processed= 0;
-    while (!pending_names.empty ()) {
-      const auto name= freezing ? freezing_name : *pending_names.begin ();
+    while (offset < plan->items.size ()) {
+      const auto& item= plan->items[offset];
+      const auto& name= item.name;
       const auto previous= names->find (name);
       const auto old= previous ? *previous : nullptr;
       const string key= native (name);
@@ -85,14 +121,12 @@ struct macro_analysis::impl {
           // frozen payload instead of re-comparing and copying the expression.
           entry.value= entry.binding->value->expression;
         }
-        else if (old && !changed_values.count (name)) entry.value= old->value;
+        else if (old && !item.value_changed) entry.value= old->value;
         else {
           if (retained) entry.value= retained (key);
           if (!entry.value && bounded) {
-            if (!freezing) {
-              freezing_name= name;
+            if (!freezing)
               freezing= std::make_unique<node::frozen_tree_builder> (value);
-            }
             if (!freezing->advance (128)) return {};
             entry.value= freezing->finish ();
           }
@@ -106,19 +140,21 @@ struct macro_analysis::impl {
         entry.declaration= scope.find_declaration (label);
       }
       // Semantic equality belongs to detached analysis, not to input capture.
-      if (!same_analysis_receipt (old.get (), &entry)) {
-        if (!names.unique ()) names= std::make_shared<analysis_resolutions> (*names);
-        *names= std::move (*names).set (
-          name, std::make_shared<const analysis_resolution> (std::move (entry)));
-      }
-      changed_values.erase (name);
-      pending_names.erase (name);
+      if (!same_analysis_receipt (old.get (), &entry))
+        names= std::make_shared<const analysis_resolutions> (names->set (
+          name, std::make_shared<const analysis_resolution> (std::move (entry))));
+      ++offset;
       freezing.reset ();
       if (bounded && (++processed >= 128 || std::chrono::steady_clock::now () >= deadline)) break;
     }
-    if (!pending_names.empty ()) return {};
-    return std::make_shared<const analysis_context> (
+    if (offset < plan->items.size ()) return {};
+    baseline= std::make_shared<const analysis_context> (
       analysis_context {names, labels, inputs, scope.input_identity ()});
+    if (baseline_scope)
+      analysis_service::release_on_worker (std::make_shared<contract_scope> (std::move (*baseline_scope)));
+    baseline_scope= scope;
+    release_capture ();
+    return baseline;
   }
 
   bool accept (const analysis_proposal_ptr& proposal, contract_scope& scope) {
@@ -129,7 +165,6 @@ struct macro_analysis::impl {
     scope.replace_inference (proposal->projections, proposal->provenance, proposal->receipts);
     last_publication= scope;
     last_accepted= proposal;
-    observed= scope;
     return !scope.same_state (before);
   }
 };
@@ -143,7 +178,7 @@ macro_analysis::~macro_analysis () {
 }
 void macro_analysis::synchronize (contract_scope& scope,
     const evaluation_input_snapshot& inputs, const hashmap<string,tree>& values) {
-  const auto context= state->capture (scope, inputs, values, {}, false);
+  const auto context= state->capture (scope, inputs, values, {}, false, {});
   scope.admit_inference (inputs);
   state->accept (state->service.run (context), scope);
   state->last_visible_scope= scope;
@@ -151,22 +186,22 @@ void macro_analysis::synchronize (contract_scope& scope,
 bool macro_analysis::request (const contract_scope& scope,
     const evaluation_input_snapshot& inputs, const hashmap<string,tree>& values,
     std::function<void ()> notify, const retained_analysis_value& retained) {
-  const auto context= state->capture (scope, inputs, values, retained, true);
+  const auto context= state->capture (scope, inputs, values, retained, true, notify);
   if (!context) {
     // Re-enter through the owner's coalesced mailbox, never through a retained
     // evaluator callback. The next slice reads the then-current input receipts.
-    if (notify) notify ();
-    return true;
+    if (state->capture_pending && state->plan && notify) notify ();
+    return state->capture_pending;
   }
   return state->service.request (context, std::move (notify));
 }
 bool macro_analysis::publish_ready (contract_scope& scope) {
-  scope.admit_inference (state->consumed_inputs);
+  scope.admit_inference (state->latest_inputs);
   const auto proposal= state->service.poll ();
-  const bool current= state->pending_names.empty () && proposal &&
+  const bool current= !state->capture_pending && !state->capture_failed && proposal &&
     proposal->evidence->context->names == state->names &&
     proposal->evidence->context->symbols == state->labels &&
-    proposal->evidence->context->inputs.same_snapshot (state->consumed_inputs) &&
+    proposal->evidence->context->inputs.same_snapshot (state->latest_inputs) &&
     proposal->evidence->context->scope_inputs == scope.input_identity ();
   if (current && proposal->error.empty ()) {
     state->last_error.clear ();
@@ -179,11 +214,10 @@ bool macro_analysis::publish_ready (contract_scope& scope) {
   }
   const bool changed= !scope.same_state (state->last_visible_scope);
   state->last_visible_scope= scope;
-  state->observed= scope;
   return changed;
 }
 bool macro_analysis::pending () const {
-  return !state->pending_names.empty () || state->service.pending ();
+  return state->capture_pending || state->service.pending ();
 }
 
 } // namespace athena::contracts

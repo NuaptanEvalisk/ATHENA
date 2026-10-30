@@ -32,7 +32,7 @@ The follow-up work is divided into independently deliverable changes:
 2. Completed: scheduled editor math statistics. Completion: input getters do
    not synchronously traverse the whole buffer; edits invalidate the matching
    result and obsolete work cannot publish.
-3. Analysis capture/publication responsiveness. Completion: the known bulk
+3. Completed: analysis capture/publication responsiveness. Completion: the known bulk
    owner-side snapshot/diff/freeze/retirement steps no longer run as unbounded
    work in an interactive request. Preserve cancellation and exact-demand
    publication; this is not a hard-real-time guarantee for every worker or
@@ -47,8 +47,17 @@ The follow-up work is divided into independently deliverable changes:
    declaration/binding identity. Exact evidence has a constant-time fast path;
    old evidence has a bounded dependency budget and remains unavailable beyond
    that budget until background publication. Snapshots retain their own
-   admission inputs. Remaining: input/scope difference enumeration. Do not mark this
-   third delivery complete based on snapshot/freezing checks alone.
+   admission inputs. Input/scope differences and initial label enumeration now
+   run in the existing detached worker scheduler. The owner consumes the
+   resulting immutable list in slices without merging a bulk pending set.
+   Superseding inputs restart from the last complete capture; exact request
+   identities reject obsolete plans and proposals. The production build and
+   focused runtime evidence are recorded at the end of the implementation
+   README (`/tmp/athena-async-input-planning-probe.log`).
+
+The three implementation deliveries above are complete. The overall cutover
+still requires the final consumer/ownership integration audit and deployment;
+these are the next bounded delivery, not a new round of feature work.
 
 For each change, stop after its concrete exit conditions, build the production
 target with `-j16`, use a focused runtime check only where the ownership or
