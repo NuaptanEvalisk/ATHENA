@@ -11,6 +11,14 @@ struct evaluation_input_snapshot::root {
   entries names;
 };
 
+bool evaluation_input_snapshot::same_receipt (
+    const evaluation_input_snapshot& other, const std::string& name) const {
+  if (base == other.base) return true;
+  const auto a= base ? base->names.find (name) : nullptr;
+  const auto b= other.base ? other.base->names.find (name) : nullptr;
+  return a && b ? *a == *b : !a && !b;
+}
+
 evaluation_input_snapshot evaluation_input_snapshot::baseline (std::set<std::string> names) {
   evaluation_input_snapshot result;
   auto next= std::make_shared<root> ();

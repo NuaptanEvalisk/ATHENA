@@ -17,20 +17,14 @@ struct macro_analysis::impl {
   std::shared_ptr<analysis_resolutions> names= std::make_shared<analysis_resolutions> ();
   std::shared_ptr<analysis_symbols> labels= std::make_shared<analysis_symbols> ();
   contract_scope observed, last_publication;
-  contract_scope last_pruned_scope;
-  std::shared_ptr<const analysis_resolutions> last_pruned_inputs;
+  contract_scope last_visible_scope;
   evaluation_input_snapshot consumed_inputs;
   std::set<std::string> pending_names, changed_values;
-  std::size_t pending_revision= 0, last_pruned_pending_revision= 0;
   std::string freezing_name;
   std::unique_ptr<node::frozen_tree_builder> freezing;
   analysis_proposal_ptr last_accepted;
   bool initialized= false;
   std::string last_error;
-
-  void enqueue (const std::string& name) {
-    if (pending_names.insert (name).second) ++pending_revision;
-  }
 
   void symbol (tree_label label) {
     if (labels->count (label)) return;
@@ -53,13 +47,13 @@ struct macro_analysis::impl {
     const auto changed= inputs.changed_since (consumed_inputs);
     if (freezing && changed.count (freezing_name)) freezing.reset ();
     changed_values.insert (changed.begin (), changed.end ());
-    for (const auto& name: changed) enqueue (name);
+    pending_names.insert (changed.begin (), changed.end ());
     const auto include= [&] (tree_label label) {
       const auto name= bytes (as_string (label));
       const auto previous= names->find (name);
       if (!previous || (*previous)->binding != scope.definition (label) ||
           (*previous)->declaration != scope.find_declaration (label))
-        enqueue (name);
+        pending_names.insert (name);
     };
     if (!initialized) {
       for (const auto& [label, name]: *labels) include (label);
@@ -119,31 +113,12 @@ struct macro_analysis::impl {
       }
       changed_values.erase (name);
       pending_names.erase (name);
-      ++pending_revision;
       freezing.reset ();
       if (bounded && (++processed >= 128 || std::chrono::steady_clock::now () >= deadline)) break;
     }
     if (!pending_names.empty ()) return {};
-    return std::make_shared<const analysis_context> (analysis_context {names, labels, inputs});
-  }
-
-  bool retire_stale (contract_scope& scope) {
-    if (pending_revision == last_pruned_pending_revision && last_pruned_inputs == names &&
-        scope.same_state (last_pruned_scope)) return false;
-    auto draft= scope;
-    for (const auto& [evidence, count]: scope.inference_sources ())
-      for (auto index: reject_analysis (*evidence, *names, pending_names))
-        for (const auto& name: evidence->dependencies.components[index].members) {
-          const auto label= as_tree_label (native (name));
-          if (draft.inference_evidence (label) == evidence) draft.clear_inference (label);
-        }
-    const bool changed= !draft.same_state (scope);
-    scope= std::move (draft);
-    observed= scope;
-    last_pruned_scope= scope;
-    last_pruned_inputs= names;
-    last_pruned_pending_revision= pending_revision;
-    return changed;
+    return std::make_shared<const analysis_context> (
+      analysis_context {names, labels, inputs, scope.input_identity ()});
   }
 
   bool accept (const analysis_proposal_ptr& proposal, contract_scope& scope) {
@@ -154,9 +129,6 @@ struct macro_analysis::impl {
     scope.replace_inference (proposal->projections, proposal->provenance, proposal->receipts);
     last_publication= scope;
     last_accepted= proposal;
-    last_pruned_inputs= names;
-    last_pruned_scope= scope;
-    last_pruned_pending_revision= pending_revision;
     observed= scope;
     return !scope.same_state (before);
   }
@@ -172,7 +144,9 @@ macro_analysis::~macro_analysis () {
 void macro_analysis::synchronize (contract_scope& scope,
     const evaluation_input_snapshot& inputs, const hashmap<string,tree>& values) {
   const auto context= state->capture (scope, inputs, values, {}, false);
+  scope.admit_inference (inputs);
   state->accept (state->service.run (context), scope);
+  state->last_visible_scope= scope;
 }
 bool macro_analysis::request (const contract_scope& scope,
     const evaluation_input_snapshot& inputs, const hashmap<string,tree>& values,
@@ -187,20 +161,26 @@ bool macro_analysis::request (const contract_scope& scope,
   return state->service.request (context, std::move (notify));
 }
 bool macro_analysis::publish_ready (contract_scope& scope) {
+  scope.admit_inference (state->consumed_inputs);
   const auto proposal= state->service.poll ();
   const bool current= state->pending_names.empty () && proposal &&
     proposal->evidence->context->names == state->names &&
-    proposal->evidence->context->symbols == state->labels;
+    proposal->evidence->context->symbols == state->labels &&
+    proposal->evidence->context->inputs.same_snapshot (state->consumed_inputs) &&
+    proposal->evidence->context->scope_inputs == scope.input_identity ();
   if (current && proposal->error.empty ()) {
     state->last_error.clear ();
-    return state->accept (proposal, scope);
+    state->accept (proposal, scope);
   }
-  const bool retired= state->retire_stale (scope);
-  if (!current) return retired;
-  if (proposal->error != state->last_error)
-    std_warning << "Native macro analysis: " << native (proposal->error) << LF;
-  state->last_error= proposal->error;
-  return retired;
+  else if (current) {
+    if (proposal->error != state->last_error)
+      std_warning << "Native macro analysis: " << native (proposal->error) << LF;
+    state->last_error= proposal->error;
+  }
+  const bool changed= !scope.same_state (state->last_visible_scope);
+  state->last_visible_scope= scope;
+  state->observed= scope;
+  return changed;
 }
 bool macro_analysis::pending () const {
   return !state->pending_names.empty () || state->service.pending ();

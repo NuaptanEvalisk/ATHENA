@@ -5740,3 +5740,46 @@ pending slices; restoring an older scope and adding a pending input both forced
 revalidation. Receipt identity, dependent closure, preservation of unrelated
 facts, superseded large captures and exact final publication also passed.
 Instrumentation exists only in the temporary check, not production sources.
+
+### Bounded Inference Admission (2026-10-31)
+
+The synchronous retirement implementation above is superseded, not retained as
+a second authority. `contract_scope` and its snapshots retain the input receipts
+against which inference may be read. A declaration/binding revision token
+identifies the scope's semantic inputs without retaining a preceding scope or
+its output graph in analysis evidence.
+
+The worker builds SCC prerequisites and direct read sets. Matching complete
+evidence is admitted in constant time. Reading older evidence checks only the
+queried component and its prerequisites, with a bounded action budget. Changed
+receipts, declarations or bindings make the result unavailable; exhausting the
+budget also leaves it unavailable until exact background evidence arrives.
+Unrelated small components remain readable. The stored projections are not
+destructively swept, and restoring an exact earlier snapshot readmits its
+original evidence. Snapshot and inherited-scope queries use the same admission
+policy. Declarations remain the fallback when inference is unavailable.
+
+Background demand identity now includes input receipts and scope-input revision,
+not only the captured payload maps. Thus a semantically equal assignment can
+reuse computed facts but must still publish evidence for the new receipts.
+Publication itself installs admission inputs and complete proposals without
+walking dependency closures. The old retirement walker and pending-retirement
+checkpoint are removed. Field-context comparison checks admission identity
+without materializing a list of all newly hidden projections.
+
+Input/scope difference enumeration during capture remains synchronous. It is
+the remaining analysis-responsiveness implementation item before final
+integration and deployment; bounded read admission provides the correctness
+boundary needed to defer that enumeration next.
+
+Production built with `-j16`
+(`/tmp/athena-bounded-inference-admission-build.log`). The temporary native check
+passed (`/tmp/athena-inference-admission-probe.log`): large dependency graphs
+respect the query budget without removing cached projections; old snapshots and
+inherited scopes preserve their admission inputs; transitive value, binding,
+declaration and previously absent reads invalidate the right results; and equal
+payloads publish evidence with the exact new receipt identity. Mid-capture
+replacement, removal, partial-result rejection and independent inference checks
+also passed. The temporary caller explicitly polls publication after observing
+worker completion; completion alone is not owner publication. No permanent
+test suite was added, and no executable has been deployed for this batch.

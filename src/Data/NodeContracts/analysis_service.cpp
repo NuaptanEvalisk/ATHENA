@@ -9,7 +9,6 @@
 #include <stdexcept>
 #include <utility>
 #include <deque>
-#include <unordered_set>
 
 namespace athena::contracts {
 
@@ -64,7 +63,8 @@ interop::resolution_workers& workers () {
 }
 
 bool same_context (const analysis_context_ptr& a, const analysis_context_ptr& b) {
-  return a && b && a->names == b->names && a->symbols == b->symbols;
+  return a && b && a->names == b->names && a->symbols == b->symbols &&
+    a->inputs.same_snapshot (b->inputs) && a->scope_inputs == b->scope_inputs;
 }
 
 analysis_contract_input detach_contract (const std::string& name, const node_contract& info,
@@ -215,7 +215,7 @@ analysis_dependency_index dependency_index (const analysis_facts& facts,
   for (const auto& [name, fact]: facts) {
     check_cancelled (cancelled);
     const auto group= groups[vertices.at (name)];
-    result.components[group].members.push_back (name);
+    result.owners.emplace (as_tree_label (string (name.data (), name.size ())), group);
     reads[group].insert (name);
     for (const auto& read: fact->dependencies) {
       check_cancelled (cancelled);
@@ -227,14 +227,8 @@ analysis_dependency_index dependency_index (const analysis_facts& facts,
   }
   for (int i=0; i<count; ++i) {
     check_cancelled (cancelled);
-    for (const auto& name: reads[i]) {
-      check_cancelled (cancelled);
-      result.readers[name].push_back (i);
-    }
-    for (auto prerequisite: prerequisites[i]) {
-      check_cancelled (cancelled);
-      result.components[prerequisite].dependants.push_back (i);
-    }
+    result.components[i].reads.assign (reads[i].begin (), reads[i].end ());
+    result.components[i].prerequisites.assign (prerequisites[i].begin (), prerequisites[i].end ());
   }
   return result;
 }
@@ -344,37 +338,6 @@ struct detached_engine {
 };
 
 } // namespace
-
-std::vector<std::size_t> reject_analysis (
-    const analysis_evidence& proposal, const analysis_resolutions& current,
-    const std::set<std::string>& unresolved) {
-  std::vector<std::size_t> rejected;
-  std::unordered_set<std::size_t> seen;
-  const auto mark= [&] (std::size_t index) {
-    if (seen.insert (index).second) rejected.push_back (index);
-  };
-  const auto changed= [&] (const std::string& name,
-                           const analysis_resolution* before, const analysis_resolution* after) {
-    const auto readers= proposal.dependencies.readers.find (name);
-    if (readers == proposal.dependencies.readers.end () || same_analysis_receipt (before, after)) return;
-    for (auto index: readers->second) mark (index);
-  };
-  immer::diff (*proposal.context->names, current, immer::make_differ (
-    [&] (const auto& entry) { changed (entry.first, nullptr, entry.second.get ()); },
-    [&] (const auto& entry) { changed (entry.first, entry.second.get (), nullptr); },
-    [&] (const auto& before, const auto& after) {
-      changed (after.first, before.second.get (), after.second.get ());
-    }));
-  for (const auto& name: unresolved) {
-    const auto readers= proposal.dependencies.readers.find (name);
-    if (readers != proposal.dependencies.readers.end ())
-      for (auto index: readers->second) mark (index);
-  }
-  for (std::size_t i=0; i<rejected.size (); ++i)
-    for (auto dependant: proposal.dependencies.components[rejected[i]].dependants)
-      mark (dependant);
-  return rejected;
-}
 
 struct analysis_service::impl {
   struct scheduler {

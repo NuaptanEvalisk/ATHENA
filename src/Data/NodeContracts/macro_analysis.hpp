@@ -18,9 +18,9 @@ using retained_analysis_value= std::function<std::optional<node::frozen_tree> (c
 // Owner-side capture/publication. No evaluator or DRD is retained. Detached
 // analysis is keyed by the captured resolution, including binding identity.
 // request() materializes inputs cooperatively and notifies the owner for another
-// slice. Only complete inputs reach the worker; pending names invalidate their
-// existing inference dependants. Large values freeze over several owner slices;
-// input-diff enumeration and dependency retirement remain synchronous.
+// slice. Only complete inputs reach the worker; reads admit retained inference
+// against current input receipts with a bounded dependency check. Large values
+// freeze over several owner slices; input-diff enumeration remains synchronous.
 // synchronize() is the explicit unbounded offline path.
 class macro_analysis {
   struct impl;

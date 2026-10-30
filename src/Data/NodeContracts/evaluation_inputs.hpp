@@ -16,6 +16,8 @@ class evaluation_input_snapshot {
 public:
   evaluation_input_snapshot ()= default;
   static evaluation_input_snapshot baseline (std::set<std::string> names);
+  bool same_snapshot (const evaluation_input_snapshot& other) const { return base == other.base; }
+  bool same_receipt (const evaluation_input_snapshot&, const std::string& name) const;
   std::set<std::string> changed_since (const evaluation_input_snapshot&) const;
 };
 

@@ -374,7 +374,7 @@ bool evaluation_environment_checkpoint::same_field_context (
       package_origin != before.package_origin || arguments != before.arguments) return false;
   if (!contracts.same_state (before.contracts) &&
       (!contracts.changed_definitions (before.contracts).empty () ||
-       !contracts.changed_contracts (before.contracts).empty () ||
+       contracts.contracts_differ (before.contracts) ||
        contracts.groups () != before.contracts.groups ())) return false;
   for (const auto& name: inputs.changed_since (before.inputs)) {
     const string key (name.data (), name.size ());

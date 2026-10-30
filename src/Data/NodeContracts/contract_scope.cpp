@@ -1,8 +1,10 @@
 // Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later.
 #include "contract_scope.hpp"
 #include "contract_declaration.hpp"
+#include "analysis_service.hpp"
 #include <immer/algorithm.hpp>
 #include <algorithm>
+#include <array>
 #include <set>
 #include <tuple>
 
@@ -26,6 +28,59 @@ namespace {
 const node_contract& unknown_contract () {
   static const node_contract value;
   return value;
+}
+
+bool same_inference_inputs (const std::optional<evaluation_input_snapshot>& a,
+                           const std::optional<evaluation_input_snapshot>& b) {
+  return a && b ? a->same_snapshot (*b) : !a && !b;
+}
+
+template<class Scope>
+bool inference_admitted (const Scope& scope, tree_label label,
+                         const analysis_evidence& evidence,
+                         const std::optional<evaluation_input_snapshot>& inputs) {
+  if (!inputs) return true;
+  const auto& context= *evidence.context;
+  if (inputs->same_snapshot (context.inputs) &&
+      scope.input_identity () == context.scope_inputs) return true;
+  const auto owner= evidence.dependencies.owners.find (label);
+  if (owner == evidence.dependencies.owners.end ()) return false;
+
+  // Queries never drain a dependency closure. Large or changed old results
+  // stay unavailable until the scheduled analysis publishes matching evidence.
+  constexpr unsigned limit= 128;
+  std::array<std::size_t, limit> pending, visited;
+  unsigned count= 1, seen= 0, budget= limit;
+  pending[0]= owner->second;
+  while (count) {
+    if (!budget) return false;
+    --budget;
+    const auto index= pending[--count];
+    if (std::find (visited.begin (), visited.begin () + seen, index) != visited.begin () + seen)
+      continue;
+    visited[seen++]= index;
+    const auto& component= evidence.dependencies.components[index];
+    for (const auto& name: component.reads) {
+      if (!budget) return false;
+      --budget;
+      if (!inputs->same_receipt (context.inputs, name)) return false;
+      const auto stored= context.names->find (name);
+      const auto* expected= stored ? stored->get () : nullptr;
+      const string key (name.data (), name.size ());
+      const bool known= existing_tree_label (key);
+      const auto target= known ? as_tree_label (key) : UNKNOWN;
+      if ((known ? scope.definition (target) : nullptr) !=
+            (expected ? expected->binding : nullptr) ||
+          (known ? scope.find_declaration (target) : nullptr) !=
+            (expected ? expected->declaration : nullptr)) return false;
+    }
+    for (auto prerequisite: component.prerequisites) {
+      if (!budget) return false;
+      --budget;
+      pending[count++]= prerequisite;
+    }
+  }
+  return true;
 }
 }
 
@@ -73,6 +128,8 @@ struct contract_snapshot::layer {
   definition_entries definitions;
   std::shared_ptr<declaration_source_state> sources;
   bool inherit_definitions;
+  contract_input_identity input_revision;
+  std::optional<evaluation_input_snapshot> inference_inputs;
 };
 
 contract_snapshot::contract_snapshot (std::shared_ptr<const layer> value):
@@ -107,7 +164,13 @@ std::shared_ptr<const node_contract> contract_snapshot::find_declaration (tree_l
 
 std::shared_ptr<const node_contract> contract_snapshot::find_inference (tree_label label) const {
   const auto found= value ? value->projections.find (label) : nullptr;
-  return found ? *found : nullptr;
+  if (!found) return {};
+  return inference_admitted (*this, label, **value->provenance.find (label), value->inference_inputs) ?
+    *found : nullptr;
+}
+
+contract_input_identity contract_snapshot::input_identity () const {
+  return value ? value->input_revision : nullptr;
 }
 
 std::shared_ptr<const declaration_chain> contract_snapshot::declaration_history (tree_label label) const {
@@ -161,7 +224,11 @@ contract_scope::contract_scope (contract_snapshot parent):
   extensions (this->parent.value ? this->parent.value->groups :
               std::make_shared<const group_extensions> ()),
   sources (this->parent.value ? this->parent.value->sources :
-           std::make_shared<declaration_source_state> ()) {}
+           std::make_shared<declaration_source_state> ()),
+  input_revision (this->parent.value ? this->parent.value->input_revision :
+                  std::make_shared<const contract_input_revision> ()),
+  inference_inputs (this->parent.value ? this->parent.value->inference_inputs :
+                    std::optional<evaluation_input_snapshot> {}) {}
 
 const node_contract& contract_scope::resolve (tree_label label) const {
   const auto entry= find (label);
@@ -173,8 +240,8 @@ bool contract_scope::contains (tree_label label) const {
 }
 
 std::shared_ptr<const node_contract> contract_scope::find (tree_label label) const {
-  const auto projection= projections.find (label);
-  if (projection) return *projection;
+  const auto projection= find_inference (label);
+  if (projection) return projection;
   const auto found= entries.find (label);
   if (found) return *found;
   return parent.find_declaration (label);
@@ -192,7 +259,9 @@ std::shared_ptr<const node_contract> contract_scope::find_declaration (tree_labe
 
 std::shared_ptr<const node_contract> contract_scope::find_inference (tree_label label) const {
   const auto found= projections.find (label);
-  return found ? *found : nullptr;
+  if (!found) return {};
+  return inference_admitted (*this, label, **provenance.find (label), inference_inputs) ?
+    *found : nullptr;
 }
 
 analysis_evidence_ptr contract_scope::inference_evidence (tree_label label) const {
@@ -214,6 +283,7 @@ bool contract_scope::bind (definition_binding value) {
   if (definition (value->target) == value) return false;
   const auto target= value->target;
   definitions= std::move (definitions).set (target, std::move (value));
+  touch_inputs ();
   refresh_declarations (target, true);
   invalidate_inference (target);
   return true;
@@ -224,6 +294,7 @@ void contract_scope::forget_definition (tree_label label) {
   if (inherit_definitions && parent.definition (label))
     definitions= std::move (definitions).set (label, nullptr);
   else definitions= std::move (definitions).erase (label);
+  touch_inputs ();
   refresh_declarations (label, false);
   invalidate_inference (label);
 }
@@ -231,6 +302,7 @@ void contract_scope::forget_definition (tree_label label) {
 void contract_scope::reset_definitions (definition_entries baseline) {
   definitions= std::move (baseline);
   inherit_definitions= false;
+  touch_inputs ();
   const auto histories= sources;
   for (const auto& [label, history]: histories->targets)
     refresh_declarations (label, false);
@@ -240,7 +312,7 @@ void contract_scope::reset_definitions (definition_entries baseline) {
 contract_snapshot contract_scope::snapshot () const {
   return contract_snapshot (std::make_shared<const contract_snapshot::layer> (
     contract_snapshot::layer {parent, entries, projections, provenance, receipts, extensions, definitions, sources,
-                             inherit_definitions}));
+                             inherit_definitions, input_revision, inference_inputs}));
 }
 
 bool contract_scope::same_state (const contract_scope& other) const {
@@ -249,7 +321,9 @@ bool contract_scope::same_state (const contract_scope& other) const {
          provenance.identity () == other.provenance.identity () &&
          sources == other.sources &&
          extensions == other.extensions && definitions.identity () == other.definitions.identity () &&
-         inherit_definitions == other.inherit_definitions;
+         inherit_definitions == other.inherit_definitions &&
+         input_revision == other.input_revision &&
+         same_inference_inputs (inference_inputs, other.inference_inputs);
 }
 
 namespace {
@@ -277,9 +351,12 @@ std::vector<tree_label> contract_scope::changed_declarations (const contract_sco
   return changed;
 }
 
-std::vector<tree_label> contract_scope::changed_contracts (const contract_scope& other) const {
+bool contract_scope::contracts_differ (const contract_scope& other) const {
+  if ((!projections.empty () || !other.projections.empty ()) &&
+      (!same_inference_inputs (inference_inputs, other.inference_inputs) ||
+       input_revision != other.input_revision)) return true;
   if (parent.value == other.parent.value && entries.identity () == other.entries.identity () &&
-      projections.identity () == other.projections.identity ()) return {};
+      projections.identity () == other.projections.identity ()) return false;
   std::set<tree_label> candidates;
   if (parent.value != other.parent.value) {
     for (auto label: parent.labels ()) candidates.insert (label);
@@ -287,14 +364,13 @@ std::vector<tree_label> contract_scope::changed_contracts (const contract_scope&
   }
   changed_keys (other.entries, entries, candidates);
   changed_keys (other.projections, projections, candidates);
-  std::vector<tree_label> changed;
   for (auto label: candidates) {
     const auto left= find (label), right= other.find (label);
     const auto a= find_declaration (label), b= other.find_declaration (label);
     if ((left != right && (!left || !right || !(*left == *right))) ||
-        (a != b && (!a || !b || !(*a == *b)))) changed.push_back (label);
+        (a != b && (!a || !b || !(*a == *b)))) return true;
   }
-  return changed;
+  return false;
 }
 
 std::vector<tree_label> contract_scope::changed_definitions (const contract_scope& other) const {
@@ -332,6 +408,7 @@ void contract_scope::materialize_declaration (
   if (previous == value || (previous && value && *previous == *value)) return;
   if (value == parent.find_declaration (label)) entries= std::move (entries).erase (label);
   else entries= std::move (entries).set (label, std::move (value));
+  touch_inputs ();
   invalidate_inference (label);
 }
 
@@ -381,6 +458,7 @@ std::vector<tree_label> contract_scope::restore_targets (
       if (original_definition == (inherit_definitions ? parent.definition (target.label) : nullptr))
         definitions= std::move (definitions).erase (target.label);
       else definitions= std::move (definitions).set (target.label, original_definition);
+      touch_inputs ();
     }
     const auto effective= find (target.label);
     const auto original= before.find_declaration (target.label);
@@ -388,6 +466,7 @@ std::vector<tree_label> contract_scope::restore_targets (
     if (declaration_changed) {
       if (original == parent.find_declaration (target.label)) entries= std::move (entries).erase (target.label);
       else entries= std::move (entries).set (target.label, original);
+      touch_inputs ();
     }
     const auto inferred= before.projections.find (target.label);
     if (inferred) set_inference (target.label, *inferred, before.inference_evidence (target.label));

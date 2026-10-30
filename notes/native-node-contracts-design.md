@@ -42,10 +42,12 @@ The follow-up work is divided into independently deliverable changes:
    one persistent branch instead of leaving a batch for the next checkpoint.
    Large value freezing now resumes over owner slices and discards partial work
    when the input receipt changes. Capture compares immutable payload identity,
-   not entire value trees. Retirement now uses the same receipt identity rather
-   than deep value/declaration equality, and unchanged pending slices reuse
-   their prior retirement decision. Remaining: input/scope difference
-   enumeration and dependency closure retirement. Do not mark this
+   not entire value trees. Owner-side dependency retirement is now removed:
+   retained inference is admitted on read against current input receipts and
+   declaration/binding identity. Exact evidence has a constant-time fast path;
+   old evidence has a bounded dependency budget and remains unavailable beyond
+   that budget until background publication. Snapshots retain their own
+   admission inputs. Remaining: input/scope difference enumeration. Do not mark this
    third delivery complete based on snapshot/freezing checks alone.
 
 For each change, stop after its concrete exit conditions, build the production

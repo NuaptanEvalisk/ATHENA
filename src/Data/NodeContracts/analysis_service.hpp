@@ -28,17 +28,18 @@ struct analysis_context {
   std::shared_ptr<const analysis_resolutions> names;
   std::shared_ptr<const analysis_symbols> symbols;
   evaluation_input_snapshot inputs;
+  contract_input_identity scope_inputs;
 };
 using analysis_context_ptr= std::shared_ptr<const analysis_context>;
 using analysis_facts= immer::map<std::string, std::shared_ptr<const analysis_contract_result>>;
 
 struct analysis_component {
-  std::vector<std::string> members;
-  std::vector<std::size_t> dependants;
+  std::vector<std::string> reads;
+  std::vector<std::size_t> prerequisites;
 };
 struct analysis_dependency_index {
   std::vector<analysis_component> components;
-  std::map<std::string, std::vector<std::size_t>> readers;
+  std::map<tree_label, std::size_t> owners;
 };
 struct analysis_evidence {
   analysis_context_ptr context;
@@ -53,11 +54,6 @@ struct analysis_proposal {
   std::string error;
 };
 using analysis_proposal_ptr= std::shared_ptr<const analysis_proposal>;
-
-// A successful proposal is invalidated only by changed receipts its components
-// read. Return the affected components, including their dependent closure.
-std::vector<std::size_t> reject_analysis (const analysis_evidence&, const analysis_resolutions&,
-                                        const std::set<std::string>& unresolved= {});
 
 // One detached engine per execution owner; one resumable batch in flight. The latest
 // demand is coalesced while work runs. Only an exact-demand result is published

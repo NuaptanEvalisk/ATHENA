@@ -6,6 +6,7 @@
 #include "property_authority.hpp"
 #include "inference.hpp"
 #include "evaluation_origin.hpp"
+#include "evaluation_inputs.hpp"
 #include "node_metadata.hpp"
 #pragma push_macro("make")
 #undef make
@@ -13,6 +14,7 @@
 #pragma pop_macro("make")
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -98,6 +100,8 @@ struct contract_target {
 };
 
 class contract_scope;
+struct contract_input_revision {};
+using contract_input_identity= std::shared_ptr<const contract_input_revision>;
 class contract_snapshot {
   struct layer;
   std::shared_ptr<const layer> value;
@@ -116,6 +120,7 @@ public:
   bool contains (tree_label label) const;
   std::vector<tree_label> labels () const;
   const group_extensions& groups () const;
+  contract_input_identity input_identity () const;
 };
 
 // Owner-local writer over persistent native maps. Snapshots share unchanged
@@ -131,6 +136,9 @@ class contract_scope {
   definition_entries definitions;
   std::shared_ptr<declaration_source_state> sources;
   bool inherit_definitions= true;
+  contract_input_identity input_revision= std::make_shared<const contract_input_revision> ();
+  std::optional<evaluation_input_snapshot> inference_inputs;
+  void touch_inputs () { input_revision= std::make_shared<const contract_input_revision> (); }
   void materialize_declaration (tree_label label, std::shared_ptr<const node_contract> value);
   void discard_declarations (tree_label label);
   bool publish_declarations (tree_label label, std::shared_ptr<const declaration_chain> chain,
@@ -151,6 +159,8 @@ public:
   std::shared_ptr<const node_contract> find_inference (tree_label label) const;
   analysis_evidence_ptr inference_evidence (tree_label label) const;
   const inference_receipts& inference_sources () const { return receipts; }
+  contract_input_identity input_identity () const { return input_revision; }
+  void admit_inference (evaluation_input_snapshot inputs) { inference_inputs= std::move (inputs); }
   std::shared_ptr<const declaration_chain> declaration_history (tree_label label) const;
   bool apply_declaration (const declaration_event& event, bool retain_invalid= false);
   bool withdraw_declaration (const declaration_event& event);
@@ -164,7 +174,7 @@ public:
   const group_extensions& groups () const { return *extensions; }
   bool same_state (const contract_scope& other) const;
   std::vector<tree_label> changed_declarations (const contract_scope& other) const;
-  std::vector<tree_label> changed_contracts (const contract_scope& other) const;
+  bool contracts_differ (const contract_scope& other) const;
   std::vector<tree_label> changed_definitions (const contract_scope& other) const;
   contract_snapshot snapshot () const;
   void replace (tree_label label, node_contract value);
