@@ -16,6 +16,13 @@
   <binding name="manual-correct" native="correct_math" returns="tree" exceptions="scheme">
     <arg type="content" />
   </binding>
+  <binding name="invisible-correct-superfluous" native="correct_superfluous_invisible" returns="tree" exceptions="scheme">
+    <arg type="content" />
+  </binding>
+  <binding name="invisible-correct-missing" native="correct_missing_invisible" returns="tree" exceptions="scheme">
+    <arg type="content" />
+    <arg type="int" />
+  </binding>
   <binding name="math-stats-update" native="update_math_statistics" returns="void" />
   <binding name="math-stats-occurrences" native="math_statistics_occurrences" returns="int">
     <arg type="string" />

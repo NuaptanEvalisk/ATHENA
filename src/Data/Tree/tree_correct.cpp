@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "tree_correct.hpp"
+#include "tree_math_context.hpp"
 #include "Data/NodeContracts/syntax_query.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
 #include "Data/NodeContracts/builtin_contracts.hpp"
@@ -422,8 +423,8 @@ superfluous_with_correct (tree t) {
 ******************************************************************************/
 
 static array<tree>
-homoglyph_correct (array<tree> a) {
-  array<int>  tp= symbol_types (a);
+homoglyph_correct (array<tree> a, const math_correction_source& source) {
+  array<int>  tp= source.types (a);
   array<tree> r;
   //cout << a << ", " << tp << "\n";
   for (int i=0; i<N(a); i++)
@@ -493,46 +494,20 @@ homoglyph_correct (array<tree> a) {
   return r;
 }
 
-static string
-get_submode (tree t, int i, string mode) {
-  if (is_func (t, WITH) && i == N(t)-1)
-    for (int j=0; j<N(t)-1; j+=2)
-      if (t[j] == MATH_FONT_FAMILY) return "text";
-  tree tmode= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, MODE, mode);
-  return (is_atomic (tmode)? tmode->label: string ("text"));
+static tree
+homoglyph_correct (tree t, const correction_context_factory& contexts) {
+  math_correction_source source (contexts (t));
+  return source.map (t, [&] (tree r, bool math) {
+    return math ? concat_recompose_source (r,
+      homoglyph_correct (concat_tokenize_source (r), source)) : r;
+  });
 }
 
 static tree
-homoglyph_correct (tree t, string mode) {
-  //cout << "Correct " << t << ", " << mode << "\n";
-  tree r= t;
-  if (is_compound (t)) {
-    int i, n= N(t);
-    r= tree (t, n);
-    athena::node::copy_metadata (t, r);
-    for (i=0; i<n; i++) {
-      string smode= get_submode (t, i, mode);
-      if (is_correctable_child (t, i))
-        r[i]= homoglyph_correct (t[i], smode);
-      else r[i]= t[i];
-    }
-  }
-
-  if (mode == "math") {
-    array<tree> a= concat_tokenize_source (r);
-    a= homoglyph_correct (a);
-    tree ret= concat_recompose_source (r, a);
-    //if (ret != r) cout << "< " << r << " >" << LF
-    //<< "> " << ret << " <" << LF;
-    return ret;
-  }
-  else return r;
-}
-
-tree
 homoglyph_correct (tree t) {
-  athena::contracts::owned_evaluation_scope contract_state (prepare_document_context (t));
-  return homoglyph_correct (t, "text");
+  return correct_detached_math (t, [] (tree body, const correction_context_factory& contexts) {
+    return homoglyph_correct (body, contexts);
+  });
 }
 
 /******************************************************************************
@@ -540,8 +515,8 @@ homoglyph_correct (tree t) {
 ******************************************************************************/
 
 static array<tree>
-superfluous_invisible_correct (array<tree> a) {
-  array<int>  tp= symbol_types (a);
+superfluous_invisible_correct (array<tree> a, const math_correction_source& source) {
+  array<int>  tp= source.types (a);
   array<tree> r;
   //cout << a << ", " << tp << "\n";
   for (int i=0; i<N(a); i++)
@@ -579,25 +554,7 @@ superfluous_invisible_correct (array<tree> a) {
 }
 
 static tree
-superfluous_invisible_correct (tree t, string mode) {
-  //cout << "Correct " << t << ", " << mode << "\n";
-  tree r= t;
-  if (is_compound (t)) {
-    int i, n= N(t);
-    r= tree (t, n);
-    athena::node::copy_metadata (t, r);
-    for (i=0; i<n; i++) {
-      string smode= get_submode (t, i, mode);
-      //cout << "  " << i << ": " << is_correctable_child (t, i)
-      //<< ", " << smode << "\n";
-      if (is_func (t, WITH) && i != N(t)-1)
-        r[i]= t[i];
-      else if (is_correctable_child (t, i))
-        r[i]= superfluous_invisible_correct (t[i], smode);
-      else r[i]= t[i];
-    }
-  }
-  
+correct_invisible_node (tree r, bool math, const math_correction_source& source) {
   if (is_func (r, CONCAT) && !athena::node::contains_metadata (r)) {
     bool ok= true;
     int i, found= -1;
@@ -620,9 +577,9 @@ superfluous_invisible_correct (tree t, string mode) {
   if (is_func (r, INACTIVE, 1) && is_func (r[0], RIGID) &&
       !athena::node::get (r))
     return r[0];
-  else if (mode == "math") {
+  else if (math) {
     array<tree> a= concat_tokenize_source (r);
-    a= superfluous_invisible_correct (a);
+    a= superfluous_invisible_correct (a, source);
     tree ret= concat_recompose_source (r, a);
     //if (ret != r) cout << "< " << r << " >" << LF
     //<< "> " << ret << " <" << LF;
@@ -632,9 +589,18 @@ superfluous_invisible_correct (tree t, string mode) {
 }
 
 tree
+superfluous_invisible_correct (tree t, const correction_context_factory& contexts) {
+  math_correction_source source (contexts (t));
+  return source.map (t, [&] (tree r, bool math) {
+    return correct_invisible_node (r, math, source);
+  });
+}
+
+tree
 superfluous_invisible_correct (tree t) {
-  athena::contracts::owned_evaluation_scope contract_state (prepare_document_context (t));
-  return superfluous_invisible_correct (t, "text");
+  return correct_detached_math (t, [] (tree body, const correction_context_factory& contexts) {
+    return superfluous_invisible_correct (body, contexts);
+  });
 }
 
 /******************************************************************************
@@ -650,6 +616,7 @@ superfluous_invisible_correct (tree t) {
 #define BOTH_WAYS         6
 
 struct invisible_corrector {
+  math_correction_source& source;
   int force;
   hashmap<string,int> times_before;
   hashmap<string,int> times_after;
@@ -658,21 +625,26 @@ struct invisible_corrector {
 
 protected:
   bool is_letter_like (string s);
-  bool contains_infix (tree t);
+  bool contains_infix (tree t, const evaluation_environment_checkpoint* expansion);
   bool contains_plus_like (tree t);
   bool contains_separator (tree t);
   void count_invisible (array<tree> a);
-  void count_invisible (tree t, string mode);
-  int  get_status (tree t, bool left, bool script_flag);
+  int  get_status (tree t, bool left, bool script_flag,
+                  const evaluation_environment_checkpoint* expansion= nullptr);
   array<tree> correct (array<tree> a);
 
 public:
-  inline invisible_corrector (tree t, int force2):
-    force (force2), times_before (0), times_after (0), space_after (0) {
+  invisible_corrector (math_correction_source& source, tree t, int force2):
+    source (source), force (force2), times_before (0), times_after (0),
+    space_before (0), space_after (0) {
       space_after ("o")= 1000000;
       space_after ("O")= 1000000;
-      count_invisible (t, "text"); }
-  tree correct (tree t, string mode);
+      source.map (t, [this] (tree value, bool math) {
+        if (math) count_invisible (concat_tokenize (value));
+        return value;
+      });
+  }
+  tree correct (tree t);
 };
 
 bool
@@ -683,8 +655,15 @@ invisible_corrector::is_letter_like (string s) {
 }
 
 bool
-invisible_corrector::contains_infix (tree t) {
-  array<int> tp= symbol_types (concat_tokenize (t));
+invisible_corrector::contains_infix (tree t, const evaluation_environment_checkpoint* expansion) {
+  const auto tokens= concat_tokenize (t);
+  array<int> tp;
+  if (!expansion) tp= source.types (tokens);
+  else {
+    const auto values= expansion->variables ();
+    const athena::contracts::syntax_query query {{expansion->contract_context ()}, values};
+    for (int i=0; i<N(tokens); ++i) tp << symbol_type (tokens[i], query);
+  }
   for (int i=0; i<N(tp); i++)
     if (tp[i] == SYMBOL_INFIX || tp[i] == SYMBOL_PREFIX_INFIX)
       return true;
@@ -711,7 +690,7 @@ invisible_corrector::contains_separator (tree t) {
 
 void
 invisible_corrector::count_invisible (array<tree> a) {
-  array<int>  tp= symbol_types (a);
+  array<int>  tp= source.types (a);
   for (int i=0; i<N(a); i++)
     if (is_atomic (a[i]) && is_letter_like (a[i]->label)) {
       int j1, j2;
@@ -744,23 +723,9 @@ invisible_corrector::count_invisible (array<tree> a) {
     }
 }
 
-void
-invisible_corrector::count_invisible (tree t, string mode) {
-  if (is_compound (t)) {
-    int i, n= N(t);
-    for (i=0; i<n; i++) {
-      string smode= get_submode (t, i, mode);
-      if (is_func (t, WITH) && i != N(t)-1);
-      else if (is_correctable_child (t, i))
-        count_invisible (t[i], smode);
-    }
-  }
-  if (mode == "math")
-    count_invisible (concat_tokenize (t));
-}
-
 int
-invisible_corrector::get_status (tree t, bool left, bool script_flag) {
+invisible_corrector::get_status (tree t, bool left, bool script_flag,
+                                const evaluation_environment_checkpoint* expansion) {
   if (is_atomic (t)) {
     language lan= math_language ("std-math");
     string s= t->label;
@@ -811,7 +776,7 @@ invisible_corrector::get_status (tree t, bool left, bool script_flag) {
         return ((force > 0)? SURE_TIMES: PROBABLE_TIMES);
       else if (contains_plus_like (t[1]))
         return ((force > 0)? PROBABLE_TIMES: BOTH_WAYS);
-      else if (!contains_infix (t[1]))
+      else if (!contains_infix (t[1], expansion))
         return (left? BOTH_WAYS: SURE_SPACE);
       else return BOTH_WAYS;
     }
@@ -826,13 +791,17 @@ invisible_corrector::get_status (tree t, bool left, bool script_flag) {
               t[0] == "<prod>" || t[0] == "<odot>" || t[0] == "<otimes>"))
       return PROBABLE_TIMES;
     else if (is_func (t, WIDE, 2))
-      return get_status (t[0], left, script_flag);
+      return get_status (t[0], left, script_flag, expansion);
     else if (is_func (t, WITH))
-      return get_status (t[N(t)-1], left, script_flag);
+      return get_status (t[N(t)-1], left, script_flag, expansion);
     else if (N(t) == 0 && L(t) >= START_EXTENSIONS) {
-      tree def= athena::contracts::syntax_query {{athena::contracts::current_evaluation_state ().contracts}, athena::contracts::current_evaluation_state ().values}.definition (as_string (L(t)));
+      const auto prepared= expansion ? nullptr : source.context (t);
+      const auto* context= expansion ? expansion : prepared.get ();
+      const auto values= context->variables ();
+      tree def= athena::contracts::syntax_query {{context->contract_context ()}, values}.
+        definition (as_string (L(t)));
       if (is_func (def, MACRO, 1))
-        return get_status (def[0], left, script_flag);
+        return get_status (def[0], left, script_flag, context);
       else return SURE_NOTHING;
     }
     else return SURE_NOTHING;
@@ -853,7 +822,7 @@ array<tree>
 invisible_corrector::correct (array<tree> a) {
   //cout << "Correct " << a << "\n";
   array<tree> r;
-  array<int> tp= symbol_types (a);
+  array<int> tp= source.types (a);
   for (int i=0; i<N(a); i++) {
     r << a[i];
     if (a[i] != " " && tp[i] == SYMBOL_BASIC) {
@@ -911,47 +880,27 @@ invisible_corrector::correct (array<tree> a) {
 }
 
 tree
-invisible_corrector::correct (tree t, string mode) {
-  //cout << "Correct " << t << ", " << mode << "\n";
-  tree r= t;
-  if (is_compound (t)) {
-    int i, n= N(t);
-    r= tree (t, n);
-    athena::node::copy_metadata (t, r);
-    for (i=0; i<n; i++) {
-      string smode= get_submode (t, i, mode);
-      if (is_func (t, WITH) && i != N(t)-1)
-        r[i]= t[i];
-      else if (is_correctable_child (t, i))
-        r[i]= correct (t[i], smode);
-      else r[i]= t[i];
-    }
-  }
-  
-  if (mode == "math") {
-    array<tree> a= concat_tokenize_source (r);
-    a= correct (a);
-    tree ret= concat_recompose_source (r, a);
-    //if (ret != r)
-    //  cout << "<< " << r << " >>" << LF
-    //       << ">> " << ret << " <<" << LF;
-    return ret;
-  }
-  else return r;
+invisible_corrector::correct (tree t) {
+  return source.map (t, [this] (tree r, bool math) {
+    return math ? concat_recompose_source (r, correct (concat_tokenize_source (r))) : r;
+  });
+}
+
+tree
+missing_invisible_correct (tree t, int force, const correction_context_factory& contexts) {
+  // force = -1, only correct when sure, and when old markup is incorrect
+  // force = 0 , only correct when pretty sure
+  // force = 1 , correct whenever reasonable (used for LaTeX import)
+  math_correction_source source (contexts (t));
+  invisible_corrector corrector (source, t, force);
+  return corrector.correct (t);
 }
 
 tree
 missing_invisible_correct (tree t, int force) {
-  // force = -1, only correct when sure, and when old markup is incorrect
-  // force = 0 , only correct when pretty sure
-  // force = 1 , correct whenever reasonable (used for LaTeX import)
-  athena::contracts::owned_evaluation_scope contract_state (prepare_document_context (t));
-  invisible_corrector corrector (t, force);
-  //cout << "Times before " << corrector.times_before << "\n";
-  //cout << "Space before " << corrector.space_before << "\n";
-  //cout << "Times after  " << corrector.times_after  << "\n";
-  //cout << "Space after  " << corrector.space_after  << "\n";
-  return corrector.correct (t, "text");
+  return correct_detached_math (t, [force] (tree body, const correction_context_factory& contexts) {
+    return missing_invisible_correct (body, force, contexts);
+  });
 }
 
 tree
@@ -1085,19 +1034,20 @@ automatic_correct (tree t, string version) {
 }
 
 static tree
-manual_correct_math (tree t) {
-  t= upgrade_brackets (t);
+manual_correct_math (tree t, const correction_context_factory& contexts) {
   t= misc_math_correct (t);
   if (enabled_preference ("manual remove superfluous invisible"))
-    t= superfluous_invisible_correct (t);
+    t= superfluous_invisible_correct (t, contexts);
   if (enabled_preference ("manual homoglyph correct"))
-    t= homoglyph_correct (t);
+    t= homoglyph_correct (t, contexts);
   if (enabled_preference ("manual remove superfluous invisible"))
-    t= superfluous_invisible_correct (t);
-  if (enabled_preference ("manual insert missing invisible"))
-    t= missing_invisible_correct_twice (t);
+    t= superfluous_invisible_correct (t, contexts);
+  if (enabled_preference ("manual insert missing invisible")) {
+    tree u= missing_invisible_correct (t, -1, contexts);
+    t= u == t ? t : missing_invisible_correct (u, -1, contexts);
+  }
   if (enabled_preference ("manual zealous invisible correct"))
-    t= missing_invisible_correct (t, 1);
+    t= missing_invisible_correct (t, 1, contexts);
   t= downgrade_big (t);
   return t;
 }
@@ -1106,15 +1056,17 @@ tree
 manual_correct (tree t) {
   t= with_correct (t);
   t= superfluous_with_correct (t);
-  return manual_correct_math (t);
+  t= upgrade_brackets (t);
+  return correct_detached_math (t, manual_correct_math);
 }
 
 tree
 manual_correct (tree t, const correction_context_factory& contexts, string mode) {
   t= with_correct (t, athena::contracts::source_contracts (contexts (t)));
   t= superfluous_with_correct (t, contexts (t));
-  // The remaining math passes receive their entry mode through a math wrapper.
+  // Only the legacy bracket pass still needs the temporary mode adapter.
   const bool math= mode == "math";
-  const tree result= manual_correct_math (math ? compound ("math", t) : t);
-  return math && is_compound (result, "math", 1) ? result[0] : result;
+  const tree result= upgrade_brackets (math ? compound ("math", t) : t);
+  t= math && is_compound (result, "math", 1) ? result[0] : result;
+  return manual_correct_math (t, contexts);
 }

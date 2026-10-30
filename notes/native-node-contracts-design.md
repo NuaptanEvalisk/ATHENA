@@ -55,6 +55,18 @@ experiment is not included in the delivery or counted as passing validation.
 
 ### Implemented State
 
+Homoglyph and invisible-operator correction now use
+source-owned C++ stages. Each stage prepares its own rewritten input, keeps
+token occurrence paths across recomposition, and distinguishes source tokens
+from syntax substituted from a definition. Existing invisible-correction
+Scheme names now dispatch to native editor commands; there is no new Scheme
+implementation. Bracket upgrading and its remaining ambient symbol facade are
+still pending, as are the separately listed statistics and analysis work.
+Production built with `-j16` (`/tmp/athena-native-invisible-build.log`); the
+targeted source/actor check passed at 23:16
+(`/tmp/athena-source-invisible-probe.log`). This batch is ready to commit
+independently of bracket correction.
+
 The committed baseline through `5ddc3edeb` has removed `Data/Drd`, the eager
 editor-wide `prepare_source_contracts` API, and the obsolete offline document
 contract cache. Source identity now selects exact BODY-relative entries lazily,

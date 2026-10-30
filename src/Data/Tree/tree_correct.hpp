@@ -27,7 +27,9 @@ tree superfluous_with_correct (tree,
 using correction_context_factory= std::function<
   athena::contracts::source_environment_preparation (tree)>;
 tree superfluous_invisible_correct (tree t);
+tree superfluous_invisible_correct (tree, const correction_context_factory&);
 tree missing_invisible_correct (tree t, int force= -1);
+tree missing_invisible_correct (tree, int force, const correction_context_factory&);
 tree upgrade_brackets (tree t, string mode= "text");
 tree upgrade_big (tree t);
 tree downgrade_brackets (tree t, bool del_miss= false, bool big_dot= true);

@@ -16,7 +16,7 @@
 #include "analyze.hpp"
 #include "vars.hpp"
 
-namespace athena::contracts { struct editing_query; }
+namespace athena::contracts { struct editing_query; struct syntax_query; }
 
 /******************************************************************************
 * Concatenations and with-like structures
@@ -68,6 +68,7 @@ tree with_recompose (tree w, array<tree> a);
 #define SYMBOL_DUBIOUS_CLOSE     18
 
 int symbol_type (tree t);
+int symbol_type (tree t, const athena::contracts::syntax_query&);
 array<int> symbol_types (array<tree> a);
 
 /******************************************************************************

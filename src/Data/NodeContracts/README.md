@@ -5558,3 +5558,45 @@ the three remaining changes and their concrete completion conditions.
 The final retained delivery built successfully with `-j16`
 (`/tmp/athena-native-context-delivery-build.log`). Existing caller/test edits
 adapt retired interfaces; no additional permanent regression suite was added.
+
+### Source-Owned Homoglyph And Invisible Correction (2026-10-30)
+
+The homoglyph pass, superfluous invisible removal, and missing invisible
+insertion now consume explicit source-environment providers. They no longer
+borrow `current_evaluation_state` or `prepare_document_context(tree)`.
+`math_correction_source` pairs each stage with its original tree and retains
+output-token occurrence addresses across recomposition. Shared source handles
+in different scopes produce separate output handles; contexts are requested
+from the original addresses, never guessed from transformed paths.
+
+Modes come from actual source checkpoints, including document initial values
+and preceding assignments. The existing math-font literal exclusion remains
+explicit, as do field eligibility and metadata preservation. Assignment and
+quotation templates and WITH binding parameters are not display-content
+correction targets. Missing requested entries report an error rather than
+borrowing the caret or another document.
+
+Syntax substituted from a macro definition retains that expansion's prepared
+environment, rather than being looked up as though it were another attached
+source occurrence. This matters for recursive aliases and for invisible
+insertion's operator/body heuristics. The mathematical correction algorithms
+themselves remain the existing implementations.
+
+Detached calls preserve the document envelope and prepare style, initial and
+preamble state for each transformed body. Editor calls capture the actual
+source entry or proposal insertion context. Existing
+`invisible-correct-superfluous` and `invisible-correct-missing` bindings move to
+generated editor interfaces with exception conversion. There are no additional
+Scheme names or Scheme implementation. Manual correction supplies explicit
+contexts to these passes; only its still-legacy bracket stage retains the
+temporary mode adapter. Bracket upgrading and its ambient symbol facade remain
+a separate pending change, not implicitly covered by this batch.
+
+Production built with `-j16` (`/tmp/athena-native-invisible-build.log`). The
+temporary runtime check passed at 23:16 (`/tmp/athena-source-invisible-probe.log`):
+shared macro handles with different local meanings, recursive alias expansion,
+initial and preceding-assignment modes, literal-font and template preservation,
+explicit missing-entry failure, both existing generated bindings, attached
+versus proposed source, manual homoglyph correction, and fresh values following
+an edit without another layout. No permanent test suite was added. The batch
+stops here; bracket migration and scheduled analysis/statistics remain open.

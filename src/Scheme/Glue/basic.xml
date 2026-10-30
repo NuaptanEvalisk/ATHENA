@@ -781,14 +781,7 @@
     <arg type="content" />
     <arg type="content" />
   </binding>
-  <binding name="invisible-correct-superfluous" native="superfluous_invisible_correct" returns="tree">
-    <arg type="content" />
-  </binding>
-  <binding name="invisible-correct-missing" native="missing_invisible_correct" returns="tree">
-    <arg type="content" />
-    <arg type="int" />
-  </binding>
-  <binding name="automatic-correct" native="automatic_correct" returns="tree">
+  <binding name="automatic-correct" native="automatic_correct" returns="tree" exceptions="scheme">
     <arg type="content" />
     <arg type="string" />
   </binding>

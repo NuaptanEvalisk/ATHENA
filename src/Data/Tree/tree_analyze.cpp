@@ -192,13 +192,20 @@ with_recompose (tree w, array<tree> a) {
 
 int
 symbol_type (tree t) {
-  tree r= athena::contracts::syntax_query {{athena::contracts::current_evaluation_state ().contracts}, athena::contracts::current_evaluation_state ().values}.expand (t);
+  return symbol_type (t, athena::contracts::syntax_query {
+    {athena::contracts::current_evaluation_state ().contracts},
+    athena::contracts::current_evaluation_state ().values});
+}
+
+int
+symbol_type (tree t, const athena::contracts::syntax_query& query) {
+  tree r= query.expand (t);
   if (r != UNINIT) {
     if (is_compound (t, "text")) return SYMBOL_SKIP;
     else if (is_compound (t, "eq-number")) return SYMBOL_SKIP;
     else if (is_compound (t, "bl")) return SYMBOL_OPEN;
     else if (is_compound (t, "br")) return SYMBOL_CLOSE;
-    else return symbol_type (r);
+    else return symbol_type (r, query);
   }
   else if (is_atomic (t) || is_func (t, NAMED_SYMBOL, 1)) {
     int pos= 0;
@@ -261,7 +268,7 @@ symbol_type (tree t) {
     case STYLE_WITH:
     case VAR_STYLE_WITH:
       if (N(t) == 0) return SYMBOL_SKIP;
-      return symbol_type (t[N(t)-1]);
+      return symbol_type (t[N(t)-1], query);
     case LABEL:
       return SYMBOL_SKIP;
 

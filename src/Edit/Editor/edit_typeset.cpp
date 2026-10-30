@@ -1147,6 +1147,22 @@ editor_rep::correct_math (tree source) {
   }, as_string (entry->effective_value (MODE)));
 }
 
+tree
+editor_rep::correct_superfluous_invisible (tree source) {
+  const auto entry= prepare_tree_entry (source);
+  return superfluous_invisible_correct (source, [this, entry] (tree stage) {
+    return correction_environments (stage, entry);
+  });
+}
+
+tree
+editor_rep::correct_missing_invisible (tree source, int force) {
+  const auto entry= prepare_tree_entry (source);
+  return missing_invisible_correct (source, force, [this, entry] (tree stage) {
+    return correction_environments (stage, entry);
+  });
+}
+
 void
 edit_typeset_rep::update_math_statistics () {
   if (!ttt->execution_base) {
