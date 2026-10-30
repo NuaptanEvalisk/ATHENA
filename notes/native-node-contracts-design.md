@@ -29,7 +29,7 @@ The follow-up work is divided into independently deliverable changes:
    Completion: those named consumers no longer borrow ambient state; detached
    imports and editor commands retain their own source environment, and the
    concrete token-provenance case passes. Do not redesign mathematical parsing.
-2. Scheduled/incremental editor math statistics. Completion: input getters do
+2. Completed: scheduled editor math statistics. Completion: input getters do
    not synchronously traverse the whole buffer; edits invalidate the matching
    result and obsolete work cannot publish.
 3. Analysis capture/publication responsiveness. Completion: the known bulk
@@ -87,6 +87,23 @@ custom-delimiter representation case, local big-operator classification,
 parent context after bracket movement, and both existing generated bindings.
 No additional permanent tests were added. Final deployment still follows the
 separate statistics and analysis deliveries.
+
+The statistics delivery now moves source traversal out of input queries into
+coalesced BufferActor continuations. Each continuation advances a bounded number
+of traversal actions with a soft time deadline, while getters expose only
+complete, matching results. Edits invalidate immediately without destroying
+large tables in the keystroke. Source epochs, baseline/trace identity and the
+prepared-context index reject obsolete work and admit retries after progressive
+layout supplies previously missing entries. Cursor statistics update separately.
+All scheduling is native C++, with no new Scheme API.
+
+Production built with `-j16`
+(`/tmp/athena-native-scheduled-statistics-final-build.log`). The targeted
+source/actor check passed at 23:54
+(`/tmp/athena-scheduled-statistics-probe.log`), including edits between slices,
+no partial publication, cursor changes, actor isolation and queued view close.
+No permanent tests were added. Analysis responsiveness is the remaining
+implementation batch before the final integration audit and deployment.
 
 The committed baseline through `5ddc3edeb` has removed `Data/Drd`, the eager
 editor-wide `prepare_source_contracts` API, and the obsolete offline document

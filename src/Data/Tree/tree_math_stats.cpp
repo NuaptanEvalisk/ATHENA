@@ -14,6 +14,7 @@
 #include "tree_analyze.hpp"
 #include "analyze.hpp"
 #include "vars.hpp"
+#include <chrono>
 
 /******************************************************************************
 * Compile statistics
@@ -174,28 +175,11 @@ get_submode (tree t, int i, string mode,
   return (is_atomic (tmode)? tmode->label: string ("text"));
 }
 
-bool
-math_statistics::compile_source (tree t, tree parent, string mode,
-    const athena::contracts::source_contract_preparation& contexts, path source) {
-  if (is_compound (t)) {
-    if (is_func (t, MACRO) || is_func (t, XMACRO)) return true;
-    using namespace athena::contracts;
-    const bool native= builtin_label (as_string (L(t)));
-    const auto context= native ? nullptr : contexts (source);
-    if (!native && !context) return false;
-    const editing_query query {native ? builtin_contracts () : *context};
-    int i, n= N(t);
-    for (i=0; i<n; i++) {
-      string smode= get_submode (t, i, mode, query);
-      if (is_func (t, WITH) && i != N(t)-1);
-      else if (is_compound (t, "math-ss"));
-      else if (is_compound (t, "math-tt"));
-      else if (is_correctable_child (t, i, query))
-        if (!compile_source (t[i], t, smode, contexts, source * i))
-          return false;
-    }
-  }
-  if (mode == "math") {
+void
+math_statistics::compile_node (tree t, tree parent) {
+  // A document is a container of formulae, not itself an input token. In an
+  // initial math environment, counting it would copy the whole buffer at once.
+  if (!is_document (t)) {
     array<tree> a= concat_tokenize (t);
     if (N(a) > 1) {
       record (occurrences, t);
@@ -210,24 +194,70 @@ math_statistics::compile_source (tree t, tree parent, string mode,
     }
     compile_tokens (a, parent);
   }
-  return true;
 }
 
 /******************************************************************************
 * User interface
 ******************************************************************************/
 
-bool
-math_statistics::compile (tree t, string mode,
-    const athena::contracts::source_contract_preparation& contexts, path source) {
+void
+math_statistics::begin (tree t, string mode, path source) {
   ready= false;
   occurrences= hashmap<tree,int> (0);
   roles= hashmap<tree,int> (0);
-  ready= compile_source (t, tree (DOCUMENT, t), mode, contexts, source);
-  if (!ready) {
-    occurrences= hashmap<tree,int> (0);
-    roles= hashmap<tree,int> (0);
+  pending.clear ();
+  pending.push_back ({t, tree (DOCUMENT, t), mode, source});
+  progress= math_statistics_progress::pending;
+}
+
+math_statistics_progress
+math_statistics::advance (
+    const athena::contracts::source_contract_preparation& contexts, unsigned budget) {
+  using namespace athena::contracts;
+  const auto deadline= std::chrono::steady_clock::now () + std::chrono::milliseconds (4);
+  while (!pending.empty () && budget-- != 0) {
+    auto& frame= pending.back ();
+    const tree t= frame.value;
+    if (is_func (t, MACRO) || is_func (t, XMACRO)) pending.pop_back ();
+    else if (is_compound (t) && frame.child == -1) {
+      if (!builtin_label (as_string (L(t)))) {
+        frame.context= contexts (frame.source);
+        if (!frame.context) {
+          pending.clear ();
+          return progress= math_statistics_progress::unavailable;
+        }
+      }
+      frame.child= 0;
+    }
+    else if (is_compound (t) && frame.child < N(t)) {
+      const int i= frame.child++;
+      const editing_query query {frame.context ? *frame.context : builtin_contracts ()};
+      if ((!is_func (t, WITH) || i == N(t)-1) &&
+          !is_compound (t, "math-ss") && !is_compound (t, "math-tt") &&
+          is_correctable_child (t, i, query)) {
+        const string mode= get_submode (t, i, frame.mode, query);
+        const path source= frame.source * i;
+        pending.push_back ({t[i], t, mode, source});
+      }
+    }
+    else {
+      if (frame.mode == "math") compile_node (t, frame.parent);
+      pending.pop_back ();
+    }
+    if (std::chrono::steady_clock::now () >= deadline) break;
   }
+  if (pending.empty () && progress == math_statistics_progress::pending) {
+    ready= true;
+    progress= math_statistics_progress::ready;
+  }
+  return progress;
+}
+
+bool
+math_statistics::compile (tree t, string mode,
+    const athena::contracts::source_contract_preparation& contexts, path source) {
+  begin (t, mode, source);
+  while (advance (contexts) == math_statistics_progress::pending) {}
   return ready;
 }
 

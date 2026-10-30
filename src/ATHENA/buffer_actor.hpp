@@ -164,6 +164,7 @@ public:
   // Owner-thread only. Retain one ready activation per view until the normal
   // FIFO command queue accepts it; never perform source edits during layout.
   void queue_hybrid_activation (athena_view_id view_id, std::uint64_t token);
+  void queue_math_statistics (athena_view_id view_id);
 
   // Fixed dispatch is public only for the Guile C trampoline.  Callers submit
   // command ids; they never invoke this directly.
@@ -221,6 +222,7 @@ private:
   void execute (actor_command_record& command);
   void publish_ready_contracts ();
   void flush_hybrid_activations ();
+  void flush_math_statistics ();
   void publish_tmfs_title (editor_rep* preferred_editor);
 
   static void thread_entry (buffer_actor* actor);

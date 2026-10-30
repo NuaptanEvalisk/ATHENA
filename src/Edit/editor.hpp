@@ -505,6 +505,7 @@ public:
   tree correct_brackets (tree source, string mode);
   tree correct_big_operators (tree source);
   virtual void update_math_statistics ()= 0;
+  virtual void advance_math_statistics ()= 0;
   virtual int math_statistics_occurrences (string id, tree source)= 0;
   virtual int math_statistics_role (string id, tree source)= 0;
   void correct_tree_node (tree source);

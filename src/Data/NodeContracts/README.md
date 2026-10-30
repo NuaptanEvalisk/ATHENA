@@ -5635,3 +5635,43 @@ both runtime bindings, and attached versus proposed inputs. Existing native
 test callers were adapted to the explicit symbol-query signature, without
 running or expanding that suite. This completes the bounded math-correction
 batch; scheduled statistics, analysis responsiveness and final deployment remain.
+
+### Scheduled Mathematical Statistics (2026-10-30)
+
+Input queries now request work and read completed owner-held results; they do
+not traverse source or prepare cold environments. `math_statistics` has a
+resumable source traversal with explicit pending/ready/unavailable states.
+Its synchronous `compile` entry remains for explicit offline callers. Partial
+counts are never observable. Document containers are no longer copied into the
+token table when the initial environment is mathematical.
+
+The BufferActor retains one requested continuation per view, including across a
+full mailbox. A continuation processes a cursor slice and a buffer slice, then
+returns to the FIFO queue. Each traversal uses a node-action budget and a soft
+four-millisecond deadline; individual formula tokenization is still the existing
+algorithm, not a new hard-real-time guarantee. Views are resolved at dispatch,
+not retained as pointers in queued work, and destruction removes pending work.
+
+Source epoch, execution baseline, contract trace and prepared-context index
+identity jointly determine validity. The context-index identity also restarts a
+previously unavailable job when progressive layout admits more source entries
+without emitting another contract event. Publication of new contracts marks
+the cache invalid. Invalidating an edit only marks the result unusable; token
+tables are retired in the deferred continuation. Cursor movement changes its
+own request without invalidating the buffer statistics. Missing environments
+stop a generation rather than scheduling an endless retry loop.
+
+Scheduling and lifecycle logic are native C++; no Scheme implementation or new
+Scheme binding is added. Existing input heuristics receive zero until a valid
+result is ready and retain their existing non-statistical behavior meanwhile.
+
+Production built with `-j16`
+(`/tmp/athena-native-scheduled-statistics-final-build.log`). The temporary
+source/actor check passed at 23:54
+(`/tmp/athena-scheduled-statistics-probe.log`): sliced counts equal synchronous
+counts, partial and unavailable results stay hidden, owned keys survive source
+mutation, getters do not complete a traversal, edits supersede queued work,
+cursor moves preserve buffer statistics, local rules and actor isolation hold,
+and closing a view with pending work completes normally. No permanent test
+suite was added. This completes the scheduled-statistics delivery; analysis
+responsiveness and final integration/deployment remain open.

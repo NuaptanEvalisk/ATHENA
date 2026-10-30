@@ -479,6 +479,8 @@ struct buffer_actor::implementation {
   buffer_document_state state;
   std::unordered_map<athena_view_id, actor_view> views;
   std::unordered_map<athena_view_id, std::uint64_t> hybrid_activations;
+  // Entries remain until dispatch, including when the ring is full.
+  std::unordered_map<athena_view_id, bool> math_statistics;
 
   implementation (buffer_actor* actor, string name, string master,
                   string title, bool read_only, int last_save):
@@ -1058,6 +1060,7 @@ buffer_actor::run_in_guile () {
     if (request.received == actor_command_transport::event::wakeup) {
       publish_ready_contracts ();
       flush_hybrid_activations ();
+      flush_math_statistics ();
       scheme_runtime_safe_point ();
       continue;
     }
@@ -1080,6 +1083,7 @@ buffer_actor::run_in_guile () {
     }
     (void) commands_.complete (command.slot);
     flush_hybrid_activations ();
+    flush_math_statistics ();
     completed_condition_.notify_all ();
     scheme_runtime_safe_point ();
   }
@@ -1129,6 +1133,22 @@ buffer_actor::publish_ready_contracts () {
     signal.capabilities= SCHEME_CAPABILITY_BUFFER;
     // Signals have no mailbox ticket and do not advance command completion.
     execute (signal);
+  }
+}
+
+void
+buffer_actor::queue_math_statistics (athena_view_id view_id) {
+  ASSERT (is_owner_thread (), "math statistics belong to their BufferActor");
+  impl_->math_statistics.emplace (view_id, false);
+}
+
+void
+buffer_actor::flush_math_statistics () {
+  for (auto& pending: impl_->math_statistics) {
+    if (pending.second) continue;
+    if (!try_submit (actor_command_kind::advance_math_statistics, pending.first,
+        ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER)) break;
+    pending.second= true;
   }
 }
 
@@ -1184,6 +1204,7 @@ buffer_actor::dispatch (actor_command_record& command) {
   }
   case actor_command_kind::destroy_view:
     impl_->hybrid_activations.erase (command.view_id);
+    impl_->math_statistics.erase (command.view_id);
     if (editor != nullptr) {
       editor->buf= nullptr;
       impl_->views.erase (command.view_id);
@@ -1978,6 +1999,10 @@ buffer_actor::dispatch (actor_command_record& command) {
   case actor_command_kind::resume_hybrid_activation:
     if (editor != nullptr)
       editor->resume_pending_hybrid_activation (command.argument[0]);
+    break;
+  case actor_command_kind::advance_math_statistics:
+    impl_->math_statistics.erase (command.view_id);
+    if (editor != nullptr) editor->advance_math_statistics ();
     break;
   case actor_command_kind::query_modified:
   case actor_command_kind::query_autosaved: {
