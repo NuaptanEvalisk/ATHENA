@@ -13,13 +13,13 @@
 
 namespace athena::contracts {
 
-bool same_analysis_resolution (const analysis_resolution* a, const analysis_resolution* b) {
+bool same_analysis_receipt (const analysis_resolution* a, const analysis_resolution* b) {
   if (a == b) return true;
   if (!a) return !b->binding && !b->value && !b->declaration;
   if (!b) return !a->binding && !a->value && !a->declaration;
-  return a->binding == b->binding && a->value == b->value &&
-    (a->declaration == b->declaration ||
-     (a->declaration && b->declaration && *a->declaration == *b->declaration));
+  return a->binding == b->binding && a->declaration == b->declaration &&
+    bool (a->value) == bool (b->value) &&
+    (!a->value || a->value->shares_storage (*b->value));
 }
 
 namespace {
@@ -356,7 +356,7 @@ std::vector<std::size_t> reject_analysis (
   const auto changed= [&] (const std::string& name,
                            const analysis_resolution* before, const analysis_resolution* after) {
     const auto readers= proposal.dependencies.readers.find (name);
-    if (readers == proposal.dependencies.readers.end () || same_analysis_resolution (before, after)) return;
+    if (readers == proposal.dependencies.readers.end () || same_analysis_receipt (before, after)) return;
     for (auto index: readers->second) mark (index);
   };
   immer::diff (*proposal.context->names, current, immer::make_differ (

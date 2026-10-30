@@ -10,13 +10,6 @@ namespace athena::contracts {
 namespace {
 std::string bytes (const string& value) { return std::string (value.data (), N(value)); }
 string native (const std::string& value) { return string (value.data (), value.size ()); }
-
-bool same_capture (const analysis_resolution* a, const analysis_resolution& b) {
-  if (!a) return !b.binding && !b.value && !b.declaration;
-  return a->binding == b.binding && a->declaration == b.declaration &&
-    bool (a->value) == bool (b.value) &&
-    (!a->value || a->value->shares_storage (*b.value));
-}
 }
 
 struct macro_analysis::impl {
@@ -28,11 +21,16 @@ struct macro_analysis::impl {
   std::shared_ptr<const analysis_resolutions> last_pruned_inputs;
   evaluation_input_snapshot consumed_inputs;
   std::set<std::string> pending_names, changed_values;
+  std::size_t pending_revision= 0, last_pruned_pending_revision= 0;
   std::string freezing_name;
   std::unique_ptr<node::frozen_tree_builder> freezing;
   analysis_proposal_ptr last_accepted;
   bool initialized= false;
   std::string last_error;
+
+  void enqueue (const std::string& name) {
+    if (pending_names.insert (name).second) ++pending_revision;
+  }
 
   void symbol (tree_label label) {
     if (labels->count (label)) return;
@@ -55,13 +53,13 @@ struct macro_analysis::impl {
     const auto changed= inputs.changed_since (consumed_inputs);
     if (freezing && changed.count (freezing_name)) freezing.reset ();
     changed_values.insert (changed.begin (), changed.end ());
-    pending_names.insert (changed.begin (), changed.end ());
+    for (const auto& name: changed) enqueue (name);
     const auto include= [&] (tree_label label) {
       const auto name= bytes (as_string (label));
       const auto previous= names->find (name);
       if (!previous || (*previous)->binding != scope.definition (label) ||
           (*previous)->declaration != scope.find_declaration (label))
-        pending_names.insert (name);
+        enqueue (name);
     };
     if (!initialized) {
       for (const auto& [label, name]: *labels) include (label);
@@ -114,13 +112,14 @@ struct macro_analysis::impl {
         entry.declaration= scope.find_declaration (label);
       }
       // Semantic equality belongs to detached analysis, not to input capture.
-      if (!same_capture (old.get (), entry)) {
+      if (!same_analysis_receipt (old.get (), &entry)) {
         if (!names.unique ()) names= std::make_shared<analysis_resolutions> (*names);
         *names= std::move (*names).set (
           name, std::make_shared<const analysis_resolution> (std::move (entry)));
       }
       changed_values.erase (name);
       pending_names.erase (name);
+      ++pending_revision;
       freezing.reset ();
       if (bounded && (++processed >= 128 || std::chrono::steady_clock::now () >= deadline)) break;
     }
@@ -129,7 +128,7 @@ struct macro_analysis::impl {
   }
 
   bool retire_stale (contract_scope& scope) {
-    if (pending_names.empty () && last_pruned_inputs == names &&
+    if (pending_revision == last_pruned_pending_revision && last_pruned_inputs == names &&
         scope.same_state (last_pruned_scope)) return false;
     auto draft= scope;
     for (const auto& [evidence, count]: scope.inference_sources ())
@@ -143,6 +142,7 @@ struct macro_analysis::impl {
     observed= scope;
     last_pruned_scope= scope;
     last_pruned_inputs= names;
+    last_pruned_pending_revision= pending_revision;
     return changed;
   }
 
@@ -156,6 +156,7 @@ struct macro_analysis::impl {
     last_accepted= proposal;
     last_pruned_inputs= names;
     last_pruned_scope= scope;
+    last_pruned_pending_revision= pending_revision;
     observed= scope;
     return !scope.same_state (before);
   }

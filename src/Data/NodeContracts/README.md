@@ -5712,3 +5712,31 @@ freezing releases its source handles on the owner. The completed background
 projection is compared semantically, not by pointer identity across independent
 analysis engines. No permanent test suite was added. This batch is complete;
 the remaining analysis work and final deployment above are not.
+
+### Reuse Pending Retirement Decisions (2026-10-31)
+
+Capture and retirement now share immutable receipt comparison: binding,
+declaration and frozen payload identities. Retirement never compares complete
+value trees or rich declaration fields. A new identity conservatively retires
+its affected components even when the content happens to be equal; the detached
+engine retains responsibility for semantic reuse.
+
+The retirement checkpoint includes the pending-name revision as well as captured
+inputs and scope identity. Continuing an unfinished freeze without changing any
+of those inputs does not repeat the dependency scan. Adding or resolving a
+pending name, changing a captured input, or restoring a different scope causes
+revalidation. Unaffected inference remains available throughout capture.
+
+This closes repeated retirement during unchanged capture slices, not the broader
+responsiveness delivery. Input/scope diff enumeration and the first dependency
+closure traversal are still synchronous and remain to be moved off interactive
+requests. Final integration and deployment remain open.
+
+Production built with `-j16`
+(`/tmp/athena-analysis-retirement-receipts-build.log`). The temporary native
+check passed (`/tmp/athena-retirement-receipts-probe.log`): direct instrumentation
+of the retirement entry counted no additional scans over twelve unchanged
+pending slices; restoring an older scope and adding a pending input both forced
+revalidation. Receipt identity, dependent closure, preservation of unrelated
+facts, superseded large captures and exact final publication also passed.
+Instrumentation exists only in the temporary check, not production sources.

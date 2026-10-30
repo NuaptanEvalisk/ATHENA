@@ -17,7 +17,10 @@ struct analysis_resolution {
   std::optional<node::frozen_tree> value;
   std::shared_ptr<const node_contract> declaration;
 };
-bool same_analysis_resolution (const analysis_resolution*, const analysis_resolution*);
+// Owner-side admission uses immutable input identity, never deep value equality.
+// A new receipt may conservatively retire equal values; detached analysis decides
+// whether their semantic results can be reused.
+bool same_analysis_receipt (const analysis_resolution*, const analysis_resolution*);
 using analysis_resolutions= immer::map<std::string, std::shared_ptr<const analysis_resolution>>;
 using analysis_symbols= immer::map<tree_label, std::string>;
 
