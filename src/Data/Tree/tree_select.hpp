@@ -21,7 +21,8 @@ path correct_right_most_inside (path p, tree t);
 // Structural adjustment does not transfer that permission to a different path.
 void selection_correct (const cursor_navigation&, tree t, path i1, path i2, path& o1, path& o2,
                         bool mapped_i1= false, bool mapped_i2= false);
-tree selection_compute (tree t, path i1, path i2);
+tree selection_compute (const cursor_navigation&, tree t, path i1, path i2);
+bool selection_covers_node (const cursor_navigation&, tree t, path i1, path i2);
 
 path table_search_format (tree t, path p);
 void table_search_coordinates (tree t, path p, int& row, int& col);

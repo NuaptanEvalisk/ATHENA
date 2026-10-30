@@ -402,7 +402,8 @@ bool athena_node_reference_position (string identity) {
       }
     }
     if (!found) throw std::runtime_error ("Referenced node is no longer in this document");
-    return editor->the_buffer_path () * start (body, relative);
+    return editor->command_tree_start (
+      editor->the_root (), editor->the_buffer_path () * relative);
   };
   try {
     editor->go_to (locate ());

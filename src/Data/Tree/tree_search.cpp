@@ -13,6 +13,7 @@
 #include "analyze.hpp"
 #include "boot.hpp"
 #include "cursor_navigation.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 #include "node_metadata.hpp"
 #include "math_tree_v3.hpp"
 #include "unicode_text.hpp"
@@ -740,6 +741,12 @@ search (const athena::contracts::source_contract_preparation& prepare,
 }
 
 range_set
+search_source (tree t, tree what, path p, int limit) {
+  return search ({athena::contracts::builtin_contracts (),
+                  athena::contracts::access_policy::source}, t, what, p, limit);
+}
+
+range_set
 search (const athena::contracts::editing_query& context, tree t, tree what, path p, int limit) {
   tree_search_request request (context, limit);
   range_set sel;
@@ -779,22 +786,6 @@ search (const athena::contracts::editing_query& context, tree t, tree what, path
   return sel;
 }
 
-range_set search (tree t, tree what, path p, int limit) {
-  return search (current_cursor_navigation ().contracts (), t, what, p, limit);
-}
-range_set search_source (tree t, tree what, path p, int limit) {
-  return search (current_cursor_navigation ().contracts ().with_access (
-    athena::contracts::access_policy::source), t, what, p, limit);
-}
-range_set search (tree t, tree what, path p, bool insensitive, int limit) {
-  return search (current_cursor_navigation ().contracts (), t, what, p, insensitive, limit);
-}
-range_set search (tree t, tree what, path p, path pos, int limit) {
-  return search (current_cursor_navigation ().contracts (), t, what, p, pos, limit);
-}
-range_set search (tree t, tree what, path p, path pos, bool insensitive, int limit) {
-  return search (current_cursor_navigation ().contracts (), t, what, p, pos, insensitive, limit);
-}
 
 range_set
 previous_search_hit (range_set sels, path cur, bool strict) {

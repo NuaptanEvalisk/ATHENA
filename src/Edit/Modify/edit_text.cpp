@@ -154,7 +154,7 @@ edit_text_rep::insert_return () {
   if (last_item (tp)==right_index (subtree (et, path_up (tp))))
     split (path_inc (path_up (tp)));
   else split (path_up (tp));
-  go_to (correct_cursor (et, path_inc (p) * 0));
+  go_to_correct (path_inc (p) * 0);
   correct_concat (p);
   correct_concat (path_inc (p));
   return false;
@@ -226,7 +226,7 @@ edit_text_rep::prepare_for_insert () {
 void
 edit_text_rep::insert_tree (tree t, path p_in_t) {
   if (!as_bool (call ("like-emacs?"))) selection_cut ("none");
-  if (is_atomic (t) && (p_in_t == end (t)) &&
+  if (is_atomic (t) && (p_in_t == path (N(t->label))) &&
       !athena::node::get (t) && is_atomic (subtree (et, path_up (tp))))
     insert (tp, t);
   else if (is_document (t) && !athena::node::get (t)) {
@@ -240,7 +240,7 @@ edit_text_rep::insert_tree (tree t, path p_in_t) {
     if (empty) remove (p, 1);
     insert (p, t);
     path q= path_add (p, p_in_t->item) * p_in_t->next;
-    go_to (correct_cursor (et, q));
+    go_to_correct (q);
     remove_return (path_dec (p));
     if (!empty) remove_return (path_add (p, N(t)-2));
   }
@@ -258,7 +258,7 @@ edit_text_rep::insert_tree (tree t, path p_in_t) {
       // formatting wrapper around the block itself and let an enclosing
       // paragraph CONCAT split at the multi-paragraph child.
       assign (body_p, t);
-      go_to (correct_cursor (et, body_p * p_in_t));
+      go_to_correct (body_p * p_in_t);
       path container_p= path_up (with_p);
       if (is_concat (subtree (et, container_p)))
         correct_concat (container_p);
@@ -272,7 +272,7 @@ edit_text_rep::insert_tree (tree t, path p_in_t) {
     path p= search_parent_upwards (DOCUMENT);
     if (subtree (et, p) == "") remove (p, 1);
     insert (p, tree (DOCUMENT, t));
-    go_to (correct_cursor (et, p * p_in_t));
+    go_to_correct (p * p_in_t);
   }
   else {
     path p= prepare_for_insert ();
@@ -281,7 +281,7 @@ edit_text_rep::insert_tree (tree t, path p_in_t) {
     }
     insert (p, t);
     path q= path_add (p, p_in_t->item) * p_in_t->next;
-    go_to (correct_cursor (et, q));
+    go_to_correct (q);
     correct_concat (path_up (p));
   }
 }
@@ -289,7 +289,9 @@ edit_text_rep::insert_tree (tree t, path p_in_t) {
 void
 edit_text_rep::insert_tree (tree t) {
   t= copy (simplify_correct (t));
-  insert_tree (t, end (t));
+  if (is_atomic (t)) { insert_tree (t, path (N(t->label))); return; }
+  const auto context= prepare_source_position (tp);
+  insert_tree (t, prepare_tree_boundary (t, path (), false, *context));
 }
 
 void

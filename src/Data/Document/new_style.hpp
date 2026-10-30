@@ -62,6 +62,8 @@ athena::contracts::evaluation_state prepare_document_context (tree doc);
 // evaluated in its own scope and never publishes references or auxiliary data.
 using document_source_contract_preparation= std::function<
   std::shared_ptr<const athena::contracts::contract_scope> (const std::vector<int>&)>;
+using document_source_environment_preparation= std::function<
+  std::shared_ptr<const evaluation_environment_checkpoint> (const std::vector<int>&)>;
 struct source_contract_maps {
   hashmap<string,tree> refs, global_refs, aux, global_aux;
   hashmap<string,tree> attachments, global_attachments;
@@ -73,9 +75,12 @@ document_source_contract_preparation prepare_source_contract_positions (
   tree body, url source_name,
   std::function<std::shared_ptr<const evaluation_environment_checkpoint> ()> baseline,
   std::function<source_contract_maps ()> inputs= {});
-document_source_contract_preparation prepare_document_source_contracts (tree doc);
+document_source_contract_preparation prepare_document_source_contracts (
+  tree doc, url source_name= url ("$PWD/none"));
 document_source_contract_preparation prepare_offline_document_source_contracts (
   tree doc, url source_name);
+document_source_environment_preparation prepare_document_source_environments (
+  tree doc, url source_name= url ("$PWD/none"));
 
 array<string> get_style_names ();
 array<string> get_package_names ();

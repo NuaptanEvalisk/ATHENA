@@ -12,6 +12,8 @@
 #include "Xml/clipboard_xml.hpp"
 #include "tree_analyze.hpp"
 #include "tree_select.hpp"
+#include "cursor_navigation.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 #include "Scheme/Scheme/native_interfaces.hpp"
 
 bool headless_mode= true;
@@ -51,15 +53,17 @@ private slots:
   }
 
   void fullSelectionsRetainMetadataPartialSelectionsDoNotClaimIdentity () {
+    const cursor_navigation navigation ({athena::contracts::builtin_contracts ()});
     tree atom= identified (tree ("abc"), first);
-    tree selected= selection_compute (atom, path (0), path (3));
+    tree selected= selection_compute (navigation, atom, path (0), path (3));
     QVERIFY (selected == atom);
     QVERIFY (!strong_equal (selected, atom));
-    tree partial= selection_compute (atom, path (1), path (3));
+    tree partial= selection_compute (navigation, atom, path (1), path (3));
     QVERIFY (partial == tree ("bc"));
     QVERIFY (!node::contains_metadata (partial));
     tree paragraph= identified (tree (CONCAT, "a", link (external)), second);
-    selected= selection_compute (paragraph, start (paragraph), end (paragraph));
+    selected= selection_compute (navigation, paragraph,
+                                navigation.start (paragraph), navigation.end (paragraph));
     QVERIFY (selected == paragraph);
   }
 

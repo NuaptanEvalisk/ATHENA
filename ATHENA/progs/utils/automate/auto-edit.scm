@@ -30,12 +30,12 @@
 (tm-define (make-block* lab . args)
   (with l (map make-auto-arg args)
     (with t `(document (,lab ,@l))
-      (insert-go-to t (cons* 0 0 (path-start (car l) '()))))))
+      (insert-go-to t (command-path-start t '(0 0))))))
 
 (tm-define (make-inline* lab . args)
   (with l (map make-auto-arg args)
     (with t `(,lab ,@l)
-      (insert-go-to t (cons 0 (path-start (car l) '()))))))
+      (insert-go-to t (command-path-start t '(0))))))
 
 (tm-define (make-block-if) (make-block* 'block-if :code :block))
 (tm-define (make-block-if-else)

@@ -11,10 +11,22 @@
 
 #ifndef TREE_MATH_STATS_H
 #define TREE_MATH_STATS_H
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
+#include "hashmap.hpp"
 
-void compile_stats (string id, tree t, string mode);
-int number_occurrences (string id, tree t);
-int number_in_role (string id, tree t);
+class math_statistics {
+  hashmap<tree,int> occurrences {0};
+  hashmap<tree,int> roles {0};
+  bool ready= false;
+  void compile_tokens (array<tree>, tree parent);
+  bool compile_source (tree, tree parent, string mode,
+    const athena::contracts::source_contract_preparation&, path);
+public:
+  // Missing source entries leave no partial result visible to input heuristics.
+  bool compile (tree, string mode,
+    const athena::contracts::source_contract_preparation&, path source= path ());
+  int number_occurrences (tree) const;
+  int number_in_role (tree) const;
+};
 
 #endif // defined TREE_MATH_STATS_H

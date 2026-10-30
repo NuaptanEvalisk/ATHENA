@@ -36,6 +36,7 @@
 #include <QSemaphore>
 #include "Qt/qt_utilities.hpp"
 #include "Data/NodeContracts/execution_state.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 #include "cursor_navigation.hpp"
 #include "namespaces.hpp"
 #include "vault.hpp"
@@ -886,7 +887,8 @@ TestVaultSearch::keepsConcurrentSearchOptionsIndependent () {
     ready.fetch_add (1);
     while (ready.load () != 2) std::this_thread::yield ();
     for (int i=0; i<2000; ++i) {
-      auto ranges= search (source, query, path (), insensitive, 200);
+      auto ranges= search (athena::contracts::editing_query {athena::contracts::builtin_contracts ()},
+                            source, query, path (), insensitive, 200);
       if (N(ranges) != (insensitive ? 16 : 0)) errors.fetch_add (1);
     }
   };
@@ -1083,8 +1085,8 @@ void TestVaultSearch::nativeV3StructuredSearchHonorsPolicies () {
 }
 
 void TestVaultSearch::emptyNativeSearchPatternDoesNotLoopOrIndexMissingChildren () {
-  const auto context= current_cursor_navigation ().contracts ().with_access (
-    athena::contracts::access_policy::source);
+  const athena::contracts::editing_query context {athena::contracts::builtin_contracts (),
+    athena::contracts::access_policy::source};
   const tree empty_concat (CONCAT);
   const auto from_atom= search (context, tree ("abc"), empty_concat,
                                 path (), false, 10);

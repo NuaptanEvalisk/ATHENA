@@ -9,6 +9,7 @@
 
 #include "convert.hpp"
 #include "html_export.hpp"
+#include "Data/Convert/Verbatim/verbatim.hpp"
 #include "file.hpp"
 #include "analyze.hpp"
 #include "named_symbol.hpp"
@@ -95,7 +96,7 @@ string force_text (scheme_tree t) {
     }
     return out;
   }
-  return tree_to_verbatim (scheme_tree_to_tree (t), false, "utf-8");
+  return source_text_excerpt (scheme_tree_to_tree (t));
 }
 
 scheme_tree setting (scheme_tree source, const char* key) {

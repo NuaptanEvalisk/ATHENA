@@ -294,10 +294,22 @@ void selection_correct (const cursor_navigation& context, tree t,
 * Computation of the selected tree
 ******************************************************************************/
 
+bool
+selection_covers_node (const cursor_navigation& navigation, tree t, path first, path last) {
+  if (first == last) return false;
+  if (first == path (0) && last == path (right_index (t))) return true;
+  if (is_atomic (t)) return false;
+  // A partial paragraph/document cannot own the whole container's identity.
+  // Do not ask for an unrelated, possibly not-yet-laid-out final child.
+  if (is_format (t) &&
+      ((!is_atom (first) && first->item != 0) ||
+       (!is_atom (last) && last->item != N(t)-1))) return false;
+  return first == navigation.start (t) && last == navigation.end (t);
+}
+
 tree
-selection_compute (tree t, path start, path end) {
-  if (athena::node::get (t) && start != end &&
-      start == ::start (t) && end == ::end (t)) return copy (t);
+selection_compute (const cursor_navigation& navigation, tree t, path start, path end) {
+  if (athena::node::get (t) && selection_covers_node (navigation, t, start, end)) return copy (t);
   int  i1= start->item;
   int  i2= end->item;
   path p1= start->next;
@@ -324,13 +336,17 @@ selection_compute (tree t, path start, path end) {
     }
   }
 
-  if (i1==i2) return selection_compute (t[i1], p1, p2);
+  const auto child_selection= [&] (int child, path first, path last) {
+    return selection_compute (is_atomic (t[child]) ? navigation : navigation.at (path (child)),
+                              t[child], first, last);
+  };
+  if (i1==i2) return child_selection (i1, p1, p2);
   if (is_compound (t) && (!is_format (t))) return copy (t);
 
   int i;
   tree r (t, i2-i1+1);
-  r[0]     = selection_compute (t[i1], p1, path (right_index (t[i1])));
-  r[N(r)-1]= selection_compute (t[i2], path (0), p2);
+  r[0]     = child_selection (i1, p1, path (right_index (t[i1])));
+  r[N(r)-1]= child_selection (i2, path (0), p2);
   for (i=1; i<N(r)-1; i++) r[i]= copy (t[i+i1]);
   return r;
 }

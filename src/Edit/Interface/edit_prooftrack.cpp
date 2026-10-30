@@ -91,11 +91,15 @@ void edit_interface_rep::refresh_prooftrack_geometry () {
     for (const auto& component: item.at ("path")) source= source * component.get<int> ();
     if (rp <= source && has_subtree (et, source) &&
         athena::node::id (subtree (et, source)) == item.at ("id").get<std::string> ()) {
-      selection area= eb->find_check_selection (start (et, source), end (et, source));
-      if (area->valid && !is_nil (area->rs)) {
-        rectangle r= least_upper_bound (area->rs);
-        item["bounds"]= {double (r->x1)*magf/PIXEL, -double (r->y2)*magf/PIXEL,
-                         double (r->x2-r->x1)*magf/PIXEL, double (r->y2-r->y1)*magf/PIXEL};
+      const auto first= try_admitted_boundary (source, true);
+      const auto last= try_admitted_boundary (source, false);
+      if (first && last) {
+        selection area= eb->find_check_selection (*first, *last);
+        if (area->valid && !is_nil (area->rs)) {
+          rectangle r= least_upper_bound (area->rs);
+          item["bounds"]= {double (r->x1)*magf/PIXEL, -double (r->y2)*magf/PIXEL,
+                           double (r->x2-r->x1)*magf/PIXEL, double (r->y2-r->y1)*magf/PIXEL};
+        }
       }
     }
     item.erase ("path");
@@ -118,7 +122,9 @@ void edit_interface_rep::refresh_prooftrack_geometry () {
     std::map<std::string, path> matched;
     paragraph_targets (subtree (et, rp), rp, false, targets, matched);
     for (const auto& [id, where]: matched) {
-      const cursor at= eb->find_check_cursor (start (et, where));
+      const auto first= try_admitted_boundary (where, true);
+      if (!first) continue;
+      const cursor at= eb->find_check_cursor (*first);
       if (!at->valid) continue; // Folded/offscreen-progressive nodes are absent.
       const double x= double (at->ox)*magf/PIXEL;
       const double y= -double (at->oy+(at->y1+at->y2)/2)*magf/PIXEL;

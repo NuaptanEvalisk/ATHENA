@@ -153,7 +153,7 @@
     (unless (selection-active-any?)
       (with t (cursor-tree)
         (when (tree-is? (tree-up t) 'concat) (set! t (tree-up t)))
-        (selection-set (tree->path t :start) (cursor-path))))
+        (selection-set (command-path-start (root-tree) (tree->path t)) (cursor-path))))
     (with body (if (selection-active-any?)
                    (with selected (selection-tree)
                      (cpp-clipboard-cut "dummy")
@@ -535,15 +535,8 @@
 ;; Correction of mathematical formulas
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (manual-correct-math t)
-  (with mode (tree->stree (get-env-tree-at "mode" (tree->path t :start)))
-    (if (!= mode "math")
-	(manual-correct t)
-	(with r (manual-correct `(math ,t))
-	  (if (tm-func? r 'math 1) (tm-ref r 0) r)))))
-
 (define (math-correct-tree t)
-  (with r (manual-correct-math t)
+  (with r (manual-correct t)
     (when (!= r t)
       (tree-set! t r))))
 

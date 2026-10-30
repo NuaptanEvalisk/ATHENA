@@ -14,7 +14,6 @@
 #include "native_interfaces.hpp"
 #include "tree_analyze.hpp"
 #include "tree_cursor.hpp"
-#include "tree_modify.hpp"
 #include "file.hpp"
 #include "buffer_actor.hpp"
 #include "QTMNativeDialogs.hpp"
@@ -177,7 +176,7 @@ bool enclosing_property_scope (tree t, tree& parent) {
 
 bool with_like_search (tree t, tree& result) {
   while (true) {
-    if (is_with_like (t)) { result= t; return true; }
+    if (get_current_editor ()->command_tree_with_like (t)) { result= t; return true; }
     if (!is_atomic (t) && !is_func (t, CONCAT) && !is_func (t, DOCUMENT))
       return false;
     if (admits_edit_observer (t) || !parent_tree (t, t)) return false;
@@ -193,17 +192,22 @@ tree cursor_tree (bool shifted= false) {
 
 void go_body (tree t, bool at_end) {
   path p= reverse (obtain_ip (t)) * (N (t) - 1);
-  tree body= t[N (t) - 1];
-  get_current_editor ()->go_to (p * (at_end ? end (body) : start (body)));
+  get_current_editor ()->go_to_border (p, !at_end);
 }
 
 bool at_body_border (tree t, bool at_end) {
-  path p= reverse (obtain_ip (t));
-  path cursor= get_current_editor ()->the_path ();
-  if (cursor == p * (at_end ? end (t) : start (t))) return true;
+  editor ed= get_current_editor ();
+  path cursor= ed->the_path ();
+  const path source= reverse (obtain_ip (t));
+  const auto at_boundary= [&] (path p) {
+    object result= at_end ? ed->source_tree_end (ed->the_root (), p) :
+                           ed->source_tree_start (ed->the_root (), p);
+    return is_path (result) && cursor == as_path (result);
+  };
+  if (at_boundary (source)) return true;
   int i= at_end ? 1 : 0;
   return is_compound (t) && N (t) > i &&
-    cursor == p * i * (at_end ? end (t[i]) : start (t[i]));
+    at_boundary (source * i);
 }
 
 tree property_wrapper (object properties) {
@@ -238,7 +242,7 @@ tree add_with (tree properties, tree body, path& destination) {
     destination= path (last) * destination;
     return wrapper;
   }
-  destination= path (N (properties)) * end (body);
+  destination= path (N (properties));
   properties << body;
   return properties;
 }
@@ -519,17 +523,18 @@ void format_tree_with_reset (object value, tree variable) {
 }
 
 bool format_with_like_check_insert (tree t) {
+  editor ed= get_current_editor ();
   tree u= cursor_tree ();
-  if (is_with_like (u) && with_same_type (t, u)) {
+  if (ed->command_tree_with_same_type (t, u)) {
     go_body (u, last_item (get_current_editor ()->the_path ()) != 0);
     return true;
   }
   u= cursor_tree (true);
-  if (is_with_like (u) && with_same_type (t, u)) {
+  if (ed->command_tree_with_same_type (t, u)) {
     go_body (u, false);
     return true;
   }
-  if (with_like_search (cursor_tree (), u) && with_same_type (t, u)) {
+  if (with_like_search (cursor_tree (), u) && ed->command_tree_with_same_type (t, u)) {
     string tag= as_string (L (t));
     get_current_editor ()->set_message (
       tree (CONCAT, "Warning: already inside '", tag, "'"),
@@ -554,9 +559,9 @@ void format_make_with_like (tree t) {
     path destination (N (t) - 1, 0);
     if (ed->selection_active_any ()) {
       tree selected= copy (ed->selection_get ());
-      destination= path (N (t) - 1) * end (selected);
-      ed->selection_cut ("nowhere");
       t[N (t) - 1]= selected;
+      destination= ed->command_tree_end (t, path (N (t) - 1));
+      ed->selection_cut ("nowhere");
     }
     ed->var_insert_tree (t, destination);
   }
@@ -574,12 +579,12 @@ void format_toggle_with_like (tree wrapper, object back) {
     tree parent;
     found= parent_tree (cursor_tree (), parent) && with_like_search (parent, t);
   }
-  if (!found || !is_with_like (t) || !with_same_type (t, wrapper))
+  if (!found || !ed->command_tree_with_same_type (t, wrapper))
     format_make_with_like (wrapper);
   else if ((is_bool (back) && !as_bool (back)) || is_empty (t[N (t) - 1])) {
     t= tree_remove_node (t, N (t) - 1);
     tree parent;
-    if (parent_tree (t, parent)) correct_node (parent);
+    if (parent_tree (t, parent)) ed->correct_tree_node (parent);
   }
   else if (at_body_border (t[N (t) - 1], false))
     ed->go_to (reverse (obtain_ip (t)) * 0);
@@ -704,6 +709,7 @@ void format_make_multi_with (object properties) {
     tree selected= ed->selection_get ();
     path destination;
     wrapper= add_with (wrapper, selected, destination);
+    destination= ed->command_tree_end (wrapper, destination);
     ed->selection_cut ("null");
     ed->var_insert_tree (wrapper, destination);
     format_with_simplify (cursor_tree ());

@@ -47,9 +47,11 @@ operation_result editor_operation (std::uint64_t id, const std::string& command,
         path paragraph= path_up (editor->the_path () / editor->the_buffer_path ());
         while (!is_nil (paragraph) && !is_func (subtree (body, path_up (paragraph)), DOCUMENT))
           paragraph= path_up (paragraph);
+        const object start= is_nil (paragraph) ? object (false) :
+          editor->source_tree_start (body, paragraph);
         *answer= {"OK", {{"body", document_node_to_value_v3 (editor->the_buffer ())},
           {"cursor", cursor}, {"epoch", actor->source_epoch ()}, {"view", view},
-          {"paragraph_start", is_nil (paragraph) ? value () : encode_path (start (body, paragraph))},
+          {"paragraph_start", is_path (start) ? encode_path (as_path (start)) : value ()},
           {"selection", editor->selection_active_any ()}}};
         return;
       }

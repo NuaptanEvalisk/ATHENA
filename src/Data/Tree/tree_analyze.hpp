@@ -16,6 +16,8 @@
 #include "analyze.hpp"
 #include "vars.hpp"
 
+namespace athena::contracts { struct editing_query; }
+
 /******************************************************************************
 * Concatenations and with-like structures
 ******************************************************************************/
@@ -30,11 +32,14 @@ tree concat_recompose (array<tree> a);
 array<tree> concat_tokenize_source (tree t);
 tree concat_recompose_source (tree source, array<tree> a);
 
-bool is_with_like (tree t);
+bool is_with_like (tree t, const athena::contracts::editing_query&);
 tree& with_body (tree w);
 bool with_same_type (tree w1, tree w2);
 bool with_similar_type (tree w1, tree w2);
-array<tree> with_decompose (tree w, tree t);
+bool with_same_type (tree w1, tree w2,
+  const athena::contracts::editing_query&, const athena::contracts::editing_query&);
+bool with_similar_type (tree w1, tree w2,
+  const athena::contracts::editing_query&, const athena::contracts::editing_query&);
 tree with_recompose (tree w, array<tree> a);
 
 /******************************************************************************
@@ -94,5 +99,7 @@ array<int> symbol_priorities (array<tree> a);
 
 athena::contracts::evaluation_state prepare_document_context (tree doc);
 bool is_correctable_child (tree t, int i, bool noaround= false);
+bool is_correctable_child (tree t, int i,
+  const athena::contracts::editing_query& query, bool noaround= false);
 
 #endif // defined TREE_ANALYZE_H

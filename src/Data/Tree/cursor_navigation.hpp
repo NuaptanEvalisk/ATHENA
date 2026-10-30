@@ -44,7 +44,12 @@ public:
   path correct_cursor (tree, path, bool forwards= false) const;
   path super_correct (tree, path, bool forwards= false) const;
   path shift (tree, path, int dir) const;
+  bool inside_contiguous_document (tree, path, path) const;
   path move_valid (tree, path, bool forwards) const;
   path move_accessible (tree, path, bool forwards) const;
   path move_any (tree, path, bool forwards) const;
+  path move_word (tree, path, bool forwards) const;
+  path move_node (tree, path, bool forwards) const;
+  path move_tag (tree, path, scheme_tree labels, bool forwards, bool same_argument= false) const;
+  path move_argument (tree, path, bool forwards) const;
 };

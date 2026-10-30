@@ -16,8 +16,12 @@
 #include "printer.hpp"
 #include "Pdf/pdf_hummus_renderer.hpp"
 #include "convert.hpp"
+#include "Data/Convert/Verbatim/verbatim.hpp"
+#include "Typeset/Env/local_environment.hpp"
 #include "typesetter.hpp"
 #include "Data/NodeContracts/execution_state.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
+#include "cursor_navigation.hpp"
 #include "message.hpp"
 #include <setjmp.h>
 #include <stdexcept>
@@ -179,7 +183,8 @@ edit_main_rep::edit_main_rep (server_rep* sv, buffer_document_state* buf):
 #endif
   attach_observer (subtree (et, rp), ed_obs);
   notify_change (THE_TREE);
-  tp= correct_cursor (et, rp * 0);
+  const cursor_navigation structural ({athena::contracts::builtin_contracts ()});
+  tp= rp * structural.correct_cursor (subtree (et, rp), path (0));
 }
 
 edit_main_rep::~edit_main_rep () {
@@ -296,7 +301,13 @@ edit_main_rep::get_metadata (string kind) {
   string var= "global-" * kind;
   string val= get_init_string (var);
   if (val != "") return val;
-  val= search_metadata (subtree (et, rp), kind);
+  const auto metadata= search_metadata (subtree (et, rp), kind, [this] (path source)
+      -> std::shared_ptr<const athena::contracts::contract_scope> {
+    const auto entry= editor_rep::cursor_context_at (rp * source * 0);
+    return entry ? std::shared_ptr<const athena::contracts::contract_scope> (
+      entry, &entry->contract_context ()) : nullptr;
+  });
+  val= metadata ? *metadata : string ("");
   if (val != "") return val;
   if (kind == "title") return as_string (tail (get_name ()));
 #ifndef OS_MINGW
@@ -608,7 +619,12 @@ edit_main_rep::the_path () {
 
 path
 edit_main_rep::the_shifted_path () {
-  return shift (et, tp, 1);
+  path result= tp;
+  const auto context= editor_rep::cursor_context_at (tp);
+  if (context) with_admitted_navigation (*context, [&] (const cursor_navigation& navigation) {
+    result= rp * navigation.shift (subtree (et, rp), tp / rp, 1);
+  });
+  return result;
 }
 
 void

@@ -601,13 +601,13 @@
   <binding name="tree-label-extension?" native="is_extension" returns="bool">
     <arg type="tree_label" />
   </binding>
-  <binding name="tree-label-macro?" native="is_macro" returns="bool">
+  <binding name="tree-label-macro?" native="generic_tree_label_macro" returns="bool">
     <arg type="tree_label" />
   </binding>
-  <binding name="tree-label-parameter?" native="is_parameter" returns="bool">
+  <binding name="tree-label-parameter?" native="generic_tree_label_parameter" returns="bool">
     <arg type="tree_label" />
   </binding>
-  <binding name="tree-label-type" native="get_tag_type" returns="string">
+  <binding name="tree-label-type" native="generic_tree_label_type" returns="string">
     <arg type="tree_label" />
   </binding>
   <binding name="tree-multi-paragraph?" native="is_multi_paragraph" returns="bool">
@@ -616,75 +616,53 @@
   <binding name="tree-simplify" native="simplify_correct" returns="tree">
     <arg type="tree" />
   </binding>
-  <binding name="tree-minimal-arity" native="minimal_arity" returns="int">
+  <binding name="tree-minimal-arity" native="generic_tree_minimal_arity" returns="int">
     <arg type="tree" />
   </binding>
-  <binding name="tree-maximal-arity" native="maximal_arity" returns="int">
+  <binding name="tree-maximal-arity" native="generic_tree_maximal_arity" returns="int">
     <arg type="tree" />
   </binding>
-  <binding name="tree-possible-arity?" native="correct_arity" returns="bool">
-    <arg type="tree" />
-    <arg type="int" />
-  </binding>
-  <binding name="tree-insert_point" native="insert_point" returns="int">
+  <binding name="tree-possible-arity?" native="generic_tree_possible_arity" returns="bool">
     <arg type="tree" />
     <arg type="int" />
   </binding>
-  <binding name="tree-is-dynamic?" native="is_dynamic" returns="bool">
-    <arg type="tree" />
-  </binding>
-  <binding name="tree-accessible-child?" native="is_accessible_child" returns="bool">
+  <binding name="tree-insert_point" native="generic_tree_insert_point" returns="int">
     <arg type="tree" />
     <arg type="int" />
   </binding>
-  <binding name="tree-accessible-children" native="accessible_children" returns="array_tree">
+  <binding name="tree-is-dynamic?" native="generic_tree_dynamic" returns="bool">
     <arg type="tree" />
   </binding>
-  <binding name="tree-all-accessible?" native="all_accessible" returns="bool">
+  <binding name="tree-accessible-child?" native="generic_tree_accessible_child" returns="bool">
+    <arg type="tree" />
+    <arg type="int" />
+  </binding>
+  <binding name="tree-accessible-children" native="generic_tree_accessible_children" returns="array_tree">
+    <arg type="tree" />
+  </binding>
+  <binding name="tree-all-accessible?" native="generic_tree_all_accessible" returns="bool">
     <arg type="content" />
   </binding>
-  <binding name="tree-none-accessible?" native="none_accessible" returns="bool">
+  <binding name="tree-none-accessible?" native="generic_tree_none_accessible" returns="bool">
     <arg type="content" />
   </binding>
-  <binding name="tree-name" native="get_name" returns="string">
+  <binding name="tree-name" native="generic_tree_name" returns="string">
     <arg type="content" />
   </binding>
-  <binding name="tree-long-name" native="get_long_name" returns="string">
+  <binding name="tree-long-name" native="generic_tree_long_name" returns="string">
     <arg type="content" />
   </binding>
-  <binding name="tree-child-name" native="get_child_name" returns="string">
+  <binding name="tree-child-name" native="generic_tree_child_name" returns="string">
     <arg type="content" />
     <arg type="int" />
   </binding>
-  <binding name="tree-child-long-name" native="get_child_long_name" returns="string">
+  <binding name="tree-child-long-name" native="generic_tree_child_long_name" returns="string">
     <arg type="content" />
     <arg type="int" />
   </binding>
-  <binding name="tree-child-type" native="get_child_type" returns="string">
+  <binding name="tree-child-type" native="generic_tree_child_type" returns="string">
     <arg type="content" />
     <arg type="int" />
-  </binding>
-  <binding name="tree-child-env*" native="get_env_child" returns="tree">
-    <arg type="content" />
-    <arg type="int" />
-    <arg type="content" />
-  </binding>
-  <binding name="tree-child-env" native="get_env_child" returns="tree">
-    <arg type="content" />
-    <arg type="int" />
-    <arg type="string" />
-    <arg type="content" />
-  </binding>
-  <binding name="tree-descendant-env*" native="get_env_descendant" returns="tree">
-    <arg type="content" />
-    <arg type="path" />
-    <arg type="content" />
-  </binding>
-  <binding name="tree-descendant-env" native="get_env_descendant" returns="tree">
-    <arg type="content" />
-    <arg type="path" />
-    <arg type="string" />
-    <arg type="content" />
   </binding>
   <binding name="tree-load-inclusion" native="load_inclusion" returns="tree">
     <arg type="url" />
@@ -711,19 +689,6 @@
   <binding name="tree-search-sections" native="search_sections" returns="array_tree">
     <arg type="tree" />
   </binding>
-  <binding name="tree-search-tree" native="search" returns="array_path">
-    <arg type="content" />
-    <arg type="content" />
-    <arg type="path" />
-    <arg type="int" />
-  </binding>
-  <binding name="tree-search-tree-at" native="search" returns="array_path">
-    <arg type="content" />
-    <arg type="content" />
-    <arg type="path" />
-    <arg type="path" />
-    <arg type="int" />
-  </binding>
   <binding name="tree-search-source" native="search_source" returns="array_path">
     <arg type="content" />
     <arg type="content" />
@@ -746,13 +711,13 @@
     <arg type="bool" />
     <arg type="bool" />
   </binding>
-  <binding name="tag-minimal-arity" native="minimal_arity" returns="int">
+  <binding name="tag-minimal-arity" native="generic_tree_minimal_arity" returns="int">
     <arg type="tree_label" />
   </binding>
-  <binding name="tag-maximal-arity" native="maximal_arity" returns="int">
+  <binding name="tag-maximal-arity" native="generic_tree_maximal_arity" returns="int">
     <arg type="tree_label" />
   </binding>
-  <binding name="tag-possible-arity?" native="correct_arity" returns="bool">
+  <binding name="tag-possible-arity?" native="generic_tree_possible_arity" returns="bool">
     <arg type="tree_label" />
     <arg type="int" />
   </binding>
@@ -796,15 +761,6 @@
     <arg type="tree" />
     <arg type="int" />
   </binding>
-  <binding name="cpp-tree-correct-node" native="correct_node" returns="void">
-    <arg type="tree" />
-  </binding>
-  <binding name="cpp-tree-correct-downwards" native="correct_downwards" returns="void">
-    <arg type="tree" />
-  </binding>
-  <binding name="cpp-tree-correct-upwards" native="correct_upwards" returns="void">
-    <arg type="tree" />
-  </binding>
   <binding name="concat-tokenize-math" native="concat_tokenize" returns="array_tree">
     <arg type="content" />
   </binding>
@@ -814,21 +770,15 @@
   <binding name="concat-recompose" native="concat_recompose" returns="tree">
     <arg type="array_tree" />
   </binding>
-  <binding name="with-like?" native="is_with_like" returns="bool">
+  <binding name="with-like?" native="generic_tree_with_like" returns="bool">
     <arg type="content" />
   </binding>
-  <binding name="with-same-type?" native="with_same_type" returns="bool">
-    <arg type="content" />
-    <arg type="content" />
-  </binding>
-  <binding name="with-similar-type?" native="with_similar_type" returns="bool">
+  <binding name="with-same-type?" native="generic_tree_with_same_type" returns="bool">
     <arg type="content" />
     <arg type="content" />
   </binding>
-  <binding name="with-correct" native="with_correct" returns="tree">
+  <binding name="with-similar-type?" native="generic_tree_with_similar_type" returns="bool">
     <arg type="content" />
-  </binding>
-  <binding name="with-correct-superfluous" native="superfluous_with_correct" returns="tree">
     <arg type="content" />
   </binding>
   <binding name="invisible-correct-superfluous" native="superfluous_invisible_correct" returns="tree">
@@ -841,9 +791,6 @@
   <binding name="automatic-correct" native="automatic_correct" returns="tree">
     <arg type="content" />
     <arg type="string" />
-  </binding>
-  <binding name="manual-correct" native="manual_correct" returns="tree">
-    <arg type="content" />
   </binding>
   <binding name="tree-upgrade-brackets" native="upgrade_brackets" returns="tree">
     <arg type="content" />
@@ -858,19 +805,6 @@
     <arg type="bool" />
   </binding>
   <binding name="tree-downgrade-big" native="downgrade_big" returns="tree">
-    <arg type="content" />
-  </binding>
-  <binding name="math-stats-compile" native="compile_stats" returns="void">
-    <arg type="string" />
-    <arg type="content" />
-    <arg type="string" />
-  </binding>
-  <binding name="math-stats-occurrences" native="number_occurrences" returns="int">
-    <arg type="string" />
-    <arg type="content" />
-  </binding>
-  <binding name="math-stats-number-in-role" native="number_in_role" returns="int">
-    <arg type="string" />
     <arg type="content" />
   </binding>
   <binding name="path-strip" native="strip" returns="path">
@@ -891,66 +825,6 @@
   </binding>
   <binding name="path-less-eq?" native="path_less_eq" returns="bool">
     <arg type="path" />
-    <arg type="path" />
-  </binding>
-  <binding name="path-start" native="start" returns="path">
-    <arg type="content" />
-    <arg type="path" />
-  </binding>
-  <binding name="path-end" native="end" returns="path">
-    <arg type="content" />
-    <arg type="path" />
-  </binding>
-  <binding name="path-next" native="next_valid" returns="path">
-    <arg type="content" />
-    <arg type="path" />
-  </binding>
-  <binding name="path-previous" native="previous_valid" returns="path">
-    <arg type="content" />
-    <arg type="path" />
-  </binding>
-  <binding name="path-next-word" native="next_word" returns="path">
-    <arg type="content" />
-    <arg type="path" />
-  </binding>
-  <binding name="path-previous-word" native="previous_word" returns="path">
-    <arg type="content" />
-    <arg type="path" />
-  </binding>
-  <binding name="path-next-node" native="next_node" returns="path">
-    <arg type="content" />
-    <arg type="path" />
-  </binding>
-  <binding name="path-previous-node" native="previous_node" returns="path">
-    <arg type="content" />
-    <arg type="path" />
-  </binding>
-  <binding name="path-next-tag" native="next_tag" returns="path">
-    <arg type="content" />
-    <arg type="path" />
-    <arg type="scheme_tree" />
-  </binding>
-  <binding name="path-previous-tag" native="previous_tag" returns="path">
-    <arg type="content" />
-    <arg type="path" />
-    <arg type="scheme_tree" />
-  </binding>
-  <binding name="path-next-tag-same-argument" native="next_tag_same_argument" returns="path">
-    <arg type="content" />
-    <arg type="path" />
-    <arg type="scheme_tree" />
-  </binding>
-  <binding name="path-previous-tag-same-argument" native="previous_tag_same_argument" returns="path">
-    <arg type="content" />
-    <arg type="path" />
-    <arg type="scheme_tree" />
-  </binding>
-  <binding name="path-next-argument" native="next_argument" returns="path">
-    <arg type="content" />
-    <arg type="path" />
-  </binding>
-  <binding name="path-previous-argument" native="previous_argument" returns="path">
-    <arg type="content" />
     <arg type="path" />
   </binding>
   <binding name="path-previous-section" native="previous_section" returns="path">
@@ -2031,9 +1905,6 @@
     <arg type="url" />
     <arg type="url" />
   </binding>
-  <binding name="latex-export-init-mode-stats" native="latex_export_init_mode_stats" returns="void">
-    <arg type="scheme_tree" />
-  </binding>
   <binding name="latex-export-preprocess-preamble-list" native="latex_export_preprocess_preamble_list" returns="scheme_tree">
     <arg type="scheme_tree" />
   </binding>
@@ -2303,20 +2174,6 @@
   </binding>
   <binding name="compute-index-url" native="compute_index" returns="scheme_tree">
     <arg type="url" />
-  </binding>
-  <binding name="compress-tree" native="compress_tree" returns="tree">
-    <arg type="content" />
-  </binding>
-  <binding name="decompress-tree" native="decompress_tree" returns="tree">
-    <arg type="content" />
-  </binding>
-  <binding name="compress-html" native="compress_html" returns="string">
-    <arg type="content" />
-    <arg type="int" />
-  </binding>
-  <binding name="decompress-html" native="decompress_html" returns="tree">
-    <arg type="string" />
-    <arg type="int" />
   </binding>
   <binding name="url-&gt;url" native="url" returns="url">
     <arg type="url" />

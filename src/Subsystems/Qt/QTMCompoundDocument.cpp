@@ -437,7 +437,8 @@ class QTMCompoundViewport: public QAbstractScrollArea {
                       source= first_member + i] (editor_rep& editor) {
           const tree body= editor.the_buffer ();
           const path root= editor.the_buffer_path ();
-          path first= start (body), last= end (body);
+          path first= editor.command_tree_start (body, path ());
+          path last= editor.command_tree_end (body, path ());
           if ((from_cursor && i == 0) || (to_cursor && i + 1 == count)) {
             const path cursor= editor.the_path ();
             if (!(root <= cursor)) throw std::runtime_error ("Cursor is outside the source body");
@@ -626,8 +627,8 @@ class QTMCompoundViewport: public QAbstractScrollArea {
     edit_pending_= true;
     QPointer<QTMCompoundViewport> self (this);
     const auto serial= selection_serial_->load ();
-    athena::avd::copy_ranges (selection_, [self, id, serial] (std::string error, std::vector<std::string> pieces) {
-      QMetaObject::invokeMethod (qApp, [self, id, serial, error= std::move (error), pieces= std::move (pieces)] {
+    athena::avd::copy_ranges (selection_, [self, id, serial] (std::string error, athena::avd::clipboard_copy copied) {
+      QMetaObject::invokeMethod (qApp, [self, id, serial, error= std::move (error), copied= std::move (copied)] {
         if (!self) return;
         self->edit_pending_= false;
         if (!error.empty ()) {
@@ -636,10 +637,11 @@ class QTMCompoundViewport: public QAbstractScrollArea {
         }
         if (self->selection_serial_->load () != serial) return;
         try {
-          const tree envelope= athena::avd::merge_clipboard_pieces (pieces);
+          const tree envelope= athena::avd::merge_clipboard_pieces (copied.pieces);
           const auto bytes= athena::document::write_clipboard_xml (envelope);
           if (!::set_selection ("primary", envelope, string (bytes.data (), int (bytes.size ())),
-                                tree_to_verbatim (envelope[1], false, "utf-8"), "", "default"))
+                                string (copied.plain_text.data (), int (copied.plain_text.size ())),
+                                "", "default"))
             throw std::runtime_error ("Could not publish compound clipboard selection; no source was cut");
           if (id == "editor.cut") self->eraseSelection ();
         }

@@ -23,6 +23,16 @@
 
 thread_local hashset<tree_label> spell_ignore;
 
+std::optional<string>
+spelling_range_text (tree document, path first, path last) {
+  if (is_nil (first) || is_nil (last) || path_up (first) != path_up (last) ||
+      !has_subtree (document, path_up (first))) return {};
+  const tree value= subtree (document, path_up (first));
+  const int begin= last_item (first), end= last_item (last);
+  if (!is_atomic (value) || begin < 0 || begin >= end || end > N(value->label)) return {};
+  return value->label (begin, end);
+}
+
 /******************************************************************************
 * Useful subroutines
 ******************************************************************************/

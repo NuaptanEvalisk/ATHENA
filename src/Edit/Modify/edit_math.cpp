@@ -283,41 +283,6 @@ native_prime_run (tree t) {
   return true;
 }
 
-bool
-continue_native_primes (tree root, path cursor, int slot) {
-  path scripts;
-  return find_native_scripts (root, cursor, scripts) &&
-    cursor == end (root, scripts * slot) &&
-    native_prime_run (subtree (root, scripts * slot));
-}
-
-bool
-native_script_base (tree root, path cursor, path& result, int& offset) {
-  if (is_nil (cursor)) return false;
-  result= path_up (cursor);
-  if (!has_subtree (root, result)) return false;
-  tree value= subtree (root, result);
-  offset= last_item (cursor);
-  if (is_atomic (value) && offset > 0) return true;
-  if (is_compound (value) && cursor == end (root, result))
-    return L(value) != MATH_BLOCK && L(value) != MATH_GRID &&
-           L(value) != DOCUMENT && L(value) != ROW && L(value) != CELL;
-  // A cursor in the empty text immediately after an object still belongs to
-  // that object. Do not cross a content slot or an identity-bearing leaf.
-  if (!is_atomic (value) || offset != 0 || is_nil (result)) return false;
-  const path parent= path_up (result);
-  if (!is_concat (subtree (root, parent))) return false;
-  int index= last_item (result);
-  while (index > 0) {
-    value= subtree (root, parent * (--index));
-    if (value == "" && athena::node::get (value) == nullptr) continue;
-    result= parent * index;
-    offset= is_atomic (value) ? N(value->label) : 1;
-    return true;
-  }
-  return false;
-}
-
 tree
 empty_native_scripts (int slot, tree value= tree ("")) {
   tree fields[5]= {"", "", "", "", ""};
@@ -393,6 +358,55 @@ edit_math_rep::native_math_editing () const {
   return native_v3_math_context (buf);
 }
 
+bool
+edit_math_rep::continue_native_primes (int slot) {
+  path scripts;
+  return find_native_scripts (et, tp, scripts) &&
+    native_prime_run (subtree (et, scripts * slot)) &&
+    tp == prepare_command_boundary (scripts * slot, false);
+}
+
+bool
+edit_math_rep::native_script_base (path& result, int& offset) {
+  if (is_nil (tp)) return false;
+  result= path_up (tp);
+  if (!has_subtree (et, result)) return false;
+  tree value= subtree (et, result);
+  offset= last_item (tp);
+  if (is_atomic (value) && offset > 0) return true;
+  if (is_compound (value) && tp == prepare_command_boundary (result, false))
+    return L(value) != MATH_BLOCK && L(value) != MATH_GRID &&
+           L(value) != DOCUMENT && L(value) != ROW && L(value) != CELL;
+  // A cursor in the empty text immediately after an object still belongs to
+  // that object. Do not cross a content slot or an identity-bearing leaf.
+  if (!is_atomic (value) || offset != 0 || is_nil (result)) return false;
+  const path parent= path_up (result);
+  if (!is_concat (subtree (et, parent))) return false;
+  int index= last_item (result);
+  while (index > 0) {
+    value= subtree (et, parent * (--index));
+    if (value == "" && athena::node::get (value) == nullptr) continue;
+    result= parent * index;
+    offset= is_atomic (value) ? N(value->label) : 1;
+    return true;
+  }
+  return false;
+}
+
+void
+edit_math_rep::insert_math_wrapper (tree wrapper, int field, bool selected) {
+  if (selected) wrapper[field]= selection_get ();
+  path destination;
+  if (is_atomic (wrapper[field])) destination= path (field, N(wrapper[field]->label));
+  else {
+    const auto context= prepare_source_position (
+      selected ? selection_get_cursor_path () : tp);
+    destination= prepare_tree_boundary (wrapper, path (field), false, *context);
+  }
+  if (selected) selection_cut ("none");
+  insert_tree (wrapper, destination);
+}
+
 void
 edit_math_rep::make_native_big_operator (string op) {
   if (!native_math_editing ()) return;
@@ -418,8 +432,7 @@ edit_math_rep::make_native_big_operator (string op) {
   if (display_limits)
     atom= athena::math_v3::scripts (atom, "", "", "", "", 'd');
   if (selection_active_normal ()) {
-    const tree selected= selection_get_cut ();
-    insert_tree (tree (CONCAT, atom, selected), path (1, end (selected)));
+    insert_math_wrapper (tree (CONCAT, atom, ""), 1, true);
   }
   else insert_tree (atom, path (1));
 }
@@ -437,7 +450,7 @@ edit_math_rep::make_rigid () {
 void
 edit_math_rep::make_lprime (string s) {
   if (native_v3_math_context (buf)) {
-    if (selection_active_small () || !continue_native_primes (et, tp, 2))
+    if (selection_active_small () || !continue_native_primes (2))
       make_script (true, false, false);
     insert_tree (s == "'" ? tree ("′") : tree (s));
     return;
@@ -454,7 +467,7 @@ void
 edit_math_rep::make_rprime (string s) {
   if (native_v3_math_context (buf)) {
     // Consecutive primes share a superscript; ordinary powers still nest.
-    if (selection_active_small () || !continue_native_primes (et, tp, 4))
+    if (selection_active_small () || !continue_native_primes (4))
       make_script (true, true, false);
     insert_tree (s == "'" ? tree ("′") : tree (s));
     return;
@@ -523,7 +536,7 @@ edit_math_rep::make_script (bool sup, bool right, bool switch_slots) {
       // Inside a script, attach to the local token rather than switching to
       // an outer slot. Repeating a command in its empty slot stays there.
       const bool at_slot_end= N(relative) > 1 &&
-        tp == end (et, attached * relative->item);
+        tp == prepare_command_boundary (attached * relative->item, false);
       if (N(relative) == 1 ||
           (at_slot_end &&
            (relative->item == 0 ||
@@ -535,7 +548,7 @@ edit_math_rep::make_script (bool sup, bool right, bool switch_slots) {
     }
     path atomic_path;
     int offset= 0;
-    if (native_script_base (et, tp, atomic_path, offset)) {
+    if (native_script_base (atomic_path, offset)) {
       if (has_subtree (et, atomic_path)) {
         const tree old_atom= subtree (et, atomic_path);
         if (is_compound (old_atom)) {
@@ -568,10 +581,10 @@ edit_math_rep::make_script (bool sup, bool right, bool switch_slots) {
               // from the canonical constructor; never edit fixed arity.
               script[slot]= content;
               tree replacement;
-              path destination;
+              path field;
               if (prefix == "" && suffix == "") {
                 replacement= script;
-                destination= atomic_path * slot * end (content);
+                field= path (slot);
               }
               else {
                 tree sequence (CONCAT);
@@ -581,7 +594,14 @@ edit_math_rep::make_script (bool sup, bool right, bool switch_slots) {
                 append_native_math_tokens (sequence, suffix);
                 athena::node::copy_metadata (old_atom, sequence);
                 replacement= sequence;
-                destination= atomic_path * index * slot * end (content);
+                field= path (index, slot);
+              }
+              path destination;
+              if (is_atomic (content)) destination= atomic_path * field * N(content->label);
+              else {
+                const auto context= prepare_source_position (atomic_path * 0);
+                destination= atomic_path * prepare_tree_boundary (
+                  replacement, field, false, *context);
               }
               assign (atomic_path, replacement);
               go_to (destination);
@@ -593,7 +613,7 @@ edit_math_rep::make_script (bool sup, bool right, bool switch_slots) {
     }
     // A deliberately independent ^{op} or _i has a legitimate empty base.
     // Do not attach it to unrelated paragraph text or manufacture RSUB/RSUP.
-    insert_tree (empty_native_scripts (slot, content), path (slot, end (content)));
+    insert_math_wrapper (empty_native_scripts (slot, content), slot, false);
     return;
   }
   tree_label s (sup? SUP (right): SUB (right));
@@ -672,12 +692,11 @@ edit_math_rep::make_wide (string wide, bool stretch) {
       set_message ("Error: unknown mathematical accent", wide);
       return;
     }
-    const tree body= selection_active_small () ? selection_get_cut () : tree ("");
-    tree accent (MATH_ACCENT, tree (glyph), tree ("o"), body);
+    tree accent (MATH_ACCENT, tree (glyph), tree ("o"), tree (""));
     athena::node::metadata meta;
     meta.properties["math:accent-stretch"]= athena::node::property (stretch);
     athena::node::set (accent, meta);
-    insert_tree (accent, body == "" ? path (2, 0) : path (2, end (body)));
+    insert_math_wrapper (accent, 2, selection_active_small ());
     return;
   }
   tree accent= stretch ? tree (WITH, "math-accent-stretch", "true", wide) : tree (wide);
@@ -697,12 +716,11 @@ edit_math_rep::make_wide_under (string wide, bool stretch) {
       set_message ("Error: unknown mathematical accent", wide);
       return;
     }
-    const tree body= selection_active_small () ? selection_get_cut () : tree ("");
-    tree accent (MATH_ACCENT, tree (glyph), tree ("u"), body);
+    tree accent (MATH_ACCENT, tree (glyph), tree ("u"), tree (""));
     athena::node::metadata meta;
     meta.properties["math:accent-stretch"]= athena::node::property (stretch);
     athena::node::set (accent, meta);
-    insert_tree (accent, body == "" ? path (2, 0) : path (2, end (body)));
+    insert_math_wrapper (accent, 2, selection_active_small ());
     return;
   }
   tree accent= stretch ? tree (WITH, "math-accent-stretch", "true", wide) : tree (wide);
@@ -948,7 +966,8 @@ edit_math_rep::math_select_before_cursor_unit () {
     if (child < 0 || child >= N(parent)) { selection_cancel (); return false; }
     tree previous= parent[child];
     path begin_path;
-    if (!is_atomic (previous) || previous == "") begin_path= start (et, parent_path * child);
+    if (!is_atomic (previous) || previous == "")
+      begin_path= prepare_command_boundary (parent_path * child, true);
     else {
       const string text= previous->label;
       const int begin_byte= math_previous_token_start (text, N(text));
@@ -957,7 +976,7 @@ edit_math_rep::math_select_before_cursor_unit () {
         string tail= text (begin_byte, N(text));
         absorb_around= !math_symbol_or_operator (tail);
       }
-      begin_path= absorb_around ? start (et, parent_path * (child + 1)) :
+      begin_path= absorb_around ? prepare_command_boundary (parent_path * (child + 1), true) :
                                   parent_path * child * begin_byte;
     }
     selection_set_paths (begin_path, tp);
@@ -1023,7 +1042,9 @@ edit_math_rep::math_kbd_select_enlarge () {
   }
   else if (offset > 0 && offset <= N(node)) {
     path child= node_path * (offset - 1);
-    selection_set_paths (start (et, child), end (et, child));
+    const auto context= prepare_source_position (child * 0);
+    selection_set_paths (prepare_command_boundary (child, child, true, *context),
+                         prepare_command_boundary (child, child, false, *context));
     return;
   }
   select_enlarge ();
@@ -1040,7 +1061,7 @@ edit_math_rep::math_evaluation_bar () {
       path parent= path_up (row_path);
       if (!is_nil (parent) && is_concat (subtree (et, parent))) row_path= parent;
     }
-    selection_set_paths (start (et, row_path), tp);
+    selection_set_paths (prepare_command_boundary (row_path, true), tp);
   }
   tree body= selection_active_any () ? selection_get_cut () : tree ("");
   if (native) {
@@ -1089,14 +1110,13 @@ edit_math_rep::math_bracket_open (string left, string right, int large_mode) {
     if (!selection_active_any () && left == right &&
         find_native_delimited (et, tp, enclosed)) {
       const tree pair= subtree (et, enclosed);
-      if (pair[1] == right && tp == end (et, enclosed * 5)) {
+      if (pair[1] == right && tp == prepare_command_boundary (enclosed * 5, false)) {
         go_to_end (enclosed);
         return;
       }
     }
-    const tree body= selection_active_normal () ? selection_get_cut () : tree ("");
-    tree pair= athena::math_v3::delimited (left, right, 'a', body);
-    insert_tree (pair, body == "" ? path (5, 0) : path (5, end (body)));
+    tree pair= athena::math_v3::delimited (left, right, 'a', "");
+    insert_math_wrapper (pair, 5, selection_active_normal ());
     return;
   }
   const bool large= large_mode < 0 ? get_preference ("use large brackets") != "off" :
@@ -1110,8 +1130,7 @@ edit_math_rep::math_bracket_open (string left, string right, int large_mode) {
 
   const tree_label around_label= make_tree_label (large ? "around*" : "around");
   if (selection_active_normal ()) {
-    tree body= selection_get_cut ();
-    insert_tree (tree (around_label, left, body, right), path (1, end (body)));
+    insert_math_wrapper (tree (around_label, left, "", right), 1, true);
     return;
   }
 
@@ -1119,10 +1138,14 @@ edit_math_rep::math_bracket_open (string left, string right, int large_mode) {
   if (find_adjacent_around (et, tp, around_path)) {
     tree around= subtree (et, around_path);
     const path body_path= around_path * 1;
-    const bool at_start= tp == start (et, body_path);
-    const bool at_end= tp == end (et, body_path) || tp == end (et, around_path);
+    const auto context= prepare_source_position (around_path * 0);
+    const path body_start= prepare_command_boundary (around_path, body_path, true, *context);
+    const path body_end= prepare_command_boundary (around_path, body_path, false, *context);
+    const path around_end= prepare_command_boundary (around_path, around_path, false, *context);
+    const bool at_start= tp == body_start;
+    const bool at_end= tp == body_end || tp == around_end;
     if (at_end && missing_bracket (around[2]) &&
-        (!missing_bracket (around[0]) || tp == end (et, around_path))) {
+        (!missing_bracket (around[0]) || tp == around_end)) {
       assign (around_path * 2, tree (left));
       go_to_end (around_path);
       return;
@@ -1159,12 +1182,12 @@ edit_math_rep::math_bracket_close (string right, string left, int large_mode) {
       const path body_path= enclosed * 5;
       // An endpoint already crossed belongs to the completed inner pair,
       // not the next closing keystroke for its enclosing pair.
-      if (tp == end (et, enclosed)) {
+      if (tp == prepare_command_boundary (enclosed, false)) {
         if (is_nil (enclosed)) break;
         search= path_up (enclosed);
         continue;
       }
-      const bool at_end= tp == end (et, body_path);
+      const bool at_end= tp == prepare_command_boundary (body_path, false);
       if (at_end && athena::math_v3::glyph (glyph, true) &&
           (glyph != "" || expression[0] != "")) {
         // The inserted mate is a default, not a restriction on intervals.
@@ -1190,10 +1213,14 @@ edit_math_rep::math_bracket_close (string right, string left, int large_mode) {
   if (find_adjacent_around (et, tp, around_path)) {
     tree around= subtree (et, around_path);
     const path body_path= around_path * 1;
-    const bool at_start= tp == start (et, body_path);
-    const bool at_end= tp == end (et, body_path) || tp == end (et, around_path);
+    const auto context= prepare_source_position (around_path * 0);
+    const path body_start= prepare_command_boundary (around_path, body_path, true, *context);
+    const path body_end= prepare_command_boundary (around_path, body_path, false, *context);
+    const path around_end= prepare_command_boundary (around_path, around_path, false, *context);
+    const bool at_start= tp == body_start;
+    const bool at_end= tp == body_end || tp == around_end;
     if (at_start && missing_bracket (around[0]) &&
-        (!missing_bracket (around[2]) || tp != end (et, around_path))) {
+        (!missing_bracket (around[2]) || tp != around_end)) {
       assign (around_path * 0, tree (right));
       go_to_start (body_path);
       return;

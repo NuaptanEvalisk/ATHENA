@@ -21,6 +21,7 @@
 #include "Qt/qt_simple_widget.hpp"
 #include "server.hpp"
 #include "Data/NodeContracts/evaluation_state.hpp"
+#include "Data/NodeContracts/source_environment.hpp"
 #include <map>
 #include <set>
 #ifdef EXPERIMENTAL
@@ -47,6 +48,7 @@ typedef tm_view_rep* tm_view;
 class modification;
 class editor;
 class evaluation_environment_checkpoint;
+class tree_compression;
 struct native_paste_plan;
 namespace athena::contracts { class detached_environment; }
 struct heading_cell_range {
@@ -110,6 +112,7 @@ public:
 protected:
   buffer_document_state* buf; // actor-owned document state
   athena::contracts::evaluation_state contract_state;
+  std::shared_ptr<tree_compression> compression;
   tree&        et;   // all TeXmacs trees
   box          eb;   // box translation of tree
   path         rp;   // path to the root of the document in et
@@ -181,9 +184,18 @@ protected:
   virtual athena::document_node::source_contract_preparation
     prepare_source_identity_contracts () = 0;
   std::shared_ptr<const evaluation_environment_checkpoint> prepare_source_position (path position);
+  std::shared_ptr<const evaluation_environment_checkpoint> prepare_tree_entry (tree source);
+  athena::contracts::source_environment_preparation correction_environments (
+    tree source, std::shared_ptr<const evaluation_environment_checkpoint> entry);
+  void correct_source_tree (tree source, int direction);
   std::shared_ptr<const evaluation_environment_checkpoint> prepare_source_position (
     path position, std::shared_ptr<const evaluation_environment_checkpoint>& document_context);
   path prepare_command_boundary (path root, path target, bool at_start,
+    const evaluation_environment_checkpoint& context);
+  path prepare_command_boundary (path target, bool at_start);
+  path admitted_boundary (path target, bool at_start);
+  std::optional<path> try_admitted_boundary (path target, bool at_start);
+  path prepare_tree_boundary (tree source, path target, bool at_start,
     const evaluation_environment_checkpoint& context);
   virtual void selection_wrap (tree wrapper, path position) = 0;
   virtual void   typeset (SI& x1, SI& y1, SI& x2, SI& y2) = 0;
@@ -205,12 +217,16 @@ protected:
   virtual void back_in_text_at (tree t, path p, bool forward) = 0;
 
   /* other protected subroutines */
-  virtual void with_selection_context (const std::function<void ()>& action) = 0;
+  virtual void with_selection_context (const std::function<void ()>& action,
+    std::shared_ptr<const evaluation_environment_checkpoint> context= {}) = 0;
   virtual bool selection_try_correct (path, path, path&, path&) = 0;
-  // Read-only traversal rooted at rp; false means an entry is not admitted.
+  // Read-only traversal; defaults to rp. False means an entry is not admitted.
   bool with_admitted_navigation (const evaluation_environment_checkpoint&,
     const std::function<void (const cursor_navigation&)>&,
-    const std::optional<path>& display= {});
+    const std::optional<path>& display= {}, const std::optional<path>& root= {});
+  path navigate_source_tree (tree, path,
+    const std::function<path (const cursor_navigation&, tree, path)>&);
+  std::optional<path> resolve_tree_boundary (tree, path, bool at_start, bool command);
   virtual tree kbd (string s) = 0;
   virtual tree kbd_shortcut (string s) = 0;
   // A nil path means the physical hit is awaiting an admitted layout context.
@@ -340,6 +356,22 @@ public:
   virtual void handle_center_message_state (bool active) = 0;
 
   /* public routines from edit_cursor */
+  object source_tree_start (tree, path);
+  object source_tree_end (tree, path);
+  path command_tree_start (tree, path);
+  path command_tree_end (tree, path);
+  path tree_next_valid (tree, path);
+  path tree_previous_valid (tree, path);
+  path tree_next_word (tree, path);
+  path tree_previous_word (tree, path);
+  path tree_next_node (tree, path);
+  path tree_previous_node (tree, path);
+  path tree_next_tag (tree, path, scheme_tree);
+  path tree_previous_tag (tree, path, scheme_tree);
+  path tree_next_tag_same_argument (tree, path, scheme_tree);
+  path tree_previous_tag_same_argument (tree, path, scheme_tree);
+  path tree_next_argument (tree, path);
+  path tree_previous_argument (tree, path);
   virtual path make_cursor_accessible (path p, bool forwards) = 0;
   virtual bool cursor_is_accessible () = 0;
   virtual void show_cursor_if_hidden () = 0;
@@ -461,6 +493,21 @@ public:
   virtual tree     exec_texmacs (tree t) = 0;
   virtual tree     exec_verbatim (tree t, path p) = 0;
   virtual tree     exec_verbatim (tree t) = 0;
+  tree compress_tree (tree t);
+  tree decompress_tree (tree t);
+  string compress_html (tree t, int mode);
+  tree decompress_html (string text, int mode);
+  tree correct_with (tree source);
+  tree correct_superfluous_with (tree source);
+  tree correct_math (tree source);
+  virtual void update_math_statistics ()= 0;
+  virtual int math_statistics_occurrences (string id, tree source)= 0;
+  virtual int math_statistics_role (string id, tree source)= 0;
+  void correct_tree_node (tree source);
+  void correct_tree_downwards (tree source);
+  void correct_tree_upwards (tree source);
+  bool command_tree_with_like (tree source);
+  bool command_tree_with_same_type (tree first, tree second);
   virtual tree     exec_html (tree t, path p) = 0;
   virtual tree     exec_html (tree t) = 0;
   virtual tree     exec_latex (tree t, path p) = 0;

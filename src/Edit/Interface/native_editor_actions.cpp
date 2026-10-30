@@ -26,6 +26,7 @@
 #include "language.hpp"
 #include "scheme.hpp"
 #include "tree_select.hpp"
+#include "tree_spell.hpp"
 #include "auto_close.hpp"
 #include "Subsystems/Qt/QTMFormulaAstViewer.hpp"
 #include "Scheme/Scheme/native_interfaces.hpp"
@@ -151,9 +152,9 @@ popup_spell_range (editor ed, path& first, path& last, string* word= nullptr) {
     first= ranges[i];
     last= ranges[i + 1];
     if (word != nullptr) {
-      tree selected= selection_compute (ed->the_root (), first, last);
-      if (!is_atomic (selected) || N(selected->label) == 0) return false;
-      *word= selected->label;
+      const auto selected= spelling_range_text (ed->the_root (), first, last);
+      if (!selected) return false;
+      *word= *selected;
     }
     return true;
   }
@@ -1015,7 +1016,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     if (ed->selection_active_normal ()) selected= ed->selection_get_cut ();
     tree value= athena::program::create (native_language);
     ed->insert_tree (value, path (0, 0, 0));
-    if (selected != "") ed->insert_tree (selected, end (selected));
+    if (selected != "") ed->insert_tree (selected);
   }
   else if (op == "make-with") {
     const string variable= native_action_string (action.value ("var"));

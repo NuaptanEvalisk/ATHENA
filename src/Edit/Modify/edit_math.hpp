@@ -15,6 +15,9 @@
 
 class edit_math_rep: virtual public editor_rep {
   void make_script (bool sup, bool right, bool switch_slots);
+  bool continue_native_primes (int slot);
+  bool native_script_base (path& result, int& offset);
+  void insert_math_wrapper (tree wrapper, int field, bool selected);
 
 public:
   edit_math_rep ();

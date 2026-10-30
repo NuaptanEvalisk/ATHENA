@@ -21,7 +21,10 @@
 #include "new_buffer.hpp"
 #include "new_view.hpp"
 #include "tree_select.hpp"
+#include "tree_spell.hpp"
 #include "tree_traverse.hpp"
+#include "tree_analyze.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 #include "basic.hpp"
 #include "hashmap.hpp"
 #include "native_interfaces.hpp"
@@ -363,10 +366,10 @@ bool spell_live_current_range (path& start_path, path& end_path) {
 }
 
 bool spell_live_current_word_impl (path start_path, path end_path, string& word) {
-  tree selected= selection_compute (get_current_editor ()->the_root (),
-                                    start_path, end_path);
-  if (!is_atomic (selected) || N (selected->label) == 0) return false;
-  word= selected->label;
+  const auto selected= spelling_range_text (get_current_editor ()->the_root (),
+                                           start_path, end_path);
+  if (!selected) return false;
+  word= *selected;
   return true;
 }
 
@@ -1136,14 +1139,162 @@ generic_toggle_insertion_positioning_not (string position) {
   generic_toggle_insertion_positioning (position);
 }
 
-bool
-generic_string_variable_name (tree t, int i) {
-  if (i < 0 || i >= N (t)) return false;
-  if (get_child_type (t, i) != "variable") return false;
-  bool variable_container=
-    is_compound (t, "with") || is_compound (t, "attr") ||
-    is_compound (t, "style-with") || is_compound (t, "style-with*");
-  return variable_container && is_atomic (t[i]) && as_string (t[i]) != "";
+std::shared_ptr<const evaluation_environment_checkpoint>
+generic_prepared_tree_context (tree t) {
+  editor ed= get_current_editor ();
+  const path ip= obtain_ip (t);
+  if (!ip_attached (ip)) return ed->cursor_context_at (ed->the_path ());
+  const path source= reverse (ip);
+  if (!(ed->the_buffer_path () <= source) || !ed->test_subtree (source) ||
+      !strong_equal (ed->the_subtree (source), t)) return {};
+  return ed->cursor_context_at (source * 0);
+}
+
+bool generic_tree_with_like (tree t) {
+  if (is_atomic (t) || N(t) == 0) return false;
+  if (athena::contracts::builtin_label (as_string (L(t))))
+    return is_with_like (t, {athena::contracts::builtin_contracts ()});
+  const auto context= generic_prepared_tree_context (t);
+  return context && is_with_like (t, {context->contract_context ()});
+}
+
+static bool generic_compare_wrappers (tree first, tree second, bool similar) {
+  if (is_atomic (first) || is_atomic (second) || N(first) == 0 || N(second) == 0) return false;
+  const bool native_left= athena::contracts::builtin_label (as_string (L(first)));
+  const bool native_right= athena::contracts::builtin_label (as_string (L(second)));
+  const auto left= native_left ? nullptr : generic_prepared_tree_context (first);
+  const auto right= native_right ? nullptr : generic_prepared_tree_context (second);
+  if ((!native_left && !left) || (!native_right && !right)) return false;
+  const athena::contracts::editing_query left_query {
+    left ? left->contract_context () : athena::contracts::builtin_contracts ()};
+  const athena::contracts::editing_query right_query {
+    right ? right->contract_context () : athena::contracts::builtin_contracts ()};
+  return similar ? with_similar_type (first, second, left_query, right_query) :
+    with_same_type (first, second, left_query, right_query);
+}
+
+bool generic_tree_with_same_type (tree first, tree second) {
+  return generic_compare_wrappers (first, second, false);
+}
+
+bool generic_tree_with_similar_type (tree first, tree second) {
+  return generic_compare_wrappers (first, second, true);
+}
+
+bool generic_tree_label_macro (tree_label label) {
+  const auto context= generic_prepared_tree_context (tree (label));
+  return context && athena::contracts::editing_query {context->contract_context ()}.
+    describe (label).variable_type != VAR_PARAMETER;
+}
+
+bool generic_tree_label_parameter (tree_label label) {
+  const auto context= generic_prepared_tree_context (tree (label));
+  return context && athena::contracts::editing_query {context->contract_context ()}.
+    describe (label).variable_type != VAR_MACRO;
+}
+
+string generic_tree_label_type (tree_label label) {
+  const auto context= generic_prepared_tree_context (tree (label));
+  if (!context) return "";
+  const auto name= athena::contracts::type_name (
+    athena::contracts::editing_query {context->contract_context ()}.describe (label).type);
+  return string (name.data (), name.size ());
+}
+
+int generic_tree_minimal_arity (tree t) {
+  const auto context= generic_prepared_tree_context (t);
+  return context ? athena::contracts::editing_query {context->contract_context ()}.
+    describe (t).layout.minimum () : -1;
+}
+
+int generic_tree_maximal_arity (tree t) {
+  const auto context= generic_prepared_tree_context (t);
+  return context ? athena::contracts::editing_query {context->contract_context ()}.
+    describe (t).layout.maximum () : -1;
+}
+
+bool generic_tree_possible_arity (tree t, int n) {
+  const auto context= generic_prepared_tree_context (t);
+  return context && athena::contracts::editing_query {context->contract_context ()}.
+    describe (t).layout.accepts (n);
+}
+
+int generic_tree_minimal_arity (tree_label label) {
+  return generic_tree_minimal_arity (tree (label));
+}
+
+int generic_tree_maximal_arity (tree_label label) {
+  return generic_tree_maximal_arity (tree (label));
+}
+
+bool generic_tree_possible_arity (tree_label label, int n) {
+  return generic_tree_possible_arity (tree (label), n);
+}
+
+int generic_tree_insert_point (tree t, int i) {
+  const auto context= generic_prepared_tree_context (t);
+  return context ? athena::contracts::editing_query {context->contract_context ()}.
+    describe (t).layout.insertion (i, N(t)) : -1;
+}
+
+bool generic_tree_dynamic (tree t) {
+  const auto context= generic_prepared_tree_context (t);
+  return context && athena::contracts::editing_query {context->contract_context ()}.variable_arity (t);
+}
+
+bool generic_tree_accessible_child (tree t, int i) {
+  const auto context= generic_prepared_tree_context (t);
+  return context && athena::contracts::editing_query {context->contract_context ()}.accessible (t, i);
+}
+
+array<tree> generic_tree_accessible_children (tree t) {
+  array<tree> children;
+  const auto context= generic_prepared_tree_context (t);
+  if (!context) return children;
+  const athena::contracts::editing_query query {context->contract_context ()};
+  for (int i=0; i<N(t); ++i)
+    if (query.accessible (t, i)) children << t[i];
+  return children;
+}
+
+bool generic_tree_all_accessible (tree t) {
+  if (is_atomic (t)) return false;
+  const auto context= generic_prepared_tree_context (t);
+  return context && athena::contracts::editing_query {context->contract_context ()}.all_fields_editable (L(t));
+}
+
+bool generic_tree_none_accessible (tree t) {
+  if (is_atomic (t)) return false;
+  const auto context= generic_prepared_tree_context (t);
+  return context && athena::contracts::editing_query {context->contract_context ()}.no_fields_editable (L(t));
+}
+
+string generic_tree_name (tree t) {
+  const auto context= generic_prepared_tree_context (t);
+  return context ? athena::contracts::editing_query {context->contract_context ()}.name (L(t)) : "";
+}
+
+string generic_tree_long_name (tree t) {
+  const auto context= generic_prepared_tree_context (t);
+  return context ? athena::contracts::editing_query {context->contract_context ()}.name (L(t), true) : "";
+}
+
+string generic_tree_child_name (tree t, int i) {
+  const auto context= generic_prepared_tree_context (t);
+  return context ? athena::contracts::editing_query {context->contract_context ()}.child_name (t, i) : "";
+}
+
+string generic_tree_child_long_name (tree t, int i) {
+  const auto context= generic_prepared_tree_context (t);
+  return context ? athena::contracts::editing_query {context->contract_context ()}.child_name (t, i, true) : "";
+}
+
+string generic_tree_child_type (tree t, int i) {
+  const auto context= generic_prepared_tree_context (t);
+  if (!context) return "";
+  const auto name= athena::contracts::type_name (
+    athena::contracts::editing_query {context->contract_context ()}.child_type (t, i));
+  return string (name.data (), name.size ());
 }
 
 string
@@ -1158,9 +1309,8 @@ generic_type_to_format (string type) {
 
 bool
 generic_hidden_child (tree t, int i) {
-  if (i < 0 || i >= N (t)) return false;
-  return !is_accessible_child (t, i) && !generic_string_variable_name (t, i) &&
-         generic_type_to_format (get_child_type (t, i)) != "n.a.";
+  const auto context= generic_prepared_tree_context (t);
+  return context && generic_hidden_child (t, i, {context->contract_context ()});
 }
 
 namespace {
@@ -1177,16 +1327,24 @@ bool scoped_variable_name (tree t, int i, const athena::contracts::editing_query
 }
 
 bool
+generic_string_variable_name (tree t, int i) {
+  if (i < 0 || i >= N(t)) return false;
+  const auto context= generic_prepared_tree_context (t);
+  return context && scoped_variable_name (t, i, {context->contract_context ()});
+}
+
+bool
 generic_hidden_child (tree t, int i, const athena::contracts::editing_query& query) {
   if (i < 0 || i >= N(t)) return false;
   return !query.accessible (t, i) && !scoped_variable_name (t, i, query) &&
          generic_type_to_format (scoped_child_type (t, i, query)) != "n.a.";
 }
 
-string
-generic_tree_child_name_star (tree t, int i, const athena::contracts::editing_query& query) {
+namespace {
+string generic_tree_child_name_impl (
+    tree t, int i, bool long_name, const athena::contracts::editing_query& query) {
   if (i < 0 || i >= N(t)) return "";
-  string name= query.child_name (t, i);
+  string name= query.child_name (t, i, long_name);
   if (name != "") return name;
   if (i > 0 && scoped_variable_name (t, i - 1, query))
     return replace (as_string (t[i-1]), "-", " ");
@@ -1197,39 +1355,23 @@ generic_tree_child_name_star (tree t, int i, const athena::contracts::editing_qu
   const string type= scoped_child_type (t, i, query);
   return type == "regular" ? string ("") : type;
 }
-
-namespace {
-
-int generic_hidden_child_count (tree t) {
-  int count= 0;
-  for (int i= 0; i < N (t); ++i)
-    if (generic_hidden_child (t, i)) ++count;
-  return count;
 }
 
-string generic_tree_child_name_impl (tree t, int i, bool long_name) {
-  if (i < 0 || i >= N (t)) return "";
-  string name= long_name ? get_child_long_name (t, i) : get_child_name (t, i);
-  if (name != "") return name;
-  if (i > 0 && generic_string_variable_name (t, i - 1)) {
-    string variable= as_string (t[i - 1]);
-    return replace (variable, "-", " ");
-  }
-  if (generic_hidden_child_count (t) > 1) return "";
-  string type= get_child_type (t, i);
-  return type == "regular" ? string ("") : type;
+string
+generic_tree_child_name_star (tree t, int i, const athena::contracts::editing_query& query) {
+  return generic_tree_child_name_impl (t, i, false, query);
 }
-
-} // namespace
 
 string
 generic_tree_child_name_star (tree t, int i) {
-  return generic_tree_child_name_impl (t, i, false);
+  const auto context= generic_prepared_tree_context (t);
+  return context ? generic_tree_child_name_impl (t, i, false, {context->contract_context ()}) : "";
 }
 
 string
 generic_tree_child_long_name_star (tree t, int i) {
-  return generic_tree_child_name_impl (t, i, true);
+  const auto context= generic_prepared_tree_context (t);
+  return context ? generic_tree_child_name_impl (t, i, true, {context->contract_context ()}) : "";
 }
 
 string
@@ -1260,14 +1402,8 @@ generic_inputter_encode (string value, string type) {
 
 bool
 generic_focus_set_hidden_child (tree t, int i, string value) {
-  if (!generic_hidden_child (t, i)) return false;
-  string type= get_child_type (t, i);
-  if (!generic_inputter_active (t[i], type)) return false;
-  tree encoded= scheme_tree_to_tree (generic_inputter_encode (value, type));
-  (void) tree_set (t, i, encoded);
-  try { (void) call ("focus-tree-modified", object (t)); }
-  catch (...) {}
-  return true;
+  const auto context= generic_prepared_tree_context (t);
+  return context && generic_focus_set_hidden_child (t, i, value, {context->contract_context ()});
 }
 
 bool
@@ -1384,10 +1520,11 @@ string focus_doc_avoid_conflict (string name, array<string> previous) {
   }
 }
 
-string focus_doc_arg_name (tree t, int i, array<string> previous) {
-  string name= get_child_name (t, i);
+string focus_doc_arg_name (tree t, int i, array<string> previous,
+                           const athena::contracts::editing_query& query) {
+  string name= query.child_name (t, i);
   if (name == "") {
-    string type= get_child_type (t, i);
+    string type= scoped_child_type (t, i, query);
     name= type == "regular" ? string ("body") : type;
   }
   return focus_doc_avoid_conflict (name, previous);
@@ -1397,6 +1534,9 @@ string focus_doc_arg_name (tree t, int i, array<string> previous) {
 
 object
 generic_focus_doc_arg_names (tree t, int start, object previous_names) {
+  const auto context= generic_prepared_tree_context (t);
+  if (!context) return as_list_object (array<object> ());
+  const athena::contracts::editing_query query {context->contract_context ()};
   array<string> previous;
   if (is_list (previous_names)) {
     array<object> items= as_array_object (previous_names);
@@ -1406,7 +1546,7 @@ generic_focus_doc_arg_names (tree t, int start, object previous_names) {
 
   array<object> result;
   for (int i= start; i < N (t); ++i) {
-    string name= focus_doc_arg_name (t, i, previous);
+    string name= focus_doc_arg_name (t, i, previous, query);
     result << object (name);
     previous << name;
   }
@@ -1415,7 +1555,11 @@ generic_focus_doc_arg_names (tree t, int start, object previous_names) {
 
 string
 generic_parameter_name (string name) {
-  const string tree_name= get_name (tree (as_tree_label (name)));
+  editor ed= get_current_editor ();
+  const auto context= ed->cursor_context_at (ed->the_path ());
+  if (!context) return "";
+  const athena::contracts::editing_query query {context->contract_context ()};
+  const string tree_name= query.name (as_tree_label (name));
   object display= call ("focus-tag-name", symbol_object (tree_name));
   return is_string (display) ? as_string (display) : string ("");
 }
@@ -1460,7 +1604,11 @@ generic_focus_tag_name (object label) {
     return is_string (nested) ? as_string (nested) : string ("");
   }
 
-  string tree_name= get_name (tree (as_tree_label (name)));
+  editor ed= get_current_editor ();
+  const auto context= ed->cursor_context_at (ed->the_path ());
+  if (!context) return "";
+  const athena::contracts::editing_query query {context->contract_context ()};
+  string tree_name= query.name (as_tree_label (name));
   return replace (upcase_first (tree_name), "-", " ");
 }
 

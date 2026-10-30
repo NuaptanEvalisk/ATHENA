@@ -274,19 +274,19 @@
   <binding name="tree-with-reset" native="format_tree_with_reset" returns="void">
     <arg type="object" /><arg type="content" />
   </binding>
-  <binding name="with-like-check-insert" native="format_with_like_check_insert" returns="bool">
+  <binding name="with-like-check-insert" native="format_with_like_check_insert" returns="bool" exceptions="scheme">
     <arg type="content" />
   </binding>
-  <binding name="make-with-like" native="format_make_with_like" returns="void">
+  <binding name="make-with-like" native="format_make_with_like" returns="void" exceptions="scheme">
     <arg type="content" />
   </binding>
-  <binding name="toggle-with-like" native="format_toggle_with_like" returns="void">
+  <binding name="toggle-with-like" native="format_toggle_with_like" returns="void" exceptions="scheme">
     <arg type="content" /><arg type="object" />
   </binding>
-  <binding name="toggle-bold" native="format_toggle_bold" returns="void" />
-  <binding name="toggle-italic" native="format_toggle_italic" returns="void" />
-  <binding name="toggle-small-caps" native="format_toggle_small_caps" returns="void" />
-  <binding name="toggle-underlined" native="format_toggle_underlined" returns="void" />
+  <binding name="toggle-bold" native="format_toggle_bold" returns="void" exceptions="scheme" />
+  <binding name="toggle-italic" native="format_toggle_italic" returns="void" exceptions="scheme" />
+  <binding name="toggle-small-caps" native="format_toggle_small_caps" returns="void" exceptions="scheme" />
+  <binding name="toggle-underlined" native="format_toggle_underlined" returns="void" exceptions="scheme" />
   <binding name="in-source-mode?" native="document_in_source_mode" returns="bool" />
   <binding name="toggle-source-mode" native="document_toggle_source_mode" returns="void" />
   <binding name="test-default?" native="document_test_default" returns="bool">

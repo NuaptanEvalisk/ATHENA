@@ -7,6 +7,115 @@
   <binding name="cursor-path" native="the_path" returns="path" />
   <binding name="cursor-path*" native="the_shifted_path" returns="path" />
   <binding name="selection-tree" native="selection_get" returns="tree" />
+  <binding name="with-correct" native="correct_with" returns="tree" exceptions="scheme">
+    <arg type="content" />
+  </binding>
+  <binding name="with-correct-superfluous" native="correct_superfluous_with" returns="tree" exceptions="scheme">
+    <arg type="content" />
+  </binding>
+  <binding name="manual-correct" native="correct_math" returns="tree" exceptions="scheme">
+    <arg type="content" />
+  </binding>
+  <binding name="math-stats-update" native="update_math_statistics" returns="void" />
+  <binding name="math-stats-occurrences" native="math_statistics_occurrences" returns="int">
+    <arg type="string" />
+    <arg type="content" />
+  </binding>
+  <binding name="math-stats-number-in-role" native="math_statistics_role" returns="int">
+    <arg type="string" />
+    <arg type="content" />
+  </binding>
+  <binding name="cpp-tree-correct-node" native="correct_tree_node" returns="void" exceptions="scheme">
+    <arg type="tree" />
+  </binding>
+  <binding name="cpp-tree-correct-downwards" native="correct_tree_downwards" returns="void" exceptions="scheme">
+    <arg type="tree" />
+  </binding>
+  <binding name="cpp-tree-correct-upwards" native="correct_tree_upwards" returns="void" exceptions="scheme">
+    <arg type="tree" />
+  </binding>
+  <binding name="compress-tree" native="compress_tree" returns="tree" exceptions="scheme">
+    <arg type="content" />
+  </binding>
+  <binding name="decompress-tree" native="decompress_tree" returns="tree" exceptions="scheme">
+    <arg type="content" />
+  </binding>
+  <binding name="compress-html" native="compress_html" returns="string" exceptions="scheme">
+    <arg type="content" />
+    <arg type="int" />
+  </binding>
+  <binding name="decompress-html" native="decompress_html" returns="tree" exceptions="scheme">
+    <arg type="string" />
+    <arg type="int" />
+  </binding>
+  <binding name="path-start" native="source_tree_start" returns="object">
+    <arg type="content" />
+    <arg type="path" />
+  </binding>
+  <binding name="path-end" native="source_tree_end" returns="object">
+    <arg type="content" />
+    <arg type="path" />
+  </binding>
+  <binding name="command-path-start" native="command_tree_start" returns="path" exceptions="scheme">
+    <arg type="content" />
+    <arg type="path" />
+  </binding>
+  <binding name="command-path-end" native="command_tree_end" returns="path" exceptions="scheme">
+    <arg type="content" />
+    <arg type="path" />
+  </binding>
+  <binding name="path-next" native="tree_next_valid" returns="path">
+    <arg type="content" />
+    <arg type="path" />
+  </binding>
+  <binding name="path-previous" native="tree_previous_valid" returns="path">
+    <arg type="content" />
+    <arg type="path" />
+  </binding>
+  <binding name="path-next-word" native="tree_next_word" returns="path">
+    <arg type="content" />
+    <arg type="path" />
+  </binding>
+  <binding name="path-previous-word" native="tree_previous_word" returns="path">
+    <arg type="content" />
+    <arg type="path" />
+  </binding>
+  <binding name="path-next-node" native="tree_next_node" returns="path">
+    <arg type="content" />
+    <arg type="path" />
+  </binding>
+  <binding name="path-previous-node" native="tree_previous_node" returns="path">
+    <arg type="content" />
+    <arg type="path" />
+  </binding>
+  <binding name="path-next-tag" native="tree_next_tag" returns="path">
+    <arg type="content" />
+    <arg type="path" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="path-previous-tag" native="tree_previous_tag" returns="path">
+    <arg type="content" />
+    <arg type="path" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="path-next-tag-same-argument" native="tree_next_tag_same_argument" returns="path">
+    <arg type="content" />
+    <arg type="path" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="path-previous-tag-same-argument" native="tree_previous_tag_same_argument" returns="path">
+    <arg type="content" />
+    <arg type="path" />
+    <arg type="scheme_tree" />
+  </binding>
+  <binding name="path-next-argument" native="tree_next_argument" returns="path">
+    <arg type="content" />
+    <arg type="path" />
+  </binding>
+  <binding name="path-previous-argument" native="tree_previous_argument" returns="path">
+    <arg type="content" />
+    <arg type="path" />
+  </binding>
   <binding name="path-exists?" native="test_subtree" returns="bool">
     <arg type="path" />
   </binding>

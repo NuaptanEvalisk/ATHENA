@@ -12,9 +12,10 @@
 #include "convert.hpp"
 #include "path.hpp"
 #include "vars.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 #include "node_metadata.hpp"
 #include "Xml/legacy_document_reader.hpp"
+#include "Verbatim/verbatim.hpp"
 #include <limits>
 
 /******************************************************************************
@@ -601,55 +602,50 @@ remove_doc_attr (tree doc, string attr) {
 * Extracting metadata
 ******************************************************************************/
 
-static tree
-search_tag_quick (tree t, string tag) {
-  if (is_compound (t, tag)) return t;
+static std::optional<path>
+search_tag_quick (tree t, string tag, path source= path ()) {
+  if (is_compound (t, tag)) return source;
   if (!(is_func (t, DOCUMENT) || is_func (t, CONCAT) ||
-        is_func (t, SURROUND) || is_func (t, WITH))) return "";
+        is_func (t, SURROUND) || is_func (t, WITH))) return {};
   for (int i=0; i<N(t); i++) {
-    tree r= search_tag_quick (t[i], tag);
-    if (r != "") return r;
+    auto result= search_tag_quick (t[i], tag, source * i);
+    if (result) return result;
   }
-  return "";
+  return {};
 }
 
-static tree
-search_tag (tree t, string tag) {
-  if (is_atomic (t)) return tuple ();
-  else if (is_compound (t, tag, 1)) return tuple (t[0]);
-  else {
-    tree r (TUPLE);
-    for (int i=0; i<N(t); i++) {
-      tree f= search_tag (t[i], tag);
-      r << A(f);
+static bool
+search_metadata_tag (tree value, string tag, path source,
+    const athena::contracts::source_contract_preparation& contexts, string& result) {
+  if (is_compound (value, tag, 1)) {
+    const auto text= source_to_verbatim (value[0], false, "utf-8", contexts, source * 0);
+    if (!text) return false;
+    if (N(result) != 0) result << ", ";
+    result << *text;
+  }
+  else
+    for (int i=0; i<N(value); ++i) {
+      if (!search_metadata_tag (value[i], tag, source * i, contexts, result))
+        return false;
     }
-    return r;
-  }
+  return true;
 }
 
-static string
-search_metadata_tag (tree doc, string tag) {
-  string r;
-  tree t= search_tag (doc, tag);
-  for (int i=0; i<N(t); i++) {
-    if (N(r) != 0) r << ", ";
-    r << tree_to_verbatim (t[i], false, "utf-8");
-  }
-  return r;
-}
-
-string
-search_metadata (tree doc, string kind) {
-  tree dd= search_tag_quick (doc, "doc-data");
-  if (dd != "") {
-    if (kind == "title")
-      return search_metadata_tag (dd, "doc-title");
-    if (kind == "author")
-      return search_metadata_tag (dd, "author-name");
+std::optional<string>
+search_metadata (tree doc, string kind,
+    const athena::contracts::source_contract_preparation& contexts) {
+  const auto source= search_tag_quick (doc, "doc-data");
+  if (source && (kind == "title" || kind == "author")) {
+    string result;
+    if (!search_metadata_tag (subtree (doc, *source),
+        kind == "title" ? "doc-title" : "author-name", *source, contexts, result))
+      return {};
+    return result;
   }
   if (kind == "title") {
-    tree t= search_tag_quick (doc, "tmdoc-title");
-    if (t != "") return tree_to_verbatim (t[0], false, "utf-8");
+    const auto title= search_tag_quick (doc, "tmdoc-title");
+    if (title) return source_to_verbatim (subtree (doc, *title)[0], false, "utf-8",
+                                        contexts, *title * 0);
   }
-  return "";
+  return string ("");
 }

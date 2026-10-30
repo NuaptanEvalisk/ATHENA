@@ -353,13 +353,17 @@ get_bounding_rectangle (tree t) {
   editor ed= get_current_editor ();
   rectangle wr= ed -> get_window_extents ();
   path p= reverse (obtain_ip (t));
-  selection sel= ed->search_selection (p * start (t), p * end (t));
+  const object first= ed->source_tree_start (t, path ());
+  const object last= ed->source_tree_end (t, path ());
   SI sz= ed->get_pixel_size ();
   double sf= ((double) sz) / 256.0;
   rectangle r (0, 0, 0, 0);
-  if (!is_nil (sel->rs)) {
-    rectangle selr= least_upper_bound (sel->rs) / sf;
-    r= translate (selr, wr->x1, wr->y2);
+  if (is_path (first) && is_path (last)) {
+    const selection sel= ed->search_selection (p * as_path (first), p * as_path (last));
+    if (!is_nil (sel->rs)) {
+      rectangle selr= least_upper_bound (sel->rs) / sf;
+      r= translate (selr, wr->x1, wr->y2);
+    }
   }
   array<int> ret;
   ret << ((int) r->x1) << ((int) r->y1) << ((int) r->x2) << ((int) r->y2);

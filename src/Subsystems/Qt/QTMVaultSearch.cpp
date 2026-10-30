@@ -19,6 +19,7 @@
 #include "node_metadata.hpp"
 #include "math_tree_v3.hpp"
 #include "cursor_navigation.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include "convert.hpp"
 #include "boot.hpp"
@@ -277,8 +278,8 @@ QString vault_search_identity (tree body, url file, path position) {
 void vault_search_semantic_matches (tree body, url file,
     const VaultSearchOptions& options, std::vector<VaultContentMatch>& matches) {
   if (!options.semanticCandidates) return;
-  const cursor_navigation navigation (current_cursor_navigation ().contracts ().with_access (
-    athena::contracts::access_policy::source));
+  const cursor_navigation navigation ({athena::contracts::builtin_contracts (),
+    athena::contracts::access_policy::source});
   const auto found= options.semanticCandidates->find (to_qstring (concretize (file)));
   if (found == options.semanticCandidates->end ()) return;
   for (const auto& hit: found->second) {
@@ -748,8 +749,8 @@ append_content_matches (std::vector<VaultContentMatch>& out, tree t,
     pattern= compound ("math", compound ("select-region", query[0]));
     athena::node::copy_metadata (query, pattern);
   }
-  const auto context= current_cursor_navigation ().contracts ().with_access (
-    athena::contracts::access_policy::source);
+  const athena::contracts::editing_query context {athena::contracts::builtin_contracts (),
+    athena::contracts::access_policy::source};
   range_set exactRanges= search (context, t, pattern, base, caseInsensitive, limit);
   std::vector<VaultContentMatch> exact;
   for (int i=0; i+1<N(exactRanges); i+=2) {

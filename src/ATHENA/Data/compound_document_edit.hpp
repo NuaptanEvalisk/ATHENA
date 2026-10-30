@@ -27,8 +27,12 @@ struct source_range {
 void erase_ranges (std::vector<source_range>, std::function<void(std::string)>);
 void replace_ranges (std::vector<source_range>, std::string clipboard_xml,
                      std::function<void(std::string)>);
+struct clipboard_copy {
+  std::vector<std::string> pieces;
+  std::string plain_text;
+};
 void copy_ranges (std::vector<source_range>,
-                  std::function<void(std::string, std::vector<std::string>)>);
+                  std::function<void(std::string, clipboard_copy)>);
 // Combines explicitly versioned snapshots without migrating their content.
 // The returned envelope retains its validated common source-version marker.
 tree merge_clipboard_pieces (const std::vector<std::string>&);

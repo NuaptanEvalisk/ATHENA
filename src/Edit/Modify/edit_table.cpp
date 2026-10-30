@@ -923,7 +923,7 @@ edit_table_rep::table_cut_selection (path fp, int row1, int col1, int row2, int 
   for (int row= row1; row<=row2; ++row)
     for (int col= col1; col<=col2; ++col)
       assign (search_cell (fp, row, col), "");
-  go_to (start (et, search_cell (fp, row1, col1)));
+  go_to_start (search_cell (fp, row1, col1));
   table_del_format (fp, row1+1, col1+1, row2+1, col2+1, "");
   if (col1 == 0 && col2 == cols-1 && row2 > row1)
     table_remove (fp, row1+1, col1, row2-row1, 0);

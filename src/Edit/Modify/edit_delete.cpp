@@ -52,7 +52,7 @@ edit_text_rep::get_deletion_point (
         (last_item (path_up (p)) < (N (subtree (et, path_up (p, 2))) - 1)))
       {
         p= path_up (p);
-        p= path_inc (p) * start (subtree (et, path_inc (p)), path ());
+        p= prepare_command_boundary (path_inc (p), true);
       }
     //cout << "p= " << p << "\n";
   }
@@ -62,7 +62,7 @@ edit_text_rep::get_deletion_point (
     // The start of the following text is also the preceding node's right
     // boundary. Backspace must operate on that node, not the whole concat.
     p= path_dec (path_up (p));
-    p= p * end (subtree (et, p), path ());
+    p= prepare_command_boundary (p, false);
   }
 
   // get the position where to delete
@@ -102,6 +102,11 @@ is_multi_paragraph_or_sectional (tree t) {
 
 void
 edit_text_rep::remove_text_sub (bool forward) {
+  const auto source_mode= [&] {
+    const auto context= prepare_source_position (tp);
+    return context->effective_value (MODE) == "src" ||
+           context->effective_value (PREAMBLE) == "true";
+  };
   // A native mathematical variant has an immutable kind descriptor (slot 0)
   // and an editable expression (slot 1). The generic empty-argument deletion
   // would enter the descriptor when the expression becomes empty, wrapping the
@@ -113,8 +118,9 @@ edit_text_rep::remove_text_sub (bool forward) {
     tree variant= subtree (et, variant_path);
     // Symbol descriptors are not editable text. Also allow deleting an atom
     // exposed by an earlier generic macro deletion, even if it is incomplete.
-    if (!in_source () && is_math_symbol_atom (variant) &&
-        is_func (subtree (et, path_up (variant_path)), INACTIVE, 1)) {
+    if (is_math_symbol_atom (variant) &&
+        is_func (subtree (et, path_up (variant_path)), INACTIVE, 1) &&
+        !source_mode ()) {
       back_monolithic (path_up (variant_path));
       return;
     }
@@ -129,7 +135,7 @@ edit_text_rep::remove_text_sub (bool forward) {
     correct (path_up (target));
     return;
   }
-  if (!forward && !in_source ()) {
+  if (!forward) {
     for (path cell= path_up (tp); rp < cell; cell= path_up (cell)) {
       tree value= subtree (et, cell);
       if (!is_func (value, CELL)) continue;
@@ -141,6 +147,7 @@ edit_text_rep::remove_text_sub (bool forward) {
       tree grid= subtree (et, grid_path);
       if (!is_func (grid, MATH_GRID) ||
           !is_func (subtree (et, row_path), ROW)) break;
+      if (source_mode ()) break;
       const int column= last_item (cell);
       const int row= last_item (row_path);
       if (column > 0) go_to_end (row_path * (column - 1) * 0);
@@ -186,8 +193,8 @@ edit_text_rep::remove_text_sub (bool forward) {
               for (i=0; i<n; i++)
                 empty= empty && ((u[i]=="") || (u[i]==tree (DOCUMENT, "")));
               if (!empty) {
-                if (forward) go_to (next_valid (et, tp));
-                else go_to (previous_valid (et, tp));
+                if (forward) go_to (tree_next_valid (et, tp));
+                else go_to (tree_previous_valid (et, tp));
                 return;
               }
             }
@@ -369,7 +376,13 @@ void
 edit_text_rep::empty_document_fix () {
   // FIXME: we might want to call this after arbitrary editing operations
   tree rt= subtree (et, rp);
-  if (exists_accessible_inside (rt)) return;
+  std::shared_ptr<const evaluation_environment_checkpoint> document_context;
+  const athena::contracts::source_contract_preparation prepare= [&] (path source) {
+    const auto entry= prepare_source_position (source * 0, document_context);
+    return std::shared_ptr<const athena::contracts::contract_scope> (
+      entry, &entry->contract_context ());
+  };
+  if (exists_accessible_inside (rt, prepare, rp)) return;
   if (!is_func (rt, DOCUMENT)) {
     insert_node (rt, 0, DOCUMENT);
     rt= subtree (et, rp);

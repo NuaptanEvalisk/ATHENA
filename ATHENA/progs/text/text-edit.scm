@@ -987,7 +987,7 @@
                       algorithm algorithm*)))
       (with last (- (tm-arity t) 1)
         (cons last (floatable-path (tm-ref t :last))))
-      (path-end t '())))
+      '()))
 
 (tm-define (turn-non-floating t)
   (when (float-context? t)
@@ -998,7 +998,7 @@
         (set! body (tm->tree `(document ,body))))
       (tree-cut t)
       (insert-return)
-      (insert-go-to body (floatable-path body)))))
+      (insert-go-to body (command-path-end body (floatable-path body))))))
 
 (tm-define (float-wide? t)
   (and-with f (tree-search-upwards t float-or-footnote-context?)

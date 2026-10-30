@@ -88,8 +88,8 @@ class NativeV3MathEditorTest: public QObject {
       QVERIFY2 (found, "MathBlock boundary has no rendered box");
     }
     selection formula= editor->eb->find_check_selection (
-      start (current_document_tree (), block * 0),
-      end (current_document_tree (), block * 0));
+      editor->command_tree_start (current_document_tree (), block * 0),
+      editor->command_tree_end (current_document_tree (), block * 0));
     QVERIFY (formula->valid);
     QVERIFY (N(formula->rs) > 0);
     rectangle bounds= least_upper_bound (formula->rs);
@@ -258,8 +258,8 @@ private slots:
     const path paragraph= buffer->root_path * 0;
     editor->go_to_end (paragraph);
     if (selected)
-      editor->selection_set_paths (start (current_document_tree (), paragraph),
-                                    end (current_document_tree (), paragraph));
+      editor->selection_set_paths (editor->command_tree_start (current_document_tree (), paragraph),
+                                    editor->command_tree_end (current_document_tree (), paragraph));
     editor->start_editing ();
     if (entry == "direct") editor->make_native_math_block (grid);
     else {
@@ -280,12 +280,12 @@ private slots:
       QCOMPARE (std::get<std::string> (athena::node::get (cells)->properties.at (
         "math:grid-kind").data), std::string ("eqnarray"));
       QCOMPARE (cells[0], tree (ROW, tree (CELL, body), tree (CELL, ""), tree (CELL, "")));
-      QVERIFY (editor->the_path () == end (current_document_tree (),
+      QVERIFY (editor->the_path () == editor->command_tree_end (current_document_tree (),
         paragraph * path (0, 0, 0, 0)));
     }
     else {
       QCOMPARE (block[0], body);
-      QVERIFY (editor->the_path () == end (current_document_tree (), paragraph * 0));
+      QVERIFY (editor->the_path () == editor->command_tree_end (current_document_tree (), paragraph * 0));
     }
     verify_roundtrip ();
     editor->typeset_forced ();
@@ -335,8 +335,8 @@ private slots:
     const tree body= selected ? tree (CONCAT, "x", tree (FRAC, "a", "b")) : tree ("");
     reset_inline (body);
     if (selected)
-      editor->selection_set_paths (start (current_document_tree (), content_path ()),
-                                   end (current_document_tree (), content_path ()));
+      editor->selection_set_paths (editor->command_tree_start (current_document_tree (), content_path ()),
+                                   editor->command_tree_end (current_document_tree (), content_path ()));
     editor->start_editing ();
     generic_escape_symbol_insert (string (action.toUtf8 ().constData ()));
     editor->end_editing ();
@@ -344,7 +344,7 @@ private slots:
     QCOMPARE (content (), athena::math_v3::delimited (
       string (left.toUtf8 ().constData ()), string (right.toUtf8 ().constData ()),
       'a', body));
-    QCOMPARE (editor->the_path (), end (current_document_tree (), content_path () * 5));
+    QCOMPARE (editor->the_path (), editor->command_tree_end (current_document_tree (), content_path () * 5));
   }
   void escapePickerBracketsInTextStaySerializable () {
     SchemeExecutionContext context (nullptr, editor, &editor->contract_state,
@@ -448,8 +448,8 @@ private slots:
       set_document (buffer->document, buffer->root_path, copy (before));
       editor->clear_undo_history ();
       const path slot= buffer->root_path * path (0, 2);
-      editor->selection_set_paths (start (current_document_tree (), slot),
-                                   end (current_document_tree (), slot));
+      editor->selection_set_paths (editor->command_tree_start (current_document_tree (), slot),
+                                   editor->command_tree_end (current_document_tree (), slot));
       editor->archive_state ();
       editor->start_editing ();
       const tree selected= editor->selection_get_cut ();
@@ -523,8 +523,8 @@ private slots:
     cursor caret= editor->eb->find_check_cursor (editor->the_path ());
     QVERIFY2 (caret->valid, "Empty script slot has no valid rendered cursor");
     cursor base= editor->eb->find_check_cursor (right ?
-      end (current_document_tree (), scripts * 0) :
-      start (current_document_tree (), scripts * 0));
+      editor->command_tree_end (current_document_tree (), scripts * 0) :
+      editor->command_tree_start (current_document_tree (), scripts * 0));
     QVERIFY (base->valid);
     QVERIFY (right ? caret->ox >= base->ox : caret->ox <= base->ox);
     QVERIFY (sup ? caret->oy > base->oy : caret->oy < base->oy);
@@ -695,7 +695,7 @@ private slots:
         const tree pair= content ();
         QVERIFY (athena::math_v3::valid_delimited (pair));
         QCOMPARE (pair[5], tree (CONCAT, "x", tree (MATH_MIDDLE, "|"), "y"));
-        QVERIFY (editor->the_path () == end (current_document_tree (), content_path ()));
+        QVERIFY (editor->the_path () == editor->command_tree_end (current_document_tree (), content_path ()));
         verify_roundtrip ();
       }
   }
@@ -736,8 +736,8 @@ private slots:
     athena::node::set (selected, meta);
     reset_inline (selected);
     const tree before= copy (subtree (current_document_tree (), buffer->root_path));
-    editor->selection_set_paths (start (current_document_tree (), content_path ()),
-                                 end (current_document_tree (), content_path ()));
+    editor->selection_set_paths (editor->command_tree_start (current_document_tree (), content_path ()),
+                                 editor->command_tree_end (current_document_tree (), content_path ()));
     QVERIFY (editor->selection_active_normal ());
     editor->archive_state ();
     editor->start_editing ();
@@ -811,8 +811,8 @@ private slots:
     athena::node::set (selected, meta);
     reset_inline (selected);
     const tree before= copy (subtree (current_document_tree (), buffer->root_path));
-    editor->selection_set_paths (start (current_document_tree (), content_path ()),
-                                 end (current_document_tree (), content_path ()));
+    editor->selection_set_paths (editor->command_tree_start (current_document_tree (), content_path ()),
+                                 editor->command_tree_end (current_document_tree (), content_path ()));
     QVERIFY (editor->selection_active_normal ());
     editor->archive_state ();
     editor->start_editing ();
@@ -1027,7 +1027,7 @@ private slots:
     const tree before= copy (content ());
     editor->math_bracket_open ("|", "|", 1);
     QVERIFY (content () == before);
-    QVERIFY (editor->the_path () == end (current_document_tree (), content_path ()));
+    QVERIFY (editor->the_path () == editor->command_tree_end (current_document_tree (), content_path ()));
   }
   void nestedBracketClosingMovesOutward () {
     reset (athena::math_v3::delimited ("(", ")", 'a',
@@ -1037,7 +1037,7 @@ private slots:
     editor->math_bracket_close ("]", "[", 1);
     editor->math_bracket_close (")", "(", 1);
     QVERIFY (content () == before);
-    QVERIFY (editor->the_path () == end (current_document_tree (), content_path ()));
+    QVERIFY (editor->the_path () == editor->command_tree_end (current_document_tree (), content_path ()));
     verify_roundtrip ();
   }
   void arrowKeysStopOutsideDelimitersInsideMath () {
@@ -1051,13 +1051,13 @@ private slots:
         const tree before= copy (content ());
         editor->go_to_end (content_path () * 5);
         editor->go_right ();
-        QVERIFY (editor->the_path () == end (current_document_tree (), content_path ()));
+        QVERIFY (editor->the_path () == editor->command_tree_end (current_document_tree (), content_path ()));
         QCOMPARE (editor->get_env_string (MODE), string ("math"));
         editor->go_right ();
         QCOMPARE (editor->get_env_string (MODE), string ("text"));
         editor->go_to_start (content_path () * 5);
         editor->go_left ();
-        QVERIFY (editor->the_path () == start (current_document_tree (), content_path ()));
+        QVERIFY (editor->the_path () == editor->command_tree_start (current_document_tree (), content_path ()));
         QCOMPARE (editor->get_env_string (MODE), string ("math"));
         QCOMPARE (content (), before);
       }
@@ -1067,9 +1067,9 @@ private slots:
     editor->notify_change (0, THE_TREE | THE_ENVIRONMENT);
     editor->go_to_end (content_path () * path (5, 5));
     editor->go_right ();
-    QVERIFY (editor->the_path () == end (current_document_tree (), content_path () * 5));
+    QVERIFY (editor->the_path () == editor->command_tree_end (current_document_tree (), content_path () * 5));
     editor->go_right ();
-    QVERIFY (editor->the_path () == end (current_document_tree (), content_path ()));
+    QVERIFY (editor->the_path () == editor->command_tree_end (current_document_tree (), content_path ()));
   }
   void hybridBigOperatorsAcceptScriptsInV3 () {
     SchemeExecutionContext context (nullptr, editor, &editor->contract_state,
@@ -1099,8 +1099,8 @@ private slots:
       editor->remove_text (forward);
       const path body= content_path () * 5;
       QVERIFY (editor->the_path () == (forward ?
-        start (current_document_tree (), body) :
-        end (current_document_tree (), body)));
+        editor->command_tree_start (current_document_tree (), body) :
+        editor->command_tree_end (current_document_tree (), body)));
       editor->go_to_border (body, !forward);
       editor->remove_text (forward);
       QVERIFY (content () == before);
@@ -1203,7 +1203,7 @@ private slots:
       QCOMPARE (content ()[1], tree (""));
       QCOMPARE (content ()[2], tree (""));
       QVERIFY (editor->the_path () ==
-        start (current_document_tree (), content_path () * (below ? 1 : 2)));
+        editor->command_tree_start (current_document_tree (), content_path () * (below ? 1 : 2)));
       verify_roundtrip ();
 
       reset_inline ("", false);

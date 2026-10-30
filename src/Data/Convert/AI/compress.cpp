@@ -14,12 +14,14 @@
 #include "locale.hpp"
 #include "wencoding.hpp"
 #include "vars.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
-#include "Data/NodeContracts/editing_query.hpp"
+#include "compress.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
+#include "node_metadata.hpp"
 #include "analyze.hpp"
+#include <atomic>
+#include <stdexcept>
 
-static hashmap<string,tree> compressed;
-static hashmap<tree,string> compressed_code;
+static std::atomic<long long> next_compressed_code {0};
 
 tree html_as_compressed (string s, int& pos, string close, int mode);
 
@@ -28,32 +30,41 @@ tree html_as_compressed (string s, int& pos, string close, int mode);
 ******************************************************************************/
 
 tree
-compress_tree (tree t) {
-  if (is_atomic (t)) return t;
+tree_compression::compress (tree t,
+    const athena::contracts::source_contract_preparation& contexts, path source) {
+  if (is_atomic (t)) return copy (t);
   int i, n= N(t);
-  if (is_format (t)) {
+  // Identified formatting nodes also need a placeholder: HTML's paragraphs
+  // and concatenation cannot carry their native metadata by themselves.
+  if (is_format (t) && !athena::node::get (t)) {
     tree r (t, n);
     for (i=0; i<n; i++)
-      r[i]= compress_tree (t[i]);
+      r[i]= compress (t[i], contexts, source * i);
     return r;
   }
   tree r= compound ("compressed", "");
   tree val (L(t));
+  athena::node::copy_metadata (t, val);
+  using namespace athena::contracts;
+  const bool native= builtin_label (as_string (L(t)));
+  const auto context= native || n == 0 ? nullptr : contexts (source);
+  if (!native && n != 0 && !context)
+    throw std::runtime_error ("Compression source context is unavailable");
+  const editing_query query {context ? *context : builtin_contracts ()};
   for (i=0; i<n; i++)
-    if (athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.accessible (t, i) &&
-        athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, MODE, "text") == "text") {
+    if (query.accessible (t, i) && query.value (t, i, MODE, "text") == "text") {
       val << compound ("decompressed");
-      r << compress_tree (t[i]);
+      r << compress (t[i], contexts, source * i);
     }
-    else val << t[i];
+    else val << copy (t[i]);
   if (compressed_code->contains (val)) {
     //cout << val << " <- " << compressed_code[val] << "\n";
-    r[0]= compressed_code[val];
+    r[0]= copy (compressed_code[val]);
   }
   else {
-    int nr= N(compressed);
+    const auto nr= next_compressed_code.fetch_add (1, std::memory_order_relaxed);
     string code= "x" * as_string (nr);
-    r[0]= code;
+    r[0]= copy (code);
     //cout << code << ", " << N(compressed) << " -> " << val << "\n";
     compressed (code)= val;
     compressed_code (val)= code;
@@ -67,13 +78,14 @@ compress_tree (tree t) {
 ******************************************************************************/
 
 tree
-decompress_tree (tree t) {
-  if (is_atomic (t)) return t;
+tree_compression::decompress (tree t) {
+  if (is_atomic (t)) return copy (t);
   int i, n= N(t);
   if (is_format (t)) {
     tree r (t, n);
+    athena::node::copy_metadata (t, r);
     for (i=0; i<n; i++)
-      r[i]= decompress_tree (t[i]);
+      r[i]= decompress (t[i]);
     return r;
   }
   if (is_compound (t, "compressed") && N(t) >= 1 && is_atomic (t[0])) {
@@ -84,13 +96,14 @@ decompress_tree (tree t) {
       int j=0, k=N(val);
       for (i=1; i<n; i++) {
         while (j<k && !is_compound (val[j], "decompressed", 0)) j++;
-        if (j<k) val[j]= decompress_tree (t[i]);
+        if (j<k) val[j]= decompress (t[i]);
       }
       for (; j<k; j++)
         if (is_compound (val[j], "decompressed", 0))
           val[j]= "";
       return val;
     }
+    throw std::runtime_error ("Compression placeholder does not belong to this editor");
   }
   return "";
 }
@@ -136,9 +149,8 @@ compressed_as_html (string& s, tree t, int mode) {
 }
 
 string
-compress_html (tree t, int mode) {
+tree_compression::html (tree c, int mode) {
   string r;
-  tree c= compress_tree (t);
   compressed_as_html (r, c, mode);
   return "<body>" * r * "</body>";
 }
@@ -259,9 +271,9 @@ html_as_compressed (string s, int& pos, string close, int mode) {
 }
 
 tree
-decompress_html (string s, int mode) {
+tree_compression::from_html (string s, int mode) {
   int pos= 0;
   tree t= html_as_compressed (s, pos, mode);
   //cout << "t= " << t << "\n";
-  return decompress_tree (t);
+  return decompress (t);
 }

@@ -6,6 +6,327 @@ analysis transfer rules and implementation evidence live in
 This document does not declare the replacement complete. It makes the next
 ownership changes explicit rather than adding another independent subsystem.
 
+## Current Checkpoint: 2026-10-30
+
+### Bounded Delivery
+
+The current delivery stops at the source-owned editor/conversion consumers,
+wrapper correction and source-value preparation documented below. Commit these
+working changes now; do not hold them for the entire DRD replacement. The
+owner-side analysis capture slice is committed separately as `d8bbbfec2`.
+
+The attempted bracket/symbol migration is withdrawn from this delivery. Its
+targeted check exposed a custom macro used as a delimiter being normalized in
+isolation before the surrounding token sequence was processed. The old matcher
+also cannot recover a delimiter glyph from an arbitrary macro invocation.
+Resolve that representation boundary before migrating the bracket stage; do
+not treat the failed temporary probe as acceptance evidence.
+
+Remaining work is divided into three independently deliverable changes:
+
+1. Explicit contexts for the remaining math correctors and syntax consumers.
+   Completion: those named consumers no longer borrow ambient state; detached
+   imports and editor commands retain their own source environment, and the
+   concrete token-provenance case passes. Do not redesign mathematical parsing.
+2. Scheduled/incremental editor math statistics. Completion: input getters do
+   not synchronously traverse the whole buffer; edits invalidate the matching
+   result and obsolete work cannot publish.
+3. Analysis capture/publication responsiveness. Completion: the known bulk
+   owner-side snapshot/diff/freeze/retirement steps no longer run as unbounded
+   work in an interactive request. Preserve cancellation and exact-demand
+   publication; this is not a hard-real-time guarantee for every worker or
+   standard-library operation. Explicit offline preparation may be synchronous.
+
+For each change, stop after its concrete exit conditions, build the production
+target with `-j16`, use a focused runtime check only where the ownership or
+representation boundary is uncertain, and commit. Final deployment is a
+separate integration step, not justification for accumulating more changes.
+
+ATHENA's end state is native C++ without Scheme. Prefer implementing new
+behavior and new callers directly in C++, rather than growing the Scheme API
+or adding Scheme logic that will need another rewrite. Bindings needed by
+existing callers may remain as a transitional integration surface, not the
+default architecture for new work.
+
+The closed delivery builds successfully with `-j16`
+(`/tmp/athena-native-context-delivery-build.log`). The source-value/runtime
+evidence below applies to the retained implementation; the withdrawn bracket
+experiment is not included in the delivery or counted as passing validation.
+
+### Implemented State
+
+The committed baseline through `5ddc3edeb` has removed `Data/Drd`, the eager
+editor-wide `prepare_source_contracts` API, and the obsolete offline document
+contract cache. Source identity now selects exact BODY-relative entries lazily,
+including authored preamble state, for live transactions and detached/Vault
+sources. Do not restart those removals from the historical transition notes.
+
+The current batch moves document/paragraph/enclosing-node cursor boundaries to
+admitted per-node navigation and uses retained entry contexts for dynamic
+argument deletion, wrapper removal and hybrid draft editing. Prospective
+selection wrappers and native math blocks prepare their own destination before
+cutting the selection. Compound insertion now resolves the actual selected-content
+destination, including table cell context; explicit insertion endpoints receive
+structural correction instead of being reinterpreted against ambient contracts.
+Whole-node selection/cut and structural-search boundaries also use explicit
+source preparation, while selection-environment reads stay admission-only.
+Generic mutation-oriented `go_to_start/end` now explicitly prepare the selected
+source subtree; default tree insertion prepares its prospective tree in the
+insertion context. Atomic endpoints use literal offsets. This command API does
+not change the context policy of passive queries. Direct mathematical boundary
+calls now also use explicit source or prospective-wrapper preparation, with
+literal offsets for empty/atomic slots. Scheme start/end boundaries now have
+separate passive and command APIs, as detailed below. Field-environment and
+generic search Scheme facades have now been removed. TeX mode statistics now
+prepare their own source entries; the last implicit native field-environment
+utility and `cursor_execution.cpp` are removed.
+Clipboard extraction uses a source-addressed provider, including metadata
+completeness and source-root stripping. Complete-object cuts follow extraction's
+ancestor choice instead of retaining the copied identity on an empty field.
+Spelling reads consume atomic source ranges, not structural clipboard extraction.
+ProofTrack geometry and whole-document selection visibility use admitted-only
+boundary queries rooted at the queried subtree, not an unrelated document
+root. Heading section ranges now describe whole source nodes; their geometry
+is obtained from current boxes without navigating an offscreen section or tail.
+Image resize retains its selection context before changing the source.
+Editor construction and observer-position recovery use native structural
+correction; Vault search uses the immutable native source policy.
+The command-local entry cache also now distinguishes root and nested subtree
+addresses: cursor-position ordering is not a valid map comparator for those keys.
+
+Folded screen containers and ToC replacements now retain explicit source/display
+pairs at the projection owner. Context admission resolves those pairs without
+relaxing occurrence identity checks or executing source. This fixes the absent
+document-root context that otherwise made valid formula selections pending.
+Generic focus/parameter fields, hidden-field editing and structured argument
+navigation now select the target's prepared entry or the detached proposal's
+caret context. Missing layout remains unavailable; these getters do not prepare
+source. The duplicate ambient field-name implementation has been removed.
+
+Scheme label/arity/accessibility/name/type queries now use the same prepared
+source-or-caret selection. Unavailable entries return false/empty UI data or
+`-1` for an unknown arity/insertion point. The graphics completeness predicate
+does not treat an unknown maximum as a completed object. The old global
+property-query implementations are removed. Post-deletion editable-content
+checks now use native field rules directly and prepare explicit source entries
+only for non-native nodes. The runtime property check also exposed an eager
+`in_source()` read on ordinary consecutive deletion; that mode query now occurs
+only in the relevant symbol/MathGrid branch and is explicitly command-prepared.
+This batch built with `-j16` and passed its focused real-actor check at 12:57
+(`/tmp/athena-source-properties-probe-final.log`), including runtime property
+bindings, opposing attached/prospective scopes, pending queries after mutation,
+and consecutive deletion without intervening layout.
+
+Scheme `path-start/end` now read the requested source entry and return `#f`
+when unavailable; they do not prepare detached templates. The explicit
+`command-path-start/end` interfaces prepare attached source or a complete
+prospective template under its insertion context. `path-in` retains the whole
+template while descending, so a nested macro sees outer local field rules.
+Selection wrappers compute their destination before cutting. Label jumps use
+command boundaries; reference previews, hover outlines and AUDMAP paragraph
+positions remain admission-only. AVD range defaults use each source editor;
+history hints use native structural rules and structural differences mark
+whole-node borders. Shifted-caret queries use admitted source navigation.
+Production built with `-j16`
+(`/tmp/athena-native-boundaries-final-build.log`). The focused binding/template
+check passed at 13:58 (`/tmp/athena-source-boundaries-probe.log`), including
+opposing local/caret policies, relative coordinates and stale-source pending
+versus explicit command preparation. The subsequent peripheral consumer edits
+were built, not subjected to an unrelated regression suite.
+
+Owner-side analysis input materialization now yields after 128 names or roughly
+4ms. Further changes are merged before the next slice, unresolved dependencies
+retire old inferred facts, and only a complete current demand is submitted or
+published. This does not bound initial name-diff enumeration, an individual
+tree freeze, or stale-inference retirement. Those and remaining compound command
+preparation are still open; removing the directory is not completion of the
+whole design. Build/runtime evidence belongs in the implementation README.
+Initial capture now seeds from inherited analysis inputs and compares current
+binding/declaration receipts, including removed labels. It no longer discards
+already analyzed style facts merely because a new owner starts capturing inputs.
+This fixed a concrete cold-layout regression where `math` had zero accessible
+fields and selection correction promoted a substring to the whole formula.
+
+Scheme cursor movement now belongs to the active editor: valid-position, word,
+node, tag and argument traversal select each visited source entry. Root-tree
+queries are restricted to the editor's buffer while retaining absolute result
+paths; attached subtree queries retain relative paths. Missing or stale layout
+returns the original position without evaluating source. The tag helpers also
+use per-node queries instead of an ambient contract snapshot. The unused global
+word/node/tag/argument wrappers have been removed, and the multiparagraph-delete
+exit branch uses the same source-aware movement. Bindings are generated from
+`editor.xml`, not handwritten glue. Cursor path accessibility now stops before
+the terminal text offset/border; treating that component as a field previously
+made ordinary movement enter source mode and expose hidden arguments.
+Production built with `-j16`, and the focused runtime binding check passed at
+12:33: opposing local field rules, all migrated Scheme movement entrypoints,
+cross-field traversal, relative subtree coordinates and unavailable edited
+source. See `/tmp/athena-source-navigation-probe-final.log`.
+
+The preceding focused math/heading real-actor check passed on 2026-10-30
+at 12:03. Global start/end, cursor correction/accessibility, valid/accessibility
+movement and generic search wrappers are now removed. Retained tests explicitly
+select native rules or their editor's command context. Six retired Scheme
+bindings are absent from the running binary. `tree-search-source` remains as
+an explicitly native, detached-source operation; the existing structured-math
+search checks use that operation rather than preserving an ambient facade.
+Graphical-text contiguity now belongs to source-addressed navigation and keeps
+subtree-local endpoints. Scheme geometry, Qt AVD selection and UUID jumps also
+use passive or command-owned boundaries as appropriate. The final production
+build is `/tmp/athena-native-utility-callers-build.log`; the focused binding and
+source-policy runtime check passed at 14:34
+(`/tmp/athena-native-utility-probe.log`).
+
+TeX mode statistics now traverse the original document body, with its own
+style, initial values, preamble and source URL. They request exact source entries
+only for custom nodes; native nodes use immutable contracts. Definition bodies
+are not counted as uses, and editor accessibility does not filter export uses.
+The detached document preparation helper now applies initial values before the
+preamble, matching the editor's initialization order. The unused standalone
+`latex-export-init-mode-stats` binding and the last `get_env_child` /
+`current_cursor_navigation` chain are removed.
+
+The focused runtime check passed at 15:07 on 2026-10-30
+(`/tmp/athena-conversion-context-probe.log`). With opposing active/source macro
+rules, a source math use emitted a direct parameter and a source text use
+emitted `ensuremath`; changing the ambient context did not change the source
+output or mutate the caller's contracts. The retired binding is absent.
+The subsequent default-input adjustment passes the export driver's normalized
+style list and initial collection to statistics, rather than raw preservation
+metadata. Its production build log is
+`/tmp/athena-native-conversion-context-final-build.log`.
+
+Verbatim conversion now distinguishes expanded/native formatting, explicit
+source-position formatting and detached source excerpts. Search workers use
+the latter without loading styles or running evaluation. Metadata getters
+retain source paths and return unavailable rather than partial text when a
+custom-node entry is missing. Direct text exports prepare their own document
+or use their supplied editor for snippets. The focused path/pending check
+passed at 20:42 on 2026-10-30
+(`/tmp/athena-verbatim-context-probe.log`), following the successful `-j16`
+production build `/tmp/athena-native-verbatim-build.log`. The subsequent
+argument-formatting adjustment retains unwrapped argument text until the
+outer paragraph's wrapping pass; it is included in the compression build below.
+
+AI compression now belongs to the calling editor. Attached input uses its
+source positions; detached input is prepared under the explicit insertion
+context, retaining local rules inside the complete proposed tree. Native nodes
+use immutable contracts. Its four existing Scheme names now bind editor methods
+through XML. Each editor owns its compression dictionary; retained templates
+and exposed content are detached copies, metadata-bearing formatting nodes keep
+their identity through HTML, and foreign placeholders fail explicitly instead
+of resolving to another editor's data. The final `-j16` production build is
+`/tmp/athena-native-compression-snapshot-build.log`. The focused runtime check
+passed at 20:59 (`/tmp/athena-compression-owner-probe.log`), including runtime
+bindings, attached/prospective local rules, tree/HTML round trips, dictionary
+isolation and subsequent source mutation.
+
+There are no direct `current_evaluation_state` reads in `Data/Convert`. This
+does not mean every conversion path is independent: shared tree utilities still
+contain implicit reads. Detached correction's `prepare_document_context(tree)`
+can borrow an editor state merely because it defines `theorem`; its math
+transforms are concrete remaining consumers, not a
+reason to add fallback contexts. Large-input preparation/admission also remains
+open. The strict cutover is not deployed or declared complete.
+
+Live node/downward/upward correction now belongs to the source editor. Its
+three existing Scheme names are generated from `editor.xml`. Native nodes use
+native contracts; custom nodes prepare their exact current source positions.
+Upward correction stops at the buffer root. Detached/foreign mutable inputs
+fail explicitly instead of borrowing another document or partially mutating a
+temporary handle. Only native/authored arity may erase invalid unannotated
+markup; optional inference cannot authorize deletion, and annotated content
+remains for owner validation. The lower tree helper accepts an explicit query
+and no longer reads ambient state or the global document root.
+
+The with-like/type/similarity getters now read each operand's admitted context,
+while format insertion/toggling uses explicit command preparation. Comparisons
+retain each operand's source rules and compare definition content for same-name
+custom macros. They do not compare execution receipt pointers: independent
+cold preparations can allocate different bindings for the same source. The
+offline wrapper normalizer was a separate remaining consumer, migrated below.
+
+Production built with `-j16`
+(`/tmp/athena-native-correction-definition-build.log`). The focused real-actor
+check passed at 21:25 (`/tmp/athena-source-correction-probe.log`), including
+six runtime bindings, opposing local/outer arities, all correction directions,
+annotated-source preservation, source/prospective wrapper queries, different
+definitions and cold preparation after editing. No deployment, commit or Notes
+writes.
+
+Mathematical input statistics now have editor-local buffer/cursor caches.
+`math-stats-update` and both count getters bind editor methods; the global
+`math-stats-compile` entry and Scheme URL/paragraph-count/source copies are
+removed. Traversal retains source paths and asks only for admitted custom-node
+contexts, while native nodes use immutable rules. Missing entries publish no
+partial count map. Macro definitions are not counted as uses, and retained
+count keys are copied rather than aliasing mutable document leaves.
+
+Cache identity includes the successful execution base and contract trace.
+Source/environment invalidation clears counts before layout; a new layout or
+optional-analysis publication invalidates them, and moving to another root
+paragraph refreshes the cursor cache independently. This fixes same-paragraph
+edits that the old paragraph-count heuristic missed. It does not yet bound the
+first synchronous statistics traversal: large-input incremental/scheduled
+statistics work remains required before final cutover deployment.
+
+Production built with `-j16`
+(`/tmp/athena-native-math-statistics-build.log`). The focused temporary check
+passed at 21:44 (`/tmp/athena-math-statistics-probe.log`): exact source paths,
+opposing local mode declarations, pending-result atomicity, owned count keys,
+runtime bindings, two-actor isolation, cursor-paragraph changes and edits
+without changing paragraph count. No permanent test or broad suite was added;
+no deployment, commit or Notes writes.
+
+Wrapper normalization now has explicit source providers too. The two wrapper
+passes no longer use ambient queries; the no-context `is_with_like` and old
+`with_decompose` helper are removed. Recomposition retains each custom wrapper's
+original context with its output identity, so flattened/new paths are never
+used to query the old source and equal-looking wrappers with different
+definitions do not merge. Definitions and quotation templates remain code,
+not executed wrapper occurrences. Missing requested source contexts fail
+explicitly before any source mutation.
+
+Detached document correction prepares the document's style/initial/preamble
+and original BODY entries, preserving the envelope. Standalone snippets use an
+explicit generic document, not the caller's environment; document snippets keep
+their paragraph structure for forward entry preparation. The generated
+`with-correct`, `with-correct-superfluous` and `manual-correct` bindings now
+dispatch to editor commands with Scheme exception conversion. They prepare the
+actual attached source entry or detached insertion context. The manual command
+captures source math mode natively and supplies a fresh provider after each
+wrapper rewrite. Its later math passes have not yet been migrated.
+
+Production built with `-j16`
+(`/tmp/athena-native-wrapper-correction-final-build.log`). The focused temporary
+runtime check passed (`/tmp/athena-wrapper-normalization-probe.log`): local
+definitions, rewritten-wrapper provenance, metadata, quotation preservation,
+missing-context errors, detached document rules, all three generated bindings,
+source/proposal distinction, source math mode and cold preparation after edits.
+No deployment, commit, Notes writes or permanent tests.
+
+Redundant-wrapper correction now consumes the actual source-entry values paired
+with its contracts, including initial mode, preceding assignments and local
+macro scope. Contract-only preparation still captures only contracts; value
+consumers explicitly request full checkpoints. Root and backward requests do
+not borrow the forward paragraph state. Assignment expressions and WITH binding
+parameters remain code rather than display children. Manual correction applies
+its temporary mode adapter only after the wrapper passes.
+Production built with `-j16`
+(`/tmp/athena-native-source-values-final-build.log`), and the targeted actor check
+passed (`/tmp/athena-source-values-probe.log`), including math-stage execution
+after wrapper removal and cold preparation after changing an earlier assignment.
+No deployment, commit, Notes writes or permanent tests. Remaining mathematical
+correction/symbol expansion and bounded analysis/statistics work are still open.
+
+Compound clipboard text is now generated on each source actor before merging
+the XML pieces. Qt receives owned XML/text strings; it no longer interprets the
+merged raw source with a UI-thread contract context. Production built with
+`-j16` (`/tmp/athena-native-compound-text-build.log`). The two-actor check passed
+at 15:31 (`/tmp/athena-compound-text-probe.log`): identical source macro names
+with different per-document initial definitions retained both textual meanings,
+while their native XML still retained the unexpanded macros.
+
 ## Decision Summary
 
 The replacement is **Native Node Contracts**, not a C++ transcription of the
@@ -194,9 +515,10 @@ Displayed fields can supply occurrence evidence while optional inference is
 pending, without overriding authored visibility. Candidate lookup does not
 evaluate source or tokenize the document. Deferred popup requests retain their
 exact source position/text and are cancelled on input or cursor changes.
-Source identity inference and bounded analysis capture/admission remain
-unfinished, and the strict-cutover binary is not yet deployed. Implementation
-evidence is recorded in the README.
+The subsequent source-identity cutover and cooperative capture work are recorded
+in the current checkpoint above. Remaining mutation endpoints and fully bounded
+analysis capture/admission are unfinished. Implementation and deployment evidence
+are recorded in the README.
 
 Native delimiter, accent and variant content now uses the same environment
 scopes in layout, complete evaluation and both partial-evaluation routes. This

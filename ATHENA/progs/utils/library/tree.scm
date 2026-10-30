@@ -135,10 +135,12 @@
       `(tree-set ,t ,@l)))
 
 (tm-define (tree-start t . l)
-  (path->tree (cDr (apply tree->path (rcons (cons t l) :start)))))
+  (and-with p (apply tree->path (rcons (cons t l) :start))
+    (path->tree (cDr p))))
 
 (tm-define (tree-end t . l)
-  (path->tree (cDr (apply tree->path (rcons (cons t l) :end)))))
+  (and-with p (apply tree->path (rcons (cons t l) :end))
+    (path->tree (cDr p))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Upward searching
@@ -229,8 +231,13 @@
 
 (tm-define (tree-go-to t . l)
   (:synopsis "Go to a position determined by @l inside the tree @t")
-  (with p (apply tree->path (cons t l))
-    (if p (go-to p))))
+  (if (and (nnull? l) (in? (cAr l) '(:start :end)))
+      (and-let* ((u (apply tree-ref (cons t (cDr l))))
+                 (p (tree->path u)))
+        (go-to ((if (== (cAr l) :start) command-path-start command-path-end)
+                (root-tree) p)))
+      (and-with p (apply tree->path (cons t l))
+        (go-to p))))
 
 (tm-define (tree-cursor-at? t . l)
   (:synopsis "Is the cursor at the position determined by @l inside @t?")

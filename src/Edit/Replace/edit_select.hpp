@@ -31,8 +31,10 @@ protected:
   std::shared_ptr<const evaluation_environment_checkpoint> selection_environment;
 
 protected:
-  void with_selection_context (const std::function<void ()>& action);
+  void with_selection_context (const std::function<void ()>& action,
+    std::shared_ptr<const evaluation_environment_checkpoint> context= {});
   bool selection_in_source ();
+  bool with_selection_navigation (const std::function<void (const cursor_navigation&)>&);
   bool selection_try_correct (path, path, path&, path&);
   void get_selection (path& start, path& end);
   void set_selection (path start, path end);

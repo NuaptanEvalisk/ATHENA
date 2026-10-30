@@ -14,8 +14,8 @@
 #include "locale.hpp"
 #include "wencoding.hpp"
 #include "vars.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
-#include "Data/NodeContracts/editing_query.hpp"
+#include "verbatim.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 #include "analyze.hpp"
 #include "utf8_edit.hpp"
 #include <unicode/ucnv.h>
@@ -26,17 +26,30 @@
 * TeXmacs to verbatim
 ******************************************************************************/
 
-static void print_verbatim (string& buf, tree t, bool wrap);
-static string as_verbatim (tree t, bool wrap);
+namespace {
+class verbatim_writer {
+  const athena::contracts::source_contract_preparation* contexts;
+  bool excerpt;
+  void print (string&, tree, bool, path);
+  void argument (string&, tree, bool, path);
+  void table (string&, tree, bool, path);
+public:
+  bool complete= true;
+  explicit verbatim_writer (
+      const athena::contracts::source_contract_preparation* contexts= nullptr,
+      bool excerpt= false): contexts (contexts), excerpt (excerpt) {}
+  string text (tree, bool, path= path ());
+};
 
-static void
-print_verbatim_arg (string& buf, tree t, bool wrap) {
-  string s= as_verbatim (t, wrap);
+void
+verbatim_writer::argument (string& buf, tree t, bool wrap, path source) {
+  string s;
+  print (s, t, wrap, source);
   if (utf8_grapheme_count (s) <= 1 || is_numeric (s) || is_iso_alpha (s))
-    print_verbatim (buf, t, wrap);
+    buf << s;
   else {
     buf << "(";
-    print_verbatim (buf, t, wrap);
+    buf << s;
     buf << ")";
   }
 }
@@ -47,20 +60,24 @@ get_width (string s) {
   else return utf8_grapheme_count (s);
 }
 
-static void
-print_verbatim_table (string& buf, tree t, bool wrap) {
+void
+verbatim_writer::table (string& buf, tree t, bool wrap, path source) {
   if (N(buf)>0 && buf[N(buf)-1] != '\n') buf << "\n";
   int i, nr= N(t), j, nc= 0;
   tree tab (TUPLE, nr);
   for (i=0; i<nr; i++) {
     tree row= t[i];
-    if (is_func (row, CWITH)) row= row[N(row)-1];
+    path row_source= source * i;
+    if (is_func (row, CWITH)) {
+      row_source= row_source * (N(row)-1);
+      row= row[N(row)-1];
+    }
     if (!is_func (row, ROW)) tab[i]= tree (TUPLE);
     else {
       nc= max (nc, N(row));
       tab[i]= tree (TUPLE, N(row));
       for (j=0; j<N(row); j++)
-        tab[i][j]= as_verbatim (row[j], wrap);
+        tab[i][j]= text (row[j], wrap, row_source * j);
     }
   }
   array<int> w (nc);
@@ -80,14 +97,14 @@ print_verbatim_table (string& buf, tree t, bool wrap) {
   }
 }
 
-static void
-print_verbatim (string& buf, tree t, bool wrap) {
+void
+verbatim_writer::print (string& buf, tree t, bool wrap, path source) {
   if (is_atomic (t)) buf << t->label;
   else switch (L(t)) {
     case SURROUND:
-      print_verbatim (buf, t[0], wrap);
-      print_verbatim (buf, t[2], wrap);
-      print_verbatim (buf, t[1], wrap);
+      print (buf, t[0], wrap, source * 0);
+      print (buf, t[2], wrap, source * 2);
+      print (buf, t[1], wrap, source * 1);
       break;
     case HSPACE:
     case SPACE:
@@ -97,13 +114,13 @@ print_verbatim (string& buf, tree t, bool wrap) {
       break;
     case AROUND:
     case VAR_AROUND:
-      print_verbatim (buf, t[0], wrap);
-      print_verbatim (buf, t[1], wrap);
-      print_verbatim (buf, t[2], wrap);
+      print (buf, t[0], wrap, source * 0);
+      print (buf, t[1], wrap, source * 1);
+      print (buf, t[2], wrap, source * 2);
       break;
     case BIG_AROUND:
-      print_verbatim (buf, t[0], wrap);
-      print_verbatim (buf, t[1], wrap);
+      print (buf, t[0], wrap, source * 0);
+      print (buf, t[1], wrap, source * 1);
       break;
     case LEFT:
     case MID:
@@ -111,67 +128,76 @@ print_verbatim (string& buf, tree t, bool wrap) {
     case BIG:
     case LPRIME:
     case RPRIME:
-      print_verbatim (buf, t[0], wrap);
+      print (buf, t[0], wrap, source * 0);
       break;
     case RSUB:
       buf << "_";
-      print_verbatim_arg (buf, t[0], wrap);
+      argument (buf, t[0], wrap, source * 0);
       break;
     case RSUP:
       buf << "^";
-      print_verbatim_arg (buf, t[0], wrap);
+      argument (buf, t[0], wrap, source * 0);
       break;
     case FRAC:
-      print_verbatim_arg (buf, t[0], wrap);
+      argument (buf, t[0], wrap, source * 0);
       buf << "/";
-      print_verbatim_arg (buf, t[1], wrap);
+      argument (buf, t[1], wrap, source * 1);
       break;
     case SQRT:
       if (N(t) == 1) {
         buf << "sqrt(";
-        print_verbatim (buf, t[0], wrap);
+        print (buf, t[0], wrap, source * 0);
         buf << ")";
       }
       else {
-        print_verbatim_arg (buf, t[0], wrap);
-        print_verbatim_arg (buf, tree (RSUP, tree (FRAC, "1", t[1])), wrap);
+        argument (buf, t[0], wrap, source * 0);
+        // Keep the degree's source address instead of formatting a synthetic
+        // RSUP/FRAC tree under an unrelated source position.
+        buf << "(^(1/";
+        argument (buf, t[1], wrap, source * 1);
+        buf << "))";
       }
       break;
     case WIDE:
-      print_verbatim_arg (buf, t[0], wrap);
-      print_verbatim (buf, t[1], wrap);
+      argument (buf, t[0], wrap, source * 0);
+      print (buf, t[1], wrap, source * 1);
       break;
     case SYNTAX:
-      print_verbatim_arg (buf, t[0], wrap);
+      argument (buf, t[0], wrap, source * 0);
       break;
     case TABLE:
-      print_verbatim_table (buf, t, wrap);
+      table (buf, t, wrap, source);
       break;
     default:
       if (is_compound (t, "TeXmacs", 0))
-        print_verbatim (buf, "TeXmacs", wrap);
+        buf << "TeXmacs";
       else {
+        using namespace athena::contracts;
+        const bool native= builtin_label (as_string (L(t)));
+        const auto entry= !native && N(t) && contexts ? (*contexts) (source) : nullptr;
+        if (!native && N(t) && contexts && !entry) { complete= false; return; }
+        const editing_query query {entry ? *entry : builtin_contracts (),
+          excerpt && !native ? access_policy::source : access_policy::normal};
         int i, n= N(t);
         for (i=0; i<n; i++)
-          if (athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.accessible (t, i)) {
+          if (query.accessible (t, i)) {
             if (is_document (t) && (i>0)) {
               if (wrap && N(buf)>0 && buf[N(buf)-1] != '\n') buf << "\n";
               buf << "\n";
             }
-            // Parallel Vault search workers use their own standard context.
-            tree w= athena::contracts::editing_query {athena::contracts::builtin_contracts ()}.environment (t, i, tree (ATTR));
+            tree w= query.environment (t, i, tree (ATTR));
             if (athena::contracts::field_environment_read (w, MODE, "text") == "prog" ||
                 athena::contracts::field_environment_read (w, FONT_FAMILY, "rm") == "tt")
-              print_verbatim (buf, t[i], false);
-            else print_verbatim (buf, t[i], wrap);
+              print (buf, t[i], false, source * i);
+            else print (buf, t[i], wrap, source * i);
           }
       }
       break;
     }
 }
 
-static string
-as_verbatim (tree t, bool wrap) {
+string
+verbatim_writer::text (tree t, bool wrap, path source) {
   if (!is_snippet (t)) {
     tree init= extract (t, "initial");
     hashmap<string,tree> h (UNINIT, init);
@@ -179,7 +205,7 @@ as_verbatim (tree t, bool wrap) {
     t= extract (t, "body");
   }
   string buf;
-  print_verbatim (buf, t, wrap);
+  print (buf, t, wrap, source);
   if (wrap) {
     int i= 0, n= N(buf);
     while (i<n) {
@@ -209,6 +235,7 @@ as_verbatim (tree t, bool wrap) {
   }
   return buf;
 }
+} // namespace
 
 string
 unix_to_dos (string s) {
@@ -256,11 +283,27 @@ external_text_encoding (string s, string enc, bool importing) {
 
 string
 tree_to_verbatim (tree t, bool wrap, string enc) {
-  string buf= as_verbatim (t, wrap);
+  string buf= verbatim_writer ().text (t, wrap);
 #ifdef OS_WIN32
   buf= unix_to_dos (buf);
 #endif
   return external_text_encoding (buf, enc, false);
+}
+
+std::optional<string>
+source_to_verbatim (tree t, bool wrap, string enc,
+    const athena::contracts::source_contract_preparation& contexts, path source) {
+  verbatim_writer writer (&contexts);
+  string buf= writer.text (t, wrap, source);
+  if (!writer.complete) return {};
+#ifdef OS_WIN32
+  buf= unix_to_dos (buf);
+#endif
+  return external_text_encoding (buf, enc, false);
+}
+
+string source_text_excerpt (tree t) {
+  return verbatim_writer (nullptr, true).text (t, false);
 }
 
 /******************************************************************************

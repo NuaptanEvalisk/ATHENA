@@ -32,7 +32,8 @@ public:
     editor_rep (server, buffer), edit_main_rep (server, buffer) {}
   inline void* derived_this () override { return (DiagramTestEditorRep*) this; }
   bool treeBounds (path p, rectangle& bounds) {
-    selection sel= eb->find_check_selection (start (et, p), end (et, p));
+    selection sel= eb->find_check_selection (
+      command_tree_start (et, p), command_tree_end (et, p));
     if (!sel->valid || is_nil (sel->rs)) return false;
     bounds= least_upper_bound (sel->rs);
     return bounds != rectangle (0, 0, 0, 0);

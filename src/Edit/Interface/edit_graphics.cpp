@@ -3118,7 +3118,7 @@ edit_graphics_rep::commit_native_drawing_text (
     path content= radical_path * 0;
     if (!has_subtree (et, content)) return;
     native_drawing_selection_paths_.clear ();
-    go_to (start (et, content));
+    go_to_start (content);
     refresh_native_drawing_selection_snapshot ();
     refresh_native_drawing_properties_snapshot ();
     publish_native_drawing_focus_refresh ();
@@ -3138,7 +3138,7 @@ edit_graphics_rep::commit_native_drawing_text (
 
   path content= gp * index * 0;
   native_drawing_selection_paths_.clear ();
-  if (has_subtree (et, content)) go_to (start (et, content));
+  if (has_subtree (et, content)) go_to_start (content);
   mark_native_ink_interaction_dirty ();
   invalidate_all ();
   refresh_native_ink_interaction ();

@@ -47,7 +47,6 @@ tree   remove_doc_attr (tree doc, string attr);
 tree   substitute (tree t, tree which, tree by);
 tree   nonumber_to_eqnumber (tree t);
 tree   eqnumber_to_nonumber (tree t);
-string search_metadata (tree doc, string kind);
 
 /*** Scheme ***/
 string scheme_tree_to_string (scheme_tree t);
@@ -63,6 +62,8 @@ tree   scheme_to_tree (string s);
 tree   scheme_document_to_tree (string s);
 
 /*** Verbatim ***/
+// Formats expanded/native content with immutable primitive rules. Raw custom
+// source uses source_to_verbatim and an explicit provider (Verbatim/verbatim.hpp).
 string tree_to_verbatim (tree t, bool wrap= false, string enc= "default");
 tree   verbatim_to_tree (string s, bool wrap= false, string enc= "default");
 tree   verbatim_document_to_tree (string s, bool w= false, string e= "default");
@@ -237,7 +238,6 @@ array<string> latex_export_preamble_data (scheme_tree text, scheme_tree style,
                                           scheme_tree init,
                                           scheme_tree colors,
                                           scheme_tree colormaps);
-void latex_export_init_mode_stats (scheme_tree value);
 scheme_tree latex_export_preprocess_preamble_list (scheme_tree values);
 string latex_export_var_name (string name);
 string latex_tmtex_decode_length (object value);
@@ -364,11 +364,5 @@ bool aofm_import_vault (string source_dir, string destination_dir,
                         bool ignore_nonempty= false, int parallelism= 0,
                         string model_vault= "");
 void aofm_debug_dump (const std::string& file_path);
-
-/*** Tree compression ***/
-tree compress_tree (tree t);
-tree decompress_tree (tree t);
-string compress_html (tree t, int mode= 0);
-tree decompress_html (string s, int mode= 0);
 
 #endif // defined CONVERT_H

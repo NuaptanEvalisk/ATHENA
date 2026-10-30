@@ -10,6 +10,8 @@
 ******************************************************************************/
 
 #include "patch.hpp"
+#include "cursor_navigation.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 #include <atomic>
 #include <cstdint>
 
@@ -680,32 +682,35 @@ compactify (patch p) {
 path
 cursor_hint (modification m, tree t) {
   ASSERT (is_applicable (t, m), "modification not applicable");
+  // Undo has already replaced the source. This is a structural hint, not a
+  // query against the old layout or the currently selected editor's scope.
+  const cursor_navigation navigation ({athena::contracts::builtin_contracts ()});
   path rp= root (m);
   tree st= subtree (t, rp);
   switch (m->k) {
   case MOD_ASSIGN:
-    return end (t, rp);
+    return navigation.end (t, rp);
   case MOD_INSERT:
     if (is_atomic (st)) return rp * index (m);
-    else if (index (m) == N (st)) return end (t, rp);
-    else return start (t, rp * index (m));
+    else if (index (m) == N (st)) return navigation.end (t, rp);
+    else return navigation.start (t, rp * index (m));
   case MOD_REMOVE:
     if (is_atomic (st)) return rp * (index (m) + argument (m));
-    else if (index (m) == N (st)) return end (t, rp);
-    else if (argument (m) == 0) return start (t, rp * index (m));
-    else return end (t, rp * (index (m) + argument (m) - 1));
+    else if (index (m) == N (st)) return navigation.end (t, rp);
+    else if (argument (m) == 0) return navigation.start (t, rp * index (m));
+    else return navigation.end (t, rp * (index (m) + argument (m) - 1));
   case MOD_SPLIT:
     if (is_atomic (st [index (m)])) return m->p;
-    else if (argument (m) == N (st [index (m)])) return end (t, rp * index(m));
-    else return start (t, m->p);
+    else if (argument (m) == N (st [index (m)])) return navigation.end (t, rp * index(m));
+    else return navigation.start (t, m->p);
   case MOD_JOIN:
-    return end (t, m->p);
+    return navigation.end (t, m->p);
   case MOD_ASSIGN_NODE:
-    return end (t, rp);
+    return navigation.end (t, rp);
   case MOD_INSERT_NODE:
-    return end (t, rp);
+    return navigation.end (t, rp);
   case MOD_REMOVE_NODE:
-    return end (t, rp * index (m));
+    return navigation.end (t, rp * index (m));
   case MOD_SET_CURSOR:
     return path ();
   case MOD_SET_METADATA:

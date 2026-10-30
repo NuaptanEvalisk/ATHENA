@@ -40,14 +40,16 @@ edit_select_rep::edit_select_rep ():
 edit_select_rep::~edit_select_rep () {}
 
 void
-edit_select_rep::with_selection_context (const std::function<void ()>& action) {
-  if (selection_environment) { action (); return; }
-  const auto prepared= editor_rep::cursor_context_at (tp);
+edit_select_rep::with_selection_context (const std::function<void ()>& action,
+    std::shared_ptr<const evaluation_environment_checkpoint> prepared) {
+  if (!prepared && selection_environment) { action (); return; }
+  if (!prepared) prepared= editor_rep::cursor_context_at (tp);
   if (!prepared) throw std::runtime_error ("Selection context is awaiting layout");
-  selection_environment= prepared;
+  const auto previous= selection_environment;
+  selection_environment= std::move (prepared);
   try { action (); }
-  catch (...) { selection_environment.reset (); throw; }
-  selection_environment.reset ();
+  catch (...) { selection_environment= previous; throw; }
+  selection_environment= previous;
 }
 
 bool
@@ -186,7 +188,11 @@ edit_select_rep::select (path p1, path p2) {
 
 void
 edit_select_rep::select (path p) {
-  select (start (et, p), end (et, p));
+  const auto entry= prepare_source_position (p * 0);
+  with_selection_context ([&] {
+    select (prepare_command_boundary (p, p, true, *entry),
+            prepare_command_boundary (p, p, false, *entry));
+  }, entry);
 }
 
 void
@@ -420,12 +426,18 @@ edit_select_rep::selection_active_enlarging () {
 ******************************************************************************/
 
 bool
-edit_select_rep::selection_try_correct (path i1, path i2, path& o1, path& o2) {
-  if (i1 == i2) { o1= i1; o2= i2; return true; }
+edit_select_rep::with_selection_navigation (
+    const std::function<void (const cursor_navigation&)>& action) {
   const auto context= selection_environment ? selection_environment : editor_rep::cursor_context_at (tp);
   if (!context) return false;
+  return with_admitted_navigation (*context, action);
+}
+
+bool
+edit_select_rep::selection_try_correct (path i1, path i2, path& o1, path& o2) {
+  if (i1 == i2) { o1= i1; o2= i2; return true; }
   path first, last;
-  if (!with_admitted_navigation (*context, [&] (const cursor_navigation& navigation) {
+  if (!with_selection_navigation ([&] (const cursor_navigation& navigation) {
     selection_correct (i1, i2, first, last, navigation);
   })) return false;
   o1= first; o2= last;
@@ -609,7 +621,7 @@ edit_select_rep::selection_var_get_end () {
 
 static tree
 selection_compute_without_source_root_identity (
-    tree document, path root, path p1, path p2) {
+    const cursor_navigation& navigation, tree document, path p1, path p2) {
   const path selected= common (p1, p2);
   if (native_math_grid_cell (document, selected))
     return copy (subtree (document, selected)[0]);
@@ -630,17 +642,15 @@ selection_compute_without_source_root_identity (
     }
     return result;
   }
-  if (!is_nil (root) && has_subtree (document, root) &&
-      p1 == start (document, root) && p2 == end (document, root)) {
-    tree source= copy (subtree (document, root));
-    if (const auto* header= athena::node::get (source)) {
-      auto metadata= *header;
-      metadata.id.clear ();
-      athena::node::set (source, metadata);
-      return selection_compute (source, start (source), end (source));
-    }
+  if (const auto* header= athena::node::get (document);
+      header && selection_covers_node (navigation, document, p1, p2)) {
+    tree source= copy (document);
+    auto metadata= *header;
+    metadata.id.clear ();
+    athena::node::set (source, metadata);
+    return source;
   }
-  return selection_compute (document, p1, p2);
+  return selection_compute (navigation, document, p1, p2);
 }
 
 tree
@@ -656,7 +666,11 @@ edit_select_rep::selection_get () {
     // cout << "Selecting...\n";
     selection_get (p1, p2);
     // cout << "Between paths: " << p1 << " and " << p2 << "\n";
-    tree t= selection_compute_without_source_root_identity (et, rp, p1, p2);
+    tree t;
+    if (!with_selection_navigation ([&] (const cursor_navigation& navigation) {
+      t= selection_compute_without_source_root_identity (
+        navigation, subtree (et, rp), p1 / rp, p2 / rp);
+    })) throw std::runtime_error ("Selection extraction is awaiting layout");
     // cout << "Selection : " << t << "\n";
     return simplify_correct (t);
   }
@@ -674,7 +688,7 @@ edit_select_rep::selection_get_path () {
 path
 edit_select_rep::selection_get_cursor_path () {
   if (!selection_active_any ()) return tp;
-  return start (et, selection_get_path ());
+  return admitted_boundary (selection_get_path (), true);
 }
 
 tree
@@ -760,22 +774,22 @@ plain_clipboard_envelope (const tree& selection) {
 }
 
 path
-complete_identified_selection_path (tree document, path p1, path p2, path root) {
-  path selected= common (p1, p2);
-  if (selected == root || is_nil (selected) || !has_subtree (document, selected))
-    return path ();
-  tree value= subtree (document, selected);
-  if (!athena::node::get (value) ||
-      p1 != start (document, selected) || p2 != end (document, selected))
-    return path ();
-  path parent= path_up (selected);
-  if (is_nil (parent) || !has_subtree (document, parent)) return path ();
-  tree container= subtree (document, parent);
-  if (is_document (container) || is_concat (container)) return selected;
-  // A complete identified range in a fixed content slot must also move its
-  // header. Ordinary character/range cuts retain it on the empty remainder.
-  return (is_atomic (value) || is_document (value) || is_concat (value)) ?
-    selected : path ();
+complete_identified_selection_path (const cursor_navigation& navigation,
+                                    tree document, path p1, path p2) {
+  path selected;
+  // Extraction promotes a complete visible range to its first identified
+  // ancestor. Cut must remove that same object, not only its innermost field.
+  // The document root itself never moves onto the clipboard.
+  for (path remaining= common (p1, p2); !is_nil (remaining);
+       remaining= remaining->next) {
+    selected= selected * remaining->item;
+    tree value= subtree (document, selected);
+    if (!athena::node::get (value)) continue;
+    const auto local= is_atomic (value) ? navigation : navigation.at (selected);
+    if (selection_covers_node (local, value, p1 / selected, p2 / selected))
+      return selected;
+  }
+  return path ();
 }
 
 } // namespace
@@ -918,6 +932,7 @@ struct native_paste_plan {
     std::shared_ptr<const evaluation_environment_checkpoint> context;
   };
   tree selection;
+  std::shared_ptr<const evaluation_environment_checkpoint> insertion_context;
   std::string move_token;
   string mode, language;
   bool graphics= false;
@@ -948,6 +963,7 @@ edit_select_rep::prepare_paste (tree selection,
   if (prepared->graphics) return prepared;
 
   if (!context) throw std::runtime_error ("Paste destination is awaiting layout");
+  prepared->insertion_context= context;
   prepared->mode= as_string (context->effective_value (MODE));
   const string language= MODE_LANGUAGE (prepared->mode);
   prepared->language= as_string (context->effective_value (language));
@@ -1202,7 +1218,9 @@ edit_select_rep::apply_paste (const native_paste_plan& prepared, bool local_tran
       else {
         tree payload= copy (simplify_correct (t[1]));
         wrapper[wrapper_body->item]= payload;
-        insert_tree (wrapper, wrapper_body * end (payload));
+        const path destination= prepare_tree_boundary (
+          wrapper, wrapper_body, false, *prepared.insertion_context);
+        insert_tree (wrapper, destination);
       }
     }
   }
@@ -1246,7 +1264,9 @@ edit_select_rep::selection_get_export () {
 
 void
 edit_select_rep::cut (path p) {
-  cut (start (et, p), end (et, p));
+  const auto entry= prepare_source_position (p * 0);
+  cut (prepare_command_boundary (p, p, true, *entry),
+       prepare_command_boundary (p, p, false, *entry));
 }
 
 void
@@ -1288,8 +1308,16 @@ edit_select_rep::raw_cut (path p1, path p2) {
   }
 
   if (is_document (t) || is_concat (t)) {
-    path q1= copy (p); q1 << path (i1, end (t[i1]));
-    path q2= copy (p); q2 << path (i2, start (t[i2]));
+    const auto boundary= [&] (int child, bool at_start) {
+      const path owner= p * child;
+      if (is_atomic (t[child])) return owner * (at_start ? 0 : N(t[child]->label));
+      const auto entry= prepare_source_position (owner * 0);
+      // Keep the child's own border. CONCAT-wide correction can move its
+      // beginning to the previous sibling, repeating this same cut range.
+      return prepare_command_boundary (owner, owner, at_start, *entry);
+    };
+    path q1= boundary (i1, false);
+    path q2= boundary (i2, true);
     raw_cut (q2, p2);
     if (i2>i1+1) remove (p * (i1+1), i2-i1-1);
     raw_cut (p1, q1);
@@ -1378,11 +1406,19 @@ edit_select_rep::selection_cut (string key) {
       // a half-open range of complete children, however, that boundary is
       // deleted and may reattach to the wrong side of an adjacent math
       // operator.  Its right boundary belongs to the first surviving child.
-      const path complete_object=
-        (native_math_grid_row (et, p) || native_math_grid_cell (et, p)) ? path () :
-        complete_identified_selection_path (et, p1, p2, rp);
+      path complete_object;
+      tree sel;
+      if (!with_selection_navigation ([&] (const cursor_navigation& navigation) {
+        tree body= subtree (et, rp);
+        if (!native_math_grid_row (et, p) && !native_math_grid_cell (et, p)) {
+          const path selected= complete_identified_selection_path (
+            navigation, body, p1 / rp, p2 / rp);
+          if (!is_nil (selected)) complete_object= rp * selected;
+        }
+        if (key != "none") sel= selection_compute_without_source_root_identity (
+          navigation, body, p1 / rp, p2 / rp);
+      })) throw std::runtime_error ("Selection extraction is awaiting layout");
       if (key != "none") {
-        tree sel= selection_compute_without_source_root_identity (et, rp, p1, p2);
         tree clipboard= simplify_correct (sel);
         athena::document_node::source_move_ticket move;
         if (selection_export == "default" && node_identities_active () &&

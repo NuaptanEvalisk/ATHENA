@@ -19,6 +19,7 @@
 #include "ATHENA/Data/node_reference.hpp"
 #include "ATHENA/buffer_actor.hpp"
 #include "Data/NodeContracts/builtin_contracts.hpp"
+#include "cursor_navigation.hpp"
 #ifdef EXPERIMENTAL
 #include "../../Style/Memorizer/clean_copy.hpp"
 #endif
@@ -833,6 +834,6 @@ edit_modify_rep::position_set (observer o, path p) {
 
 path
 edit_modify_rep::position_get (observer o) {
-  //return super_correct (et, obtain_position (o));
-  return correct_cursor (et, obtain_position (o));
+  const cursor_navigation structural ({athena::contracts::builtin_contracts ()});
+  return rp * structural.correct_cursor (subtree (et, rp), obtain_position (o) / rp);
 }

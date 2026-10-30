@@ -179,12 +179,15 @@ bool execute_json_keyboard_action (QJsonObject descriptor, string capture= "") {
   }
   if (kind == "variant") {
     editor ed= get_current_editor ();
-    const tree body= ed->selection_active_small () ? ed->selection_get_cut () : tree ("");
+    const bool selected= ed->selection_active_small ();
+    const tree body= selected ? ed->selection_get () : tree ("");
     tree value (MATH_VARIANT,
       keyboard_native_string (descriptor.value ("value").toString ()), body);
     ASSERT (athena::math_v3::valid_native_math (value),
             "invalid variant keyboard action descriptor");
-    ed->insert_tree (value, path (1, end (body)));
+    const path destination= ed->command_tree_end (value, path (1));
+    if (selected) ed->selection_cut ("none");
+    ed->insert_tree (value, destination);
     return true;
   }
   if (kind == "text") {

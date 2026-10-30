@@ -11,13 +11,11 @@
 
 #include "tree_modify.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
 #include "path.hpp"
-#include "new_document.hpp"
 #include "node_metadata.hpp"
 
 /******************************************************************************
-* DRD-based correction of trees
+* Source-owned correction of trees
 ******************************************************************************/
 
 void
@@ -60,30 +58,17 @@ correct_concat_node (tree& t, int done) {
 }
 
 void
-correct_node (tree& t) {
+correct_node (tree& t, const athena::contracts::editing_query& query) {
   // NOTE: this routine should only modify t and its descendants,
   // but not any ancestors
   if (is_compound (t)) {
-    if (athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.contains (as_string (L(t))) &&
-        !athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.describe (L(t)).layout.accepts (N(t)))
+    const auto& contract= query.describe (L(t));
+    // Optional inference cannot authorize deleting source. Identified content
+    // is retained for the owner validator, just as in import arity correction.
+    if (contract.layout_origin != athena::contracts::property_authority::inferred &&
+        !contract.layout.accepts (N(t)) && !athena::node::contains_metadata (t))
       assign (t, "");
     if (is_concat (t))
       correct_concat_node (t, 0);
   }
-}
-
-void
-correct_downwards (tree& t) {
-  if (is_compound (t))
-    for (int i=0; i<N(t); i++)
-      correct_downwards (t[i]);
-  correct_node (t);
-}
-
-void
-correct_upwards (tree& t) {
-  correct_node (t);
-  path ip= obtain_ip (t);
-  if (ip_attached (ip) && !is_nil (ip))
-    correct_upwards (subtree (current_document_tree (), reverse (ip->next)));
 }

@@ -14,8 +14,12 @@
 #include "unicode_text.hpp"
 #include "modification.hpp"
 #include <map>
+#include <optional>
 #include <set>
 #include <vector>
+
+// Live spelling ranges refer to one atomic source leaf, not a structured selection.
+std::optional<string> spelling_range_text (tree document, path first, path last);
 
 // One admitted source entry. Absence means pending, not text mode or an empty
 // spelling result. The provider only reads prepared layout; it must not execute.

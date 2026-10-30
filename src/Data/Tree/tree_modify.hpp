@@ -11,10 +11,9 @@
 
 #ifndef TREE_MODIFY_H
 #define TREE_MODIFY_H
-#include "Data/NodeContracts/execution_state.hpp"
+#include "tree.hpp"
 
-void correct_node (tree& t);
-void correct_downwards (tree& t);
-void correct_upwards (tree& t);
+namespace athena::contracts { struct editing_query; }
+void correct_node (tree& t, const athena::contracts::editing_query&);
 
 #endif // defined TREE_MODIFY_H

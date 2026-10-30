@@ -12,10 +12,15 @@
 #include "tree_correct.hpp"
 #include "Data/NodeContracts/syntax_query.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
+#include "new_style.hpp"
+#include "convert.hpp"
 #include "node_metadata.hpp"
 #include "tree_analyze.hpp"
 #include "scheme.hpp"
-#include "packrat.hpp"
+#include "Env/local_environment.hpp"
+#include <unordered_map>
+#include <stdexcept>
 
 /******************************************************************************
 * Import arity correction
@@ -200,64 +205,127 @@ correct_concat_block (tree t) {
 * Correct WITHs or WITH-like macros
 ******************************************************************************/
 
+namespace {
+using athena::contracts::contract_scope;
+using athena::contracts::editing_query;
+using athena::contracts::source_contract_preparation;
+using athena::contracts::source_environment_preparation;
+
+static bool definition_or_quotation (tree t) {
+  return is_func (t, ASSIGN) || is_func (t, MACRO) || is_func (t, XMACRO) ||
+    is_func (t, QUOTE) || is_func (t, QUASI) || is_func (t, QUASIQUOTE);
+}
+
+static std::shared_ptr<const contract_scope>
+wrapper_context (tree t, path source, const source_contract_preparation& contexts) {
+  if (athena::contracts::builtin_label (as_string (L(t)))) return {};
+  auto context= contexts (source);
+  if (!context) {
+    const string where= as_string (source);
+    throw std::runtime_error ("Wrapper correction has no source context at " +
+      std::string (where.data (), N(where)));
+  }
+  return context;
+}
+
+class wrapper_corrector {
+  const source_contract_preparation& contexts;
+  struct entry {
+    tree value;
+    std::shared_ptr<const contract_scope> context;
+  };
+  // Recomposition moves wrappers away from their original paths. Retain the
+  // actual source rule with each resulting wrapper, never re-query new paths.
+  std::unordered_map<const tree_rep*, entry> entries;
+  void retain (tree t, std::shared_ptr<const contract_scope> context) {
+    if (context) entries.emplace (t.operator-> (), entry {t, std::move (context)});
+  }
+  editing_query query (tree t) const {
+    if (is_atomic (t) || athena::contracts::builtin_label (as_string (L(t))))
+      return {athena::contracts::builtin_contracts ()};
+    return {*entries.at (t.operator-> ()).context};
+  }
+  bool wrapper (tree t) const { return is_with_like (t, query (t)); }
+  bool same (tree a, tree b) const {
+    return with_same_type (a, b, query (a), query (b));
+  }
+  bool similar (tree a, tree b) const {
+    return with_similar_type (a, b, query (a), query (b));
+  }
+  tree recompose (tree w, array<tree> parts) {
+    tree result= with_recompose (w, parts);
+    const auto found= entries.find (w.operator-> ());
+    if (found != entries.end ()) retain (result, found->second.context);
+    return result;
+  }
+  array<tree> decompose (tree w, tree t) const {
+    array<tree> result;
+    if (athena::node::get (t)) result << t;
+    else if (t == "");
+    else if (is_concat (t))
+      for (int i=0; i<N(t); ++i) result << decompose (w, t[i]);
+    else if (wrapper (t) && same (w, t)) result << decompose (w, with_body (t));
+    else result << t;
+    return result;
+  }
+public:
+  explicit wrapper_corrector (const source_contract_preparation& contexts): contexts (contexts) {}
+  tree correct (tree, path= path ());
+};
+
 tree
-with_correct (tree t) {
+wrapper_corrector::correct (tree t, path source) {
   if (is_atomic (t)) return t;
+  if (definition_or_quotation (t)) return t;
   else {
-    //cout << "Correcting " << t << LF << INDENT;
+    const auto context= wrapper_context (t, source, contexts);
     tree u (t, N(t));
     athena::node::copy_metadata (t, u);
     for (int k=0; k<N(t); k++)
-      u[k]= with_correct (t[k]);
+      u[k]= is_func (t, WITH) && k != N(t)-1 ? t[k] : correct (t[k], source * k);
+    retain (u, context);
     array<tree> a= concat_decompose (u);
     int i, n= N(a);
     array<tree> r;
     for (i=0; i<n; i++) {
       if (athena::node::get (a[i])) r << a[i];
-      else if (is_with_like (a[i])) {
-        array<tree> b= with_decompose (a[i], with_body (a[i]));
+      else if (wrapper (a[i])) {
+        array<tree> b= decompose (a[i], with_body (a[i]));
         int p= N(b), k1, k2;
         for (k1=0; k1<p ; k1++)
-          if (is_with_like (b[k1]) && with_similar_type (a[i], b[k1]));
+          if (wrapper (b[k1]) && similar (a[i], b[k1]));
           else break;
         for (k2=p; k2>k1; k2--)
-          if (is_with_like (b[k2-1]) && with_similar_type (a[i], b[k2-1]));
+          if (wrapper (b[k2-1]) && similar (a[i], b[k2-1]));
           else break;
         array<tree> x;
         if (0  < k1) x << range (b, 0, k1);
-        if (k1 < k2) x << with_recompose (a[i], range (b, k1, k2));
+        if (k1 < k2) x << recompose (a[i], range (b, k1, k2));
         if (k2 < p ) x << range (b, k2, p);
         if (N(x) == 0) continue;
         if (N(r) != 0 &&
             !athena::node::get (r[N(r)-1]) && !athena::node::get (x[0]) &&
-            is_with_like (r[N(r)-1]) &&
-            with_same_type (r[N(r)-1], x[0]))
+            wrapper (r[N(r)-1]) && same (r[N(r)-1], x[0]))
           {
             array<tree> c= concat_decompose (with_body (r[N(r)-1]));
             c << concat_decompose (with_body (x[0]));
-            r[N(r)-1]= with_recompose (x[0], c);
+            r[N(r)-1]= recompose (x[0], c);
             r << range (x, 1, N(x));
           }
         else r << x;
       }
       else r << a[i];
     }
-    //cout << UNINDENT << "Corrected " << t << " -> "
-    //<< concat_recompose (r) << LF;
     return concat_recompose (r);
   }
 }
 
 static tree
-superfluous_with_correct (tree t, tree env) {
+superfluous_with_correct (tree t,
+    const source_environment_preparation& contexts, path source) {
   if (is_atomic (t)) return t;
+  if (definition_or_quotation (t)) return t;
   else {
-    //cout << "Superfluous correcting " << t << ", " << env << LF;
-    if (is_compound (t, "body", 1)) {
-      tree body= compound ("body", superfluous_with_correct (t[0], env));
-      athena::node::copy_metadata (t, body);
-      return body;
-    }
     if (is_func (t, WITH) && ((N(t) & 1) == 0))
       {
         tree repaired= t * tree (WITH, "");
@@ -267,23 +335,27 @@ superfluous_with_correct (tree t, tree env) {
     tree r (t, N(t));
     athena::node::copy_metadata (t, r);
     for (int i=0; i<N(t); i++)
-      r[i]= superfluous_with_correct
-              (t[i], athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.environment (t, i, env));
+      r[i]= is_func (t, WITH) && i != N(t)-1 ? t[i] :
+        superfluous_with_correct (t[i], contexts, source * i);
     // An identified or attributed wrapper is not redundant source content.
     if (athena::node::get (r)) return r;
     if (is_compound (r, "math", 1) && r[0] == "" &&
         !athena::node::get (r[0])) return "";
     else if (is_compound (r, "text", 1) && r[0] == "" &&
              !athena::node::get (r[0])) return "";
-    else if (is_compound (r, "math", 1) && athena::contracts::field_environment_read (env, MODE) == "math")
-      return r[0];
-    else if (is_compound (r, "text", 1) && athena::contracts::field_environment_read (env, MODE) == "text")
-      return r[0];
-    else if (is_func (r, WITH)) {
-      for (int i=0; i+1<N(r); i+=2)
-        if (!is_atomic (r[i])) return r;
-        else if (athena::contracts::field_environment_read (env, r[i]->label) != r[i+1]) return r;
-      return r[N(r)-1];
+    if (is_compound (r, "math", 1) || is_compound (r, "text", 1) || is_func (r, WITH)) {
+      const auto entry= contexts (source);
+      if (!entry) {
+        const string where= as_string (source);
+        throw std::runtime_error ("Wrapper correction has no source environment at " +
+          std::string (where.data (), N(where)));
+      }
+      if (is_func (r, WITH)) {
+        for (int i=0; i+1<N(r); i+=2)
+          if (!is_atomic (r[i]) || entry->value (r[i]->label) != r[i+1]) return r;
+        return r[N(r)-1];
+      }
+      if (entry->effective_value (MODE) == as_string (L(r))) return r[0];
     }
     else if (is_func (r, CONCAT)) {
       array<tree> a= concat_decompose (r);
@@ -293,10 +365,56 @@ superfluous_with_correct (tree t, tree env) {
   }
 }
 
+static tree
+correct_detached_wrappers (tree t, bool redundant) {
+  const bool snippet= is_snippet (t);
+  const bool wrapped= snippet && !is_document (t);
+  const tree document= snippet ? tree (DOCUMENT,
+    compound ("style", tuple ("generic")),
+    compound ("body", wrapped ? tree (DOCUMENT, t) : t)) : t;
+  const tree body= snippet ? t : extract (t, "body");
+  const auto address= [wrapped] (path p) {
+    std::vector<int> where;
+    if (wrapped) where.push_back (0);
+    for (; !is_nil (p); p= p->next) where.push_back (p->item);
+    return where;
+  };
+  tree result;
+  if (redundant) {
+    const auto prepared= prepare_document_source_environments (document);
+    result= ::superfluous_with_correct (body, [prepared, address] (path p) {
+      return prepared (address (p));
+    });
+  }
+  else {
+    const auto prepared= prepare_document_source_contracts (document);
+    result= ::with_correct (body, [prepared, address] (path p) {
+      return prepared (address (p));
+    });
+  }
+  return snippet ? result : change_doc_attr (t, "body", result);
+}
+} // namespace
+
+tree
+with_correct (tree t, const athena::contracts::source_contract_preparation& contexts) {
+  return wrapper_corrector (contexts).correct (t);
+}
+
+tree
+with_correct (tree t) {
+  return correct_detached_wrappers (t, false);
+}
+
+tree
+superfluous_with_correct (tree t,
+    const athena::contracts::source_environment_preparation& contexts) {
+  return superfluous_with_correct (t, contexts, path ());
+}
+
 tree
 superfluous_with_correct (tree t) {
-  athena::contracts::owned_evaluation_scope contract_state (prepare_document_context (t));
-  return superfluous_with_correct (t, tree (WITH, MODE, "text"));
+  return correct_detached_wrappers (t, true);
 }
 
 /******************************************************************************
@@ -919,62 +1037,6 @@ misc_math_correct (tree t) {
 }
 
 /******************************************************************************
-* Count errors
-******************************************************************************/
-
-static int
-count_math_formula_errors (tree t, int mode) {
-  if (mode == 1) return 1;
-  if (packrat_correct ("std-math", "Main", t)) return 0;
-  else {
-    if (mode == 2) cout << "  ERROR> " << t << "\n";
-    return 1;
-  }
-}
-
-static int
-count_math_table_errors (tree t, int mode) {
-  if (is_atomic (t)) return 0;
-  else if (is_func (t, CELL, 1)) {
-    if (t[0] == "" || t[0] == tree (DOCUMENT, "")) return 0;
-    if (mode == 1) return 1;
-    if (packrat_correct ("std-math", "Cell", t[0])) return 0;
-    else {
-      if (mode == 2) cout << "  ERROR> " << t << "\n";
-      return 1;
-    }
-  }
-  else {
-    int sum= 0;
-    for (int i=0; i<N(t); i++)
-      sum += count_math_table_errors (t[i], mode);
-    return sum;
-  }
-}
-
-int
-count_math_errors (tree t, int mode) {
-  if (is_atomic (t)) return 0;
-  else {
-    int sum= 0;
-    for (int i=0; i<N(t); i++) {
-      tree cmode= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, MODE, "text");
-      if (cmode != "math") sum += count_math_errors (t[i], mode);
-      else {
-        tree u= t[i];
-        while (is_func (u, DOCUMENT, 1) ||
-               is_func (u, TFORMAT) ||
-               is_func (u, WITH))
-          u= u[N(u)-1];
-        if (is_func (u, TABLE)) sum += count_math_table_errors (u, mode);
-        else sum += count_math_formula_errors (u, mode);
-      }
-    }
-    return sum;
-  }
-}
-
-/******************************************************************************
 * Master routines
 ******************************************************************************/
 
@@ -1022,10 +1084,8 @@ automatic_correct (tree t, string version) {
   return t;
 }
 
-tree
-manual_correct (tree t) {
-  t= with_correct (t);
-  t= superfluous_with_correct (t);
+static tree
+manual_correct_math (tree t) {
   t= upgrade_brackets (t);
   t= misc_math_correct (t);
   if (enabled_preference ("manual remove superfluous invisible"))
@@ -1040,4 +1100,21 @@ manual_correct (tree t) {
     t= missing_invisible_correct (t, 1);
   t= downgrade_big (t);
   return t;
+}
+
+tree
+manual_correct (tree t) {
+  t= with_correct (t);
+  t= superfluous_with_correct (t);
+  return manual_correct_math (t);
+}
+
+tree
+manual_correct (tree t, const correction_context_factory& contexts, string mode) {
+  t= with_correct (t, athena::contracts::source_contracts (contexts (t)));
+  t= superfluous_with_correct (t, contexts (t));
+  // The remaining math passes receive their entry mode through a math wrapper.
+  const bool math= mode == "math";
+  const tree result= manual_correct_math (math ? compound ("math", t) : t);
+  return math && is_compound (result, "math", 1) ? result[0] : result;
 }

@@ -9,6 +9,7 @@
 ******************************************************************************/
 #include <QApplication>
 #include "Data/NodeContracts/editing_query.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 #include <QClipboard>
 #include <QMimeData>
 #include <QScopedValueRollback>
@@ -174,6 +175,7 @@ private slots:
     tm_delete (buffer);
   }
   void treeNavigation () {
+    const cursor_navigation navigation ({athena::contracts::builtin_contracts ()});
     const string text= "A\xe4\xb8\xad" "e\xcc\x81"
       "\xf0\x9f\x91\xa9\xe2\x80\x8d\xf0\x9f\x92\xbb"
       "\xf0\x9f\x87\xa8\xf0\x9f\x87\xb3" "<alpha>";
@@ -182,34 +184,34 @@ private slots:
     for (std::size_t i= 0; i < stops.size (); ++i) {
       const path at (0, stops[i]);
       QVERIFY (is_inside (value, at));
-      QVERIFY (is_accessible_cursor (value, at));
-      QVERIFY (valid_cursor (value, at));
+      QVERIFY (navigation.is_accessible_cursor (value, at));
+      QVERIFY (navigation.valid_cursor (value, at));
       if (i + 1 < stops.size ())
-        QVERIFY (next_valid (value, at) == path (0, stops[i + 1]));
+        QVERIFY (navigation.move_valid (value, at, true) == path (0, stops[i + 1]));
       if (i > 0)
-        QVERIFY (previous_valid (value, at) == path (0, stops[i - 1]));
+        QVERIFY (navigation.move_valid (value, at, false) == path (0, stops[i - 1]));
     }
     for (int inside: {2, 3, 5, 6, 8, 11, 14, 17, 19, 22, 25}) {
       QVERIFY (!is_inside (value, path (0, inside)));
-      QVERIFY (!is_accessible_cursor (value, path (0, inside)));
-      QVERIFY (!valid_cursor (value, path (0, inside)));
-      const auto left= correct_cursor (value, path (0, inside), false);
-      const auto right= correct_cursor (value, path (0, inside), true);
+      QVERIFY (!navigation.is_accessible_cursor (value, path (0, inside)));
+      QVERIFY (!navigation.valid_cursor (value, path (0, inside)));
+      const auto left= navigation.correct_cursor (value, path (0, inside), false);
+      const auto right= navigation.correct_cursor (value, path (0, inside), true);
       QVERIFY (is_inside (value, left) && is_inside (value, right));
       QVERIFY (last_item (left) < inside && last_item (right) > inside);
       QVERIFY (closest_inside (value, path (0, inside)) == right);
     }
     const tree binary (RAW_DATA, string ("\xff\x80\0", 3));
     QVERIFY (is_inside (binary, path (0, 0)));
-    QVERIFY (!is_accessible_cursor (binary, path (0, 0)));
-    const cursor_navigation source_navigation (current_cursor_navigation ().contracts ().with_access (
+    QVERIFY (!navigation.is_accessible_cursor (binary, path (0, 0)));
+    const cursor_navigation source_navigation (navigation.contracts ().with_access (
       athena::contracts::access_policy::source));
     const bool source_access= source_navigation.is_accessible_cursor (binary, path (0, 0));
     QVERIFY (source_access);
-    QVERIFY (valid_cursor (binary, path (0, 0)));
-    QVERIFY (!valid_cursor (binary, path (0, 1)));
+    QVERIFY (navigation.valid_cursor (binary, path (0, 0)));
+    QVERIFY (!navigation.valid_cursor (binary, path (0, 1)));
     QVERIFY (closest_inside (binary, path (0, 2)) == path (0, 0));
-    QVERIFY (next_valid (binary, path (0, 0)) == path (1));
+    QVERIFY (navigation.move_valid (binary, path (0, 0), true) == path (1));
   }
   void namedSymbols () {
     using namespace athena::text;
@@ -284,12 +286,13 @@ private slots:
       QVERIFY (imported == tree (DOCUMENT, tree (CONCAT, symbol)));
       QVERIFY (read_xml (write_xml (imported)) == imported);
       QVERIFY (env->exec (symbol) == symbol);
-      QVERIFY (!is_accessible_cursor (symbol, path (0, 0)));
-      QVERIFY (valid_cursor (symbol, path (0)));
-      QVERIFY (valid_cursor (symbol, path (1)));
-      QVERIFY (next_accessible (symbol, path (0)) == path (1));
-      QVERIFY (previous_accessible (symbol, path (1)) == path (0));
-      const cursor_navigation source_navigation (current_cursor_navigation ().contracts ().with_access (
+      const cursor_navigation navigation ({athena::contracts::builtin_contracts ()});
+      QVERIFY (!navigation.is_accessible_cursor (symbol, path (0, 0)));
+      QVERIFY (navigation.valid_cursor (symbol, path (0)));
+      QVERIFY (navigation.valid_cursor (symbol, path (1)));
+      QVERIFY (navigation.move_accessible (symbol, path (0), true) == path (1));
+      QVERIFY (navigation.move_accessible (symbol, path (1), false) == path (0));
+      const cursor_navigation source_navigation (navigation.contracts ().with_access (
         athena::contracts::access_policy::source));
       const bool source_access= source_navigation.is_accessible_cursor (symbol, path (0, 0));
       QVERIFY (source_access);
@@ -987,7 +990,7 @@ private slots:
         doc, start_in, end_in, start_out, end_out);
       QVERIFY (start_out == start_in);
       QVERIFY (end_out == end_in);
-      QCOMPARE (selection_compute (doc, start_out, end_out),
+      QCOMPARE (selection_compute (cursor_navigation ({contract_state.contracts}), doc, start_out, end_out),
                 tree (LABEL, "anchor"));
     }
 
@@ -1004,8 +1007,8 @@ private slots:
     tree heading= compound ("section", "Heading");
     QVERIFY (athena::contracts::editing_query {contract_state.contracts}.accessible (heading, 0));
     {
-      athena::contracts::owned_evaluation_scope use (contract_state);
-      path entered= next_accessible (heading, path (0));
+      const cursor_navigation navigation ({contract_state.contracts});
+      path entered= navigation.move_accessible (heading, path (0), true);
       QVERIFY (entered != path (1));
       QVERIFY (!is_atom (entered) && entered->item == 0);
     }
@@ -1192,7 +1195,8 @@ private slots:
     QCOMPARE (editor->document_search (u8"e\u0301", false), 1);
 
     tree pattern (CONCAT, "STRASSE", compound ("wildcard", "rest"), "STRASSE");
-    range_set hits= search (tree (u8"Stra\u00dfe + Stra\u00dfe"), pattern, path (0), true);
+    range_set hits= search (athena::contracts::editing_query {athena::contracts::builtin_contracts ()},
+      tree (u8"Stra\u00dfe + Stra\u00dfe"), pattern, path (0), true);
     QCOMPARE (N(hits), 2);
     QCOMPARE (hits[0], path (0, 0));
     QCOMPARE (hits[1], path (0, 17));

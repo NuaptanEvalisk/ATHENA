@@ -9,12 +9,16 @@
 *******************************************************************************/
 
 #include "structured_commands.hpp"
+#include "generic_editor_commands.hpp"
 #include "editor.hpp"
 #include "native_interfaces.hpp"
 #include "native_node_groups.hpp"
 #include "new_view.hpp"
 #include "table_commands.hpp"
 #include "tree_traverse.hpp"
+#include "Typeset/Env/local_environment.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
+#include "vars.hpp"
 
 namespace {
 
@@ -41,8 +45,8 @@ table_cell_extremal (editor ed, bool forwards) {
   const int col= ed->table_which_column ();
   path cell= ed->table_search_cell (row, col);
   if (is_nil (cell) || !has_subtree (ed->the_root (), cell)) return false;
-  ed->go_to (forwards ? end (ed->the_root (), cell)
-                      : start (ed->the_root (), cell));
+  if (forwards) ed->go_to_end (cell);
+  else ed->go_to_start (cell);
   return true;
 }
 
@@ -115,8 +119,8 @@ void go_child (tree t, int index, bool at_end) {
   if (!attached_path (t, p)) return;
   editor ed= get_current_editor ();
   path child= p * index;
-  ed->go_to (at_end ? end (ed->the_root (), child)
-                     : start (ed->the_root (), child));
+  if (at_end) ed->go_to_end (child);
+  else ed->go_to_start (child);
 
   // A tree branch stores its label in child zero.  Preserve the historical
   // branch-go-to behavior when a move lands directly on a nested tree node.
@@ -208,7 +212,7 @@ void tree_remove_horizontal (tree t, bool forwards) {
     t= tree_remove (t, pos, 1);
     if (pos == N (t)) {
       path p;
-      if (attached_path (t, p)) get_current_editor ()->go_to (end (get_current_editor ()->the_root (), p));
+      if (attached_path (t, p)) get_current_editor ()->go_to_end (p);
     }
     else go_child (t, pos, false);
   }
@@ -273,10 +277,22 @@ void generic_horizontal_once (tree t, bool forwards) {
   tree child;
   path child_path;
   if (!down_tree (t, child, child_path)) return;
+  const auto context= generic_prepared_tree_context (t);
+  if (!context) return;
   focus_pointer focus (t);
-  path next= forwards ? next_argument (get_current_editor ()->the_root (), child_path)
-                      : previous_argument (get_current_editor ()->the_root (), child_path);
-  if (!is_nil (next)) get_current_editor ()->go_to (next);
+  editor ed= get_current_editor ();
+  const path owner= path_up (child_path);
+  const bool source= context->effective_value (MODE) == "src" ||
+                     context->effective_value (PREAMBLE) == "true";
+  const athena::contracts::editing_query query {context->contract_context (),
+    source ? athena::contracts::access_policy::source : athena::contracts::access_policy::normal};
+  const int step= forwards ? 1 : -1;
+  for (int i= last_item (child_path) + step; i>=0 && i<N(t); i+=step)
+    if (query.accessible (t, i)) {
+      if (forwards) ed->go_to_start (owner * i);
+      else ed->go_to_end (owner * i);
+      break;
+    }
   focus.restore ();
 }
 
@@ -425,8 +441,18 @@ bool generic_focus_can_insert_remove (tree t) {
   return structured && as_bool (call ("cursor-inside?", object (t)));
 }
 
-bool generic_focus_can_insert (tree t) { return N (t) < maximal_arity (t); }
-bool generic_focus_can_remove (tree t) { return N (t) > minimal_arity (t); }
+bool generic_focus_can_insert (tree t) {
+  const auto context= generic_prepared_tree_context (t);
+  if (!context) return false;
+  const athena::contracts::editing_query query {context->contract_context ()};
+  return N(t) < query.describe (L(t)).layout.maximum ();
+}
+bool generic_focus_can_remove (tree t) {
+  const auto context= generic_prepared_tree_context (t);
+  if (!context) return false;
+  const athena::contracts::editing_query query {context->contract_context ()};
+  return N(t) > query.describe (L(t)).layout.minimum ();
+}
 bool generic_focus_has_geometry (tree) { return false; }
 
 bool generic_focus_has_parameters (tree t) {
@@ -499,7 +525,9 @@ bool generic_table_markup_context (tree t) {
 }
 
 bool generic_structured_horizontal_context (tree t) {
-  return is_dynamic (t) || generic_table_markup_context (t);
+  if (generic_table_markup_context (t)) return true;
+  const auto context= generic_prepared_tree_context (t);
+  return context && athena::contracts::editing_query {context->contract_context ()}.variable_arity (t);
 }
 
 bool generic_structured_vertical_context (tree t) {
@@ -593,8 +621,8 @@ void generic_structured_inner_extremal (tree t, bool forwards) {
   if (!down_tree (t, child, child_path)) return;
   focus_pointer focus (t);
   editor ed= get_current_editor ();
-  ed->go_to (forwards ? end (ed->the_root (), child_path)
-                      : start (ed->the_root (), child_path));
+  if (forwards) ed->go_to_end (child_path);
+  else ed->go_to_start (child_path);
   focus.restore ();
 }
 
@@ -633,7 +661,8 @@ void generic_structured_exit (tree t, bool forwards) {
   path p;
   if (!attached_path (t, p)) return;
   editor ed= get_current_editor ();
-  ed->go_to (forwards ? end (ed->the_root (), p) : start (ed->the_root (), p));
+  if (forwards) ed->go_to_end (p);
+  else ed->go_to_start (p);
 }
 
 void generic_special_navigate (tree t, object direction) {

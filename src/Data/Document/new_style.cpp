@@ -11,6 +11,7 @@
 
 #include "new_style.hpp"
 #include "Data/NodeContracts/syntax_query.hpp"
+#include "Data/NodeContracts/source_environment.hpp"
 #include "file.hpp"
 #include "data_cache.hpp"
 #include "convert.hpp"
@@ -400,11 +401,12 @@ prepare_document_context (tree doc) {
   return contract_state;
 }
 
-document_source_contract_preparation
-prepare_source_contract_positions (
+template<typename Result, typename Capture>
+static std::function<std::shared_ptr<const Result> (const std::vector<int>&)>
+prepare_source_positions (
     tree body, url source_name,
     std::function<std::shared_ptr<const evaluation_environment_checkpoint> ()> prepare_baseline,
-    std::function<source_contract_maps ()> prepare_maps) {
+    std::function<source_contract_maps ()> prepare_maps, Capture capture) {
   auto baseline= std::make_shared<std::shared_ptr<const evaluation_environment_checkpoint>> ();
   auto original_maps= std::make_shared<source_contract_maps> ();
   struct prefix_state {
@@ -415,10 +417,10 @@ prepare_source_contract_positions (
   auto prefix= std::make_shared<prefix_state> ();
   return [body, source_name, baseline, original_maps, prefix,
           prepare_baseline= std::move (prepare_baseline),
-          prepare_maps= std::move (prepare_maps)] (const std::vector<int>& where)
-      -> std::shared_ptr<const athena::contracts::contract_scope> {
-    if (where.empty () || !is_func (body, DOCUMENT) ||
-        where.front () < 0 || where.front () >= N(body)) return {};
+          prepare_maps= std::move (prepare_maps), capture] (const std::vector<int>& where)
+      -> std::shared_ptr<const Result> {
+    if (!is_func (body, DOCUMENT) || (!where.empty () &&
+        (where.front () < 0 || where.front () >= N(body)))) return {};
     if (!*baseline) {
       *baseline= prepare_baseline ();
       if (!*baseline) return {};
@@ -426,7 +428,7 @@ prepare_source_contract_positions (
     }
     // Native and cold callers have different auxiliary/attachment ownership.
     // Reuse the same aliases they would pass to their isolated edit_env.
-    const bool forward= prefix->entry && where.front () >= prefix->paragraph;
+    const bool forward= !where.empty () && prefix->entry && where.front () >= prefix->paragraph;
     const auto& start= forward ? prefix->entry : *baseline;
     const source_contract_maps& saved= forward ? prefix->maps : *original_maps;
     hashmap<string,tree> refs= copy (saved.refs);
@@ -449,6 +451,7 @@ prepare_source_contract_positions (
     start->restore (*evaluation.operator-> ());
     evaluation->style_init_env ();
     evaluation->update ();
+    if (where.empty ()) return capture (local, *evaluation.operator-> ());
     for (int i= forward ? prefix->paragraph : 0; i<where.front (); ++i)
       (void) evaluation->exec (body[i]);
     if (!prefix->entry || where.front () > prefix->paragraph) {
@@ -463,16 +466,31 @@ prepare_source_contract_positions (
     for (std::size_t i= 1; i<where.size (); ++i) inside= inside * where[i];
     if (!evaluation->exec_until (body[where.front ()], inside * 0)) return {};
     evaluation->analyze_contracts ();
-    return std::make_shared<const athena::contracts::contract_scope> (local.contracts);
+    return capture (local, *evaluation.operator-> ());
   };
 }
 
-static document_source_contract_preparation
-prepare_document_source_contracts_impl (tree doc, url source_name, bool offline) {
+static std::shared_ptr<const athena::contracts::contract_scope>
+capture_source_contracts (const athena::contracts::evaluation_state& state, edit_env_rep&) {
+  return std::make_shared<const athena::contracts::contract_scope> (state.contracts);
+}
+
+document_source_contract_preparation
+prepare_source_contract_positions (
+    tree body, url source_name,
+    std::function<std::shared_ptr<const evaluation_environment_checkpoint> ()> baseline,
+    std::function<source_contract_maps ()> maps) {
+  return prepare_source_positions<athena::contracts::contract_scope> (
+    body, source_name, std::move (baseline), std::move (maps), capture_source_contracts);
+}
+
+template<typename Result, typename Capture>
+static std::function<std::shared_ptr<const Result> (const std::vector<int>&)>
+prepare_document_source_contexts (tree doc, url source_name, bool offline, Capture capture) {
   // Most documents have only native or explicitly classified fields. Prepare
   // the style and preamble only if an actual custom field requests a context.
   auto preamble_maps= std::make_shared<source_contract_maps> ();
-  return prepare_source_contract_positions (
+  return prepare_source_positions<Result> (
     extract (doc, "body"), source_name,
     [doc, source_name, offline, preamble_maps] ()
         -> std::shared_ptr<const evaluation_environment_checkpoint> {
@@ -488,6 +506,8 @@ prepare_document_source_contracts_impl (tree doc, url source_name, bool offline)
       prepared_style->restore (*initial.operator-> ());
       initial->style_init_env ();
       initial->update ();
+      initial->patch_env (hashmap<string,tree> (UNINIT, extract (doc, "initial")));
+      initial->update ();
       const tree preamble= get_document_preamble (doc);
       if (preamble != "") initial->exec (preamble);
       initial->analyze_contracts ();
@@ -495,17 +515,35 @@ prepare_document_source_contracts_impl (tree doc, url source_name, bool offline)
                        copy (attachments), copy (global_attachments)};
       return std::make_shared<const evaluation_environment_checkpoint> (
         *initial.operator-> ());
-    }, [preamble_maps] { return *preamble_maps; });
+    }, [preamble_maps] { return *preamble_maps; }, capture);
 }
 
 document_source_contract_preparation
-prepare_document_source_contracts (tree doc) {
-  return prepare_document_source_contracts_impl (doc, url ("$PWD/none"), false);
+prepare_document_source_contracts (tree doc, url source_name) {
+  return prepare_document_source_contexts<athena::contracts::contract_scope> (
+    doc, source_name, false, capture_source_contracts);
 }
 
 document_source_contract_preparation
 prepare_offline_document_source_contracts (tree doc, url source_name) {
-  return prepare_document_source_contracts_impl (doc, source_name, true);
+  return prepare_document_source_contexts<athena::contracts::contract_scope> (
+    doc, source_name, true, capture_source_contracts);
+}
+
+document_source_environment_preparation
+prepare_document_source_environments (tree doc, url source_name) {
+  return prepare_document_source_contexts<evaluation_environment_checkpoint> (
+    doc, source_name, false, [] (const auto&, edit_env_rep& env) {
+      return std::make_shared<const evaluation_environment_checkpoint> (env);
+    });
+}
+
+athena::contracts::source_contract_preparation
+athena::contracts::source_contracts (source_environment_preparation prepare) {
+  return [prepare= std::move (prepare)] (path p) -> std::shared_ptr<const contract_scope> {
+    const auto entry= prepare (p);
+    return entry ? std::shared_ptr<const contract_scope> (entry, &entry->contract_context ()) : nullptr;
+  };
 }
 
 /******************************************************************************

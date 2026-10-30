@@ -30,7 +30,8 @@ append_range (range_set& ranges, path first, path last) {
 
 void
 append_subtree (range_set& ranges, tree value, path position) {
-  append_range (ranges, position * start (value), position * end (value));
+  // A structural change covers the whole node, including noneditable fields.
+  append_range (ranges, position * 0, position * right_index (value));
 }
 
 class StructuralDiffer {

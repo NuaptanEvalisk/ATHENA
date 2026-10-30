@@ -198,12 +198,17 @@ edit_replace_rep::test_sub (path p, tree t) {
     if (!is_concat (st)) return p;
     int i, l= last_item (path_up (p)), n= N(t);
     if (N(st) < (n + l)) return p;
-    if ((t[0] != "") && (p == end (et, path_up (p)))) return p;
-    if (test_sub (p, t[0]) != end (et, path_up (p))) return p;
+    const path first= path_up (p);
+    const auto entry= prepare_source_position (first * 0);
+    const path first_end= prepare_command_boundary (first, first, false, *entry);
+    if ((t[0] != "") && (p == first_end)) return p;
+    if (test_sub (p, t[0]) != first_end) return p;
     for (i=1; i<n-1; i++)
       if (!test_match (st[l+i], t[i]))
         return p;
-    path r= path_up (p, 2) * path (l+n-1, start (st[l+n-1], path ()));
+    const path last= path_up (p, 2) * (l+n-1);
+    const auto last_entry= prepare_source_position (last * 0);
+    path r= prepare_command_boundary (last, last, true, *last_entry);
     path q= test_sub (r, t[n-1]);
     if (q == r) return p;
     return q;
@@ -533,7 +538,8 @@ edit_replace_rep::search_keypress (string s) {
       }
       else {
         q= q * min (N (subtree (et, q)) - 1, last_item (p));
-        search_at= end (et, q);
+        const auto entry= prepare_source_position (q * 0);
+        search_at= prepare_command_boundary (q, q, false, *entry);
         go_to (copy (search_at));
       }
     }

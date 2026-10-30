@@ -165,8 +165,8 @@ private slots:
     using copied= std::pair<std::string, std::vector<std::string>>;
     auto result= std::make_shared<std::promise<copied>> ();
     auto future= result->get_future ();
-    avd::copy_ranges (ranges, [result] (std::string error, std::vector<std::string> pieces) {
-      result->set_value ({std::move (error), std::move (pieces)});
+    avd::copy_ranges (ranges, [result] (std::string error, avd::clipboard_copy copied) {
+      result->set_value ({std::move (error), std::move (copied.pieces)});
     });
     QTRY_VERIFY_WITH_TIMEOUT (future.wait_for (std::chrono::seconds (0)) == std::future_status::ready, 10000);
     const auto copied_pieces= future.get ();
@@ -215,8 +215,8 @@ private slots:
     using copied= std::pair<std::string, std::vector<std::string>>;
     auto result= std::make_shared<std::promise<copied>> ();
     auto future= result->get_future ();
-    avd::copy_ranges ({range}, [result] (std::string error, std::vector<std::string> pieces) {
-      result->set_value ({std::move (error), std::move (pieces)});
+    avd::copy_ranges ({range}, [result] (std::string error, avd::clipboard_copy copied) {
+      result->set_value ({std::move (error), std::move (copied.pieces)});
     });
     QTRY_VERIFY_WITH_TIMEOUT (future.wait_for (std::chrono::seconds (0)) == std::future_status::ready, 10000);
     const auto copied_pieces= future.get ();

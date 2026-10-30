@@ -18,26 +18,8 @@
 ;; Interface to C++ statistics
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define stats-url #f)
-(define stats-lines -1)
-(define stats-cursor #f)
-
 (define (stats-update)
-  (let* ((buf (buffer-tree))
-         (n (tree-arity buf))
-         (down (tree-ref buf :down)))
-    (when (or (!= stats-url (current-buffer))
-              (!= stats-lines n))
-      ;;(display* "update  buffer stats\n")
-      (math-stats-compile "buffer" buf "text")
-      ;;(display* "updated buffer stats\n")
-      (set! stats-url (current-buffer))
-      (set! stats-lines n))
-    (when (and down (!= (tm->stree down) stats-cursor))
-      ;;(display* "update  cursor stats\n")
-      (math-stats-compile "cursor" (tree-ref buf :down) "text")
-      ;;(display* "updated cursor stats\n")
-      (set! stats-cursor (tm->stree down)))))
+  (math-stats-update))
 
 (define (stats-occurrences* s)
   (+ (* 10 (math-stats-occurrences "cursor" s))
@@ -320,8 +302,9 @@
         (set! l (list-remove l :superscript)))
       (set! x (tm-ref x :previous)))
     (when (and (tree? x) (tree-atomic? x))
-      (with-cursor (tree->path x :end)
-        (set! x (expr-before-cursor))))
+      (and-with p (tree->path x :end)
+        (with-cursor p
+          (set! x (expr-before-cursor)))))
     (when (tm-atomic? x)
       (set! x (tm->string x)))
     (when (if (string? x)

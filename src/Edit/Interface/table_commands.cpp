@@ -258,16 +258,14 @@ void
 insert_table_wrapper (editor_rep* ed, bool big) {
   if (ed == nullptr) return;
   tree body= "";
-  if (ed->selection_active_normal ()) body= ed->selection_get_cut ();
+  const bool selected= ed->selection_active_normal ();
+  if (selected) body= ed->selection_get ();
   tree tabular= one_cell_tabular (body);
-  if (big)
-    ed->insert_tree (
-      compound ("big-table", tabular, tree (DOCUMENT, "")),
-      path (0, 0, 0, path (0, 0, 0)) * end (body));
-  else
-    ed->insert_tree (
-      compound ("small-table", tabular, ""),
-      path (0, 0, 0, path (0, 0, 0)) * end (body));
+  tree wrapper= big ? compound ("big-table", tabular, tree (DOCUMENT, "")) :
+                       compound ("small-table", tabular, "");
+  const path destination= ed->command_tree_end (wrapper, path (0, 0, 0, path (0, 0, 0)));
+  if (selected) ed->selection_cut ("none");
+  ed->insert_tree (wrapper, destination);
 }
 
 } // namespace
@@ -532,7 +530,7 @@ eqnarray_toggle_numbering (editor_rep* ed, tree target) {
     ed->cut (found);
     return true;
   }
-  ed->go_to (end (root, cell));
+  ed->go_to_end (cell);
   ed->insert_tree (compound ("eq-number"), path (0));
   return true;
 }

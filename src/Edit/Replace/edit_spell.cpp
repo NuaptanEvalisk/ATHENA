@@ -26,8 +26,9 @@
 void
 edit_replace_rep::spell_start () {
   /********** get paths ***********/
-  search_at   = start (et, rp);
-  spell_end_p = end (et, rp);
+  const auto root= prepare_source_position (rp * 0);
+  search_at   = prepare_command_boundary (rp, rp, true, *root);
+  spell_end_p = prepare_command_boundary (rp, rp, false, *root);
   path spell_p= copy (tp);
   if (selection_active_normal ()) {
     get_selection (search_at, spell_end_p);

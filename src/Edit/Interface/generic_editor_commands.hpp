@@ -12,8 +12,39 @@
 #define ATHENA_GENERIC_EDITOR_COMMANDS_HPP
 
 #include "scheme.hpp"
+#include <memory>
 
 namespace athena::contracts { struct editing_query; }
+class evaluation_environment_checkpoint;
+
+// Attached nodes use their own source entry; detached proposals use the caret
+// context. Missing layout stays pending. This helper never evaluates source.
+std::shared_ptr<const evaluation_environment_checkpoint>
+generic_prepared_tree_context (tree t);
+
+bool generic_tree_label_macro (tree_label);
+bool generic_tree_with_like (tree);
+bool generic_tree_with_same_type (tree, tree);
+bool generic_tree_with_similar_type (tree, tree);
+bool generic_tree_label_parameter (tree_label);
+string generic_tree_label_type (tree_label);
+int generic_tree_minimal_arity (tree);
+int generic_tree_maximal_arity (tree);
+bool generic_tree_possible_arity (tree, int);
+int generic_tree_minimal_arity (tree_label);
+int generic_tree_maximal_arity (tree_label);
+bool generic_tree_possible_arity (tree_label, int);
+int generic_tree_insert_point (tree, int);
+bool generic_tree_dynamic (tree);
+bool generic_tree_accessible_child (tree, int);
+array<tree> generic_tree_accessible_children (tree);
+bool generic_tree_all_accessible (tree);
+bool generic_tree_none_accessible (tree);
+string generic_tree_name (tree);
+string generic_tree_long_name (tree);
+string generic_tree_child_name (tree, int);
+string generic_tree_child_long_name (tree, int);
+string generic_tree_child_type (tree, int);
 
 void generic_go_to_line (int line, object optional_from);
 void generic_go_to_column (int column, object optional_from);

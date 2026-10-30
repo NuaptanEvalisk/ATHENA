@@ -24,6 +24,7 @@
 #include "Data/NodeContracts/node_groups.hpp"
 #include "Data/NodeContracts/node_group_scope.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 
 #include <algorithm>
 
@@ -179,7 +180,11 @@ edit_dynamic_rep::make_compound (tree_label l, int n, path replace_input) {
     tree selected= "";
     if (n > 0 && selection_active_small ()) selected= selection_get_cut ();
     insert_tree (result, n == 0 ? path (1) : path (0, 0));
-    if (selected != "") insert_tree (selected, end (selected));
+    if (selected != "") {
+      const cursor_navigation source ({athena::contracts::builtin_contracts (),
+        athena::contracts::access_policy::source});
+      insert_tree (selected, source.end (selected));
+    }
     return true;
   }
   const auto* declaration= athena::enunciation::standard_registry ().legacy (
@@ -200,7 +205,10 @@ edit_dynamic_rep::make_compound (tree_label l, int n, path replace_input) {
       tree selected= "";
       if (selection_active_normal ()) selected= selection_get_cut ();
       insert_tree (converted.source, path (0, 0, 0));
-      if (selected != "") insert_tree (selected, end (selected));
+      if (selected != "") {
+        const auto field= prepare_source_position (tp);
+        insert_tree (selected, prepare_tree_boundary (selected, path (), false, *field));
+      }
       return true;
     }
   }
@@ -271,7 +279,12 @@ edit_dynamic_rep::make_compound (tree_label l, int n, path replace_input) {
       }
     insert_tree (t, p);
     if (table_macro) make_table (1, 1, table_entry);
-    if (sel != "") insert_tree (sel, end (sel));
+    if (sel != "") {
+      // Table construction may move the field and introduce cell-local values.
+      // The invocation checkpoint is not the selected content's destination.
+      const auto field= prepare_source_position (tp);
+      insert_tree (sel, prepare_tree_boundary (sel, path (), false, *field));
+    }
     
     tree mess= concat ();
     if (query.describe (l).layout.arity != athena::contracts::arity_kind::fixed)
@@ -398,10 +411,13 @@ edit_dynamic_rep::remove_empty_argument (path p, bool forward) {
         for (j=0; j<d; j++)
           flag= flag && is_empty (t[i+j]);
         if (flag) {
+          const path parent= path_up (p, 2);
+          const bool unwrap= d == n && is_mod_active_once (subtree (et, parent));
+          const auto outer= unwrap ? prepare_source_position (parent * 0) : nullptr;
           remove (p, d);
-          if ((d == n) && is_mod_active_once (subtree (et, path_up (p, 2)))) {
-            remove_node (path_up (p, 2) * 0);
-            go_to_border (path_up (p, 2), forward);
+          if (unwrap) {
+            remove_node (parent * 0);
+            go_to (prepare_command_boundary (parent, parent, forward, *outer));
           }
           else if (forward) go_to_argument (path_up (p) * i, true, *prepared);
           else go_to_argument (path_up (p) * (i-1), false, *prepared);
@@ -414,18 +430,21 @@ edit_dynamic_rep::remove_empty_argument (path p, bool forward) {
   for (j=0; j<n; j++)
     flag= flag && is_empty (t[j]);
   if (flag) {
+    const path parent= path_up (p, 2);
+    tree st= subtree (et, parent);
+    const bool heading= is_compound (st, "doc-data") ||
+      is_compound (st, "abstract-data") || is_compound (st, "doc-author") ||
+      is_compound (st, "author-data");
+    const auto outer= heading && N(st) > 1 ? prepare_source_position (parent * 0) : nullptr;
     assign (path_up (p), "");
-    tree st= subtree (et, path_up (p, 2));
+    st= subtree (et, parent);
     if ((is_mod_active_once (st) || is_compound (st, "doc-inactive")) &&
         (st[0] == "")) {
       assign (path_up (p, 2), "");
       correct (path_up (p, 3));
     }
     // FIXME: temporary hack for doc-data and doc-author-data
-    else if (is_compound (st, "doc-data")      ||
-             is_compound (st, "abstract-data") ||
-             is_compound (st, "doc-author")    ||
-             is_compound (st, "author-data")) {
+    else if (heading) {
       if (N(st)==1) {
         assign (path_up (p, 2), "");
         correct (path_up (p, 3));
@@ -433,8 +452,8 @@ edit_dynamic_rep::remove_empty_argument (path p, bool forward) {
       else {
         int i= last_item (path_up (p)) + (forward? 0: -1);
         remove (path_up (p), 1);
-        if (i<0) go_to_start (path_up (p, 2));
-        else go_to_border (path_up (p, 2) * i, forward);
+        go_to (prepare_command_boundary (parent, i < 0 ? parent : parent * i,
+                                         i < 0 || forward, *outer));
       }
     }
     else correct (path_up (p, 2));
@@ -499,7 +518,7 @@ edit_dynamic_rep::back_general (path p, bool forward) {
     tree u (COMPOUND, copy (as_string (L(st))));
     u << copy (A (st));
     assign (p, u);
-    go_to_border (p * 0, forward);
+    go_to (prepare_command_boundary (p, p * 0, forward, *prepared));
   }
   else if (n==0) back_monolithic (p);
   else if ((n==1) && is_func (st[0], DOCUMENT, 1) &&
@@ -522,7 +541,7 @@ edit_dynamic_rep::back_in_general (tree t, path p, bool forward) {
       if (is_empty (t[0]) && src_flag) u << A (copy (t (1, N(t))));
       else u << A (copy (t));
       assign (path_up (p), u);
-      go_to_end (p);
+      go_to (prepare_command_boundary (path_up (p), p, false, *prepared));
       return;
     }
   remove_empty_argument (p, forward);
@@ -562,8 +581,11 @@ void
 edit_dynamic_rep::make_with (string var, string val) {
   if (selection_active_normal ()) {
     tree t= remove_changes_in (selection_get (), var);
+    const auto context= prepare_source_position (selection_get_cursor_path ());
+    tree wrapper (WITH, var, val, t);
+    const path destination= prepare_tree_boundary (wrapper, path (2), false, *context);
     selection_cut ();
-    insert_tree (tree (WITH, var, val, t), path (2, end (t)));
+    insert_tree (wrapper, destination);
   }
   else insert_tree (tree (WITH, var, val, ""), path (2, 0));
 }
@@ -610,7 +632,11 @@ edit_dynamic_rep::back_in_with (tree t, path p, bool forward) {
     assign (path_up (p), "");
     correct (path_up (p, 2));
   }
-  else go_to_border (path_up (p), !forward);
+  else {
+    const path root= path_up (p);
+    const auto prepared= prepare_source_position (root * 0);
+    go_to (prepare_command_boundary (root, root, !forward, *prepared));
+  }
 }
 
 /******************************************************************************
@@ -621,8 +647,11 @@ void
 edit_dynamic_rep::make_mod_active (tree_label l) {
   if (selection_active_normal ()) {
     tree t= selection_get ();
+    const auto context= prepare_source_position (selection_get_cursor_path ());
+    tree wrapper (l, t);
+    const path destination= prepare_tree_boundary (wrapper, path (0), false, *context);
     selection_cut ();
-    insert_tree (tree (l, t), path (0, end (t)));
+    insert_tree (wrapper, destination);
   }
   else if ((l == VAR_STYLE_ONLY) || (l == VAR_ACTIVE) || (l == VAR_INACTIVE))
     insert_tree (tree (l, ""), path (0, 0));
@@ -653,12 +682,15 @@ void
 edit_dynamic_rep::make_style_with (string var, string val) {
   if (selection_active_normal ()) {
     tree t= selection_get ();
+    const auto context= prepare_source_position (selection_get_cursor_path ());
+    tree wrapper (STYLE_WITH, var, val, t);
+    const path destination= prepare_tree_boundary (wrapper, path (2), false, *context);
     selection_cut ();
     if (subtree (et, path_up (tp)) == "") {
       insert_style_with (path_up (tp), var, val);
-      insert_tree (t);
+      insert_tree (t, destination / path (2));
     }
-    else insert_tree (tree (STYLE_WITH, var, val, t), path (2, end (t)));
+    else insert_tree (wrapper, destination);
   }
   else insert_style_with (path_up (tp), var, val);
 }
@@ -678,7 +710,7 @@ edit_dynamic_rep::make_hybrid () {
   mark_start (hybrid_mark);
   tree t (HYBRID, "");
   if (selection_active_normal ()) t << selection_get_cut ();
-  path p= end (t, path (0));
+  path p (0, 0);
   if (source_mode) insert_tree (t, p);
   else insert_tree (tree (INACTIVE, t), path (0, p));
   hybrid_owner= subtree (et, search_upwards (HYBRID));
@@ -696,16 +728,19 @@ edit_dynamic_rep::make_native_math_block (bool grid) {
     return;
   }
   if (is_nil (hp) && selection_active_any () && !selection_active_small ()) return;
+  const auto context= is_nil (hp) ?
+    prepare_source_position (selection_get_cursor_path ()) : macro_invocation_context ();
+  if (!context) {
+    set_message ("Math insertion is awaiting layout", "mathematics");
+    return;
+  }
   tree body ("");
   if (!is_nil (hp)) {
     tree input= subtree (et, hp);
     if (N(input) == 2) body= copy (input[1]);
     if (is_func (subtree (et, path_up (hp)), INACTIVE)) hp= path_up (hp);
-    assign (hp, "");
-    go_to (hp * 0);
-    correct (path_up (hp));
   }
-  else if (selection_active_small ()) body= selection_get_cut ();
+  else if (selection_active_small ()) body= selection_get ();
   if (is_func (body, DOCUMENT)) {
     if (N(body) != 1) {
       set_message ("Math insertion requires a single selected expression", "mathematics");
@@ -731,9 +766,15 @@ edit_dynamic_rep::make_native_math_block (bool grid) {
   athena::node::metadata properties;
   properties.properties["math:block-numbered"]= athena::node::property (false);
   athena::node::set (block, properties);
-  if (grid)
-    insert_tree (block, path (0, 0, 0, 0) * end (block[0][0][0][0]));
-  else insert_tree (block, path (0) * end (block[0]));
+  const path destination= prepare_tree_boundary (
+    block, grid ? path (0, 0, 0, 0) : path (0), false, *context);
+  if (!is_nil (hp)) {
+    assign (hp, "");
+    go_to (hp * 0);
+    correct (path_up (hp));
+  }
+  else if (selection_active_small ()) selection_cut ("none");
+  insert_tree (block, destination);
   ensure_trailing_proof_paragraph ();
   if (!is_nil (hp)) finish_hybrid (true);
 }
@@ -827,7 +868,7 @@ edit_dynamic_rep::prepare_hybrid () {
   for (auto& draft: hybrid_drafts)
     if (draft.input.operator-> () == st.operator-> ()) draft.input= prepared;
   if (hybrid_owner.operator-> () == st.operator-> ()) hybrid_owner= prepared;
-  go_to (start (et, p * 1 * 0));
+  go_to (prepare_command_boundary (p, p * path (1, 0), true, *context));
   if (selected != "")
     set_status_hint ("Select an argument and press Enter to place the selection", name);
   return true;
@@ -851,7 +892,7 @@ edit_dynamic_rep::choose_hybrid (string name, bool activate) {
   }
   path field= path_up (tp);
   assign (field, name);
-  go_to (end (et, field));
+  go_to (field * N(name));
   if (activate) activate_hybrid (false, resolved);
   else (void) prepare_hybrid ();
 }
@@ -891,9 +932,16 @@ edit_dynamic_rep::hybrid_keypress (string key) {
         return true;
       }
       if (is_func (subtree (et, path_up (p)), INACTIVE)) p= path_up (p);
+      const auto context= macro_invocation_context ();
+      if (!context) {
+        set_message ("Macro input is awaiting layout", "Macro input");
+        return true;
+      }
+      macro_edit_scope invocation (macro_environment, context);
       assign (p, selected);
-      go_to (end (et, p));
-      if (selected != "") select (start (et, p), end (et, p));
+      const path last= prepare_command_boundary (p, p, false, *context);
+      go_to (last);
+      if (selected != "") select (prepare_command_boundary (p, p, true, *context), last);
       correct (path_up (p));
       finish_hybrid (true);
     }
@@ -904,8 +952,15 @@ edit_dynamic_rep::hybrid_keypress (string key) {
     if (!prepared) return false;
     int index= name || !(p * 1 <= tp)? -1: (tp / (p * 1))->item;
     index+= key == "S-tab"? -1: 1;
-    if (index < 0 || index >= N(st[1])) go_to (end (et, p * 0));
-    else go_to (start (et, p * 1 * index));
+    if (index < 0 || index >= N(st[1])) go_to (p * path (0, N(st[0]->label)));
+    else {
+      const auto context= macro_invocation_context ();
+      if (!context) {
+        set_message ("Macro input is awaiting layout", "Macro input");
+        return true;
+      }
+      go_to (prepare_command_boundary (p, p * path (1, index), true, *context));
+    }
     return true;
   }
   if (prepared && (key == "A-right" || key == "A-left")) {
@@ -931,7 +986,7 @@ edit_dynamic_rep::hybrid_keypress (string key) {
       while (at >= 0 && !layout.insertion (at, n)) --at;
       if (next < 100 && at >= 0) {
         insert (p * 1 * at, tree (TUPLE, next-n));
-        go_to (start (et, p * 1 * at));
+        go_to (p * path (1, at, 0));
       }
     }
     else {
@@ -944,7 +999,7 @@ edit_dynamic_rep::hybrid_keypress (string key) {
         empty= is_empty (st[1][i]);
       if (empty) {
         remove (p * 1 * at, n-previous);
-        go_to (end (et, p * 0));
+        go_to (p * path (0, N(st[0]->label)));
       }
     }
     return true;
@@ -958,9 +1013,14 @@ edit_dynamic_rep::hybrid_keypress (string key) {
         return true;
       }
       tree selected= st[2];
+      const auto context= macro_invocation_context ();
+      if (!context) {
+        set_message ("Macro input is awaiting layout", "Macro input");
+        return true;
+      }
       assign (p * 2, "");
       assign (p * 1 * index, selected);
-      go_to (end (et, p * 1 * index));
+      go_to (prepare_command_boundary (p, p * path (1, index), false, *context));
     }
     else activate_hybrid (false);
     return true;
@@ -1110,7 +1170,7 @@ edit_dynamic_rep::activate_hybrid (bool with_args_hint, const std::optional<comm
       }
       if (is_func (subtree (et, path_up (hp)), INACTIVE)) hp= path_up (hp);
       assign (hp, result);
-      go_to (start (et, hp));
+      go_to (prepare_command_boundary (hp, hp, true, *context));
       correct (path_up (hp));
       finish_hybrid (true);
       return;
@@ -1144,7 +1204,7 @@ edit_dynamic_rep::activate_hybrid (bool with_args_hint, const std::optional<comm
           return;
         }
         assign (p, tree (ARG, copy (name)));
-        go_to (end (et, p));
+        go_to (prepare_command_boundary (p, p, false, *context));
         correct (path_up (p));
         finish_hybrid (true);
         return;
@@ -1169,7 +1229,7 @@ edit_dynamic_rep::activate_hybrid (bool with_args_hint, const std::optional<comm
         return;
       }
       assign (p, tree (VALUE, copy (name)));
-      go_to (end (et, p));
+      go_to (prepare_command_boundary (p, p, false, *context));
       correct (path_up (p));
     }
     else if (in_source ()) {
@@ -1203,7 +1263,7 @@ edit_dynamic_rep::activate_symbol () {
         { s= ""; break; }
     assign (p, "<" * s * ">");
   }
-  go_to (end (et, p));
+  go_to (p * N(subtree (et, p)->label));
   correct (path_up (p));
 }
 
@@ -1216,10 +1276,12 @@ edit_dynamic_rep::make_return_before () {
   bool flag;
   path q= tp;
   while (!is_document (subtree (et, path_up (q)))) q= path_up (q);
-  flag= (N (subtree (et, path_up (q))) == (q->item+1)) || (tp != end (et, q));
+  const auto context= prepare_source_position (q * 0);
+  flag= (N (subtree (et, path_up (q))) == (q->item+1)) ||
+        (tp != prepare_command_boundary (q, q, false, *context));
   if (flag) {
     flag= insert_return ();
-    go_to (end (et, q));
+    go_to (prepare_command_boundary (q, q, false, *context));
   }
   return flag;
 }
@@ -1234,10 +1296,13 @@ edit_dynamic_rep::make_return_after () {
   tree doc= subtree (et, path_up (q));
   if (last_item (q) == N(doc)) {
     if (N(doc) == 0) return false;
-    go_to (end (et, path_dec (q)));
+    const path previous= path_dec (q);
+    const auto context= prepare_source_position (previous * 0);
+    go_to (prepare_command_boundary (previous, previous, false, *context));
     return insert_return ();
   }
-  if (tp == start (et, q)) return false;
+  const auto context= prepare_source_position (q * 0);
+  if (tp == prepare_command_boundary (q, q, true, *context)) return false;
   return insert_return ();
 }
 

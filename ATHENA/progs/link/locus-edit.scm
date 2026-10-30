@@ -56,10 +56,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (tm-define (make-locus)
-  (with t (if (selection-active-any?) (selection-tree) "")
+  (let* ((t (if (selection-active-any?) (selection-tree) ""))
+         (wrapper `(locus (id ,(create-unique-id)) ,t))
+         (end (command-path-end wrapper '(1))))
     (if (selection-active-any?) (clipboard-cut "null"))
-    (insert-go-to `(locus (id ,(create-unique-id)) ,t)
-		  (cons 1 (path-end t '())))))
+    (insert-go-to wrapper end)))
 
 (tm-define (locus-id t)
   (:synopsis "Return the unique identifier of the locus @t or #f")

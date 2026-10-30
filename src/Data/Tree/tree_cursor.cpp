@@ -46,7 +46,8 @@ cursor_navigation::child (tree t, int index) const {
 
 bool
 cursor_navigation::path_accessible (tree t, path p) const {
-  if (is_nil (p)) return true;
+  // The terminal component is a text offset or an outer border, not a field.
+  if (is_nil (p) || is_atom (p)) return true;
   return query.accessible (t, p->item) &&
     child (t, p->item).path_accessible (t[p->item], p->next);
 }

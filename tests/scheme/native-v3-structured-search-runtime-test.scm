@@ -1,12 +1,12 @@
-;; Exercise the actual C++ search dispatcher through its registered Scheme
-;; interface, in an isolated headless ATHENA instance. No Vault is opened.
+;; Exercise the native source-search dispatcher through its registered Scheme
+;; interface, without depending on an editor's ambient field rules.
 (define (check condition message)
   (unless condition (error "native-v3-search" message)))
 
 (define (hits source query)
-  (tree-search-tree source query '() 20))
+  (tree-search-source source query '() 20))
 (define (limited-hits source query limit)
-  (tree-search-tree source query '() limit))
+  (tree-search-source source query '() limit))
 
 (define (make-math expression)
   (tree-rebuild (stree->tree '(math)) (list expression)))

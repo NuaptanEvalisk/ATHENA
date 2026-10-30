@@ -252,8 +252,10 @@ insert_big_operator (editor_rep* ed, tree descriptor) {
     if (display_limits)
       atom= athena::math_v3::scripts (atom, "", "", "", "", 'd');
     if (ed->selection_active_normal ()) {
-      const tree selected= ed->selection_get_cut ();
-      ed->insert_tree (tree (CONCAT, atom, selected), path (1, end (selected)));
+      const tree wrapper (CONCAT, atom, ed->selection_get ());
+      const path destination= ed->command_tree_end (wrapper, path (1));
+      ed->selection_cut ("none");
+      ed->insert_tree (wrapper, destination);
     }
     else ed->insert_tree (atom, path (1));
     return;
@@ -391,7 +393,7 @@ make_bracket_open (editor_rep* ed, string left, string right, bool large) {
       tree (CONCAT, tree (LEFT, left), tree (RIGHT, right)), path (1, 0));
   else
     ed->insert_tree (tree (left * right), path (N(left)));
-  if (selected) ed->insert_tree (selection, end (selection));
+  if (selected) ed->insert_tree (selection);
 }
 
 void
@@ -443,7 +445,7 @@ make_big_operator (editor_rep* ed, string op) {
     if (selected) selection= ed->selection_get_cut ();
     ed->insert_tree (
       tree (CONCAT, tree (BIG, op), tree (BIG, ".")), path (1, 0));
-    if (selected) ed->insert_tree (selection, end (selection));
+    if (selected) ed->insert_tree (selection);
     return;
   }
   ed->insert_tree (tree (BIG, op));

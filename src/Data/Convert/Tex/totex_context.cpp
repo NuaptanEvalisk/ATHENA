@@ -16,7 +16,9 @@
 #include "hashmap.hpp"
 #include "iterator.hpp"
 #include "scheme.hpp"
-#include "tree_traverse.hpp"
+#include "new_style.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
+#include "Data/NodeContracts/editing_query.hpp"
 #include "file.hpp"
 #include "new_view.hpp"
 #include "unicode_text.hpp"
@@ -1249,8 +1251,15 @@ convert_charset_native (scheme_tree value) {
 }
 
 void
-compute_mode_stats_native (tree t, string mode) {
+compute_mode_stats_native (tree t, string mode,
+    const document_source_contract_preparation& prepare,
+    std::vector<int>& source) {
   if (!is_compound (t)) return;
+  // Definitions affect subsequent source entries, but their unexpanded bodies
+  // are not uses. Traverse the original tree so local rules keep their address.
+  if (is_func (t, ASSIGN) || is_func (t, MACRO) || is_func (t, XMACRO) ||
+      is_compound (t, "hide-preamble") || is_compound (t, "show-preamble"))
+    return;
   string tag= as_string (L(t));
   if (mode == "math")
     latex_export_context.command_math_uses (tag)=
@@ -1258,18 +1267,42 @@ compute_mode_stats_native (tree t, string mode) {
   else
     latex_export_context.command_text_uses (tag)=
       latex_export_context.command_text_uses[tag] + 1;
+  if (N(t) == 0) return;
+  using namespace athena::contracts;
+  const bool native= builtin_label (tag);
+  const auto entry= native ? nullptr : prepare (source);
+  if (!native && !entry)
+    throw std::runtime_error ("LaTeX mode statistics: source context unavailable for " +
+                              std::string (tag.data (), N(tag)));
+  const editing_query query {native ? builtin_contracts () : *entry};
   for (int i=0; i<N(t); ++i) {
-    tree nmode= get_env_child (t, i, "mode", tree (mode));
+    tree nmode= query.value (t, i, "mode", tree (mode));
     string child_mode= is_atomic (nmode) ? nmode->label : mode;
-    compute_mode_stats_native (t[i], child_mode);
+    source.push_back (i);
+    compute_mode_stats_native (t[i], child_mode, prepare, source);
+    source.pop_back ();
   }
 }
 
 void
-init_mode_stats_native (scheme_tree value) {
+init_mode_stats_native (scheme_tree value, scheme_tree styles, scheme_tree initial) {
   latex_export_context.command_text_uses= hashmap<string,int> (0);
   latex_export_context.command_math_uses= hashmap<string,int> (0);
-  compute_mode_stats_native (scheme_tree_to_tree (value), "text");
+  tree body= scheme_tree_to_tree (value);
+  if (!is_document (body)) body= tree (DOCUMENT, body);
+  tree init= scheme_tree_to_tree (initial);
+  tree style (TUPLE);
+  for (int i=0; i<N(styles); ++i) style << scheme_tree_to_tree (styles[i]);
+  tree doc (DOCUMENT, compound ("style", style),
+            compound ("initial", init), compound ("body", body));
+  const url source_name= is_none (latex_export_context.save_source_url) ?
+    url ("$PWD/none") : latex_export_context.save_source_url;
+  const auto prepare= prepare_document_source_contracts (doc, source_name);
+  hashmap<string,tree> values (UNINIT, init);
+  tree initial_mode= values["mode"];
+  string mode= is_atomic (initial_mode) ? initial_mode->label : string ("text");
+  std::vector<int> source;
+  compute_mode_stats_native (body, mode, prepare, source);
 }
 
 scheme_tree
@@ -1379,7 +1412,7 @@ file_output_native (scheme_tree args) {
   scheme_tree doc_body_pre= latex_export_filter_body (doc);
   scheme_tree doc_body= latex_export_apply_init (doc_body_pre, init);
 
-  init_mode_stats_native (doc_body_pre);
+  init_mode_stats_native (doc, styles, init);
   latex_export_context.latex_texmacs_style=
     stree_list (styles) && N(styles) > 0 && string_atom (styles[0])
       ? atom_text (styles[0]) : string ("none");
@@ -4191,11 +4224,6 @@ latex_export_convert_charset (scheme_tree value) {
 scheme_tree
 latex_export_convert_tree (scheme_tree value, object options) {
   return convert_nonfile_native (value, options);
-}
-
-void
-latex_export_init_mode_stats (scheme_tree value) {
-  init_mode_stats_native (value);
 }
 
 scheme_tree

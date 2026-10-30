@@ -27,13 +27,8 @@ range_set search (const athena::contracts::editing_query&, tree t, tree what,
 range_set search (const athena::contracts::editing_query&, tree t, tree what,
                   path p, path pos, bool case_insensitive, int limit);
 
-range_set search (tree t, tree what, path p, int limit= 1000000);
+// Detached source search uses immutable native rules, never an editor scope.
 range_set search_source (tree t, tree what, path p, int limit);
-range_set search (tree t, tree what, path p, bool case_insensitive,
-                  int limit= 1000000);
-range_set search (tree t, tree what, path p, path pos, int limit);
-range_set search (tree t, tree what, path p, path pos,
-                  bool case_insensitive, int limit);
 range_set previous_search_hit (range_set sel, path cur, bool strict);
 range_set next_search_hit (range_set sel, path cur, bool strict);
 range_set navigate_search_hit (path cur, bool fw, bool extreme, bool strict);

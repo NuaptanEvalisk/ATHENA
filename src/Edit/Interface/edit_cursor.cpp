@@ -35,6 +35,135 @@ cursor& edit_cursor_rep::the_ghost_cursor () { return mv; }
 
 #define DELTA (1<<23)
 
+std::optional<path>
+editor_rep::resolve_tree_boundary (tree t, path target, bool at_start, bool command) {
+  path source= target, base;
+  if (!strong_equal (t, et)) {
+    const path ip= obtain_ip (t);
+    if (!ip_attached (ip)) {
+      if (!command) return {};
+      const auto context= prepare_source_position (
+        selection_active_any () ? selection_get_cursor_path () : tp);
+      return prepare_tree_boundary (t, target, at_start, *context);
+    }
+    base= reverse (ip);
+    if (!test_subtree (base) || !strong_equal (subtree (et, base), t)) {
+      if (command) throw std::runtime_error ("Command boundary source is stale");
+      return {};
+    }
+    source= base * target;
+  }
+  if (!(rp <= source) || !test_subtree (source)) {
+    if (command) throw std::runtime_error ("Command boundary is outside this buffer");
+    return {};
+  }
+  if (command) return prepare_command_boundary (source, at_start) / base;
+  const auto result= try_admitted_boundary (source, at_start);
+  return result ? std::optional<path> (*result / base) : std::nullopt;
+}
+
+object editor_rep::source_tree_start (tree t, path p) {
+  const auto result= resolve_tree_boundary (t, p, true, false);
+  return result ? object (*result) : object (false);
+}
+object editor_rep::source_tree_end (tree t, path p) {
+  const auto result= resolve_tree_boundary (t, p, false, false);
+  return result ? object (*result) : object (false);
+}
+path editor_rep::command_tree_start (tree t, path p) {
+  return *resolve_tree_boundary (t, p, true, true);
+}
+path editor_rep::command_tree_end (tree t, path p) {
+  return *resolve_tree_boundary (t, p, false, true);
+}
+
+path
+editor_rep::navigate_source_tree (tree t, path p,
+    const std::function<path (const cursor_navigation&, tree, path)>& action) {
+  path source, prefix;
+  if (strong_equal (t, et)) {
+    // Scheme's root-tree contains every buffer. Traverse this editor's buffer
+    // only, while preserving the caller's absolute path convention.
+    if (!(rp <= p)) return p;
+    source= prefix= rp;
+  }
+  else {
+    const path ip= obtain_ip (t);
+    if (!ip_attached (ip)) return p;
+    source= reverse (ip);
+    if (!(rp <= source) || !test_subtree (source) ||
+        !strong_equal (subtree (et, source), t)) return p;
+  }
+  const auto context= cursor_context_at (source * 0);
+  path result;
+  if (!context || !with_admitted_navigation (*context,
+      [&] (const cursor_navigation& navigation) {
+        result= action (navigation, subtree (et, source), p / prefix);
+      }, {}, source)) return p;
+  return is_nil (result) ? result : prefix * result;
+}
+
+path editor_rep::tree_next_valid (tree t, path p) {
+  return navigate_source_tree (t, p, [] (const cursor_navigation& n, tree t, path p) {
+    return n.move_valid (t, p, true);
+  });
+}
+path editor_rep::tree_previous_valid (tree t, path p) {
+  return navigate_source_tree (t, p, [] (const cursor_navigation& n, tree t, path p) {
+    return n.move_valid (t, p, false);
+  });
+}
+path editor_rep::tree_next_word (tree t, path p) {
+  return navigate_source_tree (t, p, [] (const cursor_navigation& n, tree t, path p) {
+    return n.move_word (t, p, true);
+  });
+}
+path editor_rep::tree_previous_word (tree t, path p) {
+  return navigate_source_tree (t, p, [] (const cursor_navigation& n, tree t, path p) {
+    return n.move_word (t, p, false);
+  });
+}
+path editor_rep::tree_next_node (tree t, path p) {
+  return navigate_source_tree (t, p, [] (const cursor_navigation& n, tree t, path p) {
+    return n.move_node (t, p, true);
+  });
+}
+path editor_rep::tree_previous_node (tree t, path p) {
+  return navigate_source_tree (t, p, [] (const cursor_navigation& n, tree t, path p) {
+    return n.move_node (t, p, false);
+  });
+}
+path editor_rep::tree_next_tag (tree t, path p, scheme_tree labels) {
+  return navigate_source_tree (t, p, [&] (const cursor_navigation& n, tree t, path p) {
+    return n.move_tag (t, p, labels, true);
+  });
+}
+path editor_rep::tree_previous_tag (tree t, path p, scheme_tree labels) {
+  return navigate_source_tree (t, p, [&] (const cursor_navigation& n, tree t, path p) {
+    return n.move_tag (t, p, labels, false);
+  });
+}
+path editor_rep::tree_next_tag_same_argument (tree t, path p, scheme_tree labels) {
+  return navigate_source_tree (t, p, [&] (const cursor_navigation& n, tree t, path p) {
+    return n.move_tag (t, p, labels, true, true);
+  });
+}
+path editor_rep::tree_previous_tag_same_argument (tree t, path p, scheme_tree labels) {
+  return navigate_source_tree (t, p, [&] (const cursor_navigation& n, tree t, path p) {
+    return n.move_tag (t, p, labels, false, true);
+  });
+}
+path editor_rep::tree_next_argument (tree t, path p) {
+  return navigate_source_tree (t, p, [] (const cursor_navigation& n, tree t, path p) {
+    return n.move_argument (t, p, true);
+  });
+}
+path editor_rep::tree_previous_argument (tree t, path p) {
+  return navigate_source_tree (t, p, [] (const cursor_navigation& n, tree t, path p) {
+    return n.move_argument (t, p, false);
+  });
+}
+
 path
 edit_cursor_rep::make_cursor_accessible (path p, bool forwards) {
   const auto boundary= p == tp ? cursor_source_boundary () : nullptr;
@@ -382,10 +511,16 @@ edit_cursor_rep::go_horizontal (bool forwards) {
   const path far_border= parent * (forwards ? right_index (st) : 0);
   const bool skipped_child= !source && has_accessible_child &&
     old_tp == near_border && tp == far_border;
+  bool contiguous= false;
+  if (tp != old_tp && !skipped_child)
+    with_admitted_navigation (*old_context, [&] (const cursor_navigation& navigation) {
+      contiguous= navigation.inside_contiguous_document (
+        subtree (et, rp), old_tp / rp, tp / rp);
+    }, display);
   // Physical movement already admitted the hit and its field permissions.
   if ((tp == old_tp && (cu->affinity != old_affinity ||
                        cursor_source_boundary () != old_boundary)) ||
-      (tp != old_tp && !skipped_child && inside_contiguous_document (et, old_tp, tp))) {
+      contiguous) {
     notify_cursor_moved (HORIZONTAL);
     select_from_cursor_if_active ();
     return;
@@ -576,12 +711,12 @@ edit_cursor_rep::go_to_correct (path p) {
 
 void
 edit_cursor_rep::go_to_start (path p) {
-  go_to (start (et, p));
+  go_to (prepare_command_boundary (p, true));
 }
 
 void
 edit_cursor_rep::go_to_end (path p) {
-  go_to (end (et, p));
+  go_to (prepare_command_boundary (p, false));
 }
 
 void
@@ -592,52 +727,52 @@ edit_cursor_rep::go_to_border (path p, bool at_start) {
 
 void
 edit_cursor_rep::go_start () {
-  go_to (correct_cursor (et, rp * 0));
+  go_to (admitted_boundary (rp, true));
   select_from_cursor_if_active ();
 }
 
 void
 edit_cursor_rep::go_end () {
-  go_to (correct_cursor (et, rp * 1));
+  go_to (admitted_boundary (rp, false));
   select_from_cursor_if_active ();
 }
 
 void
 edit_cursor_rep::go_start_paragraph () {
   path p= search_parent_upwards (DOCUMENT);
-  go_to (start (et, p));
+  go_to (admitted_boundary (p, true));
   select_from_cursor_if_active ();
 }
 
 void
 edit_cursor_rep::go_end_paragraph () {
   path p= search_parent_upwards (DOCUMENT);
-  go_to (end (et, p));
+  go_to (admitted_boundary (p, false));
   select_from_cursor_if_active ();
 }
 
 void
 edit_cursor_rep::go_start_of (tree_label what) {
   path p= search_upwards (what);
-  if (!is_nil (p)) go_to (start (et, p));
+  if (!is_nil (p)) go_to (admitted_boundary (p, true));
 }
 
 void
 edit_cursor_rep::go_end_of (tree_label what) {
   path p= search_upwards (what);
-  if (!is_nil (p)) go_to (end (et, p));
+  if (!is_nil (p)) go_to (admitted_boundary (p, false));
 }
 
 void
 edit_cursor_rep::go_start_with (string var, string val) {
   path p= search_upwards_with (var, val);
-  if (!is_nil (p)) go_to (start (et, p));
+  if (!is_nil (p)) go_to (admitted_boundary (p, true));
 }
 
 void
 edit_cursor_rep::go_end_with (string var, string val) {
   path p= search_upwards_with (var, val);
-  if (!is_nil (p)) go_to (end (et, p));
+  if (!is_nil (p)) go_to (admitted_boundary (p, false));
 }
 
 /******************************************************************************
@@ -657,16 +792,17 @@ edit_cursor_rep::get_labels () {
 }
 
 static path
-search_label (tree t, string which) {
+search_label (tree t, string which, path source,
+              const std::function<path (path)>& boundary) {
   if (is_atomic (t)) return path ();
-  else if (t == tree (LABEL, which)) return path (1);
+  else if (t == tree (LABEL, which)) return source * 1;
   else if (is_compound (t, "tag", 2) && t[0] == which)
-    return path (1, start (t[1]));
+    return boundary (source * 1);
   else {
     int i, n=N(t);
     for (i=0; i<n; i++) {
-      path q= search_label (t[i], which);
-      if (!is_nil (q)) return path (i, q);
+      path q= search_label (t[i], which, source * i, boundary);
+      if (!is_nil (q)) return q;
     }
     return path ();
   }
@@ -687,8 +823,11 @@ edit_cursor_rep::cursor_is_accessible () {
 
 path
 edit_cursor_rep::search_label (string s, bool local) {
-  path p= ::search_label (subtree (et, rp), s);
-  if (!is_nil (p)) return (rp * p);
+  path p= ::search_label (subtree (et, rp), s, rp, [&] (path source) {
+    const auto start= try_admitted_boundary (source, true);
+    return start ? *start : path ();
+  });
+  if (!is_nil (p)) return p;
   if (!is_nil (eb)) {
     p= eb->find_tag (s);
     if (!is_nil (p) &&
@@ -711,7 +850,10 @@ edit_cursor_rep::search_label (string s, bool local) {
 
 void
 edit_cursor_rep::go_to_label (string s) {
-  path p= search_label (s, true);
+  path p= ::search_label (subtree (et, rp), s, rp, [&] (path source) {
+    return prepare_command_boundary (source, true);
+  });
+  if (is_nil (p)) p= search_label (s, true);
   if (!is_nil (p)) {
     go_to (p);
     show_cursor_if_hidden ();

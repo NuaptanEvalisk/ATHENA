@@ -105,7 +105,7 @@ bool
 edit_interface_rep::image_bounds (path p, rectangle& r) {
   if (!(rp <= p) || !has_subtree (et, p) || !is_image_tree (subtree (et, p)))
     return false;
-  selection sel= eb->find_check_selection (start (et, p), end (et, p));
+  selection sel= eb->find_check_selection (p * 0, p * 1);
   if (!sel->valid || is_nil (sel->rs)) return false;
   r= least_upper_bound (sel->rs);
   return r != rectangle (0, 0, 0, 0);
@@ -250,16 +250,21 @@ edit_interface_rep::image_resize_finish (bool commit) {
   path p= image_resize_path;
   if (commit && image_resize_value != "" && rp <= p &&
       has_subtree (et, p) && is_image_tree (subtree (et, p))) {
-    // Keep the image, its embedded data and metadata; resize is one edit.
-    if (subtree (et, p)[1] != image_resize_value)
-      assign (p * 1, image_resize_value);
-    if (subtree (et, p)[2] != "") {
+    const auto context= editor_rep::cursor_context_at (p * 0);
+    string height;
+    if (context && subtree (et, p)[2] != "") {
       const double px_len= max (double (as_length ("1px")) * zoomf, 1.0);
-      const string height= as_string (max (1, (int) tm_round (
+      height= as_string (max (1, (int) tm_round (
         image_resize_height / px_len))) * "px";
-      if (subtree (et, p)[2] != height) assign (p * 2, height);
     }
-    set_selection (start (et, p), end (et, p));
+    // Keep the image entry across the edit, which invalidates live contexts.
+    if (context) with_selection_context ([&] {
+      if (subtree (et, p)[1] != image_resize_value)
+        assign (p * 1, image_resize_value);
+      if (height != "" && subtree (et, p)[2] != height)
+        assign (p * 2, height);
+      set_selection (p * 0, p * 1);
+    }, context);
   }
   image_resize_box= box ();
   image_resize_picture= picture ();
@@ -765,8 +770,12 @@ edit_interface_rep::update_mouse_loci () {
     while (!is_nil (l)) {
       tree lt= l->item;
       path lp= reverse (obtain_ip (lt));
-      selection sel= eb->find_check_selection (lp * start(lt), lp * end(lt));
-      rs2 << outlines (sel->rs, pixel);
+      const auto first= try_admitted_boundary (lp, true);
+      const auto last= try_admitted_boundary (lp, false);
+      if (first && last) {
+        selection sel= eb->find_check_selection (*first, *last);
+        rs2 << outlines (sel->rs, pixel);
+      }
       l= l->next;
     }
     ids1= as_list_string (call ("link-active-ids", object (ids1)));

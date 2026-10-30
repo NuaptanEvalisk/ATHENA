@@ -10,27 +10,21 @@
 ******************************************************************************/
 
 #include "tree_math_stats.hpp"
-#include "Data/NodeContracts/editing_query.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 #include "tree_analyze.hpp"
-#include "scheme.hpp"
-#include "packrat.hpp"
 #include "analyze.hpp"
+#include "vars.hpp"
 
 /******************************************************************************
 * Compile statistics
 ******************************************************************************/
 
-struct math_stats {
-  hashmap<tree,int> occurrences;
-  hashmap<tree,int> roles;
-
-protected:
-  void compile (array<tree> a, tree parent);
-
-public:
-  math_stats (): occurrences (0), roles (0) {}
-  void compile (tree t, tree parent, string mode);
-};
+static void
+record (hashmap<tree,int>& counts, tree key) {
+  // Keys must not share mutable source leaves with the live document.
+  if (counts->contains (key)) counts (key)= counts[key] + 1;
+  else counts (copy (key))= 1;
+}
 
 static tree
 strip_decorations (tree t) {
@@ -76,21 +70,21 @@ root_index (array<tree> a, int i) {
 }
 
 void
-math_stats::compile (array<tree> a, tree parent) {
+math_statistics::compile_tokens (array<tree> a, tree parent) {
   //array<int> tp= symbol_types (a);
   for (int i=0; i<N(a); i++) {
-    occurrences (a[i])= occurrences [a[i]] + 1;
+    record (occurrences, a[i]);
 
     if (i == 0 && is_atomic (a[i]) &&
         (is_func (parent, RSUB) || is_func (parent, RSUP))) {
       tree u (L(parent), a[i]);
-      roles (u)= roles[u] + 1;
+      record (roles, u);
     }
 
     if (i == 0 && is_atomic (a[i]) &&
         (is_func (parent, AROUND) || is_func (parent, VAR_AROUND))) {
       tree u (L(parent), copy (parent[0]), a[i], copy (parent[2]));
-      roles (u)= roles[u] + 1;
+      record (roles, u);
     }
 
     if ((i+2) < N(a) &&
@@ -103,11 +97,11 @@ math_stats::compile (array<tree> a, tree parent) {
       tree r = strip_decorations (a[i+2]);
       if (op == "-") op= "+";
       tree C= tmconcat (a[j], op, a[i+2]);
-      roles (C)= roles[C] + 1;
+      record (roles, C);
       tree c= tmconcat (l, op, r);
-      if (c != C) roles (c)= roles[c] + 1;
+      if (c != C) record (roles, c);
       c= tmconcat (l, op);
-      roles (c)= roles[c] + 1;
+      record (roles, c);
     }
 
     if ((i+1) < N(a) &&
@@ -117,23 +111,23 @@ math_stats::compile (array<tree> a, tree parent) {
       tree l= strip_decorations (a[j]);
       tree b= a[i+1];
       tree C (CONCAT, a[j], tree (AROUND, b[0], b[1], b[2]));
-      roles (C)= roles[C] + 1;
+      record (roles, C);
       tree c (CONCAT, l, tree (AROUND, b[0], strip_decorations (b[1]), b[2]));
-      if (c != C) roles (c)= roles[c] + 1;
+      if (c != C) record (roles, c);
       c= tree (CONCAT, l, tree (AROUND, b[0], "", b[2]));
-      roles (c)= roles[c] + 1;
+      record (roles, c);
 
       array<tree> v= concat_tokenize (b[1]);
       if (N(v) >= 1) {
         c= tree (CONCAT, l, tree (AROUND, b[0], strip_decorations (v[0]), b[2]));
-        roles (c)= roles[c] + 1;
+        record (roles, c);
       }
       for (int k=0; k<N(v)-1; k++) {
         if (v[k] == "," || v[k] == ";")
           if (is_atomic (v[k+1])) {
             tree sc= tmconcat (v[k], strip_decorations (v[k+1]));
             c= tree (CONCAT, l, tree (AROUND, b[0], sc, b[2]));
-            roles (c)= roles[c] + 1;
+            record (roles, c);
           }
       }
     }
@@ -144,16 +138,16 @@ math_stats::compile (array<tree> a, tree parent) {
       tree l= strip_decorations (a[i]);
       tree s= a[i+1];
       tree C (CONCAT, a[i], s);
-      roles (C)= roles[C] + 1;
+      record (roles, C);
       tree c (CONCAT, l, tree (L(s), strip_decorations (s[0])));
-      if (c != C) roles (c)= roles[c] + 1;
+      if (c != C) record (roles, c);
       c= tree (CONCAT, l, tree (L(s), ""));
-      roles (c)= roles[c] + 1;
+      record (roles, c);
 
       array<tree> v= concat_tokenize (s[0]);
       if (N(v) >= 1) {
         c= tree (CONCAT, l, tree (L(s), strip_decorations (v[0])));
-        roles (c)= roles[c] + 1;
+        record (roles, c);
       }
       for (int k=0; k<N(v)-1; k++) {
         if (v[k] == "+" || v[k] == "-" || v[k] == "," || v[k] == ";") {
@@ -162,7 +156,7 @@ math_stats::compile (array<tree> a, tree parent) {
           tree sc= tmconcat (op, strip_decorations (v[k+1]));
           if (is_atomic (v[k+1])) {
             c= tree (CONCAT, l, tree (L(s), sc));
-            roles (c)= roles[c] + 1;
+            record (roles, c);
           }
         }
       }
@@ -171,65 +165,78 @@ math_stats::compile (array<tree> a, tree parent) {
 }
 
 static string
-get_submode (tree t, int i, string mode) {
+get_submode (tree t, int i, string mode,
+    const athena::contracts::editing_query& query) {
   if (is_func (t, WITH) && i == N(t)-1)
     for (int j=0; j<N(t)-1; j+=2)
       if (t[j] == MATH_FONT_FAMILY) return "text";
-  tree tmode= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.value (t, i, MODE, mode);
+  tree tmode= query.value (t, i, MODE, mode);
   return (is_atomic (tmode)? tmode->label: string ("text"));
 }
 
-void
-math_stats::compile (tree t, tree parent, string mode) {
+bool
+math_statistics::compile_source (tree t, tree parent, string mode,
+    const athena::contracts::source_contract_preparation& contexts, path source) {
   if (is_compound (t)) {
+    if (is_func (t, MACRO) || is_func (t, XMACRO)) return true;
+    using namespace athena::contracts;
+    const bool native= builtin_label (as_string (L(t)));
+    const auto context= native ? nullptr : contexts (source);
+    if (!native && !context) return false;
+    const editing_query query {native ? builtin_contracts () : *context};
     int i, n= N(t);
     for (i=0; i<n; i++) {
-      string smode= get_submode (t, i, mode);
+      string smode= get_submode (t, i, mode, query);
       if (is_func (t, WITH) && i != N(t)-1);
       else if (is_compound (t, "math-ss"));
       else if (is_compound (t, "math-tt"));
-      else if (is_correctable_child (t, i))
-        compile (t[i], t, smode);
+      else if (is_correctable_child (t, i, query))
+        if (!compile_source (t[i], t, smode, contexts, source * i))
+          return false;
     }
   }
   if (mode == "math") {
     array<tree> a= concat_tokenize (t);
     if (N(a) > 1) {
-      occurrences (t)= occurrences [t] + 1;
+      record (occurrences, t);
       array<tree> b= copy (a);
       tree last= strip_decorations (b[N(b)-1]);
       if (b[N(b)-2] == "-" || b[N(b)-1] != last) {
         if (b[N(b)-2] == "-") b[N(b)-2]= "+";
         b[N(b)-1]= last;
         tree u= concat_recompose (b);
-        roles (u)= roles [u] + 1;
+        record (roles, u);
       }
     }
-    compile (a, parent);
+    compile_tokens (a, parent);
   }
+  return true;
 }
 
 /******************************************************************************
 * User interface
 ******************************************************************************/
 
-static hashmap<string,math_stats> stats_table;
-
-void
-compile_stats (string id, tree t, string mode) {
-  math_stats stats;
-  stats.compile (t, tree (DOCUMENT, t), mode);
-  stats_table (id)= stats;
+bool
+math_statistics::compile (tree t, string mode,
+    const athena::contracts::source_contract_preparation& contexts, path source) {
+  ready= false;
+  occurrences= hashmap<tree,int> (0);
+  roles= hashmap<tree,int> (0);
+  ready= compile_source (t, tree (DOCUMENT, t), mode, contexts, source);
+  if (!ready) {
+    occurrences= hashmap<tree,int> (0);
+    roles= hashmap<tree,int> (0);
+  }
+  return ready;
 }
 
 int
-number_occurrences (string id, tree t) {
-  if (!stats_table->contains (id)) return 0;
-  return stats_table[id].occurrences[t];
+math_statistics::number_occurrences (tree t) const {
+  return ready ? occurrences[t] : 0;
 }
 
 int
-number_in_role (string id, tree t) {
-  if (!stats_table->contains (id)) return 0;
-  return stats_table[id].roles[t];
+math_statistics::number_in_role (tree t) const {
+  return ready ? roles[t] : 0;
 }

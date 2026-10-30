@@ -9,6 +9,8 @@
 #include "convert.hpp"
 #include "Data/Convert/Xml/html_import.hpp"
 #include "Data/Convert/Xml/html_export.hpp"
+#include "Data/Convert/Verbatim/verbatim.hpp"
+#include "new_style.hpp"
 #include "file.hpp"
 #include "scheme.hpp"
 #include "Scheme/Scheme/glue.hpp"
@@ -134,6 +136,28 @@ string conversion_latex_document (tree input, object options, url source, url ta
   return serialize_latex (output);
 }
 
+static string convert_verbatim (tree input, bool wrap, string encoding,
+                               url source, editor_rep* editor) {
+  if (is_snippet (input) && editor) {
+    const tree expanded= editor->exec_verbatim (input, editor->the_path ());
+    return tree_to_verbatim (expanded, wrap, encoding);
+  }
+  tree document= input;
+  if (is_snippet (document))
+    document= tree (DOCUMENT, compound ("style", tuple ("generic")),
+      compound ("body", is_document (input) ? input : tree (DOCUMENT, input)));
+  const auto prepare= prepare_document_source_contracts (
+    document, is_none (source) ? url ("$PWD/none") : source);
+  const auto output= source_to_verbatim (document, wrap, encoding,
+    [prepare] (path source) {
+      std::vector<int> where;
+      for (; !is_nil (source); source= source->next) where.push_back (source->item);
+      return prepare (where);
+    });
+  if (!output) throw std::runtime_error ("Text export source context is unavailable");
+  return *output;
+}
+
 static object execute_step (object input, const conversion_edge& edge,
     object ordered, const conversion_options& values, url source, url target,
     url destination, bool last, temporary_files& temporary,
@@ -178,8 +202,10 @@ static object execute_step (object input, const conversion_edge& edge,
   if (action == "write-fragment") return object (conversion_write_fragment (native (input)));
   if (action == "read-stm-document") return object (scheme_document_to_tree (as_string (input)));
   if (action == "read-stm-snippet") return object (scheme_to_tree (as_string (input)));
-  if (action == "write-code") return object (tree_to_verbatim (native (input), false, get_locale_charset ()));
-  if (action == "write-source-code") return object (tree_to_verbatim (native (input), false, "SourceCode"));
+  if (action == "write-code") return object (convert_verbatim (
+    native (input), false, get_locale_charset (), source, rendering_editor));
+  if (action == "write-source-code") return object (convert_verbatim (
+    native (input), false, "SourceCode", source, rendering_editor));
   if (action == "read-code-snippet") return object (verbatim_to_tree (as_string (input), false, "SourceCode"));
   if (action == "read-code-document") return object (verbatim_document_to_tree (as_string (input), false, "SourceCode"));
   if (action == "read-verbatim-document" || action == "read-verbatim-snippet") {
@@ -193,13 +219,13 @@ static object execute_step (object input, const conversion_edge& edge,
   if (action == "write-verbatim-document" || action == "write-verbatim-snippet") {
     string encoding= option ("texmacs->verbatim:encoding", "auto");
     if (encoding == "cork") encoding= "utf-8";
+    bool wrap= option ("texmacs->verbatim:wrap", "off") == "on";
     if (action == "write-verbatim-snippet" && rendering_editor != nullptr) {
       if (rendering_editor->get_env_string ("mode") == "prog" ||
           rendering_editor->get_env_string ("font-family") == "tt")
-        return object (replace (tree_to_verbatim (native (input), false, encoding),
-                                tree_to_verbatim (tree ("`"), false, encoding), "`"));
+        wrap= false;
     }
-    return object (tree_to_verbatim (native (input), option ("texmacs->verbatim:wrap", "off") == "on", encoding));
+    return object (convert_verbatim (native (input), wrap, encoding, source, rendering_editor));
   }
   if (action == "parse-html-document") return serial (parse_html_document (as_string (input)));
   if (action == "parse-html-snippet") return serial (parse_html_snippet (as_string (input)));

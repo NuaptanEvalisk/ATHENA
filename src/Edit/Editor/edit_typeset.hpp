@@ -20,8 +20,11 @@
 class document_rep;
 class evaluation_environment_checkpoint;
 struct cursor_environment_checkpoint;
+struct source_occurrence;
+struct editor_math_statistics;
 class edit_typeset_rep: virtual public editor_rep {
 protected:
+  std::shared_ptr<editor_math_statistics> math_statistics_cache;
   tree the_style;                         // document style
   std::shared_ptr<const cursor_environment_checkpoint> prepared_cursor;
   std::vector<std::shared_ptr<const cursor_environment_checkpoint>> cursor_contexts;
@@ -41,6 +44,7 @@ protected:
   hashset<string> folded_headings;         // screen-only folded heading paths
   hashset<string> folded_tocs;             // explicit screen-only ToC states
   hashset<string> unfolded_tocs;
+  hashmap<path,tree> folded_source_pairs;  // source/display pairs for projected containers
   bool fold_view_active;                   // screen typesetter uses folded tree
   bool fold_view_rebuild;                  // recreate screen typesetter
   bool fold_view_has_toc;                  // source tree contains a ToC
@@ -67,6 +71,9 @@ protected:
   void                 set_att (hashmap<string,tree> att);
   tree                 folded_screen_tree ();
   bool                 heading_fold_set_current (bool folded, bool toggle);
+  std::shared_ptr<const source_occurrence> source_occurrence_at (
+    path source, const tree& value,
+    const athena::contracts::evaluation_boundary_handle& selected);
   std::shared_ptr<const cursor_environment_checkpoint> prepared_context_at (
     path source, athena::contracts::evaluation_boundary_handle selected);
   std::shared_ptr<const evaluation_environment_checkpoint> conversion_context_at (path source);
@@ -84,6 +91,9 @@ public:
   edit_typeset_rep ();
   ~edit_typeset_rep ();
   void clear_local_info ();
+  void update_math_statistics () override;
+  int math_statistics_occurrences (string id, tree source) override;
+  int math_statistics_role (string id, tree source) override;
   void prepare_cursor_environment () override;
   void set_field_environment (
     std::shared_ptr<const athena::contracts::detached_environment>) override;

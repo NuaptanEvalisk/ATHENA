@@ -16,6 +16,7 @@
 #include "heading_word_count.hpp"
 #include "tm_buffer.hpp"
 #include "convert.hpp"
+#include "Data/Convert/AI/compress.hpp"
 #include "file.hpp"
 #include "analyze.hpp"
 #include "tm_timer.hpp"
@@ -29,6 +30,10 @@
 #include "node_metadata_transform.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
 #include "cursor_navigation.hpp"
+#include "tree_modify.hpp"
+#include "tree_math_stats.hpp"
+#include "tree_correct.hpp"
+#include "tree_analyze.hpp"
 #include "Data/NodeContracts/detached_environment.hpp"
 #include "buffer_actor.hpp"
 #ifdef EXPERIMENTAL
@@ -492,11 +497,81 @@ editor_rep::prepare_source_position (path position) {
   return prepare_source_position (position, document_context);
 }
 
+std::shared_ptr<const evaluation_environment_checkpoint>
+editor_rep::prepare_tree_entry (tree source) {
+  const path ip= obtain_ip (source);
+  if (!ip_attached (ip))
+    return prepare_source_position (selection_active_any () ? selection_get_cursor_path () : tp);
+  const path base= reverse (ip);
+  if (!(rp <= base) || !test_subtree (base) || !strong_equal (subtree (et, base), source))
+    throw std::runtime_error ("Command source is stale or outside this buffer");
+  return prepare_source_position (base * 0);
+}
+
+void
+editor_rep::correct_source_tree (tree source, int direction) {
+  const path ip= obtain_ip (source);
+  const path base= reverse (ip);
+  if (!ip_attached (ip) || !(rp <= base) || !test_subtree (base) ||
+      !strong_equal (subtree (et, base), source))
+    throw std::runtime_error ("Tree correction requires source attached to this buffer");
+  const auto correct= [&] (path p) {
+    tree value= subtree (et, p);
+    if (is_atomic (value)) return;
+    const auto context= athena::contracts::builtin_label (as_string (L(value))) ? nullptr :
+      prepare_source_position (p * 0);
+    ::correct_node (value, {context ? context->contract_context () :
+      athena::contracts::builtin_contracts ()});
+  };
+  if (direction > 0) {
+    const std::function<void (path)> descend= [&] (path p) {
+      const tree value= subtree (et, p);
+      if (is_compound (value))
+        for (int i=0; i<N(value); ++i) descend (p * i);
+      correct (p);
+    };
+    descend (base);
+  }
+  else {
+    path p= base;
+    while (true) {
+      correct (p);
+      if (direction == 0 || p == rp) break;
+      p= path_up (p);
+    }
+  }
+}
+
+void editor_rep::correct_tree_node (tree source) { correct_source_tree (source, 0); }
+void editor_rep::correct_tree_downwards (tree source) { correct_source_tree (source, 1); }
+void editor_rep::correct_tree_upwards (tree source) { correct_source_tree (source, -1); }
+
+bool
+editor_rep::command_tree_with_like (tree source) {
+  if (is_atomic (source) || N(source) == 0) return false;
+  const auto context= athena::contracts::builtin_label (as_string (L(source))) ? nullptr :
+    prepare_tree_entry (source);
+  return is_with_like (source, {context ? context->contract_context () :
+    athena::contracts::builtin_contracts ()});
+}
+
+bool
+editor_rep::command_tree_with_same_type (tree first, tree second) {
+  if (is_atomic (first) || is_atomic (second) || N(first) == 0 || N(second) == 0) return false;
+  const auto left= athena::contracts::builtin_label (as_string (L(first))) ? nullptr :
+    prepare_tree_entry (first);
+  const auto right= athena::contracts::builtin_label (as_string (L(second))) ? nullptr :
+    prepare_tree_entry (second);
+  return with_same_type (first, second,
+    {left ? left->contract_context () : athena::contracts::builtin_contracts ()},
+    {right ? right->contract_context () : athena::contracts::builtin_contracts ()});
+}
+
 bool
 editor_rep::with_admitted_navigation (
     const evaluation_environment_checkpoint& policy,
     const std::function<void (const cursor_navigation&)>& action,
-    const std::optional<path>& display) {
+    const std::optional<path>& display, const std::optional<path>& root) {
   using athena::contracts::access_policy;
   if (policy.effective_value (MODE) == "src" || policy.effective_value (PREAMBLE) == "true") {
     action (cursor_navigation ({athena::contracts::builtin_contracts (), access_policy::source}));
@@ -513,19 +588,59 @@ editor_rep::with_admitted_navigation (
       source ? access_policy::source : access_policy::normal};
   };
   try {
-    action (cursor_navigation (prepare, rp));
+    action (cursor_navigation (prepare, root ? *root : rp));
     return true;
   }
   catch (const pending_context&) { return false; }
 }
 
+std::optional<path>
+editor_rep::try_admitted_boundary (path p, bool at_start) {
+  const auto context= editor_rep::cursor_context_at (p * 0);
+  path result;
+  if (!context || !with_admitted_navigation (*context, [&] (const cursor_navigation& navigation) {
+    const tree source= subtree (et, p);
+    result= p * (at_start ? navigation.start (source) : navigation.end (source));
+  }, {}, p)) return {};
+  return result;
+}
+
+path
+editor_rep::admitted_boundary (path p, bool at_start) {
+  const auto result= try_admitted_boundary (p, at_start);
+  if (!result) throw std::runtime_error ("Cursor boundary is awaiting layout");
+  return *result;
+}
+
+path
+editor_rep::prepare_command_boundary (path p, bool at_start) {
+  const tree t= subtree (et, p);
+  if (is_atomic (t)) return p * (at_start ? 0 : N(t->label));
+  const auto context= prepare_source_position (p * 0);
+  return prepare_command_boundary (p, p, at_start, *context);
+}
+
 path
 editor_rep::prepare_command_boundary (path root, path target, bool at_start,
     const evaluation_environment_checkpoint& context) {
+  return root * prepare_tree_boundary (subtree (et, root), target / root, at_start, context);
+}
+
+path
+editor_rep::prepare_tree_boundary (tree source, path target, bool at_start,
+    const evaluation_environment_checkpoint& context) {
   using athena::contracts::access_policy;
-  const tree source= subtree (et, root);
   struct path_order {
-    bool operator () (path a, path b) const { return path_less (a, b); }
+    bool operator () (path a, path b) const {
+      // Subtree addresses include the empty root and proper prefixes, unlike
+      // the cursor positions ordered by path_less.
+      while (!is_nil (a) && !is_nil (b)) {
+        if (a->item != b->item) return a->item < b->item;
+        a= a->next;
+        b= b->next;
+      }
+      return is_nil (a) && !is_nil (b);
+    }
   };
   std::map<path, std::shared_ptr<const evaluation_environment_checkpoint>, path_order> entries;
   entries.emplace (path (), std::make_shared<const evaluation_environment_checkpoint> (context));
@@ -543,8 +658,7 @@ editor_rep::prepare_command_boundary (path root, path target, bool at_start,
       source_mode ? access_policy::source : access_policy::normal};
   };
   const cursor_navigation navigation (prepare, path ());
-  return root * (at_start ? navigation.start (source, target / root) :
-                           navigation.end (source, target / root));
+  return at_start ? navigation.start (source, target) : navigation.end (source, target);
 }
 
 std::shared_ptr<const evaluation_environment_checkpoint>
@@ -579,6 +693,23 @@ void edit_typeset_rep::set_field_environment (
   init_update ();
 }
 
+std::shared_ptr<const source_occurrence>
+edit_typeset_rep::source_occurrence_at (
+    path source, const tree& value,
+    const athena::contracts::evaluation_boundary_handle& selected) {
+  if (fold_view_active && rp <= source) {
+    const path relative= source / rp;
+    if (folded_source_pairs->contains (relative)) {
+      const tree pair= folded_source_pairs[relative];
+      if (pair[0] != value) return {};
+      return find_source_occurrence (
+        ttt->br->source_occurrences, source, pair[1], selected);
+    }
+  }
+  return find_source_occurrence (
+    ttt->br->source_occurrences, source, value, selected);
+}
+
 std::shared_ptr<const cursor_environment_checkpoint>
 edit_typeset_rep::prepared_context_at (
     path position, athena::contracts::evaluation_boundary_handle selected_boundary) {
@@ -588,8 +719,7 @@ edit_typeset_rep::prepared_context_at (
   const tree source= subtree (et, source_path);
   const auto trace= ttt->br->contract_changes;
   const auto base= ttt->execution_base;
-  const auto occurrence= find_source_occurrence (
-    ttt->br->source_occurrences, source_path, source, selected_boundary);
+  const auto occurrence= source_occurrence_at (source_path, source, selected_boundary);
   if (!occurrence) return {};
   const auto boundary= !is_atomic (source) && last_item (position) == right_index (source) ?
     occurrence->end_boundary : occurrence->boundary;
@@ -619,7 +749,7 @@ edit_typeset_rep::occurrence_context_at (
   if (!ttt->execution_base || !(rp < anchor) ||
       !has_subtree (et, path_up (anchor))) return {};
   if (selected && path_up (position) < path_up (anchor)) {
-    const auto leaf= find_source_occurrence (ttt->br->source_occurrences,
+    const auto leaf= source_occurrence_at (
       path_up (anchor), subtree (et, path_up (anchor)), selected);
     if (leaf && (leaf->boundary == selected || leaf->end_boundary == selected))
       for (auto parent= leaf->parent; parent; parent= parent->parent)
@@ -635,7 +765,7 @@ edit_typeset_rep::cursor_occurrence_admitted (
   if (!ttt->execution_base || !(rp < position)) return false;
   const path source_path= path_up (position);
   if (!has_subtree (et, source_path)) return false;
-  const auto occurrence= find_source_occurrence (ttt->br->source_occurrences,
+  const auto occurrence= source_occurrence_at (
     source_path, subtree (et, source_path), selected);
   return occurrence && (occurrence->boundary == selected || occurrence->end_boundary == selected);
 }
@@ -673,6 +803,7 @@ edit_typeset_rep::prepare_cursor_environment () {
   // against this owner rather than trusting the worker or the cursor path.
   const bool changed= env->prepare_contracts (std::move (wake), prepared.get ());
   if (changed) {
+    math_statistics_cache.reset ();
     auto resolved= std::make_shared<const cursor_environment_checkpoint> (
       *env.operator-> (), prepared->trace, prepared->boundary, prepared->execution_base);
     prepared_cursor= resolved;
@@ -700,6 +831,7 @@ edit_typeset_rep::environment_update () {
 
 void
 edit_typeset_rep::typeset_invalidate_env () {
+  math_statistics_cache.reset ();
   ttt->execution_base.reset ();
   prepared_cursor.reset ();
   cursor_contexts.clear ();
@@ -978,6 +1110,132 @@ edit_typeset_rep::exec_verbatim (tree t) {
   return exec_verbatim (t, rp * 0);
 }
 
+struct editor_math_statistics {
+  std::shared_ptr<const evaluation_environment_checkpoint> base;
+  athena::contracts::contract_event_log trace;
+  math_statistics buffer, cursor;
+  path cursor_source;
+};
+
+athena::contracts::source_environment_preparation
+editor_rep::correction_environments (
+    tree source, std::shared_ptr<const evaluation_environment_checkpoint> entry) {
+  return [this, source, entry= std::move (entry)] (path relative)
+      -> std::shared_ptr<const evaluation_environment_checkpoint> {
+    return prepare_tree_position (source, relative * 0, *entry);
+  };
+}
+
+tree
+editor_rep::correct_with (tree source) {
+  const auto entry= prepare_tree_entry (source);
+  return with_correct (source, athena::contracts::source_contracts (
+    correction_environments (source, entry)));
+}
+
+tree
+editor_rep::correct_superfluous_with (tree source) {
+  const auto entry= prepare_tree_entry (source);
+  return superfluous_with_correct (source, correction_environments (source, entry));
+}
+
+tree
+editor_rep::correct_math (tree source) {
+  const auto entry= prepare_tree_entry (source);
+  return manual_correct (source, [this, entry] (tree stage) {
+    return correction_environments (stage, entry);
+  }, as_string (entry->effective_value (MODE)));
+}
+
+void
+edit_typeset_rep::update_math_statistics () {
+  if (!ttt->execution_base) {
+    math_statistics_cache.reset ();
+    return;
+  }
+  const auto contexts= [this] (path relative)
+      -> std::shared_ptr<const athena::contracts::contract_scope> {
+    const auto entry= editor_rep::cursor_context_at (rp * relative * 0);
+    return entry ? std::shared_ptr<const athena::contracts::contract_scope> (
+      entry, &entry->contract_context ()) : nullptr;
+  };
+  const tree root_mode= ttt->execution_base->effective_value (MODE);
+  const string mode= is_atomic (root_mode) ? root_mode->label : string ("text");
+  if (!math_statistics_cache || math_statistics_cache->base != ttt->execution_base ||
+      math_statistics_cache->trace != ttt->br->contract_changes) {
+    auto state= std::make_shared<editor_math_statistics> ();
+    state->base= ttt->execution_base;
+    state->trace= ttt->br->contract_changes;
+    state->buffer.compile (subtree (et, rp), mode, contexts);
+    math_statistics_cache= std::move (state);
+  }
+  auto& state= *math_statistics_cache;
+  path cursor_source;
+  if (rp < tp && is_compound (subtree (et, rp))) {
+    const int child= (tp / rp)->item;
+    if (child >= 0 && child < N(subtree (et, rp))) cursor_source= rp * child;
+  }
+  if (state.cursor_source == cursor_source) return;
+  state.cursor_source= cursor_source;
+  state.cursor= math_statistics ();
+  if (!is_nil (cursor_source))
+    state.cursor.compile (subtree (et, cursor_source), mode, contexts, cursor_source / rp);
+}
+
+int
+edit_typeset_rep::math_statistics_occurrences (string id, tree source) {
+  update_math_statistics ();
+  if (!math_statistics_cache) return 0;
+  if (id == "buffer") return math_statistics_cache->buffer.number_occurrences (source);
+  if (id == "cursor") return math_statistics_cache->cursor.number_occurrences (source);
+  return 0;
+}
+
+int
+edit_typeset_rep::math_statistics_role (string id, tree source) {
+  update_math_statistics ();
+  if (!math_statistics_cache) return 0;
+  if (id == "buffer") return math_statistics_cache->buffer.number_in_role (source);
+  if (id == "cursor") return math_statistics_cache->cursor.number_in_role (source);
+  return 0;
+}
+
+tree
+editor_rep::compress_tree (tree source) {
+  if (!compression) compression= std::make_shared<tree_compression> ();
+  const path ip= obtain_ip (source);
+  const bool attached= ip_attached (ip);
+  const path base= attached ? reverse (ip) : path ();
+  const auto context= prepare_tree_entry (source);
+  std::shared_ptr<const evaluation_environment_checkpoint> document_context;
+  return compression->compress (source, [&] (path relative)
+      -> std::shared_ptr<const athena::contracts::contract_scope> {
+    const auto entry= attached ?
+      prepare_source_position (base * relative * 0, document_context) :
+      prepare_tree_position (source, relative * 0, *context);
+    return entry ? std::shared_ptr<const athena::contracts::contract_scope> (
+      entry, &entry->contract_context ()) : nullptr;
+  });
+}
+
+tree
+editor_rep::decompress_tree (tree source) {
+  if (!compression) compression= std::make_shared<tree_compression> ();
+  return compression->decompress (source);
+}
+
+string
+editor_rep::compress_html (tree source, int mode) {
+  const tree value= compress_tree (source);
+  return compression->html (value, mode);
+}
+
+tree
+editor_rep::decompress_html (string source, int mode) {
+  if (!compression) compression= std::make_shared<tree_compression> ();
+  return compression->from_html (source, mode);
+}
+
 static tree
 search_doc_title (tree t) {
   if (is_atomic (t)) return "";
@@ -1250,7 +1508,8 @@ static tree
 heading_fold_screen_tree (tree t, path p, hashset<string> folded,
                           hashset<string> folded_tocs,
                           hashset<string> unfolded_tocs,
-                          bool fold_tocs_by_default) {
+                          bool fold_tocs_by_default,
+                          hashmap<path,tree>* source_pairs= nullptr) {
   if (is_atomic (t)) return t;
   if (toc_fold_node (t)) {
     string key= as_string (p);
@@ -1267,6 +1526,7 @@ heading_fold_screen_tree (tree t, path p, hashset<string> folded,
     if (label != L(t)) {
       tree r (label, N(t));
       for (int i=0; i<N(t); i++) r[i]= t[i];
+      if (source_pairs) (*source_pairs)(p)= tuple (t, r);
       return r;
     }
     return t;
@@ -1274,6 +1534,7 @@ heading_fold_screen_tree (tree t, path p, hashset<string> folded,
   if (!heading_fold_container (t)) return t;
 
   tree r (t, N(t));
+  bool changed= false;
   int folded_level= 0;
   for (int i=0; i<N(t); i++) {
     path cp= p * i;
@@ -1284,16 +1545,20 @@ heading_fold_screen_tree (tree t, path p, hashset<string> folded,
       if (level != 0 && level <= folded_level) folded_level= 0;
       else {
         r[i]= heading_fold_hidden (t[i]);
+        changed= true;
         continue;
       }
     }
 
     r[i]= heading_fold_screen_tree (t[i], cp, folded,
                                     folded_tocs, unfolded_tocs,
-                                    fold_tocs_by_default);
+                                    fold_tocs_by_default, source_pairs);
+    changed |= !strong_equal (r[i], t[i]);
     if (folded_here)
       folded_level= level;
   }
+  if (!changed) return t;
+  if (source_pairs) (*source_pairs)(p)= tuple (t, r);
   return r;
 }
 
@@ -1384,8 +1649,8 @@ edit_typeset_rep::heading_cell_ranges () {
       heading_cell_range range;
       range.level= minimum_level;
       range.heading_path= hp;
-      range.selection_start= start (et, rp * hp);
-      range.selection_end= end (et, rp * hp);
+      range.selection_start= rp * hp * 0;
+      range.selection_end= rp * hp * 1;
       range.heading_end= range.selection_end;
       range.visual_start= range.selection_start;
       range.visual_end= range.selection_end;
@@ -1411,16 +1676,18 @@ edit_typeset_rep::heading_cell_ranges () {
       next++;
 
     path absolute= rp * hp;
+    // The section owns complete source nodes, including its heading. These
+    // ranges do not require an editable field in an offscreen next heading.
     path logical_end= next < N(headings)
-      ? start (et, rp * headings[next])
-      : end (et, rp);
+      ? rp * headings[next] * 0
+      : rp * right_index (doc);
 
     heading_cell_range range;
     range.level          = level;
     range.heading_path   = hp;
-    range.selection_start= start (et, absolute);
+    range.selection_start= absolute * 0;
     range.selection_end  = logical_end;
-    range.heading_end    = end (et, absolute);
+    range.heading_end    = absolute * 1;
     range.visual_start   = range.selection_start;
     range.visual_end     = folded_here ? range.heading_end : logical_end;
     range.folded         = folded_here;
@@ -1549,13 +1816,14 @@ edit_typeset_rep::typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2) {
                        folded_screen != fold_view_active;
     if (full_repaint) {
       tree doc= subtree (et, rp);
+      folded_source_pairs= hashmap<path,tree> ();
       if (folded_screen)
         doc= heading_fold_screen_tree (doc, path (), folded_headings,
                                       folded_tocs, unfolded_tocs,
                                       env->get_string (PAGE_MEDIUM) == "automatic" &&
                                       get_preference (
                                         "fold table of contents in reflow",
-                                        "on") == "on");
+                                        "on") == "on", &folded_source_pairs);
       ttt->screen_tree= folded_screen;
       ::notify_assign (ttt, path (), doc);
       fold_view_rebuild= false;
@@ -1577,6 +1845,8 @@ edit_typeset_rep::typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2) {
     the_exception= msg;
     std_error << "Typesetting failure; preserving source document\n";
     ttt->screen_tree= false;
+    fold_view_active= false;
+    folded_source_pairs= hashmap<path,tree> ();
     progressive_typeset_pending= false;
     progressive_typeset_continue= false;
     // The failed pass may have left bridge-local state half updated.  Rebind it

@@ -23,6 +23,7 @@
 #include "data_cache.hpp"
 #include "Data/NodeContracts/execution_state.hpp"
 #include "cursor_navigation.hpp"
+#include "tree_spell.hpp"
 #include "Typeset/Env/local_environment.hpp"
 #include "message.hpp"
 #include "tree_traverse.hpp"
@@ -388,9 +389,12 @@ edit_interface_rep::cursor_visible () {
   cursor cu= get_cursor ();
   if (selection_active_any ()) {
     path p1, p2;
-    if (selection_try_get (p1, p2) &&
-        selection_covers_range (p1, p2, start (et, rp), end (et, rp)))
-      return;
+    if (selection_try_get (p1, p2)) {
+      const auto first= try_admitted_boundary (rp, true);
+      const auto last= try_admitted_boundary (rp, false);
+      if (first && last && selection_covers_range (p1, p2, *first, *last))
+        return;
+    }
   }
   if (is_nil (sp)) {
     const std::uint64_t user_scroll_generation=
@@ -1010,9 +1014,9 @@ editor_rep::popup_menu_state_snapshot () {
   const auto context= editor_rep::cursor_context_at (first);
   if (!context) return snapshot;
 
-  tree selected= selection_compute (the_root (), first, last);
-  if (!is_atomic (selected) || N(selected->label) == 0) return snapshot;
-  string word= selected->label;
+  const auto selected= spelling_range_text (the_root (), first, last);
+  if (!selected) return snapshot;
+  string word= *selected;
   snapshot.spell_word.assign (
     word.data (), static_cast<std::size_t> (N(word)));
 
@@ -1547,9 +1551,9 @@ editor_rep::focus_toolbar_state_snapshot () {
       item.label.assign (
         label.data (), static_cast<std::size_t> (N(label)));
       try {
-        string value= get_tag_type (as_tree_label (parameter));
-        item.type.assign (
-          value.data (), static_cast<std::size_t> (N(value)));
+        const athena::contracts::editing_query parameters {context->contract_context ()};
+        item.type= athena::contracts::type_name (
+          parameters.describe (as_tree_label (parameter)).type);
       }
       catch (...) {}
       try {

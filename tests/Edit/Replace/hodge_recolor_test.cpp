@@ -134,10 +134,10 @@ TestHodgeRecolor::mixedMathTextFormattingKeepsPosition () {
   QCOMPARE (p2, concatPath * 2 * 6);
   QVERIFY (selected == tree (
     CONCAT, compound ("math", "A"), "-forms"));
+  const tree wrapper (WITH, "font-series", "bold", selected);
+  const path destination= ed->command_tree_end (wrapper, path (2));
   ed->selection_cut ("none");
-  ed->insert_tree (
-    tree (WITH, "font-series", "bold", selected),
-    path (2, end (selected)));
+  ed->insert_tree (wrapper, destination);
 
   const tree expected= tree (
     DOCUMENT,

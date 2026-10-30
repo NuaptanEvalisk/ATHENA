@@ -20,6 +20,7 @@
 #include "node_metadata.hpp"
 #include "compound_virtual_document.hpp"
 #include "convert.hpp"
+#include "Data/Convert/Verbatim/verbatim.hpp"
 #include "named_symbol.hpp"
 #include "utf8_edit.hpp"
 #include "ATHENA/Data/node_reference.hpp"
@@ -112,7 +113,7 @@ vault_link_source_body (url file) {
   return import_body (file);
 }
 
-// Display-only leaves for the standard DRD-aware verbatim converter. Never
+// Display-only leaves for detached source text projection. Never
 // expose symbol identities or image resource parameters as visible text.
 static tree source_excerpt_tree (const tree& value) {
   if (is_atomic (value)) return value;
@@ -133,8 +134,7 @@ static tree source_excerpt_tree (const tree& value) {
 }
 
 static QString source_excerpt (const tree& value) {
-  QString text= to_qstring (tree_to_verbatim (source_excerpt_tree (value), false,
-                                            "UTF-8")).simplified ();
+  QString text= to_qstring (source_text_excerpt (source_excerpt_tree (value))).simplified ();
   const auto characters= utf8_graphemes (from_qstring (text));
   if (N(characters) <= 120) return text;
   string prefix;

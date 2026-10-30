@@ -18,153 +18,29 @@
 #include "hashset.hpp"
 #include "scheme.hpp"
 #include "Data/NodeContracts/node_groups.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
+#include "Data/NodeContracts/native_fields.hpp"
 
 /******************************************************************************
 * Accessability
 ******************************************************************************/
 
 bool
-is_macro (tree_label l) {
-  return current_cursor_navigation ().contracts ().describe (l).variable_type != VAR_PARAMETER;
-}
-
-bool
-is_parameter (tree_label l) {
-  return current_cursor_navigation ().contracts ().describe (l).variable_type != VAR_MACRO;
-}
-
-string
-get_tag_type (tree_label l) {
-  const auto name= athena::contracts::type_name (current_cursor_navigation ().contracts ().describe (l).type);
-  return string (name.data (), name.size ());
-}
-
-int
-minimal_arity (tree_label l) {
-  return current_cursor_navigation ().contracts ().describe (l).layout.minimum ();
-}
-
-int
-maximal_arity (tree_label l) {
-  return current_cursor_navigation ().contracts ().describe (l).layout.maximum ();
-}
-
-bool
-correct_arity (tree_label l, int n) {
-  return current_cursor_navigation ().contracts ().describe (l).layout.accepts (n);
-}
-
-int
-minimal_arity (tree t) {
-  return minimal_arity (L(t));
-}
-
-int
-maximal_arity (tree t) {
-  return maximal_arity (L(t));
-}
-
-bool
-correct_arity (tree t, int n) {
-  return correct_arity (L(t), n);
-}
-
-int
-insert_point (tree t, int i) {
-  return current_cursor_navigation ().contracts ().describe (L(t)).layout.insertion (i, N(t));
-}
-
-bool
-is_dynamic (tree t) {
-  return current_cursor_navigation ().contracts ().variable_arity (t);
-}
-
-bool
-is_accessible_child (tree t, int i) {
-  return athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.accessible (t, i);
-}
-
-array<tree>
-accessible_children (tree t) {
-  array<tree> a;
-  int i, n= N(t);
-  for (i=0; i<n; i++)
-    if (athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.accessible (t, i))
-      a << t[i];
-  return a;
-}
-
-bool
-all_accessible (tree t) {
-  if (is_atomic (t)) return false;
-  return athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.all_fields_editable (L(t));
-}
-
-bool
-none_accessible (tree t) {
-  if (is_atomic (t)) return false;
-  return athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.no_fields_editable (L(t));
-}
-
-bool
-exists_accessible_inside (tree t) {
+exists_accessible_inside (tree t,
+    const athena::contracts::source_contract_preparation& prepare, path source) {
   if (is_atomic (t)) return true;
-  if (!athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.child_enforcing (t)) return true;
+  // Native editability is independent of styles. Only non-native fields need
+  // an evaluated entry; ordinary deletion must not prepare a whole buffer.
+  using namespace athena::contracts;
+  const bool native= native_fields (L(t)) != nullptr;
+  const auto context= native ? nullptr : prepare (source);
+  const editing_query query {native ? builtin_contracts () : *context};
+  if (!query.child_enforcing (t)) return true;
   for (int i=0; i<N(t); i++)
-    if (athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.accessible (t, i) &&
-        exists_accessible_inside (t[i]))
+    if (query.accessible (t, i) &&
+        exists_accessible_inside (t[i], prepare, source * i))
       return true;
   return false;
-}
-
-/******************************************************************************
-* Further properties
-******************************************************************************/
-
-string
-get_name (tree t) {
-  return athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.name (L(t));
-}
-
-string
-get_long_name (tree t) {
-  return current_cursor_navigation ().contracts ().name (L(t), true);
-}
-
-string
-get_child_name (tree t, int i) {
-  return current_cursor_navigation ().contracts ().child_name (t, i);
-}
-
-string
-get_child_long_name (tree t, int i) {
-  return current_cursor_navigation ().contracts ().child_name (t, i, true);
-}
-
-string
-get_child_type (tree t, int i) {
-  const auto name= athena::contracts::type_name (current_cursor_navigation ().contracts ().child_type (t, i));
-  return string (name.data (), name.size ());
-}
-
-tree
-get_env_child (tree t, int i, string var, tree val) {
-  return current_cursor_navigation ().contracts ().value (t, i, var, val);
-}
-
-tree
-get_env_child (tree t, int i, tree env) {
-  return current_cursor_navigation ().contracts ().environment (t, i, env);
-}
-
-tree
-get_env_descendant (tree t, path p, tree env) {
-  return current_cursor_navigation ().contracts ().environment (t, p, env);
-}
-
-tree
-get_env_descendant (tree t, path p, string var, tree val) {
-  return current_cursor_navigation ().contracts ().value (t, p, var, val);
 }
 
 /******************************************************************************
@@ -236,11 +112,6 @@ cursor_navigation::move_any (tree t, path p, bool forward) const {
   return q * (forward? 1: 0);
 }
 
-path next_any (tree t, path p) {
-  return current_cursor_navigation ().move_any (t, p, true); }
-path previous_any (tree t, path p) {
-  return current_cursor_navigation ().move_any (t, p, false); }
-
 /******************************************************************************
 * Traversal of a valid cursor positions inside a tree
 ******************************************************************************/
@@ -300,14 +171,10 @@ cursor_navigation::move_valid (tree t, path p, bool forward) const {
     traversal.query.access= athena::contracts::access_policy::source;
   path q= move_valid_sub (traversal, t, p, forward);
   if (!inside_graphics (t, p)) return q;
-  if (inside_contiguous_document (t, p, q)) return q;
+  if (traversal.inside_contiguous_document (t, p, q)) return q;
   return false;
 }
 
-path next_valid (tree t, path p) {
-  return current_cursor_navigation ().move_valid (t, p, true); }
-path previous_valid (tree t, path p) {
-  return current_cursor_navigation ().move_valid (t, p, false); }
 
 path
 cursor_navigation::move_accessible (tree t, path p, bool forward) const {
@@ -325,10 +192,6 @@ cursor_navigation::move_accessible (tree t, path p, bool forward) const {
   }
 }
 
-path next_accessible (tree t, path p) {
-  return current_cursor_navigation ().move_accessible (t, p, true); }
-path previous_accessible (tree t, path p) {
-  return current_cursor_navigation ().move_accessible (t, p, false); }
 
 /******************************************************************************
 * Word based traversal of a tree
@@ -357,10 +220,10 @@ next_is_word (tree t, path p) {
   return st[l+1] != "" && is_iso_alphanum (st[l+1]->label[0]);
 }
 
-static path
-move_word (tree t, path p, bool forward) {
+path
+cursor_navigation::move_word (tree t, path p, bool forward) const {
   while (true) {
-    path q= current_cursor_navigation ().move_accessible (t, p, forward);
+    path q= move_accessible (t, p, forward);
     int l= last_item (q);
     if (q == p) return p;
     tree st= subtree (t, path_up (q));
@@ -391,41 +254,33 @@ move_word (tree t, path p, bool forward) {
   }
 }
 
-path next_word (tree t, path p) {
-  return move_word (t, p, true); }
-path previous_word (tree t, path p) {
-  return move_word (t, p, false); }
-
 /******************************************************************************
 * Node based traversal of a tree
 ******************************************************************************/
 
-static path
-move_node (tree t, path p, bool forward) {
+path
+cursor_navigation::move_node (tree t, path p, bool forward) const {
   tree st= subtree (t, path_up (p));
   if (is_atomic (st)) {
     if (forward) p= path_up (p) * N (st->label);
     else p= path_up (p) * 0;
   }
-  p= current_cursor_navigation ().move_accessible (t, p, forward);
+  p= move_accessible (t, p, forward);
   st= subtree (t, path_up (p));
   if (is_atomic (st) && last_item (p) > 0)
     p= path_up (p) * N (st->label);
   return p;
 }
 
-path next_node (tree t, path p) {
-  return move_node (t, p, true); }
-path previous_node (tree t, path p) {
-  return move_node (t, p, false); }
-
 /******************************************************************************
 * Tag based traversal of a tree
 ******************************************************************************/
 
 static int
-tag_border (tree t, path p) {
-  if (none_accessible (subtree (t, path_up (p)))) {
+tag_border (const cursor_navigation& navigation, tree t, path p) {
+  const path source= path_up (p);
+  const tree st= subtree (t, source);
+  if (is_compound (st) && navigation.at (source).contracts ().no_fields_editable (L(st))) {
     if (last_item (p) == 0) return -1;
     if (last_item (p) == 1) return 1;
   }
@@ -433,30 +288,32 @@ tag_border (tree t, path p) {
 }
 
 static bool
-distinct_tag_or_argument (tree t, path p, path q, hashset<int> labs) {
+distinct_tag_or_argument (const cursor_navigation& navigation,
+                          tree t, path p, path q, hashset<int> labs) {
   path c= common (p, q);
   path r= path_up (q);
-  if (labs->contains ((int) L (subtree (t, r))) && tag_border (t, q) > 0)
+  if (labs->contains ((int) L (subtree (t, r))) && tag_border (navigation, t, q) > 0)
     return true;
   while (!is_nil (r) && (r != c)) {
     r= path_up (r);
     if (labs->contains ((int) L (subtree (t, r))) &&
-        !none_accessible (subtree (t, r)))
+        !navigation.at (r).contracts ().no_fields_editable (L(subtree (t, r))))
       return true;
   }
   return false;
 }
 
 static bool
-acceptable_border (tree t, path p, path q, hashset<int> labs) {
-  if (tag_border (t, q) == 0) return true;
+acceptable_border (const cursor_navigation& navigation,
+                   tree t, path p, path q, hashset<int> labs) {
+  if (tag_border (navigation, t, q) == 0) return true;
   if (!labs->contains ((int) L (subtree (t, path_up (q))))) return true;
-  if (tag_border (t, q) < 0) return false;
-  return tag_border (t, p) > 0;
+  if (tag_border (navigation, t, q) < 0) return false;
+  return tag_border (navigation, t, p) > 0;
 }
 
 static bool
-acceptable_child (tree t, path p, hashset<int> labs) {
+acceptable_child (const cursor_navigation& navigation, tree t, path p, hashset<int> labs) {
   tree st= subtree (t, path_up (p));
   if (is_compound (st) && labs->contains ((int) L(st)))
     if (last_item (p) == 0 || last_item (p) == 1)
@@ -465,7 +322,7 @@ acceptable_child (tree t, path p, hashset<int> labs) {
   while (!is_nil (p)) {
     st= subtree (t, path_up (p));
     if (labs->contains ((int) L(st)))
-      if (is_accessible_child (st, last_item (p)))
+      if (navigation.at (path_up (p)).contracts ().accessible (st, last_item (p)))
         return true;
     p= path_up (p);
   }
@@ -488,8 +345,12 @@ tag_inside (tree t, path p, hashset<int> labs) {
   return !labs->contains ((int) L (subtree (t, path_up (p))));
 }
 
-static path
-move_tag (tree t, path p, hashset<int> labs, bool forward, bool preserve) {
+static hashset<int> get_labels (scheme_tree t);
+
+path
+cursor_navigation::move_tag (tree t, path p, scheme_tree labels,
+                             bool forward, bool preserve) const {
+  const auto labs= get_labels (labels);
   path q= p;
   while (true) {
     path r= move_node (t, q, forward);
@@ -497,9 +358,9 @@ move_tag (tree t, path p, hashset<int> labs, bool forward, bool preserve) {
     if (!tag_inside (t, r, labs) && !tag_inside (t, p, labs) &&
         last_item (r) == last_item (p))
       return r;
-    if (distinct_tag_or_argument (t, p, r, labs) &&
-        acceptable_border (t, p, r, labs) &&
-        acceptable_child (t, r, labs) &&
+    if (distinct_tag_or_argument (*this, t, p, r, labs) &&
+        acceptable_border (*this, t, p, r, labs) &&
+        acceptable_child (*this, t, r, labs) &&
         tag_inside (t, r, labs) == tag_inside (t, p, labs) &&
         (!preserve || tag_index (t, r, labs) == tag_index (t, p, labs)))
       return r;
@@ -521,43 +382,29 @@ get_labels (scheme_tree t) {
   return labs;
 }
 
-path next_tag (tree t, path p, scheme_tree which) {
-  return move_tag (t, p, get_labels (which), true, false); }
-path previous_tag (tree t, path p, scheme_tree which) {
-  return move_tag (t, p, get_labels (which), false, false); }
-
-path next_tag_same_argument (tree t, path p, scheme_tree which) {
-  return move_tag (t, p, get_labels (which), true, true); }
-path previous_tag_same_argument (tree t, path p, scheme_tree which) {
-  return move_tag (t, p, get_labels (which), false, true); }
-
 /******************************************************************************
 * Traverse the children of a node
 ******************************************************************************/
 
-static path
-move_argument (tree t, path p, bool forward) {
+path
+cursor_navigation::move_argument (tree t, path p, bool forward) const {
   path q = path_up (p);
   int  l = last_item (p);
   tree st= subtree (t, q);
+  const auto entry= at (q);
   int i, n= N(st);
   if (forward) {
     for (i=l+1; i<n; i++)
-      if (athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.accessible (st, i))
+      if (entry.contracts ().accessible (st, i))
         return start (t, q * i);
   }
   else {
     for (i=l-1; i>=0; i--)
-      if (athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.accessible (st, i))
+      if (entry.contracts ().accessible (st, i))
         return end (t, q * i);
   }
   return path ();
 }
-
-path next_argument (tree t, path p) {
-  return move_argument (t, p, true); }
-path previous_argument (tree t, path p) {
-  return move_argument (t, p, false); }
 
 /******************************************************************************
 * Other routines
@@ -616,7 +463,7 @@ is_boundary (tree t, path p) {
 }
 
 bool
-inside_contiguous_document (tree t, path op, path oq) {
+cursor_navigation::inside_contiguous_document (tree t, path op, path oq) const {
   if (!inside_same (t, op, oq, DOCUMENT)) return false;
   path p= path_up (op), q= path_up (oq);
   while (!is_nil (p) && !is_boundary (t, p)) p= path_up (p);
@@ -624,10 +471,12 @@ inside_contiguous_document (tree t, path op, path oq) {
   if (p == q) return true;
   if (q <= p) return inside_contiguous_document (t, oq, op);
   if (!(p <= q)) return false;
+  const auto local= at (q);
+  const tree source= subtree (t, q);
   if (path_less (op, oq))
-    return (oq / q) == start (subtree (t, q));
+    return (oq / q) == local.start (source);
   else
-    return (oq / q) == end (subtree (t, q));
+    return (oq / q) == local.end (source);
 }
 
 /******************************************************************************

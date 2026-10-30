@@ -12,6 +12,7 @@
 #include "tree_analyze.hpp"
 #include "Data/NodeContracts/syntax_query.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
+#include "Data/NodeContracts/builtin_contracts.hpp"
 #include "node_metadata.hpp"
 #include "convert.hpp"
 
@@ -120,8 +121,8 @@ concat_recompose_source (tree source, array<tree> a) {
 ******************************************************************************/
 
 bool
-is_with_like (tree t) {
-  return athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.describe (L(t)).with_like && N(t) > 0;
+is_with_like (tree t, const athena::contracts::editing_query& query) {
+  return is_compound (t) && N(t) > 0 && query.describe (L(t)).with_like;
 }
 
 tree&
@@ -131,13 +132,13 @@ with_body (tree w) {
 
 bool
 with_same_type (tree w1, tree w2) {
-  ASSERT (is_with_like (w1) && is_with_like (w2), "with-like trees expected");
+  ASSERT (is_compound (w1) && is_compound (w2) && N(w1) && N(w2), "wrappers expected");
   return w1 (0, N(w1)-1) == w2 (0, N(w2)-1);
 }
 
 bool
 with_similar_type (tree w1, tree w2) {
-  ASSERT (is_with_like (w1) && is_with_like (w2), "with-like trees expected");
+  ASSERT (is_compound (w1) && is_compound (w2) && N(w1) && N(w2), "wrappers expected");
   if (is_compound (w1, "math") || is_compound (w1, "text"))
     return is_compound (w2, "math") || is_compound (w2, "text");
   if (!is_func (w1, WITH) || !is_func (w2, WITH))
@@ -148,19 +149,33 @@ with_similar_type (tree w1, tree w2) {
   return true;
 }
 
-array<tree>
-with_decompose (tree w, tree t) {
-  array<tree> r;
-  if (athena::node::get (t)) r << t;
-  else if (t == "");
-  else if (is_atomic (t)) r << t;
-  else if (is_concat (t))
-    for (int i=0; i<N(t); i++)
-      r << with_decompose (w, t[i]);
-  else if (is_with_like (t) && with_same_type (w, t))
-    r << with_decompose (w, with_body (t));
-  else r << t;
-  return r;
+static bool
+same_wrapper_definition (tree w1, tree w2,
+    const athena::contracts::editing_query& first,
+    const athena::contracts::editing_query& second) {
+  if (L(w1) != L(w2) || athena::contracts::builtin_label (as_string (L(w1)))) return true;
+  const auto left= first.scope.definition (L(w1));
+  const auto right= second.scope.definition (L(w2));
+  // Formatting compares definitions, not execution receipts: independent
+  // cold preparations of the same source create distinct binding identities.
+  return left == right || (left && right &&
+    left->value->expression == right->value->expression);
+}
+
+bool
+with_same_type (tree w1, tree w2,
+    const athena::contracts::editing_query& first,
+    const athena::contracts::editing_query& second) {
+  return is_with_like (w1, first) && is_with_like (w2, second) &&
+    with_same_type (w1, w2) && same_wrapper_definition (w1, w2, first, second);
+}
+
+bool
+with_similar_type (tree w1, tree w2,
+    const athena::contracts::editing_query& first,
+    const athena::contracts::editing_query& second) {
+  return is_with_like (w1, first) && is_with_like (w2, second) &&
+    with_similar_type (w1, w2) && same_wrapper_definition (w1, w2, first, second);
 }
 
 tree
@@ -354,7 +369,14 @@ symbol_priorities (array<tree> a) {
 
 bool
 is_correctable_child (tree t, int i, bool noaround) {
-  int type= athena::contracts::editing_query {athena::contracts::current_evaluation_state ().contracts}.child_type (t, i);
+  return is_correctable_child (t, i, athena::contracts::editing_query {
+    athena::contracts::current_evaluation_state ().contracts}, noaround);
+}
+
+bool
+is_correctable_child (tree t, int i,
+    const athena::contracts::editing_query& query, bool noaround) {
+  int type= query.child_type (t, i);
   if (is_compound (t, "body", 1)) return true;
   else if (!is_concat (t)) {
     switch (type) {

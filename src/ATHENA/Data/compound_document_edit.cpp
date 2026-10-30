@@ -16,6 +16,7 @@
 #include "node_metadata.hpp"
 #include "patch.hpp"
 #include "tree_cursor.hpp"
+#include "convert.hpp"
 #include "Data/Convert/Xml/clipboard_xml.hpp"
 #include <map>
 #include <memory>
@@ -41,8 +42,10 @@ path position (const std::vector<int>& value) {
 
 std::pair<path, path> range_positions (editor_rep& editor, const source_range& range) {
   const tree body= editor.the_buffer ();
-  const path first= range.first.empty () ? start (body) : position (range.first);
-  const path last= range.last.empty () ? end (body) : position (range.last);
+  const path first= range.first.empty () ? editor.command_tree_start (body, path ()) :
+                                          position (range.first);
+  const path last= range.last.empty () ? editor.command_tree_end (body, path ()) :
+                                        position (range.last);
   if (!is_inside (body, first) || !is_inside (body, last) || path_less (last, first))
     throw std::runtime_error ("Compound selection no longer identifies a source range");
   const path root= editor.the_buffer_path ();
@@ -132,8 +135,9 @@ void erase_ranges (std::vector<source_range> ranges,
 }
 
 void copy_ranges (std::vector<source_range> ranges,
-                  std::function<void(std::string, std::vector<std::string>)> completion) {
+                  std::function<void(std::string, clipboard_copy)> completion) {
   auto pieces= std::make_shared<std::vector<std::string>> (ranges.size ());
+  auto text= std::make_shared<std::vector<std::string>> (ranges.size ());
   std::vector<edit_participant> participants;
   for (std::size_t i= 0; i < ranges.size (); ++i) {
     const auto range= ranges[i];
@@ -144,7 +148,7 @@ void copy_ranges (std::vector<source_range> ranges,
         throw std::runtime_error ("Source changed after compound selection");
       (void) range_positions (editor, range);
     };
-    member.apply= [range, pieces, i] (editor_rep& editor) {
+    member.apply= [range, pieces, text, i] (editor_rep& editor) {
       const auto positions= range_positions (editor, range);
       editor.select (positions.first, positions.second);
       path first, last;
@@ -157,12 +161,25 @@ void copy_ranges (std::vector<source_range> ranges,
       (*pieces)[i]= athena::document::write_clipboard_xml (
         tuple ("texmacs", content, mode,
                editor.selection_get_env_value (MODE_LANGUAGE (as_string (mode)))), version);
+      // Expansion belongs to the source owner, before separate physical
+      // documents lose their local definitions in the merged clipboard tree.
+      const tree expanded= editor.exec_verbatim (content, editor.selection_get_cursor_path ());
+      const string plain= tree_to_verbatim (expanded, false, "utf-8");
+      (*text)[i].assign (plain.data (), N(plain));
     };
     member.rollback= member.commit= [] (editor_rep&) {};
     participants.push_back (std::move (member));
   }
-  submit_edit_batch (std::move (participants), [pieces, completion= std::move (completion)] (std::string error) {
-    completion (std::move (error), std::move (*pieces));
+  submit_edit_batch (std::move (participants), [pieces, text, completion= std::move (completion)] (std::string error) {
+    clipboard_copy result;
+    if (error.empty ()) {
+      result.pieces= std::move (*pieces);
+      for (std::size_t i=0; i<text->size (); ++i) {
+        if (i != 0) result.plain_text += '\n';
+        result.plain_text += (*text)[i];
+      }
+    }
+    completion (std::move (error), std::move (result));
   });
 }
 
