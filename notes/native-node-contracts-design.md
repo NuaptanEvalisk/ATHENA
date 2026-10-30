@@ -3,12 +3,66 @@
 This is the implementation entry point for replacing DRD. Detailed semantics,
 analysis transfer rules and implementation evidence live in
 [`src/Data/NodeContracts/README.md`](../src/Data/NodeContracts/README.md).
-This document does not declare the replacement complete. It makes the next
-ownership changes explicit rather than adding another independent subsystem.
+The current checkpoint records the completed bounded cutover. Earlier sections
+retain the design discussion and intermediate checkpoints; their remaining-work
+lists are historical, not an instruction to restart completed work.
 
 ## Current Checkpoint: 2026-10-31
 
-### Bounded Delivery
+### Final Integration And Deployment
+
+The DRD replacement delivery is complete. Its exit conditions are native
+contract authority, source-owned editor/conversion queries, asynchronous
+analysis capture/publication with explicit pending state, and a deployed
+production runtime. Removing Scheme from the rest of ATHENA is a separate
+project, not an additional exit condition for this delivery.
+
+| Boundary | Final evidence |
+| --- | --- |
+| One contract authority | `Data/NodeContracts` owns native fields, declarations, bindings, inference and groups. Static descriptions use `node-fields.json` and `node-groups.json`. The old DRD implementation directory, `drd_info`, `std_drd`, `drd_update`, `restricted_exec` and `typeset_exec_until` are absent from production source. |
+| Source-owned consumers | The committed source identity, command preparation, field navigation, correction and conversion changes select their own prepared source contexts. Editor, conversion and bridge code no longer calls `current_evaluation_state`; bridge marker policy reads its actual environment. |
+| Nonblocking optional analysis | Receipt snapshots are constant-time; differences and initial enumeration run on detached workers; owner capture/freezing is sliced. Exact-demand publication rejects superseded plans and partial captures. BufferActor notifications retain actor/view IDs, not editors, and closing owners stop publication. |
+| Syntax reuse | `30c67a6ae` passes explicit contexts through Packrat serialization, validates the definitions actually consumed, and re-observes dependencies for enclosing bridge captures. Failed serialization cannot publish new cache keys. |
+| Verification | Production `ATHENA.bin` built with `-j16`; the focused integration probe passed on 2026-10-31 at 01:35, including syntax changes and real BufferActor asynchronous statistics, supersession, cursor changes, local rules, isolation and queued close. Earlier capture/publication lifecycle evidence remains in the implementation README. |
+| Deployment | After building `athena_scheme_bytecode`, `tools/deploy-local-runtime.sh build_qt6` installed build ID `b8cf60e0cf2677ffe1cdaaf6049385c8ad0a6861` and synchronized the built modules; the private Guile runtime was synchronized with its existing release helper. The executable installer retained the previous ELF by build ID. The deployed production executable then booted and exited normally with status 0. |
+
+Remaining execution-state routing is not a second descriptor authority. Existing
+node-group entrypoints, current-operation syntax parsing, program highlighting
+and UI translation use the native state installed by `SchemeExecutionScope`
+(which scopes native execution too), or the native baseline outside an owner.
+The legacy experimental style evaluator also reads that native state; rewriting
+that evaluator is outside this delivery. Such routing must not be reused as a
+fallback for querying an unrelated source position. The persisted `drd-props`
+tag is declaration input decoded by C++, not a retained DRD runtime/API.
+
+One deliberate refinement supersedes the earlier strict "no dependency checks
+in getters" draft: exact inference evidence is admitted in constant time;
+older evidence may inspect at most 128 immutable dependency actions. It cannot
+execute source, traverse an unlimited closure, schedule inference or expose a
+partially captured result. Over-budget evidence remains unavailable until
+background publication. This bounded admission is part of the delivered model,
+not unfinished retirement work.
+
+Logs: `/tmp/athena-native-final-integration-build.log`,
+`/tmp/athena-native-final-integration-probe.log`,
+`/tmp/athena-native-final-bytecode-build.log`,
+`/tmp/athena-native-final-deploy.log`, and
+`/tmp/athena-native-deployed-startup-Hh8jcp/system/log/ATHENA.log`.
+No broad regression suite was run and no
+permanent test cases were added; existing Unicode parser callers were adapted
+to the explicit context parameter.
+
+The first deployment copied stale precompiled modules because building only
+`ATHENA.bin` does not build the independent `athena_scheme_bytecode` target.
+That exposed a removed `visible-bottom-tools?` binding; rebuilding the modules
+and redeploying removed it. Separately, a temporary probe completed all its
+functional checks but faulted during `std::exit`: its core ends in mimalloc
+allocation from SYCL/MKL image unregistration in dynamic-library finalization.
+That external teardown failure is not fixed or counted as a passing process
+run. The final deployed production executable's own startup/exit path passed;
+the broader dependency-teardown issue is outside this cutover.
+
+### Preceding Bounded Deliveries
 
 The current delivery stops at the source-owned editor/conversion consumers,
 wrapper correction and source-value preparation documented below. Commit these
@@ -55,9 +109,9 @@ The follow-up work is divided into independently deliverable changes:
    focused runtime evidence are recorded at the end of the implementation
    README (`/tmp/athena-async-input-planning-probe.log`).
 
-The three implementation deliveries above are complete. The overall cutover
-still requires the final consumer/ownership integration audit and deployment;
-these are the next bounded delivery, not a new round of feature work.
+The three implementation deliveries above and their final integration/deployment
+are complete. The final ledger above supersedes this checkpoint's earlier
+pre-deployment status.
 
 For each change, stop after its concrete exit conditions, build the production
 target with `-j16`, use a focused runtime check only where the ownership or
@@ -422,7 +476,10 @@ bridge, editor and native field owners. Do not introduce a general event-sourced
 application framework: retained records cover only contract-relevant effects
 and their admission inputs.
 
-### Implementation Status At This Revision
+### Historical Integration Snapshot
+
+This table predates the subsequent consumer and lifecycle deliveries. Consult
+the current checkpoint above for final status, not its historical task list.
 
 | Area | Observed state | Still required |
 | --- | --- | --- |
@@ -1627,8 +1684,10 @@ Prepare an immutable resolution context handle from the evaluator's scope
 boundary. A request uses that handle and its demanded binding. Cached results
 may be reused in another prepared context only after their observed receipts
 match. This avoids both a whole-environment context hash and one analysis per
-cursor position. Dependency checks and context interning occur in scheduled
-preparation/publication, never inside a field getter.
+cursor position. Context interning and unbounded dependency work occur in
+scheduled preparation/publication. The final implementation permits the bounded
+immutable-evidence admission described in the current checkpoint; it does not
+permit source execution or analysis scheduling inside a field getter.
 
 Declaration resolution is authoritative owner work. Macro-body inference is
 optional worker work. A change to an explicit accessibility rule must become

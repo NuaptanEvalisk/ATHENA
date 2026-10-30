@@ -2,8 +2,8 @@
 
 This replaces DRD's mixed structure, editor, macro-analysis and Scheme group
 registries. It does not change the v3 document format or migrate the user's
-vault. The implementation is being integrated by ownership boundary, removing
-each old authority when its replacement is connected.
+vault. The bounded cutover is complete; see the current checkpoint in the
+entry-point design and the final integration record at the end of this file.
 
 ## Reading This Design
 
@@ -16,12 +16,10 @@ retirement of value-only style caches, declaration attachment/precedence, and
 the separation between actual display editing and optional field-wide inference.
 Those are target decisions, not additions to the implementation evidence below.
 
-The model and protocols below describe the target, not capabilities inferred
-from class names in the worktree. `Integrated` and the subsequent transition
-notes record implementation evidence; the latest worktree status is at the end.
-In particular, immutable storage and replayable events do not yet establish
-complete input coverage, prepared occurrence selection or asynchronous
-publication.
+The model and protocols below include historical design stages, not capabilities
+inferred from class names. `Integrated` and subsequent transition notes record
+implementation evidence; the final status is at the end. Earlier remaining-work
+lists must be read in their dated context rather than as new delivery goals.
 
 The replacement has three externally meaningful boundaries:
 
@@ -38,8 +36,8 @@ database or user-facing update command is part of this replacement.
 The implementation priority is correctness of prepared state, then removal of
 query-time work, then asynchronous inference. A new descriptor class, frozen
 payload, or background task alone does not complete any of those boundaries.
-The next bounded deliverable is specified under `Next Lifecycle Cutover` below;
-do not keep extending the positional adapter instead of completing that unit.
+The historical `Next Lifecycle Cutover` section is retained to explain the
+implementation sequence, not to reopen its completed deliveries.
 
 ## Model
 
@@ -5821,3 +5819,61 @@ receipt-only publication checks also passed. No permanent test suite was added.
 This completes the planned analysis-responsiveness implementation delivery.
 The overall DRD cutover remains subject to the final integration audit and
 local executable deployment; neither is implied by this focused check.
+
+### Final Integration And Deployment (2026-10-31)
+
+The preceding implementation deliveries and final integration audit are now
+complete. The current ledger in `notes/native-node-contracts-design.md` is the
+authoritative delivery status; earlier pending lists describe intermediate
+revisions rather than an unbounded follow-up task.
+
+The audit found a real syntax-cache boundary in Packrat. Its cached input used
+to depend on text and grammar revision even though serialization also read
+contract syntax and evaluator variables. `30c67a6ae` passes an explicit native
+syntax query through serialization and retains detached copies of only the
+definitions actually read. Reuse checks those definitions through the current
+query, including absent values; this also records reads into enclosing bridge
+captures. Construction failure leaves the previous cache identity untouched.
+No whole environment is copied, and the parser retains no editor or query
+reference. Compound/transclusion bridge marker policy now reads the bridge's
+own environment instead of dynamically selected execution state.
+
+Source audit confirms removal of the old DRD directory/descriptor authority,
+`drd_update`, partial execution helpers and ambient editor/conversion/bridge
+queries. Remaining native execution-state routing belongs to current-operation
+APIs and the experimental evaluator, not unrelated source-field lookups.
+Persisted `drd-props` remains native-decoded declaration syntax. Static fields
+and groups remain data; existing Scheme bindings are transitional callers,
+not a revived Scheme implementation of contracts.
+
+Production built with `-j16`; the temporary integration probe passed at 01:35.
+It checked in-place syntax mutation, absent-to-present values, attached syntax
+declarations, owner restoration, outer bridge dependency capture and failure
+atomicity. Real BufferActors checked asynchronous statistics, edit/cursor
+supersession, source-local rules, owner isolation and queued close against the
+latest capture/publication implementation. Existing Unicode parser tests were
+adapted to the explicit constructor context without adding tests or running a
+broad suite.
+
+Deployment additionally required `athena_scheme_bytecode`: `ATHENA.bin` alone
+does not refresh the packaged modules. The first packaged check exposed a stale
+`visible-bottom-tools?` reference and a separate temporary-harness exit failure
+in SYCL/MKL image unregistration through mimalloc. The core evidence is recorded
+in the entry-point design; that teardown failure is not claimed fixed. Building
+the bytecode target, deploying through `tools/deploy-local-runtime.sh`, and
+synchronizing the private Guile runtime removed the stale module reference.
+The deployed production binary booted and exited with status 0 at 01:43.
+Final build ID: `b8cf60e0cf2677ffe1cdaaf6049385c8ad0a6861`.
+
+Evidence: `/tmp/athena-native-final-integration-build.log`,
+`/tmp/athena-native-final-integration-probe.log`,
+`/tmp/athena-native-final-bytecode-build.log`,
+`/tmp/athena-native-final-deploy.log`, and
+`/tmp/athena-native-deployed-startup-Hh8jcp/system/log/ATHENA.log`.
+
+The bounded inference admission delivered earlier intentionally permits at
+most 128 immutable dependency actions for older evidence; exact evidence is
+constant-time. This supersedes draft wording that prohibited all read-time
+dependency checks. Neither path evaluates source, starts analysis, walks an
+unbounded closure or admits partial capture. The remaining all-native ATHENA
+program is broader than this completed DRD replacement.
