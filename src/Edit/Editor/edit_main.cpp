@@ -62,11 +62,13 @@ editor_rep::editor_rep (server_rep* sv2, buffer_document_state* buf2):
   et (buf2->document), rp (buf2->root_path),
   progressive_typeset_pending (false), progressive_typeset_continue (false) {}
 
-void
+bool
 editor_rep::schedule_progressive_typeset () {
-  if (!progressive_typeset_pending || progressive_typeset_continue) return;
+  if (!progressive_typeset_pending || progressive_typeset_continue)
+    return false;
   progressive_typeset_continue= true;
   notify_change (THE_TREE | THE_EXTENTS | THE_FREEZE);
+  return true;
 }
 
 void

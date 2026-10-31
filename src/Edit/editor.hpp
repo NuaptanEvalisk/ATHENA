@@ -281,7 +281,7 @@ public:
   virtual void invalidate_all () = 0;
   virtual void scroll_to (SI x, SI y) = 0;
   virtual void notify_change (int env_set, int env_unset = 0) = 0;
-  void schedule_progressive_typeset ();
+  bool schedule_progressive_typeset ();
   virtual bool has_changed (int question) = 0;
   virtual int  idle_time (int event_type= ANY_EVENT) = 0;
   virtual int  change_time () = 0;

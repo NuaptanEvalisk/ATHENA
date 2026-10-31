@@ -1231,7 +1231,12 @@ buffer_actor::dispatch (actor_command_record& command) {
     }
     break;
   case actor_command_kind::progressive_typeset:
-    if (editor != nullptr) editor->schedule_progressive_typeset ();
+    if (editor != nullptr) {
+      // The pending suffix is part of this command's work, not an unrelated
+      // future UI tick. Posting only a dirty notification could leave the
+      // placeholder on screen indefinitely when no later apply is admitted.
+      if (editor->schedule_progressive_typeset ()) editor->apply_changes ();
+    }
     break;
   case actor_command_kind::init_style:
     if (editor != nullptr) editor->init_style ();

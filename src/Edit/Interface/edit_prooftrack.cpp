@@ -50,18 +50,20 @@ std::shared_ptr<const geometry> collect (box b, std::shared_ptr<const geometry> 
 // any persistent paragraph UUID without creating a new Enunciation or mutating
 // the display/source tree. Look up only targets with known proof relations.
 void paragraph_targets (tree t, path where, bool paragraph,
-                        const std::set<std::string>& targets,
+                        const athena::prooftrack::snapshot& snapshot,
+                        const std::set<std::string>& local_targets,
                         std::map<std::string, path>& found) {
   if (paragraph && !is_compound (t, "enunciation")) {
     const std::string id= athena::node::id (t);
-    if (targets.count (id)) found.emplace (id, where);
+    if (local_targets.count (id) || snapshot.by_target.count (id))
+      found.emplace (id, where);
   }
   if (is_atomic (t)) return;
   const bool children_are_paragraphs= is_func (t, DOCUMENT) ||
                                       is_func (t, PARA);
   for (int i=0; i<N(t); ++i)
     paragraph_targets (t[i], where * i, children_are_paragraphs,
-                       targets, found);
+                       snapshot, local_targets, found);
 }
 
 struct edit_interface_rep::prooftrack_geometry {
@@ -106,21 +108,22 @@ void edit_interface_rep::refresh_prooftrack_geometry () {
     payload.push_back (std::move (item));
   }
   // Existing native Enunciation markers provide proof.target immediately,
-  // even before that edit has been saved to the background index. The index
-  // also covers proofs located in other documents of this Vault.
-  std::set<std::string> targets;
+  // even before that edit has been saved to the background index. Lookup
+  // only paragraph IDs in this document: scanning every association in the
+  // entire Vault on every geometry refresh stalls large-document rendering.
+  std::set<std::string> local_targets;
   const auto snapshot= athena::prooftrack::read ();
-  for (const auto& [id, proofs]: snapshot->by_target)
-    if (!proofs.empty ()) targets.insert (id);
   for (const auto& point: payload) {
     if (point.value ("proof", false)) {
       const auto id= point.value ("target", std::string ());
-      if (!id.empty ()) targets.insert (id);
+      if (!id.empty ()) local_targets.insert (id);
     }
   }
-  if (!targets.empty () && has_subtree (et, rp)) {
+  if ((!local_targets.empty () || !snapshot->by_target.empty ()) &&
+      has_subtree (et, rp)) {
     std::map<std::string, path> matched;
-    paragraph_targets (subtree (et, rp), rp, false, targets, matched);
+    paragraph_targets (subtree (et, rp), rp, false,
+                       *snapshot, local_targets, matched);
     for (const auto& [id, where]: matched) {
       const auto first= try_admitted_boundary (where, true);
       if (!first) continue;
