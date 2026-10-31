@@ -170,7 +170,8 @@ std::shared_ptr<service> for_vault (vault_context_handle vault) {
   if (!result) {
     result= std::make_shared<service> (vault->root,
       [vault] (const std::atomic<bool>& stop) { return capture_live (vault, stop); },
-      [vault] (const item& target, const std::atomic<bool>& stop) { return read_online (vault, target, stop); });
+      [vault] (const item& target, const std::atomic<bool>& stop) { return read_online (vault, target, stop); },
+      [] { return athena::node_reference::source_epoch (); });
     current= result;
   }
   return result;

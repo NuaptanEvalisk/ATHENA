@@ -15,9 +15,11 @@
 #include "formatter.hpp"
 #include "Format/format.hpp"
 #include "actor_ui_bridge.hpp"
+#include "Bridge/impl_typesetter.hpp"
 #include <cmath>
 #include <QUrl>
 #include "Subsystems/Qt/qt_picture.hpp"
+#include <functional>
 
 void edit_interface_rep::mouse_touch_context (SI x, SI y,
                                                std::uint64_t request) {
@@ -83,7 +85,22 @@ void edit_interface_rep::refresh_node_references () {
   // A derived-reference refresh is not a source edit and must neither enter
   // undo history nor close an unrelated interactive hover stack.
   auto overlays= std::move (link_peeks);
-  typeset_invalidate_all ();
+  // Only native transclusions depend on the derived reference snapshots.
+  // Invalidating the entire environment discards every bridge and repeats
+  // page layout for each independent source resolution on cold open.
+  if (get_typesetter ()->screen_tree) typeset_invalidate_all ();
+  else {
+    const std::function<void (const tree&, path)> invalidate=
+      [&] (const tree& source, path relative) {
+        if (athena::node_reference::canonical (source)) {
+          typeset_invalidate_presentation (rp * relative);
+          return;
+        }
+        if (is_compound (source)) for (int i=0; i<N(source); ++i)
+          invalidate (source[i], relative * i);
+      };
+    invalidate (subtree (et, rp), path ());
+  }
   link_peeks= std::move (overlays);
   for (auto& peek: link_peeks) if (athena_link_peek_native_target (peek.target)) {
     const rectangle old= peek.bounds;

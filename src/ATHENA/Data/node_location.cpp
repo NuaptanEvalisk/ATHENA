@@ -263,14 +263,17 @@ struct service::impl: std::enable_shared_from_this<impl> {
   const std::filesystem::path root;
   const live_provider live;
   const content_provider content;
+  const live_epoch_provider live_epoch;
   std::atomic<bool> stopping {false};
   std::mutex lock;
   std::condition_variable wake;
   std::deque<std::shared_ptr<query>> pending;
   std::uint64_t cache_epoch= 0;
   std::thread worker;
-  impl (std::filesystem::path root, live_provider live, content_provider content):
-    root (std::move (root)), live (std::move (live)), content (std::move (content)) {}
+  impl (std::filesystem::path root, live_provider live, content_provider content,
+        live_epoch_provider epoch):
+    root (std::move (root)), live (std::move (live)),
+    content (std::move (content)), live_epoch (std::move (epoch)) {}
   void start () { worker= std::thread ([self= shared_from_this ()] { self->run (); }); }
   void stop () {
     std::deque<std::shared_ptr<query>> cancelled;
@@ -286,6 +289,9 @@ struct service::impl: std::enable_shared_from_this<impl> {
     std::map<std::string, std::shared_ptr<const source>> cache;
     std::unique_ptr<fs::confined_root> pinned_root;
     std::uint64_t epoch= 0, serial= 0;
+    std::optional<std::uint64_t> captured_live_epoch;
+    sources cached_live;
+    std::set<std::string> cached_overridden;
     for (;;) {
       std::deque<std::shared_ptr<query>> batch;
       {
@@ -306,19 +312,36 @@ struct service::impl: std::enable_shared_from_this<impl> {
       std::set<std::string> overridden, present;
       try {
         if (live) {
-          for (auto& current: live (stopping)) {
-            if (current.actor == 0 || (!current.file.empty () && !valid_file (current.file)))
-              throw std::invalid_argument ("Invalid live source descriptor");
-            if (!current.file.empty ()) overridden.insert (current.file);
-            if (!current.error.empty ()) {
-              errors.push_back ({current.file, current.error}); continue;
+          const auto before= live_epoch ?
+            std::optional<std::uint64_t> (live_epoch ()) : std::nullopt;
+          if (before && before == captured_live_epoch) {
+            documents= cached_live;
+            overridden= cached_overridden;
+          }
+          else {
+            for (auto& current: live (stopping)) {
+              if (current.actor == 0 || (!current.file.empty () && !valid_file (current.file)))
+                throw std::invalid_argument ("Invalid live source descriptor");
+              if (!current.file.empty ()) overridden.insert (current.file);
+              if (!current.error.empty ()) {
+                errors.push_back ({current.file, current.error}); continue;
+              }
+              auto next= std::make_shared<source> ();
+              next->file= std::move (current.file);
+              next->actor= current.actor;
+              next->capture= current.capture;
+              next->nodes= std::move (current.nodes);
+              documents.push_back (std::move (next));
             }
-            auto next= std::make_shared<source> ();
-            next->file= std::move (current.file);
-            next->actor= current.actor;
-            next->capture= current.capture;
-            next->nodes= std::move (current.nodes);
-            documents.push_back (std::move (next));
+            // Reuse only successful, version-consistent inventories. A source
+            // edit or open/close event increments the epoch and forces a new
+            // actor-owned capture before another lookup.
+            if (before && errors.empty () && *before == live_epoch ()) {
+              cached_live= documents;
+              cached_overridden= overridden;
+              captured_live_epoch= before;
+            }
+            else captured_live_epoch.reset ();
           }
         }
         std::set<std::string> requested;
@@ -504,8 +527,10 @@ struct service::impl: std::enable_shared_from_this<impl> {
   }
 };
 
-service::service (std::filesystem::path root, live_provider live, content_provider content):
-  data (std::make_shared<impl> (std::move (root), std::move (live), std::move (content))) { data->start (); }
+service::service (std::filesystem::path root, live_provider live,
+                  content_provider content, live_epoch_provider epoch):
+  data (std::make_shared<impl> (std::move (root), std::move (live),
+                                std::move (content), std::move (epoch))) { data->start (); }
 service::~service () { data->stop (); }
 std::shared_ptr<query> service::request (std::vector<std::string> ids,
                                        std::vector<std::string> ancestry,
@@ -673,8 +698,50 @@ content_payload capture_content (const tree& source, const item& target,
 }
 
 content_payload read_disk_content (const std::filesystem::path& root, const item& target) {
-  auto source= read_disk_source (root, target);
-  return capture_content (source.document, target,
-    (root / target.candidates.front ().file).string (), source.version);
+  if (target.state != status::resolved || target.candidates.size () != 1)
+    throw std::invalid_argument ("Node target is not uniquely resolved");
+  const auto& location= target.candidates.front ();
+  if (location.actor || !location.disk_revision || !valid_file (location.file))
+    throw std::invalid_argument ("Node target is not a saved vault source");
+  fs::confined_root directory (root);
+  const auto entry= directory.open (location.file);
+  const auto revision= entry.stat ();
+  if (!fs::same_revision (*location.disk_revision, revision))
+    throw std::runtime_error ("Stale saved node location");
+
+  // The locator worker owns these trees. One source document may supply many
+  // independent transclusions in a single cold-open batch; UUID addresses in
+  // LMDB do not cache its decoded content. Keep a small revision-checked L1
+  // instead of reading and decoding the same file for every target.
+  struct cached_source {
+    std::filesystem::path vault;
+    std::string file;
+    fs::metadata revision;
+    std::shared_ptr<const document::native_xml_read_result> source;
+  };
+  static thread_local std::list<cached_source> decoded;
+  auto found= std::find_if (decoded.begin (), decoded.end (), [&] (const auto& item) {
+    return item.vault == root && item.file == location.file &&
+           fs::same_revision (item.revision, revision);
+  });
+  if (found == decoded.end ()) {
+    auto parsed= std::make_shared<const document::native_xml_read_result> (
+      document::decode_native_xml_bytes (
+        entry.read (document::codec_limits ().input_bytes)));
+    const auto after= directory.open (location.file);
+    if (!entry.same_object (after) || !fs::same_revision (revision, after.stat ()))
+      throw std::runtime_error ("Source changed while reading node target");
+    decoded.push_front ({root, location.file, revision, std::move (parsed)});
+    if (decoded.size () > 32) decoded.pop_back ();
+  }
+  else decoded.splice (decoded.begin (), decoded, found);
+
+  const auto& source= *decoded.front ().source;
+  auto payload= capture_content (source.document, target,
+    (root / location.file).string (), source.version);
+  const auto now= directory.open (location.file);
+  if (!entry.same_object (now) || !fs::same_revision (revision, now.stat ()))
+    throw std::runtime_error ("Source changed while reading node target");
+  return payload;
 }
 } // namespace athena::node_location

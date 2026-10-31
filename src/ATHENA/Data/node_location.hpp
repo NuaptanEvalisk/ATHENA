@@ -49,6 +49,7 @@ struct live_source {
 // report failures instead of omitting open files (which would expose old disk
 // contents). This callback must honour cancellation during actor queries.
 using live_provider= std::function<std::vector<live_source> (const std::atomic<bool>&)>;
+using live_epoch_provider= std::function<std::uint64_t ()>;
 
 enum class status { pending, resolved, missing, unreadable, conflict,
                     cycle, overlap, invalid, cancelled };
@@ -109,7 +110,8 @@ class service {
   struct impl;
   std::shared_ptr<impl> data;
 public:
-  explicit service (std::filesystem::path root, live_provider live= {}, content_provider content= {});
+  explicit service (std::filesystem::path root, live_provider live= {},
+                    content_provider content= {}, live_epoch_provider epoch= {});
   ~service ();
   service (const service&)= delete;
   service& operator = (const service&)= delete;

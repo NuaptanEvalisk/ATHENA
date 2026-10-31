@@ -31,6 +31,7 @@
 #include "merge_sort.hpp"
 #include "materials_document.hpp"
 #include "ATHENA/Data/node_reference_export.hpp"
+#include "ATHENA/Data/node_reference.hpp"
 #include "System/Boot/boot.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include "source_document_creation.hpp"
@@ -39,6 +40,7 @@
 #include <QSaveFile>
 #include <filesystem>
 #include <algorithm>
+#include <functional>
 #include <optional>
 #include <stdexcept>
 
@@ -1136,6 +1138,22 @@ buffer_import (url name, url src, string fm) {
   std::optional<athena::document::document_source_format> source_format;
   tree t= import_tree_with_format (src, fm, &storage_sha256, source_format);
   if (t == "error" || is_func (t, _ERROR)) return true;
+  if (vault_active () && source_format &&
+      *source_format == athena::document::document_source_format::xml_v3) {
+    // Resolve saved native references while the imported document is being
+    // handed to its actor and its initial editor is being constructed.
+    // Waiting for the typesetter to encounter each TRANSCLUDE first causes a
+    // visible placeholder frame followed by an expensive second layout.
+    const std::function<void (const tree&)> prefetch= [&] (const tree& source) {
+      if (athena::node_reference::canonical (source)) {
+        (void) athena::node_reference::get (athena::node_reference::targets (source));
+        return;
+      }
+      if (is_compound (source))
+        for (int i=0; i<N(source); ++i) prefetch (source[i]);
+    };
+    prefetch (t);
+  }
   if (vault_active () && suffix (name) == "ath") {
     string preference= get_preference ("materials csl style", "springer-mathphys");
     std::string style= athena_materials_document_citation_style (

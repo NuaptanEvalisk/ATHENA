@@ -10,6 +10,7 @@
 #include "ATHENA/Data/node_reference.hpp"
 #include "ATHENA/Data/node_reference_export.hpp"
 #include "ATHENA/Data/vault_node_location.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
 #include "buffer_actor.hpp"
 #include "buffer_name_catalog.hpp"
 #include "qt_utilities.hpp"
@@ -24,6 +25,7 @@
 #include <QUrl>
 #include <atomic>
 #include <chrono>
+#include <functional>
 #include <map>
 #include <mutex>
 #include <set>
@@ -94,16 +96,56 @@ std::map<key, std::shared_ptr<entry>> entries;
 std::uint64_t revision= 0;
 void start (const std::shared_ptr<entry>&);
 
+void prefetch_nested_references (const node_location::snapshot& snapshot) {
+  if (!snapshot) return;
+  for (const auto& target: snapshot->items) {
+    if (target.state != node_location::status::resolved ||
+        target.fragment_xml.empty ()) continue;
+    std::vector<std::string> ancestry= snapshot->ancestry;
+    ancestry.push_back (target.id);
+    try {
+      const auto source= document::decode_native_xml_bytes (
+        target.fragment_xml, document::xml_kind::fragment).document;
+      const std::function<void (const tree&)> visit= [&] (const tree& value) {
+        if (canonical (value)) {
+          auto ids= targets (value);
+          // The typesetter reports cyclic references; do not recursively
+          // prefetch a cycle while preparing its containing source.
+          for (const auto& id: ids)
+            if (std::find (ancestry.begin (), ancestry.end (), id) != ancestry.end ())
+              return;
+          (void) get (std::move (ids), ancestry);
+          return;
+        }
+        if (is_compound (value))
+          for (int i=0; i<N(value); ++i) visit (value[i]);
+      };
+      visit (source);
+    }
+    catch (const std::exception&) {
+      // The presentation decoder reports invalid source fragments normally.
+    }
+  }
+}
+
 class monitor: public QObject {
   QFileSystemWatcher watcher;
   QTimer timer;
+  QTimer delivery_timer;
   std::uint64_t observed= changes.load ();
   std::map<std::string, recipient> members;
   std::set<recipient> refresh;
   std::weak_ptr<entry> navigating;
   std::uint64_t navigation_origin= 0;
 public:
-  explicit monitor (QObject* parent): QObject (parent), watcher (this), timer (this) {
+  explicit monitor (QObject* parent): QObject (parent), watcher (this), timer (this),
+      delivery_timer (this) {
+    // The first reference is usually requested while the newly opened buffer
+    // is being typeset. Record its already-published actor membership now;
+    // otherwise the first 100-ms poll mistakes startup for a source change and
+    // cancels all just-created cold reference requests.
+    for (const auto& pair: published_buffer_metadata ())
+      members[pair.first]= {pair.second.actor_id, pair.second.source_view};
     connect (&watcher, &QFileSystemWatcher::fileChanged, this, [] { source_changed (); });
     connect (&watcher, &QFileSystemWatcher::directoryChanged, this, [] { source_changed (); });
     timer.setInterval (100);
@@ -127,10 +169,13 @@ public:
         }
       }
       for (const auto& e: retry) start (e);
-      deliver ();
+      if (!delivery_timer.isActive ()) deliver ();
       finish_navigation ();
     });
     timer.start ();
+    delivery_timer.setSingleShot (true);
+    delivery_timer.setInterval (30);
+    connect (&delivery_timer, &QTimer::timeout, this, [this] { deliver (); });
     connect (QCoreApplication::instance (), &QCoreApplication::aboutToQuit, this, [] {
       std::map<key, std::shared_ptr<entry>> old;
       { std::lock_guard<std::mutex> guard (cache_lock); old.swap (entries); }
@@ -224,7 +269,16 @@ public:
       if (failed.empty ()) {
         // Install watches before trusting a scan. A second inventory closes
         // the discovery-to-watch gap, including newly copied duplicate IDs.
-        invalidate (); return;
+        // Only this entry needs the second verification. Restarting *all*
+        // references makes every first-open watch installation replay every
+        // other node's source inventory and content extraction.
+        {
+          std::lock_guard<std::mutex> guard (cache_lock);
+          if (generation != e->generation) return;
+          ++e->generation;
+        }
+        start (e);
+        return;
       }
       auto error= std::make_shared<node_location::result> (*result);
       error->state= node_location::status::unreadable;
@@ -237,6 +291,7 @@ public:
       result= error;
     }
     bool refresh_views= false;
+    node_location::snapshot newly_published;
     {
       std::lock_guard<std::mutex> guard (cache_lock);
       if (generation != e->generation) return;
@@ -259,13 +314,15 @@ public:
         refresh_views ? ++revision : e->published.revision;
       e->published= {std::move (result), visible_revision};
       e->verified= e->published;
+      if (refresh_views) newly_published= e->published.snapshot;
       e->retry_pending= e->published.snapshot &&
         e->published.snapshot->state == node_location::status::unreadable;
       e->retry_after= std::chrono::steady_clock::now () + std::chrono::seconds (2);
       if (refresh_views)
         refresh.insert (e->subscribers.begin (), e->subscribers.end ());
     }
-    if (refresh_views) deliver ();
+    if (newly_published) prefetch_nested_references (newly_published);
+    if (refresh_views) delivery_timer.start ();
   }
 };
 

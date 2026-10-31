@@ -311,7 +311,7 @@ scheme_command="(delayed (:pause $startup_delay_ms) (begin
     (system $helper_buffer_scheme)
     (delayed (:pause $settle_ms) (begin
       (system $helper_finish_scheme)
-      (exec-global (lambda () (quit-TeXmacs))))))))"
+      (exec-global (lambda () (quit-TeXmacs)))))))))"
 startup_scheme="(begin
   (set-preference \"check for updates\" \"off\")
   (set-preference \"google oauth client id\" \"\")
