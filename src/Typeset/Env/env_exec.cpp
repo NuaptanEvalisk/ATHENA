@@ -848,6 +848,63 @@ edit_env_rep::track_definition (string name, const tree& value) {
   if (contract_events) contract_events->record (std::move (binding));
 }
 
+namespace {
+
+tree reference_binding_value (const athena::contracts::reference_write& write,
+                              const tree& previous) {
+  tree value= tuple (tree (write.value),
+    is_tuple (previous) && N(previous) >= 2 ? previous[1] : tree ("?"));
+  if (write.origin)
+    value << string (write.origin->data (), write.origin->size ());
+  return value;
+}
+
+void apply_reference_write (edit_env_rep& env,
+                            const athena::contracts::reference_write& write) {
+  const string key (write.name.data (), write.name.size ());
+  const tree previous= env.local_ref[key];
+  env.local_ref(key)= reference_binding_value (write, previous);
+  env.touched(key)= true;
+  if (env.complete && is_tuple (previous) && N(previous) >= 1) {
+    const string old_text= tree_as_string (previous[0]);
+    const string new_text= tree_as_string (env.local_ref[key][0]);
+    if (new_text != old_text && !starts (key, "auto-"))
+      env.redefined << tree (TUPLE, key, new_text);
+  }
+}
+
+// Validate interleaved reference reads/writes without publishing any effects
+// until the entire cached execution has been admitted.
+struct reference_replay {
+  edit_env_rep& env;
+  std::map<std::string, tree> values;
+  std::vector<athena::contracts::reference_write> writes;
+
+  void write (const athena::contracts::reference_write& value) {
+    const auto found= values.find (value.name);
+    const string key (value.name.data (), value.name.size ());
+    const tree previous= found == values.end () ? env.local_ref[key] : found->second;
+    values.insert_or_assign (value.name, reference_binding_value (value, previous));
+    writes.push_back (value);
+  }
+
+  bool matches (const athena::contracts::external_query& query) const {
+    if (query.source == athena::contracts::external_source::reference) {
+      const auto found= values.find (query.name);
+      if (found != values.end ())
+        return query.local && query.present && query.value &&
+          query.value->matches (found->second);
+    }
+    return env.external_input_matches (query);
+  }
+
+  void commit () const {
+    for (const auto& value: writes) apply_reference_write (env, value);
+  }
+};
+
+} // namespace
+
 bool
 edit_env_rep::replay_contract_events (const athena::contracts::contract_event_log& events,
                                       bool record) {
@@ -857,12 +914,14 @@ edit_env_rep::replay_contract_events (const athena::contracts::contract_event_lo
         if (!env->contains (name)) return std::nullopt;
         return env[name];
       };
-    const auto external= [this] (const auto& query) { return external_input_matches (query); };
+    reference_replay references {*this, {}, {}};
+    const auto external= [&] (const auto& query) { return references.matches (query); };
+    const auto reference= [&] (const auto& write) { references.write (write); };
     const auto packages= [this] (const auto& query) { return package_input_matches (query); };
     auto result= recorded_contexts ?
-      recorded_contexts->replay (events, lookup, external, packages) :
+      recorded_contexts->replay (events, lookup, external, packages, reference) :
       athena::contracts::resolve_evaluation_effects (events, contract_state.contracts, lookup,
-        athena::contracts::execution_resolution::cache_admission, external, packages);
+        athena::contracts::execution_resolution::cache_admission, external, packages, {}, reference);
     if (!result) return false;
     // Only the outward variable effects reach the real evaluator. Intermediate
     // WITH values and their restorations were resolved in the private draft.
@@ -878,6 +937,7 @@ edit_env_rep::replay_contract_events (const athena::contracts::contract_event_lo
       }
     }
     contract_state.contracts= std::move (result->contracts);
+    references.commit ();
   }
   if (record && events && contract_events) contract_events->record (events);
   return true;
@@ -885,12 +945,14 @@ edit_env_rep::replay_contract_events (const athena::contracts::contract_event_lo
 
 bool
 edit_env_rep::can_replay_events (const athena::contracts::contract_event_log& events) {
+  reference_replay references {*this, {}, {}};
   return athena::contracts::evaluation_events_applicable (events, contract_state.contracts,
     [this] (const string& name) -> std::optional<tree> {
       if (!env->contains (name)) return std::nullopt;
       return env[name];
-    }, [this] (const auto& query) { return external_input_matches (query); },
-    [this] (const auto& query) { return package_input_matches (query); });
+    }, [&] (const auto& query) { return references.matches (query); },
+    [this] (const auto& query) { return package_input_matches (query); },
+    [&] (const auto& write) { references.write (write); });
 }
 
 bool
@@ -2096,38 +2158,22 @@ edit_env_rep::exec_set_binding (tree t) {
   }
   //cout << t << ": " << keys << " -> " << value << "\n";
 
-  // SET_BINDING mutates a reference provider and additional layout outputs.
-  // These are not variable writes and cannot be replayed by the current
-  // contract draft. Do not admit its enclosing cached execution as reusable.
-  if (contract_events)
-    contract_events->record (athena::contracts::evaluation_barrier {
-      athena::contracts::evaluation_barrier_kind::layout_output});
-
   for (int i=0; i<N(keys); i++) {
     string key= keys[i]->label;
-    tree old_value= local_ref[key];
     string part= as_string (read ("current-part"));
-    if (is_func (old_value, TUPLE) && (N(old_value) >= 2))
-      local_ref (key)= tuple (copy (value), old_value[1]);
-    else local_ref (key)= tuple (copy (value), "?");
+    std::optional<std::string> origin;
     if (cur_file_name != base_file_name || N(part) != 0) {
       string extra;
       if (cur_file_name != base_file_name)
 	extra << as_string (delta (base_file_name, cur_file_name));
       if (N(part) != 0)
 	extra << "#" << part (1, N(part));
-      local_ref (key) << extra;
+      origin= std::string (extra.data (), N(extra));
     }
-    touched (key)= true;
-    if (complete && is_tuple (old_value) && N(old_value) >= 1) {
-      string old_s= tree_as_string (old_value[0]);
-      string new_s= tree_as_string (value);
-      if (new_s != old_s && !starts (key, "auto-")) {
-        redefined << tree (TUPLE, key, new_s);
-	//if (new_s == "") typeset_warning << "Redefined " << key << LF;
-	//else typeset_warning << "Redefined " << key << " as " << new_s << LF;
-      }
-    }
+    athena::contracts::reference_write write {
+      std::string (key.data (), N(key)), athena::node::frozen_tree (value), std::move (origin)};
+    if (contract_events) contract_events->record (write);
+    apply_reference_write (*this, write);
   }
   return tree (HIDDEN_BINDING, keys, value);
 }

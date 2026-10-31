@@ -258,13 +258,17 @@ private slots:
     context.h2 ("absent-reference")= tree (TUPLE, "now-present", "2");
     QVERIFY (!env->can_replay_events (missing));
 
-    // SET_BINDING also changes touched/redefinition state, which the current
-    // contract-only replay cannot publish. A cached block containing it must
-    // therefore not be admitted as a pure variable/declaration effect replay.
+    // Reference writes are replayable effects, retaining pagination's current
+    // page rather than restoring the page present at capture time.
     const auto modified= capture ([&] {
       (void) env->exec (tree (SET_BINDING, "external-reference", "rebound"));
     });
-    QVERIFY (!env->can_replay_events (modified));
+    context.h1 ("external-reference")= tree (TUPLE, "initial", "9");
+    QVERIFY (env->can_replay_events (modified));
+    QCOMPARE (context.h1["external-reference"], tree (TUPLE, "initial", "9"));
+    QVERIFY (env->replay_contract_events (modified, true));
+    QCOMPARE (context.h1["external-reference"], tree (TUPLE, "rebound", "9"));
+    QVERIFY (env->touched["external-reference"]);
   }
   void withPackageEvaluatesNestedDeclarationsAndRestoresOnlyItsWrites () {
     Environment context;

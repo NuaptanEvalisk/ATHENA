@@ -150,7 +150,8 @@ public:
     const athena::contracts::contract_event_log&,
     const athena::contracts::variable_lookup&,
     const athena::contracts::external_matcher&,
-    const athena::contracts::package_matcher&);
+    const athena::contracts::package_matcher&,
+    const athena::contracts::reference_write_observer&);
 };
 
 // A root evaluation commits variables and native contracts together. Unlike

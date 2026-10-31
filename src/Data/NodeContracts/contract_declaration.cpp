@@ -541,6 +541,7 @@ contract_event_log contract_event_prefix (
           effects= effects || std::holds_alternative<contract_event> (event) ||
             std::holds_alternative<definition_binding> (event) ||
             std::holds_alternative<variable_write> (event) ||
+            std::holds_alternative<reference_write> (event) ||
             std::holds_alternative<declaration_execution_handle> (event) ||
             std::holds_alternative<evaluation_barrier> (event) ||
             (std::holds_alternative<contract_event_log> (event) &&
@@ -564,15 +565,17 @@ bool contract_events_applicable (const contract_event_log& log, contract_scope i
 bool evaluation_events_applicable (const contract_event_log& log, contract_scope input,
                                     const variable_lookup& lookup,
                                     const external_matcher& external,
-                                    const package_matcher& packages) {
+                                    const package_matcher& packages,
+                                    const reference_write_observer& reference) {
   return bool (resolve_evaluation_effects (log, std::move (input), lookup,
-    execution_resolution::cache_admission, external, packages));
+    execution_resolution::cache_admission, external, packages, {}, reference));
 }
 
 std::optional<evaluation_effects> resolve_evaluation_effects (
     const contract_event_log& log, contract_scope input, const variable_lookup& lookup,
     execution_resolution mode, const external_matcher& external, const package_matcher& packages,
-    const evaluation_boundary_observer& boundary) {
+    const evaluation_boundary_observer& boundary,
+    const reference_write_observer& reference) {
   const bool validate_reads= mode == execution_resolution::cache_admission;
   using variable_value= std::optional<node::frozen_tree>;
   evaluation_variable_overlay variables;
@@ -590,6 +593,10 @@ std::optional<evaluation_effects> resolve_evaluation_effects (
       return !validate_reads || (packages && packages (*query));
     if (const auto* query= std::get_if<external_query> (&record))
       return !validate_reads || (external && external (*query));
+    if (const auto* write= std::get_if<reference_write> (&record)) {
+      if (reference) reference (*write);
+      return !validate_reads || bool (reference);
+    }
     if (const auto* query= std::get_if<variable_query> (&record)) {
       if (!validate_reads || !lookup) return true;
       const auto changed= variables.find (query->name);
@@ -828,6 +835,7 @@ void contract_event_capture::discard_since (std::size_t count) {
     if (std::holds_alternative<contract_event> (event) ||
         std::holds_alternative<definition_binding> (event) ||
         std::holds_alternative<variable_write> (event) ||
+        std::holds_alternative<reference_write> (event) ||
         std::holds_alternative<declaration_execution_handle> (event) ||
         std::holds_alternative<evaluation_barrier> (event) ||
         (std::holds_alternative<contract_event_log> (event) &&

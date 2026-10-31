@@ -293,7 +293,8 @@ evaluation_context_capture::replay (
     const athena::contracts::contract_event_log& events,
     const athena::contracts::variable_lookup& lookup,
     const athena::contracts::external_matcher& external,
-    const athena::contracts::package_matcher& packages) {
+    const athena::contracts::package_matcher& packages,
+    const athena::contracts::reference_write_observer& reference) {
   using namespace athena::contracts;
   auto draft= recorded;
   const auto incoming= draft.current.overrides;
@@ -328,7 +329,7 @@ evaluation_context_capture::replay (
       draft.current.contracts= contracts;
       draft.boundaries= std::move (draft.boundaries).set (boundary,
         std::make_shared<const evaluation_environment_checkpoint> (draft.current));
-    });
+    }, reference);
   if (!effects) return {};
   advance (effects->variables);
   draft.current.contracts= effects->contracts;

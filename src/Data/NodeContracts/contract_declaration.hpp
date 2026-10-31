@@ -112,6 +112,13 @@ struct external_query {
   bool local, present;
   std::optional<node::frozen_tree> value;
 };
+// A label write preserves the page assigned by pagination, not the page that
+// happened to exist when this execution was captured.
+struct reference_write {
+  std::string name;
+  node::frozen_tree value;
+  std::optional<std::string> origin;
+};
 // The actual package selected by source resolution, including nested inclusions.
 struct package_source_query {
   std::string name, path;
@@ -125,7 +132,7 @@ struct evaluation_barrier {
 };
 using contract_event_record= std::variant<contract_event, definition_binding, contract_event_log,
   contract_query, contract_absence, group_query, definition_query, variable_query, variable_write,
-  external_query, package_source_query,
+  external_query, reference_write, package_source_query,
   evaluation_boundary_handle, evaluation_barrier, declaration_execution_handle>;
 using contract_event_buffer= std::vector<contract_event_record>;
 struct contract_event_block {
@@ -156,6 +163,7 @@ bool contract_events_applicable (const contract_event_log&, contract_scope input
 using variable_lookup= std::function<std::optional<tree>(const string&)>;
 using external_matcher= std::function<bool(const external_query&)>;
 using package_matcher= std::function<bool(const package_source_query&)>;
+using reference_write_observer= std::function<void(const reference_write&)>;
 struct evaluation_effects {
   contract_scope contracts;
   immer::map<std::string, std::optional<node::frozen_tree>> variables;
@@ -169,10 +177,12 @@ std::optional<evaluation_effects> resolve_evaluation_effects (
     execution_resolution mode= execution_resolution::cache_admission,
     const external_matcher& external= {},
     const package_matcher& packages= {},
-    const evaluation_boundary_observer& boundary= {});
+    const evaluation_boundary_observer& boundary= {},
+    const reference_write_observer& reference= {});
 bool evaluation_events_applicable (const contract_event_log&, contract_scope input,
                                     const variable_lookup&, const external_matcher& external= {},
-                                    const package_matcher& packages= {});
+                                    const package_matcher& packages= {},
+                                    const reference_write_observer& reference= {});
 
 void visit_contract_events (const contract_event_log&,
                            const std::function<void(const contract_event&)>&,

@@ -2560,16 +2560,23 @@ The evaluator now records which local or global reference/attachment provider
 supplied a GET_BINDING, HAS_BINDING or GET_ATTACHMENT read, including absent
 keys and the selected value. Ordered contract replay compares those reads with
 the current provider and value; the same value supplied by a different scope
-does not admit stale execution. SET_BINDING writes to reference state and other
-layout outputs, so its execution remains non-reusable until that write owner
-participates in replay.
+does not admit stale execution. SET_BINDING records an ordered reference write:
+its semantic label and optional origin replace those fields while preserving
+the page currently assigned by pagination. Admission evaluates interleaved
+reference reads and writes against a private overlay. Only a fully admitted
+execution publishes reference writes, touched labels and redefinition reports.
+The same write implementation serves source execution and cache replay. This
+removes the unconditional layout-output barrier that previously forced labelled
+headings and enunciations to be typeset again on every edit elsewhere.
 
-The focused `cachedContractReadsTrackReferenceAndAttachmentProviders` check
-passed (3 passed, 0 failed including Qt setup/cleanup), and `athena_body`
-compiled successfully. Neither result establishes receipts for derived
-font/frame state or external callbacks, prepared compound occurrences,
-WITH_PACKAGE evaluation, asynchronous inference or removal of the DRD facade.
-No production binary was deployed and no Notes source was changed.
+The reference replay change was checked with a production-library probe for
+page preservation, ordered writes and reads, and rejection without publishing
+partial effects. In a copy of PROB Extras 2026-2027 I, repeated tail edits took
+33-40 ms for layout instead of 167-190 ms before the change. These are isolated
+probe timings, not the live editor's telemetry. The existing provider test was
+updated to reflect writable reference replay; the wider suite was not run.
+The production binary was built and deployed. This does not establish receipts
+for every other derived or external evaluator input.
 
 ### Source Identity Roles Consume One Resolved Contract
 
