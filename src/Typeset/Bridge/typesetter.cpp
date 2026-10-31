@@ -269,7 +269,14 @@ void
 notify_assign (typesetter ttt, path p, tree u) {
   ttt->execution_base.reset ();
   // cout << "Assign " << p << ", " << u << "\n";
-  if (is_nil (p)) ttt->br= make_bridge (ttt, u, ttt->br->ip);
+  if (is_nil (p)) {
+    // A structural edit can replace the outer DOCUMENT while leaving all
+    // preceding paragraphs identical. Preserve the document bridge so it can
+    // reuse its unchanged child bridges instead of rebuilding the whole page.
+    if (is_func (ttt->br->st, DOCUMENT) && is_func (u, DOCUMENT))
+      ttt->br->notify_assign (p, u);
+    else ttt->br= make_bridge (ttt, u, ttt->br->ip);
+  }
   else ttt->br->notify_assign (p, u);
 }
 

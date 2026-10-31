@@ -308,6 +308,7 @@ class identity_planner {
   traversal_budget budget;
   source_path where;
   source_path scope;
+  int root_begin= 0;
   std::vector<identity_request> candidates;
 
   void visit (const tree& source, child_role context, bool paragraph,
@@ -335,7 +336,8 @@ class identity_planner {
         return;
       }
       candidates.push_back ({where, identity_role::body, ""});
-      const int begin= depth < scope.size () ? scope[depth] : 0;
+      const int begin= depth < scope.size () ? scope[depth] :
+        depth == 0 ? root_begin : 0;
       const int end= depth < scope.size () ? begin + 1 : N(source);
       for (int i= begin; i < end; ++i) {
         where.push_back (i);
@@ -368,8 +370,10 @@ public:
   identity_planner (const contracts::contract_scope& value, const role_resolver& resolver,
                     limits limit, source_contract_preparation prepare= {}):
     descriptors (value), resolve (resolver), contexts (std::move (prepare)), budget {limit} {}
-  std::vector<identity_request> inspect (const tree& body, source_path selected= {}) {
+  std::vector<identity_request> inspect (const tree& body, source_path selected= {},
+                                         int first_root_child= 0) {
     scope= std::move (selected);
+    root_begin= first_root_child;
     const tree* target= &body;
     for (int index: scope) {
       if (!is_compound (*target) || index < 0 || index >= N(*target))
@@ -871,6 +875,10 @@ std::vector<diagnostic> source_identity_state::initialize (const tree& body, lim
     for (const auto& entry: next)
       for (const auto& id: entry.second) indexed.emplace (id, entry.first);
     owners= std::move (next); locations= std::move (indexed);
+    committed_children.clear ();
+    committed_children.reserve (N(body));
+    for (int i=0; i<N(body); ++i) committed_children.push_back (copy (body[i]));
+    committed_header= copy (node_header (body));
     dirty= source_path {}; ++revision; ready= true;
   }
   catch (const failure& problem) { return {problem.value}; }
@@ -878,7 +886,7 @@ std::vector<diagnostic> source_identity_state::initialize (const tree& body, lim
   return {};
 }
 
-void source_identity_state::adopt_complete_assignment (
+void source_identity_state::adopt_complete_assignment (const tree& body,
     std::map<source_path, std::set<std::string>> validated_owners) {
   std::map<std::string, source_path> indexed;
   for (const auto& [where, ids]: validated_owners)
@@ -887,6 +895,10 @@ void source_identity_state::adopt_complete_assignment (
         throw std::logic_error ("Assigned identity baseline contains duplicate IDs");
   owners= std::move (validated_owners);
   locations= std::move (indexed);
+  committed_children.clear ();
+  committed_children.reserve (N(body));
+  for (int i=0; i<N(body); ++i) committed_children.push_back (copy (body[i]));
+  committed_header= copy (node_header (body));
   dirty.reset ();
   ++revision;
   ready= true;
@@ -932,16 +944,44 @@ identity_edit_plan source_identity_state::prepare (const tree& body, const contr
     if (!is_func (body, DOCUMENT)) fail ({}, issue::invalid_body, "Expected extracted DOCUMENT body");
     if (!dirty) return plan;
     plan.scope= *dirty;
+    int first_changed= 0;
+    const bool same_root_header= !dirty->empty () ||
+      node_header (body) == committed_header;
+    if (dirty->empty () && same_root_header)
+      while (first_changed < N(body) &&
+             first_changed < int (committed_children.size ()) &&
+             body[first_changed] == committed_children[first_changed])
+        ++first_changed;
+    const bool suffix= dirty->empty () && same_root_header && first_changed>0;
+    const int begin= suffix ? first_changed : 0;
+    if (suffix) plan.root_suffix_begin= begin;
     // Classify the ancestry first, validating the selected path before access.
-    const auto candidates= identity_planner (descriptors, roles, budget, contexts).inspect (body, *dirty);
+    const auto candidates= identity_planner (descriptors, roles, budget, contexts).inspect (body, *dirty, begin);
     std::map<source_path, std::set<std::string>> local;
-    auto reserved= identity_audit (budget).inspect (at (body, *dirty), &local);
+    std::set<std::string> reserved;
+    if (suffix) {
+      for (int i=begin; i<N(body); ++i) {
+        std::map<source_path, std::set<std::string>> child_owners;
+        auto child_ids= identity_audit (budget).inspect (body[i], &child_owners);
+        for (const auto& id: child_ids)
+          if (!reserved.insert (id).second)
+            fail ({i}, issue::duplicate_id, id);
+        for (auto& [where, ids]: child_owners) {
+          source_path absolute {i};
+          absolute.insert (absolute.end (), where.begin (), where.end ());
+          local.emplace (std::move (absolute), std::move (ids));
+        }
+      }
+    }
+    else reserved= identity_audit (budget).inspect (at (body, *dirty), &local);
     for (auto& entry: local) {
       source_path owner= *dirty;
       owner.insert (owner.end (), entry.first.begin (), entry.first.end ());
       for (const auto& id: entry.second) {
         auto existing= locations.find (id);
-        if (existing != locations.end () && !within (*dirty, existing->second))
+        if (existing != locations.end () &&
+            (suffix ? (existing->second.empty () || existing->second.front () < begin) :
+                      !within (*dirty, existing->second)))
           fail (owner, issue::duplicate_id, id);
       }
       plan.owners.emplace (std::move (owner), std::move (entry.second));
@@ -986,8 +1026,11 @@ void source_identity_state::apply (tree& body, const identity_edit_plan& plan) {
   applying= true;
   try {
     for (const auto& change: plan.changes) ::apply (body, change);
-    auto i= owners.lower_bound (*dirty);
-    while (i != owners.end () && within (*dirty, i->first)) {
+    auto i= owners.lower_bound (plan.root_suffix_begin ?
+      source_path {*plan.root_suffix_begin}: *dirty);
+    while (i != owners.end () &&
+           (plan.root_suffix_begin ? (!i->first.empty () &&
+              i->first.front () >= *plan.root_suffix_begin): within (*dirty, i->first))) {
       for (const auto& id: i->second) locations.erase (id);
       i= owners.erase (i);
     }
@@ -995,6 +1038,10 @@ void source_identity_state::apply (tree& body, const identity_edit_plan& plan) {
       owners[entry.first]= entry.second;
       for (const auto& id: entry.second) locations[id]= entry.first;
     }
+    committed_children.clear ();
+    committed_children.reserve (N(body));
+    for (int j=0; j<N(body); ++j) committed_children.push_back (copy (body[j]));
+    committed_header= copy (node_header (body));
     dirty.reset (); ++revision; applying= false;
   }
   catch (...) { applying= false; ready= false; throw; }

@@ -89,8 +89,24 @@ bridge_document_rep::notify_assign (path p, tree u) {
     bool same_source= st == u;
     int previous_end= progressive_end;
     bool previous_finalized= progressive_finalized;
+    const int previous_count= N(st);
+    int unchanged= 0;
+    if (!same_source)
+      while (unchanged < previous_count && unchanged < N(u) &&
+             st[unchanged] == u[unchanged]) ++unchanged;
+    array<bridge> previous_bridges= brs;
     st= u;
-    initialize ();
+    if (same_source || unchanged == 0) initialize ();
+    else {
+      brs= array<bridge> (N(st));
+      for (int i=0; i<unchanged; ++i) brs[i]= previous_bridges[i];
+      for (int i=unchanged; i<N(st); ++i)
+        brs[i]= make_bridge (ttt, st[i], descend (ip, i));
+      progressive_end= min (previous_end, unchanged);
+      progressive_finalized= false;
+      progressive_pass_pending= false;
+      initialize_acc ();
+    }
     if (same_source) {
       progressive_end= min (previous_end, N(st));
       progressive_finalized=

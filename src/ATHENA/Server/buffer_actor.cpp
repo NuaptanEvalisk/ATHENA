@@ -377,7 +377,7 @@ prepare_replacement_node_identities (const tree& document, tree& body) {
   }
   body= *assigned.body;
   auto next= std::make_unique<athena::document_node::source_identity_state> ();
-  next->adopt_complete_assignment (std::move (assigned.owners));
+  next->adopt_complete_assignment (body, std::move (assigned.owners));
   return next;
 }
 

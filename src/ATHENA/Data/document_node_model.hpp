@@ -136,6 +136,9 @@ struct identity_edit_plan {
   std::vector<assigned_identity> assigned;
   std::vector<diagnostic> diagnostics;
   source_path scope;
+  // When sibling edits merge at the root, unchanged earlier paragraphs keep
+  // their source positions and UUID owners. Only the affected suffix is reset.
+  std::optional<int> root_suffix_begin;
   std::uint64_t revision= 0;
   // Rich-property identities belong to their containing source node here;
   // they never pretend to occupy ordinary body child indices.
@@ -153,6 +156,11 @@ class source_identity_state {
   std::map<source_path, std::set<std::string>> owners;
   std::map<std::string, source_path> locations;
   std::optional<source_path> dirty;
+  // Deep source snapshots make a root-level replacement's unchanged prefix
+  // verifiable, even when the modification reports only the DOCUMENT root.
+  // Unlike aliases to the editor tree, these cannot change in-place.
+  std::vector<tree> committed_children;
+  tree committed_header;
   std::uint64_t revision= 0;
   bool ready= false, applying= false;
 public:
@@ -160,7 +168,7 @@ public:
   // Only use ownership returned by successful assign_detached_source_ids.
   // That operation has already audited every existing ID and planned every
   // required source role; its generated IDs have been checked for uniqueness.
-  void adopt_complete_assignment (
+  void adopt_complete_assignment (const tree& body,
     std::map<source_path, std::set<std::string>> validated_owners);
   // Activation/load boundary for an already migrated source body. Validate
   // both uniqueness and complete role identities, without assigning IDs or
