@@ -127,10 +127,15 @@ edit_interface_rep::try_shortcut (string comb) {
       if (status == 0) return false;
     }
     else {
-      if (sh_mark != 0 && !mark_cancel (sh_mark)) {
-        sh_mark= 0;
-        shortcut_environment.reset ();
-        return false;
+      if (sh_mark != 0) {
+        if (!mark_cancel (sh_mark)) {
+          sh_mark= 0;
+          shortcut_environment.reset ();
+          return false;
+        }
+        // Undo restores the source but invalidates its display context. Both
+        // native commands and kbd-insert may query the restored cursor mode.
+        apply_changes ();
       }
     }
     sh_s= comb;

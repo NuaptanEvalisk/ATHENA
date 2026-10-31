@@ -124,7 +124,7 @@ editor_rep::display_context_at (path source, path display) {
     const auto& boundary= displayed->source_boundary;
     if (boundary && cursor_occurrence_admitted (source, boundary))
       return occurrence_context_at (source, anchor, boundary);
-    if (is_nil (remaining) || displayed->subnr () == 0) break;
+    if (is_nil (remaining) || is_atom (remaining) || displayed->subnr () == 0) break;
     displayed= displayed[remaining->item];
     remaining= remaining->next;
   }
