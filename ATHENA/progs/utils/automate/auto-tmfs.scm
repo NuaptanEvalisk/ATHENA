@@ -58,3 +58,8 @@
          (eng (string-append base h ".en.tm"))
          (u (if (url-exists? test) loc eng)))
     (auto-load-aux "Contextual help" u (list))))
+
+(tm-define (focus-help)
+  (if (tree-is-buffer? (focus-tree))
+      (auto-load-help "Contextual help" "top-help")
+      (auto-load-help "Contextual help" "tag-help")))

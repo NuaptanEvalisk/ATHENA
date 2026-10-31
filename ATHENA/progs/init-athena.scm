@@ -79,7 +79,7 @@
 
 (import-from (utils misc markup-funcs))
 (lazy-tmfs-handler (utils automate auto-tmfs) automate)
-(lazy-define (utils automate auto-tmfs) auto-load-help)
+(lazy-define (utils automate auto-tmfs) auto-load-help focus-help)
 (lazy-keyboard (utils automate auto-tmfs) in-auto?)
 (lazy-keyboard (native-keyboard automate) in-auto?)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
@@ -147,7 +147,6 @@
              native-insert-floating-figure
              native-insert-floating-table
              native-insert-floating-algorithm)
-(lazy-define (generic generic-doc) focus-help)
 (lazy-define (generic global-search) open-global-search
              global-search-open-result global-search-open-occurrence)
 (lazy-define (generic format-widgets) open-paragraph-format open-page-format)
