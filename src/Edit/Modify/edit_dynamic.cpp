@@ -156,7 +156,15 @@ edit_dynamic_rep::make_compound (tree_label l, int n,
 
 bool
 edit_dynamic_rep::make_compound (tree_label l, int n, path replace_input) {
-  const auto context= macro_invocation_context ();
+  auto context= macro_invocation_context ();
+  // Ordinary source edits must not depend on a completed display layout.
+  // Cursor occurrences can be temporarily unavailable immediately after an
+  // edit or during incremental typesetting; reconstruct the command context
+  // from the owned source tree instead. Hybrid/LATEX activation has its own
+  // pending-layout handling and keeps using the invocation occurrence.
+  if (!context && is_nil (search_upwards (HYBRID)) &&
+      is_nil (search_upwards (LATEX)))
+    context= prepare_source_position (tp);
   if (!context) {
     set_message ("Macro insertion is awaiting layout", "Macro insertion");
     return false;
