@@ -20,11 +20,41 @@
 #include <utility>
 #include <string_view>
 #include <vector>
+#include <cstdint>
+#include "Env/local_environment.hpp"
 
 #define MODE_JUSTIFY   0
 #define MODE_LEFT      1
 #define MODE_CENTER    2
 #define MODE_RIGHT     3
+
+// Kept by a source paragraph bridge, never shared across editors. A cached
+// fragment contains pre-glue items: finish() must receive fresh mutable items.
+struct inline_math_fragment {
+  bool valid= false;
+  tree source;
+  path address;
+  hashmap<string,tree> variables;
+  athena::contracts::evaluation_input_snapshot input_receipts;
+  font active_font;
+  pencil active_pen;
+  language active_language;
+  int mode= 0, mode_op= 0, index_level= 0;
+  bool display_style= false, math_condensed= false;
+  int alpha= 255;
+  int spacing_policy= 0, nesting_level= 0;
+  hashmap<string,path> sources;
+  list<hashmap<string,tree>> arguments;
+  list<hashmap<string,path>> argument_sources;
+  url source_file;
+  athena::contracts::package_inclusion_handle package;
+  bool secure= false;
+  std::uint64_t radioactive_revision= 0;
+  array<line_item> items;
+  athena::contracts::contract_event_log effects;
+  source_occurrence_log occurrences;
+};
+using inline_math_fragments= std::vector<inline_math_fragment>;
 
 class concater_rep {
   edit_env              env;        // the environment
@@ -32,6 +62,9 @@ class concater_rep {
   std::vector<std::pair<line_item, tree>> export_items;
   bool                  rigid;      // when surely not wrappable
   std::shared_ptr<athena::text::font_paragraph> text_paragraph;
+  inline_math_fragments* fragment_cache= nullptr;
+  path fragment_owner;
+  void typeset_cached_math_child (tree t, path ip, int index);
 
   // useful subroutines
   void print (box b);
@@ -209,7 +242,8 @@ class concater_rep {
   void finish_export_destinations ();
 
 public:
-  concater_rep (edit_env env, bool rigid= false);
+  concater_rep (edit_env env, bool rigid= false,
+                inline_math_fragments* cache= nullptr, path owner= path ());
   void typeset (tree t, path ip);
   void finish ();
 
@@ -224,6 +258,8 @@ public:
   friend box              typeset_as_box (edit_env env, tree t, path ip);
   friend box              typeset_as_atomic (edit_env env, tree t, path ip);
   friend array<line_item> typeset_concat (edit_env env, tree t, path ip);
+  friend array<line_item> typeset_concat_cached (edit_env env, tree t, path ip,
+                                                 inline_math_fragments* cache);
   friend array<line_item> typeset_concat_range (edit_env env, tree t, path ip,
 						int i1, int i2);
   friend array<line_item> typeset_marker (edit_env env, path ip);
@@ -233,6 +269,8 @@ typedef concater_rep* concater;
 
 box typeset_as_concat (edit_env env, tree t, path ip);
 array<line_item> typeset_concat (edit_env env, tree t, path ip);
+array<line_item> typeset_concat_cached (edit_env env, tree t, path ip,
+                                       inline_math_fragments* cache);
 array<line_item> typeset_concat_range (edit_env env, tree t, path ip,
 				       int i1, int i2);
 array<line_item> typeset_marker (edit_env env, path ip);

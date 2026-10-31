@@ -20,6 +20,8 @@
 #include "scheme.hpp"
 
 array<line_item> typeset_concat (edit_env env, tree t, path ip);
+array<line_item> typeset_concat_cached (edit_env env, tree t, path ip,
+                                       inline_math_fragments* cache);
 void hyphenate (line_item item, int pos, line_item& item1, line_item& item2);
 array<path>
 line_breaks (array<line_item> a, int start, int end,
@@ -921,6 +923,13 @@ typeset_concat_or_table (edit_env env, tree t, path ip) {
   else return typeset_concat (env, t, ip);
 }
 
+static array<line_item>
+typeset_concat_or_table (edit_env env, tree t, path ip,
+                         inline_math_fragments* cache) {
+  if (!cache || is_func (t, TABLE)) return typeset_concat_or_table (env, t, ip);
+  return typeset_concat_cached (env, t, ip, cache);
+}
+
 array<page_item>
 typeset_stack (edit_env env, tree t, path ip, SI width,
 	       array<line_item> a, array<line_item> b, stack_border& sb)
@@ -944,11 +953,19 @@ array<page_item>
 typeset_stack (edit_env env, tree t, path ip,
 	       array<line_item> a, array<line_item> b, stack_border& sb)
 {
+  return typeset_stack (env, t, ip, a, b, sb, nullptr);
+}
+
+array<page_item>
+typeset_stack (edit_env env, tree t, path ip,
+               array<line_item> a, array<line_item> b, stack_border& sb,
+               inline_math_fragments* cache)
+{
   // cout << "Typeset stack " << t << "\n";
   small_label_line_env old= begin_small_label_line_env (env, t);
   lazy_paragraph par (env, ip);
   par->a= a;
-  par->a << typeset_concat_or_table (env, t, ip);
+  par->a << typeset_concat_or_table (env, t, ip, cache);
   par->a << b;
   par->format_paragraph ();
   par->small_label_line= old.active;

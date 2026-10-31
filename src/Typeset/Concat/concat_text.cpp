@@ -14,6 +14,8 @@
 #include "analyze.hpp"
 #include "boot.hpp"
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
+#include "ATHENA/Data/node_reference_export.hpp"
+#include "Env/local_environment.hpp"
 #include "radioactive_link_scope.hpp"
 #include "new_document.hpp"
 #include "Boxes/utf8_line.hpp"
@@ -467,7 +469,14 @@ concater_rep::typeset_concat (tree t, path ip) {
     }
   }
   if (links.empty ()) {
-    for (int i=0; i<N(t); ++i) typeset (t[i], descend (ip, i));
+    if (fragment_cache && ip == fragment_owner && is_func (t, CONCAT))
+      fragment_cache->resize (N(t));
+    for (int i=0; i<N(t); ++i) {
+      path child= descend (ip, i);
+      if (fragment_cache && ip == fragment_owner && is_compound (t[i], "math"))
+        typeset_cached_math_child (t[i], child, i);
+      else typeset (t[i], child);
+    }
     return;
   }
   // Match boundaries address existing text offsets or whole inline structures.
@@ -509,6 +518,125 @@ concater_rep::typeset_concat (tree t, path ip) {
       pos= end;
     } while (pos < length);
   }
+}
+
+namespace {
+
+// finish() and UTF-8 paragraph processing modify the line_item records.
+// Sharing their mutable records with the next pass would corrupt both passes.
+static line_item
+copy_fragment_item (line_item original) {
+  line_item result (original->type, original->op_type, original->b,
+                    original->penalty);
+  result->spc= original->spc;
+  result->limits= original->limits;
+  result->lan= original->lan;
+  result->t= original->t;
+  return result;
+}
+
+// pencil::operator== compares handle identity. Re-preparing an editor
+// environment constructs equivalent pencils with different handles; compare
+// the effective paint parameters rather than forcing all math to be rebuilt.
+static bool
+same_fragment_pencil (pencil lhs, pencil rhs) {
+  return lhs->get_type () == rhs->get_type () &&
+         lhs->get_brush () == rhs->get_brush () &&
+         lhs->get_width () == rhs->get_width () &&
+         lhs->get_cap () == rhs->get_cap () &&
+         lhs->get_join () == rhs->get_join () &&
+         lhs->get_miter_lim () == rhs->get_miter_lim ();
+}
+
+} // namespace
+
+void
+concater_rep::typeset_cached_math_child (tree t, path ip, int index) {
+  auto& fragment= (*fragment_cache)[index];
+  // Keep this optimization within stable source-owned text math. Dynamic
+  // radioactive decorations, export destinations and syntax highlighting
+  // retain their ordinary execution and source occurrence paths.
+  const bool eligible= env->mode == 1 && env->hl_lan == 0 &&
+    !athena::node_reference::export_node_destinations_active ();
+  if (eligible && fragment.valid && fragment.address == ip &&
+      fragment.source == t &&
+      env->variable_values_match (fragment.input_receipts, fragment.variables) &&
+      fragment.active_font.operator-> () == env->fn.operator-> () &&
+      same_fragment_pencil (fragment.active_pen, env->pen) &&
+      fragment.active_language.operator-> () == env->lan.operator-> () &&
+      fragment.mode == env->mode &&
+      fragment.mode_op == env->mode_op && fragment.index_level == env->index_level &&
+      fragment.display_style == env->display_style &&
+      fragment.math_condensed == env->math_condensed &&
+      fragment.alpha == env->alpha && fragment.spacing_policy == env->spacing_policy &&
+      fragment.nesting_level == env->nesting_level &&
+      fragment.sources == env->src && fragment.arguments == env->macro_arg &&
+      fragment.argument_sources == env->macro_src &&
+      fragment.source_file == env->cur_file_name &&
+      fragment.package == env->package_origin && fragment.secure == env->secure &&
+      fragment.radioactive_revision == athena_artifact_radioactive_revision () &&
+      env->can_replay_events (fragment.effects)) {
+    if (env->replay_contract_events (fragment.effects, true)) {
+      for (int j=0; j<N(fragment.items); ++j)
+        a << copy_fragment_item (fragment.items[j]);
+      if (env->source_occurrences)
+        env->source_occurrences->reuse (fragment.occurrences);
+      return;
+    }
+  }
+
+  fragment.valid= false;
+  if (!eligible) { typeset (t, ip); return; }
+  const int start= N(a);
+  line_item before= start ? a[start-1] : line_item ();
+  const int old_penalty= start ? before->penalty : 0;
+  const space old_space= start ? before->spc : space (0);
+  const bool old_limits= start ? before->limits : false;
+  const int old_type= start ? before->type : 0;
+  const int old_op= start ? before->op_type : 0;
+
+  inline_math_fragment prepared;
+  // Source trees are mutable in editor transactions. Retain independent
+  // content, not an alias that could silently follow a later in-place edit.
+  prepared.source= copy (t);
+  prepared.address= ip;
+  prepared.variables= evaluation_environment_checkpoint (*env.operator-> ()).variables ();
+  prepared.input_receipts= env->variable_input_snapshot ();
+  prepared.active_font= env->fn;
+  prepared.active_pen= env->pen;
+  prepared.active_language= env->lan;
+  prepared.mode= env->mode;
+  prepared.mode_op= env->mode_op;
+  prepared.index_level= env->index_level;
+  prepared.display_style= env->display_style;
+  prepared.math_condensed= env->math_condensed;
+  prepared.alpha= env->alpha;
+  prepared.spacing_policy= env->spacing_policy;
+  prepared.nesting_level= env->nesting_level;
+  prepared.sources= copy (env->src);
+  prepared.arguments= env->macro_arg;
+  prepared.argument_sources= env->macro_src;
+  prepared.source_file= env->cur_file_name;
+  prepared.package= env->package_origin;
+  prepared.secure= env->secure;
+  prepared.radioactive_revision= athena_artifact_radioactive_revision ();
+  {
+    athena::contracts::contract_event_capture events (
+      env->contract_events, prepared.effects, &env->contract_state.contracts);
+    source_occurrence_capture occurrences (*env.operator-> (), prepared.occurrences, ip);
+    typeset (t, ip);
+    occurrences.commit ();
+    events.commit ();
+  }
+  // Some inline commands modify the preceding item's penalty or spacing.
+  // Their contribution cannot be replayed as an independent fragment.
+  if (start && (before->penalty != old_penalty || before->spc != old_space ||
+                before->limits != old_limits || before->type != old_type ||
+                before->op_type != old_op)) return;
+  for (int j=start; j<N(a); ++j)
+    prepared.items << copy_fragment_item (a[j]);
+  prepared.valid= true;
+  fragment= std::move (prepared);
 }
 
 void

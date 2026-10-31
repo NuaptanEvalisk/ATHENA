@@ -951,12 +951,26 @@ concater_rep::typeset_impl (tree t, path ip) {
 * User interface
 ******************************************************************************/
 
-concater_rep::concater_rep (edit_env env2, bool rigid2):
-  env (env2), rigid (rigid2) {}
+concater_rep::concater_rep (edit_env env2, bool rigid2,
+                            inline_math_fragments* cache, path owner):
+  env (env2), rigid (rigid2), fragment_cache (cache), fragment_owner (owner) {}
 
 array<line_item>
 typeset_concat (edit_env env, tree t, path ip) {
   concater ccc= tm_new<concater_rep> (env);
+  ccc->typeset (t, ip);
+  ccc->finish ();
+  ccc->finish_export_destinations ();
+  array<line_item> a= ccc->a;
+  prepare_utf8_paragraph (ip, a);
+  tm_delete (ccc);
+  return a;
+}
+
+array<line_item>
+typeset_concat_cached (edit_env env, tree t, path ip,
+                       inline_math_fragments* cache) {
+  concater ccc= tm_new<concater_rep> (env, false, cache, ip);
   ccc->typeset (t, ip);
   ccc->finish ();
   ccc->finish_export_destinations ();

@@ -59,6 +59,24 @@ edit_env_rep::edit_env_rep (athena::contracts::evaluation_state& contract_state2
 
 edit_env_rep::~edit_env_rep ()= default;
 
+athena::contracts::evaluation_input_snapshot
+edit_env_rep::variable_input_snapshot () const {
+  return inputs.snapshot ();
+}
+
+bool
+edit_env_rep::variable_values_match (
+    const athena::contracts::evaluation_input_snapshot& previous,
+    hashmap<string,tree> values) {
+  for (const auto& changed: inputs.snapshot ().changed_since (previous)) {
+    const string key (changed.data (), changed.size ());
+    const bool present= env->contains (key);
+    if (present != values->contains (key)) return false;
+    if (present && env[key] != values[key]) return false;
+  }
+  return true;
+}
+
 edit_env::edit_env (athena::contracts::evaluation_state& contract_state,
 		    url base_file_name,
 		    hashmap<string,tree>& local_ref,

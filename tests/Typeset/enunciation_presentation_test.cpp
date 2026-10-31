@@ -40,6 +40,7 @@
 #include "Xml/athena_document_xml.hpp"
 #include "ATHENA/Data/node_reference_export.hpp"
 #include "Line/lazy_vstream.hpp"
+#include "Concat/concater.hpp"
 #include "Pdf/pdf_hummus_renderer.hpp"
 #include "printer.hpp"
 
@@ -178,6 +179,61 @@ bool has_link_target (box b, const AthenaArtifactRecord& record) {
 class EnunciationPresentationTest: public QObject {
   Q_OBJECT
 private slots:
+  void inlineMathFragmentsReuseOnlyMatchingSourceAndEnvironment () {
+    Environment context;
+    const path where (21);
+    tree paragraph (CONCAT, "prefix ",
+      compound ("math", tree (CONCAT, "x", "+", "y")), " suffix");
+    inline_math_fragments cache;
+    const auto compare_items= [] (array<line_item> actual,
+                                  array<line_item> expected) {
+      QCOMPARE (N(actual), N(expected));
+      for (int i=0; i<N(actual); ++i) {
+        QCOMPARE (actual[i]->type, expected[i]->type);
+        QCOMPARE (actual[i]->op_type, expected[i]->op_type);
+        QCOMPARE (actual[i]->penalty, expected[i]->penalty);
+        QCOMPARE (actual[i]->b->w (), expected[i]->b->w ());
+        QCOMPARE (actual[i]->b->y1, expected[i]->b->y1);
+        QCOMPARE (actual[i]->b->y2, expected[i]->b->y2);
+        QCOMPARE (actual[i]->spc->min, expected[i]->spc->min);
+        QCOMPARE (actual[i]->spc->def, expected[i]->spc->def);
+        QCOMPARE (actual[i]->spc->max, expected[i]->spc->max);
+      }
+    };
+    compare_items (typeset_concat_cached (context.env, paragraph, where, &cache),
+                   typeset_concat (context.env, paragraph, where));
+    QCOMPARE (int (cache.size ()), N(paragraph));
+    QVERIFY (cache[1].valid);
+    QVERIFY (N(cache[1].items) > 0);
+
+    // A rebuilt paint object with identical properties is not a dependency
+    // change. The cached formula box should survive a suffix-only edit.
+    const box original= cache[1].items[0]->b;
+    pencil old_pen= context.env->pen;
+    context.env->pen= old_pen->set_width (old_pen->get_width ());
+    QVERIFY (!(context.env->pen == old_pen));
+    tree suffix_edit= copy (paragraph);
+    suffix_edit[2]= " suffix extended";
+    const auto reused= typeset_concat_cached (context.env, suffix_edit, where, &cache);
+    compare_items (reused, typeset_concat (context.env, suffix_edit, where));
+    QVERIFY (cache[1].valid);
+    QVERIFY (cache[1].items[0]->b == original);
+
+    // Modifying a math argument must reject the old fragment. Paint changes
+    // must also produce newly typeset formulas rather than stale cached ink.
+    tree math_edit= copy (suffix_edit);
+    math_edit[1]= compound ("math", tree (CONCAT, "z", "+", "y"));
+    compare_items (typeset_concat_cached (context.env, math_edit, where, &cache),
+                   typeset_concat (context.env, math_edit, where));
+    QVERIFY (cache[1].valid);
+    QCOMPARE (cache[1].source, math_edit[1]);
+    context.env->pen= pencil (named_color ("red"));
+    compare_items (typeset_concat_cached (context.env, math_edit, where, &cache),
+                   typeset_concat (context.env, math_edit, where));
+    QVERIFY (cache[1].valid);
+    QCOMPARE (cache[1].active_pen->get_color (), context.env->pen->get_color ());
+  }
+
   void sourceIdentityPrefixesPreserveLocalDefinitions () {
     const string name ("identity-prefix-probe");
     const auto label= make_tree_label (name);

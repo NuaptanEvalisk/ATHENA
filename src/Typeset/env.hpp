@@ -479,6 +479,12 @@ public:
   // Admission failure leaves the live environment and capture unchanged.
   bool replay_contract_events (const athena::contracts::contract_event_log&, bool record);
   bool can_replay_events (const athena::contracts::contract_event_log&);
+  // Compare only variables whose native input receipts changed since a
+  // captured fragment. The full map is retained at capture, not copied for
+  // each cache-admission attempt.
+  athena::contracts::evaluation_input_snapshot variable_input_snapshot () const;
+  bool variable_values_match (const athena::contracts::evaluation_input_snapshot&,
+                              hashmap<string,tree>);
   bool external_input_matches (const athena::contracts::external_query&) const;
   bool package_input_matches (const athena::contracts::package_source_query&) const;
   bool   exec_until (tree t, path p, string var, int level);

@@ -16,6 +16,8 @@
 #include "Format/stack_border.hpp"
 #include "Format/page_item.hpp"
 #include "Format/line_item.hpp"
+struct inline_math_fragment;
+using inline_math_fragments= std::vector<inline_math_fragment>;
 
 struct stacker_rep {
   path              ip;      // source location of the stacker
@@ -60,6 +62,9 @@ array<page_item> typeset_stack (edit_env env, tree t, path ip, SI width,
 array<page_item> typeset_stack (edit_env env, tree t, path ip,
 				array<line_item> a, array<line_item> b,
 				stack_border& sb);
+array<page_item> typeset_stack (edit_env env, tree t, path ip,
+                                array<line_item> a, array<line_item> b,
+                                stack_border& sb, inline_math_fragments* math_cache);
 
 void merge_stack (array<page_item>& l, stack_border& sb,
 		  array<page_item> l2, stack_border sb2);

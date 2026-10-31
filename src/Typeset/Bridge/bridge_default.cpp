@@ -13,12 +13,14 @@
 #include "node_metadata.hpp"
 
 class bridge_default_rep: public bridge_rep {
+  inline_math_fragments inline_math;
 public:
   bridge_default_rep (typesetter ttt, tree st, path ip);
 
   void notify_assign (path p, tree u);
   bool notify_macro  (int type, string var, int l, path p, tree u);
   void notify_change ();
+  void my_typeset (int desired_status);
 };
 
 bridge_default_rep::bridge_default_rep (typesetter ttt, tree st, path ip):
@@ -110,4 +112,18 @@ bridge_default_rep::notify_macro (int tp, string var, int l, path p, tree u) {
 void
 bridge_default_rep::notify_change () {
   status= CORRUPTED;
+  inline_math.clear ();
+}
+
+void
+bridge_default_rep::my_typeset (int desired_status) {
+  if ((desired_status & WANTED_MASK) != WANTED_PARAGRAPH ||
+      !is_func (st, CONCAT)) {
+    bridge_rep::my_typeset (desired_status);
+    return;
+  }
+  stack_border border;
+  array<page_item> lines= typeset_stack (
+    env, st, ip, ttt->a, ttt->b, border, &inline_math);
+  ttt->insert_stack (lines, border);
 }
