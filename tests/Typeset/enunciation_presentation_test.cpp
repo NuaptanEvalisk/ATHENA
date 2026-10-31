@@ -179,6 +179,35 @@ bool has_link_target (box b, const AthenaArtifactRecord& record) {
 class EnunciationPresentationTest: public QObject {
   Q_OBJECT
 private slots:
+  void inlineMathRootCacheSurvivesSamePathNestedConcat () {
+    Environment context;
+    const path where (21);
+    tree math= compound ("math", tree (CONCAT, "x", "+", "y"));
+    tree original (CONCAT, 9);
+    tree expansion (CONCAT, 7);
+    for (int i=0; i<7; ++i) {
+      original[i]= as_string (i);
+      expansion[i]= as_string (i);
+    }
+    original[7]= math;
+    original[8]= "tail";
+    inline_math_fragments cache;
+    concater shared= tm_new<concater_rep> (context.env, false, &cache, where);
+    shared->typeset (original, where);
+    QCOMPARE (int (cache.size ()), N(original));
+    QVERIFY (cache[7].valid);
+    const box retained_formula= cache[7].items[0]->b;
+
+    // Source expansion can reuse the same inverse path while producing a
+    // differently sized CONCAT. It must never shrink the owner's cache or
+    // turn a later outer index into a one-past-end write.
+    shared->typeset (expansion, where);
+    QCOMPARE (int (cache.size ()), N(original));
+    QVERIFY (cache[7].valid);
+    QVERIFY (cache[7].items[0]->b == retained_formula);
+    tm_delete (shared);
+  }
+
   void inlineMathFragmentsReuseOnlyMatchingSourceAndEnvironment () {
     Environment context;
     const path where (21);

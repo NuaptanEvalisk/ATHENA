@@ -468,12 +468,22 @@ concater_rep::typeset_concat (tree t, path ip) {
       links.push_back (match);
     }
   }
+  // A synthetic expansion can typeset another CONCAT at the same source
+  // path. Only the first source-owned CONCAT determines the cache slots:
+  // resizing for a nested expansion invalidates a live slot reference and
+  // can write past the vector's end when the outer walk resumes.
+  const bool cache_root= fragment_cache && !fragment_root_started &&
+                         ip == fragment_owner && is_func (t, CONCAT);
+  if (cache_root) {
+    fragment_root_started= true;
+    if (links.empty ()) fragment_cache->resize (N(t));
+    else fragment_cache->clear ();
+  }
   if (links.empty ()) {
-    if (fragment_cache && ip == fragment_owner && is_func (t, CONCAT))
-      fragment_cache->resize (N(t));
     for (int i=0; i<N(t); ++i) {
       path child= descend (ip, i);
-      if (fragment_cache && ip == fragment_owner && is_compound (t[i], "math"))
+      if (cache_root && i < int (fragment_cache->size ()) &&
+          is_compound (t[i], "math"))
         typeset_cached_math_child (t[i], child, i);
       else typeset (t[i], child);
     }
@@ -636,7 +646,11 @@ concater_rep::typeset_cached_math_child (tree t, path ip, int index) {
   for (int j=start; j<N(a); ++j)
     prepared.items << copy_fragment_item (a[j]);
   prepared.valid= true;
-  fragment= std::move (prepared);
+  // Expansion and local execution can re-enter the concater. Do not retain a
+  // vector element reference across typeset(t, ip), even when the root cache
+  // currently has enough slots; the element may have been relocated.
+  if (index < int (fragment_cache->size ()))
+    (*fragment_cache)[index]= std::move (prepared);
 }
 
 void

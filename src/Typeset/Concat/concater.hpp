@@ -64,6 +64,7 @@ class concater_rep {
   std::shared_ptr<athena::text::font_paragraph> text_paragraph;
   inline_math_fragments* fragment_cache= nullptr;
   path fragment_owner;
+  bool fragment_root_started= false;
   void typeset_cached_math_child (tree t, path ip, int index);
 
   // useful subroutines
