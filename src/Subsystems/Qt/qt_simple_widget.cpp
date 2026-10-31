@@ -808,8 +808,12 @@ qt_simple_widget_rep::repaint_all () {
     qt_simple_widget_rep *w = static_cast<qt_simple_widget_rep*>(i->next());
     w->drain_external_effects ();
     if (w->canvas() && w->canvas()->presentationVisible()) {
-      w->canvas()->presentLatestRenderedFrame (true);
       w->repaint_invalid_regions();
+      // The legacy backing repaint may synchronously paint only a damaged
+      // rectangle. Finish it before switching the asynchronous full frame:
+      // otherwise its partial Qt paint can reveal the new generation beside
+      // pixels from the old one during reflow resize.
+      w->canvas()->presentLatestRenderedFrame (true);
     }
   }
 }

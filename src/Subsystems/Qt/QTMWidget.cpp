@@ -1081,7 +1081,10 @@ QTMWidget::surfacePaintEvent (QPaintEvent *event, QWidget *surfaceWidget) {
 void
 QTMWidget::paintContent (QPainter& p, const QRegion& region) {
   if (externallyPresented () && checkDprChange ()) return;
-  presentLatestRenderedFrame (false);
+  // Do not acquire a new render generation inside a potentially partial Qt
+  // paint event. That event can repaint only an exposed resize strip, leaving
+  // the rest of the surface with pixels from the previous layout generation.
+  // The GUI update pass switches frames and requests their full-frame damage.
   if ((viewPinchActive || viewPinchCommitPending) &&
       !viewPinchPreview.isNull()) {
     drawViewPinchPreview (p);
@@ -1170,6 +1173,16 @@ QTMWidget::presentLatestRenderedFrame (bool requestPaint) {
   if (connection == nullptr) return;
   QTMSharedFrame next= connection->acquireLatestFrame ();
   if (!next) return;
+
+  // A resize may have overtaken the actor while it was recording this frame.
+  // Never composite an obsolete viewport-sized image into the new surface.
+  if (!externallyPresented ()) {
+    const qreal ratio= surface ()->devicePixelRatioF ();
+    const QSize expected (
+      qRound (surface ()->width () * ratio),
+      qRound (surface ()->height () * ratio));
+    if (next.image ().size () != expected) return;
+  }
 
   std::uint64_t bufferGeneration= next.bufferGeneration ();
   std::uint64_t frameGeneration= next.frameGeneration ();
