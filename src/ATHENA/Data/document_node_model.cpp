@@ -809,7 +809,7 @@ identity_result assign_detached_source_ids (
     for (int i= 0; i < N(body); ++i)
       if (tagged (body[i], "body") || tagged (body[i], "TeXmacs"))
         fail ({i}, issue::invalid_body, "Extract the body from the file envelope first");
-    auto reserved= identity_audit (budget).inspect (body);
+    auto reserved= identity_audit (budget).inspect (body, &result.owners);
     const auto candidates= identity_planner (descriptors, roles, budget, contexts).inspect (body);
     std::vector<assigned_identity> pending;
     for (const auto& request: candidates) {
@@ -823,6 +823,7 @@ identity_result assign_detached_source_ids (
       if (!node::valid_id (id)) fail (request.where, issue::invalid_id, "Allocator returned invalid UUID");
       if (!reserved.insert (id).second) fail (request.where, issue::duplicate_id, id);
       pending.push_back ({request, std::move (id)});
+      result.owners[request.where].insert (pending.back ().id);
     }
     tree output= copy (body);
     for (const auto& assignment: pending) {
@@ -875,6 +876,20 @@ std::vector<diagnostic> source_identity_state::initialize (const tree& body, lim
   catch (const failure& problem) { return {problem.value}; }
   catch (const std::exception& error) { return {{{}, "", issue::invalid_metadata, error.what ()}}; }
   return {};
+}
+
+void source_identity_state::adopt_complete_assignment (
+    std::map<source_path, std::set<std::string>> validated_owners) {
+  std::map<std::string, source_path> indexed;
+  for (const auto& [where, ids]: validated_owners)
+    for (const auto& id: ids)
+      if (!indexed.emplace (id, where).second)
+        throw std::logic_error ("Assigned identity baseline contains duplicate IDs");
+  owners= std::move (validated_owners);
+  locations= std::move (indexed);
+  dirty.reset ();
+  ++revision;
+  ready= true;
 }
 
 std::vector<diagnostic> source_identity_state::initialize_complete (

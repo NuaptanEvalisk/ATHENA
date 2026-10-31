@@ -95,6 +95,10 @@ struct identity_result {
   // Engaged only on complete success; input is never mutated or normalized.
   std::optional<tree> body;
   std::vector<assigned_identity> assigned;
+  // Verified metadata ownership, including IDs allocated in this operation.
+  // Allows a fresh source index to adopt the completed baseline without
+  // repeating the same document-wide audit and role planning.
+  std::map<source_path, std::set<std::string>> owners;
   std::vector<diagnostic> diagnostics;
   bool ok () const { return body.has_value () && diagnostics.empty (); }
 };
@@ -153,6 +157,11 @@ class source_identity_state {
   bool ready= false, applying= false;
 public:
   std::vector<diagnostic> initialize (const tree&, limits budget= {});
+  // Only use ownership returned by successful assign_detached_source_ids.
+  // That operation has already audited every existing ID and planned every
+  // required source role; its generated IDs have been checked for uniqueness.
+  void adopt_complete_assignment (
+    std::map<source_path, std::set<std::string>> validated_owners);
   // Activation/load boundary for an already migrated source body. Validate
   // both uniqueness and complete role identities, without assigning IDs or
   // mutating source. Failure leaves this index unusable. This is not migration

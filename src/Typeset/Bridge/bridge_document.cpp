@@ -231,7 +231,7 @@ bool
 bridge_document_rep::my_typeset_will_be_complete () {
   bool root_document= ttt->br.operator-> () == this;
   bool progressive= ttt->progressive && !ttt->paper &&
-                    (root_document? N(st) >= 96:
+                    (root_document? N(st) >= 256:
                      ttt->progressive_root_active && N(st) >= 32);
   if (root_document) ttt->progressive_root_active= progressive;
   if (progressive && progressive_end < N(st)) return false;
@@ -277,7 +277,7 @@ bridge_document_rep::my_typeset (int desired_status) {
     bool printed= env->get_string (PAGE_PRINTED) == "true";
     bool root_document= ttt->br.operator-> () == this;
     bool progressive= ttt->progressive && !ttt->paper &&
-                      (root_document? n >= 96:
+                      (root_document? n >= 256:
                        ttt->progressive_root_active && n >= 32);
     if (root_document) ttt->progressive_root_active= progressive;
     progressive_pass_pending= false;
