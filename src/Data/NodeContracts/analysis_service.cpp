@@ -283,6 +283,7 @@ struct detached_engine {
   analysis_context_ptr context;
   analysis_facts facts;
   contract_entries projections;
+  std::shared_ptr<const analysis_dependency_index> dependencies;
   struct batch {
     enum class phase { analysis, facts, projections, dependencies, provenance };
     phase current= phase::analysis;
@@ -294,6 +295,7 @@ struct detached_engine {
     contract_entries::const_iterator origin;
     analysis_evidence_ptr evidence;
     inference_origins provenance;
+    bool dependencies_changed= false;
   };
   std::unique_ptr<batch> active;
 
@@ -328,9 +330,16 @@ struct detached_engine {
         work.changed.insert (result.name);
         const auto name= result.name;
         const auto source= work.next->names->find (name);
-        if (!source || !(*source)->value) facts= std::move (facts).erase (name);
-        else facts= std::move (facts).set (
+        const auto previous= facts.find (name);
+        if (!source || !(*source)->value) {
+          work.dependencies_changed |= previous != nullptr;
+          facts= std::move (facts).erase (name);
+        }
+        else {
+          work.dependencies_changed |= !previous || (*previous)->dependencies != result.dependencies;
+          facts= std::move (facts).set (
             name, std::make_shared<const analysis_contract_result> (std::move (result)));
+        }
         break;
       }
       case phase::projections: {
@@ -351,8 +360,13 @@ struct detached_engine {
         break;
       }
       case phase::dependencies:
+        // New input receipts need new evidence, not a new graph when its
+        // vertices and dependency edges are unchanged.
+        if (!dependencies || work.dependencies_changed)
+          dependencies= std::make_shared<const analysis_dependency_index> (
+            dependency_index (facts, cancelled));
         work.evidence= std::make_shared<const analysis_evidence> (
-          analysis_evidence {work.next, dependency_index (facts, cancelled)});
+          analysis_evidence {work.next, dependencies});
         work.origin= projections.begin ();
         work.current= phase::provenance;
         break;
@@ -405,6 +419,9 @@ struct analysis_service::impl {
   std::vector<analysis_proposal_ptr> retained;
   // Accessed by one admitted worker. Offline preparation has its own engine.
   std::unique_ptr<detached_engine> engine= std::make_unique<detached_engine> ();
+  // Retain incremental facts across sequential source positions. Only the
+  // execution owner calls run(); this engine is never borrowed by a worker.
+  std::unique_ptr<detached_engine> offline_engine;
 
   analysis_proposal_ptr retain (const analysis_proposal_ptr& result) {
     analysis_proposal_ptr retired;
@@ -656,8 +673,16 @@ analysis_proposal_ptr analysis_service::run (analysis_context_ptr context) {
   release_on_worker (std::move (retired_planning));
   release_on_worker (std::move (retired_plan));
   if (cached) return cached;
-  detached_engine offline;
-  const auto result= offline.evaluate (std::move (context), state->cancelled);
+  if (!state->offline_engine)
+    state->offline_engine= std::make_unique<detached_engine> ();
+  analysis_proposal_ptr result;
+  try {
+    result= state->offline_engine->evaluate (std::move (context), state->cancelled);
+  }
+  catch (...) {
+    release_on_worker (std::move (state->offline_engine));
+    throw;
+  }
   // Cold preparation and later interactive requests use the same immutable
   // result. Never borrow or wait for the engine currently used by a worker.
   analysis_proposal_ptr retired;

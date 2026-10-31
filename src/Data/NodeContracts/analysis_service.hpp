@@ -60,7 +60,7 @@ struct analysis_dependency_index {
 };
 struct analysis_evidence {
   analysis_context_ptr context;
-  analysis_dependency_index dependencies;
+  std::shared_ptr<const analysis_dependency_index> dependencies;
 };
 struct analysis_proposal {
   analysis_evidence_ptr evidence;

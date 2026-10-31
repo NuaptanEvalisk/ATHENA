@@ -256,7 +256,12 @@ edit_env_rep::initialize_value_inputs () {
 void
 edit_env_rep::analyze_contracts () {
   if (!contract_analysis) contract_analysis= std::make_unique<athena::contracts::macro_analysis> ();
-  contract_analysis->synchronize (contract_state.contracts, inputs.snapshot (), env);
+  analyze_contracts (*contract_analysis);
+}
+
+void
+edit_env_rep::analyze_contracts (athena::contracts::macro_analysis& analysis) {
+  analysis.synchronize (contract_state.contracts, inputs.snapshot (), env);
 }
 
 bool

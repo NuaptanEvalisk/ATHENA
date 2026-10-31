@@ -11,6 +11,7 @@
 
 #include "new_style.hpp"
 #include "Data/NodeContracts/source_environment.hpp"
+#include "Data/NodeContracts/macro_analysis.hpp"
 #include "file.hpp"
 #include "data_cache.hpp"
 #include "convert.hpp"
@@ -385,7 +386,8 @@ prepare_source_positions (
     source_contract_maps maps;
   };
   auto prefix= std::make_shared<prefix_state> ();
-  return [body, source_name, baseline, original_maps, prefix,
+  auto analysis= std::make_shared<athena::contracts::macro_analysis> ();
+  return [body, source_name, baseline, original_maps, prefix, analysis,
           prepare_baseline= std::move (prepare_baseline),
           prepare_maps= std::move (prepare_maps), capture] (const std::vector<int>& where)
       -> std::shared_ptr<const Result> {
@@ -424,7 +426,7 @@ prepare_source_positions (
     if (where.empty ()) return capture (local, *evaluation.operator-> ());
     for (int i= forward ? prefix->paragraph : 0; i<where.front (); ++i)
       (void) evaluation->exec (body[i]);
-    if (!prefix->entry || where.front () > prefix->paragraph) {
+    if (!prefix->entry || where.front () != prefix->paragraph) {
       prefix->paragraph= where.front ();
       prefix->entry= std::make_shared<const evaluation_environment_checkpoint> (
         *evaluation.operator-> ());
@@ -435,7 +437,7 @@ prepare_source_positions (
     path inside;
     for (std::size_t i= 1; i<where.size (); ++i) inside= inside * where[i];
     if (!evaluation->exec_until (body[where.front ()], inside * 0)) return {};
-    evaluation->analyze_contracts ();
+    evaluation->analyze_contracts (*analysis);
     return capture (local, *evaluation.operator-> ());
   };
 }

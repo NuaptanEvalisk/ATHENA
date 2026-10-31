@@ -43,8 +43,9 @@ bool inference_admitted (const Scope& scope, tree_label label,
   const auto& context= *evidence.context;
   if (inputs->same_snapshot (context.inputs) &&
       scope.input_identity () == context.scope_inputs) return true;
-  const auto owner= evidence.dependencies.owners.find (label);
-  if (owner == evidence.dependencies.owners.end ()) return false;
+  const auto& dependencies= *evidence.dependencies;
+  const auto owner= dependencies.owners.find (label);
+  if (owner == dependencies.owners.end ()) return false;
 
   // Queries never drain a dependency closure. Large or changed old results
   // stay unavailable until the scheduled analysis publishes matching evidence.
@@ -59,7 +60,7 @@ bool inference_admitted (const Scope& scope, tree_label label,
     if (std::find (visited.begin (), visited.begin () + seen, index) != visited.begin () + seen)
       continue;
     visited[seen++]= index;
-    const auto& component= evidence.dependencies.components[index];
+    const auto& component= dependencies.components[index];
     for (const auto& name: component.reads) {
       if (!budget) return false;
       --budget;

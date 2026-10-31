@@ -472,6 +472,7 @@ public:
   void synchronize_definition_value (string name, const tree& value);
   void initialize_value_inputs ();
   void analyze_contracts ();
+  void analyze_contracts (athena::contracts::macro_analysis& analysis);
   // Optional checkpoint must be the context just restored into this evaluator.
   bool prepare_contracts (std::function<void ()> notify,
                           const evaluation_environment_checkpoint* prepared= nullptr);
