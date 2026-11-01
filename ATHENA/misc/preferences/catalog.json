@@ -2813,22 +2813,19 @@
       "key": "bidirectional navigation",
       "type": "string",
       "scope": "active",
-      "default": "off",
-      "callback": "bidirectional-navigation"
+      "default": "off"
     },
     {
       "key": "external navigation",
       "type": "string",
       "scope": "active",
-      "default": "on",
-      "callback": "external-navigation"
+      "default": "on"
     },
     {
       "key": "link pages",
       "type": "string",
       "scope": "active",
-      "default": "on",
-      "callback": "link-pages"
+      "default": "on"
     },
     {
       "key": "document update times",

@@ -23,4 +23,26 @@ void native_locus_remove_link (tree link);
 void native_locus_remove_all_links (tree locus, tree link);
 list<tree> native_id_to_loci (string id);
 
+bool native_navigation_bidirectional ();
+bool native_navigation_external ();
+bool native_navigation_link_pages ();
+void native_navigation_toggle_bidirectional ();
+void native_navigation_toggle_external ();
+void native_navigation_toggle_link_pages ();
+bool native_navigation_allow_type (string type);
+void native_navigation_toggle_type (string type);
+bool native_navigation_no_types ();
+bool native_navigation_all_types ();
+void native_navigation_allow_none ();
+void native_navigation_allow_all ();
+object native_ids_link_list (list<string> ids);
+object native_filter_link_list (object items, string event);
+object native_exact_link_list (tree t, bool filter);
+object native_upward_link_list (object t, bool filter);
+object native_complete_link_list (tree t, bool filter);
+bool native_link_has_cardlink (list<string> ids);
+list<string> native_link_active_ids (list<string> ids);
+list<string> native_link_mouse_ids (list<string> ids);
+list<tree> native_link_active_upwards (tree t);
+
 #endif

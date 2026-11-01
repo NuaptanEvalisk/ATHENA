@@ -68,7 +68,6 @@ preference_callback_name (const QString& id) {
   struct callback_definition { const char* id; const char* procedure; };
   static const callback_definition callbacks[]= {
     {"autosave", "notify-autosave"},
-    {"bidirectional-navigation", "notify-bidirectional-navigation"},
     {"cpp-pref", "notify-cpp-pref"},
     {"cursor-color", "notify-cursor-color"},
     {"debug-backtrace", "notify-debug-backtrace"},
@@ -77,7 +76,6 @@ preference_callback_name (const QString& id) {
     {"document-background-color", "notify-document-background-color"},
     {"enunciation-color", "notify-enunciation-color"},
     {"enunciation-rendering", "notify-enunciation-rendering"},
-    {"external-navigation", "notify-external-navigation"},
     {"focus-border-width", "notify-focus-border-width"},
     {"focus-color", "notify-focus-color"},
     {"fold-table-of-contents", "notify-fold-table-of-contents"},
@@ -88,7 +86,6 @@ preference_callback_name (const QString& id) {
     {"labels-mode", "notify-labels-mode"},
     {"latex-command", "notify-latex-command"},
     {"link-color", "notify-link-color"},
-    {"link-pages", "notify-link-pages"},
     {"look-and-feel", "notify-look-and-feel"},
     {"new-page-breaking", "notify-new-page-breaking"},
     {"paper-type", "notify-paper-type"},

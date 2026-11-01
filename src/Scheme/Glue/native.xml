@@ -1,5 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="navigation-bidirectional?" native="native_navigation_bidirectional" returns="bool" />
+  <binding name="navigation-external?" native="native_navigation_external" returns="bool" />
+  <binding name="navigation-build-link-pages?" native="native_navigation_link_pages" returns="bool" />
+  <binding name="navigation-toggle-bidirectional" native="native_navigation_toggle_bidirectional" returns="void" />
+  <binding name="navigation-toggle-external" native="native_navigation_toggle_external" returns="void" />
+  <binding name="navigation-toggle-build-link-pages" native="native_navigation_toggle_link_pages" returns="void" />
+  <binding name="navigation-allow-type?" native="native_navigation_allow_type" returns="bool"><arg type="string" /></binding>
+  <binding name="navigation-toggle-type" native="native_navigation_toggle_type" returns="void"><arg type="string" /></binding>
+  <binding name="navigation-allow-no-types?" native="native_navigation_no_types" returns="bool" />
+  <binding name="navigation-allow-all-types?" native="native_navigation_all_types" returns="bool" />
+  <binding name="navigation-allow-no-types" native="native_navigation_allow_none" returns="void" />
+  <binding name="navigation-allow-all-types" native="native_navigation_allow_all" returns="void" />
+  <binding name="ids-&gt;link-list" native="native_ids_link_list" returns="object" exceptions="scheme"><arg type="list_string" /></binding>
+  <binding name="filter-link-list" native="native_filter_link_list" returns="object" exceptions="scheme"><arg type="object" /><arg type="string" /></binding>
+  <binding name="exact-link-list" native="native_exact_link_list" returns="object" exceptions="scheme"><arg type="tree" /><arg type="bool" /></binding>
+  <binding name="upward-link-list" native="native_upward_link_list" returns="object" exceptions="scheme"><arg type="object" /><arg type="bool" /></binding>
+  <binding name="complete-link-list" native="native_complete_link_list" returns="object" exceptions="scheme"><arg type="tree" /><arg type="bool" /></binding>
+  <binding name="link-has-cardlink?" native="native_link_has_cardlink" returns="bool"><arg type="list_string" /></binding>
+  <binding name="link-active-ids" native="native_link_active_ids" returns="list_string"><arg type="list_string" /></binding>
+  <binding name="link-mouse-ids" native="native_link_mouse_ids" returns="list_string"><arg type="list_string" /></binding>
+  <binding name="link-active-upwards" native="native_link_active_upwards" returns="list_tree" exceptions="scheme"><arg type="tree" /></binding>
   <binding name="create-unique-id" native="native_link_unique_id" returns="string" exceptions="scheme" />
   <binding name="make-locus" native="native_make_locus" returns="void" exceptions="scheme" />
   <binding name="locus-id" native="native_locus_id" returns="object" exceptions="scheme"><arg type="content" /></binding>

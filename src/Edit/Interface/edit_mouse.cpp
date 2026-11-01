@@ -18,6 +18,7 @@
 #include "tm_buffer.hpp"
 #include "tm_timer.hpp"
 #include "link.hpp"
+#include "link_markup.hpp"
 #include "analyze.hpp"
 #include "message.hpp"
 #include "scheme.hpp"
@@ -579,7 +580,7 @@ void
 edit_interface_rep::mouse_select (SI x, SI y, int mods, bool drag) {
   if (mouse_message ("select" , x, y)) return;
   if (!is_nil (mouse_ids) && (mods & (ShiftMask+Mod2Mask)) == 0 && !drag) {
-    if (!as_bool (call ("link-has-cardlink?", object (mouse_ids)))) {
+    if (!native_link_has_cardlink (mouse_ids)) {
       call ("link-follow-ids", object (mouse_ids), object ("click"));
       disable_double_clicks ();
       return;
@@ -765,9 +766,9 @@ edit_interface_rep::update_mouse_loci () {
   locus_new_rects= rectangles ();
   mouse_ids= list<string> ();
   if (!is_nil (ids1 * ids2) && !has_changed (THE_FOCUS)) {
-    ids1= as_list_string (call ("link-mouse-ids", object (ids1)));
-    ids2= as_list_string (call ("link-mouse-ids", object (ids2)));
-    list<tree> l= as_list_tree (call ("link-active-upwards", object (mt)));
+    ids1= native_link_mouse_ids (ids1);
+    ids2= native_link_mouse_ids (ids2);
+    list<tree> l= native_link_active_upwards (mt);
     while (!is_nil (l)) {
       tree lt= l->item;
       path lp= reverse (obtain_ip (lt));
@@ -779,8 +780,8 @@ edit_interface_rep::update_mouse_loci () {
       }
       l= l->next;
     }
-    ids1= as_list_string (call ("link-active-ids", object (ids1)));
-    ids2= as_list_string (call ("link-active-ids", object (ids2)));
+    ids1= native_link_active_ids (ids1);
+    ids2= native_link_active_ids (ids2);
     if (is_nil (ids1)) rs1= rectangles ();
     if (is_nil (ids2)) rs2= rectangles ();
     // FIXME: we should keep track which id corresponds to which rectangle
@@ -807,7 +808,7 @@ edit_interface_rep::update_focus_loci () {
   }
   focus_ids= list<string> ();
   if (!is_nil (ids) && !has_changed (THE_FOCUS)) {
-    ids= as_list_string (call ("link-active-ids", object (ids)));
+    ids= native_link_active_ids (ids);
     focus_ids= ids;
   }
 }

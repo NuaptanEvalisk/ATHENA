@@ -134,7 +134,7 @@ build_locus (edit_env env, tree t, list<string>& ids, string& col, string &ref,
       else if (is_compound (arg, "link") && N(arg) >= 2) {
         string link_type= is_atomic (arg[0])? arg[0]->label: string ("");
         if (!is_nil (env->link_env)) {
-          if (is_func (arg[1], ATTR)) arg= copy (arg);
+          if (L(arg[1]) == ATTR) arg= copy (arg);
           else arg= arg (0, 1) * tree (LINK, tree (ATTR)) * arg (1, N(arg));
           arg[1] << tree ("secure")
                  << (env->secure? tree ("true"): tree ("false"));

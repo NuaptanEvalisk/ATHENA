@@ -252,8 +252,7 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting linking facilities\n")
-(lazy-define (link link-navigate) link-active-upwards link-active-ids
-             link-follow-ids link-mouse-ids
+(lazy-define (link link-navigate) link-follow-ids
              heading-word-count-schedule-refresh)
 (lazy-define (link link-extern) get-constellation
              get-link-locations register-link-locations)
