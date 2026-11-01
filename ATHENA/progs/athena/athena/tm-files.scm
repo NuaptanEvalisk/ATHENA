@@ -145,42 +145,6 @@
 (define (has-faithful-format? name)
   (in? (url-suffix name) '("ath" "tm" "ts" "tp" "stm" "scm" "")))
 
-(define (save-buffer-preserve-current-viewport name)
-  (when (and (current-view)
-             (== (url->url name) (url->url (current-buffer))))
-    ;; THE_FREEZE: apply save-related tree updates without scrolling the cursor.
-    (notify-change 512)))
-
-(define (save-buffer-post name opts)
-  ;;(display* "save-buffer-post " name "\n")
-  (when (defined? 'google-cloud-todo-sync-buffer)
-    (delayed (:idle 0) (google-cloud-todo-sync-buffer name)))
-  (when (defined? 'vault-backup-dispatch-realtime)
-    (vault-backup-dispatch-realtime name))
-  ;; Only successful saves (including save-as) may advance an exit sequence.
-  (for-each (lambda (opt)
-              (when (and (pair? opt) (eq? (car opt) 'on-saved))
-                ((cdr opt))))
-            opts))
-
-(define (save-buffer-save-now name opts)
-  ;;(display* "save-buffer-save " name "\n")
-  (with vname `(verbatim ,(utf8->cork (url->system name)))
-    (save-buffer-preserve-current-viewport name)
-    (if (buffer-save name)
-        (begin
-          (buffer-pretend-modified name)
-          (set-message `(concat "Could not save " ,vname) "Save file"))
-        (begin
-          (if (== (url-suffix name) "ts") (style-clear-cache))
-          (autosave-remove name)
-          (buffer-notify-recent name)
-          (set-message `(concat "Saved " ,vname) "Save file")
-          (save-buffer-post name opts)))))
-
-(define (save-buffer-save name opts)
-  (save-buffer-save-now name opts))
-
 (define (save-buffer-check-faithful name opts)
   ;;(display* "save-buffer-check-faithful " name "\n")
   (if (has-faithful-format? name)
@@ -249,23 +213,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Saving buffers under a new name
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (save-buffer-as-save new-name name opts)
-  ;;(display* "save-buffer-as-save " new-name ", " name "\n")
-  (if (and (url-scratch? name) (url-exists? name)) (system-remove name))
-  (buffer-rename name new-name)
-  (buffer-pretend-modified new-name)
-  (save-buffer-save new-name opts))
-
-(define (save-buffer-as-check-faithful new-name name opts)
-  ;;(display* "save-check-as-check-faithful " new-name ", " name "\n")
-  (if (or (== (url-suffix new-name) (url-suffix name))
-          (has-faithful-format? new-name))
-      (save-buffer-as-save new-name name opts)
-      (user-confirm "Save requires data conversion. Really proceed?" #f
-        (lambda (answ)
-          (when answ
-            (save-buffer-as-save new-name name opts))))))
 
 (define (save-buffer-as-check-other new-name name opts)
   ;;(display* "save-buffer-as-check-other " new-name ", " name "\n")
@@ -404,10 +351,6 @@
        (with s (most-recent-suffix name)
          (and (!= s "")
               (url-glue name s)))))
-
-(define (autosave-remove name)
-  (when (url-exists? (url-glue name "~"))
-    (url-remove (url-glue name "~"))))
 
 (tm-define (autosave-buffer name)
   (when (and (buffer-modified-since-autosave? name)
