@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="number-&gt;label" native="reference_infer_label" returns="object" exceptions="scheme">
+    <arg type="tree" />
+  </binding>
   <binding name="ref-preview" native="reference_preview" returns="object" exceptions="scheme">
     <arg type="string" />
   </binding>

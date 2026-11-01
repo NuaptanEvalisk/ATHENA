@@ -56,14 +56,7 @@ void after_input_idle (int idle, std::function<void()> action) {
 }
 
 bool inactive_reference () {
-  editor ed= get_current_editor ();
-  const path p= path_up (ed->the_path ());
-  if (N(p) < 2 || !is_atomic (ed->the_subtree (p))) return false;
-  const tree parent= ed->the_subtree (path_up (p));
-  if (!is_compound (ed->the_subtree (path_up (p, 2)), "inactive") ||
-      !native_node_group_contains ("reference-tag", symbol_object (as_string (L(parent)))))
-    return false;
-  return as_bool (call ("in-preview-ref?"));
+  return reference_inactive_at_cursor ();
 }
 
 bool present (object value) { return !(is_bool (value) && !as_bool (value)); }
@@ -73,11 +66,11 @@ void update_reference_preview () {
   ed.apply_changes ();
   object id1 (false), tip1 (false), id2 (false), tip2 (false);
   if (inactive_reference ()) {
-    object cursor= call ("cursor-tree");
-    id1= call ("tm->string", cursor);
+    tree cursor=get_current_editor ()->the_subtree (path_up (get_current_editor ()->the_path ()));
+    id1=object (cursor->label);
     tip1= reference_preview (as_string (id1));
     if (!present (tip1)) {
-      id2= call ("number->label", cursor);
+      id2= reference_infer_label (cursor);
       if (present (id2)) tip2= reference_preview (as_string (id2));
     }
   }

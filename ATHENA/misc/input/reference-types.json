@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "aliases": {
+    "theorem": ["t", "th", "thm"],
+    "proposition": ["p", "pr", "prop"],
+    "lemma": ["l", "le", "lm", "lem"],
+    "corollary": ["co", "cor", "corr"],
+    "definition": ["def", "dfn", "defn"],
+    "notation": ["not"], "axiom": ["ax"],
+    "convention": ["conv"], "conjecture": ["conj"],
+    "remark": ["rem"], "warning": ["war"], "example": ["ex"],
+    "exercise": ["exc", "exe", "exer"], "problem": ["prb", "prob"],
+    "solution": ["sol"], "chapter": ["c", "ch", "chap"],
+    "section": ["s", "sec"], "subsection": ["ss", "ssec", "subs", "subsec"],
+    "paragraph": ["par", "para"], "equation": ["e", "eq", "eqn", "equa"],
+    "figure": ["fig"], "table": ["tab"], "algorithm": ["alg", "algo"]
+  },
+  "types": {
+    "section": ["section", "subsection", "subsubsection"],
+    "subsection": ["subsection", "subsubsection"],
+    "paragraph": ["paragraph", "subparagraph"],
+    "figure": ["big-figure", "small-figure"],
+    "table": ["big-table", "small-table"],
+    "algorithm": ["algorithm", "specified-algorithm", "named-algorithm", "named-specified-algorithm"],
+    "equation": ["equation", "equation*", "math-block", "math-grid"]
+  }
+}

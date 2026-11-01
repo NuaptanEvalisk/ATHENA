@@ -11,6 +11,7 @@
 #include "generic_keyboard_commands.hpp"
 #include "native_program_edit.hpp"
 #include "native_text_edit.hpp"
+#include "reference_markup.hpp"
 #include "native_node_groups.hpp"
 #include "native_keyboard_registry.hpp"
 #include "editor.hpp"
@@ -527,7 +528,10 @@ void generic_insert_return () {
 }
 void generic_kbd_space () { dispatch_focus ("kbd-space-bar", false); }
 void generic_kbd_shift_space () { dispatch_focus ("kbd-space-bar", true); }
-void generic_kbd_return () { dispatch_focus ("kbd-enter", false); }
+void generic_kbd_return () {
+  reference_resolve_at_cursor ();
+  dispatch_focus ("kbd-enter", false);
+}
 void generic_kbd_shift_return () { dispatch_focus ("kbd-enter", true); }
 void generic_kbd_control_return () { dispatch_focus ("kbd-control-enter", false); }
 void generic_kbd_shift_control_return () { dispatch_focus ("kbd-control-enter", true); }

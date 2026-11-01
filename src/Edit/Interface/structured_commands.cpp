@@ -11,6 +11,7 @@
 #include "structured_commands.hpp"
 #include "native_math_edit.hpp"
 #include "native_text_edit.hpp"
+#include "reference_markup.hpp"
 #include "generic_editor_commands.hpp"
 #include "editor.hpp"
 #include "native_interfaces.hpp"
@@ -696,9 +697,11 @@ void generic_special_vertical (tree t, bool downwards) {
 }
 
 void generic_special_extremal (tree t, bool forwards) {
+  if (reference_navigate (t, forwards, true)) return;
   outward (t, "special-extremal", forwards);
 }
 
 void generic_special_incremental (tree t, bool downwards) {
+  if (reference_navigate (t, downwards, false)) return;
   outward (t, "special-incremental", downwards);
 }
