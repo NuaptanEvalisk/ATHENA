@@ -70,5 +70,6 @@ void native_link_go_to_vertex (object vertex, object attributes);
 void native_locus_link_follow ();
 object native_link_process_url (url target);
 void native_link_post_load (url target);
+void native_link_go_to_url (url target, object optional_from);
 
 #endif

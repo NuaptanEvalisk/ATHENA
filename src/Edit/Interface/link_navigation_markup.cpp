@@ -19,6 +19,8 @@
 #include "ATHENA/Data/application_lifecycle.hpp"
 #include "new_buffer.hpp"
 #include "qt_utilities.hpp"
+#include "native_interfaces.hpp"
+#include "file.hpp"
 #include <optional>
 #include <stdexcept>
 #include <vector>
@@ -482,6 +484,72 @@ std::pair<url, string> split_link_url (url target) {
 object native_link_process_url (url target) {
   const auto parts= split_link_url (target);
   return list_object (object (parts.first), object (parts.second));
+}
+
+namespace {
+void collect_url_choices (url target, array<url>& choices) {
+  if (is_none (target)) return;
+  if (is_or (target)) {
+    collect_url_choices (target[1], choices);
+    collect_url_choices (target[2], choices);
+    return;
+  }
+  const url base= split_link_url (target).first;
+  if (as_string (base, URL_SYSTEM) == "" || get_root (base) != "default" || exists (base))
+    choices << target;
+}
+
+void browse_navigation_target (url target, const std::string& original,
+                               bool post, bool history) {
+  application_browse_document (target, [original, post, history] (url loaded) {
+    if (!post && !history) return;
+    const string name= as_string (loaded);
+    const auto owner= published_buffer_source (std::string (name.data (), N(name)));
+    athena::avd::submit_source_task (owner.first, owner.second,
+      [original, post, history] (editor_rep& ed) {
+        if (post) native_link_post_load (url_system (string (original.c_str ())));
+        if (history) call ("cursor-history-add", object (ed.the_path ()));
+      }, [] (std::string error) {
+        if (!error.empty ()) std_warning << "URL navigation: " << string (error.c_str ()) << LF;
+      });
+  });
+}
+}
+
+void native_link_go_to_url (url target, object optional_from) {
+  const bool history= !is_null (optional_from);
+  if (history) call ("cursor-history-add", car (optional_from));
+  const string text= as_string (target, URL_SYSTEM);
+  const std::string original (text.data (), N(text));
+  const string root= is_rooted (target) ? get_root (target) : string ("default");
+  const bool wikilink= is_rooted_tmfs (target, "wikilink") || is_rooted_tmfs (target, "Wikilink");
+  const bool plain= root != "tmfs" && root != "file" && root != "http" &&
+                   root != "https" && root != "doi";
+  const bool post= plain && root != "mailto";
+  if (!plain) {
+    browse_navigation_target (target, original, false, history && !wikilink);
+    return;
+  }
+  if (root != "default" && root != "mailto") cout << "Unhandled url root: " << root << LF;
+  const url current= get_current_buffer_safe ();
+  if (is_rooted (target, "default") && is_rooted_web (current)) target= relative (current, target);
+  const url expanded= expand (target);
+  if (is_or (expanded)) {
+    array<url> choices;
+    collect_url_choices (expanded, choices);
+    if (N(choices) == 0) {
+      get_current_editor ()->set_message (compound ("verbatim", as_string (expanded, URL_SYSTEM)), "Not found");
+    }
+    else if (N(choices) == 1) browse_navigation_target (choices[0], original, post, history);
+    else {
+      array<object> encoded;
+      for (int i=0; i<N(choices); ++i) encoded << object (choices[i]);
+      native_link_disambiguation (as_list_object (encoded));
+    }
+    return;
+  }
+  const url base= split_link_url (target).first;
+  if (as_string (base, URL_SYSTEM) != "") browse_navigation_target (base, original, post, history);
 }
 
 void native_link_post_load (url target) {

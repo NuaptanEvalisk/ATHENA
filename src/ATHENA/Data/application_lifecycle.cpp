@@ -562,9 +562,6 @@ void application_open_loaded_document (url source, object options) {
 }
 
 void application_browse_document (url source, object after_open) {
-  const url current= get_current_buffer_safe ();
-  if (!is_rooted (source) && !is_none (current)) source= relative (current, source);
-  const std::string name= encode (source);
   std::function<void(url)> completed;
   if (!is_null (after_open) && car (after_open) != object (false)) {
     auto retained= std::make_shared<conversion_continuation> (car (after_open));
@@ -572,6 +569,13 @@ void application_browse_document (url source, object after_open) {
       exec_buffer (target, tmscm_to_object (scheme_command_handle_value (retained->handle)));
     };
   }
+  application_browse_document (source, std::move (completed));
+}
+
+void application_browse_document (url source, std::function<void(url)> completed) {
+  const url current= get_current_buffer_safe ();
+  if (!is_rooted (source) && !is_none (current)) source= relative (current, source);
+  const std::string name= encode (source);
   on_document_gui ([name, completed] { browse_document_gui (url (name.c_str ()), completed); });
 }
 

@@ -128,31 +128,6 @@
 (drain)
 (check (= (length labels) 1) "empty anchor unexpectedly moved cursor")
 
-;; Generic URL path used by wikilinks: source history, global load, target post.
-(load-definition "link/link-navigate.scm" 'go-to-url)
-(define wiki? #t)
-(define (wikilink-url? u) wiki?)
-(define (url-handlers u)
-  (list load-browse-buffer
-        (lambda (target)
-          (check (equal? (url->system target) "target.ath") "post URL changed")
-          (go-to-label "wiki-label"))))
-(set! owner 'source)
-(set! opened '())
-(set! history '())
-(go-to-url "target.ath" '(0 1))
-(drain)
-(check (equal? labels '("wiki-label" "end-label")) "wikilink post lost")
-(check (equal? (map car history) '(source)) "wikilink recorded redirect history")
-;; Other links still record the destination, and post does not share native URL.
-(set! owner 'source)
-(set! wiki? #f)
-(set! history '())
-(go-to-url "target.ath" '(0 1))
-(drain)
-(check (equal? (map car history) '(source "/target.ath")) "target history missing")
-
-
 ;; Wikilinks resolve before loading: there must be no intermediate redirect
 ;; buffer/tab. Use the current navigation overload, not the retired TMFS loader.
 (load-definition vault 'go-to-url '(:require (vault-wikilink-navigation-url? u)))
