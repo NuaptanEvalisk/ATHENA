@@ -115,7 +115,36 @@
 (tm-property (switch-document u)
   (:argument u smart-file "File name")
   (:default u (propose-name-buffer)))
-(import-from (athena athena tm-vault))
+;; Registration bridges for the native vault frontend; kernel TMFS and
+;; preference registries retain their existing initialization order.
+(define-secure-symbols
+  wikilink-repair-apply vault-transclude-repair
+  node-reference-jump-to-source vault-jump-to-source
+  artifact-jump-to-position artifact-navigation-failed
+  load-buffer load-vault-dir string->url vault-load-latest-action
+  vault-validate-root-namespace go-to-system-welcome-page
+  go-to-welcome-page go-to-vault-initial-page load-help-article load-help-buffer
+  vault-show-explorer vault-show-explorer-and-track vault-explorer-track-file
+  open-namespace-manager open-namespace-explorer
+  namespace-new-file-within-wizard namespace-info-page open-quick-switcher
+  new-document)
+(tmfs-handler "wikilink-repair" 'load wikilink-repair-page)
+(tmfs-handler "ns" 'load namespace-info-page)
+(tmfs-load-handler (welcome name) (vault-welcome-page))
+(tmfs-handler "artifact" 'load artifact-open-page)
+(tmfs-title-handler (artifact name doc) "Artifact")
+(tmfs-permission-handler (artifact name kind) (== kind "read"))
+(tmfs-handler "artifact-disambiguation" 'load artifact-disambiguation-page)
+(tmfs-title-handler (artifact-disambiguation name doc) "Artifact disambiguation")
+(tmfs-permission-handler (artifact-disambiguation name kind) (== kind "read"))
+(tmfs-handler "artifact-name-query" 'load artifact-name-query-page)
+(tmfs-title-handler (artifact-name-query name doc) "Artifact disambiguation")
+(tmfs-permission-handler (artifact-name-query name kind) (== kind "read"))
+(register-preference-callback-procedures
+  (list notify-cursor-color notify-document-background-color
+        notify-enunciation-color notify-focus-border-width notify-focus-color
+        notify-labels-mode notify-link-color notify-selection-color
+        notify-vault-explorer-track notify-vault-preferences-mode))
 (import-from (doc help-funcs))
 (generic-keyboard-load)
 (lazy-define (generic document-part)

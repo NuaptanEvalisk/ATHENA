@@ -233,6 +233,13 @@ void native_artifact_jump_to_position (url source, path position, object history
   });
 }
 
+tree native_artifact_open_page (string uuid) {
+  const tree body= artifacts_open_uuid (uuid) ?
+    tree (DOCUMENT, "Opening artifact...") :
+    tree (DOCUMENT, compound ("strong", "Artifact not found: "), uuid);
+  return tree (DOCUMENT, compound ("style", tree (TUPLE, "generic")), compound ("body", body));
+}
+
 void native_artifact_navigation_failed (string source) {
   const string message= "Artifact definition changed in " * source *
     "; rebuild artifacts for this document";

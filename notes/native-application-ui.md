@@ -1,6 +1,6 @@
 # Native Application Menus And Toolbars
 
-Updated: 2026-11-01. The application shell owns menus, toolbars, command palette
+Updated: 2026-11-02. The application shell owns menus, toolbars, command palette
 and application shortcuts. The former Scheme UI migration inventories and the
 October command-loss handoff are retired; they are not current TODO lists.
 
@@ -77,12 +77,47 @@ idle-delay loop and lazy registration are removed.
 `go-to-id` now resolves and positions on the destination actor. Resolution
 attempts belong to one navigation request rather than a process-wide set, so a
 later jump to the same document is not suppressed. `go-to-url` uses native
-protocol dispatch and destination-actor post-load positioning; remaining vault
-conditional handlers still wrap that default. `progs/link` and its module
-references are removed.
+protocol dispatch and destination-actor post-load positioning, including vault
+UUID navigation, legacy map navigation and link repair. No vault Scheme
+conditional handler wraps that default. `progs/link` and its module references
+are removed.
 
 Focused runtime checks cover cross-document loading, auxiliary page creation,
 source-master preservation, repeated locus navigation and target preview
 transfer. The live-locus fixture uses local macro expansion of a declared tag.
 A legacy raw `locus` source fixture remains rejected by the v3 child-role
 contract; raw legacy-locus persistence compatibility was not added.
+
+## Native Application Frontends
+
+The `progs/athena` business migration is complete. Its former modules and the
+empty directory are removed, rather than moved to another Scheme directory.
+The native entrypoints are declared in `src/Scheme/Glue/native.xml`; generated
+marshalling remains a bridge to the deferred Scheme kernel.
+
+- `application_lifecycle.cpp` and `document_save_frontend.cpp` own document
+  loading, recovery, import/export, revert, save, close and application exit.
+- `document_print.cpp` and the existing Qt print/export services own printing
+  and PDF workflows. `document_style_commands.cpp`, `application_preferences.cpp`,
+  `application_tools.cpp` and the `view_*` frontends own document defaults,
+  appearance, application tools and view commands.
+- `vault_frontend.cpp`, `vault_navigation.cpp`, `reference_markup.cpp` and
+  `materials_edit.cpp` delegate to the existing vault, node-reference and
+  artifacts services. Link repair edits are submitted to each buffer owner;
+  native candidate pages reuse vault file and anchor readers.
+- `codex_completion.cpp` prepares selected content and figures, owns request
+  files, creates document or floating-buffer placeholders, and imports results
+  on the target actor. The existing Qt bridge process and options dialog are
+  reused. A local fake bridge verified both destinations, cursor preservation,
+  deleted placeholders and request-file cleanup without model requests.
+
+`init-athena.scm` retains only the required vault registration bridges: secure
+command names, TMFS page callbacks and title/read-only metadata, and preference
+callbacks. TMFS loads receive native trees directly. Page construction,
+navigation, repair and editing are C++; the kernel TMFS and preference registries
+are deliberately not rewritten by this migration.
+
+Final registration checks exercise TMFS loads, titles and permissions after
+normal startup with no former application module loaded. Batches were built
+with `-j16` and deployed through `tools/deploy-local-runtime.sh`; temporary
+runtime homes, scripts, generated figures and logs were cleaned after use.

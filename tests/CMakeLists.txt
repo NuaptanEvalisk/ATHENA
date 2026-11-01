@@ -726,10 +726,6 @@ set_tests_properties(${_athena_application_runtime_tests}
 
 find_program (ATHENA_TEST_GUILE guile)
 if (ATHENA_TEST_GUILE)
-  add_test (NAME window_close_ownership_scheme_test
-    COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
-      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/window-close-ownership-test.scm
-      ${ATHENA_SOURCE_DIR})
   add_test (NAME aux_buffer_permissions_scheme_test
     COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
       ${CMAKE_CURRENT_SOURCE_DIR}/scheme/aux-buffer-permissions-test.scm
