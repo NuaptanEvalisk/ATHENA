@@ -12,3 +12,4 @@ void document_print_pages_file_dialog ();
 void document_print ();
 void document_print_direct ();
 void document_print_interactive ();
+bool document_attach_source (url target);

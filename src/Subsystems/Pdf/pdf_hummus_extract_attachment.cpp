@@ -13,6 +13,7 @@
 #include "file.hpp"
 #include "new_buffer.hpp"
 #include "sys_utils.hpp"
+#include <mutex>
 
 #include "PDFWriter/InputFileStream.h"
 #include "PDFWriter/OutputBufferedStream.h"
@@ -170,6 +171,7 @@ scm_extract_attachments (url pdf_path) {
   return ret;
 }
 static hashset<string> internal_styles;
+static std::once_flag internal_styles_once;
 
 static void
 declare_style (url u) {
@@ -197,12 +199,12 @@ declare_style (url u) {
 // Determine whether the style is a internal style
 static bool
 is_internal_style (string style) {
-  if (N (internal_styles) == 0) {
+  std::call_once (internal_styles_once, [] {
     url sty_u= descendance ("$ATHENA_PATH/styles");
     declare_style (sty_u);
     sty_u= descendance ("$ATHENA_PATH/packages");
     declare_style (sty_u);
-  }
+  });
   return internal_styles->contains (style);
 }
 

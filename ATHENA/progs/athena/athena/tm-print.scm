@@ -80,27 +80,6 @@
       (unless (attach-doc-to-exported-pdf fname)
           (notify-now "Fail to attach tm to pdf")))))
 
-(tm-define (attach-doc-to-exported-pdf fname)
-  (let* ((tem-url (buffer-new))
-         (new-url (url-relative tem-url (string-append (url-basename fname) ".tm")))
-         (cur-url (current-buffer-url))
-         (cur-tree (buffer-get cur-url))
-         (linked-file (pdf-get-linked-file-paths cur-tree cur-url))
-         (linked-file-with-main (array-url-append new-url linked-file))
-         (new-tree (pdf-replace-linked-path cur-tree cur-url)))
-    (buffer-rename tem-url new-url)
-    (buffer-copy cur-url new-url)
-    ;; copy also attachments and auxiliary data
-    (with-buffer cur-url
-      (let* ((attl (list-attachments)) 
-             (atts (map get-attachment attl))
-             (auxl (list-auxiliaries))
-             (auxs (map get-auxiliary auxl)))
-        (with-buffer new-url
-          (for-each set-attachment attl atts)
-          (for-each set-auxiliary auxl auxs))))
-    (buffer-save new-url)
-    (pdf-make-attachments fname linked-file-with-main fname)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Printing commands

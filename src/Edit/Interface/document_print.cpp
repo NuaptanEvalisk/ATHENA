@@ -6,6 +6,9 @@
 #include "buffer_actor.hpp"
 #include "guile_tm.hpp"
 #include "ATHENA/Data/compound_edit_batch.hpp"
+#include "Data/Convert/Generic/conversion_registry.hpp"
+#include "Pdf/pdf_hummus_make_attachment.hpp"
+#include "Pdf/pdf_hummus_extract_attachment.hpp"
 #include "ATHENA/Data/data_art.hpp"
 #include "ATHENA/Data/node_reference_export.hpp"
 #include "Qt/qt_utilities.hpp"
@@ -21,10 +24,13 @@
 #include <QFormLayout>
 #include <QMessageBox>
 #include <QSpinBox>
+#include <QTemporaryDir>
+#include <QSaveFile>
 #include <QUrl>
 #include <algorithm>
 #include <limits>
 #include <memory>
+#include <map>
 #include <stdexcept>
 
 namespace {
@@ -147,7 +153,7 @@ void print_dialog (bool select_pages, bool to_file) {
     throw std::runtime_error ("Printing requires an owning editor");
   print_dialog_request request {owner->actor_id, owner->view_id,
     std::max (1, owner->editor->get_page_count ()),
-    bytes (basename (owner->actor->current_buffer_url ()))};
+    bytes (as_string (tail (owner->actor->current_buffer_url ())))};
   qt_post_to_main_thread ([request, select_pages, to_file] {
     if (!select_pages) { choose_print_file (request, 1, 1000000); return; }
     auto* dialog= new QDialog (QApplication::activeWindow ());
@@ -207,4 +213,48 @@ void document_print () {
   if (!headless_mode && get_preference ("gui:print dialogue") == "on")
     document_print_interactive ();
   else document_print_direct ();
+}
+
+bool document_attach_source (url target) {
+  const auto* owner= current_scheme_execution_context ();
+  if (!owner || !owner->actor || !owner->editor)
+    throw std::runtime_error ("Attaching document source requires an owning editor");
+  tree document= copy (owner->actor->current_source (owner->view_id));
+  array<url> linked= get_linked_file_paths (document, owner->actor->current_buffer_url ());
+  QTemporaryDir temporary;
+  if (!temporary.isValid ())
+    throw std::runtime_error ("Could not create PDF attachment workspace");
+  string source_name= basename (target) * ".ath";
+  url source= url_system (text (temporary.filePath (
+    QString::fromUtf8 (source_name.data (), N(source_name))).toUtf8 ().toStdString ()));
+  url attached= url_system (text (temporary.filePath ("attached.pdf").toUtf8 ().toStdString ()));
+  array<url> attachments;
+  attachments << source;
+  std::map<std::string, std::string> names {{bytes (source_name), bytes (as_string (source))}};
+  for (int i=0; i<N(linked); ++i) {
+    auto name= bytes (as_string (tail (linked[i])));
+    auto path= bytes (concretize (linked[i]));
+    auto inserted= names.emplace (name, path);
+    if (!inserted.second && inserted.first->second != path)
+      throw std::runtime_error ("PDF attachments have conflicting filenames: " + name);
+    if (inserted.second) attachments << linked[i];
+  }
+  document= replace_with_relative_path (document, url ());
+  if (save_string (source, conversion_write_document (document), false))
+    throw std::runtime_error ("Could not write native PDF source attachment");
+  if (!pdf_hummus_make_attachments (target, attachments, attached)) return false;
+
+  QFile input (temporary.filePath ("attached.pdf"));
+  string destination= concretize (target);
+  QSaveFile output (QString::fromUtf8 (destination.data (), N(destination)));
+  if (!input.open (QIODevice::ReadOnly) || !output.open (QIODevice::WriteOnly))
+    throw std::runtime_error ("Could not replace PDF with attached source");
+  while (!input.atEnd ()) {
+    QByteArray data= input.read (1024 * 1024);
+    if (input.error () != QFileDevice::NoError || output.write (data) != data.size ())
+      throw std::runtime_error ("Could not copy PDF with attached source");
+  }
+  if (!output.commit ())
+    throw std::runtime_error ("Could not commit PDF with attached source");
+  return true;
 }
