@@ -21,6 +21,7 @@
 #include "Qt/qt_simple_widget.hpp"
 #include "server.hpp"
 #include "view_fit.hpp"
+#include "view_modes.hpp"
 #include "Data/NodeContracts/evaluation_state.hpp"
 #include "Data/NodeContracts/source_environment.hpp"
 #include <map>
@@ -87,6 +88,7 @@ public:
   bool heading_word_count_refresh_pending= false;
   hashmap<string,double> saved_view_zooms= hashmap<string,double> (0.0);
   persistent_view_fit persistent_fit;
+  editor_view_modes view_modes;
 
   actor_viewport_snapshot ui_viewport () const;
   bool publish_ui (actor_command_kind kind,

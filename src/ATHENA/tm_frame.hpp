@@ -14,10 +14,6 @@
 #include "server.hpp"
 
 class tm_frame_rep: virtual public server_rep {
-protected:
-  bool full_screen;        // full screen mode
-  bool full_screen_edit;   // full screen edit mode
-
 public:
   tm_frame_rep ();
   ~tm_frame_rep ();

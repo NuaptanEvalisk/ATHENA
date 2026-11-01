@@ -473,13 +473,13 @@ execute_business_id (editor ed, const QString& id) {
   else if (id == "open-document-metadata")
     athena_dispatch_ui (metadata_properties_pane_show);
   else if (id == "view-toggle-full-screen-edit")
-    (void) call ("toggle-full-screen-edit-mode");
+    view_toggle_fullscreen_edit ();
   else if (id == "view-toggle-full-screen")
-    (void) call ("toggle-full-screen-mode");
+    view_toggle_fullscreen ();
   else if (id == "view-toggle-panorama")
-    (void) call ("toggle-panorama-mode");
+    view_toggle_panorama ();
   else if (id == "view-toggle-slideshow")
-    (void) call ("toggle-slideshow-mode");
+    view_toggle_slideshow ();
   else if (id == "view-toggle-remote-control")
     native_remote_control_toggle ();
   else if (id == "view-fit-screen")

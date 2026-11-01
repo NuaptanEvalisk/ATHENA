@@ -741,11 +741,11 @@ qt_actor_widget_rep::refresh_viewport () {
   snapshot.externally_presented=
     canvas () != nullptr && canvas ()->externallyPresented ();
   if (canvas ()) snapshot.cursor_follow= canvas ()->cursorFollow;
-  snapshot.full_screen= get_server ()->in_full_screen_mode ();
-  snapshot.full_screen_edit= get_server ()->in_full_screen_edit_mode ();
   snapshot.invalid= is_invalid ();
   tm_view view= concrete_runtime_view (view_id_);
   if (view != nullptr && view->win != nullptr) {
+    snapshot.full_screen= view->win->full_screen && !view->win->full_screen_edit;
+    snapshot.full_screen_edit= view->win->full_screen_edit;
     snapshot.window_serial= view->win->serial;
     string id= as_string (abstract_window (view->win));
     string prefix= "tmfs://window/";
@@ -1113,6 +1113,18 @@ qt_actor_widget_rep::drain_external_effects () {
       tm_view view= concrete_runtime_view (view_id_);
       if (view != nullptr && view->win != nullptr)
         view->win->set_scrollbars (static_cast<int> (record.argument[0]));
+      break;
+    }
+    case actor_command_kind::ui_set_full_screen: {
+      tm_view view= concrete_runtime_view (view_id_);
+      if (!view || !view->win) break;
+      bool on= record.argument[0] != 0, edit= record.argument[1] != 0;
+      view->win->full_screen= on;
+      view->win->full_screen_edit= on && edit;
+      view->win->set_header_flag (!on || edit);
+      view->win->set_footer_flag (!on || edit);
+      ::set_full_screen (view->win->win, on);
+      refresh_viewport ();
       break;
     }
     case actor_command_kind::ui_show_header: {

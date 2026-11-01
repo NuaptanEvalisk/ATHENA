@@ -966,35 +966,6 @@
   (and-with t (tree-innermost 'screens)
     (switch-to t which :start)))
 
-(tm-define (screens-show-all)
-  (and-with t (tree-innermost 'screens)
-    (for (c (tree-children t))
-      (when (tree-in? c '(hidden shown))
-        (tree-assign-node! c 'slide)))
-    (tree-assign-node! t 'document)
-    (tree-insert-node! t 0 '(slideshow))))
-
-(tm-define (screens-show-this)
-  (and-with t (tree-innermost 'slideshow)
-    (when (and (== (tree-arity t) 1) (tree-is? (tree-ref t 0) 'document))
-      (tree-remove-node! t 0)
-      (tree-assign-node! t 'screens)
-      (for (c (tree-children t))
-	(when (tree-func? c 'slide)
-	  (tree-assign-node! c (if (cursor-inside? c) 'shown 'hidden)))))))
-
-(define (expand-slides? s)
-  (in? s (list "paper" "book" "panorama" "slideshow")))
-
-(tm-define (init-page-rendering s)
-  (:require (or (inside? 'screens) (inside? 'slideshow)))
-  (with o (get-init-page-rendering)
-    (when (and (expand-slides? s) (not (expand-slides? o)))
-      (screens-show-all))
-    (when (and (not (expand-slides? s)) (expand-slides? o))
-      (screens-show-this))
-    (former s)))
-
 (tm-define (slide-get-switch t)
   (if (slideshow-context? t) (tree-ref t 0) t))
 

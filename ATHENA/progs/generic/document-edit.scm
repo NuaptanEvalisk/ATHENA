@@ -137,16 +137,6 @@
 (tm-property (init-default-page-rendering)
   (:check-mark "*" test-default-page-rendering?))
 
-(tm-define (init-page-rendering s)
-  (:check-mark "*" test-page-rendering?)
-  (document-apply-page-rendering-state s)
-  (cond ((== s "panorama")
-         (delayed (:idle 25) (fit-all-to-screen)))
-        ((== s "slideshow")
-         (delayed (:idle 25) (restore-zoom "slideshow")))
-        (else
-         (delayed (:idle 25) (restore-zoom s)))))
-
 (tm-define (initial-get-page-rendering u)
   (with-buffer u
     (get-init-page-rendering)))

@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="screens-show-all" native="view_screens_show_all" returns="void" exceptions="scheme" />
+  <binding name="screens-show-this" native="view_screens_show_this" returns="void" exceptions="scheme" />
+  <binding name="init-page-rendering" native="view_init_page_rendering" returns="void" exceptions="scheme"><arg type="string" /></binding>
+  <binding name="toggle-panorama-mode" native="view_toggle_panorama" returns="void" exceptions="scheme" />
+  <binding name="toggle-slideshow-mode" native="view_toggle_slideshow" returns="void" exceptions="scheme" />
+  <binding name="toggle-full-screen-mode" native="view_toggle_fullscreen" returns="void" exceptions="scheme" />
+  <binding name="toggle-full-screen-edit-mode" native="view_toggle_fullscreen_edit" returns="void" exceptions="scheme" />
   <binding name="schedule-persistent-fit-width" native="view_schedule_fit_width" returns="void" exceptions="scheme" />
   <binding name="toggle-persistent-fit-width" native="view_toggle_fit_width" returns="void" exceptions="scheme" />
   <binding name="notify-header" native="view_notify_header" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /></binding>

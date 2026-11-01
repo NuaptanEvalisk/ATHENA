@@ -25,6 +25,8 @@ public:
   hashmap<tree,tree> props;
   int                serial;
   double             zoomf;       // the zoom factor
+  bool full_screen= false;
+  bool full_screen_edit= false;
 
 protected:
   string   cur_title; // current window title

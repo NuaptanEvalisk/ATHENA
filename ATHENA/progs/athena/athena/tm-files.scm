@@ -13,7 +13,6 @@
 
 (texmacs-module (athena athena tm-files)
   (:use (athena athena tm-server)
-        (athena athena tm-view)
         (athena athena tm-print)
         (kernel athena tm-document)
         (kernel athena tm-dialogue)

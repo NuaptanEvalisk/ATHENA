@@ -1918,6 +1918,7 @@ edit_interface_rep::apply_changes () {
     if (get_preference ("heading word counts", "off") == "on")
       notify_change (THE_ENVIRONMENT);
   }
+  view_tick_modes (this);
   view_tick_fit_width (this);
   refresh_enunciation_slots ();
   update_visible ();

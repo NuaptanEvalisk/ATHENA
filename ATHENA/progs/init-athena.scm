@@ -87,9 +87,6 @@
 (lazy-define (athena athena tm-vault) load-vault-dir load-vault-dir-now)
 (lazy-define (athena athena tm-global-transformation)
              run-global-transformation)
-(lazy-define (athena athena tm-view)
-             toggle-full-screen-mode toggle-full-screen-edit-mode
-             toggle-panorama-mode toggle-slideshow-mode)
 (lazy-define (athena athena tm-files)
              buffer-missing-style? buffer-set-default-style command-line-convert
              native-recent-file-provider-data)
@@ -118,8 +115,7 @@
 (generic-keyboard-load)
 (lazy-define (generic document-part)
              buffer-has-preamble? in-preamble-mode? toggle-preamble-mode)
-(lazy-define (generic document-edit) update-document set-document-language
-             get-init-page-rendering init-page-rendering)
+(lazy-define (generic document-edit) update-document set-document-language)
 (tmfs-handler "material" 'load material-info-page)
 (tmfs-handler "material" 'title materials-page-title)
 (tmfs-handler "material" 'permission? materials-page-permission?)

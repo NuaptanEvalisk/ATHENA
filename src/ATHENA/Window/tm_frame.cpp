@@ -32,8 +32,7 @@ actor_frame_editor () noexcept {
 * Constructor and destructor
 ******************************************************************************/
 
-tm_frame_rep::tm_frame_rep ():
-  full_screen (false), full_screen_edit (false) {}
+tm_frame_rep::tm_frame_rep () {}
 tm_frame_rep::~tm_frame_rep () {}
 
 /******************************************************************************
@@ -285,26 +284,35 @@ tm_frame_rep::recall_message () {
 
 void
 tm_frame_rep::full_screen_mode (bool on, bool edit) {
-  if (on && !edit) {
-    show_header (false);
-    show_footer (false);
+  if (editor_rep* editor= actor_frame_editor ()) {
+    editor->full_screen_mode (on && !edit);
+    editor->publish_ui (actor_command_kind::ui_set_full_screen, on, edit);
+    return;
   }
-  else {
-    show_header (true);
-    show_footer (true);
-  }
-  set_full_screen (concrete_window () -> win, on);
-  get_current_editor () -> full_screen_mode (on && !edit);
-  full_screen = on;
-  full_screen_edit = on && edit;
+  tm_view view= concrete_view (get_current_view_safe ());
+  if (!view || !view->win) return;
+  auto continuation= actor_continuation_registry::instance ().store ([on, edit] {
+    if (auto* editor= actor_frame_editor ())
+      editor->sv->full_screen_mode (on, edit);
+  });
+  if (!view->buf->actor->submit (actor_command_kind::run_native_continuation,
+        view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB,
+        SCHEME_CAPABILITY_BUFFER, continuation))
+    actor_continuation_registry::instance ().discard (continuation);
 }
 
 bool
 tm_frame_rep::in_full_screen_mode () {
-  return full_screen && !full_screen_edit;
+  if (editor_rep* editor= actor_frame_editor ())
+    return editor->ui_viewport ().full_screen;
+  if (!has_current_window ()) return false;
+  return concrete_window ()->full_screen && !concrete_window ()->full_screen_edit;
 }
 
 bool
 tm_frame_rep::in_full_screen_edit_mode () {
-  return full_screen && full_screen_edit;
+  if (editor_rep* editor= actor_frame_editor ())
+    return editor->ui_viewport ().full_screen_edit;
+  if (!has_current_window ()) return false;
+  return concrete_window ()->full_screen_edit;
 }

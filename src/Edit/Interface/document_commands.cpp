@@ -482,8 +482,8 @@ bool document_test_page_rendering (string value) {
 void document_apply_page_rendering_state (string value) {
   editor ed= get_current_editor ();
   if (value == "paper" || value == "papyrus")
-    call ("set-preference", object ("page medium"), object (value));
-  call ("save-zoom", object (document_get_init_page_rendering ()));
+    set_preference ("page medium", value);
+  view_save_zoom (document_get_init_page_rendering (ed.operator-> ()));
 
   if (value == "book") {
     ed->init_env ("page-medium", tree ("paper"));

@@ -27,6 +27,7 @@
 #include "Edit/Interface/view_zoom.hpp"
 #include "Edit/Interface/view_controls.hpp"
 #include "Edit/Interface/view_fit.hpp"
+#include "Edit/Interface/view_modes.hpp"
 #include "Edit/Interface/document_style_commands.hpp"
 #include "Edit/Interface/selection_image_export.hpp"
 
