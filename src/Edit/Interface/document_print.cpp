@@ -2,6 +2,7 @@
 #include "document_print.hpp"
 #include "editor.hpp"
 #include "new_buffer.hpp"
+#include "new_view.hpp"
 #include "file.hpp"
 #include "buffer_actor.hpp"
 #include "guile_tm.hpp"
@@ -257,4 +258,42 @@ bool document_attach_source (url target) {
   if (!output.commit ())
     throw std::runtime_error ("Could not commit PDF with attached source");
   return true;
+}
+
+void document_import_pdf_source (url source) {
+  auto name= bytes (as_string (source));
+  auto open_source= [name= std::move (name)] {
+    url pdf= url (text (name));
+    string template_path= concretize (url_temp_dir ()) * "/pdf-source-XXXXXX";
+    QTemporaryDir directory (QString::fromUtf8 (template_path.data (), N(template_path)));
+    if (!directory.isValid ())
+      throw std::runtime_error ("Could not create PDF source workspace");
+    url root= url_system (text (directory.path ().toUtf8 ().toStdString ()));
+    list<url> attachments;
+    if (!extract_attachments_from_pdf (pdf, root, attachments))
+      throw std::runtime_error ("Could not extract PDF source attachments");
+    url main= url_none ();
+    url expected= root * (basename (pdf) * ".ath");
+    int candidates= 0;
+    for (list<url> item= attachments; !is_nil (item); item= item->next) {
+      if (suffix (item->item) != "ath") continue;
+      ++candidates;
+      main= item->item;
+      if (main == expected) break;
+    }
+    if (is_none (main))
+      throw std::runtime_error ("PDF has no native .ath source attachment");
+    if (main != expected && candidates != 1)
+      throw std::runtime_error ("PDF contains multiple possible source documents");
+    if (buffer_load (main))
+      throw std::runtime_error ("Could not load PDF source attachment");
+    directory.setAutoRemove (false);
+    switch_to_buffer (main);
+  };
+  if (current_scheme_execution_context ())
+    qt_post_to_main_thread ([open_source= std::move (open_source)] {
+      try { open_source (); }
+      catch (const std::exception& error) { report_error (error.what ()); }
+    });
+  else open_source ();
 }

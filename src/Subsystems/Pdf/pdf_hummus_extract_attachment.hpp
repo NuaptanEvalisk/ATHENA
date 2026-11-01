@@ -27,6 +27,7 @@ attachments.
 @return Returns true if the extraction is successful, false otherwise.
 */
 bool extract_attachments_from_pdf (url pdf_path, list<url>& names);
+bool extract_attachments_from_pdf (url pdf_path, url directory, list<url>& names);
 
 /**
 
@@ -85,6 +86,9 @@ url get_main_tm (url pdf_path);
  * in that case the pdf functions will alaways return an error.
  */
 inline bool extract_attachments_from_pdf (url pdf_path, list<url>& names) {
+    return false;
+}
+inline bool extract_attachments_from_pdf (url pdf_path, url directory, list<url>& names) {
     return false;
 }
 

@@ -31,7 +31,7 @@ using namespace PDFHummus;
 using namespace IOBasicTypes;
 
 bool
-extract_attachments_from_pdf (url pdf_path, list<url>& names) {
+extract_attachments_from_pdf (url pdf_path, url directory, list<url>& names) {
   EStatusCode status= PDFHummus::eSuccess;
   InputFile   pdfFile;
   PDFParser   parser;
@@ -130,8 +130,7 @@ extract_attachments_from_pdf (url pdf_path, list<url>& names) {
         break;
       }
 
-      url attachment_path=
-          relative (pdf_path, url (string (name->GetValue ().c_str ())));
+      url attachment_path= directory * tail (url (string (name->GetValue ().c_str ())));
       OutputFile attachment_file;
       status= attachment_file.OpenFile (
           std::string (as_charp (as_string (attachment_path))));
@@ -162,6 +161,11 @@ extract_attachments_from_pdf (url pdf_path, list<url>& names) {
   } while (false);
   if (status == PDFHummus::eFailure) return false;
   else return true;
+}
+
+bool
+extract_attachments_from_pdf (url pdf_path, list<url>& names) {
+  return extract_attachments_from_pdf (pdf_path, head (pdf_path), names);
 }
 
 bool

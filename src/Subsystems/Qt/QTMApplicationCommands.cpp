@@ -11,6 +11,7 @@
 
 #include "QTMCommandRegistry.hpp"
 #include "Edit/Interface/application_tools.hpp"
+#include "Edit/Interface/document_print.hpp"
 #include "global_transformation_frontend.hpp"
 #include "recent_files.hpp"
 #include "application_lifecycle.hpp"
@@ -460,9 +461,7 @@ QTMCommandRegistry::registerApplicationCommands () {
         QString (), QObject::tr ("PDF documents (*.pdf)"));
       if (path.isEmpty ()) return true;
       try {
-        (void) call (
-          "wrapped-import-pdf-embeded-with-tm",
-          object (url_system (from_qstring (path))));
+        document_import_pdf_source (url_system (from_qstring (path)));
         return true;
       }
       catch (...) {
