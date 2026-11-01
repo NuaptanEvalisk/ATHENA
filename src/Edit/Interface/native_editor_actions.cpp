@@ -9,6 +9,7 @@
 #include "native_graphics_commands.hpp"
 #include "native_editor_actions.hpp"
 #include "native_math_edit.hpp"
+#include "native_text_edit.hpp"
 
 #include "ATHENA/Data/program_model.hpp"
 #include "ATHENA/Data/document_node_model.hpp"
@@ -24,6 +25,7 @@
 #include "native_dynamic_commands.hpp"
 #include "generic_editor_commands.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
+#include "Data/NodeContracts/node_groups.hpp"
 #include "Typeset/Env/local_environment.hpp"
 #include "language.hpp"
 #include "scheme.hpp"
@@ -1309,13 +1311,13 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     else if (id == "algorithm-toggle-number" &&
              state.has (ACTOR_FOCUS_TOOLBAR_ALGORITHM_CONTEXT) &&
              !state.algorithm_named)
-      (void) call ("algorithm-toggle-number", object (target));
+      text_algorithm_toggle_number (target);
     else if (id == "algorithm-toggle-name" &&
              state.has (ACTOR_FOCUS_TOOLBAR_ALGORITHM_CONTEXT))
-      (void) call ("algorithm-toggle-name", object (target));
+      text_algorithm_toggle_name (target);
     else if (id == "algorithm-toggle-specification" &&
              state.has (ACTOR_FOCUS_TOOLBAR_ALGORITHM_CONTEXT))
-      (void) call ("algorithm-toggle-specification", object (target));
+      text_algorithm_toggle_specification (target);
     else if (id == "note-toggle-custom" &&
              state.has (ACTOR_FOCUS_TOOLBAR_DETACHED_NOTE_CONTEXT))
       (void) call ("note-toggle-custom", object (target));
@@ -1461,11 +1463,15 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
       native_action_string (action.value ("value")), fields);
   }
   else if (op == "focus-automatic-section-rename") {
-    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
-    if (!state.valid () || !state.automatic_section_context) return;
-    (void) call (
-      "automatic-section-rename",
-      object (native_action_string (action.value ("value"))));
+    const path focus= ed->focus_get ();
+    if (!ed->test_subtree (focus)) return;
+    tree target= ed->the_subtree (focus);
+    const string tag= as_string (L(target));
+    if (!athena::contracts::standard_node_groups ().contains (
+          "automatic-section-tag", std::string (tag.data (), N(tag)))) return;
+    target= tree_insert (target, N(target)-1,
+      tree (TUPLE, native_action_string (action.value ("value"))));
+    tree_assign_node (target, as_tree_label (tag * "*"));
   }
   else if (op == "focus-set-cell-mode") {
     actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();

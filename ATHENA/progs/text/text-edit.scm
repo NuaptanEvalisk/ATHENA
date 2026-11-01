@@ -550,70 +550,6 @@
         :other))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Hyphenation
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (hyphenate-selection-as hyph)
-  (:interactive #t)
-  (:argument hyph "Hyphenate as")
-  (:proposals hyph (list (tm->string (selection-tree))))
-  (with ins `(hyphenate-as ,hyph ,(selection-tree))
-    (clipboard-cut "null")
-    (insert ins)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Formulas
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Routines for inserting miscellaneous content
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (make-aux env var aux)
-  (when (context-has? var)
-    (set! aux (get-env var)))
-  (if (not (make-return-after))
-      (insert (list (string->symbol env) aux '(document "")))))
-
-(tm-define (make-aux* env var aux name)
-  (when (context-has? var)
-    (set! aux (get-env var)))
-  (if (not (make-return-after))
-      (insert (list (string->symbol env) aux name '(document "")))))
-
-(tm-define
- (automatic-section-context? t)
- (tree-in? t (node-group-members "automatic-section-tag")))
-
-(define (automatic-name-var t)
-  (cond ((tm-func? t 'table-of-contents) "table-of-contents-text")
-        ((tm-func? t 'the-index) "index-text")
-        ((tm-func? t 'the-glossary) "glossary-text")
-        ((tm-func? t 'list-of-figures) "list-of-figures")
-        ((tm-func? t 'list-of-tables) "list-of-tables")
-        (else #f)))
-
-(define (automatic-section-name)
-  (with-innermost t automatic-section-context?
-    (let* ((var (automatic-name-var t))
-           (val (if var (get-env-tree var) "")))
-      (when (tm-func? val 'macro 1)
-        (set! val (tm-ref val 0)))
-      (when (and (tm-func? val 'localize 1) (tm-atomic? (tm-ref val 0)))
-        (set! val (tm-ref val 0)))
-      (if (tm-atomic? val) (tm->string val) ""))))
-
-(tm-define (automatic-section-rename new-name)
-  (:argument new-name "New name")
-  (:proposals new-name (list (automatic-section-name)))
-  (with-innermost t automatic-section-context?
-    (when t
-      (let* ((l (tree-label t))
-             (l* (symbol-append l '*)))
-        (tree-set t `(,l* ,@(cDr (tm-children t))
-                          ,new-name ,(tm-ref t :last)))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Editing enunciations
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -625,90 +561,6 @@
   (:require (enunciation-context? t))
   (and (== (tree-arity t) 1)
        (focus-search-label (tree-ref t 0))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Editing algorithms
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define
- (algorithm-context? t)
- (tree-in? t (node-group-members "algorithm-tag")))
-
-(tm-define (algorithm-root s)
-  (cond ((symbol-ends? s '*)
-	 (algorithm-root (symbol-drop-right s 1)))
-	((symbol-starts? s 'specified-)
-	 (algorithm-root (symbol-drop s 10)))
-	((symbol-starts? s 'named-)
-	 (algorithm-root (symbol-drop s 6)))
-	(else s)))
-
-(tm-define (algorithm-numbered? t)
-  (let* ((l (tree-label t))
-	 (r (algorithm-root l)))
-    (in? l (list r (symbol-append 'specified- r)))))
-
-(tm-define (algorithm-named? t)
-  (with l (tree-label t)
-    (symbol-starts? l 'named-)))
-
-(tm-define (algorithm-specified? t)
-  (with l (tree-label t)
-    (or (symbol-starts? l 'named-specified-)
-	(symbol-starts? l 'specified-))))
-
-(tm-define (algorithm-toggle-number t)
-  (let* ((l (tree-label t))
-	 (r (algorithm-root l)))
-    (if (algorithm-numbered? t)
-	(if (algorithm-specified? t)
-	    (variant-set t (symbol-append 'specified- r '*))
-	    (variant-set t (symbol-append r '*)))
-	(if (algorithm-specified? t)
-	    (variant-set t (symbol-append 'specified- r))
-	    (variant-set t r)))))
-
-(tm-define (algorithm-toggle-name t)
-  (let* ((l (tree-label t))
-	 (r (algorithm-root l)))
-    (if (algorithm-named? t)
-	(begin
-	  (if (algorithm-specified? t)
-	      (tree-assign-node! t (symbol-append 'specified- r))
-	      (tree-assign-node! t r))
-	  (tree-remove! t 0 1))
-	(begin
-	  (if (algorithm-specified? t)
-	      (tree-assign-node! t (symbol-append 'named-specified- r))
-	      (tree-assign-node! t (symbol-append 'named- r)))
-	  (tree-insert! t 0 '(""))
-	  (tree-go-to t 0 :start)))))
-
-(tm-define (algorithm-toggle-specification t)
-  (let* ((l (tree-label t))
-	 (r (algorithm-root l)))
-    (if (algorithm-specified? t)
-	(begin
-	  (cond ((algorithm-named? t)
-		 (tree-assign-node! t (symbol-append 'named- r)))
-		((algorithm-numbered? t)
-		 (tree-assign-node! t r))
-		(else
-		 (tree-assign-node! t (symbol-append r '*))))
-	  (tree-remove! t (- (tree-arity t) 2) 1))
-	(begin
-	  (cond ((algorithm-named? t)
-		 (tree-assign-node! t (symbol-append 'named-specified- r)))
-		((algorithm-numbered? t)
-		 (tree-assign-node! t (symbol-append 'specified- r)))
-		(else
-		 (tree-assign-node! t (symbol-append 'specified- r '*))))
-	  (tree-insert! t (- (tree-arity t) 1) '((document "")))
-	  (tree-go-to t (- (tree-arity t) 2) :start)))))
-
-(tm-define (focus-label t)
-  (:require (algorithm-context? t))
-  (focus-list-search-label (tree-children t)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Possible to use a custom note symbol
@@ -947,10 +799,3 @@
 (tm-define (focus-can-move? t)
   (:require (abstract-data-context? t))
   #f)
-
-(tm-define
- (focus-tag-name l)
- (:require (in? l (node-group-members "algorithm-tag")))
- (with r
-       (algorithm-root l)
-       (with s (upcase-first (tree-name (tree r))) (string-replace s "-" " "))))

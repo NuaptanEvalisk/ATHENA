@@ -29,6 +29,7 @@
 #include "hashmap.hpp"
 #include "native_interfaces.hpp"
 #include "native_node_groups.hpp"
+#include "native_text_edit.hpp"
 #include "Data/NodeContracts/node_groups.hpp"
 #include "node_metadata.hpp"
 #include "Typeset/Env/local_environment.hpp"
@@ -604,7 +605,12 @@ generic_notify_disactivated (tree) {
 }
 
 object
-generic_focus_label (tree) {
+generic_focus_label (tree t) {
+  if (text_node_in_group (t, "algorithm-tag")) {
+    array<object> children;
+    for (int i=0; i<N(t); ++i) children << object (t[i]);
+    return focus_list_search_label_impl (as_list_object (children));
+  }
   return object (false);
 }
 
@@ -1599,6 +1605,12 @@ generic_focus_tag_name (object label) {
   string name= as_string (raw);
   string configured= format_focus_name (name);
   if (configured != "") return configured;
+
+  if (athena::contracts::standard_node_groups ().contains (
+        "algorithm-tag", std::string (name.data (), N(name)))) {
+    name= text_algorithm_root (name);
+    label= symbol_object (name);
+  }
 
   object theme= call ("member->theme", object (name));
   if (!(is_bool (theme) && !as_bool (theme)) && is_string (theme)) {

@@ -201,7 +201,6 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 (lazy-define (text text-edit)
              document-propose-title? document-propose-abstract?
-             automatic-section-context? automatic-section-rename
              make-doc-data make-abstract-data
              make-doc-data-element make-author-data-element
              make-abstract-data-element doc-data-has-hidden?

@@ -11,7 +11,9 @@
 
 #include "Interface/edit_interface.hpp"
 #include "native_math_edit.hpp"
+#include "native_text_edit.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
+#include "Data/NodeContracts/node_groups.hpp"
 #include "Data/NodeContracts/descriptor_values.hpp"
 #include "ATHENA/Data/enunciation_slots.hpp"
 #include "Interface/selection_autoscroll.hpp"
@@ -1078,7 +1080,7 @@ editor_rep::focus_toolbar_state_snapshot () {
   set (ACTOR_FOCUS_TOOLBAR_DOC_TITLE_CONTEXT, query ("doc-title-context?"));
   set (ACTOR_FOCUS_TOOLBAR_DOC_AUTHOR_CONTEXT, query ("doc-author-context?"));
   set (ACTOR_FOCUS_TOOLBAR_ABSTRACT_CONTEXT, query ("abstract-data-context?"));
-  set (ACTOR_FOCUS_TOOLBAR_ALGORITHM_CONTEXT, query ("algorithm-context?"));
+  set (ACTOR_FOCUS_TOOLBAR_ALGORITHM_CONTEXT, text_node_in_group (t, "algorithm-tag"));
   set (ACTOR_FOCUS_TOOLBAR_MARGINAL_NOTE_CONTEXT,
        query ("marginal-note-context?"));
   set (ACTOR_FOCUS_TOOLBAR_RICH_FLOAT_CONTEXT, query ("rich-float-context?"));
@@ -1201,7 +1203,9 @@ editor_rep::focus_toolbar_state_snapshot () {
       snapshot.script_insert_down= (tag == "lsup" || tag == "rsup");
     }
   }
-  snapshot.automatic_section_context= query ("automatic-section-context?");
+  const string focus_tag= as_string (L(t));
+  snapshot.automatic_section_context= athena::contracts::standard_node_groups ().contains (
+    "automatic-section-tag", std::string (focus_tag.data (), N(focus_tag)));
 
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT)) {
     const string cellMode= get_cell_mode ();
@@ -1305,9 +1309,9 @@ editor_rep::focus_toolbar_state_snapshot () {
   }
 
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_ALGORITHM_CONTEXT)) {
-    snapshot.algorithm_numbered= query ("algorithm-numbered?");
-    snapshot.algorithm_named= query ("algorithm-named?");
-    snapshot.algorithm_specified= query ("algorithm-specified?");
+    snapshot.algorithm_numbered= text_algorithm_numbered (t);
+    snapshot.algorithm_named= text_algorithm_named (t);
+    snapshot.algorithm_specified= text_algorithm_specified (t);
   }
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_DETACHED_NOTE_CONTEXT))
     snapshot.detached_note_custom= query ("custom-note-context?");
