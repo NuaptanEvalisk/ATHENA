@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="register-global-transformation" native="register_global_transformation" returns="void" exceptions="scheme">
+    <arg type="string" /><arg type="procedure" />
+  </binding>
+  <binding name="global-transformation-load-script" native="load_global_transformation_script" returns="object" exceptions="scheme">
+    <arg type="url" />
+  </binding>
+  <binding name="run-global-transformation" native="run_global_transformation" returns="void" dispatch="ui" />
   <binding name="screens-show-all" native="view_screens_show_all" returns="void" exceptions="scheme" />
   <binding name="screens-show-this" native="view_screens_show_this" returns="void" exceptions="scheme" />
   <binding name="init-page-rendering" native="view_init_page_rendering" returns="void" exceptions="scheme"><arg type="string" /></binding>

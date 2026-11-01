@@ -11,6 +11,7 @@
 
 #include "QTMCommandRegistry.hpp"
 #include "Edit/Interface/application_tools.hpp"
+#include "global_transformation_frontend.hpp"
 #include "QTMCommandRegistryInternal.hpp"
 
 #include "QTMAbout.hpp"
@@ -742,7 +743,7 @@ QTMCommandRegistry::registerApplicationCommands () {
     "workspace.global-transformation", QTMCommandScope::Workspace,
     [] (const QTMCommandContext&) {
       try {
-        (void) call ("run-global-transformation");
+        run_global_transformation ();
         return true;
       }
       catch (...) {
