@@ -1,8 +1,7 @@
 
 (texmacs-module (athena tools shortcut-listing)
   (:use (kernel athena tm-define)
-        (kernel library list)
-        (kernel gui kbd-define)))
+        (kernel library list)))
 
 (define (format-shortcut-entry entry)
   (let* ((key (car entry))

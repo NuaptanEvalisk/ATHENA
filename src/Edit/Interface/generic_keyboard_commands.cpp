@@ -775,13 +775,6 @@ bool handwriting_symbol_direct_text (string command, string& direct) {
   return false;
 }
 
-bool handwriting_symbol_command (string command, object& procedure) {
-  object entry= call ("kbd-get-command", object (handwriting_symbol_command_key (command)));
-  if (!as_bool (call ("pair?", entry))) return false;
-  procedure= call ("cdr", entry);
-  return as_bool (call ("procedure?", procedure));
-}
-
 } // namespace
 
 string
@@ -796,12 +789,7 @@ generic_handwriting_symbol_input_description (string command) {
     return keyboard_native_string (config.value ("command_prefix").toString ()) *
            key * keyboard_native_string (config.value ("description_suffix").toString ());
   }
-  object procedure;
-  if (!handwriting_symbol_command (command, procedure)) return "";
-  QJsonObject config= keyboard_action_data ().handwriting;
-  return keyboard_native_string (config.value ("command_prefix").toString ()) *
-         handwriting_symbol_command_key (command) *
-         keyboard_native_string (config.value ("description_suffix").toString ());
+  return "";
 }
 
 void
@@ -820,11 +808,6 @@ generic_handwriting_symbol_insert (string command) {
     return;
   }
 
-  object procedure;
-  if (handwriting_symbol_command (command, procedure)) {
-    (void) call (procedure);
-    return;
-  }
   get_current_editor ()->set_message (
     tree ("Unsupported symbol command: " * command),
     tree ("Handwritten Symbol"));

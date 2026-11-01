@@ -56,8 +56,7 @@
                  (kernel athena tm-document)
                  (kernel athena tm-language) (kernel athena tm-file-system)
                  (kernel athena tm-states))
-(inherit-modules (kernel gui kbd-define)
-                 (kernel gui kbd-handlers))
+(inherit-modules (kernel gui kbd-handlers))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting utilities\n")
@@ -79,8 +78,6 @@
 (import-from (utils misc markup-funcs))
 (lazy-tmfs-handler (utils automate auto-tmfs) automate)
 (lazy-define (utils automate auto-tmfs) auto-load-help focus-help)
-(lazy-keyboard (utils automate auto-tmfs) in-auto?)
-(lazy-keyboard (native-keyboard automate) in-auto?)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting main TeXmacs functionality\n")
@@ -202,8 +199,6 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting text mode\n")
-(lazy-keyboard (text text-edit) in-text?)
-(lazy-keyboard (native-keyboard text) in-text?)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 (lazy-define (text text-edit)
              document-propose-title? document-propose-abstract?
@@ -224,18 +219,9 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting programming modes\n")
-(lazy-keyboard (utils edit selections) in-prog?)
-(lazy-keyboard (prog dot-edit) in-prog?)
-(lazy-keyboard (prog java-edit) in-prog?)
-(lazy-keyboard (prog scala-edit) in-prog?)
-(lazy-keyboard (prog cpp-edit) in-prog?)
-(lazy-keyboard (prog python-edit) in-prog?)
-(lazy-keyboard (prog fortran-edit) in-prog?)
-(lazy-keyboard (native-keyboard prog) in-prog?)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting source mode\n")
-(lazy-keyboard (native-keyboard source) always?)
 (lazy-define (source macro-edit)
              has-macro-source? edit-macro-source edit-focus-macro-source
              native-personal-macro-provider-data)
@@ -248,14 +234,9 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting table mode\n")
-(lazy-keyboard (native-keyboard table) in-table?)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting graphics mode\n")
-(lazy-keyboard (graphics graphics-properties) in-graphics?)
-(lazy-keyboard (graphics graphics-main) in-graphics?)
-(lazy-keyboard (graphics graphics-utils) in-graphics?)
-(lazy-keyboard (native-keyboard graphics) in-graphics?)
 (lazy-define (graphics graphics-utils) make-graphics)
 (lazy-define (graphics graphics-main) graphics-update-proviso
              graphics-get-proviso graphics-set-proviso)
@@ -266,8 +247,6 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting dynamic features\n")
-(lazy-keyboard (dynamic fold-edit) always?)
-(lazy-keyboard (native-keyboard fold) always?)
 (lazy-define (dynamic fold-edit)
              screens-switch-to dynamic-make-slides overlays-context?
              overlay-context? overlays-current overlays-arity
@@ -278,7 +257,6 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting documentation\n")
-(lazy-keyboard (native-keyboard tmdoc) in-manual?)
 (lazy-initialize (doc tmdoc-edit) (in-manual?))
 (lazy-define (doc tmdoc-edit)
              tmdoc-make-branch tmdoc-insert-explain-synopsis
@@ -328,5 +306,6 @@
 
 ;(display "------------------------------------------------------\n")
 (delayed (:idle 10000) (autosave-delayed))
+(native-keyboard-initialize)
 (texmacs-banner)
 ;(display "Initialization done\n")

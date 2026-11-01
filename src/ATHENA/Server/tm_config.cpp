@@ -38,12 +38,7 @@ tm_config_rep::~tm_config_rep () {}
 
 bool
 tm_config_rep::kbd_get_command (string which, string& help, command& cmd) {
-  if (native_latex_get_command (which, help, cmd)) return true;
-  object im= call ("kbd-get-command", which);
-  if (im == object (false)) return false;
-  help= as_string (car (im));
-  cmd = as_command (cdr (im));
-  return true;
+  return native_latex_get_command (which, help, cmd);
 }
 
 /******************************************************************************

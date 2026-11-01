@@ -1325,7 +1325,7 @@ TeXmacs_main (int argc, char** argv) {
 #endif
     bool needs_startup_buffer_policy= number_buffers () == 0;
     if (needs_startup_buffer_policy) {
-      extra_init_cmd << "(kbd-start-inverse-warmup)";
+      extra_init_cmd << "(native-keyboard-start-warmup)";
     }
     extra_init_cmd << "(delayed (:idle 300) "
                       "(exec-global (lambda () (ads-restore-visible-panes))))";

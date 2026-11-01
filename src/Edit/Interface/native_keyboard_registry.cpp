@@ -5,6 +5,7 @@
 ******************************************************************************/
 
 #include "native_keyboard_registry.hpp"
+#include "native_keyboard_loader.hpp"
 #include "object.hpp"
 #include "server.hpp"
 
@@ -155,7 +156,7 @@ void native_keyboard_bind_source (string key, object source) {
 }
 
 object native_keyboard_find (string key) {
-  call ("lazy-keyboard-force");
+  native_keyboard_force (false);
   auto& r= keyboard ();
   const auto entry= resolve (r.snapshot (r.forward, key));
   return entry ? list_object (entry->action.get (), object (text (entry->help))) : object (false);
@@ -168,7 +169,7 @@ string native_keyboard_cached_inverse (object source) {
 }
 
 string native_keyboard_inverse (object source) {
-  call ("lazy-keyboard-force");
+  native_keyboard_force (false);
   return native_keyboard_cached_inverse (source);
 }
 
@@ -180,7 +181,7 @@ object native_keyboard_system_inverse (object source) {
 }
 
 object native_keyboard_reverse (object source) {
-  call ("lazy-keyboard-force");
+  native_keyboard_force (false);
   if (is_tree (source)) source= tree_to_stree (as_tree (source));
   if (!is_string (source)) return object (false);
   auto& r= keyboard ();

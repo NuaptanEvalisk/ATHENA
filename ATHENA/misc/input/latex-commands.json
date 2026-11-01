@@ -3,6 +3,21 @@
   "string_encoding": "utf-8",
   "bindings": [
     {
+      "command": "=",
+      "help": "Insert Wikilink",
+      "actions": [{"op": "editor-action", "mode": "text", "action": {"op": "business", "id": "insert-wikilink"}}]
+    },
+    {
+      "command": "+",
+      "help": "Insert Transclusion",
+      "actions": [{"op": "editor-action", "mode": "text", "action": {"op": "business", "id": "insert-transclusion"}}]
+    },
+    {
+      "command": "?",
+      "help": "Insert Material Citation",
+      "actions": [{"op": "editor-action", "mode": "text", "action": {"op": "business", "id": "insert-material-citation"}}]
+    },
+    {
       "command": "alpha",
       "help": "Insert α",
       "actions": [

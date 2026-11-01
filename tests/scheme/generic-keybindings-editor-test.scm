@@ -1,5 +1,5 @@
 ;; Exercise registration and native JSON dispatch on a real BufferActor.
-(lazy-keyboard-force #t)
+(native-keyboard-force #t)
 (init-style "generic")
 
 (define (check condition message)

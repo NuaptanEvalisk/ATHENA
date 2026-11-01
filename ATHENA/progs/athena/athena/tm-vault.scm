@@ -607,10 +607,6 @@
       (vault-choose-link
        #t (lambda (res) (vault-transclude-repair-complete bad-uuid res)))))
 
-(kbd-commands
-  ("=" "Insert Wikilink" (if (in-text?) (insert-wikilink)))
-  ("+" "Insert Transclusion" (if (in-text?) (insert-transclude))))
-
 (define (vault-focused-transclusion)
   (let ((focused (focus-tree)))
     (if (and (tree? focused) (tree-is? focused 'transclude)) focused

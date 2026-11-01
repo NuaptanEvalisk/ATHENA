@@ -48,10 +48,6 @@
                    (rendered (if (string-null? uri) text `(hlink ,text ,uri))))
               (insert `(material-citation ,items ,rendered))))))))
 
-(kbd-commands
-  ("?" "Insert Material Citation"
-       (if (in-text?) (insert-material-citation))))
-
 (tm-define (insert-referenced-materials)
   (:interactive #t)
   (if (not (vault-active?))

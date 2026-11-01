@@ -9,6 +9,7 @@
 #include "editor.hpp"
 #include "file.hpp"
 #include "generic_editor_commands.hpp"
+#include "native_editor_actions.hpp"
 #include "Scheme/Scheme/native_interfaces.hpp"
 #include "Subsystems/Qt/QTMReverseHierarchyGraph.hpp"
 #include "Typeset/Env/local_environment.hpp"
@@ -149,7 +150,8 @@ latex_invocation_inputs prepare_binding_inputs (
     const auto action= actions[i].toObject ();
     const auto op= action.value ("op");
     if (!context && (op == "make" || op == "make-section" ||
-                     op == "make-item" || op == "make-aux"))
+                     op == "make-item" || op == "make-aux" ||
+                     (op == "editor-action" && action.contains ("mode"))))
       throw std::runtime_error ("LaTeX insertion context is awaiting preparation");
     if (op != "make-aux") continue;
     const string var= native_string (action.value ("var"));
@@ -205,6 +207,11 @@ void execute_action (const QJsonObject& action,
   else if (op == "make-label") generic_make_label ();
   else if (op == "make-cd") athena_make_commutative_diagram ();
   else if (op == "insert-reverse-hierarchy-graph") reverse_hierarchy_graph_insert ();
+  else if (op == "editor-action") {
+    if (!action.contains ("mode") ||
+        context->effective_value ("mode") == native_string (action.value ("mode")))
+      native_editor_action_execute (ed, action.value ("action").toObject ());
+  }
   else FAILED ("unknown native LaTeX command action");
 }
 
