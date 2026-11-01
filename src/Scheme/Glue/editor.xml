@@ -30,15 +30,6 @@
   <binding name="tree-upgrade-big" native="correct_big_operators" returns="tree" exceptions="scheme">
     <arg type="content" />
   </binding>
-  <binding name="math-stats-update" native="update_math_statistics" returns="void" />
-  <binding name="math-stats-occurrences" native="math_statistics_occurrences" returns="int">
-    <arg type="string" />
-    <arg type="content" />
-  </binding>
-  <binding name="math-stats-number-in-role" native="math_statistics_role" returns="int">
-    <arg type="string" />
-    <arg type="content" />
-  </binding>
   <binding name="cpp-tree-correct-node" native="correct_tree_node" returns="void" exceptions="scheme">
     <arg type="tree" />
   </binding>

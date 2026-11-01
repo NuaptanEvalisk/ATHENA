@@ -921,44 +921,13 @@ enunciation_key (string key) {
   return one_of (key, names, sizeof (names) / sizeof (names[0]));
 }
 
-void
-collect_due_to_native (scheme_tree value, scheme_tree& out) {
-  if (head_is (value, "dueto")) {
-    out << value;
-    return;
-  }
-  if (!stree_list (value)) return;
-  for (int i=0; i<N(value); ++i) collect_due_to_native (value[i], out);
-}
-
-scheme_tree
-filter_enunciation_body_native (scheme_tree value) {
-  if (head_is (value, "dueto")) return scheme_tree (TUPLE);
-  if (!stree_list (value)) return value;
-  scheme_tree out (TUPLE);
-  for (int i=0; i<N(value); ++i) {
-    scheme_tree child= filter_enunciation_body_native (value[i]);
-    if (stree_list (child) && N(child) == 0) continue;
-    out << child;
-  }
-  return out;
-}
-
 scheme_tree
 enunciation_output_native (string key, scheme_tree args) {
   if (!stree_list (args) || N(args) == 0) return stree_string ("");
-  scheme_tree due (TUPLE);
-  collect_due_to_native (args[0], due);
   scheme_tree begin= stree_apply ("!begin");
   begin << stree_string (key);
-  for (int i=0; i<N(due); ++i) {
-    if (N(due[i]) < 2) continue;
-    scheme_tree option= stree_apply ("!option");
-    option << tmtex_convert (due[i][1]);
-    begin << option;
-  }
   scheme_tree out (TUPLE);
-  out << begin << tmtex_convert (filter_enunciation_body_native (args[0]));
+  out << begin << tmtex_convert (args[0]);
   return out;
 }
 

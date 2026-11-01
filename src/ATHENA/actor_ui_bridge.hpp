@@ -313,7 +313,6 @@ struct actor_focus_toolbar_snapshot {
   bool sqrt_multiple= false;
   bool automatic_section_context= false;
   std::string automatic_section_name;
-  bool dueto_available= false;
   bool table_parwidth= false;
   std::string table_cell_mode;
   bool table_subtable_available= false;

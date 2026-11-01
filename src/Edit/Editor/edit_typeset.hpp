@@ -21,14 +21,8 @@ class document_rep;
 class evaluation_environment_checkpoint;
 struct cursor_environment_checkpoint;
 struct source_occurrence;
-struct editor_math_statistics;
 class edit_typeset_rep: virtual public editor_rep {
 protected:
-  std::shared_ptr<editor_math_statistics> math_statistics_cache;
-  bool math_statistics_requested= false;
-  void invalidate_math_statistics ();
-  bool math_statistics_current () const;
-  path math_statistics_cursor_source () const;
   tree the_style;                         // document style
   std::shared_ptr<const cursor_environment_checkpoint> prepared_cursor;
   std::vector<std::shared_ptr<const cursor_environment_checkpoint>> cursor_contexts;
@@ -95,10 +89,6 @@ public:
   edit_typeset_rep ();
   ~edit_typeset_rep ();
   void clear_local_info ();
-  void update_math_statistics () override;
-  void advance_math_statistics () override;
-  int math_statistics_occurrences (string id, tree source) override;
-  int math_statistics_role (string id, tree source) override;
   void prepare_cursor_environment () override;
   void set_field_environment (
     std::shared_ptr<const athena::contracts::detached_environment>) override;

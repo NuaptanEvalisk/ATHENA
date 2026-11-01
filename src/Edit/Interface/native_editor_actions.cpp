@@ -326,7 +326,6 @@ valid_focus_action_id (const QString& id) {
     "slide-insert-graphics",
     "table-toggle-parwidth",
     "sqrt-toggle",
-    "dueto-add",
     "document-insert-title",
     "document-insert-abstract",
     "tmdoc-insert-title",
@@ -1387,8 +1386,6 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
       athena::table_commands::table_toggle_parwidth (ed.operator-> ());
     else if (id == "sqrt-toggle" && state.sqrt_context)
       (void) call ("sqrt-toggle", object (target));
-    else if (id == "dueto-add" && state.dueto_available)
-      (void) call ("dueto-add", object (target));
     else if (id == "document-insert-title" &&
              state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
              state.document_insert_title_available &&

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run evaluation-bar editor checks with an isolated ATHENA profile."""
+"""Run an explicit editor check script with an isolated ATHENA profile."""
 
 import argparse
 import json
@@ -17,8 +17,7 @@ def main():
     parser.add_argument("--runtime", type=Path, required=True)
     parser.add_argument("--resources", type=Path, required=True)
     parser.add_argument("--artifacts", type=Path)
-    parser.add_argument("--script", type=Path,
-                        default=Path(__file__).with_suffix(".scm"))
+    parser.add_argument("--script", type=Path, required=True)
     parser.add_argument("--setup-script", type=Path,
                         help="Optional GUI-owner setup before the actor test")
     args = parser.parse_args()

@@ -256,10 +256,6 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
         append (
           QStringLiteral ("sqrt-toggle"), QObject::tr ("Multiple root"),
           QStringLiteral ("tm_root_index"), true, focus.sqrt_multiple);
-      if (focus.dueto_available)
-        append (
-          QStringLiteral ("dueto-add"), QObject::tr ("Due to"),
-          QStringLiteral ("tm_add"));
       if (focus.has (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT))
         append (
           QStringLiteral ("table-toggle-parwidth"),
@@ -308,7 +304,6 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
       }
       static const QSet<QString> allowed {
         QStringLiteral ("sqrt-toggle"),
-        QStringLiteral ("dueto-add"),
         QStringLiteral ("table-toggle-parwidth"),
         QStringLiteral ("table-make-subtable"),
         QStringLiteral ("table-reset-cell-span"),
@@ -327,7 +322,6 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
         focus.valid () &&
         (focus.script_context ||
          focus.sqrt_context ||
-         focus.dueto_available ||
          focus.has (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT) ||
          focus.automatic_section_context);
       return state_if (context, available);

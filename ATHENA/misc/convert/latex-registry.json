@@ -1115,33 +1115,6 @@
         ]
       ],
       [
-        "dueto",
-        [
-          1,
-          false,
-          false,
-          [
-            {
-              "symbol": "textup"
-            },
-            [
-              {
-                "symbol": "textbf"
-              },
-              [
-                {
-                  "symbol": "!append"
-                },
-                "(",
-                1,
-                ") "
-              ]
-            ]
-          ],
-          false
-        ]
-      ],
-      [
         "emdash",
         [
           0,
@@ -17444,7 +17417,6 @@
     "tmperson",
     "tmscript",
     "tmdef",
-    "dueto",
     "op",
     "todo",
     "tmdate",
@@ -21283,11 +21255,6 @@
     ],
     [
       "tmdef",
-      "command",
-      1
-    ],
-    [
-      "dueto",
       "command",
       1
     ],

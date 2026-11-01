@@ -286,14 +286,6 @@ add_test(NAME vault_random_document_test
     --runtime ${ATHENA_GUILE_PREFIX}
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
 set_tests_properties(vault_random_document_test PROPERTIES TIMEOUT 45)
-add_test(NAME evaluation_bar_editor_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/anonymous-editor-owner-setup.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(evaluation_bar_editor_test PROPERTIES TIMEOUT 90)
 add_test(NAME native_v3_math_variant_typeset_editor_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
@@ -690,7 +682,6 @@ set_tests_properties(packrat_concurrency_test PROPERTIES TIMEOUT 60)
 set(_athena_application_runtime_tests
   glue_runtime_test
   vault_random_document_test
-  evaluation_bar_editor_test
   html5_export_editor_test
   commutative_diagram_editor_test
   eqnarray_clipboard_editor_test

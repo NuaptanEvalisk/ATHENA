@@ -157,7 +157,6 @@ enum class actor_command_kind: std::uint32_t {
   set_master_buffer,
   notify_environment,
   contracts_ready,
-  advance_math_statistics,
   query_modified,
   query_autosaved,
   mark_modified,

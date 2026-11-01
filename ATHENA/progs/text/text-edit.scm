@@ -621,27 +621,6 @@
  (enunciation-context? t)
  (tree-in? t (node-group-members "enunciation-tag")))
 
-(tm-define
- (dueto-supporting-context? t)
- (or (tree-in?
-      t
-      (numbered-unnumbered-append (node-group-members "enunciation-tag")))
-     (tree-in? t (node-group-members "render-enunciation-tag"))
-     (tree-in?
-      t
-      '(proof render-proof
-              proof-alternative
-              render-proof-alternative
-              proof-standard
-              render-proof-standard))))
-
-(tm-define (dueto-added? t)
-  (tm-find t (lambda (x) (tm-is? x 'dueto))))
-
-(tm-define (dueto-add t)
-  (tree-go-to t :last :start)
-  (make 'dueto))
-
 (tm-define (focus-label t)
   (:require (enunciation-context? t))
   (and (== (tree-arity t) 1)

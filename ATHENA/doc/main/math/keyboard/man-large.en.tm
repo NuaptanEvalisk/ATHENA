@@ -31,7 +31,7 @@
   coincide. For instance, entering a vertical bar <key|\|> will produce an
   absolute value. The (small) bar-separator <math|\|> is obtained using
   <shortcut|\|>, or as a variant using <key|\| var>. The big bar-separator is
-  entered using <shortcut|(math-separator "\|" #t)>. In <TeX> and <LaTeX>,
+  entered using the large separator command. In <TeX> and <LaTeX>,
   such large separators do not exist; they are used for producing the
   vertical bars in formulas like
 
@@ -45,7 +45,7 @@
   using <shortcut|\<divides\>> or <key|\| var var var var>.
 
   To evaluate an expression at a particular value, use
-  <menu|Insert|Evaluation bar> or <shortcut|(math-evaluation-bar)>, then
+  <menu|Insert|Evaluation bar>, then
   enter a right subscript. For example,
   <math|<around*|\<nobracket\>|<frac|d|d x>|\|><rsub|t=0>> has a bar
   which automatically follows the height of the derivative. With no
@@ -68,7 +68,7 @@
   between the brackets using the items in <menu|Format|Adjust>.
 
   Notice that it is possible to insert a pair of invisible brackets using
-  <shortcut|(math-bracket-open "." "." #t)>. This is for instance useful in
+  the invisible bracket command. This is for instance useful in
   computational contexts, in which formulas should admit a precise, not
   merely visual semantics. Alternatively, one may put the formula inside a
   ``rigid box'' using<nbsp><shortcut|(make-rigid)>, which additionally

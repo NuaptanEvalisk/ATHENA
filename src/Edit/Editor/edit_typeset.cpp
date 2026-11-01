@@ -31,7 +31,6 @@
 #include "Data/NodeContracts/editing_query.hpp"
 #include "cursor_navigation.hpp"
 #include "tree_modify.hpp"
-#include "tree_math_stats.hpp"
 #include "tree_correct.hpp"
 #include "tree_analyze.hpp"
 #include "Data/NodeContracts/detached_environment.hpp"
@@ -803,14 +802,12 @@ edit_typeset_rep::prepare_cursor_environment () {
   // against this owner rather than trusting the worker or the cursor path.
   const bool changed= env->prepare_contracts (std::move (wake), prepared.get ());
   if (changed) {
-    invalidate_math_statistics ();
     auto resolved= std::make_shared<const cursor_environment_checkpoint> (
       *env.operator-> (), prepared->trace, prepared->boundary, prepared->execution_base);
     prepared_cursor= resolved;
     for (auto& cached: cursor_contexts)
       if (cached == prepared) cached= resolved;
   }
-  if (math_statistics_requested) update_math_statistics ();
 }
 
 #ifdef EXPERIMENTAL
@@ -832,7 +829,6 @@ edit_typeset_rep::environment_update () {
 
 void
 edit_typeset_rep::typeset_invalidate_env () {
-  invalidate_math_statistics ();
   ttt->execution_base.reset ();
   prepared_cursor.reset ();
   cursor_contexts.clear ();
@@ -1111,40 +1107,6 @@ edit_typeset_rep::exec_verbatim (tree t) {
   return exec_verbatim (t, rp * 0);
 }
 
-struct editor_math_statistics {
-  std::shared_ptr<const evaluation_environment_checkpoint> base;
-  athena::contracts::contract_event_log trace;
-  prepared_context_index contexts;
-  math_statistics buffer, cursor;
-  path cursor_source;
-  std::uint64_t source_epoch= 0;
-  bool current= true;
-};
-
-void
-edit_typeset_rep::invalidate_math_statistics () {
-  // Retire owned token tables in a deferred slice, not in a keystroke.
-  if (math_statistics_cache) math_statistics_cache->current= false;
-}
-
-bool
-edit_typeset_rep::math_statistics_current () const {
-  return math_statistics_cache && math_statistics_cache->current && ttt->execution_base &&
-    math_statistics_cache->base == ttt->execution_base &&
-    math_statistics_cache->trace == ttt->br->contract_changes &&
-    math_statistics_cache->contexts.identity () == ttt->execution_contexts.identity () &&
-    math_statistics_cache->source_epoch == buf->actor->source_epoch ();
-}
-
-path
-edit_typeset_rep::math_statistics_cursor_source () const {
-  if (rp < tp && is_compound (subtree (et, rp))) {
-    const int child= (tp / rp)->item;
-    if (child >= 0 && child < N(subtree (et, rp))) return rp * child;
-  }
-  return path ();
-}
-
 athena::contracts::source_environment_preparation
 editor_rep::correction_environments (
     tree source, std::shared_ptr<const evaluation_environment_checkpoint> entry) {
@@ -1205,73 +1167,6 @@ editor_rep::correct_big_operators (tree source) {
   return upgrade_big (source, [this, entry] (tree stage) {
     return correction_environments (stage, entry);
   });
-}
-
-void
-edit_typeset_rep::update_math_statistics () {
-  math_statistics_requested= true;
-  if (!ttt->execution_base) return;
-  if (!math_statistics_current () ||
-      math_statistics_cache->cursor_source != math_statistics_cursor_source () ||
-      math_statistics_cache->buffer.status () == math_statistics_progress::pending ||
-      math_statistics_cache->cursor.status () == math_statistics_progress::pending)
-    buf->actor->queue_math_statistics (runtime_view_id);
-}
-
-void
-edit_typeset_rep::advance_math_statistics () {
-  if (!ttt->execution_base) return;
-  const tree root_mode= ttt->execution_base->effective_value (MODE);
-  const string mode= is_atomic (root_mode) ? root_mode->label : string ("text");
-  if (!math_statistics_current ()) {
-    auto state= std::make_shared<editor_math_statistics> ();
-    state->base= ttt->execution_base;
-    state->trace= ttt->br->contract_changes;
-    state->contexts= ttt->execution_contexts;
-    state->source_epoch= buf->actor->source_epoch ();
-    state->buffer.begin (subtree (et, rp), mode);
-    math_statistics_cache= std::move (state);
-  }
-  auto& state= *math_statistics_cache;
-  const path cursor_source= math_statistics_cursor_source ();
-  if (state.cursor_source != cursor_source) {
-    state.cursor_source= cursor_source;
-    state.cursor= math_statistics ();
-    if (!is_nil (cursor_source))
-      state.cursor.begin (subtree (et, cursor_source), mode, cursor_source / rp);
-  }
-  const auto contexts= [this] (path relative)
-      -> std::shared_ptr<const athena::contracts::contract_scope> {
-    const path source= rp * relative * 0;
-    const auto entry= occurrence_context_at (source, source, {});
-    return entry ? std::shared_ptr<const athena::contracts::contract_scope> (
-      entry, &entry->contract_context ()) : nullptr;
-  };
-  if (state.cursor.status () == math_statistics_progress::pending)
-    state.cursor.advance (contexts, 64);
-  if (state.buffer.status () == math_statistics_progress::pending)
-    state.buffer.advance (contexts, 64);
-  update_math_statistics ();
-}
-
-int
-edit_typeset_rep::math_statistics_occurrences (string id, tree source) {
-  update_math_statistics ();
-  if (!math_statistics_current ()) return 0;
-  if (id == "buffer") return math_statistics_cache->buffer.number_occurrences (source);
-  if (id == "cursor" && math_statistics_cache->cursor_source == math_statistics_cursor_source ())
-    return math_statistics_cache->cursor.number_occurrences (source);
-  return 0;
-}
-
-int
-edit_typeset_rep::math_statistics_role (string id, tree source) {
-  update_math_statistics ();
-  if (!math_statistics_current ()) return 0;
-  if (id == "buffer") return math_statistics_cache->buffer.number_in_role (source);
-  if (id == "cursor" && math_statistics_cache->cursor_source == math_statistics_cursor_source ())
-    return math_statistics_cache->cursor.number_in_role (source);
-  return 0;
 }
 
 tree
@@ -1937,7 +1832,6 @@ edit_typeset_rep::typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2) {
   //time_t t2= texmacs_time ();
   //if (t2 - t1 >= 10) cout << "typeset took " << t2-t1 << "ms\n";
   picture_cache_clean ();
-  if (math_statistics_requested) update_math_statistics ();
 }
 
 static void

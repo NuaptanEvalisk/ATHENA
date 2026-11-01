@@ -1201,8 +1201,6 @@ editor_rep::focus_toolbar_state_snapshot () {
     }
   }
   snapshot.automatic_section_context= query ("automatic-section-context?");
-  if (query ("dueto-supporting-context?"))
-    snapshot.dueto_available= !query ("dueto-added?");
 
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT)) {
     const string cellMode= get_cell_mode ();

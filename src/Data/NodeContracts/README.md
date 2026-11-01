@@ -5432,6 +5432,11 @@ The previously recorded large-input analysis/preparation work remains open.
 
 ### Source-Owned Mathematical Statistics (2026-10-30)
 
+Retired on 2026-11-01: the Scheme heuristics had no product callers. Their
+module, native statistics backend, editor caches, actor continuations and glue
+bindings have been removed. The account below is historical, not an active
+subsystem or a migration task. Formula correction and syntax checking remain.
+
 The mathematical-statistics ownership item above is now migrated. The backend
 is an owner-held `math_statistics` object, not a process-global table. It accepts
 an explicit source-path context provider and uses an explicit-query overload
