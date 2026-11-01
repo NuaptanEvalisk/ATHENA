@@ -9,6 +9,7 @@
 #include "tm_window.hpp"
 #include "server.hpp"
 #include "file.hpp"
+#include "web_files.hpp"
 #include "boot.hpp"
 #include "scheme_execution_context.hpp"
 #include "editor.hpp"
@@ -67,6 +68,46 @@ bool window_exists (url window) {
   array<url> windows= windows_list ();
   for (int i=0; i<N(windows); ++i) if (windows[i] == window) return true;
   return false;
+}
+
+void revert_document (const std::string& source) {
+  const url name (source.c_str ());
+  if (is_nil (concrete_buffer (name))) {
+    call ("load-buffer", object (name));
+    return;
+  }
+  if (name != get_current_buffer_safe ()) switch_to_buffer (name);
+  web_cache_invalidate (name);
+  tree document= import_tree (name, file_format (name));
+  if (document == tree ("error"))
+    get_server ()->set_message ("Error: file not found", "Revert buffer");
+  else set_buffer_tree (name, document);
+}
+
+void request_revert (object arguments, bool confirm) {
+  const url name= is_null (arguments) ? get_current_buffer () :
+    (is_string (car (arguments)) ? url_system (as_string (car (arguments))) : as_url (car (arguments)));
+  const std::string source= encode (name);
+  on_gui ([source, confirm] {
+    const url name (source.c_str ());
+    if (!confirm || is_nil (concrete_buffer (name)) || !buffer_modified (name)) {
+      revert_document (source);
+      return;
+    }
+    if (headless_mode) {
+      get_server ()->set_message ("Interactive confirmation required", "Revert buffer");
+      return;
+    }
+    auto* dialog= new QMessageBox (QMessageBox::Question, QObject::tr ("Revert buffer"),
+      QObject::tr ("Buffer has been modified. Really revert?"),
+      QMessageBox::Yes | QMessageBox::No, QApplication::activeWindow ());
+    dialog->setAttribute (Qt::WA_DeleteOnClose);
+    dialog->setDefaultButton (QMessageBox::No);
+    QObject::connect (dialog, &QDialog::finished, dialog, [source] (int answer) {
+      if (answer == QMessageBox::Yes) revert_document (source);
+    });
+    dialog->open ();
+  });
 }
 
 bool needs_confirmation (url name) {
@@ -208,6 +249,8 @@ void application_close_window (object arguments) {
 }
 
 void application_quit () { on_gui ([] { request_quit (false); }); }
+void application_revert_buffer (object arguments) { request_revert (arguments, true); }
+void application_revert_buffer_now (object arguments) { request_revert (arguments, false); }
 
 void application_command_line_convert (string from, string to, object next) {
   const std::string source (from.data (), N(from)), target (to.data (), N(to));

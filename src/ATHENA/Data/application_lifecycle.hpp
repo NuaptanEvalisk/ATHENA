@@ -10,5 +10,7 @@ void application_restart ();
 void application_new_window ();
 void application_open_external (url target);
 void application_command_line_convert (string from, string to, object next);
+void application_revert_buffer (object arguments);
+void application_revert_buffer_now (object arguments);
 
 #endif
