@@ -125,10 +125,9 @@
 (lazy-define (athena athena tm-tools)
              show-character-count show-word-count show-line-count
              picture-gc toggle-save-aux toggle-show-kbd)
-(lazy-define (athena athena tm-materials)
-             insert-material-citation insert-referenced-materials
-             materials-update-current-document materials-append-references
-             materials-set-reference-style)
+(tmfs-handler "material" 'load material-info-page)
+(tmfs-handler "material" 'title materials-page-title)
+(tmfs-handler "material" 'permission? materials-page-permission?)
 (lazy-define (generic generic-edit) notify-activated notify-disactivated
              wheel-capture?
              native-insert-include-dialog

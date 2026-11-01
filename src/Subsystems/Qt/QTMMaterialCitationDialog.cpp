@@ -15,8 +15,6 @@
 #include "qt_utilities.hpp"
 #include "actor_transport.hpp"
 #include "buffer_actor.hpp"
-#include "guile_tm.hpp"
-#include "object.hpp"
 #include "scheme_execution_context.hpp"
 
 #include <QApplication>
@@ -403,21 +401,22 @@ struct MaterialChooserRequest {
   athena_actor_id actor;
   athena_view_id view;
   SchemeCapabilitySet capabilities;
-  athena_scheme_handle_id completion= ATHENA_NO_SCHEME_HANDLE;
+  std::function<void(tree)> completion;
+  athena_blob_id result= ATHENA_NO_BLOB;
   vault_context_handle vault;
   std::string style, origin;
   bool citation;
-  ~MaterialChooserRequest () { scheme_command_handle_release (completion); }
+  ~MaterialChooserRequest () { actor_tree_registry::instance ().discard (result); }
 };
 
-void choose_async (bool citation, string style, object completion) {
+void choose_async (bool citation, string style, std::function<void(tree)> completion) {
   auto* app= QCoreApplication::instance ();
   if (!app) return;
   const auto* context= current_scheme_execution_context ();
   if (!context || context->actor_id == ATHENA_NO_ACTOR || context->view_id == ATHENA_NO_VIEW) {
     if (QThread::currentThread () == app->thread ())
-      (void) call (completion, object (citation ?
-        qtm_material_choose_citation (std::string (style.data (), N(style))) : qtm_material_choose_references ()));
+      completion (citation ?
+        qtm_material_choose_citation (std::string (style.data (), N(style))) : qtm_material_choose_references ());
     return;
   }
   auto request= std::make_shared<MaterialChooserRequest> ();
@@ -429,7 +428,7 @@ void choose_async (bool citation, string style, object completion) {
   request->style.assign (style.data (), N(style));
   string origin= as_string (get_current_buffer_safe ());
   request->origin.assign (origin.data (), N(origin));
-  request->completion= scheme_command_handle_acquire (object_to_tmscm (completion));
+  request->completion= std::move (completion);
   QMetaObject::invokeMethod (app, [request] {
     tree result= UNINIT;
     if (vault_context_is_current (request->vault)) {
@@ -438,19 +437,25 @@ void choose_async (bool citation, string style, object completion) {
           url (string (request->origin.data (), request->origin.size ())));
       if (!vault_context_is_current (request->vault)) result= UNINIT;
     }
-    auto result_id= actor_tree_registry::instance ().store (std::move (result));
+    request->result= actor_tree_registry::instance ().store (std::move (result));
+    auto continuation= actor_continuation_registry::instance ().store ([request] {
+      const auto* context= current_scheme_execution_context ();
+      if (!context || !context->editor || !vault_context_is_current (request->vault)) return;
+      tree result= actor_tree_registry::instance ().take (request->result);
+      request->result= ATHENA_NO_BLOB;
+      request->completion (std::move (result));
+    });
     auto ticket= buffer_actor::submit_to (request->actor,
-      actor_command_kind::invoke_scheme_handle_tree, request->view, result_id,
-      ATHENA_NO_BLOB, request->capabilities, request->completion);
-    if (ticket) request->completion= ATHENA_NO_SCHEME_HANDLE;
-    else actor_tree_registry::instance ().discard (result_id);
+      actor_command_kind::run_native_continuation, request->view, ATHENA_NO_BLOB,
+      ATHENA_NO_BLOB, request->capabilities, continuation);
+    if (!ticket) actor_continuation_registry::instance ().discard (continuation);
   }, Qt::QueuedConnection);
 }
 }
 
-void qtm_material_choose_citation_async (string style, object completion) {
+void qtm_material_choose_citation_async (string style, std::function<void(tree)> completion) {
   choose_async (true, std::move (style), std::move (completion));
 }
-void qtm_material_choose_references_async (object completion) {
+void qtm_material_choose_references_async (std::function<void(tree)> completion) {
   choose_async (false, "", std::move (completion));
 }

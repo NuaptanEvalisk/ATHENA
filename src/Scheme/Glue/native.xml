@@ -1554,13 +1554,15 @@
     <arg type="string" />
   </binding>
   <binding name="materials-manager-show" native="materials_manager_show" returns="void" dispatch="ui" />
-  <binding name="material-choose-citation" native="qtm_material_choose_citation_async" returns="void">
-    <arg type="string" />
-    <arg type="procedure" />
-  </binding>
-  <binding name="material-choose-references" native="qtm_material_choose_references_async" returns="void">
-    <arg type="procedure" />
-  </binding>
+  <binding name="insert-material-citation" native="materials_insert_citation" returns="void" exceptions="scheme" />
+  <binding name="insert-referenced-materials" native="materials_insert_references" returns="void" exceptions="scheme" />
+  <binding name="materials-update-current-document" native="materials_update_current_document" returns="void" exceptions="scheme" />
+  <binding name="materials-append-references" native="materials_append_references" returns="void" exceptions="scheme" />
+  <binding name="materials-set-reference-style" native="materials_set_reference_style" returns="void" exceptions="scheme"><arg type="string" /></binding>
+  <binding name="materials-set-document-citation-style" native="materials_set_document_style" returns="void" exceptions="scheme"><arg type="string" /></binding>
+  <binding name="materials-use-default-citation-style" native="materials_use_default_style" returns="void" exceptions="scheme" />
+  <binding name="materials-page-title" native="materials_page_title" returns="string"><arg type="string" /><arg type="object" /></binding>
+  <binding name="materials-page-permission?" native="materials_page_permission" returns="bool"><arg type="string" /><arg type="string" /></binding>
   <binding name="material-resolve-uuid" native="athena_material_resolve_uuid" returns="object">
     <arg type="string" />
   </binding>

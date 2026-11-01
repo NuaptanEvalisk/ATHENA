@@ -10,11 +10,11 @@
 #include "tree.hpp"
 
 #include <string>
-class object;
+#include <functional>
 
 tree qtm_material_choose_citation (const std::string& csl_style);
 tree qtm_material_choose_references (bool document_context = true);
-void qtm_material_choose_citation_async (string style, object completion);
-void qtm_material_choose_references_async (object completion);
+void qtm_material_choose_citation_async (string style, std::function<void(tree)> completion);
+void qtm_material_choose_references_async (std::function<void(tree)> completion);
 
 #endif // QTMMATERIALCITATIONDIALOG_HPP

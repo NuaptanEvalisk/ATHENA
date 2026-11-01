@@ -10,6 +10,7 @@
 #include "native_editor_actions.hpp"
 #include "native_math_edit.hpp"
 #include "native_text_edit.hpp"
+#include "materials_edit.hpp"
 
 #include "ATHENA/Data/program_model.hpp"
 #include "ATHENA/Data/document_node_model.hpp"
@@ -391,9 +392,9 @@ execute_business_id (editor ed, const QString& id) {
   if (id == "insert-wikilink") (void) call ("insert-wikilink");
   else if (id == "insert-transclusion") (void) call ("insert-transclude");
   else if (id == "insert-material-citation")
-    (void) call ("insert-material-citation");
+    materials_insert_citation ();
   else if (id == "insert-referenced-materials")
-    (void) call ("insert-referenced-materials");
+    materials_insert_references ();
   else if (id == "open-latex-formula-dialog")
     math_open_latex_dialog ();
   else if (id == "insert-include-dialog")
@@ -557,9 +558,9 @@ execute_business_id (editor ed, const QString& id) {
   else if (id == "focus-transclusion-after")
     (void) call ("vault-go-after-transclusion");
   else if (id == "focus-materials-append")
-    (void) call ("materials-append-references");
+    materials_append_references ();
   else if (id == "focus-materials-update")
-    (void) call ("materials-update-current-document");
+    materials_update_current_document ();
   else if (id == "letter-today") {
     text_make_header ("letter-date");
     (void) call ("make", symbol_object ("date"), object (0));
@@ -1192,19 +1193,14 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
   else if (op == "focus-materials-style") {
     actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
     if (!state.valid () || !state.referenced_materials_context) return;
-    (void) call (
-      "materials-set-reference-style",
-      object (native_action_string (action.value ("style"))));
+    materials_set_reference_style (native_action_string (action.value ("style")));
   }
   else if (op == "document-citation-style") {
     if (!ed->document_menu_state_snapshot ().ready) return;
     if (action.value ("default").toBool ())
-      ed->init_default ("materials-csl-style");
+      materials_use_default_style ();
     else
-      ed->init_env (
-        "materials-csl-style",
-        tree (native_action_string (action.value ("style"))));
-    (void) call ("materials-update-current-document");
+      materials_set_document_style (native_action_string (action.value ("style")));
   }
   else if (op == "make-line-with")
     format_make_line_with (

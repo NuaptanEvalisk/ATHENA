@@ -135,7 +135,6 @@
 (check (equal? (tree-node-id (current)) live-id) "unwrap redo retains descendant identity")
 (tree-pointer-detach live-pointer)
 
-(import-from (athena athena tm-materials))
 (define bibliography
   (stree->tree '(referenced-materials "" (tuple "material") (document "Rendered bibliography"))))
 (annotate bibliography)
