@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="link-flatten" native="native_link_flatten" returns="object" exceptions="scheme"><arg type="content" /></binding>
+  <binding name="link-type" native="native_link_type" returns="object" exceptions="scheme"><arg type="object" /></binding>
+  <binding name="link-attributes" native="native_link_attributes" returns="object" exceptions="scheme"><arg type="object" /></binding>
+  <binding name="link-vertices" native="native_link_vertices" returns="object" exceptions="scheme"><arg type="object" /></binding>
+  <binding name="link-source" native="native_link_source" returns="object" exceptions="scheme"><arg type="object" /></binding>
+  <binding name="link-target" native="native_link_target" returns="object" exceptions="scheme"><arg type="object" /></binding>
+  <binding name="vertex-&gt;id" native="native_vertex_id" returns="object" exceptions="scheme"><arg type="object" /></binding>
+  <binding name="vertex-&gt;url" native="native_vertex_url" returns="object" exceptions="scheme"><arg type="object" /></binding>
+  <binding name="vertex-&gt;script" native="native_vertex_script" returns="object" exceptions="scheme"><arg type="object" /></binding>
   <binding name="number-&gt;label" native="reference_infer_label" returns="object" exceptions="scheme">
     <arg type="tree" />
   </binding>
