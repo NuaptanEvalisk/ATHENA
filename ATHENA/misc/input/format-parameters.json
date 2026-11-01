@@ -1,7 +1,7 @@
 {
   "version": 1,
   "focus_preferences": ["reference", "pageref", "eqref", "smart-ref", "hlink", "locus", "ornament", "float", "around", "around*"],
-  "focus_names": {"math": "Inline formula", "wide": "Wide", "wide*": "Wide", "around": "Around", "around*": "Around"},
+  "focus_names": {"math": "Inline formula", "wide": "Wide", "wide*": "Wide", "around": "Around", "around*": "Around", "abstract": "Abstract text"},
   "focus_variants": {"lsub": ["lsub", "lsup"], "lsup": ["lsub", "lsup"], "rsub": ["rsub", "rsup"], "rsup": ["rsub", "rsup"], "wide": ["wide"], "wide*": ["wide"], "around": ["around"], "around*": ["around"]},
   "standard_options": {
     "math": {"recurse": true, "packages": ["number-long-article", "math-check"]},
@@ -9,6 +9,12 @@
     "around": {"packages": ["math-brackets"]},
     "around*": {"packages": ["math-brackets"]}
   },
+  "standard_option_rules": [
+    {"groups": ["list-tag"], "packages": ["compact-list", "triangle-list", "prefix-enumerations"]},
+    {"groups": ["enunciation-tag", "render-enunciation-tag"], "tags": ["proof", "render-proof", "proof-alternative", "render-proof-alternative", "proof-standard", "render-proof-standard"], "packages": ["number-europe", "number-long-article", "framed-theorems", "hanging-theorems"]},
+    {"groups": ["algorithm-tag"], "packages": ["centered-program", "framed-program"]},
+    {"groups": ["small-figure-tag", "big-figure-tag"], "numbered_variants": true, "packages": ["captions-above"]}
+  ],
   "standard": {
     "action": ["locus-color"],
     "locus": ["locus-color", "visited-color"],
@@ -17,6 +23,18 @@
     "float": ["page-float-sep"]
   },
   "customizable": [
+    {"tags": ["padded", "padded-titled"], "parameters": [["padding-above", "Above"], ["padding-below", "Below"]]},
+    {"tags": ["overlined", "overlined-titled"], "parameters": [["padding-above", "Above"], ["padding-below", "Below"], ["overlined-sep", "Inner"]]},
+    {"tags": ["underlined", "underlined-titled"], "parameters": [["padding-above", "Above"], ["padding-below", "Below"], ["underlined-sep", "Inner"]]},
+    {"tags": ["leftlined", "leftlined-titled"], "parameters": [["padding-above", "Above"], ["padding-below", "Below"], ["leftlined-sep", "Inner"]]},
+    {"tags": ["rightlined", "rightlined-titled"], "parameters": [["padding-above", "Above"], ["padding-below", "Below"], ["rightlined-sep", "Inner"]]},
+    {"tags": ["bothlined", "bothlined-titled"], "parameters": [["padding-above", "Above"], ["padding-below", "Below"], ["overlined-sep", "Top"], ["underlined-sep", "Bottom"]]},
+    {"tags": ["verticallined", "verticallined-titled"], "parameters": [["padding-above", "Above"], ["padding-below", "Below"], ["leftlined-sep", "Left"], ["rightlined-sep", "Right"]]},
+    {"tags": ["framed", "framed-titled"], "parameters": [["padding-above", "Above"], ["padding-below", "Below"], ["framed-color", "Color"]]},
+    {"tags": ["ornamented", "decorated"], "parameters": [["padding-above", "Above"], ["padding-below", "Below"], ["ornament-vpadding", "Inner"], ["ornament-hpadding", "Indentation"], ["ornament-shape", "Shape"], ["ornament-color", "Color"], ["ornament-border", "Border"]]},
+    {"tags": ["ornamented-titled", "decorated-titled"], "parameters": [["padding-above", "Above"], ["padding-below", "Below"], ["ornament-vpadding", "Inner"], ["ornament-hpadding", "Indentation"], ["ornament-shape", "Shape"], ["ornament-color", "Color"], ["ornament-border", "Border"], ["ornament-title-style", "Title style"], ["ornament-extra-color", "Title color"]]},
+    {"tags": ["ornament"], "parameters": [["ornament-shape", "Shape"], ["ornament-color", "Color"], ["ornament-title-style", "Title style"], ["ornament-extra-color", "Title color"], ["ornament-border", "Border width"], ["ornament-hpadding", "Horizontal padding"], ["ornament-vpadding", "Vertical padding"]], "parameters_by_arity": {"1": [["ornament-shape", "Shape"], ["ornament-color", "Color"], ["ornament-border", "Border width"], ["ornament-hpadding", "Horizontal padding"], ["ornament-vpadding", "Vertical padding"]]}},
+    {"tags": ["manila-paper", "rough-paper", "ridged-paper", "pine", "granite", "metal"], "parameters": [["ornament-shape", "Shape"], ["ornament-border", "Border width"], ["ornament-hpadding", "Horizontal padding"], ["ornament-vpadding", "Vertical padding"]]},
     {"tags": ["embold"], "parameters": [["embold-strength", "Strength"]]},
     {"tags": ["embbb"], "parameters": [["embbb-strength", "Strength"]]},
     {"tags": ["slanted"], "parameters": [["slanted-slope", "Slope"]]},
@@ -50,6 +68,10 @@
     {"tags": ["skin"], "parameters": [["skin-color", "Skin color"]]}
   ],
   "choices": [
+    {"names": ["padding-above", "padding-below"], "values": ["0fn", "0.5fn", "1fn", "1.5fn", "2fn"], "other": true},
+    {"names": ["overlined-sep", "underlined-sep", "leftlined-sep", "rightlined-sep"], "values": ["0sep", "0.5sep", "1sep", "1.5sep", "2sep"], "other": true},
+    {"names": ["ornament-hpadding", "ornament-vpadding"], "values": ["0spc", "0.5spc", "1spc", "1.5spc", "2spc"], "other": true},
+    {"names": ["ornament-border"], "values": ["0ln", "0.5ln", "1ln", "2ln", "3ln", "4ln", "5ln"], "other": true},
     {"names": ["ornament-shape"], "values": ["classic", "rounded", "angular", "cartoon"]},
     {"names": ["ornament-title-style"], "values": ["classic", "top left", "top center", "top right", "bottom left", "bottom center", "bottom right"]},
     {"names": ["embold-strength", "embbb-strength"], "values": ["1.5", "2", "2.5", "3", "4", "5"], "other": true},

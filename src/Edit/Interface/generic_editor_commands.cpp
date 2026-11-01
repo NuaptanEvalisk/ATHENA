@@ -29,6 +29,7 @@
 #include "hashmap.hpp"
 #include "native_interfaces.hpp"
 #include "native_node_groups.hpp"
+#include "Data/NodeContracts/node_groups.hpp"
 #include "node_metadata.hpp"
 #include "Typeset/Env/local_environment.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
@@ -1566,6 +1567,12 @@ generic_parameter_name (string name) {
 
 bool
 generic_parameter_show_in_menu (string name) {
+  if (name == "appendix-prefix") return false;
+  if (ends (name, "-numbered")) {
+    const string section= name (0, N(name)-9);
+    if (athena::contracts::standard_node_groups ().contains (
+          "section-tag", std::string (section.data (), N(section)))) return false;
+  }
   object theme= call ("member->theme", object (name));
   return is_bool (theme) && !as_bool (theme);
 }

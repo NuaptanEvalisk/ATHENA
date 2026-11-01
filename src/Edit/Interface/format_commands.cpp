@@ -19,6 +19,7 @@
 #include "QTMNativeDialogs.hpp"
 #include "gui_text.hpp"
 #include "node_metadata.hpp"
+#include "Data/NodeContracts/node_groups.hpp"
 
 #include <QCoreApplication>
 #include <QJsonArray>
@@ -84,7 +85,7 @@ struct format_parameter_data {
       }
       for (QJsonValue tag: group.value ("tags").toArray ()) {
         ASSERT (!customizable.contains (tag.toString ()), "duplicate customizable tag");
-        customizable.insert (tag.toString (), group.value ("parameters"));
+        customizable.insert (tag.toString (), group);
       }
     }
     for (QJsonValue item: definitions.value ("choices").toArray ()) {
@@ -642,8 +643,22 @@ object format_focus_variants (string tag) {
 
 object format_standard_options (object tag) {
   if (!is_symbol (tag)) return object (false);
+  const string name= as_symbol (tag);
   QJsonValue rule= parameter_data ().definitions.value ("standard_options")
-    .toObject ().value (json_key (as_symbol (tag)));
+    .toObject ().value (json_key (name));
+  if (!rule.isObject ()) {
+    for (QJsonValue candidate: parameter_data ().definitions.value ("standard_option_rules").toArray ()) {
+      const QJsonObject entry= candidate.toObject ();
+      string base= name;
+      if (entry.value ("numbered_variants").toBool () && ends (base, "*"))
+        base= base (0, N(base)-1);
+      bool matches= entry.value ("tags").toArray ().contains (json_key (base));
+      for (QJsonValue group: entry.value ("groups").toArray ())
+        matches= matches || athena::contracts::standard_node_groups ().contains (
+          group.toString ().toStdString (), std::string (base.data (), N(base)));
+      if (matches) { rule= entry; break; }
+    }
+  }
   if (!rule.isObject ()) return object (false);
   object packages= json_strings (rule.toObject ().value ("packages").toArray ());
   return rule.toObject ().value ("recurse").toBool () ?
@@ -663,7 +678,11 @@ object format_parameter_choices (string variable) {
 }
 
 object format_customizable_parameters (tree t) {
-  QJsonArray values= parameter_data ().customizable.value (json_key (as_string (L (t)))).toArray ();
+  QJsonObject group= parameter_data ().customizable.value (json_key (as_string (L (t)))).toObject ();
+  QJsonObject by_arity= group.value ("parameters_by_arity").toObject ();
+  QJsonArray values= by_arity.value (QString::number (N(t))).toArray ();
+  if (!by_arity.contains (QString::number (N(t))))
+    values= group.value ("parameters").toArray ();
   object result= null_object ();
   for (int i= values.size () - 1; i >= 0; --i)
     result= cons (json_strings (values[i].toArray ()), result);
