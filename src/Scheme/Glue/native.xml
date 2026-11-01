@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="schedule-persistent-fit-width" native="view_schedule_fit_width" returns="void" exceptions="scheme" />
+  <binding name="toggle-persistent-fit-width" native="view_toggle_fit_width" returns="void" exceptions="scheme" />
   <binding name="notify-header" native="view_notify_header" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /></binding>
   <binding name="notify-icon-bar" native="view_notify_icon_bar" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /></binding>
   <binding name="notify-toolbar-presentation" native="view_notify_toolbar" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /></binding>

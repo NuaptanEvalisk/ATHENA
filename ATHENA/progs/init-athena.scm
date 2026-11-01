@@ -89,8 +89,7 @@
              run-global-transformation)
 (lazy-define (athena athena tm-view)
              toggle-full-screen-mode toggle-full-screen-edit-mode
-             toggle-panorama-mode toggle-slideshow-mode
-             toggle-persistent-fit-width schedule-persistent-fit-width)
+             toggle-panorama-mode toggle-slideshow-mode)
 (lazy-define (athena athena tm-files)
              buffer-missing-style? buffer-set-default-style command-line-convert
              native-recent-file-provider-data)

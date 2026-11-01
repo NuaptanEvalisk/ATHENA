@@ -1918,6 +1918,7 @@ edit_interface_rep::apply_changes () {
     if (get_preference ("heading word counts", "off") == "on")
       notify_change (THE_ENVIRONMENT);
   }
+  view_tick_fit_width (this);
   refresh_enunciation_slots ();
   update_visible ();
   rectangle new_visible= rectangle (vx1, vy1, vx2, vy2);  
@@ -2568,10 +2569,7 @@ edit_interface_rep::handle_notify_resize (
   }
 
   notify_change ((width_changed ? THE_TREE : THE_EXTENTS) + THE_FREEZE);
-  if (width_changed &&
-      as_bool (call ("defined?",
-                     symbol_object ("schedule-persistent-fit-width"))))
-    call ("schedule-persistent-fit-width");
+  if (width_changed) view_schedule_fit_width ();
 }
 
 double

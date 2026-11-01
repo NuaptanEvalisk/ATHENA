@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "tm_window.hpp"
+#include "view_fit.hpp"
 #include "ATHENA/Data/document_persistence.hpp"
 #include "tm_data.hpp"
 #include "scheme.hpp"
@@ -102,7 +103,7 @@ notify_window_resize (string name, SI ww, SI hh) {
       set_user_preference ("width " * name, as_string (w));
       set_user_preference ("height " * name, as_string (h));
       if (!is_none (get_current_view_safe ()))
-        call ("window-resize-notifier", object (name));
+        view_schedule_fit_width ();
     }
   }
 }

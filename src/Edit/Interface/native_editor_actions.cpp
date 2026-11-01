@@ -487,7 +487,7 @@ execute_business_id (editor ed, const QString& id) {
   else if (id == "view-fit-width")
     view_fit_width ();
   else if (id == "view-toggle-persistent-fit-width")
-    (void) call ("toggle-persistent-fit-width");
+    view_toggle_fit_width ();
   else if (id == "view-toggle-typewriter")
     view_toggle_typewriter ();
   else if (id == "view-viewport-normal" ||

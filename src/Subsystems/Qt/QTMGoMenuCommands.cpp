@@ -13,6 +13,7 @@
 #include "new_window.hpp"
 #include "vault.hpp"
 #include "vault_frontend.hpp"
+#include "view_fit.hpp"
 
 #include <QRandomGenerator>
 #include <QSet>
@@ -86,7 +87,7 @@ switch_to_buffer_like_legacy (url target) {
   array<url> windows= buffer_to_windows (target);
   if (N(windows) > 0) switch_to_window (windows[0]);
   else switch_to_buffer (target);
-  try { (void) call ("schedule-persistent-fit-width"); }
+  try { view_schedule_fit_width (); }
   catch (...) {}
   return true;
 }
@@ -239,7 +240,7 @@ QTMCommandRegistry::registerGoMenuCommands () {
         url target (from_qstring (key.mid (7)));
         if (is_none (target)) return false;
         switch_to_window (target);
-        try { (void) call ("schedule-persistent-fit-width"); }
+        try { view_schedule_fit_width (); }
         catch (...) {}
         return true;
       }
