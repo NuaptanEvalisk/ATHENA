@@ -19,6 +19,8 @@
 #include "boot.hpp"
 #include "buffer_actor.hpp"
 #include "buffer_state.hpp"
+#include "node_metadata.hpp"
+#include "file.hpp"
 
 #include <QByteArray>
 #include <QCoreApplication>
@@ -406,4 +408,123 @@ athena_data_art_export_snapshot (
     return "DataArt transient export could not enter the Qt owner";
   }
   return to_tm (result);
+}
+
+namespace {
+
+tree cover_document (url cover, string width) {
+  return tree (DOCUMENT, tree (VAR_VSPACE, "1fn"),
+               compound ("center", tree (IMAGE, as_string (cover), width, "", "", "")),
+               tree (VSPACE, "1.5fn"));
+}
+
+bool is_cover_document (tree t, string width) {
+  return is_func (t, DOCUMENT, 3) && is_func (t[0], VAR_VSPACE, 1) && t[0][0] == "1fn" &&
+    is_func (t[1], make_tree_label ("center"), 1) && is_compound (t[1][0]) &&
+    L(t[1][0]) == IMAGE && N(t[1][0]) >= 2 && t[1][0][1] == width &&
+    is_func (t[2], VSPACE, 1) && t[2][0] == "1.5fn";
+}
+
+bool cover_present (tree body) {
+  if (is_atomic (body) || L(body) != DOCUMENT) return false;
+  for (int i=0; i<N(body); ++i) {
+    if (is_cover_document (body[i], "0.92par")) return true;
+    if (!is_func (body[i], make_tree_label ("doc-data"))) continue;
+    for (int j=0; j<N(body[i]); ++j) {
+      tree child= body[i][j];
+      if (is_func (child, make_tree_label ("doc-misc")) &&
+          is_cover_document (child[0], "0.72par")) return true;
+    }
+  }
+  return false;
+}
+
+tree insert_cover (tree body, url cover) {
+  if (is_atomic (body) || L(body) != DOCUMENT) return body;
+  int position= 0;
+  if (N(body) > 0 && is_compound (body[0])) {
+    string tag= as_string (L(body[0]));
+    if (tag == "doc-data" || tag == "title" || tag == "doc-title" ||
+        tag == "tmdoc-title" || tag == "tmdoc-title*" || tag == "doc-title-block")
+      position= 1;
+  }
+  tree result (DOCUMENT);
+  for (int i=0; i<=N(body); ++i) {
+    if (i == position) result << cover_document (cover, "0.92par");
+    if (i < N(body)) result << body[i];
+  }
+  athena::node::copy_metadata (body, result);
+  return result;
+}
+
+} // namespace
+
+bool athena_data_art_enabled () {
+  return get_preference ("texmacs->pdf:data-art cover", "off") == "on";
+}
+
+bool athena_data_art_pdf_target (object target) {
+  return is_url (target) && suffix (as_url (target)) == "pdf";
+}
+
+bool athena_data_art_cover_present (url source) {
+  return cover_present (get_buffer_body (source));
+}
+
+static object generate_cover (url source, tree body) {
+  url cover= glue (url_temp (), ".png");
+  string seed= "ATHENA DataArt cover seed\n" * as_string (source) * "\n\n" *
+    tree_to_scheme (body);
+  string error= athena_data_art_generate (seed, cover);
+  if (error == "" && exists (cover)) return object (cover);
+  if (exists (cover)) remove (cover);
+  std_warning << "data-art cover generation failed"
+              << (error == "" ? string ("") : ": " * error) << "\n";
+  return object (false);
+}
+
+object athena_data_art_generate_cover (url source) {
+  return generate_cover (source, get_buffer_body (source));
+}
+
+tree athena_data_art_body_with_cover (tree body, url cover) {
+  tree snapshot= copy (body);
+  return cover_present (snapshot)? snapshot: insert_cover (snapshot, cover);
+}
+
+tree athena_data_art_doc_data_with_cover (tree body, url cover) {
+  tree snapshot= copy (body);
+  if (cover_present (snapshot) || is_atomic (snapshot) || L(snapshot) != DOCUMENT)
+    return snapshot;
+  for (int i=0; i<N(snapshot); ++i)
+    if (is_compound (snapshot[i]) && L(snapshot[i]) == make_tree_label ("doc-data")) {
+      snapshot[i] << compound ("doc-misc", cover_document (cover, "0.72par"));
+      return snapshot;
+    }
+  return insert_cover (snapshot, cover);
+}
+
+tree athena_data_art_export_payload (tree document, tree body, url cover, int version) {
+  if (version < 1 || version > 3) throw std::runtime_error ("Invalid DataArt source version");
+  return tree (TUPLE, copy (document), copy (body), as_string (cover), as_string (version));
+}
+
+object athena_data_art_prepare_export (url source, object target) {
+  if (!athena_data_art_enabled () || !athena_data_art_pdf_target (target))
+    return object (false);
+  tree body= get_buffer_body (source);
+  if (cover_present (body)) return object (false);
+  object cover= generate_cover (source, body);
+  if (is_bool (cover)) return object (false);
+  body= insert_cover (body, as_url (cover));
+  return object (athena_data_art_export_payload (
+    get_buffer_tree (source), body, as_url (cover), athena_data_art_source_version ()));
+}
+
+void athena_data_art_insert_cover (url source, url cover) {
+  set_buffer_body (source, athena_data_art_body_with_cover (get_buffer_body (source), cover));
+}
+
+void athena_data_art_insert_doc_data_cover (url source, url cover) {
+  set_buffer_body (source, athena_data_art_doc_data_with_cover (get_buffer_body (source), cover));
 }

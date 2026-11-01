@@ -1324,8 +1324,7 @@ schedule_export_finalization (url buffer, bool includeDataArt) {
   string b= as_string (buffer);
   string cmd= "(delayed (:idle 1) (begin ";
   if (includeDataArt) {
-    cmd << "(import-from (athena athena tm-data-art)) "
-        << "(let* ((buf (string->url " << scm_quote (b) << ")) "
+    cmd << "(let* ((buf (string->url " << scm_quote (b) << ")) "
         << "(cover (data-art-generate-cover buf))) "
         << "(when cover "
         << "(data-art-insert-cover-in-doc-data-buffer buf cover))) ";

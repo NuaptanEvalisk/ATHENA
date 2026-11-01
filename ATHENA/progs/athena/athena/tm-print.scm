@@ -13,7 +13,6 @@
 
 (texmacs-module (athena athena tm-print)
   (:use (athena athena tm-files)
-        (athena athena tm-data-art)
         (dynamic fold-edit)
         (utils library cursor)))
 (import-from (kernel athena tm-preferences))

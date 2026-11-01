@@ -14,12 +14,24 @@
 #include "string.hpp"
 #include "tree.hpp"
 #include "url.hpp"
+#include "scheme.hpp"
 
 // Returns the empty string on success and a diagnostic on failure.
 string athena_data_art_generate (string seed, url output);
 
 // Capture the format in the same source-actor turn as the prepared trees.
 int athena_data_art_source_version ();
+
+bool athena_data_art_enabled ();
+bool athena_data_art_pdf_target (object target);
+bool athena_data_art_cover_present (url source);
+object athena_data_art_generate_cover (url source);
+tree athena_data_art_body_with_cover (tree body, url cover);
+tree athena_data_art_doc_data_with_cover (tree body, url cover);
+tree athena_data_art_export_payload (tree document, tree body, url cover, int version);
+object athena_data_art_prepare_export (url source, object target);
+void athena_data_art_insert_cover (url source, url cover);
+void athena_data_art_insert_doc_data_cover (url source, url cover);
 
 // Export a semantically complete snapshot through a real transient buffer.
 // `document` contains the full buffer envelope (style/init/references/etc.) and

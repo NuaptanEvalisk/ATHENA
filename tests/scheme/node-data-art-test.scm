@@ -1,6 +1,5 @@
 ;; DataArt must preserve source metadata in cover edits and detached exports.
 ;; Run under an isolated headless ATHENA profile; no vault or renderer is used.
-(import-from (athena athena tm-data-art))
 
 (define (check condition label)
   (unless condition (error "DataArt node identity regression" label)))
@@ -27,8 +26,7 @@
 (tree-set! result 2 "Changed export copy")
 (check (== body before) "cover output is detached from source")
 
-(define insert-doc-data
-  (@@ (athena athena tm-data-art) data-art-insert-cover-in-doc-data-tree))
+(define insert-doc-data data-art-doc-data-with-cover)
 (define inside (insert-doc-data (tree-copy body) cover))
 (check (equal? (tree-node-id inside) (tree-node-id body)) "doc-data edit retains body identity")
 (check (= (tree-arity inside) 2) "doc-data cover is not a body paragraph")
@@ -49,8 +47,7 @@
   (list (stree->tree '(style (tuple "generic")))
         (tree-rebuild (stree->tree '(body)) (list body)))))
 (annotate envelope)
-(define snapshot ((@@ (athena athena tm-data-art) data-art-export-snapshot)
-                   envelope inside cover 3))
+(define snapshot (data-art-export-payload envelope inside cover 3))
 (check (equal? (tree->string (tree-ref snapshot 3)) "3") "explicit source version")
 (check (== (tree-ref snapshot 0) envelope) "complete envelope metadata retained")
 (check (== (tree-ref snapshot 1) inside) "prepared body metadata retained")
