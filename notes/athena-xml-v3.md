@@ -108,14 +108,15 @@ same structural and identity contracts.
 
 - XML v3 codec: `src/Data/Convert/Xml/athena_document_xml_v3.cpp`;
   version dispatch: `native_xml_codec.cpp` and `document_file_codec.cpp`.
-- Math grammar: `src/Data/Tree/math_tree_v3.{hpp,cpp}`, tree labels and DRD.
+- Math grammar: `src/Data/Tree/math_tree_v3.{hpp,cpp}`, tree labels and
+  `src/Data/NodeContracts/`.
 - Editing: `src/Edit/Modify/edit_math.cpp` and `src/Edit/Interface/`.
   Recent 2026-10-19/20 commits repaired native scripts, delimiters, formula
   focus, MathBlock/MathGrid insertion, and grid row editing. Read HEAD rather
   than redoing earlier handoff TODOs.
 - Typesetting: `src/Typeset/Concat/concat_math.cpp`,
   `src/Typeset/Table/`; export/import: `src/Data/Convert/Tex/`,
-  `ATHENA/progs/convert/mathml/`, and `ATHENA/progs/convert/html/`.
+  native MathML/HTML conversion in `src/Data/Convert/Xml/`.
 - Vault lifecycle: `src/ATHENA/Data/vault.cpp`; Hodarium descriptors and
   transport: `src/ATHENA/Hodarium/revisions.hpp`,
   `peer_replication.cpp`, `revision_transfer.cpp`.

@@ -30,6 +30,22 @@ Ordinary verbatim text remains uncolored. Languages without a KF6 definition
 remain plain text rather than using an approximate local lexer. Math grammars,
 math semantic analysis, natural-language layout and file-format parsers remain.
 
-Scheme completion and bracket editing remain; automatic Scheme indentation and
-the Emacs Lisp keyword/indentation bridge have been removed. DraTeX and the six
-historical TeX support files are removed from both tracked plugin trees.
+## Native Editing
+
+As of commit `d7ae18662`, `ATHENA/progs/prog` and its seven language/editing
+modules are removed. ATHENA still owns rendering and structured editing;
+KTextEditor is not embedded.
+
+`src/Edit/Interface/native_program_edit.cpp` owns generic bracket insertion,
+matching/highlighting, selection expansion, tab stops, indentation and program
+clipboard behavior. The shared keymap is `ATHENA/misc/input/prog-keybindings.json`.
+Return inherits leading whitespace; Tab/Shift+Tab adjust indentation. There is
+no per-language smart indentation.
+
+Token categories and preceding-line states come from KSyntaxHighlighting.
+Insertion probes distinguish a caret after a closing quote from one inside a
+string. Embedded formulas are opaque to code analysis. Whitespace edits retain
+rich content, and bracket wrapping uses the existing structured selection path.
+
+DraTeX, the Emacs Lisp keyword/indentation bridge and the six historical TeX
+support files remain removed.

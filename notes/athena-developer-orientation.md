@@ -214,67 +214,41 @@ References: `src/ATHENA/Interop/README.md`,
 
 ## Build, Test And Deploy
 
-These are mandatory local build rules, not suggestions. Unless the user
-explicitly requests a different build, use the existing normal Debug
-configuration and **exactly this command**, from the repository root:
+Follow `AGENTS.md`. For the existing Linux Debug configuration:
 
 ```sh
-cmake --build build_qt6 --target ATHENA.bin -j20
+cmake --build build_qt6 --target ATHENA.bin -j16
+python3 tools/install-local-executable.py build_qt6/src/ATHENA.bin ATHENA/bin/ATHENA.bin
 ```
 
-- **Always specify `--target ATHENA.bin`. Never run bare
-  `cmake --build build_qt6`, the default/ALL target, or unrestricted `make` or
-  `ninja`.** Those are not equivalent to building the application: they can
-  also rebuild and publish Scheme bytecode and runtime resources. An earlier
-  default-target build exposed broken bytecode generation and left ATHENA
-  unable to start.
-- **Use `-j20`. Do not substitute `-j8`, omit parallelism, or choose another
-  value yourself.** The user has explicitly required 20 build jobs. If a
-  concrete resource failure prevents that, report it and ask before changing
-  the setting.
-- **Do not build test targets as part of routine application work.** This
-  document does not authorize a test-binary build. If a separate test target
-  is necessary, explain why and obtain the user's explicit instruction first.
-- **Never run the full test suite without the user's explicit request.**
-  This includes unfiltered `ctest`, `make test`, `ninja test`, and running a
-  test executable without a specific test filter. A request to fix a bug,
-  build, deploy, or verify a change is not permission to run all tests.
-- Do not independently reconfigure, clean the build tree, build TSan, rebuild
-  vendored Guile, rebuild/publish Scheme bytecode, or run runtime-install/ALL
-  targets. Ask first when one of these is actually required. Never delete or
-  replace user caches as speculative troubleshooting.
-- `ATHENA.bin` is the executable target; a target named `ATHENA` is not a
-  substitute. Wait for compilation and linking to finish and check the exit
-  status. Never deploy after a failed or unfinished build.
+Use an explicit application target, not the default ALL target. Do not deploy
+after a failed or unfinished build. The installer retains retired executables
+by ELF build ID; do not substitute a manual install/copy/rename sequence.
 
-Keep verification proportional to the fix. The user normally performs GUI
-acceptance; do not launch broad test suites or prolonged Xvfb sessions on your
-own. Any authorized automated run must use an isolated profile and temporary
-data, not production Notes.
+When Scheme modules or generated interfaces change, build the corresponding
+glue/bytecode targets as needed and synchronize the runtime with
+`tools/deploy-local-runtime.sh build_qt6`. Building only ATHENA.bin does not
+refresh the independent packaged bytecode target.
 
-After a successful normal Debug build, deploy automatically unless the user
-explicitly requests build-only or no deployment. Install to a temporary sibling,
-verify, then rename atomically. Do not overwrite an active executable in place:
+Tests are not a default deliverable. Clear, straightforward changes do not need
+tests; use focused evidence only for concrete uncertainty. Do not run broad
+suites, incidental test targets or prolonged GUI automation.
 
-```sh
-install -m 755 build_qt6/src/ATHENA.bin ATHENA/bin/ATHENA.bin.new
-cmp build_qt6/src/ATHENA.bin ATHENA/bin/ATHENA.bin.new
-# Only after successful build and comparison:
-mv -f ATHENA/bin/ATHENA.bin.new ATHENA/bin/ATHENA.bin
-```
-
-An already running process still uses its old executable. Report deployment
-accurately and let the user restart for acceptance; do not imply hot replacement.
-Normal Debug is the usual first step. Do not automatically build TSan or run a
-large GUI suite for every local fix.
-
-These commands are for Linux. The macOS VM has 16 vCPUs: use **`-j15` there**,
-never `-j20`. iPadOS already has a functioning native app build; do not restart
-that port from scratch. Read `notes/ipados-build-handoff.md` and verify current
-VM/build scripts before iPad work. iPad ships precompiled Guile bytecode, without
-JIT or runtime source recompilation. A Linux build does not update an IPA.
+An already running process retains its old executable. Deployment is not hot
+replacement. The macOS VM uses `-j15`; a Linux build does not update an IPA.
+See `notes/ipados-build-handoff.md` for the existing platform workflow.
 
 ## Current development context
+
+Updated: 2026-11-01.
+
+- Real-window IME validation is **complete, confirmed by the user**. The
+  outstanding-validation sentence in historical commit `abdd53b8e` describes
+  that earlier checkpoint, not current work. Do not reopen it as a pending task.
+- Native conversion and the bounded DRD replacement are complete. `progs/convert`,
+  `progs/kernel/gui` and `progs/prog` have been removed. Program rendering stays
+  in ATHENA; generic editing is C++, with KSyntaxHighlighting lexical context
+  and no language-specific smart indentation.
 
 The production Vault is already XML v3 and the Hodarium NAS replica has
 converged and is in use. Do not treat the previous cutover as pending.
@@ -308,9 +282,10 @@ Read `AGENTS.md`; it is authoritative and more detailed than this summary.
 - Use temporary profiles/vaults or sample copies for destructive testing. Do not
   edit production Notes, rebuild its databases, reset credentials or change
   remote backend deployments without authorization.
-- Prefer a small relevant regression test set and user acceptance to excessive
-  Xvfb automation or repeated full audits. Poll long builds sensibly rather than
-  busy-waiting. Do not let a test-harness issue consume the entire task.
+- Do not add or run tests for straightforward changes. Use focused evidence
+  for concrete uncertainty and accept the user's GUI validation. Poll long
+  builds sensibly rather than busy-waiting. Do not let a test-harness issue
+  consume the entire task.
 - If three successive fixes for the same bug yield no observable improvement,
   follow the escalation rule in `AGENTS.md` rather than continuing to guess.
 

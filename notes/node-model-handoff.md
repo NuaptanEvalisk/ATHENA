@@ -174,7 +174,7 @@ identity completeness 与唯一性要求。接管不是“顺便迁移旧文档�
   不能先丢 metadata 再靠路径猜测补回。
 - source tokenizer 与只读/展示 tokenizer 的语义不能混为一谈。
 
-透明 WITH-like 宏的内容角色由已有 DRD `with_like` 契约判断，不按标签名猜。未知或含糊角色
+透明 WITH-like 宏的内容角色由 native NodeContracts `with_like` 契约判断，不按标签名猜。未知或含糊角色
 不能被随意认作新 source paragraph。
 
 完整 source snapshot 除正文外还要保留 envelope、标准字段、collection、association、
@@ -376,7 +376,7 @@ child 增删/label 变化、匿名目标、嵌套 wrap/unwrap、undo/redo 与 Ma
 正常 ATHENA 构建目标：
 
 ```sh
-cmake --build build_qt6 --target ATHENA.bin -j20
+cmake --build build_qt6 --target ATHENA.bin -j16
 ```
 
 binary 位于 `build_qt6/src/ATHENA.bin`。
