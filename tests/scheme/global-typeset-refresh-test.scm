@@ -1,5 +1,4 @@
 ;; Run with evaluation-bar-test.py: -x executes in the owning BufferActor.
-(import-from (athena athena tm-tools))
 (init-style "generic")
 (buffer-set-body (current-buffer) (stree->tree '(document "Refresh regression")))
 (update-current-buffer)

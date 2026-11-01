@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMPreferencesDialog.hpp"
+#include "Edit/Interface/application_tools.hpp"
 #include "athena_platform.hpp"
 #if ATHENA_ENABLE_PLUGINS
 #include "QTMPluginUi.hpp"
@@ -1226,12 +1227,12 @@ QTMPreferencesDialog::buildGeneralPage () {
   QFormLayout* maintenance= add_section (fonts, "Maintenance");
   QPushButton* scan= new QPushButton ("Refresh system fonts");
   QObject::connect (scan, &QPushButton::clicked, [] () {
-    (void) call ("scan-disk-for-fonts");
+    tools_scan_fonts ();
   });
   maintenance->addRow (label ("System font catalog:"), scan);
   QPushButton* clear= new QPushButton ("Clear font cache");
   QObject::connect (clear, &QPushButton::clicked, [] () {
-    (void) call ("clear-font-cache");
+    tools_clear_font_cache ();
   });
   maintenance->addRow (label ("Clear local font cache:"), clear);
   finish_page (fonts);

@@ -13,7 +13,6 @@
 
 (texmacs-module (generic document-edit)
   (:use (utils base environment)
-	(athena athena tm-tools)
         (utils library length)
         (utils library cursor)
         (generic generic-edit)

@@ -10,6 +10,7 @@
 
 
 #include "QTMCommandRegistry.hpp"
+#include "Edit/Interface/application_tools.hpp"
 #include "QTMCommandRegistryInternal.hpp"
 
 #include "QTMAbout.hpp"
@@ -764,7 +765,7 @@ QTMCommandRegistry::registerApplicationCommands () {
     "workspace.clean-cache", QTMCommandScope::Application,
     [] (const QTMCommandContext&) {
       try {
-        (void) call ("clean-athena-cache");
+        tools_clean_cache ();
         return true;
       }
       catch (...) {

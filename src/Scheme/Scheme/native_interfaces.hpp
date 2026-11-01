@@ -23,6 +23,7 @@
 #include "Edit/Interface/reference_markup.hpp"
 #include "Edit/Interface/link_markup.hpp"
 #include "Edit/Interface/materials_edit.hpp"
+#include "Edit/Interface/application_tools.hpp"
 #include "Edit/Interface/document_style_commands.hpp"
 #include "Edit/Interface/selection_image_export.hpp"
 

@@ -11,6 +11,7 @@
 #include "native_math_edit.hpp"
 #include "native_text_edit.hpp"
 #include "materials_edit.hpp"
+#include "application_tools.hpp"
 
 #include "ATHENA/Data/program_model.hpp"
 #include "ATHENA/Data/document_node_model.hpp"
@@ -453,15 +454,15 @@ execute_business_id (editor ed, const QString& id) {
   else if (id == "document-refresh-inclusions")
     get_server ()->inclusions_gc ();
   else if (id == "document-refresh-pictures")
-    (void) call ("picture-gc");
+    tools_picture_gc ();
   else if (id == "document-character-count")
-    (void) call ("show-character-count");
+    tools_show_character_count ();
   else if (id == "document-word-count")
-    (void) call ("show-word-count");
+    tools_show_word_count ();
   else if (id == "document-line-count")
-    (void) call ("show-line-count");
+    tools_show_line_count ();
   else if (id == "document-toggle-save-aux")
-    (void) call ("toggle-save-aux");
+    tools_toggle_save_aux ();
   else if (id == "open-document-paragraph-format")
     athena_dispatch_ui (paragraph_properties_pane_show);
   else if (id == "open-document-page-format")
