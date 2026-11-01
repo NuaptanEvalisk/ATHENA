@@ -25,17 +25,18 @@ void view_notify_icon_bar (string key, string value) {
              key == "focus dependent icons"? 2: -1;
   if (which >= 0) get_server ()->show_icon_bar (which, value == "on");
 }
-void view_notify_toolbar (string, string) {
+void view_notify_toolbar (string, string) { view_notify_change (THE_MENUS); }
+void view_notify_change (int changes) {
   const auto* context= current_scheme_execution_context ();
   if (context) {
-    if (context->editor) context->editor->notify_change (THE_MENUS);
+    if (context->editor) context->editor->notify_change (changes);
     return;
   }
   tm_view view= concrete_view (get_current_view_safe ());
   if (!view) return;
-  auto continuation= actor_continuation_registry::instance ().store ([] {
+  auto continuation= actor_continuation_registry::instance ().store ([changes] {
     const auto* owner= current_scheme_execution_context ();
-    if (owner && owner->editor) owner->editor->notify_change (THE_MENUS);
+    if (owner && owner->editor) owner->editor->notify_change (changes);
   });
   if (!view->buf->actor->submit (actor_command_kind::run_native_continuation,
       view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB,

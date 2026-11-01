@@ -87,7 +87,6 @@ preference_callback_name (const QString& id) {
     {"latex-command", "notify-latex-command"},
     {"link-color", "notify-link-color"},
     {"look-and-feel", "notify-look-and-feel"},
-    {"new-page-breaking", "notify-new-page-breaking"},
     {"paper-type", "notify-paper-type"},
     {"preview-command", "notify-preview-command"},
     {"printer-dpi", "notify-printer-dpi"},

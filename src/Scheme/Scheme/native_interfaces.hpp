@@ -24,6 +24,7 @@
 #include "Edit/Interface/link_markup.hpp"
 #include "Edit/Interface/materials_edit.hpp"
 #include "Edit/Interface/application_tools.hpp"
+#include "Edit/Interface/application_preferences.hpp"
 #include "Edit/Interface/view_zoom.hpp"
 #include "Edit/Interface/view_controls.hpp"
 #include "Edit/Interface/view_fit.hpp"

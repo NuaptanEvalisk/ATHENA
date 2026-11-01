@@ -753,6 +753,7 @@ athena_notify_now (object message) {
 void
 athena_notify_restart (object ignored) {
   (void) ignored;
+  if (!application_preferences_ready ()) return;
   queue_native_notification (
     "Restart ATHENA in order to let changes take effect");
 }

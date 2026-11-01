@@ -12,92 +12,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (athena athena tm-server))
-(import-from (kernel athena tm-preferences))
-(lazy-define (generic document-edit) init-default set-document-language)
 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Preferences
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (get-default-show-table-cells)
-  (if (qt-gui?) "on" "off"))
-
-(define (notify-look-and-feel var val)
-  (set-message "Restart in order to let the new look and feel take effect"
-               "configure look and feel"))
-
-(define (notify-security var val)
-  (cond ((== val "accept no scripts") (set-script-status 0))
-        ((== val "prompt on scripts") (set-script-status 1))
-        ((== val "accept all scripts") (set-script-status 2))))
-
-(define (notify-latex-command var val)
-  (set-latex-command val))
-
-(define (notify-tool var val)
-  ;; FIXME: the menus sometimes don't get updated,
-  ;; but the fix below does not work
-  (when (current-view)
-    (delayed (:idle 0) (notify-change 1))))
-
-(define (notify-new-page-breaking var val)
-  (noop))
-
-(define (notify-enunciation-rendering var val)
-  (refresh-now "enunciations"))
-
-(tm-define (ext-render-exercises-smaller?)
-  (:secure #t)
-  (if (== (get-preference "render solution in smaller font") "on")
-      "true"
-      "false"))
-
-(tm-define (ext-render-solution-smaller?)
-  (:secure #t)
-  (ext-render-exercises-smaller?))
-
-(tm-define (ext-number-solutions?)
-  (:secure #t)
-  (if (== (get-preference "number solutions") "on") "true" "false"))
-
-(tm-define (ext-render-exercise-diagnostic stage which body)
-  (:secure #t)
-  "")
-
-(define (get-default-native-menubar)
-  "off")
-
-(define (get-default-unified-toolbar)
-  "off")
-
-(define athena-booted? #f)
-
-(define (notify-restart . args)
-  (when athena-booted?
-    (notify-now "Restart ATHENA in order to let the new setting take effect")))
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Properties of some built-in routines
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (symbol<=? s1 s2)
-  (string<=? (symbol->string s1) (symbol->string s2)))
-
-(define (get-function-list)
-  (list-sort (%athena-defined-symbols) symbol<=?))
-
-(define (get-interactive-function-list)
-  (let* ((funs (get-function-list))
-         (pred? (lambda (fun) (not (not (property fun :arguments))))))
-    (list-filter funs pred?)))
-
-(tm-define (exec-interactive-command cmd)
-  (:argument  cmd "Interactive command")
-  (:proposals cmd (cons "" (map symbol->string
-                                (get-interactive-function-list))))
-  (interactive (eval (string->symbol cmd))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Killing buffers, windows and TeXmacs
@@ -302,6 +217,3 @@
 
 (tm-define (close-document*)
   (safely-kill-window))
-
-(register-preference-callback-procedures
-  (list notify-enunciation-rendering notify-latex-command notify-look-and-feel notify-new-page-breaking notify-restart notify-security notify-tool))

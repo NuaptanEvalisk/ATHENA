@@ -81,6 +81,8 @@
 
 ;(display "Booting main TeXmacs functionality\n")
 (import-from (athena athena tm-server))
+(define-secure-symbols ext-render-exercises-smaller? ext-number-solutions?)
+(application-preferences-initialize)
 (register-preference-callback-procedures
   (list notify-header notify-icon-bar notify-toolbar-presentation
         notify-remote-control notify-status-bar notify-zoom-factor))

@@ -5,6 +5,7 @@
 void view_notify_header (string key, string value);
 void view_notify_icon_bar (string key, string value);
 void view_notify_toolbar (string key, string value);
+void view_notify_change (int changes);
 void view_notify_footer (string key, string value);
 void view_notify_zoom (string key, string value);
 void view_notify_remote (string key, string value);

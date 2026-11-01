@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="application-preferences-initialize" native="application_preferences_initialize" returns="void" exceptions="scheme" />
+  <binding name="notify-look-and-feel" native="application_notify_look" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /></binding>
+  <binding name="notify-security" native="application_notify_security" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /></binding>
+  <binding name="notify-latex-command" native="application_notify_latex" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /></binding>
+  <binding name="notify-tool" native="application_notify_tool" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /></binding>
+  <binding name="notify-enunciation-rendering" native="application_notify_enunciations" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /></binding>
+  <binding name="ext-render-exercises-smaller?" native="application_exercises_smaller" returns="string" />
+  <binding name="ext-number-solutions?" native="application_number_solutions" returns="string" />
   <binding name="register-global-transformation" native="register_global_transformation" returns="void" exceptions="scheme">
     <arg type="string" /><arg type="procedure" />
   </binding>
