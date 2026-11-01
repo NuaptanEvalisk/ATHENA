@@ -666,43 +666,6 @@
     (load-buffer u)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Printing buffers
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (printer-file-suffix)
-  "pdf")
-
-(tm-define (printer-file-format)
-  "pdf")
-
-(tm-define (interactive-page-setup)
-  (:synopsis "Specify the page setup")
-  (:interactive #t)
-  (set-message "Not yet implemented" "Printer setup"))
-
-(tm-define (direct-print-buffer)
-  (:synopsis "Print the current buffer")
-  (node-reference-with-export (lambda () (print))))
-
-(tm-define (interactive-print-buffer)
-  (:synopsis "Print the current buffer")
-  (:interactive #t)
-  (node-reference-with-export (lambda () (interactive-print-buffer-ready))))
-
-(define (interactive-print-buffer-ready)
-  (with file (url-append (url-temp-dir)
-                         (string-append "tmpprint." (printer-file-suffix)))
-    (print-to-file file)
-    (native-print-file-dialog file)))
-
-(tm-define (print-buffer)
-  (:synopsis "Print the current buffer")
-  (:interactive (use-print-dialog?))
-  (if (use-print-dialog?)
-      (interactive-print-buffer)
-      (direct-print-buffer)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Important files to which the buffer is linked
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

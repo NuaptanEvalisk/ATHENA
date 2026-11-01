@@ -241,7 +241,7 @@ run_native_editor_command (editor_rep* editor,
       document_preview ();
       break;
     case native_editor_command_id::print:
-      (void) call ("print-buffer");
+      document_print ();
       break;
     case native_editor_command_id::close_window:
       application_close_window (null_object ());

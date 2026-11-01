@@ -108,7 +108,7 @@
 
 (define (propose-print-file-name)
   (let ((name (propose-name-buffer))
-	(suf (printer-file-suffix)))
+	(suf "pdf"))
     (if (string-ends? name ".tm")
 	(string-append (string-drop-right name 3) "." suf)
 	name)))

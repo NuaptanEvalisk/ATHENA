@@ -9,11 +9,14 @@
 #include "ATHENA/Data/data_art.hpp"
 #include "ATHENA/Data/node_reference_export.hpp"
 #include "Qt/qt_utilities.hpp"
+#include "Qt/QTMNativeDialogs.hpp"
+#include "boot.hpp"
 #include <QApplication>
 #include <QDesktopServices>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFileDialog>
+#include <QFile>
 #include <QFileInfo>
 #include <QFormLayout>
 #include <QMessageBox>
@@ -21,6 +24,7 @@
 #include <QUrl>
 #include <algorithm>
 #include <limits>
+#include <memory>
 #include <stdexcept>
 
 namespace {
@@ -175,3 +179,32 @@ void print_dialog (bool select_pages, bool to_file) {
 void document_print_file_dialog () { print_dialog (false, true); }
 void document_print_pages_dialog () { print_dialog (true, false); }
 void document_print_pages_file_dialog () { print_dialog (true, true); }
+
+void document_print_direct () {
+  athena_node_reference_with_native_export ([] (editor_rep& editor) {
+    editor.print_buffer ();
+  }, report_error);
+}
+
+void document_print_interactive () {
+  if (headless_mode)
+    throw std::runtime_error ("Interactive printing requires a graphical session");
+  athena_node_reference_with_native_export ([] (editor_rep& editor) {
+    url target= url_temp (".pdf");
+    auto file= std::shared_ptr<std::string> (new std::string (bytes (concretize (target))),
+      [] (std::string* name) {
+        QFile::remove (QString::fromUtf8 (name->data (), name->size ()));
+        delete name;
+      });
+    editor.print_to_file (target);
+    qt_post_to_main_thread ([file] {
+      qtm_print_file_dialog (url_system (text (*file)));
+    });
+  }, report_error);
+}
+
+void document_print () {
+  if (!headless_mode && get_preference ("gui:print dialogue") == "on")
+    document_print_interactive ();
+  else document_print_direct ();
+}
