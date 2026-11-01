@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "pdf_hummus_renderer.hpp"
+#include "page_type.hpp"
 #include "Freetype/tt_file.hpp"
 #include "file.hpp"
 #include "image_files.hpp"
@@ -2550,7 +2551,7 @@ pdf_hummus_renderer (url pdf_file_name, int dpi, int nr_pages,
                      string page_type, bool landscape, double paper_w, double paper_h)
 {
   //cout << "Hummus print to " << pdf_file_name << " at " << dpi << " dpi\n";
-  page_type= as_string (call ("standard-paper-size", object (page_type)));
+  page_type= page_standard_size (page_type);
   return tm_new<pdf_hummus_renderer_rep> (pdf_file_name, dpi, nr_pages,
 			  page_type, landscape, paper_w, paper_h);
 }

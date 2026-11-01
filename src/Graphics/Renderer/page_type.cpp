@@ -11,8 +11,12 @@
 
 #include "vars.hpp"
 #include "hashmap.hpp"
+#include "page_type.hpp"
 
+#include <cstdlib>
+#include <fstream>
 #include <mutex>
+#include <string>
 
 static hashmap<string,string> page_data_base ("");
 static std::once_flag page_data_base_once;
@@ -213,4 +217,37 @@ page_get_feature (string type, string feature, bool landscape) {
   if (page_data_base->contains (s)) return page_data_base [s];
   if (type == "a4") return "3cm";
   return page_get_feature ("a4", feature, landscape);
+}
+
+string
+page_default_size () {
+  const char* configured= std::getenv ("PAPERSIZE");
+  std::string size;
+  if (configured && *configured) size= configured;
+  else {
+    const char* path= std::getenv ("PAPERCONF");
+#ifndef _WIN32
+    if (!path) path= "/etc/papersize";
+#endif
+    if (path) {
+      std::ifstream input (path);
+      std::getline (input, size);
+    }
+  }
+  string type (size.c_str ());
+  if (type == "C5") type= "c5";
+  std::call_once (page_data_base_once, INIT_ALL);
+  return type == "user" ||
+    page_data_base->contains (type * "-P-" * PAGE_WIDTH)? type: string ("a4");
+}
+
+string
+page_standard_size (string type) {
+  // Renderer named formats are a subset of the available layout sizes.
+  static const char* formats[]= {
+    "a0", "a1", "a2", "a3", "a4", "a5", "a6",
+    "b3", "b4", "b5", "b6", "ledger", "legal", "letter", "folio"};
+  for (const char* format: formats)
+    if (type == format) return type;
+  return "user";
 }

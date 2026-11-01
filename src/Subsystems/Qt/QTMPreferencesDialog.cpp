@@ -32,6 +32,7 @@
 #include "rag_index.hpp"
 #include "boot.hpp"
 #include "font.hpp"
+#include "page_type.hpp"
 #include "file.hpp"
 #include "language.hpp"
 #include "namespaces.hpp"
@@ -2817,7 +2818,7 @@ qtm_page_setup_dialog_show () {
     {{"default", "default"}, {"A3", "A3"}, {"A4", "A4"}, {"A5", "A5"},
      {"B4", "B4"}, {"B5", "B5"}, {"B6", "B6"}, {"Letter", "Letter"},
      {"Legal", "Legal"}, {"Executive", "Executive"}, {"", ""}},
-    scheme_string ("get-default-paper-size", "A4"));
+    to_qstring_pref (page_default_size ()));
 
   add_page_setup_combo (
     form, "Printer dpi:", "printer dpi",

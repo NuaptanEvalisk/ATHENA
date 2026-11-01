@@ -14,5 +14,7 @@
 #include "string.hpp"
 
 string page_get_feature (string type, string feature, bool landscape);
+string page_default_size ();
+string page_standard_size (string type);
 
 #endif // defined PAGE_TYPE_H

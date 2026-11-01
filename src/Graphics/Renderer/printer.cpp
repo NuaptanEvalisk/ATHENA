@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "printer.hpp"
+#include "page_type.hpp"
 #include "file.hpp"
 #include "image_files.hpp"
 #include "analyze.hpp"
@@ -965,7 +966,7 @@ printer (url ps_file_name, int dpi, int nr_pages,
     return pdf_hummus_renderer (ps_file_name, dpi, nr_pages,
                                 page_type, landscape, paper_w, paper_h);
   //cout << "Postscript print to " << ps_file_name << " at " << dpi << " dpi\n";
-  page_type= as_string (call ("standard-paper-size", object (page_type)));
+  page_type= page_standard_size (page_type);
   return tm_new<printer_rep> (ps_file_name, dpi, nr_pages,
                               page_type, landscape, paper_w, paper_h);
 }

@@ -19,51 +19,6 @@
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Try to obtain the papersize in this order from
-;; - the environment variable PAPERSIZE
-;; - the contents of the file specified by the PAPERCONF environment variable
-;; - the contents of the file "/etc/papersize"
-;; or else default to "a4"
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define supported-sizes
-  '("a0" "a1" "a2" "a3" "a4" "a5" "a6" "a7" "a8" "a9"
-    "b0" "b1" "b2" "b3" "b4" "b5" "b6" "b7" "b8" "b9"
-    "archA" "archB" "archC" "archD" "archE"
-    "10x14" "11x17" "C5" "Comm10" "DL" "executive" "halfletter"
-    "halfexecutive" "ledger" "legal" "letter" "Monarch"
-    "csheet" "dsheet" "flsa" "flse" "folio"
-    "lecture note" "note" "quarto" "statement" "tabloid"
-    "16:9" "8:5" "3:2" "4:3" "5:4"
-    "user"))
-
-(define standard-sizes
-  '("a0" "a1" "a2" "a3" "a4" "a5" "a6"
-    "b3" "b4" "b5" "b6"
-    "ledger" "legal" "letter" "folio"))
-
-(define (get-default-paper-size-bis)
-  (with psize (getenv "PAPERSIZE")
-    (if (and psize (!= psize "")) psize
-        (with papersizefile (or (getenv "PAPERCONF") "/etc/papersize")
-          (and (not (and (os-mingw?)
-                         (== papersizefile "/etc/papersize")))
-               (url-test? papersizefile "r")
-               (with pps-port (open-input-file papersizefile)
-                 (with size (read-line pps-port)
-                   (close-input-port pps-port)
-                   size)))))))
-
-(tm-define (correct-paper-size s)
-  (if (and (string? s) (in? s supported-sizes)) s "a4"))
-
-(tm-define (standard-paper-size s)
-  (if (and (string? s) (in? s standard-sizes)) s "user"))
-
-(tm-define (get-default-paper-size)
-  (correct-paper-size (get-default-paper-size-bis)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Printing preferences
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
