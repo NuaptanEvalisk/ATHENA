@@ -210,7 +210,6 @@
              previous-section section-context? native-section-switch-to)
 
 ;(display "Booting math mode\n")
-(lazy-initialize (math math-edit) (in-math?))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting programming modes\n")

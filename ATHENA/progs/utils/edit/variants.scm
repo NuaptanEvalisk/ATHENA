@@ -206,9 +206,6 @@
   (:require (variant-standard-context? t))
   #t)
 
-(tm-define (variant-circulate t forward?)
-  (and-with p (tree-outer t)
-    (variant-circulate p forward?)))
 
 (tm-define (list-search-rotate which search)
   (receive (l r) (list-break which (lambda (x) (== x search)))
@@ -220,9 +217,6 @@
          (new (if (and forward? (nnull? rot)) (cadr rot) (cAr rot))))
     (variant-set t new)))
 
-(tm-define (variant-circulate t forward?)
-  (:require (variant-standard-context? t))
-  (variant-circulate-in t (variants-of (tree-label t)) forward?))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Folding-unfolding variants of tags with hidden arguments

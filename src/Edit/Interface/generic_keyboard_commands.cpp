@@ -10,6 +10,7 @@
 
 #include "generic_keyboard_commands.hpp"
 #include "native_program_edit.hpp"
+#include "native_node_groups.hpp"
 #include "native_keyboard_registry.hpp"
 #include "editor.hpp"
 #include "file.hpp"
@@ -597,6 +598,10 @@ void generic_kbd_remove (tree t, bool forwards) {
 }
 
 void generic_kbd_variant (tree t, bool forwards) {
+  if (native_node_group_contains ("combinatorial-number-tag", symbol_object (as_string (L(t))))) {
+    call ("variant-circulate", object (t), object (forwards));
+    return;
+  }
   editor ed= get_current_editor ();
   if (completion_context (t)) {
     (void) ed->complete_try ();

@@ -1,6 +1,14 @@
 {
   "version": 1,
-  "focus_preferences": ["reference", "pageref", "eqref", "smart-ref", "hlink", "locus", "ornament", "float"],
+  "focus_preferences": ["reference", "pageref", "eqref", "smart-ref", "hlink", "locus", "ornament", "float", "around", "around*"],
+  "focus_names": {"math": "Inline formula", "wide": "Wide", "wide*": "Wide", "around": "Around", "around*": "Around"},
+  "focus_variants": {"lsub": ["lsub", "lsup"], "lsup": ["lsub", "lsup"], "rsub": ["rsub", "rsup"], "rsup": ["rsub", "rsup"], "wide": ["wide"], "wide*": ["wide"], "around": ["around"], "around*": ["around"]},
+  "standard_options": {
+    "math": {"recurse": true, "packages": ["number-long-article", "math-check"]},
+    "math-colored": {"packages": ["math-ss"]},
+    "around": {"packages": ["math-brackets"]},
+    "around*": {"packages": ["math-brackets"]}
+  },
   "standard": {
     "action": ["locus-color"],
     "locus": ["locus-color", "visited-color"],

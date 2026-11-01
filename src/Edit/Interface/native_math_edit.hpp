@@ -8,3 +8,5 @@ void math_sqrt_toggle (tree t);
 void math_correct_all ();
 void math_brackets_refresh ();
 void math_open_latex_dialog ();
+void native_variant_circulate (tree t, bool forward);
+bool math_bracket_geometry (tree t, bool down, bool reset);

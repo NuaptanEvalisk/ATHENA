@@ -729,6 +729,8 @@
   <binding name="script-context?" native="math_script_context" returns="bool"><arg type="tree" /></binding>
   <binding name="script-only-script?" native="math_script_only" returns="bool"><arg type="tree" /></binding>
   <binding name="math-correct-all" native="math_correct_all" returns="void" />
+  <binding name="standard-options" native="format_standard_options" returns="object"><arg type="object" /></binding>
+  <binding name="variant-circulate" native="native_variant_circulate" returns="void"><arg type="tree" /><arg type="bool" /></binding>
   <binding name="program-indent" native="program_indent" returns="void"><arg type="bool" /></binding>
   <binding name="program-indent-all" native="program_indent_all" returns="void"><arg type="bool" /></binding>
   <binding name="insert-tabstop" native="program_insert_tabstop" returns="void" />

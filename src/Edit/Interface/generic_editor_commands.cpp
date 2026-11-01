@@ -1580,6 +1580,8 @@ generic_parameter_value (object value) {
 
 object
 generic_focus_variants_of (tree t) {
+  object configured= format_focus_variants (as_string (L(t)));
+  if (is_list (configured)) return configured;
   return native_node_variants (symbol_object (as_string (L (t))));
 }
 
@@ -1588,6 +1590,8 @@ generic_focus_tag_name (object label) {
   object raw= call ("symbol->string", label);
   if (!is_string (raw)) return "";
   string name= as_string (raw);
+  string configured= format_focus_name (name);
+  if (configured != "") return configured;
 
   object theme= call ("member->theme", object (name));
   if (!(is_bool (theme) && !as_bool (theme)) && is_string (theme)) {

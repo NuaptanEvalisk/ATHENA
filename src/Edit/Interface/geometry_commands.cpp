@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "format_geometry.hpp"
+#include "native_math_edit.hpp"
 #include "structured_commands.hpp"
 #include "table_commands.hpp"
 #include "editor.hpp"
@@ -258,6 +259,7 @@ void geometry_horizontal (tree t, bool forward) {
   adjust (t, adjustment::horizontal, forward, "geometry-horizontal");
 }
 void geometry_vertical (tree t, bool down) {
+  if (math_bracket_geometry (t, down, false)) return;
   if (generic_table_markup_context (t)) {
     editor ed= get_current_editor ();
     if (!is_nil (ed)) {
@@ -289,6 +291,7 @@ void geometry_incremental (tree t, bool down) {
   adjust (t, adjustment::incremental, down, "geometry-incremental");
 }
 void geometry_default (tree t) {
+  if (math_bracket_geometry (t, false, true)) return;
   if (generic_table_markup_context (t)) {
     editor ed= get_current_editor ();
     if (!is_nil (ed)) ed->cell_del_format ("");

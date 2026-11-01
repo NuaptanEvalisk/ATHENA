@@ -622,6 +622,34 @@ object format_standard_parameters (string tag) {
   return values.isArray () ? json_strings (values.toArray ()) : object (false);
 }
 
+string format_focus_name (string tag) {
+  const QByteArray value= parameter_data ().definitions.value ("focus_names")
+    .toObject ().value (json_key (tag)).toString ().toUtf8 ();
+  return string (value.constData (), value.size ());
+}
+
+object format_focus_variants (string tag) {
+  QJsonValue values= parameter_data ().definitions.value ("focus_variants")
+    .toObject ().value (json_key (tag));
+  if (!values.isArray ()) return object (false);
+  array<object> result;
+  for (QJsonValue value: values.toArray ()) {
+    QByteArray bytes= value.toString ().toUtf8 ();
+    result << symbol_object (string (bytes.constData (), bytes.size ()));
+  }
+  return as_list_object (result);
+}
+
+object format_standard_options (object tag) {
+  if (!is_symbol (tag)) return object (false);
+  QJsonValue rule= parameter_data ().definitions.value ("standard_options")
+    .toObject ().value (json_key (as_symbol (tag)));
+  if (!rule.isObject ()) return object (false);
+  object packages= json_strings (rule.toObject ().value ("packages").toArray ());
+  return rule.toObject ().value ("recurse").toBool () ?
+    cons (keyword_object ("recurse"), packages) : packages;
+}
+
 object format_parameter_choices (string variable) {
   QString key= json_key (variable);
   for (QJsonValue item: parameter_data ().definitions.value ("choices").toArray ()) {

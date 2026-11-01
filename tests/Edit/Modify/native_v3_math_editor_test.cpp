@@ -326,7 +326,6 @@ private slots:
     QFETCH (QString, right);
     QFETCH (QString, automatic);
     QFETCH (bool, selected);
-    eval ("(import-from (math math-edit))");
     SchemeExecutionContext context (nullptr, editor, &editor->contract_state,
       &buffer->document, ATHENA_NO_ACTOR, ATHENA_NO_VIEW, 0,
       SCHEME_CAPABILITY_BUFFER);

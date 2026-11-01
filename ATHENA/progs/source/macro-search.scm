@@ -18,7 +18,6 @@
 ;; Routines for subsequent customization
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (standard-options l) #f)
 
 (tm-define (tree-parameter? t)
   (tree-label-parameter? (tree-label t)))

@@ -1,4 +1,4 @@
-(import-from (math math-edit) (utils edit selections))
+(import-from (utils edit selections))
 (init-style "generic")
 
 (define fixture
