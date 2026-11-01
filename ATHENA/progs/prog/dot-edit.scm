@@ -36,16 +36,3 @@
   (:require prog-highlight-brackets?)
   (:mode in-prog-dot?)
   (select-brackets-after-movement "([{" ")]}" "\\"))
-
-(kbd-map
-  (:mode in-prog-dot?)
-  ("A-tab" (insert-tabstop))
-  ("cmd S-tab" (remove-tabstop)) ; TEMP (see above)
-  ("{" (dot-bracket-open "{" "}" ))
-  ("}" (dot-bracket-close "{" "}" ))
-  ("(" (dot-bracket-open "(" ")" ))
-  (")" (dot-bracket-close "(" ")" ))
-  ("[" (dot-bracket-open "[" "]" ))
-  ("]" (dot-bracket-close "[" "]" ))
-  ("\"" (dot-bracket-open "\"" "\"" ))
-  ("'" (dot-bracket-open "'" "'" )))

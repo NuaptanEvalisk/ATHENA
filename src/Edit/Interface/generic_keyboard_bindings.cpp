@@ -13,6 +13,7 @@
 #include "table_commands.hpp"
 #include "file.hpp"
 #include "native_keyboard_prefixes.hpp"
+#include "native_keyboard_registry.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -303,13 +304,12 @@ void register_group (int g) {
     string help= binding.contains ("help") ? binding_string (binding["help"]) : string ("");
     // Use the shared registry: it owns prefix rewriting, partial sequences,
     // inverse lookup and interaction with domain-specific/user bindings.
-    call ("kbd-binding", as_list_object (conditions),
-          object (binding_string (binding["key"])), action, object (help));
+    native_keyboard_bind (as_list_object (conditions),
+                          binding_string (binding["key"]), action, help);
   }
   if (group.contains ("unmap"))
     for (QJsonValue key: group["unmap"].toArray ())
-      call ("kbd-delete-key-binding2", as_list_object (conditions),
-            object (binding_string (key)));
+      native_keyboard_unbind (as_list_object (conditions), binding_string (key));
 }
 
 void generic_keyboard_load_domain (string domain) {

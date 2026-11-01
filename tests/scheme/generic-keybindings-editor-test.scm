@@ -8,39 +8,34 @@
   (selection-cancel)
   (buffer-set-body (current-buffer) (stree->tree `(document ,text)))
   (update-current-buffer)
-  (tree-go-to (tree-ref (buffer-tree) 0) position))
+  (tree-go-to (tree-ref (buffer-tree) 0) position)
+  (update-current-buffer)
+  (update-forced))
 
-(define original-binding kbd-binding)
 (define original-profile has-look-and-feel?)
 (define captured '())
-(define native-domains
-  '(text prog source table graphics fold tmdoc automate))
-(define (load-all-native-keymaps)
-  (generic-keyboard-load)
-  (for-each
-    (lambda (domain)
-      (generic-keyboard-load-domain (symbol->string domain)))
-    native-domains))
 (dynamic-wind
+  (lambda () (set! has-look-and-feel? (lambda (profiles) #t)))
   (lambda ()
-    (set! kbd-binding
-      (lambda (conditions key action help)
-        (set! captured (cons (list key conditions action help) captured))))
-    (set! has-look-and-feel? (lambda (profiles) #t)))
-  load-all-native-keymaps
-  (lambda ()
-    (set! kbd-binding original-binding)
-    (set! has-look-and-feel? original-profile)))
+    (generic-keyboard-load)
+    (for-each generic-keyboard-load-domain
+      '("text" "prog" "source" "table" "graphics" "fold" "tmdoc" "automate"))
+    (set! captured
+      (append-map
+        (lambda (entry)
+          (map (lambda (context) (cons (car entry) context)) (cdr entry)))
+        (native-keyboard-catalog))))
+  (lambda () (set! has-look-and-feel? original-profile)))
 
-(define (entry key) (assoc key captured))
+(define (entry key) (assoc (kbd-pre-rewrite key) captured))
 (define (action key) (caddr (entry key)))
 (define (base-action key)
   (caddr (car (filter (lambda (entry)
-                        (and (equal? (car entry) key) (null? (cadr entry))))
+                        (and (equal? (car entry) (kbd-pre-rewrite key)) (null? (cadr entry))))
                       captured))))
 (define (condition-entry key predicate)
   (car (filter (lambda (candidate)
-                 (and (equal? (car candidate) key)
+                 (and (equal? (car candidate) (kbd-pre-rewrite key))
                       (memq predicate (cadr candidate))))
                captured)))
 (check (equal? (promise-source (action "left")) '(kbd-left))
@@ -90,8 +85,9 @@
       (predicate
         (car (cadr
           (car (filter (lambda (candidate)
-                         (and (equal? (car candidate) "A-tab")
-                              (not (memq in-prog-python? (cadr candidate)))))
+                         (and (equal? (car candidate) (kbd-pre-rewrite "A-tab"))
+                              (equal? (promise-source (caddr candidate))
+                                      '(kbd-alternate-tab))))
                        captured))))))
   (dynamic-wind
     (lambda ()
@@ -130,7 +126,7 @@
 ;; Shared registration still provides prefix bindings and semantic inverse lookup.
 (check (kbd-find-key-binding (kbd-pre-rewrite "table N")) "partial key sequence")
 (check (not (equal? (kbd-find-inv-binding '(kbd-left)) "")) "inverse shortcut lookup")
-(kbd-map ("C-F12" (insert "user")))
+(native-keyboard-bind-source "C-F12" '(insert "user"))
 (reset "" 0)
 (key-press "C-F12")
 (check (equal? (tree->stree (buffer-tree)) '(document "user")) "user keymap coexistence")

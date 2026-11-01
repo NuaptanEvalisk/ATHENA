@@ -9,6 +9,7 @@
 *******************************************************************************/
 
 #include "generic_keyboard_commands.hpp"
+#include "native_keyboard_registry.hpp"
 #include "editor.hpp"
 #include "file.hpp"
 #include "hashset.hpp"
@@ -587,9 +588,8 @@ void generic_kbd_variant (tree t, bool forwards) {
   }
   if (!admits_edit_observer (t)) { outward (t, "kbd-variant", forwards); return; }
   if (!ed->complete_try () && forwards) {
-    object binding= call ("kbd-find-inv-binding",
-                          list_object (symbol_object ("kbd-alternate-tab")));
-    tree shortcut= get_server ()->kbd_system_rewrite (as_string (binding));
+    string binding= native_keyboard_inverse (list_object (symbol_object ("kbd-alternate-tab")));
+    tree shortcut= get_server ()->kbd_system_rewrite (binding);
     ed->set_message (
       tree (CONCAT, "Use ", shortcut, " in order to insert a tab"), "tab");
   }
@@ -743,9 +743,9 @@ generic_open_escape_symbol_picker () {
 
 object
 generic_key_press_command (string key) {
-  object binding= call ("kbd-find-key-binding", object (key));
+  object binding= native_keyboard_find (key);
   if (is_bool (binding) && !as_bool (binding)) return object (false);
-  return call ("car", binding);
+  return car (binding);
 }
 
 namespace {

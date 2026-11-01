@@ -233,8 +233,8 @@ void insert_wrapper (tree t, string message, string context) {
   editor ed= get_current_editor ();
   if (!ed->selection_active_small ()) ed->selection_cancel ();
   ed->var_insert_tree (t, path (0, 0));
-  object left= call ("kbd-find-inv-system-binding", string_to_object ("(geometry-left)"));
-  object right= call ("kbd-find-inv-system-binding", string_to_object ("(geometry-right)"));
+  object left= native_keyboard_system_inverse (string_to_object ("(geometry-left)"));
+  object right= native_keyboard_system_inverse (string_to_object ("(geometry-right)"));
   if (is_string (left) && is_string (right))
     message << " using " << as_string (left) << ", " << as_string (right) << ", etc. or ";
   else message << " using the keyboard or ";

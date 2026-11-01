@@ -2,8 +2,7 @@
 (texmacs-module (athena tools shortcut-listing)
   (:use (kernel athena tm-define)
         (kernel library list)
-        (kernel gui kbd-define)
-        (kernel boot ahash-table)))
+        (kernel gui kbd-define)))
 
 (define (format-shortcut-entry entry)
   (let* ((key (car entry))
@@ -20,7 +19,7 @@
 
 (tm-define (list-all-shortcuts)
   (:interactive #t)
-  (let* ((l (ahash-table->list kbd-map-table))
+  (let* ((l (native-keyboard-catalog))
          (l-sorted (sort l (lambda (x y) (string<=? (car x) (car y)))))
          (rows (append-map format-shortcut-entry l-sorted))
          (doc `(document

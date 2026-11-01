@@ -12,6 +12,7 @@
 #include "sys_utils.hpp"
 #include "language.hpp"
 #include "native_keyboard_prefixes.hpp"
+#include "native_keyboard_registry.hpp"
 #include "utf8_edit.hpp"
 #include "auto_close.hpp"
 #include "Typeset/Env/local_environment.hpp"
@@ -427,7 +428,7 @@ bool native_math_keyboard_get_keycomb (
     // Legacy kbd-map only synthesized a partial binding when no exact shared
     // binding already existed.  Preserve that precedence here: e.g. the
     // native "space var" family must not shadow generic "space" -> kbd-space.
-    if (call ("kbd-find-key-binding", object (combination)) != object (false))
+    if (native_keyboard_find (combination) != object (false))
       return false;
     for (auto it= prefix->second.rbegin (); it != prefix->second.rend (); ++it)
       if (active_ref (r, *it)) {

@@ -64,6 +64,21 @@
       ]
     },
     {
+      "mode": "in-prog-dot?",
+      "bindings": [
+        {"key": "A-tab", "commands": [{"call": "insert-tabstop", "args": []}]},
+        {"key": "cmd S-tab", "commands": [{"call": "remove-tabstop", "args": []}]},
+        {"key": "{", "commands": [{"call": "dot-bracket-open", "args": ["{", "}"]}]},
+        {"key": "}", "commands": [{"call": "dot-bracket-close", "args": ["{", "}"]}]},
+        {"key": "(", "commands": [{"call": "dot-bracket-open", "args": ["(", ")"]}]},
+        {"key": ")", "commands": [{"call": "dot-bracket-close", "args": ["(", ")"]}]},
+        {"key": "[", "commands": [{"call": "dot-bracket-open", "args": ["[", "]"]}]},
+        {"key": "]", "commands": [{"call": "dot-bracket-close", "args": ["[", "]"]}]},
+        {"key": "\"", "commands": [{"call": "dot-bracket-open", "args": ["\"", "\""]}]},
+        {"key": "'", "commands": [{"call": "dot-bracket-open", "args": ["'", "'"]}]}
+      ]
+    },
+    {
       "mode": "in-prog-fortran?",
       "bindings": [
         {"key": "(", "commands": [{"call": "fortran-bracket-open", "args": ["(", ")"]}]},

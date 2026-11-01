@@ -30,6 +30,31 @@
     <arg type="tree" />
   </binding>
   <binding name="generic-keyboard-load" native="generic_keyboard_load" returns="void" />
+  <binding name="native-keyboard-bind" native="native_keyboard_bind" returns="void">
+    <arg type="object" /><arg type="string" /><arg type="object" /><arg type="string" />
+  </binding>
+  <binding name="native-keyboard-unbind" native="native_keyboard_unbind" returns="void">
+    <arg type="object" /><arg type="string" />
+  </binding>
+  <binding name="native-keyboard-bind-source" native="native_keyboard_bind_source" returns="void">
+    <arg type="string" /><arg type="object" />
+  </binding>
+  <binding name="kbd-find-key-binding" native="native_keyboard_find" returns="object">
+    <arg type="string" />
+  </binding>
+  <binding name="kbd-find-inv-binding" native="native_keyboard_inverse" returns="string">
+    <arg type="object" />
+  </binding>
+  <binding name="kbd-find-cached-inv-binding" native="native_keyboard_cached_inverse" returns="string">
+    <arg type="object" />
+  </binding>
+  <binding name="kbd-find-inv-system-binding" native="native_keyboard_system_inverse" returns="object">
+    <arg type="object" />
+  </binding>
+  <binding name="kbd-find-rev-binding" native="native_keyboard_reverse" returns="object">
+    <arg type="object" />
+  </binding>
+  <binding name="native-keyboard-catalog" native="native_keyboard_catalog" returns="object" />
   <binding name="generic-keyboard-load-domain" native="generic_keyboard_load_domain" returns="void">
     <arg type="string" />
   </binding>

@@ -13,6 +13,7 @@
 #include "analyze.hpp"
 #include "gui_text.hpp"
 #include "native_latex_commands.hpp"
+#include "native_keyboard_registry.hpp"
 #include <mutex>
 
 // The GUI and buffer actors share these non-atomic reference-counted maps.
@@ -132,7 +133,7 @@ tm_config_rep::variant_simplification (string& which) {
 
 object
 tm_config_rep::find_key_binding (string key) {
-  return call ("kbd-find-key-binding", key);
+  return native_keyboard_find (key);
 }
 
 string

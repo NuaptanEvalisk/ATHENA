@@ -18,6 +18,7 @@
 #include "unicode_text.hpp"
 #include "native_math_keyboard.hpp"
 #include "native_latex_commands.hpp"
+#include "native_keyboard_registry.hpp"
 #include "ATHENA/Data/enunciation_slots.hpp"
 #include <algorithm>
 
@@ -315,7 +316,7 @@ edit_interface_rep::kbd (string s) {
 
 tree
 edit_interface_rep::kbd_shortcut (string cmd) {
-  string s= as_string (eval ("(kbd-find-inv-binding '" * cmd * ")"));
+  string s= native_keyboard_inverse (string_to_object (cmd));
   return kbd (s);
 }
 

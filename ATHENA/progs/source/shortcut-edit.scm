@@ -22,10 +22,10 @@
 
 (define (apply-user-shortcut sh cmd)
   (and-with val (string->object cmd)
-    (eval `(kbd-map (,sh ,val)))))
+    (native-keyboard-bind-source sh val)))
 
 (define (unapply-user-shortcut sh)
-  (eval `(kbd-unmap ,sh)))
+  (native-keyboard-unbind '() sh))
 
 (define (load-user-shortcuts)
   (when (url-exists? user-shortcuts-file)
