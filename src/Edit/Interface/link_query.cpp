@@ -184,6 +184,14 @@ object native_complete_link_list (tree t, bool filter) {
   collect_complete (t, filter, policy, result);
   return to_object (result);
 }
+array<tree> native_complete_links (tree t) {
+  query_policy policy;
+  link_items items;
+  collect_complete (t, false, policy, items);
+  array<tree> result;
+  for (const auto& item: items) result << item.link;
+  return result;
+}
 bool native_link_has_cardlink (list<string> ids) {
   link_items items;
   collect_ids (ids, items);

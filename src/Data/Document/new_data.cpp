@@ -55,8 +55,5 @@ detach_data (tree doc, new_data& data) {
   data->ref    = hashmap<string,tree> (UNINIT, extract (doc, "references"));
   data->aux    = hashmap<string,tree> (UNINIT, extract (doc, "auxiliary"));
   data->att    = hashmap<string,tree> (UNINIT, extract (doc, "attachments"));
-  //tree links= extract (doc, "links");
-  //if (N (links) != 0)
-  //  (void) call ("register-link-locations", object (u), object (links));
   return extract (doc, "body");
 }

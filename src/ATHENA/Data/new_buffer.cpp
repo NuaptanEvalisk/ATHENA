@@ -24,6 +24,7 @@
 #include "file.hpp"
 #include "web_files.hpp"
 #include "tm_link.hpp"
+#include "link_markup.hpp"
 #include "message.hpp"
 #include "new_document.hpp"
 #include "new_style.hpp"
@@ -1060,7 +1061,7 @@ import_loaded_tree_with_format (
   }
   tree links= extract (t, "links");
   if (N (links) != 0)
-    (void) call ("register-link-locations", object (u), object (links));
+    native_register_link_locations (u, links);
   return t;
 }
 

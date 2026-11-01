@@ -12,7 +12,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (link link-navigate)
-  (:use (utils library cursor) (link link-extern)
+  (:use (utils library cursor)
         (generic generic-edit)))
 (import-from (kernel athena tm-preferences))
 

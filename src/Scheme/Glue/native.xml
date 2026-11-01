@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="get-constellation" native="native_link_constellation" returns="list_string" exceptions="scheme" />
+  <binding name="get-link-locations" native="native_get_link_locations" returns="tree" exceptions="scheme"><arg type="url" /><arg type="tree" /></binding>
+  <binding name="register-link-locations" native="native_register_link_locations" returns="void" exceptions="scheme"><arg type="url" /><arg type="tree" /></binding>
+  <binding name="resolve-id" native="native_resolve_link_id" returns="bool" exceptions="scheme"><arg type="string" /></binding>
   <binding name="navigation-bidirectional?" native="native_navigation_bidirectional" returns="bool" />
   <binding name="navigation-external?" native="native_navigation_external" returns="bool" />
   <binding name="navigation-build-link-pages?" native="native_navigation_link_pages" returns="bool" />

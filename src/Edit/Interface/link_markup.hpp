@@ -44,5 +44,10 @@ bool native_link_has_cardlink (list<string> ids);
 list<string> native_link_active_ids (list<string> ids);
 list<string> native_link_mouse_ids (list<string> ids);
 list<tree> native_link_active_upwards (tree t);
+array<tree> native_complete_links (tree t);
+list<string> native_link_constellation ();
+tree native_get_link_locations (url here, tree t);
+void native_register_link_locations (url here, tree locations);
+bool native_resolve_link_id (string id);
 
 #endif
