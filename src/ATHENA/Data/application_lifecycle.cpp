@@ -17,6 +17,7 @@
 #include "convert.hpp"
 #include "guile_tm.hpp"
 #include "object.hpp"
+#include "native_interfaces.hpp"
 #include "analyze.hpp"
 #include "buffer_actor.hpp"
 #include "document_commands.hpp"
@@ -28,6 +29,7 @@
 #include "Data/Convert/Generic/conversion_graph.hpp"
 #include <cstdlib>
 #include <QApplication>
+#include <QFileDialog>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QTimer>
@@ -36,6 +38,7 @@
 #include <functional>
 #include <memory>
 #include <vector>
+#include <algorithm>
 
 namespace {
 struct conversion_continuation {
@@ -437,6 +440,94 @@ void application_close_window (object arguments) {
 }
 
 void application_quit () { on_gui ([] { request_quit (false); }); }
+
+object application_url_modified (url source) {
+  return is_rooted_tmfs (source) ? call ("tmfs-date", object (source)) : object (last_modified (source));
+}
+
+bool application_url_newer (url left, url right) {
+  if (!is_rooted_tmfs (left) && !is_rooted_tmfs (right)) return is_newer (left, right);
+  object a= application_url_modified (left), b= application_url_modified (right);
+  return a != object (false) && b != object (false) && as_double (a) > as_double (b);
+}
+
+void application_url_remove (url source) {
+  if (is_rooted_tmfs (source)) call ("tmfs-remove", object (source));
+  else remove (source);
+}
+
+object application_url_autosave (url source, string suffix) {
+  if (is_rooted_tmfs (source)) return call ("tmfs-autosave", object (source), object (suffix));
+  return is_scratch (source) || is_of_type (source, "fw") ||
+         (!exists (source) && is_of_type (source, "c")) ? object (glue (source, suffix)) : object (false);
+}
+
+object application_url_wrap (url source) {
+  return is_rooted_tmfs (source) ? call ("tmfs-wrap", object (source)) : object (false);
+}
+
+object application_buffer_last_save (url source) {
+  object wrapped= application_url_wrap (source);
+  if (wrapped == object (false)) return object (get_last_save_buffer (source));
+  const url base= is_string (wrapped) ? url (as_string (wrapped)) : as_url (wrapped);
+  return published_buffer_actor_id (encode (base)) != ATHENA_NO_ACTOR ?
+    application_buffer_last_save (base) : application_url_modified (base);
+}
+
+string application_propose_filename () {
+  const url current= get_current_buffer ();
+  if (!is_scratch (current)) return as_string (current, URL_UNIX);
+#ifdef OS_WIN32
+  return "";
+#else
+  return as_string (url_pwd (), URL_UNIX) * "/";
+#endif
+}
+
+array<url> application_sorted_buffers () {
+  std::vector<std::pair<double,url>> candidates;
+  const array<url> buffers= get_all_buffers ();
+  for (int i=0; i<N(buffers); ++i) {
+    const url name= buffers[i];
+    const string text= as_string (name, URL_UNIX);
+    if (!is_rooted_tmfs (name) || starts (text, "tmfs://part/") || starts (text, "tmfs://help/"))
+      candidates.emplace_back (last_visited (name), name);
+  }
+  std::stable_sort (candidates.begin (), candidates.end (),
+    [] (const auto& a, const auto& b) { return a.first > b.first; });
+  array<url> result;
+  for (const auto& entry: candidates) result << entry.second;
+  return result;
+}
+
+void application_open_auxiliary (string name, tree body, object master) {
+  const url base= is_null (master) ? get_master_buffer (get_current_buffer ()) :
+    (is_string (car (master)) ? url (as_string (car (master))) : as_url (car (master)));
+  athena_open_auxiliary_document (name, body, base);
+}
+
+namespace {
+void open_document_dialog (bool window) {
+  const string proposed= application_propose_filename ();
+  const std::string initial (proposed.data (), N(proposed));
+  on_gui ([initial, window] {
+    const QString selected= QFileDialog::getOpenFileName (QApplication::activeWindow (),
+      QObject::tr ("Load file"), QString::fromUtf8 (initial.c_str ()));
+    if (selected.isEmpty ()) return;
+    const url source= url_system (string (selected.toUtf8 ().constData ()));
+    if (window) application_load_document_window (source, null_object ());
+    else application_load_document (source, null_object ());
+  });
+}
+}
+void application_open_document_dialog () { open_document_dialog (false); }
+void application_open_window_dialog () { open_document_dialog (true); }
+void application_open_document_url (url source) {
+  if (!is_none (source)) application_load_document (source, null_object ());
+}
+void application_open_window_url (url source) {
+  if (!is_none (source)) application_load_document_window (source, null_object ());
+}
 void application_revert_buffer (object arguments) { request_revert (arguments, true); }
 void application_revert_buffer_now (object arguments) { request_revert (arguments, false); }
 

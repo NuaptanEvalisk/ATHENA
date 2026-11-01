@@ -2337,14 +2337,14 @@
   <binding name="url-link?" native="is_symbolic_link" returns="bool">
     <arg type="url" />
   </binding>
-  <binding name="url-newer?" native="is_newer" returns="bool">
+  <binding name="url-newer?" native="application_url_newer" returns="bool" exceptions="scheme">
     <arg type="url" />
     <arg type="url" />
   </binding>
   <binding name="url-size" native="file_size" returns="int">
     <arg type="url" />
   </binding>
-  <binding name="url-last-modified" native="last_modified" returns="int">
+  <binding name="url-last-modified" native="application_url_modified" returns="object" exceptions="scheme">
     <arg type="url" />
   </binding>
   <binding name="url-temp" native="url_temp" returns="url" />
@@ -2533,7 +2533,7 @@
   <binding name="buffer-get-title" native="get_title_buffer" returns="string">
     <arg type="url" />
   </binding>
-  <binding name="buffer-last-save" native="get_last_save_buffer" returns="int">
+  <binding name="buffer-last-save" native="application_buffer_last_save" returns="object" exceptions="scheme">
     <arg type="url" />
   </binding>
   <binding name="buffer-last-visited" native="last_visited" returns="double">

@@ -46,6 +46,19 @@
   <binding name="load-buffer-in-new-window" native="application_load_document_window" returns="void" exceptions="scheme"><arg type="url" /><arg type="object" rest="true" /></binding>
   <binding name="load-buffer-open" native="application_open_loaded_document" returns="void" exceptions="scheme"><arg type="url" /><arg type="object" /></binding>
   <binding name="load-browse-buffer" native="application_browse_document" returns="void" exceptions="scheme"><arg type="url" /><arg type="object" rest="true" /></binding>
+  <binding name="url-remove" native="application_url_remove" returns="void" exceptions="scheme"><arg type="url" /></binding>
+  <binding name="url-autosave" native="application_url_autosave" returns="object" exceptions="scheme"><arg type="url" /><arg type="string" /></binding>
+  <binding name="url-wrap" native="application_url_wrap" returns="object" exceptions="scheme"><arg type="url" /></binding>
+  <binding name="propose-name-buffer" native="application_propose_filename" returns="string" exceptions="scheme" />
+  <binding name="buffer-sorted-list" native="application_sorted_buffers" returns="array_url" exceptions="scheme" />
+  <binding name="open-auxiliary" native="application_open_auxiliary" returns="void" exceptions="scheme"><arg type="string" /><arg type="tree" /><arg type="object" rest="true" /></binding>
+  <binding name="open-buffer" native="application_open_document_dialog" returns="void" exceptions="scheme" />
+  <binding name="open-document" native="application_open_document_dialog" returns="void" exceptions="scheme" />
+  <binding name="open-in-window" native="application_open_window_dialog" returns="void" exceptions="scheme" />
+  <binding name="open-document*" native="application_open_window_dialog" returns="void" exceptions="scheme" />
+  <binding name="load-document" native="application_open_document_url" returns="void" exceptions="scheme"><arg type="url" /></binding>
+  <binding name="switch-document" native="application_open_document_url" returns="void" exceptions="scheme"><arg type="url" /></binding>
+  <binding name="load-document*" native="application_open_window_url" returns="void" exceptions="scheme"><arg type="url" /></binding>
   <binding name="save-buffer" native="document_save" returns="void" exceptions="scheme"><arg type="object" rest="true" /></binding>
   <binding name="save-buffer-main" native="document_save" returns="void" exceptions="scheme"><arg type="object" rest="true" /></binding>
   <binding name="export-buffer-main" native="document_export_main" returns="void" exceptions="scheme"><arg type="url" /><arg type="object" /><arg type="string" /><arg type="object" /></binding>

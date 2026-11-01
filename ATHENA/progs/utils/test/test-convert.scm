@@ -12,8 +12,20 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (utils test test-convert)
-  (:use (athena athena tm-files)
+  (:use (kernel athena tm-document)
         (doc tmdoc)))
+
+(define-macro (with-aux u . prg)
+  `(let* ((u ,u)
+          (t (tree-import u "texmacs"))
+          (name (current-buffer))
+          (aux "* Aux *"))
+     (aux-set-document aux t)
+     (aux-set-master aux u)
+     (switch-to-buffer (aux-name aux))
+     (with r (begin ,@prg)
+       (switch-to-buffer name)
+       r)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Utilities

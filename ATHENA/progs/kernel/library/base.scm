@@ -310,17 +310,6 @@
   (with d (url-expand (url-complete (url-append u (url-wildcard wc)) "r"))
     (url->list d)))
 
-(define-public (url-remove u)
-  (system-remove u))
-
-(define-public (url-autosave u suf)
-  (and (not (url-rooted-web? u))
-       (not (url-rooted-tmfs? u))
-       (url-glue u suf)))
-
-(define-public (url-wrap u)
-  #f)
-
 (define-public (url->delta-unix u)
   (with base (buffer-get-master (current-buffer))
     (when (and (url-rooted? u) (not (url-none? base)))
