@@ -6,3 +6,5 @@ bool math_script_context (tree t);
 bool math_script_only (tree t);
 void math_sqrt_toggle (tree t);
 void math_correct_all ();
+void math_brackets_refresh ();
+void math_open_latex_dialog ();

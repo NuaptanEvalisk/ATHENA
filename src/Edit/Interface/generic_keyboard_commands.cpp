@@ -555,6 +555,11 @@ void generic_kbd_space_bar (tree t, bool shift) {
 }
 
 void generic_kbd_enter (tree t, bool shift) {
+  if (is_compound (t, "math")) {
+    get_current_editor ()->go_to_end (reverse (obtain_ip (t)));
+    generic_insert_return ();
+    return;
+  }
   if (program_return (get_current_editor ().operator-> ())) return;
   if (native_grid_enter (get_current_editor ())) return;
   if (generic_table_markup_context (t)) {

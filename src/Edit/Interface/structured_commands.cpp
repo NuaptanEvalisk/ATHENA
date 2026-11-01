@@ -9,6 +9,7 @@
 *******************************************************************************/
 
 #include "structured_commands.hpp"
+#include "native_math_edit.hpp"
 #include "generic_editor_commands.hpp"
 #include "editor.hpp"
 #include "native_interfaces.hpp"
@@ -435,6 +436,8 @@ bool generic_focus_has_toggles (tree t) {
 bool generic_focus_can_move (tree) { return true; }
 
 bool generic_focus_can_insert_remove (tree t) {
+  if (math_script_context (t)) return true;
+  if (is_func (t, SQRT)) return false;
   bool structured=
     as_bool (call ("structured-horizontal?", object (t))) ||
     generic_structured_vertical_context (t);
@@ -550,6 +553,16 @@ void generic_structured_insert_horizontal (tree t, bool forwards) {
 }
 
 void generic_structured_insert_vertical (tree t, bool downwards) {
+  if (math_script_context (t)) {
+    const bool sub= is_func (t, LSUB) || is_func (t, RSUB);
+    if (downwards != sub && math_script_only (t)) {
+      editor ed= get_current_editor ();
+      ed->go_to_end (reverse (obtain_ip (t)));
+      ed->make_compound (is_func (t, LSUB) ? LSUP :
+                         is_func (t, LSUP) ? LSUB : sub ? RSUP : RSUB);
+    }
+    return;
+  }
   if (generic_table_markup_context (t)) {
     get_current_editor ()->table_insert_row (downwards);
     return;

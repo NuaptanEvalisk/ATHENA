@@ -28,10 +28,6 @@
 ;; Special customizations inside formulas and equations
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (kbd-enter t shift?)
-  (:require (tree-is? t 'math))
-  (go-end-of 'math)
-  (insert-return))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Structured editing of scripts
@@ -46,19 +42,6 @@
           ((tree-is? t 'rsub) (variant-set t 'rsup))
           ((tree-is? t 'rsup) (variant-set t 'rsub)))))
 
-(tm-define (structured-insert-vertical t downwards?)
-  (:require (tree-in? t '(lsub rsub)))
-  (when (and (not downwards?) (script-only-script? t))
-    (tree-go-to t :end)
-    (cond ((tree-is? t 'lsub) (make 'lsup))
-          ((tree-is? t 'rsub) (make 'rsup)))))
-
-(tm-define (structured-insert-vertical t downwards?)
-  (:require (tree-in? t '(lsup rsup)))
-  (when (and downwards? (script-only-script? t))
-    (tree-go-to t :end)
-    (cond ((tree-is? t 'lsup) (make 'lsub))
-          ((tree-is? t 'rsup) (make 'rsub)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Structured editing of wide accents
@@ -216,71 +199,6 @@
     (bracket-size-reset (tree-ref t 0))
     (bracket-size-reset (tree-ref t 2))))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Not necessarily matching brackets
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (find-non-bracket t)
-  (cond ((not (tree-up t)) t)
-        ((tm-in? t '(around around* big-around temp-slot))
-         (find-non-bracket (tree-up t)))
-        ((tm-in? (tree-up t) '(concat around around* big-around temp-slot))
-         (find-non-bracket (tree-up t)))
-        (else t)))
-
-(define (find-and-remove-temp-slot x)
-  ;;(display* "x= " x "\n")
-  (cond ((tree-atomic? x) #f)
-        ((tree-is? x 'temp-slot)
-         (tree-go-to x 0 0)
-         (remove-structure-upwards))
-        ((tree? x)
-         (list-or (map find-and-remove-temp-slot (tree-children x))))
-        (else #f)))
-
-(tm-define (brackets-refresh)
-  (insert-go-to '(temp-slot "") '(0 0))
-  (let* ((t (find-non-bracket (cursor-tree)))
-	 (u (tree-downgrade-brackets t #t #f))
-	 (v (tree-upgrade-brackets u "math"))
-         (w (tree-downgrade-big v)))
-    ;;(tree-set! t v)
-    (tree-set! t w)
-    (find-and-remove-temp-slot t)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; UI-independent rules migrated from math-menu.scm
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (open-latex-formula-dialog)
-  (:interactive #t)
-  (with vals (native-latex-formula-dialog)
-    (when (>= (length vals) 2)
-      (let* ((mode (first vals))
-             (input (second vals)))
-        (cond ((== mode "inline")
-               (let* ((wrapped (string-append "$" input "$"))
-                      (t (latex->texmacs (parse-latex wrapped)))
-                      (c (if (and (tree-is? t 'document) (> (tree-arity t) 0))
-                             (tree-ref t 0)
-                             t))
-                      (body (if (and (tree-is? c 'with)
-                                     (>= (tree-arity c) 2)
-                                     (== (tree-ref c 0) "mode")
-                                     (== (tree-ref c 1) "math"))
-                                (tree-ref c (1- (tree-arity c)))
-                                c)))
-                 (insert `(math ,body))))
-              ((== mode "display")
-               (let ((t (latex->texmacs
-                          (parse-latex (string-append "\\[" input "\\]")))))
-                 (when (tree? t)
-                   (for (c (tree-children t)) (insert c)))))
-              (else
-               (let ((t (latex->texmacs (parse-latex input))))
-                 (when (tree? t)
-                   (for (c (tree-children t)) (insert c))))))))))
-
 (tm-define (standard-options l)
   (:require (== l 'math))
   (list :recurse "number-long-article" "math-check"))
@@ -293,9 +211,6 @@
   (:require (== l 'math))
   "Inline formula")
 
-(tm-define (focus-can-insert-remove? t)
-  (:require (script-context? t))
-  #t)
 
 (tm-define (focus-variants-of t)
   (:require (tree-in? t '(lsub lsup)))
@@ -305,9 +220,6 @@
   (:require (tree-in? t '(rsub rsup)))
   '(rsub rsup))
 
-(tm-define (focus-can-insert-remove? t)
-  (:require (tree-is? t 'sqrt))
-  #f)
 
 (tm-define (focus-tag-name l)
   (:require (in? l '(wide wide*)))

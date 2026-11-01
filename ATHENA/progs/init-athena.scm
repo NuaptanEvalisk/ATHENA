@@ -210,9 +210,6 @@
              previous-section section-context? native-section-switch-to)
 
 ;(display "Booting math mode\n")
-(lazy-define (math math-edit)
-             brackets-refresh
-             open-latex-formula-dialog)
 (lazy-initialize (math math-edit) (in-math?))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 

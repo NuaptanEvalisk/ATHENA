@@ -392,7 +392,7 @@ execute_business_id (editor ed, const QString& id) {
   else if (id == "insert-referenced-materials")
     (void) call ("insert-referenced-materials");
   else if (id == "open-latex-formula-dialog")
-    (void) call ("open-latex-formula-dialog");
+    math_open_latex_dialog ();
   else if (id == "insert-include-dialog")
     (void) call ("native-insert-include-dialog");
   else if (id == "insert-link-image-dialog")

@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "edit_math.hpp"
+#include "native_math_edit.hpp"
 #include "analyze.hpp"
 #include "utf8_edit.hpp"
 #include "language.hpp"
@@ -781,7 +782,7 @@ edit_math_rep::back_around (tree t, path p, bool forward) {
       correct (path_up (p));
     }
   }
-  if (!match) call ("brackets-refresh");
+  if (!match) math_brackets_refresh ();
 }
 
 void
@@ -822,7 +823,7 @@ edit_math_rep::back_in_around (tree t, path p, bool forward) {
       correct (path_up (p, 2));
     }
   }
-  if (!match) call ("brackets-refresh");  
+  if (!match) math_brackets_refresh ();
 }
 
 void
