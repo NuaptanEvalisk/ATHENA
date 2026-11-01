@@ -121,18 +121,6 @@
 ;; Autosave
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (autosave-real-file? name)
-  (and (url? name)
-       (not (url-rooted-web? name))
-       (not (url-rooted-tmfs? name))
-       (not (url-scratch? name))
-       (url-exists? name)
-       (url-test? name "fw")))
-
-(tm-define (autosave-buffer-enabled? name)
-  (and (== (get-preference "document save mode") "autosave")
-       (autosave-real-file? name)))
-
 (define (more-recent file suffix1 suffix2)
   (and (url-exists? (url-glue file suffix1))
        (url-exists? (url-glue file suffix2))
@@ -151,54 +139,6 @@
        (with s (most-recent-suffix name)
          (and (!= s "")
               (url-glue name s)))))
-
-(tm-define (autosave-buffer name)
-  (when (and (buffer-modified-since-autosave? name)
-             (autosave-buffer-enabled? name)
-             (url-autosave name "~"))
-    ;;(display* "Autosave " name "\n")
-    (let* ((vname `(verbatim ,(url->system name)))
-           (aname (url-autosave name "~"))
-           (fm (url-format name)))
-      (if (url-scratch? name) (set! aname name))
-      (cond ((nin? fm (list "texmacs" "stm"))
-             (set-message `(concat "Warning: " ,vname " not auto-saved")
-                          "Auto-save file"))
-            ((buffer-export name aname fm)
-             (set-message `(concat "Failed to auto-save " ,vname)
-                          "Auto-save file"))
-            (else
-             (buffer-pretend-autosaved name)
-             (set-temporary-message `(concat "Auto-saved " ,vname)
-                                    "Auto-save file" 2500))))))
-
-(tm-define (autosave-all)
-  (for-each autosave-buffer (buffer-list)))
-
-(tm-define (autosave-now)
-  (autosave-all)
-  (autosave-delayed))
-
-(tm-define (autosave-delayed)
-  (let* ((pref (get-preference "autosave"))
-         (len (if (and (string? pref) (integer? (string->number pref)))
-                  (* (string->number pref) 1000) 120000)))
-    (if (and (> len 0)
-             (== (get-preference "document save mode") "autosave"))
-        (delayed
-          (:pause len)
-          ;; Autosave enumerates every open buffer.  A source-bound delayed
-          ;; callback runs on one BufferActor, so doing that enumeration there
-          ;; would turn foreign-buffer queries into actor-to-UI graph access.
-          ;; Move the orchestration to the global/UI owner; each buffer's
-          ;; document work is still dispatched to its BufferActor by native
-          ;; buffer operations.
-          (exec-global (lambda () (autosave-now)))))))
-
-(define (notify-autosave var val)
-  (if (current-view) ; delayed-autosave would crash at initialization time
-      (autosave-delayed)))
-
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Opening files using external tools

@@ -1,8 +1,6 @@
-;; Verify that periodic autosave orchestration returns to the global/UI owner.
+;; Verify that autosave recovery returns to the global/UI owner.
 (define root (cadr (command-line)))
-(define scheduled #f)
 (define global-calls 0)
-(define autosave-calls 0)
 (define in-global? #f)
 (define confirmation #f)
 (define recovered #f)
@@ -15,14 +13,6 @@
 (define (check condition message)
   (unless condition (error "Autosave ownership regression" message)))
 
-(define (get-preference key)
-  (cond ((equal? key "autosave") "1")
-        ((equal? key "document save mode") "autosave")
-        (else "")))
-
-(define-macro (delayed timing . body)
-  `(set! scheduled (lambda () ,@body)))
-
 (define (exec-global thunk)
   (set! global-calls (+ global-calls 1))
   (let ((previous in-global?))
@@ -30,10 +20,6 @@
       (lambda () (set! in-global? #t))
       thunk
       (lambda () (set! in-global? previous)))))
-
-(define (autosave-now)
-  (check in-global? "autosave-all must not run on a BufferActor")
-  (set! autosave-calls (+ autosave-calls 1)))
 
 (define (nin? item xs) (not (memq item xs)))
 (define (autosave-propose name) (string-append name "~"))
@@ -72,16 +58,7 @@
                      (current-module)))
               (else (loop (read port))))))))
 
-(load-definition 'autosave-delayed)
 (load-definition 'load-buffer-check-autosave)
-
-(autosave-delayed)
-(check (procedure? scheduled) "autosave timer was not scheduled")
-(check (= global-calls 0) "autosave ran before its timer fired")
-(check (= autosave-calls 0) "autosave ran before its timer fired")
-(scheduled)
-(check (= global-calls 1) "autosave timer did not cross through exec-global")
-(check (= autosave-calls 1) "autosave-now did not run exactly once")
 
 ;; Loading starts globally, but the interactive answer resumes through the
 ;; active view and can therefore execute on a BufferActor.  The answer must
@@ -91,7 +68,7 @@
 (set! in-global? #f)
 (check (procedure? confirmation) "autosave recovery did not request confirmation")
 (confirmation #t)
-(check (= global-calls 2) "autosave recovery did not cross through exec-global")
+(check (= global-calls 1) "autosave recovery did not cross through exec-global")
 (check (equal? recovered
                 '("/tmp/recovery.tm" "/tmp/recovery.tm~" "texmacs"))
        "autosave recovery did not install the recovered document")
@@ -105,8 +82,8 @@
 (load-buffer-check-autosave "/tmp/recovery.tm" '())
 (set! in-global? #f)
 (confirmation #f)
-(check (= global-calls 3) "autosave rejection did not cross through exec-global")
+(check (= global-calls 2) "autosave rejection did not cross through exec-global")
 (check (equal? permissions-checked '("/tmp/recovery.tm" ()))
        "autosave rejection did not resume normal loading globally")
 
-(display "PASS: autosave orchestration and recovery stay on the global owner\n")
+(display "PASS: autosave recovery stays on the global owner\n")

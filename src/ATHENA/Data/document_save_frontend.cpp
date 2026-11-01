@@ -1,6 +1,7 @@
 // Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later.
 #include "document_save_frontend.hpp"
 #include "new_buffer.hpp"
+#include "new_view.hpp"
 #include "recent_files.hpp"
 #include "native_interfaces.hpp"
 #include "generic_editor_commands.hpp"
@@ -24,6 +25,9 @@
 #include <QApplication>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QPointer>
+#include <QTimer>
+#include <limits>
 #include <memory>
 #include <functional>
 #include <stdexcept>
@@ -384,6 +388,73 @@ void document_export (object destination) {
   if (format == "generic") format= "verbatim";
   document_export_main (get_current_buffer (), destination, format, list_object (keyword_object ("overwrite")));
 }
+
+bool document_autosave_enabled (url source) {
+  return get_preference ("document save mode") == "autosave" &&
+    !is_rooted_web (source) && !is_rooted_tmfs (source) && !is_scratch (source) &&
+    exists (source) && is_of_type (source, "fw");
+}
+
+void document_autosave (url source) {
+  if (!document_autosave_enabled (source)) return;
+  auto request= make_save_request (list_object (object (source)));
+  start_save (request, [request] {
+    const url source (request->source.c_str ());
+    if (!document_autosave_enabled (source) || !buffer_modified_since_autosave (source)) return;
+    const string format= file_format (source);
+    tree filename= compound ("verbatim", as_string (source, URL_SYSTEM));
+    if (format != "texmacs" && format != "stm") {
+      get_server ()->set_message (compound ("concat", "Warning: ", filename, " not auto-saved"), "Auto-save file");
+      return;
+    }
+    if (buffer_export (source, glue (source, "~"), format))
+      get_server ()->set_message (compound ("concat", "Failed to auto-save ", filename), "Auto-save file");
+    else {
+      pretend_buffer_autosaved (source);
+      call ("set-temporary-message", tree_to_stree (compound ("concat", "Auto-saved ", filename)),
+            object ("Auto-save file"), object (2500));
+    }
+  });
+}
+
+namespace {
+QPointer<QTimer> autosave_timer;
+
+void autosave_all_gui () {
+  const array<url> buffers= get_all_buffers ();
+  for (int i=0; i<N(buffers); ++i) document_autosave (buffers[i]);
+}
+
+void autosave_schedule_gui () {
+  if (autosave_timer) autosave_timer->stop ();
+  if (get_preference ("document save mode") != "autosave") return;
+  const string value= get_preference ("autosave");
+  bool valid= false;
+  qint64 seconds= QString::fromUtf8 (value.data (), N(value)).toLongLong (&valid);
+  if (!valid) seconds= 120;
+  if (seconds <= 0) return;
+  if (!autosave_timer) {
+    autosave_timer= new QTimer (QCoreApplication::instance ());
+    autosave_timer->setSingleShot (true);
+    QObject::connect (autosave_timer, &QTimer::timeout, [] {
+      autosave_all_gui ();
+      autosave_schedule_gui ();
+    });
+  }
+  const qint64 maximum= std::numeric_limits<int>::max () / 1000;
+  autosave_timer->start (int (std::min (seconds, maximum) * 1000));
+}
+
+void autosave_now_gui () { autosave_all_gui (); autosave_schedule_gui (); }
+void notify_autosave_gui () {
+  if (!is_none (get_current_view_safe ())) autosave_schedule_gui ();
+}
+}
+
+void document_autosave_all () { athena_dispatch_ui (autosave_all_gui); }
+void document_autosave_now () { athena_dispatch_ui (autosave_now_gui); }
+void document_autosave_schedule () { athena_dispatch_ui (autosave_schedule_gui); }
+void document_notify_autosave (string, string) { athena_dispatch_ui (notify_autosave_gui); }
 
 void document_save_before_close (url name, std::function<void()> completion) {
   auto request= make_save_request (list_object (object (name)));

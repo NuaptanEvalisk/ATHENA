@@ -40,6 +40,12 @@
   <binding name="save-buffer-main" native="document_save" returns="void" exceptions="scheme"><arg type="object" rest="true" /></binding>
   <binding name="export-buffer-main" native="document_export_main" returns="void" exceptions="scheme"><arg type="url" /><arg type="object" /><arg type="string" /><arg type="object" /></binding>
   <binding name="export-buffer" native="document_export" returns="void" exceptions="scheme"><arg type="object" /></binding>
+  <binding name="autosave-buffer-enabled?" native="document_autosave_enabled" returns="bool"><arg type="url" /></binding>
+  <binding name="autosave-buffer" native="document_autosave" returns="void" exceptions="scheme"><arg type="url" /></binding>
+  <binding name="autosave-all" native="document_autosave_all" returns="void" />
+  <binding name="autosave-now" native="document_autosave_now" returns="void" />
+  <binding name="autosave-delayed" native="document_autosave_schedule" returns="void" />
+  <binding name="notify-autosave" native="document_notify_autosave" returns="void"><arg type="string" /><arg type="string" /></binding>
   <binding name="save-buffer-manual" native="document_save_manual" returns="void" exceptions="scheme"><arg type="object" rest="true" /></binding>
   <binding name="save-buffer-as" native="document_save_as" returns="void" exceptions="scheme"><arg type="object" /><arg type="object" rest="true" /></binding>
   <binding name="save-buffer-as-main" native="document_save_as" returns="void" exceptions="scheme"><arg type="object" /><arg type="object" rest="true" /></binding>
