@@ -204,41 +204,6 @@
 ;; Opening files using external tools
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (buffer-external? u)
-  (or (and (url-rooted-web? u)
-           ;; FIXME: Use HTTP HEADERS to determine the real file format
-           (!= (file-format u) "texmacs-file"))
-      ;; (url-directory? u)
-      ;; we want to open links to directories via the default OS handler,
-      ;; but we need a silent test which does not call concretize
-      (url-rooted-protocol? u "mailto")
-      (format-image? (format-from-suffix (url-suffix u)))))
-
-(tm-define (default-open)
-  (cond ((os-macos?) "open")
-        ((or (os-mingw?) (os-win32?)) "start")
-        (else "xdg-open")))
-
-(tm-define (load-external u)
-  (when (not (url-rooted? u))
-    (set! u (url-relative (current-buffer) u)))
-  (cond ((url-rooted-protocol? u "doi")
-         (with u* (url-append (root->url "https")
-                              (url-append (string->url "www.doi.org")
-                                          (url-unroot u)))
-           (load-external u*)))
-        ((url-rooted-protocol? u "mailto")
-         (system (string-append (default-open) " " (url->string u))))
-        ((not (url-rooted-web? u))
-         (system-1 (default-open) u))
-        ((os-mingw64?)
-         (eval-system (url->system u)))
-        ((or (os-mingw?) (os-win32?))
-         (system (string-append (default-open) " " (url->system u))))
-        (else
-         (system (string-append (default-open) " "
-                                (raw-quote (url->system u)))))))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Choosing how links to non-native local files are opened
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

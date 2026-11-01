@@ -17,6 +17,8 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QTimer>
+#include <QDesktopServices>
+#include <QUrl>
 #include <functional>
 #include <memory>
 #include <vector>
@@ -197,3 +199,21 @@ void application_close_window (object arguments) {
 void application_quit () { on_gui ([] { request_quit (false); }); }
 void application_restart () { on_gui ([] { request_quit (true); }); }
 void application_new_window () { open_document_window (false); }
+
+void application_open_external (url target) {
+  if (!is_rooted (target)) {
+    const url source= get_current_buffer_safe ();
+    target= is_none (source) ? url_pwd () * target : relative (source, target);
+  }
+  if (is_rooted (target, "doi")) target= url ("https://doi.org") * unroot (target);
+  const bool local= is_rooted (target, "default") || is_rooted (target, "file");
+  const string text= local ? concretize (target) : as_string (target, URL_SYSTEM);
+  const std::string encoded (text.data (), N(text));
+  on_gui ([encoded, local] {
+    const QString text= QString::fromUtf8 (encoded.data (), encoded.size ());
+    const QUrl target= local ? QUrl::fromLocalFile (text) : QUrl (text);
+    if (!QDesktopServices::openUrl (target))
+      get_server ()->set_message (compound ("concat", "Could not open externally: ",
+        compound ("verbatim", string (encoded.c_str ()))), "Open file");
+  });
+}

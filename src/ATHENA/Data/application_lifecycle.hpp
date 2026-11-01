@@ -8,5 +8,6 @@ void application_close_window (object arguments);
 void application_quit ();
 void application_restart ();
 void application_new_window ();
+void application_open_external (url target);
 
 #endif

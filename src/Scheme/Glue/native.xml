@@ -35,6 +35,7 @@
   <binding name="safely-quit-ATHENA" native="application_quit" returns="void" />
   <binding name="safely-restart-ATHENA" native="application_restart" returns="void" />
   <binding name="new-document*" native="application_new_window" returns="void" />
+  <binding name="load-external" native="application_open_external" returns="void" exceptions="scheme"><arg type="url" /></binding>
   <binding name="save-buffer" native="document_save" returns="void" exceptions="scheme"><arg type="object" rest="true" /></binding>
   <binding name="save-buffer-main" native="document_save" returns="void" exceptions="scheme"><arg type="object" rest="true" /></binding>
   <binding name="export-buffer-main" native="document_export_main" returns="void" exceptions="scheme"><arg type="url" /><arg type="object" /><arg type="string" /><arg type="object" /></binding>
