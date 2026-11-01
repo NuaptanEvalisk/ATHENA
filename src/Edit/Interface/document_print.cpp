@@ -3,13 +3,24 @@
 #include "editor.hpp"
 #include "new_buffer.hpp"
 #include "file.hpp"
+#include "buffer_actor.hpp"
+#include "guile_tm.hpp"
+#include "ATHENA/Data/compound_edit_batch.hpp"
 #include "ATHENA/Data/data_art.hpp"
 #include "ATHENA/Data/node_reference_export.hpp"
 #include "Qt/qt_utilities.hpp"
 #include <QApplication>
 #include <QDesktopServices>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QFormLayout>
 #include <QMessageBox>
+#include <QSpinBox>
 #include <QUrl>
+#include <algorithm>
+#include <limits>
 #include <stdexcept>
 
 namespace {
@@ -87,3 +98,80 @@ void document_prepared_print_pages (string first, string last) {
       editor.print_buffer (text (start), text (end));
     }, report_error);
 }
+
+namespace {
+struct print_dialog_request {
+  athena_actor_id actor;
+  athena_view_id view;
+  int pages;
+  std::string name;
+};
+
+void submit_print (const print_dialog_request& request, QString filename,
+                   int first, int last) {
+  auto target= filename.toUtf8 ().toStdString ();
+  athena::avd::submit_source_task (request.actor, request.view,
+    [target= std::move (target), first, last] (editor_rep&) {
+      athena_node_reference_with_native_export (
+        [target, first, last] (editor_rep& editor) {
+          if (target.empty ()) editor.print_buffer (as_string (first), as_string (last));
+          else editor.print_to_file (url_system (text (target)),
+                                     as_string (first), as_string (last));
+        }, report_error);
+    }, report_error);
+}
+
+void choose_print_file (print_dialog_request request, int first, int last) {
+  auto* dialog= new QFileDialog (QApplication::activeWindow (),
+    QObject::tr ("Print to PDF"));
+  dialog->setAttribute (Qt::WA_DeleteOnClose);
+  dialog->setAcceptMode (QFileDialog::AcceptSave);
+  dialog->setNameFilter (QObject::tr ("PDF documents (*.pdf)"));
+  dialog->setDefaultSuffix ("pdf");
+  QString name= QString::fromUtf8 (request.name.data (), request.name.size ());
+  dialog->selectFile (QFileInfo (name).completeBaseName () + ".pdf");
+  QObject::connect (dialog, &QFileDialog::fileSelected, dialog,
+    [request, first, last] (const QString& filename) {
+      submit_print (request, filename, first, last);
+    });
+  dialog->open ();
+}
+
+void print_dialog (bool select_pages, bool to_file) {
+  const auto* owner= current_scheme_execution_context ();
+  if (!owner || !owner->actor || !owner->editor)
+    throw std::runtime_error ("Printing requires an owning editor");
+  print_dialog_request request {owner->actor_id, owner->view_id,
+    std::max (1, owner->editor->get_page_count ()),
+    bytes (basename (owner->actor->current_buffer_url ()))};
+  qt_post_to_main_thread ([request, select_pages, to_file] {
+    if (!select_pages) { choose_print_file (request, 1, 1000000); return; }
+    auto* dialog= new QDialog (QApplication::activeWindow ());
+    dialog->setAttribute (Qt::WA_DeleteOnClose);
+    dialog->setWindowTitle (QObject::tr ("Print page selection"));
+    auto* layout= new QFormLayout (dialog);
+    auto* first= new QSpinBox (dialog);
+    auto* last= new QSpinBox (dialog);
+    first->setRange (1, std::numeric_limits<int>::max ());
+    last->setRange (1, std::numeric_limits<int>::max ());
+    last->setValue (request.pages);
+    QObject::connect (first, &QSpinBox::valueChanged, last, &QSpinBox::setMinimum);
+    QObject::connect (last, &QSpinBox::valueChanged, first, &QSpinBox::setMaximum);
+    layout->addRow (QObject::tr ("First page:"), first);
+    layout->addRow (QObject::tr ("Last page:"), last);
+    auto* buttons= new QDialogButtonBox (QDialogButtonBox::Ok | QDialogButtonBox::Cancel, dialog);
+    layout->addRow (buttons);
+    QObject::connect (buttons, &QDialogButtonBox::accepted, dialog, &QDialog::accept);
+    QObject::connect (buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
+    QObject::connect (dialog, &QDialog::accepted, dialog, [request, to_file, first, last] {
+      if (to_file) choose_print_file (request, first->value (), last->value ());
+      else submit_print (request, QString (), first->value (), last->value ());
+    });
+    dialog->open ();
+  });
+}
+}
+
+void document_print_file_dialog () { print_dialog (false, true); }
+void document_print_pages_dialog () { print_dialog (true, false); }
+void document_print_pages_file_dialog () { print_dialog (true, true); }

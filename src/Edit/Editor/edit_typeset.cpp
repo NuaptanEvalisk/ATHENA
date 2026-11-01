@@ -933,6 +933,7 @@ edit_typeset_rep::get_env_language () {
 
 int
 edit_typeset_rep::get_page_count () {
+  if (is_nil (eb)) return 0;
   return N (eb[0]);
 }
 

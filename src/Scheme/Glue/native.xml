@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="native-print-to-file-dialog" native="document_print_file_dialog" returns="void" exceptions="scheme" />
+  <binding name="native-print-page-selection-dialog" native="document_print_pages_dialog" returns="void" exceptions="scheme" />
+  <binding name="native-print-page-selection-to-file-dialog" native="document_print_pages_file_dialog" returns="void" exceptions="scheme" />
   <binding name="data-art-print-to-file" native="document_print_with_cover" returns="void" exceptions="scheme"><arg type="url" /></binding>
   <binding name="preview-file" native="document_preview_file" returns="void" exceptions="scheme"><arg type="url" /></binding>
   <binding name="preview-buffer" native="document_preview" returns="void" exceptions="scheme" />

@@ -274,13 +274,13 @@ run_native_editor_command (editor_rep* editor,
       (void) call ("dynamic-operate-on-buffer", keyword_object ("last"));
       break;
     case native_editor_command_id::print_to_file:
-      (void) call ("native-print-to-file-dialog");
+      document_print_file_dialog ();
       break;
     case native_editor_command_id::print_page_selection:
-      (void) call ("native-print-page-selection-dialog");
+      document_print_pages_dialog ();
       break;
     case native_editor_command_id::print_page_selection_to_file:
-      (void) call ("native-print-page-selection-to-file-dialog");
+      document_print_pages_file_dialog ();
       break;
     case native_editor_command_id::export_pdf:
       (void) call ("native-export-pdf-dialog");

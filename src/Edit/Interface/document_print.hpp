@@ -6,3 +6,6 @@ void document_preview_file (url target);
 void document_preview ();
 void document_prepared_print (url target);
 void document_prepared_print_pages (string first, string last);
+void document_print_file_dialog ();
+void document_print_pages_dialog ();
+void document_print_pages_file_dialog ();

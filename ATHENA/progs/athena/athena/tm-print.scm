@@ -135,34 +135,6 @@
   (:proposals last  (list (number->string (get-page-count)) "")))
 
 
-(tm-define (choose-file-and-print-page-selection start end)
-  (:argument  start "First page")
-  (:proposals start (list "1" ""))
-  (:argument  end "Last page")
-  (:proposals end (list (number->string (get-page-count)) ""))
-  (choose-file (lambda (name)
-                 (node-reference-with-export (lambda () (print-pages-to-file name start end))))
-	       "Print page selection to file" (printer-file-format)
-	       "Print:"))
-
-(tm-property (prepared-print-pages first last)
-  (:argument first "First page")
-  (:proposals first (list "1" ""))
-  (:argument last "Last page")
-  (:proposals last (list (number->string (get-page-count)) "")))
-
-;; Finite business adapters for the native application-shell toolbar.  File
-;; and page-selection UI remains here until those dialogs are migrated, but the
-;; toolbar never expands or executes legacy Scheme menu ASTs.
-(tm-define (native-print-to-file-dialog)
-  (choose-file prepared-print-to-file "Print all to file"
-               (printer-file-format) "Print:"))
-
-(tm-define (native-print-page-selection-dialog)
-  (interactive prepared-print-pages))
-
-(tm-define (native-print-page-selection-to-file-dialog)
-  (interactive choose-file-and-print-page-selection))
 
 (tm-define (native-export-pdf-dialog)
   (choose-file wrapped-print-to-file "Save pdf file" "pdf"))
