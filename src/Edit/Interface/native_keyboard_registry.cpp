@@ -8,6 +8,8 @@
 #include "native_keyboard_loader.hpp"
 #include "object.hpp"
 #include "server.hpp"
+#include "new_buffer.hpp"
+#include "new_window.hpp"
 
 #include <algorithm>
 #include <memory>
@@ -207,4 +209,36 @@ object native_keyboard_catalog () {
     result= cons (cons (object (text (item.first)), entries), result);
   }
   return result;
+}
+
+void native_keyboard_list_shortcuts () {
+  auto& r= keyboard ();
+  std::vector<std::pair<std::string, bindings>> entries;
+  {
+    std::lock_guard<std::mutex> lock (r.mutex);
+    for (const auto& entry: r.forward) entries.push_back (entry);
+  }
+  std::sort (entries.begin (), entries.end (),
+    [] (const auto& a, const auto& b) { return a.first < b.first; });
+  tree rows (TABLE);
+  rows << tree (ROW, tree (CELL, compound ("strong", "Shortcut")),
+                    tree (CELL, compound ("strong", "Command")),
+                    tree (CELL, compound ("strong", "Context")));
+  for (const auto& entry: entries) {
+    tree key= get_server ()->kbd_system_rewrite (text (entry.first));
+    for (const auto& binding: entry.second) {
+      object conditions= binding->conditions.get ();
+      rows << tree (ROW, tree (CELL, key),
+        tree (CELL, compound ("verbatim", object_to_string (binding->action.get ()))),
+        tree (CELL, is_null (conditions) ? tree ("Global") :
+          compound ("verbatim", object_to_string (conditions))));
+    }
+  }
+  tree table (TFORMAT,
+    tree (CWITH, "1", "-1", "1", "-1", "cell-background", "light grey"),
+    tree (CWITH, "1", "1", "1", "-1", "cell-background", "grey"), rows);
+  tree doc (DOCUMENT, compound ("section", "ATHENA Keyboard Shortcuts"),
+            compound ("tabular", table));
+  url name= create_buffer ();
+  set_buffer_body (name, doc);
 }

@@ -20,6 +20,7 @@
 #include "Edit/Interface/native_input_events.hpp"
 #include "Edit/Interface/generic_editor_commands.hpp"
 #include "Edit/Interface/document_commands.hpp"
+#include "Edit/Interface/reference_markup.hpp"
 #include "Edit/Interface/document_style_commands.hpp"
 #include "Edit/Interface/selection_image_export.hpp"
 

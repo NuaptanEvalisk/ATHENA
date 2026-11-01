@@ -48,6 +48,7 @@
 #include "Data/Convert/Generic/conversion_graph.hpp"
 #include "Data/Convert/Generic/conversion_registry.hpp"
 #include "editor.hpp"
+#include "native_keyboard_registry.hpp"
 #include "file.hpp"
 #include "message.hpp"
 #include "new_buffer.hpp"
@@ -187,7 +188,7 @@ execute_help_action (const help_action& action, const QTMCommandContext& context
       (void) call ("load-document", object (string ("$ATHENA_PATH/LICENSE")));
       return true;
     case help_action_kind::shortcuts:
-      (void) call ("list-all-shortcuts");
+      native_keyboard_list_shortcuts ();
       return true;
     }
   }

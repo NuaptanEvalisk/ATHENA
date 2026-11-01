@@ -18,5 +18,6 @@ string native_keyboard_cached_inverse (object source);
 object native_keyboard_system_inverse (object source);
 object native_keyboard_reverse (object source);
 object native_keyboard_catalog ();
+void native_keyboard_list_shortcuts ();
 
 #endif

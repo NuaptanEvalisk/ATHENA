@@ -99,8 +99,6 @@
              codex-ai-completion codex-ai-completion-new-buffer
              codex-ai-completion-custom)
 (lazy-define (kernel athena tm-preferences) view-all-preferences)
-(lazy-define (athena athena tm-preferences-ui)
-             open-preferences)
 (tm-define (notify-set-attachment name key val) (noop))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
@@ -247,7 +245,6 @@
              tmdoc-insert-title tmdoc-insert-copyright-and-license)
 (lazy-define (doc tmdoc) tmdoc-expand-help tmdoc-expand-help-manual
              tmdoc-expand-this tmdoc-include)
-(lazy-define (athena tools shortcut-listing) list-all-shortcuts)
 (lazy-define (doc tmdoc-search) tmdoc-search-style tmdoc-search-tag
              tmdoc-search-parameter tmdoc-search-scheme)
 (lazy-tmfs-handler (doc tmdoc) help)
@@ -263,6 +260,9 @@
              get-link-locations register-link-locations)
 (lazy-define (link ref-edit) preview-reference)
 (define-secure-symbols preview-reference)
+(define-secure-symbols reverse-hierarchy-graph-render global-hierarchy-graph-show
+                       websites-manager-show open-websites-manager
+                       ext-typed-ref* ext-typed-ref ext-smart-ref)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting debugging facilities\n")

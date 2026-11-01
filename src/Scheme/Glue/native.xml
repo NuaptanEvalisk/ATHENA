@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="ext-typed-ref*" native="reference_typed_markup" returns="tree" exceptions="scheme">
+    <arg type="content" /><arg type="content" /><arg type="content" />
+  </binding>
+  <binding name="ext-typed-ref" native="reference_typed_markup" returns="tree" exceptions="scheme">
+    <arg type="content" /><arg type="content" />
+  </binding>
+  <binding name="ext-smart-ref" native="reference_smart_markup" returns="tree" exceptions="scheme">
+    <arg type="content" />
+  </binding>
   <binding name="section-context?" native="text_section_context" returns="bool"><arg type="tree" /></binding>
   <binding name="list-context?" native="text_list_context" returns="bool"><arg type="tree" /></binding>
   <binding name="previous-section" native="text_previous_section" returns="object" />
@@ -91,6 +100,7 @@
     <arg type="object" />
   </binding>
   <binding name="native-keyboard-catalog" native="native_keyboard_catalog" returns="object" />
+  <binding name="list-all-shortcuts" native="native_keyboard_list_shortcuts" returns="void" exceptions="scheme" />
   <binding name="native-keyboard-initialize" native="native_keyboard_initialize" returns="void" />
   <binding name="keyboard-press" native="native_keyboard_press" returns="void" exceptions="scheme">
     <arg type="string" /><arg type="double" />
@@ -1411,6 +1421,8 @@
   <binding name="open-document-other-font-selector" native="open_document_other_font_selector" returns="void"><arg type="string" /></binding>
   <binding name="configure-font-for-vault" native="qtm_configure_font_for_vault" returns="void" dispatch="ui" />
   <binding name="native-open-preferences" native="qtm_preferences_dialog_show" returns="void" dispatch="ui" />
+  <binding name="open-preferences" native="qtm_preferences_dialog_show" returns="void" dispatch="ui" />
+  <binding name="open-preferences-window" native="qtm_preferences_dialog_show" returns="void" dispatch="ui" />
   <binding name="native-preferences-open?" native="athena_native_preferences_openP" returns="bool" />
   <binding name="native-preferences-export-privacy" native="athena_native_preferences_export_privacy" returns="int" />
   <binding name="native-preferences-export-metadata" native="athena_native_preferences_export_metadata" returns="array_string" />
@@ -1535,6 +1547,12 @@
   <binding name="go-to-vault-initial-page" native="go_to_vault_initial_page_native" returns="void" />
   <binding name="vault-welcome-page" native="vault_welcome_page_native" returns="tree" />
   <binding name="reverse-hierarchy-graph-show" native="reverse_hierarchy_graph_show" returns="void" dispatch="ui" />
+  <binding name="open-reverse-hierarchy-graph" native="reverse_hierarchy_graph_show" returns="void" dispatch="ui" />
+  <binding name="insert-reverse-hierarchy-graph" native="reverse_hierarchy_graph_insert" returns="void" dispatch="ui" />
+  <binding name="open-direct-hierarchy-graph" native="direct_hierarchy_graph_show" returns="void" dispatch="ui" />
+  <binding name="open-global-hierarchy-graph" native="global_hierarchy_graph_show" returns="void" dispatch="ui" />
+  <binding name="open-local-reference-graph" native="local_reference_graph_show" returns="void" dispatch="ui" />
+  <binding name="open-reference-graph" native="reference_graph_show" returns="void" dispatch="ui" />
   <binding name="reverse-hierarchy-graph-insert" native="reverse_hierarchy_graph_insert" returns="void" dispatch="ui" />
   <binding name="reverse-hierarchy-graph-render" native="athena_reverse_hierarchy_graph_render" returns="tree">
     <arg type="content" />
@@ -1558,6 +1576,7 @@
   <binding name="namespace-new-file-within-wizard" native="athena_namespace_new_file_within_wizard" returns="void" />
   <binding name="namespace-export-show" native="namespace_export_show" returns="void" dispatch="ui" />
   <binding name="websites-manager-show" native="websites_manager_show" returns="void" dispatch="ui" />
+  <binding name="open-websites-manager" native="websites_manager_show" returns="void" dispatch="ui" />
   <binding name="data-art-generate" native="athena_data_art_generate" returns="string">
     <arg type="string" />
     <arg type="url" />
