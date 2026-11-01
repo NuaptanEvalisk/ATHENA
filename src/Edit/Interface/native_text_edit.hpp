@@ -2,7 +2,11 @@
 #pragma once
 #include "tree.hpp"
 
-bool text_node_in_group (tree t, const char* group);
+bool text_node_in_group (tree t, const char* group, bool numbered_variants= false);
+bool text_titled_context (tree t);
+void text_note_toggle_custom (tree t);
+void text_titled_toggle_name (tree t);
+void text_frame_toggle_title (tree t);
 string text_algorithm_root (string tag);
 bool text_algorithm_numbered (tree t);
 bool text_algorithm_named (tree t);

@@ -1320,14 +1320,14 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
       text_algorithm_toggle_specification (target);
     else if (id == "note-toggle-custom" &&
              state.has (ACTOR_FOCUS_TOOLBAR_DETACHED_NOTE_CONTEXT))
-      (void) call ("note-toggle-custom", object (target));
+      text_note_toggle_custom (target);
     else if (id == "titled-toggle-name" &&
              state.has (ACTOR_FOCUS_TOOLBAR_TITLED_CONTEXT) &&
              state.figure_context)
-      (void) call ("titled-toggle-name", object (target));
+      text_titled_toggle_name (target);
     else if (id == "frame-toggle-title" &&
              state.has (ACTOR_FOCUS_TOOLBAR_FRAME_CONTEXT))
-      (void) call ("frame-toggle-title", object (target));
+      text_frame_toggle_title (target);
     else if (id == "float-toggle-wide" &&
              state.multicol_style &&
              (state.has (ACTOR_FOCUS_TOOLBAR_RICH_FLOAT_CONTEXT) ||

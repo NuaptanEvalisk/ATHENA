@@ -1090,10 +1090,10 @@ editor_rep::focus_toolbar_state_snapshot () {
   set (ACTOR_FOCUS_TOOLBAR_FOOTNOTE_CONTEXT, query ("footnote-context?"));
   set (ACTOR_FOCUS_TOOLBAR_BALLOON_CONTEXT, query ("balloon-context?"));
   set (ACTOR_FOCUS_TOOLBAR_DETACHED_NOTE_CONTEXT,
-       query ("detached-note-context?"));
-  set (ACTOR_FOCUS_TOOLBAR_TITLED_CONTEXT, query ("titled-context?"));
+       text_node_in_group (t, "detached-note-tag"));
+  set (ACTOR_FOCUS_TOOLBAR_TITLED_CONTEXT, text_titled_context (t));
   set (ACTOR_FOCUS_TOOLBAR_FRAME_CONTEXT,
-       query ("frame-context?") || query ("frame-titled-context?"));
+       text_node_in_group (t, "frame-tag") || text_node_in_group (t, "frame-titled-tag"));
   set (ACTOR_FOCUS_TOOLBAR_CAN_MOVE, query ("focus-can-move?", true));
   set (ACTOR_FOCUS_TOOLBAR_CAN_INSERT_REMOVE,
        query ("focus-can-insert-remove?"));
@@ -1314,13 +1314,13 @@ editor_rep::focus_toolbar_state_snapshot () {
     snapshot.algorithm_specified= text_algorithm_specified (t);
   }
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_DETACHED_NOTE_CONTEXT))
-    snapshot.detached_note_custom= query ("custom-note-context?");
+    snapshot.detached_note_custom= text_node_in_group (t, "custom-note-tag");
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_TITLED_CONTEXT)) {
     snapshot.figure_context= query ("figure-context?");
-    snapshot.titled_named= query ("titled-named?");
+    snapshot.titled_named= text_node_in_group (t, "render-titled-tag");
   }
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_FRAME_CONTEXT))
-    snapshot.frame_titled= query ("frame-titled?");
+    snapshot.frame_titled= text_node_in_group (t, "frame-titled-tag");
 
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_DOC_TITLE_CONTEXT) ||
       snapshot.has (ACTOR_FOCUS_TOOLBAR_DOC_AUTHOR_CONTEXT)) {

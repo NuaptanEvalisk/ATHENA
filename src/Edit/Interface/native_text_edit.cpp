@@ -5,10 +5,48 @@
 #include "editor.hpp"
 #include "Data/NodeContracts/node_groups.hpp"
 
-bool text_node_in_group (tree t, const char* group) {
-  const string tag= as_string (L(t));
+bool text_node_in_group (tree t, const char* group, bool numbered_variants) {
+  string tag= as_string (L(t));
+  if (numbered_variants && ends (tag, "*")) tag= tag (0, N(tag)-1);
   return athena::contracts::standard_node_groups ().contains (
     group, std::string (tag.data (), N(tag)));
+}
+
+bool text_titled_context (tree t) {
+  return is_compound (t, "enunciation") || text_node_in_group (t, "titled-tag", true);
+}
+
+void text_note_toggle_custom (tree t) {
+  string tag= as_string (L(t));
+  tag= ends (tag, "*") ? tag (0, N(tag)-1) : tag * "*";
+  if (text_node_in_group (t, "auto-note-tag"))
+    t= tree_insert (t, N(t), tree (TUPLE, tree (NAMED_SYMBOL, "texmacs:dag")));
+  else t= tree_remove (t, N(t)-1, 1);
+  tree_assign_node (t, as_tree_label (tag));
+}
+
+void text_titled_toggle_name (tree t) {
+  if (text_node_in_group (t, "small-figure-tag", true))
+    tree_assign (t, tree (as_tree_label ("render-small-figure"), "", "", t[0], t[1]));
+  else if (text_node_in_group (t, "big-figure-tag", true))
+    tree_assign (t, tree (as_tree_label ("render-big-figure"), "", "", t[0], t[1]));
+  else if (is_compound (t, "render-small-figure"))
+    tree_assign (t, tree (as_tree_label ("small-figure"), t[2], t[3]));
+  else if (is_compound (t, "render-big-figure"))
+    tree_assign (t, tree (as_tree_label ("big-figure"), t[2], t[3]));
+  else node_properties_show (t);
+}
+
+void text_frame_toggle_title (tree t) {
+  const string tag= as_string (L(t));
+  if (text_node_in_group (t, "frame-tag")) {
+    t= tree_assign (t, tree (as_tree_label (tag * "-titled"), t[0], ""));
+    get_current_editor ()->go_to_end (reverse (obtain_ip (t)) * 1);
+  }
+  else if (text_node_in_group (t, "frame-titled-tag")) {
+    t= tree_assign (t, tree (as_tree_label (tag (0, N(tag)-7)), t[0]));
+    get_current_editor ()->go_to_end (reverse (obtain_ip (t)) * 0);
+  }
 }
 
 string text_algorithm_root (string tag) {
