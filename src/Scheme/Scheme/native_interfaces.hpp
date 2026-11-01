@@ -30,6 +30,7 @@
 #include "Edit/Interface/view_fit.hpp"
 #include "Edit/Interface/view_modes.hpp"
 #include "ATHENA/Data/global_transformation_frontend.hpp"
+#include "ATHENA/Data/recent_files.hpp"
 #include "Edit/Interface/document_style_commands.hpp"
 #include "Edit/Interface/selection_image_export.hpp"
 

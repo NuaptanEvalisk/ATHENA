@@ -16,6 +16,7 @@
 #include "scheme_execution_context.hpp"
 #include "vault.hpp"
 #include "new_buffer.hpp"
+#include "recent_files.hpp"
 #include "QTMNamespaceNewFile.hpp"
 #include "QTMNativeDialogs.hpp"
 #include "qt_utilities.hpp"
@@ -855,12 +856,9 @@ open_vault_quick_switcher () {
   }
   array<string> recent;
   try {
-    scheme_tree values= as_scheme_tree (eval (
-      "(map url->unix (recent-file-list 200))"));
-    if (is_tuple (values))
-      for (int i=0; i<N(values); ++i)
-        if (is_atomic (values[i]) && is_quoted (values[i]->label))
-          recent << scm_unquote (values[i]->label);
+    array<url> values= recent_file_list (200);
+    for (int i=0; i<N(values); ++i)
+      recent << as_string (values[i], URL_UNIX);
   }
   catch (...) {}
   vault_quick_switcher (recent);

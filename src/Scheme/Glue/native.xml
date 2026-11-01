@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="recent-file-list" native="recent_file_list" returns="array_url" exceptions="scheme"><arg type="int" /></binding>
+  <binding name="buffer-notify-recent" native="buffer_notify_recent" returns="void" exceptions="scheme"><arg type="url" /></binding>
   <binding name="application-preferences-initialize" native="application_preferences_initialize" returns="void" exceptions="scheme" />
   <binding name="notify-look-and-feel" native="application_notify_look" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /></binding>
   <binding name="notify-security" native="application_notify_security" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /></binding>

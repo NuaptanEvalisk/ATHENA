@@ -88,8 +88,7 @@
         notify-remote-control notify-status-bar notify-zoom-factor))
 (lazy-define (athena athena tm-vault) load-vault-dir load-vault-dir-now)
 (lazy-define (athena athena tm-files)
-             buffer-missing-style? buffer-set-default-style command-line-convert
-             native-recent-file-provider-data)
+             buffer-missing-style? buffer-set-default-style command-line-convert)
 (lazy-define (athena athena tm-codex)
              codex-ai-completion codex-ai-completion-new-buffer
              codex-ai-completion-custom)

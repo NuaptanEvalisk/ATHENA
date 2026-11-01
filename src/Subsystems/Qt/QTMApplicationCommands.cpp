@@ -12,6 +12,7 @@
 #include "QTMCommandRegistry.hpp"
 #include "Edit/Interface/application_tools.hpp"
 #include "global_transformation_frontend.hpp"
+#include "recent_files.hpp"
 #include "QTMCommandRegistryInternal.hpp"
 
 #include "QTMAbout.hpp"
@@ -493,14 +494,15 @@ QTMCommandRegistry::registerApplicationCommands () {
     [] (const QTMCommandContext&) {
       QVector<QTMCommandDynamicItem> out;
       try {
-        QVector<QString> data= scheme_string_vector (
-          call ("native-recent-file-provider-data", object (25)));
-        for (int i= 0; i + 2 < data.size (); i += 3) {
-          QString label= data[i + 1].trimmed ();
-          if (label.isEmpty ()) label= QFileInfo (data[i + 2]).fileName ();
-          if (label.isEmpty ()) label= data[i];
+        array<url> recent= recent_file_list (25);
+        for (int i= 0; i < N(recent); ++i) {
+          const QString key= to_qstring (as_string (recent[i]));
+          const QString path= to_qstring (as_string (recent[i], URL_SYSTEM));
+          QString label= to_qstring (as_string (tail (recent[i]), URL_SYSTEM)).trimmed ();
+          if (label.isEmpty ()) label= QFileInfo (path).fileName ();
+          if (label.isEmpty ()) label= key;
           out.append (enabled_dynamic_item (
-            data[i], label, data[i + 2]));
+            key, label, path));
         }
       }
       catch (...) {}

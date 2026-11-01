@@ -847,7 +847,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
       filename_= target;
       cache_dirty_= cache_write_failed_= false;
       owner_.setWindowTitle (QFileInfo (target).fileName ());
-      (void) call ("buffer-notify-recent", object (source_url (target)));
+      buffer_notify_recent (source_url (target));
       saveAll ();
     }
     catch (const std::exception& e) { reportFailure (tr ("Save Compound Document As"), QString::fromUtf8 (e.what ())); }
@@ -1802,7 +1802,7 @@ void compound_document_open (url filename) {
       if (auto* pane= dynamic_cast<QTMCompoundDocument*> (widget))
         if (QFileInfo (pane->filename ()).canonicalFilePath () == QFileInfo (path).canonicalFilePath ()) {
           QTMMainTabWindow::topTabWindow ()->showWidget (pane, true);
-          (void) call ("buffer-notify-recent", object (source_url (path)));
+          buffer_notify_recent (source_url (path));
           return;
         }
     auto context= vault_capture_context ();
@@ -1826,7 +1826,7 @@ void compound_document_open (url filename) {
           if (auto* pane= dynamic_cast<QTMCompoundDocument*> (widget))
             if (QFileInfo (pane->filename ()).canonicalFilePath () == QFileInfo (path).canonicalFilePath ()) {
               QTMMainTabWindow::topTabWindow ()->showWidget (pane, true);
-              (void) call ("buffer-notify-recent", object (source_url (path)));
+              buffer_notify_recent (source_url (path));
               return;
             }
         if (result->error.isEmpty () && !vault_context_is_current (context))
@@ -1844,7 +1844,7 @@ void compound_document_open (url filename) {
         auto* shell= QTMMainTabWindow::topTabWindow ();
         QObject::connect (pane, &QTMWindow::closed, pane, [pane] { pane->requestClose (); });
         shell->showWidget (pane, true);
-        (void) call ("buffer-notify-recent", object (source_url (path)));
+        buffer_notify_recent (source_url (path));
       }, Qt::QueuedConnection);
     });
   }, Qt::QueuedConnection);

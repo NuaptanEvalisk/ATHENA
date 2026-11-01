@@ -9,6 +9,7 @@
 #include "QTMCommandRegistry.hpp"
 #include "QTMCommandRegistryInternal.hpp"
 #include "new_buffer.hpp"
+#include "recent_files.hpp"
 #include "new_view.hpp"
 #include "new_window.hpp"
 #include "vault.hpp"
@@ -191,16 +192,16 @@ QTMCommandRegistry::registerGoMenuCommands () {
 
       QSet<QString> loaded= loaded_buffer_keys ();
       try {
-        QVector<QString> data= scheme_string_vector (
-          call ("native-recent-file-provider-data", object (15)));
-        for (int i=0; i + 2 < data.size (); i += 3) {
-          const QString key= data[i];
+        array<url> recent= recent_file_list (15);
+        for (int i=0; i < N(recent); ++i) {
+          const QString key= url_key (recent[i]);
           if (loaded.contains (key)) continue;
-          QString label= data[i + 1].trimmed ();
+          QString label= to_qstring (as_string (tail (recent[i]), URL_SYSTEM)).trimmed ();
           if (label.isEmpty ()) label= key;
           append_item (
             out, QStringLiteral ("recent/") + key, label,
-            QObject::tr ("Recent Files"), true, false, false, data[i + 2]);
+            QObject::tr ("Recent Files"), true, false, false,
+            to_qstring (as_string (recent[i], URL_SYSTEM)));
         }
       }
       catch (...) {}

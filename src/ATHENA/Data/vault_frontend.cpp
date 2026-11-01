@@ -6,6 +6,7 @@
 #include "ATHENA/Data/vault_frontend.hpp"
 
 #include "ATHENA/Data/new_buffer.hpp"
+#include "ATHENA/Data/recent_files.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "ATHENA/Data/vault_database_layout.hpp"
@@ -71,12 +72,9 @@ array<string>
 recent_file_system_paths () {
   array<string> out;
   try {
-    scheme_tree values= as_scheme_tree (
-      eval ("(map url->system (recent-file-list 15))"));
-    if (!is_tuple (values)) return out;
+    array<url> values= recent_file_list (15);
     for (int i=0; i<N(values); ++i)
-      if (is_atomic (values[i]) && is_quoted (values[i]->label))
-        out << scm_unquote (values[i]->label);
+      out << as_string (values[i], URL_SYSTEM);
   }
   catch (...) {}
   return out;
