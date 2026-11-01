@@ -88,7 +88,6 @@ preference_callback_name (const QString& id) {
     {"link-color", "notify-link-color"},
     {"look-and-feel", "notify-look-and-feel"},
     {"paper-type", "notify-paper-type"},
-    {"preview-command", "notify-preview-command"},
     {"printer-dpi", "notify-printer-dpi"},
     {"printing-command", "notify-printing-command"},
     {"python-syntax", "notify-python-syntax"},

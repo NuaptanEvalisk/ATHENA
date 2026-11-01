@@ -994,8 +994,7 @@
       "key": "preview command",
       "type": "string",
       "scope": "active",
-      "default": "default",
-      "callback": "preview-command"
+      "default": "default"
     },
     {
       "key": "printing command",

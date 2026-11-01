@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="data-art-print-to-file" native="document_print_with_cover" returns="void" exceptions="scheme"><arg type="url" /></binding>
+  <binding name="preview-file" native="document_preview_file" returns="void" exceptions="scheme"><arg type="url" /></binding>
+  <binding name="preview-buffer" native="document_preview" returns="void" exceptions="scheme" />
+  <binding name="prepared-print-to-file" native="document_prepared_print" returns="void" exceptions="scheme"><arg type="url" /></binding>
+  <binding name="prepared-print-pages" native="document_prepared_print_pages" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /></binding>
   <binding name="safely-kill-buffer" native="application_close_buffer" returns="void" />
   <binding name="close-document" native="application_close_buffer" returns="void" />
   <binding name="safely-kill-window" native="application_close_window" returns="void"><arg type="object" rest="true" /></binding>
@@ -25,6 +30,9 @@
   <binding name="notify-security" native="application_notify_security" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /></binding>
   <binding name="notify-latex-command" native="application_notify_latex" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /></binding>
   <binding name="notify-tool" native="application_notify_tool" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /></binding>
+  <binding name="notify-printing-command" native="application_notify_printing_command" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /></binding>
+  <binding name="notify-paper-type" native="application_notify_paper_type" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /></binding>
+  <binding name="notify-printer-dpi" native="application_notify_printer_dpi" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /></binding>
   <binding name="notify-enunciation-rendering" native="application_notify_enunciations" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /></binding>
   <binding name="ext-render-exercises-smaller?" native="application_exercises_smaller" returns="string" />
   <binding name="ext-number-solutions?" native="application_number_solutions" returns="string" />

@@ -35,6 +35,7 @@
 #include "outline_snapshot.hpp"
 #include "native_editor_actions.hpp"
 #include "Edit/Interface/selection_image_export.hpp"
+#include "Edit/Interface/document_print.hpp"
 #include "structured_commands.hpp"
 #include "new_style.hpp"
 #include "Data/interop_document_source.hpp"
@@ -237,7 +238,7 @@ run_native_editor_command (editor_rep* editor,
       document_save_dialog ();
       break;
     case native_editor_command_id::preview:
-      (void) call ("preview-buffer");
+      document_preview ();
       break;
     case native_editor_command_id::print:
       (void) call ("print-buffer");

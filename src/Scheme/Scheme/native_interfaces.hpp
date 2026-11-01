@@ -35,6 +35,7 @@
 #include "ATHENA/Data/application_lifecycle.hpp"
 #include "Edit/Interface/document_style_commands.hpp"
 #include "Edit/Interface/selection_image_export.hpp"
+#include "Edit/Interface/document_print.hpp"
 
 void athena_dispatch_ui (void (*function) ());
 void athena_open_auxiliary_document (string name, tree document, url master);

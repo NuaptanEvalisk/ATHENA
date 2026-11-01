@@ -15,26 +15,6 @@
   (:use (athena athena tm-files)
         (dynamic fold-edit)
         (utils library cursor)))
-(import-from (kernel athena tm-preferences))
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Printing preferences
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define preview-command "default")
-
-(define (notify-preview-command var val)
-  (set! preview-command val))
-
-(define (notify-printing-command var val)
-  (set-printing-command val))
-
-(define (notify-paper-type var val)
-  (set-printer-paper-type (locase-first val)))
-
-(define (notify-printer-dpi var val)
-  (set-printer-dpi val))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -154,63 +134,6 @@
   (:argument  last "Last page")
   (:proposals last  (list (number->string (get-page-count)) "")))
 
-(tm-define (data-art-print-to-file fname)
-  (dynamic-wind
-    (lambda ()
-      (when (data-art-pdf-target? fname)
-        (system-wait "Exporting PDF" "please wait")))
-    (lambda ()
-      (let* ((cur (current-buffer))
-             (payload (data-art-prepare-export cur fname)))
-        (if (not payload)
-            (print-to-file fname)
-            (let ((cover
-                   (system->url (tree->string (tree-ref payload 2)))))
-              (dynamic-wind
-                (lambda () #t)
-                (lambda ()
-                  (let ((error
-                         (data-art-export-snapshot
-                          cur fname
-                          (tree-copy (tree-ref payload 0))
-                          (tree-copy (tree-ref payload 1))
-                          (string->number (tree->string (tree-ref payload 3))))))
-                    (when (!= error "")
-                      (texmacs-error "data-art-print-to-file" error))))
-                (lambda ()
-                  (when (url-exists? cover)
-                    (system-remove cover))))))))
-    (lambda ()
-      (when (data-art-pdf-target? fname)
-        (system-wait "" "")))))
-
-(tm-define (preview-file u)
-  (with s (url-sys-concretize u)
-    (cond ((!= preview-command "default")
-           (shell (string-append preview-command " " s " &")))
-          ((or (os-mingw?) (os-win32?))
-           (shell s))
-          ((os-macos?)
-           (shell (string-append "open " s)))
-          ((url-exists-in-path? "xdg-open")
-           (shell (string-append "xdg-open " s)))
-          ((url-exists-in-path? "ggv")
-           (shell (string-append "ggv " s " &")))
-          ((url-exists-in-path? "ghostview")
-           (shell (string-append "ghostview " s " &")))
-          ((url-exists-in-path? "gv")
-           (shell (string-append "gv " s " &")))
-          (else (set-message
-                 "Error: ghostview does not seem to be installed on your system"
-                 "preview")))))
-
-(tm-define (preview-buffer)
-  (node-reference-with-export (lambda () (preview-buffer-ready))))
-
-(define (preview-buffer-ready)
-  (with file (url-append (url-temp-dir) "preview.pdf")
-    (data-art-print-to-file file)
-    (preview-file file)))
 
 (tm-define (choose-file-and-print-page-selection start end)
   (:argument  start "First page")
@@ -222,15 +145,11 @@
 	       "Print page selection to file" (printer-file-format)
 	       "Print:"))
 
-(tm-define (prepared-print-to-file name)
-  (node-reference-with-export (lambda () (print-to-file name))))
-
-(tm-define (prepared-print-pages first last)
+(tm-property (prepared-print-pages first last)
   (:argument first "First page")
   (:proposals first (list "1" ""))
   (:argument last "Last page")
-  (:proposals last (list (number->string (get-page-count)) ""))
-  (node-reference-with-export (lambda () (print-pages first last))))
+  (:proposals last (list (number->string (get-page-count)) "")))
 
 ;; Finite business adapters for the native application-shell toolbar.  File
 ;; and page-selection UI remains here until those dialogs are migrated, but the
@@ -247,6 +166,3 @@
 
 (tm-define (native-export-pdf-dialog)
   (choose-file wrapped-print-to-file "Save pdf file" "pdf"))
-
-(register-preference-callback-procedures
-  (list notify-paper-type notify-preview-command notify-printer-dpi notify-printing-command))
