@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="insert-wikilink" native="reference_insert_wikilink" returns="void" exceptions="scheme" />
+  <binding name="insert-transclude" native="reference_insert_transclusion" returns="void" exceptions="scheme" />
+  <binding name="vault-go-before-transclusion" native="reference_before_transclusion" returns="void" exceptions="scheme" />
+  <binding name="vault-go-after-transclusion" native="reference_after_transclusion" returns="void" exceptions="scheme" />
+  <binding name="vault-select-transclusion" native="reference_select_transclusion" returns="void" exceptions="scheme" />
   <binding name="interactive-new-vault" native="vault_create_dialog_native" returns="void" exceptions="scheme"><arg type="url" /></binding>
   <binding name="load-vault-dir" native="vault_load_directory_native" returns="void" exceptions="scheme"><arg type="url" /></binding>
   <binding name="load-vault-dir-now" native="vault_load_directory_native" returns="void" exceptions="scheme"><arg type="url" /></binding>

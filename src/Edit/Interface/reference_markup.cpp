@@ -14,8 +14,66 @@
 #include "native_text_edit.hpp"
 #include "tree_traverse.hpp"
 #include "scheme.hpp"
+#include "vault.hpp"
+#include "QTMVaultChooser.hpp"
+#include <QUrl>
 
 namespace {
+path focused_transclusion (editor ed) {
+  path p= ed->focus_get ();
+  if (ed->test_subtree (p) && is_compound (ed->the_subtree (p), "transclude")) return p;
+  for (p= path_up (ed->the_path ()); ed->the_buffer_path () <= p; p= path_up (p)) {
+    if (is_compound (ed->the_subtree (p), "transclude")) return p;
+    if (p == ed->the_buffer_path ()) break;
+  }
+  return path ();
+}
+
+void leave_transclusion (bool forward) {
+  editor ed= get_current_editor ();
+  path p= focused_transclusion (ed);
+  if (is_nil (p)) return;
+  ed->selection_cancel ();
+  while (ed->the_buffer_path () < p) {
+    const int sibling= last_item (p) + (forward ? 1 : -1);
+    p= path_up (p);
+    tree parent= ed->the_subtree (p);
+    if (sibling >= 0 && sibling < N(parent)) {
+      if (forward) ed->go_to_start (p * sibling);
+      else ed->go_to_end (p * sibling);
+      return;
+    }
+  }
+}
+
+void insert_vault_reference (bool transclude) {
+  editor ed= get_current_editor ();
+  if (!vault_active ()) {
+    ed->set_message ("No active vault. Please load a vault first.", "Error");
+    return;
+  }
+  vault_choose_link_native (transclude, [transclude] (tree result) {
+    if (!is_tuple (result) || N(result) != 4) return;
+    editor target= get_current_editor ();
+    if (transclude) {
+      if (!is_tuple (result[3]) || N(result[3]) == 0) {
+        target->set_message ("Selected transclusion has no persistent source identities", "Insert transclusion");
+        return;
+      }
+      target->insert_tree (compound ("transclude", result[3]));
+    }
+    else {
+      string identity= as_string (result[3]);
+      if (identity == "") {
+        target->set_message ("Selected target has no persistent source identity", "Insert wikilink");
+        return;
+      }
+      QByteArray encoded= QUrl::toPercentEncoding (QString::fromUtf8 (identity.data (), N(identity)));
+      target->insert_tree (tree (HLINK, result[2], "tmfs://wikilink/" * string (encoded.constData ())));
+    }
+  });
+}
+
 tree reference_list (const array<tree>& items) {
   if (N(items) == 0) return tree ("");
   if (N(items) == 1) return items[0];
@@ -42,6 +100,16 @@ string reference_type (string name) {
     return name(last+1, N(name));
   return "unknown";
 }
+}
+
+void reference_insert_wikilink () { insert_vault_reference (false); }
+void reference_insert_transclusion () { insert_vault_reference (true); }
+void reference_before_transclusion () { leave_transclusion (false); }
+void reference_after_transclusion () { leave_transclusion (true); }
+void reference_select_transclusion () {
+  editor ed= get_current_editor ();
+  path p= focused_transclusion (ed);
+  if (!is_nil (p)) ed->select (p);
 }
 
 tree reference_typed_markup (tree name, tree wrapper, tree arguments) {

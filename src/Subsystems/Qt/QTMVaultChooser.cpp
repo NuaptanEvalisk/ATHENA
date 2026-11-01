@@ -18,12 +18,15 @@
 #include "object.hpp"
 #include "scheme_execution_context.hpp"
 #include "vault.hpp"
+#include "ATHENA/Data/compound_edit_batch.hpp"
+#include "qt_utilities.hpp"
 #include <QApplication>
 #include <QCoreApplication>
 #include <QMetaObject>
 #include <QThread>
 #include <memory>
 #include <mutex>
+#include <stdexcept>
 #include <unordered_map>
 
 namespace {
@@ -125,4 +128,29 @@ vault_choose_link (bool transcludeMode, object completion) {
   if (!invoked) {
     (void) takeVaultChooserRequest (requestId);
   }
+}
+
+void
+vault_choose_link_native (bool transcludeMode, std::function<void(tree)> completion) {
+  const auto* owner= current_scheme_execution_context ();
+  if (!owner || !owner->editor)
+    throw std::runtime_error ("Vault link insertion requires an owning editor");
+  const auto actor= owner->actor_id;
+  const auto view= owner->view_id;
+  qt_post_to_main_thread ([actor, view, transcludeMode, completion= std::move (completion)] {
+    tree result= runVaultChooser (transcludeMode);
+    if (result == UNINIT) return;
+    struct payload {
+      athena_blob_id id;
+      explicit payload (tree t): id (actor_tree_registry::instance ().store (std::move (t))) {}
+      ~payload () { actor_tree_registry::instance ().discard (id); }
+    };
+    auto value= std::make_shared<payload> (std::move (result));
+    athena::avd::submit_source_task (actor, view,
+      [value, completion] (editor_rep&) {
+        completion (actor_tree_registry::instance ().take (value->id));
+      }, [] (std::string error) {
+        if (!error.empty ()) std_warning << "Vault link insertion: " << string (error.c_str ()) << LF;
+      });
+  });
 }

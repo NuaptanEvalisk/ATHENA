@@ -11,6 +11,7 @@
 #include "native_math_edit.hpp"
 #include "native_text_edit.hpp"
 #include "materials_edit.hpp"
+#include "reference_markup.hpp"
 #include "application_tools.hpp"
 #include "view_zoom.hpp"
 #include "view_controls.hpp"
@@ -393,8 +394,8 @@ valid_focus_action_value (const QJsonObject& action, QString* error) {
 
 void
 execute_business_id (editor ed, const QString& id) {
-  if (id == "insert-wikilink") (void) call ("insert-wikilink");
-  else if (id == "insert-transclusion") (void) call ("insert-transclude");
+  if (id == "insert-wikilink") reference_insert_wikilink ();
+  else if (id == "insert-transclusion") reference_insert_transclusion ();
   else if (id == "insert-material-citation")
     materials_insert_citation ();
   else if (id == "insert-referenced-materials")
@@ -556,11 +557,11 @@ execute_business_id (editor ed, const QString& id) {
   else if (id == "document-flatten-transclusions")
     (void) call ("vault-flatten-document");
   else if (id == "focus-transclusion-before")
-    (void) call ("vault-go-before-transclusion");
+    reference_before_transclusion ();
   else if (id == "focus-transclusion-select")
-    (void) call ("vault-select-transclusion");
+    reference_select_transclusion ();
   else if (id == "focus-transclusion-after")
-    (void) call ("vault-go-after-transclusion");
+    reference_after_transclusion ();
   else if (id == "focus-materials-append")
     materials_append_references ();
   else if (id == "focus-materials-update")

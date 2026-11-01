@@ -14,5 +14,10 @@ object reference_infer_label (tree t);
 bool reference_inactive_at_cursor ();
 void reference_resolve_at_cursor ();
 bool reference_navigate (tree t, bool forwards, bool extremal);
+void reference_insert_wikilink ();
+void reference_insert_transclusion ();
+void reference_before_transclusion ();
+void reference_after_transclusion ();
+void reference_select_transclusion ();
 
 #endif

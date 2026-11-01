@@ -233,62 +233,6 @@
                     "Document History")
       (document-history-show)))
 
-(define (insert-wikilink-complete res)
-  (when (and (tree? res) (== (tree-label res) 'tuple)
-             (== (tree-arity res) 4))
-    (let* ((rel-path (tree->string (tree-ref res 0)))
-           (anchor (tree->string (tree-ref res 1)))
-           (display-text (tree->string (tree-ref res 2)))
-           (source-uuid (tree->string (tree-ref res 3)))
-           (uuid
-             (if (vault-node-model-active?)
-                 source-uuid
-                 (vault-find-uuid rel-path "" anchor))))
-      (if (and (vault-node-model-active?) (string-null? uuid))
-          (set-message
-            "Selected target has no persistent source identity"
-            "Insert wikilink")
-          (begin
-            (when (and (not (vault-node-model-active?))
-                       (string-null? uuid))
-              (set! uuid (vault-generate-uuid))
-              (vault-set-node uuid rel-path "" anchor))
-            (insert `(hlink ,display-text
-                            ,(vault-wikilink-url uuid))))))))
-
-(tm-define (insert-wikilink)
-  (:interactive #t)
-  (if (not (vault-active?))
-      (set-message "No active vault. Please load a vault first." "Error")
-      (vault-choose-link #f insert-wikilink-complete)))
-
-(define (insert-transclude-complete res)
-  (when (and (tree? res) (== (tree-label res) 'tuple)
-             (== (tree-arity res) 4))
-    (let* ((rel-path (tree->string (tree-ref res 0)))
-           (anchor-b (tree->string (tree-ref res 1)))
-           (anchor-e (tree->string (tree-ref res 2)))
-           (source-ids (tree-ref res 3)))
-      (if (vault-node-model-active?)
-          (if (and (tree? source-ids)
-                   (== (tree-label source-ids) 'tuple)
-                   (> (tree-arity source-ids) 0))
-              (insert `(transclude ,(tree->stree source-ids)))
-              (set-message
-                "Selected transclusion has no persistent source identities"
-                "Insert transclusion"))
-          (let ((uuid (vault-find-uuid rel-path anchor-b anchor-e)))
-            (when (string-null? uuid)
-              (set! uuid (vault-generate-uuid))
-              (vault-set-node uuid rel-path anchor-b anchor-e))
-            ;; The legacy reader still requires its four-argument shape.
-            (insert `(transclude ,uuid "" ,anchor-b ,anchor-e)))))))
-
-(tm-define (insert-transclude)
-  (:interactive #t)
-  (if (not (vault-active?))
-      (set-message "No active vault. Please load a vault first." "Error")
-      (vault-choose-link #t insert-transclude-complete)))
 
 (define (vault-transclude-replace-in-buffer! buf uuid anchor-b anchor-e)
   (let ((changed? #f)
@@ -331,33 +275,6 @@
       (vault-choose-link
        #t (lambda (res) (vault-transclude-repair-complete bad-uuid res)))))
 
-(define (vault-focused-transclusion)
-  (let ((focused (focus-tree)))
-    (if (and (tree? focused) (tree-is? focused 'transclude)) focused
-        (tree-innermost 'transclude #t))))
-
-(define (vault-go-outside-tree t forwards?)
-  (and-let* ((parent (tree-up t))
-             (index (tree-index t)))
-    (cond ((and forwards? (< (+ index 1) (tree-arity parent)))
-           (tree-go-to parent (+ index 1) :start))
-          ((and (not forwards?) (> index 0))
-           (tree-go-to parent (- index 1) :end))
-          (else (vault-go-outside-tree parent forwards?)))))
-
-(tm-define (vault-go-before-transclusion)
-  (and-with t (vault-focused-transclusion)
-    (selection-cancel)
-    (vault-go-outside-tree t #f)))
-
-(tm-define (vault-go-after-transclusion)
-  (and-with t (vault-focused-transclusion)
-    (selection-cancel)
-    (vault-go-outside-tree t #t)))
-
-(tm-define (vault-select-transclusion)
-  (and-with t (vault-focused-transclusion)
-    (tree-select t)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Fuzzy Search Logic
