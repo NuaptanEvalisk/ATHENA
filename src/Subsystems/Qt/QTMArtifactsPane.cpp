@@ -17,6 +17,7 @@
 #include "convert.hpp"
 #include "scheme.hpp"
 #include "qt_utilities.hpp"
+#include "Edit/Interface/vault_navigation.hpp"
 
 #include <DockWidget.h>
 #include <QApplication>
@@ -119,16 +120,10 @@ void execute_open (const AthenaArtifactRecord& record) {
   url file;
   path source_path;
   if (resolve_open_target (record, file, source_path)) {
-    array<object> cmd;
-    cmd << symbol_object ("artifact-jump-to-position") << object (file)
-        << list_object (symbol_object ("quote"), object (source_path));
-    exec_delayed (scheme_cmd (as_list_object (cmd)));
+    native_artifact_jump_to_position (file, source_path, null_object ());
     return;
   }
-  array<object> cmd;
-  cmd << symbol_object ("artifact-navigation-failed")
-      << object (tmstr (record.relative_path));
-  exec_delayed (scheme_cmd (as_list_object (cmd)));
+  native_artifact_navigation_failed (tmstr (record.relative_path));
 }
 
 void build_with_dialog (bool current_only) {

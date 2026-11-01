@@ -17,6 +17,7 @@
 #include "scheme.hpp"
 #include "Interface/edit_interface.hpp"
 #include "tree_cursor.hpp"
+#include "Edit/Interface/vault_navigation.hpp"
 #include <QCoreApplication>
 #include <QFileSystemWatcher>
 #include <QPointer>
@@ -211,10 +212,8 @@ public:
     }
     else destination= (target->vault->root / position.file).string ();
     if (destination.empty ()) return;
-    array<object> command;
-    command << symbol_object ("node-reference-jump-to-source")
-            << object (url (destination.c_str ())) << object (string (target->ids.front ().c_str ()));
-    exec_delayed (scheme_cmd (as_list_object (command)));
+    native_node_reference_jump_to_source (url (destination.c_str ()),
+                                         string (target->ids.front ().c_str ()));
   }
   void deliver () {
     std::set<std::uint64_t> alive;

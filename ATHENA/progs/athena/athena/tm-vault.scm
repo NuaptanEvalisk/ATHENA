@@ -10,39 +10,6 @@
 (import-from (kernel athena tm-preferences))
 
 
-(tm-define (vault-jump-to-source path anchor)
-  (let ((label (string-copy anchor)))
-    (load-browse-buffer path
-      (lambda () (if (!= label "") (go-to-label label))))))
-
-(tm-define (node-reference-jump-to-source path identity)
-  (load-browse-buffer path
-    (lambda () (node-reference-position identity))))
-
-
-(tm-define (artifact-jump-to-position path position . opt-history)
-  (load-browse-buffer path
-    (lambda ()
-      (artifact-position-in-buffer position)
-      (when (pair? opt-history) (cursor-history-add (cursor-path))))))
-
-(define (artifact-position-in-buffer position)
-  (and-with target
-      (path->tree (append (tree->path (buffer-tree)) position))
-    (tree-go-to target :start)
-    (cursor-show-if-hidden)
-    ;; Expanding a folded ancestor moves the cursor to that variant's entry.
-    ;; Re-resolve the tree handle, then restore the exact artifact position.
-    (and-with visible-target
-        (path->tree (append (tree->path (buffer-tree)) position))
-      (tree-go-to visible-target :start))))
-
-(tm-define (artifact-navigation-failed path)
-  (set-message
-    (string-append "Artifact definition changed in " path
-                   "; rebuild artifacts for this document")
-    "Artifact"))
-
 (define-secure-symbols wikilink-repair-apply vault-transclude-repair
                        node-reference-jump-to-source
                        vault-jump-to-source artifact-jump-to-position

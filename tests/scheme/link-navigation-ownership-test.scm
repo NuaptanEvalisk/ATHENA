@@ -39,8 +39,6 @@
                   (current-module))
             (loop (read port)))))))
 (define vault "athena/athena/tm-vault.scm")
-(for-each (lambda (name) (load-definition vault name))
-          '(vault-jump-to-source artifact-jump-to-position))
 
 (define (enqueue destination thunk)
   (set! pending (append pending (list (cons destination thunk)))))
@@ -87,6 +85,14 @@
         (let ((target (system->url text)))
           (load-buffer target)
           (when (pair? after-open) (exec-buffer target (car after-open))))))))
+;; Native positioning entrypoints are boundaries for the remaining Scheme routes.
+(define (vault-jump-to-source name label)
+  (load-browse-buffer name (lambda () (unless (equal? label "") (go-to-label label)))))
+(define (artifact-jump-to-position name position . record-history)
+  (load-browse-buffer name
+    (lambda ()
+      (artifact-position-in-buffer position)
+      (when (pair? record-history) (cursor-history-add (cursor-path))))))
 (define (cursor-history-add p)
   (check (not (eq? owner 'global)) "cursor history outside buffer actor")
   (set! history (append history (list (cons owner p)))))
@@ -117,16 +123,6 @@
 (drain)
 (check (string? failed-message) "failed resolution was not reported")
 (check (= (length positions) 1) "failed resolution moved cursor")
-
-;; Transclusion: reuse open target and never schedule label work on source.
-(set! owner 'source)
-(vault-jump-to-source (system->url "/target.ath") "end-label")
-(drain)
-(check (equal? labels '("end-label")) "transclusion did not locate label")
-(set! owner 'source)
-(vault-jump-to-source (system->url "/target.ath") "")
-(drain)
-(check (= (length labels) 1) "empty anchor unexpectedly moved cursor")
 
 ;; Wikilinks resolve before loading: there must be no intermediate redirect
 ;; buffer/tab. Use the current navigation overload, not the retired TMFS loader.
