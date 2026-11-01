@@ -812,8 +812,14 @@ athena_native_tooltip_size (tree doc, tree style) {
 }
 
 void
-athena_native_tooltip_show (tree doc, tree style, int x, int y) {
-  if (!headless_mode) qtm_tooltip_show (doc, style, x, y);
+athena_native_tooltip_show (tree doc, tree style, int x, int y,
+                            string id, array<double> settings, string type) {
+  if (!headless_mode) qtm_tooltip_show (doc, style, x, y, id, settings, type);
+}
+
+bool
+athena_native_tooltip_confirm (string id, array<double> settings, string type) {
+  return !headless_mode && qtm_tooltip_confirm (id, settings, type);
 }
 
 void

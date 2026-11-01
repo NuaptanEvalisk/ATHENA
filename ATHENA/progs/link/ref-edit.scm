@@ -368,29 +368,3 @@
       (and-let* ((id (and (tree-atomic? body*) (tree->string body*)))
                  (tip (and id (ref-preview id))))
         (show-tooltip id ref tip "auto" "auto" "default" 0.6)))))
-
-(tm-define (keyboard-press key time)
-  (with before? (in-inactive-reference?)
-    (former key time)
-    (with after? (in-inactive-reference?)
-      (when (and (or before? after?) (in-preview-ref?))
-        (delayed
-          (:idle 100)
-          (let* ((id1 (and (in-inactive-reference?)
-                           (tm->string (cursor-tree))))
-                 (tip1 (and id1 (ref-preview id1)))
-                 (id2 (and id1 (not tip1)
-                           (number->label (cursor-tree))))
-                 (tip2 (and id2 (ref-preview id2)))
-                 (id (if tip1 id1 id2))
-                 (tip (or tip1 tip2)))
-            (if tip
-                (begin
-                  (show-tooltip id (cursor-tree) tip
-                                "auto" "auto" "keyboard" 0.6)
-                  (when (not tip1)
-                    (set-message `(concat (verbatim ,id1) " <rightarrow> "
-                                          (verbatim ,id2)) "")))
-                (begin
-                  (close-tooltip)
-                  (set-message "" "")))))))))

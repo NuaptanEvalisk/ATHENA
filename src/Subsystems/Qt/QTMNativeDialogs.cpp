@@ -45,6 +45,7 @@
 #include <QScrollArea>
 #include <QSpinBox>
 #include <QThread>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QtMath>
@@ -52,17 +53,35 @@
 #include <cmath>
 #include <functional>
 #include <memory>
+#include <array>
+#include <atomic>
 #include <QSet>
 
 namespace {
 
 int tooltip_window_handle= 0;
+std::atomic<bool> tooltip_visible {false};
+QString tooltip_id, tooltip_type;
+std::array<double, 9> tooltip_settings;
+std::uint64_t tooltip_generation= 0;
+bool tooltip_pending_close= false;
+
+void tooltip_delay_close () {
+  if (tooltip_pending_close) return;
+  tooltip_pending_close= true;
+  const auto generation= ++tooltip_generation;
+  QTimer::singleShot (250, QCoreApplication::instance (), [generation] {
+    if (generation == tooltip_generation) qtm_tooltip_close ();
+  });
+}
 
 struct TooltipRequest {
   tree doc;
   tree style;
   int x= 0;
   int y= 0;
+  QString id, type;
+  std::array<double, 9> settings;
 };
 
 #if !ATHENA_PLATFORM_IPADOS
@@ -996,12 +1015,17 @@ qtm_tooltip_size (tree doc, tree style) {
 }
 
 void
-qtm_tooltip_show (tree doc, tree style, int x, int y) {
+qtm_tooltip_show (tree doc, tree style, int x, int y,
+                  string id, array<double> settings, string type) {
+  ASSERT (N(settings) == 9, "tooltip requires nine placement coordinates");
   auto request= std::make_shared<TooltipRequest> ();
   request->doc= copy (doc);
   request->style= copy (style);
   request->x= x;
   request->y= y;
+  request->id= qs (id);
+  request->type= qs (type);
+  for (int i=0; i<9; ++i) request->settings[i]= settings[i];
   invoke_gui_blocking ([request] () {
     if (tooltip_window_handle != 0) window_delete (tooltip_window_handle);
     widget wid= texmacs_output_widget (request->doc, request->style);
@@ -1009,12 +1033,64 @@ qtm_tooltip_show (tree doc, tree style, int x, int y) {
     window_create_tooltip (tooltip_window_handle, wid, "Tooltip");
     window_set_position (tooltip_window_handle, request->x, request->y);
     window_show (tooltip_window_handle);
+    tooltip_id= request->id;
+    tooltip_type= request->type;
+    tooltip_settings= request->settings;
+    tooltip_pending_close= false;
+    ++tooltip_generation;
+    tooltip_visible.store (true);
   });
+}
+
+bool
+qtm_tooltip_confirm (string id, array<double> settings, string type) {
+  ASSERT (N(settings) == 9, "tooltip requires nine placement coordinates");
+  auto request= std::make_shared<TooltipRequest> ();
+  request->id= qs (id);
+  request->type= qs (type);
+  for (int i=0; i<9; ++i) request->settings[i]= settings[i];
+  bool confirmed= false;
+  invoke_gui_blocking ([request, &confirmed] {
+    if (tooltip_window_handle == 0 || tooltip_id != request->id) return;
+    tooltip_settings= request->settings;
+    tooltip_type= request->type;
+    tooltip_pending_close= false;
+    ++tooltip_generation;
+    confirmed= true;
+  });
+  return confirmed;
+}
+
+void qtm_tooltip_keyboard_event () {
+  if (!tooltip_visible.load ()) return;
+  QMetaObject::invokeMethod (QCoreApplication::instance (), [] {
+    if (tooltip_window_handle != 0 && tooltip_type == "keyboard")
+      tooltip_delay_close ();
+  }, Qt::QueuedConnection);
+}
+
+void qtm_tooltip_mouse_event (string kind, int x, int y) {
+  if (!tooltip_visible.load ()) return;
+  const bool move= kind == "move";
+  QMetaObject::invokeMethod (QCoreApplication::instance (), [move, x, y] {
+    if (tooltip_window_handle == 0 || tooltip_type == "keyboard") return;
+    const auto& s= tooltip_settings;
+    const double xx= std::round ((x-s[6]) / (5.0/s[8]));
+    const double yy= std::round ((y-s[7]) / (5.0/s[8]));
+    const int dx= (int) (std::abs (xx-s[4])/256);
+    const int dy= (int) (std::abs (yy-s[5])/256);
+    const int d= 5*256;
+    if (!move || xx<s[0]-d || xx>s[2]+d || yy<s[1]-d || yy>s[3]+d ||
+        (tooltip_type == "mouse" && (dx>10 || dy>10))) tooltip_delay_close ();
+  }, Qt::QueuedConnection);
 }
 
 void
 qtm_tooltip_close () {
   invoke_gui_blocking ([] () {
+    tooltip_visible.store (false);
+    tooltip_pending_close= false;
+    ++tooltip_generation;
     if (tooltip_window_handle == 0) return;
     window_hide (tooltip_window_handle);
     window_delete (tooltip_window_handle);

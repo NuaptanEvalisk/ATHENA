@@ -16,6 +16,7 @@
 #include "Edit/Interface/generic_keyboard_commands.hpp"
 #include "Edit/Interface/native_keyboard_registry.hpp"
 #include "Edit/Interface/native_keyboard_loader.hpp"
+#include "Edit/Interface/native_input_events.hpp"
 #include "Edit/Interface/generic_editor_commands.hpp"
 #include "Edit/Interface/document_commands.hpp"
 #include "Edit/Interface/document_style_commands.hpp"
@@ -124,7 +125,9 @@ athena_native_shortcut_editor (string arg1, string arg2, array<string> arg3);
 
 void athena_native_print_file_dialog (url file);
 array<SI> athena_native_tooltip_size (tree doc, tree style);
-void athena_native_tooltip_show (tree doc, tree style, int x, int y);
+void athena_native_tooltip_show (tree doc, tree style, int x, int y,
+                                string id, array<double> settings, string type);
+bool athena_native_tooltip_confirm (string id, array<double> settings, string type);
 void athena_native_tooltip_close ();
 
 void athena_cell_properties_pane_show ();

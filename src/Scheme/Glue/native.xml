@@ -56,6 +56,21 @@
   </binding>
   <binding name="native-keyboard-catalog" native="native_keyboard_catalog" returns="object" />
   <binding name="native-keyboard-initialize" native="native_keyboard_initialize" returns="void" />
+  <binding name="keyboard-press" native="native_keyboard_press" returns="void" exceptions="scheme">
+    <arg type="string" /><arg type="double" />
+  </binding>
+  <binding name="mouse-event" native="native_mouse_event" returns="void" exceptions="scheme">
+    <arg type="string" /><arg type="int" /><arg type="int" /><arg type="int" />
+    <arg type="double" /><arg type="array_double" />
+  </binding>
+  <binding name="kbd-insert" native="native_keyboard_insert" returns="void" exceptions="scheme">
+    <arg type="content" />
+  </binding>
+  <binding name="native-remote-control-enabled?" native="native_remote_control_enabled" returns="bool" />
+  <binding name="native-remote-control-toggle" native="native_remote_control_toggle" returns="void" />
+  <binding name="native-remote-control-bind" native="native_remote_control_bind" returns="void">
+    <arg type="string" /><arg type="string" />
+  </binding>
   <binding name="native-keyboard-force" native="native_keyboard_force" returns="void" exceptions="scheme">
     <arg type="bool" />
   </binding>
@@ -1273,6 +1288,14 @@
     <arg type="tree" />
     <arg type="int" />
     <arg type="int" />
+    <arg type="string" />
+    <arg type="array_double" />
+    <arg type="string" />
+  </binding>
+  <binding name="native-tooltip-confirm" native="athena_native_tooltip_confirm" returns="bool">
+    <arg type="string" />
+    <arg type="array_double" />
+    <arg type="string" />
   </binding>
   <binding name="native-tooltip-close" native="athena_native_tooltip_close" returns="void" />
   <binding name="cell-properties-pane-show" native="athena_cell_properties_pane_show" returns="void" dispatch="ui" />

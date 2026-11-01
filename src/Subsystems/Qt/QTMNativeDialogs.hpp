@@ -44,7 +44,11 @@ array<string> qtm_shortcut_editor_dialog (string initial_shortcut,
                                            array<string> entries);
 void qtm_print_file_dialog (url file);
 array<SI> qtm_tooltip_size (tree doc, tree style);
-void qtm_tooltip_show (tree doc, tree style, int x, int y);
+void qtm_tooltip_show (tree doc, tree style, int x, int y,
+                       string id, array<double> settings, string type);
+bool qtm_tooltip_confirm (string id, array<double> settings, string type);
+void qtm_tooltip_keyboard_event ();
+void qtm_tooltip_mouse_event (string kind, int x, int y);
 void qtm_tooltip_close ();
 
 #endif // QTMNATIVEDIALOGS_HPP

@@ -19,6 +19,7 @@
 #include "native_math_keyboard.hpp"
 #include "native_latex_commands.hpp"
 #include "native_keyboard_registry.hpp"
+#include "native_input_events.hpp"
 #include "ATHENA/Data/enunciation_slots.hpp"
 #include <algorithm>
 
@@ -159,7 +160,7 @@ edit_interface_rep::try_shortcut (string comb) {
         verbatim (rhs));
     }
     if ((status & 1) == 1) cmd ();
-    else if (N(shorth) > 0) call ("kbd-insert", shorth);
+    else if (N(shorth) > 0) native_keyboard_insert (tree (shorth));
     //cout << "Mark= " << sh_mark << "\n";
     return true;    
   }
@@ -179,6 +180,7 @@ std_accent (string s) {
 
 void
 edit_interface_rep::cancel_pre_edit () {
+  ++pre_edit_generation;
   if (pre_edit_mark == 0) return;
   ASSERT (sh_mark == 0, "invalid shortcut during pre-edit");
   mark_cancel (pre_edit_mark);
@@ -262,7 +264,7 @@ edit_interface_rep::key_press (string gkey) {
     if ((i >= 1 && i <= 127) || (i == 25))
       if (!inside_active_graphics ()) {
         archive_state ();
-        call ("kbd-insert", rew);
+        native_keyboard_insert (tree (rew));
         (void) complete_try_realtime ();
       }
     interrupt_shortcut ();
@@ -272,7 +274,7 @@ edit_interface_rep::key_press (string gkey) {
            utf8_grapheme_next (rew, 0) == N(rew) &&
            !inside_active_graphics ()) {
     archive_state ();
-    call ("kbd-insert", rew);
+    native_keyboard_insert (tree (rew));
     (void) complete_try_realtime ();
     interrupt_shortcut ();    
   }
@@ -296,7 +298,7 @@ edit_interface_rep::emulate_keyboard (string keys, string action) {
     int i;
     for (i=1; i<N(s); i++)
       if (s[i]==' ') break;
-    call ("keyboard-press", object (s (0, i)), object ((double) 0));
+    native_keyboard_press (s (0, i), 0);
     if (i<N(s)) i++;
     s= s (i, N(s));
   }
@@ -378,9 +380,11 @@ edit_interface_rep::handle_keypress (string key, time_t t) {
     start_editing ();
     started= true;
     if (starts (gkey, "pre-edit:"))
-      call ("delayed-keyboard-press", object (gkey), object ((double) t));
-    else
-      call ("keyboard-press", object (gkey), object ((double) t));
+      delay_pre_edit (gkey, t);
+    else {
+      ++pre_edit_generation;
+      native_keyboard_press (gkey, (double) t);
+    }
     update_focus_loci ();
     if (!is_nil (focus_ids) && got_focus)
       call ("link-follow-ids", object (focus_ids), object ("focus"));
@@ -430,7 +434,7 @@ edit_interface_rep::handle_text_input (string text, time_t t) {
     }
     interrupt_shortcut ();
     archive_state ();
-    call ("kbd-insert", text);
+    native_keyboard_insert (tree (text));
     (void) complete_try_realtime ();
     update_focus_loci ();
     if (!is_nil (focus_ids) && got_focus)
@@ -484,7 +488,6 @@ edit_interface_rep::handle_keyboard_focus (bool has_focus, time_t t) {
     focus_on_this_editor ();
     notify_change (THE_DECORATIONS);
   }
-  call ("keyboard-focus", object (has_focus), object ((double) t));
 }
 
 void

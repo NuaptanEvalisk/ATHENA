@@ -202,35 +202,6 @@
 ;; Search, replace, spell and tab-completion
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (keyboard-press key time)
-  (:mode search-mode?)
-  (with cmd (key-press-command (string-append "search " key))
-    (cond (cmd (cmd))
-          ((key-press-search key) (noop))
-          (else (key-press key)))))
-
-(tm-define (keyboard-press key time)
-  (:mode spell-mode?)
-  (with cmd (key-press-command (string-append "spell " key))
-    (cond (cmd (cmd))
-          ((key-press-spell key) (noop))
-          (else (key-press key)))))
-
-(tm-define (keyboard-press key time)
-  (:mode complete-mode?)
-  (with cmd (key-press-command (string-append "complete " key))
-    (cond (cmd (cmd))
-          ((key-press-complete key) (noop))
-          (else (key-press key)))))
-
-(tm-define (keyboard-press key time)
-  (:mode remote-control-mode?)
-  ;;(display* "Press " key "\n")
-  (if (ahash-ref remote-control-remap key)
-      (begin
-        ;;(display* "Remap " (ahash-ref remote-control-remap key) "\n")
-        (key-press (ahash-ref remote-control-remap key)))
-      (key-press key)))
 
 (tm-property (focus-open-search-tool t)
   (:interactive #t))

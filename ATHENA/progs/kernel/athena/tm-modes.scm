@@ -227,9 +227,6 @@
 ;; Keyboard related
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define-public remote-control-flag? #f)
-(define-public remote-control-remap (make-ahash-table))
-
 (texmacs-modes
   (like-emacs% (has-look-and-feel? "emacs"))
   (like-gnome% (has-look-and-feel? "gnome"))
@@ -247,7 +244,7 @@
   (search-mode% (== (get-input-mode) 1))
   (spell-mode% (== (get-input-mode) 3))
   (complete-mode% (== (get-input-mode) 4))
-  (remote-control-mode% (== remote-control-flag? #t))
+  (remote-control-mode% (native-remote-control-enabled?))
   (in-math-like-macos% #t in-math% like-macos%))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;

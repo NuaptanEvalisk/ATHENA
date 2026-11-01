@@ -67,6 +67,8 @@ protected:
   bool          pre_edit_skip; // temporarily disabled pre-edit mechanism
   string        pre_edit_s;    // pre-edit string
   double        pre_edit_mark; // 0 or mark for undoing pre-edit
+  std::uint64_t pre_edit_generation= 0;
+  std::uint64_t reference_preview_generation= 0;
   bool          popup_open;    // popup lifetime is owned by the Qt proxy
   tree          message_l;     // a left message to display
   tree          message_r;     // a right message to display
@@ -305,6 +307,9 @@ public:
   bool in_spell_mode ();
   bool kbd_get_command (string which, string& help, command& cmd);
   void cancel_pre_edit ();
+  void delay_pre_edit (string key, time_t time);
+  void delay_reference_preview ();
+  void queue_pre_edit (std::string key, time_t time, std::uint64_t generation, int delay);
   void interrupt_shortcut ();
   bool try_shortcut (string comb);
   tree kbd (string s);

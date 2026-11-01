@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "edit_interface.hpp"
+#include "native_input_events.hpp"
 #include "format_geometry.hpp"
 #include "Interface/selection_autoscroll.hpp"
 #include "Interface/table_resize.hpp"
@@ -1210,15 +1211,7 @@ call_drop_event (string kind, SI x, SI y, SI ticket, time_t t, url base) {
   extern hashmap<int, tree> payloads;
   tree doc = payloads [ticket];
   payloads->reset (ticket);
-  array<object> args;
-  args << object ((int) x) << object ((int) y)
-       << object (relativize (doc, base));
-  call ("mouse-drop-event", args);
-  //eval (list_object (symbol_object ("insert"), relativize (doc, base)));
-  //array<object> args;
-  //args << object (kind) << object (x) << object (y)
-  //<< object (doc) << object ((double) t);
-  //call ("mouse-event", args);
+  get_current_editor ()->insert_tree (relativize (doc, base));
 #else
   (void) kind; (void) x; (void) y; (void) ticket; (void) t;
 #endif
@@ -1226,31 +1219,13 @@ call_drop_event (string kind, SI x, SI y, SI ticket, time_t t, url base) {
 
 static void
 call_mouse_event (string kind, SI x, SI y, SI m, time_t t, array<double> d) {
-  array<object> args;
-  args << object (kind) << object ((int) x) << object ((int) y)
-       << object ((int) m) << object ((double) t) << object (d);
-  call ("mouse-event", args);
-}
-
-static string
-as_scm_string (array<double> a) {
-  string s= "(list";
-  for (int i=0; i<N(a); i++)
-    s << " " << as_string (a[i]);
-  s << ")";
-  return s;
+  native_mouse_event (kind, x, y, m, (double) t, d);
 }
 
 static void
 delayed_call_mouse_event (string kind, SI x, SI y, SI m, time_t t,
                           array<double> d) {
-  // NOTE: preserve the historical idle delay for appropriate updating.
-  string cmd=
-    "(delayed (:idle 1) (mouse-event " * scm_quote (kind) * " " *
-    as_string (x) * " " * as_string (y) * " " *
-    as_string (m) * " " * as_string ((long int) t) * " " *
-    as_scm_string (d) * "))";
-  eval (cmd);
+  native_delayed_mouse_event (kind, x, y, m, (double) t, d);
 }
 
 path

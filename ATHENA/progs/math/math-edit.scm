@@ -69,16 +69,6 @@
 	  (else
 	   (insert " ")))))
 
-(tm-define (kbd-insert s)
-  (:require (in-math?))
-  (when (== (before-cursor) " ")
-    (let* ((p (get-preference "math spacebar"))
-	   (type (if (or (tm-atomic? s) (tm-func? s 'named-symbol 1))
-                     (math-symbol-type s) "symbol")))
-      (when (in? type (list "postfix" "infix" "separator" "prefix-infix"
-			    "middle-bracket" "closing-bracket"))
-	(remove-text #f))))
-  (former s))
 
 (tm-define (math-insert t)
   (insert t))

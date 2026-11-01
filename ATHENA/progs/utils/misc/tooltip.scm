@@ -13,78 +13,6 @@
 
 (texmacs-module (utils misc tooltip))
 
-(define tooltip-id #f)
-(define tooltip-win #f)
-(define tooltip-unmap? #f)
-(define tooltip-settings #f)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Map and unmap
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (tooltip-confirm settings)
-  ;;(display* "Confirm " tooltip-win "\n")
-  (set! tooltip-unmap? #f)
-  (set! tooltip-settings settings))
-
-(define (tooltip-unmap)
-  ;;(display* "Unmap " tooltip-win "\n")
-  (native-tooltip-close)
-  (set! tooltip-id #f)
-  (set! tooltip-win #f)
-  (set! tooltip-unmap? #f)
-  (set! tooltip-settings #f))
-
-(define (tooltip-map doc style x y id settings)
-  (set! x (quotient x 256))
-  (set! y (quotient y 256))
-  (if tooltip-win (tooltip-unmap))
-  (native-tooltip-show doc style x y)
-  (set! tooltip-id id)
-  (set! tooltip-win #t)
-  (set! tooltip-unmap? #f)
-  (set! tooltip-settings settings))
-
-(define (tooltip-delayed-unmap)
-  (set! tooltip-unmap? tooltip-win)
-  ;;(display* "Schedule unmap " tooltip-win "\n")
-  (delayed
-    (:pause 250)
-    (when (and tooltip-unmap? (== tooltip-unmap? tooltip-win))
-      (tooltip-unmap))))
-
-(tm-define (keyboard-press key time)
-  (:require (and tooltip-win (not tooltip-unmap?)))
-  (when (== (cAr tooltip-settings) "keyboard")
-    (tooltip-delayed-unmap))
-  (former key time))
-
-(tm-define (mouse-event key x y mods time data)
-  (:require (and tooltip-win (not tooltip-unmap?)))
-  ;;(display* "Mouse event " key ", " x ", " y "; " time "\n")
-  (with (x1 y1 x2 y2 mx my sx sy zf type) tooltip-settings
-    (let* ((xx (inexact->exact (round (/ (- x sx) (/ 5.0 zf)))))
-           (yy (inexact->exact (round (/ (- y sy) (/ 5.0 zf)))))
-           (dx (quotient (abs (- xx mx)) 256))
-           (dy (quotient (abs (- yy my)) 256))
-           (d  (* 5 256)))
-      ;;(display* "  Type        " type "\n")
-      ;;(display* "  Shift       "
-      ;;          (quotient (inexact->exact (round (/ sx (/ 5.0 zf)))) 256) ", "
-      ;;          (quotient (inexact->exact (round (/ sy (/ 5.0 zf)))) 256) "\n")
-      ;;(display* "  Zoom        " zf "\n")
-      ;;(display* "  Decoded as  " (quotient xx 256) ", " (quotient yy 256) "\n")
-      ;;(display* "  Bottom left " (quotient x1 256) ", " (quotient y1 256) "\n")
-      ;;(display* "  Top right   " (quotient x2 256) ", " (quotient y2 256) "\n")
-      ;;(display* "  Delta       " dx ", " dy "\n")
-      (when (or (!= key "move")
-                (< xx (- x1 d)) (> xx (+ x2 d))
-                (< yy (- y1 d)) (> yy (+ y2 d))
-                (and (== type "mouse") (or (> dx 10) (> dy 10))))
-        (when (!= type "keyboard")
-          (tooltip-delayed-unmap)))))
-  (former key x y mods time data))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Positioning of the tooltip
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -180,13 +108,12 @@
                            (- my (get-canvas-y))
                            (get-scroll-x)
                            (get-scroll-y)
-                           (get-window-zoom-factor)
-                           type)))
+                           (get-window-zoom-factor))))
       (when (or (== type "keyboard")
                 (and (>= mx (- x1 d)) (<= mx (+ x2 d))
                      (>= my (- y1 d)) (<= my (+ y2 d))))
-        (if (and tooltip-win id (== id tooltip-id))
-            (tooltip-confirm settings)
+        (if (and id (native-tooltip-confirm (object->string id) settings type))
+            #t
             (and-let* ((wx (get-window-x))
                        (wy (get-window-y))
                        (packs (get-style-list))
@@ -207,13 +134,12 @@
                        (ssz (get-screen-size))
                        (pos (tooltip-position x1 y1 x2 y2 wx wy
                                                bsz ssz mpos ha va type)))
-              (tooltip-map tooltip-doc
+              (native-tooltip-show tooltip-doc
                            tooltip-style
-                           (car pos)
-                           (cadr pos)
-                           id
-                           settings)))))))
+                           (quotient (car pos) 256)
+                           (quotient (cadr pos) 256)
+                           (object->string id)
+                           settings type)))))))
 
 (tm-define (close-tooltip)
-  (when tooltip-win
-    (tooltip-unmap)))
+  (native-tooltip-close))
