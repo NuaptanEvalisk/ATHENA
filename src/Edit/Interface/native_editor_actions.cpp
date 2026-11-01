@@ -16,6 +16,7 @@
 #include "view_zoom.hpp"
 #include "view_controls.hpp"
 #include "native_input_events.hpp"
+#include "vault_navigation.hpp"
 
 #include "ATHENA/Data/program_model.hpp"
 #include "ATHENA/Data/document_node_model.hpp"
@@ -528,8 +529,7 @@ execute_business_id (editor ed, const QString& id) {
   else if (id == "automate-output-inline") (void) call ("make-inline-output");
   else if (id == "automate-output-block") (void) call ("make-block-output");
   else if (id == "popup-resolve-artifact") {
-    if (!ed->selection_active_any ()) return;
-    (void) call ("resolve-selection-as-artifact-name");
+    native_resolve_selection_as_artifact_name ();
   }
   else if (id == "popup-formula-ast") {
     path root= ed->formula_root (ed->the_path ());

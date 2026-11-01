@@ -308,14 +308,6 @@
 (tmfs-permission-handler (artifact name kind)
   (== kind "read"))
 
-(define (artifact-url? u)
-  (when (string? u) (set! u (system->url u)))
-  (url-rooted-tmfs-protocol? u "artifact"))
-
-(define (artifact-url-uuid u)
-  (when (string? u) (set! u (system->url u)))
-  (url->system (url-tail u)))
-
 ;; Vault navigation URLs are commands, not documents. Resolve valid targets
 ;; before the generic TMFS loader so following a link never creates an
 ;; intermediary redirect buffer. Broken wikilinks explicitly open a repair
@@ -379,25 +371,6 @@
             (list-ref decoded 2) "" (list-ref decoded 3)))
         (set-message "Invalid wikilink repair target" "Vault"))))
 
-;; tmfs://artifact/... is a navigation command, not a document.  Dispatch it
-;; before the generic TMFS loader so following an artifact never leaves an
-;; "Opening artifact..." buffer behind.  The C++ locator reuses the current
-;; buffer when it already contains the defining source.
-(tm-define (go-to-url u . opt-from)
-  (:require (artifact-url? u))
-  (when (pair? opt-from) (cursor-history-add (car opt-from)))
-  (let ((uuid (string-copy (artifact-url-uuid u)))
-        (history (if (pair? opt-from) '(#t) '())))
-    (exec-global
-      (lambda ()
-        (let ((target (artifact-resolve-uuid uuid)))
-          (if target
-              (apply artifact-jump-to-position
-                     (append target history))
-              (set-message
-                "Artifact not found or its definition has changed; rebuild artifacts"
-                "Artifact")))))))
-
 (tmfs-load-handler (artifact-disambiguation name)
   (tree->stree (artifact-disambiguation-page name)))
 
@@ -406,16 +379,6 @@
 
 (tmfs-permission-handler (artifact-disambiguation name kind)
   (== kind "read"))
-
-(tm-define (resolve-selection-as-artifact-name)
-  (when (selection-active-any?)
-    (let ((target (artifact-name-query-url (selection-tree))))
-      (if (string-null? target)
-          (set-message "Select an artifact name of at most 8192 bytes" "Artifact")
-          (begin
-            (cursor-history-add (cursor-path))
-            (exec-global
-              (lambda () (load-browse-buffer (system->url target)))))))))
 
 (tmfs-load-handler (artifact-name-query name)
   (tree->stree (artifact-name-query-page name)))

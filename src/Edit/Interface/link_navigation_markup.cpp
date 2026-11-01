@@ -577,6 +577,7 @@ void browse_navigation_target (url target, const std::string& original,
 void native_link_go_to_url (url target, object optional_from) {
   const bool history= !is_null (optional_from);
   if (history) call ("cursor-history-add", car (optional_from));
+  if (native_vault_navigate_url (target, history)) return;
   const string text= as_string (target, URL_SYSTEM);
   const std::string original (text.data (), N(text));
   const string root= is_rooted (target) ? get_root (target) : string ("default");

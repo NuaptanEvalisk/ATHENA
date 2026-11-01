@@ -7,5 +7,7 @@ void native_vault_jump_to_source (url source, string anchor);
 void native_node_reference_jump_to_source (url source, string identity);
 void native_artifact_jump_to_position (url source, path position, object history);
 void native_artifact_navigation_failed (string source);
+bool native_vault_navigate_url (url target, bool history);
+void native_resolve_selection_as_artifact_name ();
 
 #endif

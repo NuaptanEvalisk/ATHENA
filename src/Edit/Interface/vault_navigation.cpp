@@ -7,6 +7,9 @@
 #include "native_interfaces.hpp"
 #include "scheme_execution_context.hpp"
 #include "server.hpp"
+#include "ATHENA/Data/artifact_document.hpp"
+#include "QTMArtifactsPane.hpp"
+#include "qt_utilities.hpp"
 #include <functional>
 #include <string>
 #include <vector>
@@ -66,4 +69,32 @@ void native_artifact_navigation_failed (string source) {
   const auto* owner= current_scheme_execution_context ();
   if (owner && owner->editor) owner->editor->set_message (message, "Artifact");
   else get_server ()->set_message (message, "Artifact");
+}
+
+bool native_vault_navigate_url (url target, bool history) {
+  if (!is_rooted_tmfs (target, "artifact")) return false;
+  const string uuid= as_string (tail (target), URL_SYSTEM);
+  const std::string id (uuid.data (), N(uuid));
+  qt_post_to_main_thread ([id, history] {
+    url source;
+    path position;
+    if (artifacts_resolve_uuid (string (id.c_str ()), source, position))
+      native_artifact_jump_to_position (source, position,
+        history ? list_object (object (true)) : null_object ());
+    else get_server ()->set_message (
+      "Artifact not found or its definition has changed; rebuild artifacts", "Artifact");
+  });
+  return true;
+}
+
+void native_resolve_selection_as_artifact_name () {
+  editor ed= get_current_editor ();
+  if (!ed->selection_active_any ()) return;
+  const string target= athena_artifact_name_query_url (ed->selection_get ());
+  if (target == "") {
+    ed->set_message ("Select an artifact name of at most 8192 bytes", "Artifact");
+    return;
+  }
+  call ("cursor-history-add", object (ed->the_path ()));
+  application_browse_document (url_system (target), null_object ());
 }
