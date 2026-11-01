@@ -252,8 +252,7 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting linking facilities\n")
-(lazy-define (link link-navigate) link-follow-ids
-             heading-word-count-schedule-refresh)
+(lazy-define (link link-navigate) link-follow-ids)
 (define-secure-symbols preview-reference)
 (define-secure-symbols reverse-hierarchy-graph-render global-hierarchy-graph-show
                        websites-manager-show open-websites-manager

@@ -20,6 +20,8 @@ bool text_section_context (tree t);
 bool text_list_context (tree t);
 object text_previous_section ();
 void text_go_to_section_title ();
+bool text_heading_fold_toggle (object t);
+tree text_heading_word_count (object t);
 void text_space_bar ();
 bool text_enter (tree t, bool shift);
 void text_make_list (tree_label tag);

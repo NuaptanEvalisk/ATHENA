@@ -554,6 +554,27 @@ void text_algorithm_toggle_name (tree t) {
   }
 }
 
+bool text_heading_fold_toggle (object value) {
+  if (!is_tree (value)) return false;
+  tree t= as_tree (value);
+  const path ip= obtain_ip (t);
+  if (!ip_attached (ip)) return false;
+  editor ed= get_current_editor ();
+  ed->go_to_start (reverse (ip));
+  return ed->heading_fold_toggle ();
+}
+
+tree text_heading_word_count (object value) {
+  if (get_preference ("heading word counts", "off") != "on" || !is_tree (value)) return "";
+  tree t= as_tree (value);
+  const path ip= obtain_ip (t);
+  if (!ip_attached (ip)) return "";
+  const int count= get_current_editor ()->heading_word_count_at (reverse (ip));
+  if (count <= 0) return "";
+  return tree (WITH, "font-size", "0.8", "color", "grey",
+               tree (RIGID, "  " * as_string (count) * (count == 1 ? " word" : " words")));
+}
+
 void text_algorithm_toggle_specification (tree t) {
   const bool specified= text_algorithm_specified (t);
   const bool named= text_algorithm_named (t);

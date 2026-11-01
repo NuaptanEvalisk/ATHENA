@@ -16,49 +16,6 @@
         (generic generic-edit)))
 (import-from (kernel athena tm-preferences))
 
-(define heading-word-count-refresh-serial 0)
-
-(tm-define (heading-word-count-schedule-refresh)
-  (:synopsis "Refresh heading word counts after editing becomes idle")
-  (:secure #t)
-  (set! heading-word-count-refresh-serial
-        (+ heading-word-count-refresh-serial 1))
-  (let ((serial heading-word-count-refresh-serial))
-    (delayed
-      (:idle 700)
-      (when (and (= serial heading-word-count-refresh-serial)
-                 (get-boolean-preference "heading word counts"))
-        (notify-change 8)))))
-
-(tm-define (heading-fold-toggle-tree t)
-  (:type (-> tree void))
-  (:synopsis "Toggle folding for the heading containing @t")
-  (:secure #t)
-  (if (and (tree? t) (tree->path t))
-      (begin
-        (tree-go-to t :start)
-        (heading-fold-toggle))
-      #f))
-
-(tm-define (heading-word-count-tree t)
-  (:type (-> tree tree))
-  (:synopsis "Render the live word count for the heading containing @t")
-  (:secure #t)
-  (if (and (get-boolean-preference "heading word counts")
-           (tree? t) (tree->path t))
-      (let ((n (heading-word-count-path (tree->path t))))
-        (if (> n 0)
-            `(with "font-size" "0.8" "color" "grey"
-               (rigid ,(string-append
-                         "  " (number->string n)
-                         (if (= n 1) " word" " words"))))
-            ""))
-      ""))
-
-(define-secure-symbols heading-fold-toggle-tree heading-fold-toggle
-  heading-word-count-tree heading-word-count-path
-  heading-word-count-schedule-refresh)
-
 ; FIXME: remove these two and find a better way
 (define (escape-link-args s)
   "Escape only args of the type #some:label"

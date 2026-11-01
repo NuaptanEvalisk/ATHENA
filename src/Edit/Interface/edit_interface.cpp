@@ -1913,6 +1913,11 @@ edit_interface_rep::apply_changes () {
   //cout << "tp= " << tp << "\n";
   //cout << HRULE << "\n";
 
+  if (heading_word_count_refresh_pending && idle_time (INTERRUPTED_EVENT) >= 700) {
+    heading_word_count_refresh_pending= false;
+    if (get_preference ("heading word counts", "off") == "on")
+      notify_change (THE_ENVIRONMENT);
+  }
   refresh_enunciation_slots ();
   update_visible ();
   rectangle new_visible= rectangle (vx1, vy1, vx2, vy2);  

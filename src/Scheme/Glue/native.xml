@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="heading-fold-toggle-tree" native="text_heading_fold_toggle" returns="bool" exceptions="scheme"><arg type="object" /></binding>
+  <binding name="heading-word-count-tree" native="text_heading_word_count" returns="tree" exceptions="scheme"><arg type="object" /></binding>
   <binding name="navigation-list-simplify" native="native_navigation_simplify" returns="object" exceptions="scheme"><arg type="object" /></binding>
   <binding name="link-list-&gt;navigation-list" native="native_link_list_to_navigation" returns="object" exceptions="scheme"><arg type="object" /></binding>
   <binding name="upward-navigation-list" native="native_upward_navigation" returns="object" exceptions="scheme"><arg type="object" /></binding>

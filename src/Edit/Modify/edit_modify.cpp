@@ -151,7 +151,7 @@ edit_modify_rep::post_notify (path p) {
   cur_pos= nil_observer;
   go_to_correct (tp);
   if (get_preference ("heading word counts", "off") == "on")
-    exec_delayed (scheme_cmd ("(heading-word-count-schedule-refresh)"));
+    heading_word_count_refresh_pending= true;
   /*
   cout << "et= " << et << "\n";
   cout << "tp= " << tp << "\n\n";
