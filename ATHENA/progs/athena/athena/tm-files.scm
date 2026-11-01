@@ -12,8 +12,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (athena athena tm-files)
-  (:use (athena athena tm-print)
-        (kernel athena tm-document)
+  (:use (kernel athena tm-document)
         (kernel athena tm-dialogue)
         (utils library cursor)))
 (import-from (kernel athena tm-preferences))

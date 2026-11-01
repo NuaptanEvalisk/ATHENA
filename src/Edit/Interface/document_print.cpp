@@ -3,6 +3,10 @@
 #include "editor.hpp"
 #include "new_buffer.hpp"
 #include "new_view.hpp"
+#include "new_window.hpp"
+#include "tm_window.hpp"
+#include "tm_buffer.hpp"
+#include "buffer_state.hpp"
 #include "file.hpp"
 #include "buffer_actor.hpp"
 #include "guile_tm.hpp"
@@ -119,10 +123,11 @@ struct print_dialog_request {
 };
 
 void submit_print (const print_dialog_request& request, QString filename,
-                   int first, int last) {
+                   int first, int last, bool export_pdf) {
   auto target= filename.toUtf8 ().toStdString ();
   athena::avd::submit_source_task (request.actor, request.view,
-    [target= std::move (target), first, last] (editor_rep&) {
+    [target= std::move (target), first, last, export_pdf] (editor_rep&) {
+      if (export_pdf) { document_export_pdf (url_system (text (target))); return; }
       athena_node_reference_with_native_export (
         [target, first, last] (editor_rep& editor) {
           if (target.empty ()) editor.print_buffer (as_string (first), as_string (last));
@@ -132,9 +137,10 @@ void submit_print (const print_dialog_request& request, QString filename,
     }, report_error);
 }
 
-void choose_print_file (print_dialog_request request, int first, int last) {
+void choose_print_file (print_dialog_request request, int first, int last,
+                       bool export_pdf= false) {
   auto* dialog= new QFileDialog (QApplication::activeWindow (),
-    QObject::tr ("Print to PDF"));
+    export_pdf ? QObject::tr ("Export PDF") : QObject::tr ("Print to PDF"));
   dialog->setAttribute (Qt::WA_DeleteOnClose);
   dialog->setAcceptMode (QFileDialog::AcceptSave);
   dialog->setNameFilter (QObject::tr ("PDF documents (*.pdf)"));
@@ -142,21 +148,21 @@ void choose_print_file (print_dialog_request request, int first, int last) {
   QString name= QString::fromUtf8 (request.name.data (), request.name.size ());
   dialog->selectFile (QFileInfo (name).completeBaseName () + ".pdf");
   QObject::connect (dialog, &QFileDialog::fileSelected, dialog,
-    [request, first, last] (const QString& filename) {
-      submit_print (request, filename, first, last);
+    [request, first, last, export_pdf] (const QString& filename) {
+      submit_print (request, filename, first, last, export_pdf);
     });
   dialog->open ();
 }
 
-void print_dialog (bool select_pages, bool to_file) {
+void print_dialog (bool select_pages, bool to_file, bool export_pdf= false) {
   const auto* owner= current_scheme_execution_context ();
   if (!owner || !owner->actor || !owner->editor)
     throw std::runtime_error ("Printing requires an owning editor");
   print_dialog_request request {owner->actor_id, owner->view_id,
     std::max (1, owner->editor->get_page_count ()),
     bytes (as_string (tail (owner->actor->current_buffer_url ())))};
-  qt_post_to_main_thread ([request, select_pages, to_file] {
-    if (!select_pages) { choose_print_file (request, 1, 1000000); return; }
+  qt_post_to_main_thread ([request, select_pages, to_file, export_pdf] {
+    if (!select_pages) { choose_print_file (request, 1, 1000000, export_pdf); return; }
     auto* dialog= new QDialog (QApplication::activeWindow ());
     dialog->setAttribute (Qt::WA_DeleteOnClose);
     dialog->setWindowTitle (QObject::tr ("Print page selection"));
@@ -176,7 +182,7 @@ void print_dialog (bool select_pages, bool to_file) {
     QObject::connect (buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
     QObject::connect (dialog, &QDialog::accepted, dialog, [request, to_file, first, last] {
       if (to_file) choose_print_file (request, first->value (), last->value ());
-      else submit_print (request, QString (), first->value (), last->value ());
+      else submit_print (request, QString (), first->value (), last->value (), false);
     });
     dialog->open ();
   });
@@ -186,6 +192,77 @@ void print_dialog (bool select_pages, bool to_file) {
 void document_print_file_dialog () { print_dialog (false, true); }
 void document_print_pages_dialog () { print_dialog (true, false); }
 void document_print_pages_file_dialog () { print_dialog (true, true); }
+void document_export_pdf_dialog () { print_dialog (false, true, true); }
+
+namespace {
+void export_pdf_ready (url target, bool attach_source) {
+  document_print_with_cover (target);
+  if (attach_source && !document_attach_source (target))
+    throw std::runtime_error ("Could not attach native document source to PDF");
+}
+
+struct export_tree_payload {
+  athena_blob_id id;
+  explicit export_tree_payload (tree document):
+    id (actor_tree_registry::instance ().store (std::move (document))) {}
+  ~export_tree_payload () { actor_tree_registry::instance ().discard (id); }
+};
+
+void export_pdf (url target, bool attach_source) {
+  if (suffix (target) != "pdf")
+    throw std::runtime_error ("PDF export requires a .pdf destination");
+  auto destination= bytes (as_string (target));
+  athena_node_reference_with_native_export (
+    [destination, attach_source] (editor_rep&) {
+      const auto* owner= current_scheme_execution_context ();
+      tree body= get_buffer_body (owner->actor->current_buffer_url ());
+      if (!is_document (body) || N(body) == 0 ||
+          !is_compound (body[N(body)-1], "screens")) {
+        export_pdf_ready (url (text (destination)), attach_source);
+        return;
+      }
+      auto payload= std::make_shared<export_tree_payload> (
+        copy (owner->actor->current_source (owner->view_id)));
+      auto source= bytes (as_string (owner->actor->current_buffer_url ()));
+      auto version= owner->actor->current_state ()->storage_version;
+      auto references= athena::node_reference::current_export_references ();
+      qt_post_to_main_thread ([payload, source, destination, version, references, attach_source] {
+        url transient= url_none ();
+        try {
+          transient= make_new_buffer ();
+          url view= get_new_view (transient);
+          if (!replace_buffer_tree (transient,
+                actor_tree_registry::instance ().take (payload->id), version))
+            throw std::runtime_error ("Slide export snapshot replacement rejected");
+          set_master_buffer (transient, url (text (source)));
+          auto name= bytes (as_string (transient));
+          athena::avd::submit_source_task (
+            concrete_buffer (transient)->actor->id (), concrete_view (view)->runtime_id,
+            [destination, references, attach_source] (editor_rep&) {
+              athena::node_reference::export_reference_scope frozen (references);
+              // Presentation transformations remain owned by dynamic/fold-edit.
+              call ("dynamic-make-slides");
+              export_pdf_ready (url (text (destination)), attach_source);
+            },
+            [name] (std::string error) {
+              qt_post_to_main_thread ([name, error= std::move (error)] {
+                kill_buffer (url (text (name)));
+                system_wait ("", "");
+                report_error (error);
+              });
+            });
+        }
+        catch (const std::exception& error) {
+          if (!is_none (transient)) kill_buffer (transient);
+          report_error (error.what ());
+        }
+      });
+    }, report_error);
+}
+}
+
+void document_export_pdf (url target) { export_pdf (target, false); }
+void document_export_pdf_with_source (url target) { export_pdf (target, true); }
 
 void document_print_direct () {
   athena_node_reference_with_native_export ([] (editor_rep& editor) {

@@ -283,7 +283,7 @@ run_native_editor_command (editor_rep* editor,
       document_print_pages_file_dialog ();
       break;
     case native_editor_command_id::export_pdf:
-      (void) call ("native-export-pdf-dialog");
+      document_export_pdf_dialog ();
       break;
     case native_editor_command_id::export_selection_image:
       native_export_selection_as_image_dialog (argument);

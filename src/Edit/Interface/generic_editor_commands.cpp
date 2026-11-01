@@ -1178,7 +1178,7 @@ generic_prepared_tree_context (tree t) {
   const path source= reverse (ip);
   if (!(ed->the_buffer_path () <= source) || !ed->test_subtree (source) ||
       !strong_equal (ed->the_subtree (source), t)) return {};
-  return ed->cursor_context_at (source * 0);
+  return ed->prepare_source_position (source * 0);
 }
 
 bool generic_tree_with_like (tree t) {

@@ -190,7 +190,6 @@ protected:
     tree source, path position, const evaluation_environment_checkpoint& context) = 0;
   virtual athena::document_node::source_contract_preparation
     prepare_source_identity_contracts () = 0;
-  std::shared_ptr<const evaluation_environment_checkpoint> prepare_source_position (path position);
   std::shared_ptr<const evaluation_environment_checkpoint> prepare_tree_entry (tree source);
   athena::contracts::source_environment_preparation correction_environments (
     tree source, std::shared_ptr<const evaluation_environment_checkpoint> entry);
@@ -466,6 +465,7 @@ public:
   virtual std::shared_ptr<const evaluation_environment_checkpoint> cursor_context_at (
     path source, athena::contracts::evaluation_boundary_handle selected) = 0;
   std::shared_ptr<const evaluation_environment_checkpoint> cursor_context_at (path source);
+  std::shared_ptr<const evaluation_environment_checkpoint> prepare_source_position (path position);
   virtual std::shared_ptr<const evaluation_environment_checkpoint> occurrence_context_at (
     path source, path anchor, athena::contracts::evaluation_boundary_handle selected) = 0;
   std::shared_ptr<const evaluation_environment_checkpoint> display_context_at (path source, path display);

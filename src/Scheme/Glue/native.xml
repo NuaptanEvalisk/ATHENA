@@ -1,5 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="wrapped-print-to-file" native="document_export_pdf" returns="void" exceptions="scheme"><arg type="url" /></binding>
+  <binding name="wrapped-print-to-pdf-embeded-with-tm" native="document_export_pdf_with_source" returns="void" exceptions="scheme"><arg type="url" /></binding>
+  <binding name="native-export-pdf-dialog" native="document_export_pdf_dialog" returns="void" exceptions="scheme" />
   <binding name="wrapped-import-pdf-embeded-with-tm" native="document_import_pdf_source" returns="void" exceptions="scheme"><arg type="url" /></binding>
   <binding name="attach-doc-to-exported-pdf" native="document_attach_source" returns="bool" exceptions="scheme"><arg type="url" /></binding>
   <binding name="print-buffer" native="document_print" returns="void" exceptions="scheme" />

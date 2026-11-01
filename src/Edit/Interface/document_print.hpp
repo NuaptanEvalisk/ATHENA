@@ -14,3 +14,6 @@ void document_print_direct ();
 void document_print_interactive ();
 bool document_attach_source (url target);
 void document_import_pdf_source (url source);
+void document_export_pdf (url target);
+void document_export_pdf_with_source (url target);
+void document_export_pdf_dialog ();

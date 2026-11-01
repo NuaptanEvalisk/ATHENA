@@ -104,9 +104,6 @@
 
 (import-from (source source-edit))
 (import-from (athena athena tm-files))
-(import-from (athena athena tm-print))
-(lazy-define (athena athena tm-print)
-             wrapped-print-to-pdf-embeded-with-tm)
 (import-from (athena athena tm-vault))
 (import-from (doc help-funcs))
 (generic-keyboard-load)
