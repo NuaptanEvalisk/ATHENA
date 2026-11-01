@@ -68,18 +68,6 @@
 ;; Miscellaneous subroutines
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (buffer-missing-style?)
-  (with t (tree->stree (get-style-tree))
-    (and (pair? t) (== (car t) 'tuple) (null? (cdr t)))))
-
-(tm-define (buffer-set-default-style)
-  (init-style "generic")
-  (with psz (get-printer-paper-type)
-    (if (!= psz "a4") (init-page-type psz)))
-  (with type (get-preference "page medium")
-    (if (!= type "papyrus") (init-env "page-medium" type)))
-  (buffer-pretend-saved (current-buffer)))
-
 (tm-define (propose-name-buffer)
   (with name (url->unix (current-buffer))
     (cond ((not (url-scratch? name)) name)

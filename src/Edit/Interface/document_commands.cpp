@@ -19,9 +19,35 @@
 #include "format_commands.hpp"
 #include "QTMFontSelector.hpp"
 #include "boot.hpp"
+#include "vault.hpp"
+#include "new_buffer.hpp"
+#include "server.hpp"
 
 #include <cmath>
 #include <initializer_list>
+
+bool document_missing_style () {
+  return is_func (get_current_editor ()->get_style (), TUPLE, 0);
+}
+
+void document_set_default_style () {
+  editor ed= get_current_editor ();
+  ed->init_style ("generic");
+  string paper= get_server ()->get_printer_page_type ();
+  if (paper != "a4") document_init_page_type (paper);
+  string medium= get_preference ("page medium");
+  if (medium != "papyrus") ed->init_env ("page-medium", tree (medium));
+  pretend_buffer_saved (get_current_buffer ());
+}
+
+void document_apply_vault_font () {
+  if (!vault_active ()) return;
+  string font= get_preference ("vault preferred font", "");
+  if (font == "") return;
+  // The vault profile owns its math override as well as its main family.
+  init_default_current_view ("math-font");
+  document_init_font (font, as_list_object (array<object> ()));
+}
 
 namespace {
 void select_font (bool local, string prefix) {

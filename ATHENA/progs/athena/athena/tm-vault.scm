@@ -44,10 +44,6 @@
                    "; rebuild artifacts for this document")
     "Artifact"))
 
-(tm-define (ext-get-preference key def)
-  (let ((val (get-preference key)))
-    (if (string-null? val) def val)))
-
 (define-secure-symbols wikilink-repair-apply vault-transclude-repair
                        node-reference-jump-to-source
                        vault-jump-to-source artifact-jump-to-position
@@ -68,7 +64,6 @@
                        namespace-new-file-within-wizard
                        namespace-info-page
                        open-quick-switcher
-                       ext-get-preference
                        new-document)
 
 (define (vault-url-component-unreserved? c)
@@ -169,38 +164,6 @@
 (define (get-fuzzy-limit)
   (let ((pref (get-preference "vault fuzzy search limit")))
     (or (string->number pref) 3)))
-
-(tm-define (vault-apply-preferred-font-to-current-buffer)
-  (when (and (defined? 'vault-active?)
-             (defined? 'init-font)
-             (vault-active?))
-    (let ((font (get-preference "vault preferred font")))
-      (when (!= font "")
-        ;; A Vault font profile owns its mathematics override as part of the
-        ;; profile (or derives it from the main family).  Do not let a stale
-        ;; document-level math-font association override that profile.
-        (init-default "math-font")
-        (init-font font)))))
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Vault management
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-
-(tm-define (open-vault-explorer)
-  (:interactive #t)
-  (if (not (vault-active?))
-      (show-message "No active vault. Please load a vault first." "Vault Explorer")
-      (vault-show-explorer-and-track)))
-
-(tm-define (open-document-history)
-  (:interactive #t)
-  (if (not (vault-active?))
-      (show-message "No active vault. Please load a vault first."
-                    "Document History")
-      (document-history-show)))
-
 
 (define (vault-transclude-replace-in-buffer! buf uuid anchor-b anchor-e)
   (let ((changed? #f)

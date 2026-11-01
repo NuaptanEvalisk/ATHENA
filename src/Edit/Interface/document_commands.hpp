@@ -16,6 +16,9 @@
 
 class editor_rep;
 
+bool document_missing_style ();
+void document_set_default_style ();
+void document_apply_vault_font ();
 bool document_test_default (object variables);
 bool document_in_source_mode ();
 void document_toggle_source_mode ();

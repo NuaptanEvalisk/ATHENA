@@ -15,5 +15,4 @@
   (when (and buf (not (buffer-has-name? buf)))
     (when (buffer-missing-style?)
       (buffer-set-default-style))
-    (when (defined? 'vault-apply-preferred-font-to-current-buffer)
-      (vault-apply-preferred-font-to-current-buffer))))
+    (vault-apply-preferred-font-to-current-buffer)))
