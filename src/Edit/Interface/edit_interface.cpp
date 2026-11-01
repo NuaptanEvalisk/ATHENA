@@ -1083,11 +1083,11 @@ editor_rep::focus_toolbar_state_snapshot () {
   set (ACTOR_FOCUS_TOOLBAR_ALGORITHM_CONTEXT, text_node_in_group (t, "algorithm-tag"));
   set (ACTOR_FOCUS_TOOLBAR_MARGINAL_NOTE_CONTEXT,
        query ("marginal-note-context?"));
-  set (ACTOR_FOCUS_TOOLBAR_RICH_FLOAT_CONTEXT, query ("rich-float-context?"));
+  set (ACTOR_FOCUS_TOOLBAR_RICH_FLOAT_CONTEXT, text_rich_float_context (t));
   set (ACTOR_FOCUS_TOOLBAR_PHANTOM_FLOAT_CONTEXT,
-       query ("phantom-float-context?"));
-  set (ACTOR_FOCUS_TOOLBAR_FLOATABLE_CONTEXT, query ("floatable-context?"));
-  set (ACTOR_FOCUS_TOOLBAR_FOOTNOTE_CONTEXT, query ("footnote-context?"));
+       is_compound (t, "phantom-float"));
+  set (ACTOR_FOCUS_TOOLBAR_FLOATABLE_CONTEXT, text_floatable_context (t));
+  set (ACTOR_FOCUS_TOOLBAR_FOOTNOTE_CONTEXT, text_footnote_context (t));
   set (ACTOR_FOCUS_TOOLBAR_BALLOON_CONTEXT, query ("balloon-context?"));
   set (ACTOR_FOCUS_TOOLBAR_DETACHED_NOTE_CONTEXT,
        text_node_in_group (t, "detached-note-tag"));
@@ -1316,7 +1316,7 @@ editor_rep::focus_toolbar_state_snapshot () {
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_DETACHED_NOTE_CONTEXT))
     snapshot.detached_note_custom= text_node_in_group (t, "custom-note-tag");
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_TITLED_CONTEXT)) {
-    snapshot.figure_context= query ("figure-context?");
+    snapshot.figure_context= text_node_in_group (t, "figure-tag");
     snapshot.titled_named= text_node_in_group (t, "render-titled-tag");
   }
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_FRAME_CONTEXT))
@@ -1399,8 +1399,7 @@ editor_rep::focus_toolbar_state_snapshot () {
       snapshot.has (ACTOR_FOCUS_TOOLBAR_FOOTNOTE_CONTEXT)) {
     snapshot.float_context_available=
       inside ("float") || inside ("wide-float");
-    try { snapshot.float_wide= as_bool (call ("float-wide?", object (t))); }
-    catch (...) {}
+    snapshot.float_wide= text_float_wide (t);
     path cursorParent= path_up (the_path ());
     tree root= the_root ();
     if (has_subtree (root, cursorParent)) {
@@ -1413,10 +1412,7 @@ editor_rep::focus_toolbar_state_snapshot () {
     }
   }
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_FLOATABLE_CONTEXT)) {
-    try {
-      snapshot.floatable_wide= as_bool (call ("floatable-wide?", object (t)));
-    }
-    catch (...) {}
+    snapshot.floatable_wide= text_floatable_wide (t);
   }
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_MARGINAL_NOTE_CONTEXT)) {
     static const char* hpos[]= {

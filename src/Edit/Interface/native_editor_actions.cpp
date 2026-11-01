@@ -1332,25 +1332,25 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
              state.multicol_style &&
              (state.has (ACTOR_FOCUS_TOOLBAR_RICH_FLOAT_CONTEXT) ||
               state.has (ACTOR_FOCUS_TOOLBAR_FOOTNOTE_CONTEXT)))
-      (void) call ("float-toggle-wide", object (target));
+      text_float_toggle_wide (target);
     else if (id == "floatable-toggle-wide" &&
              state.multicol_style &&
              state.has (ACTOR_FOCUS_TOOLBAR_FLOATABLE_CONTEXT))
-      (void) call ("floatable-toggle-wide", object (target));
+      text_floatable_toggle_wide (target);
     else if (id == "turn-floating" &&
              state.has (ACTOR_FOCUS_TOOLBAR_FLOATABLE_CONTEXT))
-      (void) call ("turn-floating", object (target));
+      text_turn_floating (target);
     else if (id == "turn-non-floating" &&
              state.float_context_available) {
       path p= ed->search_upwards ("float");
       if (is_nil (p)) p= ed->search_upwards ("wide-float");
       if (!is_nil (p) && ed->test_subtree (p))
-        (void) call ("turn-non-floating", object (ed->the_subtree (p)));
+        text_turn_non_floating (ed->the_subtree (p));
     }
     else if (id == "cursor-toggle-anchor" &&
              (state.has (ACTOR_FOCUS_TOOLBAR_RICH_FLOAT_CONTEXT) ||
               state.has (ACTOR_FOCUS_TOOLBAR_FOOTNOTE_CONTEXT)))
-      (void) call ("cursor-toggle-anchor");
+      text_toggle_anchor ();
     else if (id == "set-marginal-note-hpos" &&
              state.has (ACTOR_FOCUS_TOOLBAR_MARGINAL_NOTE_CONTEXT))
       generic_set_marginal_note_hpos (

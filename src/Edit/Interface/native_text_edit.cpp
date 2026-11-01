@@ -5,6 +5,122 @@
 #include "editor.hpp"
 #include "Data/NodeContracts/node_groups.hpp"
 
+namespace {
+bool parent_tree (tree t, tree& parent) {
+  const path ip= obtain_ip (t);
+  if (!ip_attached (ip) || is_nil (ip)) return false;
+  tree root= get_current_editor ()->the_root ();
+  parent= subtree (root, reverse (ip->next));
+  return true;
+}
+bool floatable_tag (tree t) {
+  const string tag= as_string (L(t));
+  return tag == "big-figure" || tag == "big-figure*" ||
+    tag == "big-table" || tag == "big-table*" ||
+    tag == "algorithm" || tag == "algorithm*";
+}
+bool wide_wrapper (tree t) {
+  return is_func (t, WITH, 3) && t[0] == "par-columns" && t[1] == "1";
+}
+bool float_ancestor (tree t, tree& result) {
+  do {
+    if (text_float_context (t) || text_footnote_context (t)) {
+      result= t;
+      return true;
+    }
+  } while (parent_tree (t, t));
+  return false;
+}
+path floatable_path (tree t) {
+  if (is_func (t, DOCUMENT, 1) || is_func (t, WITH, 3) || floatable_tag (t))
+    return path (N(t)-1, floatable_path (t[N(t)-1]));
+  return path ();
+}
+}
+
+bool text_float_context (tree t) {
+  return is_compound (t, "float") || is_compound (t, "wide-float");
+}
+bool text_footnote_context (tree t) {
+  return is_compound (t, "footnote") || is_compound (t, "wide-footnote");
+}
+bool text_rich_float_context (tree t) {
+  do {
+    if (text_float_context (t)) return true;
+    if (!floatable_tag (t) && !is_func (t, DOCUMENT) && !is_func (t, CONCAT)) return false;
+  } while (parent_tree (t, t));
+  return false;
+}
+bool text_floatable_context (tree t) {
+  if (!floatable_tag (t) || text_rich_float_context (t)) return false;
+  tree parent;
+  if (!parent_tree (t, parent)) return false;
+  return is_func (parent, DOCUMENT) ||
+    (is_func (parent, WITH) && parent_tree (parent, parent) && is_func (parent, DOCUMENT));
+}
+bool text_float_wide (tree t) {
+  tree f;
+  return float_ancestor (t, f) &&
+    (is_compound (f, "wide-float") || is_compound (f, "wide-footnote"));
+}
+bool text_floatable_wide (tree t) {
+  tree parent;
+  return parent_tree (t, parent) && wide_wrapper (parent);
+}
+void text_float_toggle_wide (tree t) {
+  tree f;
+  if (!float_ancestor (t, f)) return;
+  const string tag= as_string (L(f));
+  tree_assign_node (f, as_tree_label (starts (tag, "wide-") ? tag (5, N(tag)) : "wide-" * tag));
+}
+void text_floatable_toggle_wide (tree t) {
+  tree parent;
+  if (!parent_tree (t, parent)) return;
+  if (wide_wrapper (parent)) tree_remove_node (parent, 2);
+  else tree_insert_node (t, 2, tree (WITH, "par-columns", "1"));
+}
+void text_turn_floating (tree t) {
+  if (!text_floatable_context (t)) return;
+  tree parent;
+  if (parent_tree (t, parent) && is_func (parent, WITH)) t= parent;
+  const bool wide= wide_wrapper (t);
+  t= tree_assign (t, tree (as_tree_label (wide ? "wide-float" : "float"),
+                           "float", "thb", copy (wide ? t[2] : t)));
+  editor ed= get_current_editor ();
+  ed->go_to_start (reverse (obtain_ip (t)));
+  ed->remove_text (false);
+  ed->go_to_end (reverse (obtain_ip (t)));
+}
+void text_turn_non_floating (tree t) {
+  if (!text_float_context (t)) return;
+  tree body= copy (t[N(t)-1]);
+  if (is_compound (t, "wide-float")) body= tree (WITH, "par-columns", "1", body);
+  if (!is_func (body, DOCUMENT)) body= tree (DOCUMENT, body);
+  editor ed= get_current_editor ();
+  ed->cut (reverse (obtain_ip (t)));
+  ed->insert_return ();
+  ed->insert_tree (body, ed->command_tree_end (body, floatable_path (body)));
+}
+void text_toggle_anchor () {
+  editor ed= get_current_editor ();
+  const path p= path_up (ed->the_path ());
+  tree t= ed->the_subtree (p);
+  if (text_float_context (t)) ed->go_to_start (p * 2);
+  else if (text_footnote_context (t)) ed->go_to_start (p * 0);
+  else {
+    path footnote;
+    do {
+      if (text_float_context (t)) {
+        ed->go_to_end (reverse (obtain_ip (t)));
+        return;
+      }
+      if (is_nil (footnote) && text_footnote_context (t))
+        footnote= reverse (obtain_ip (t));
+    } while (parent_tree (t, t));
+    if (!is_nil (footnote)) ed->go_to_end (footnote);
+  }
+}
+
 bool text_node_in_group (tree t, const char* group, bool numbered_variants) {
   string tag= as_string (L(t));
   if (numbered_variants && ends (tag, "*")) tag= tag (0, N(tag)-1);

@@ -606,7 +606,8 @@ generic_notify_disactivated (tree) {
 
 object
 generic_focus_label (tree t) {
-  if (text_node_in_group (t, "algorithm-tag")) {
+  if (text_node_in_group (t, "algorithm-tag") || text_footnote_context (t) ||
+      text_node_in_group (t, "figure-tag")) {
     array<object> children;
     for (int i=0; i<N(t); ++i) children << object (t[i]);
     return focus_list_search_label_impl (as_list_object (children));
