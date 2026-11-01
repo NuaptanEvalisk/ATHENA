@@ -9,6 +9,8 @@
 #include "server.hpp"
 #include "ATHENA/Data/artifact_document.hpp"
 #include "QTMArtifactsPane.hpp"
+#include "QTMVaultChooser.hpp"
+#include "tree_traverse.hpp"
 #include "qt_utilities.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "file.hpp"
@@ -16,6 +18,7 @@
 #include <functional>
 #include <string>
 #include <vector>
+#include <memory>
 
 namespace {
 void navigation_message (string text, string title) {
@@ -34,6 +37,106 @@ void on_source (url source, std::function<void(editor_rep&)> action) {
       });
   });
 }
+
+struct link_repair: std::enable_shared_from_this<link_repair> {
+  bool transclusion= false;
+  std::string old_id, new_id, source, begin, end;
+  std::vector<std::pair<std::uint64_t, std::uint64_t>> owners;
+  size_t next= 0;
+  bool changed= false;
+
+  bool replace (tree node) const {
+    if (is_atomic (node)) return false;
+    if (transclusion && is_compound (node, "transclude") && N(node) >= 1 &&
+        is_atomic (node[0]) && node[0]->label == string (old_id.c_str ())) {
+      tree updated (as_tree_label ("transclude"));
+      updated << string (old_id.c_str ()) << "" << string (begin.c_str ()) << string (end.c_str ());
+      tree_assign (node, updated);
+      return true;
+    }
+    bool found= false;
+    if (!transclusion && is_func (node, HLINK) && N(node) >= 2 && is_atomic (node[1])) {
+      const string text= node[1]->label;
+      const string lower= "tmfs://wikilink/" * string (old_id.c_str ());
+      const string upper= "tmfs://Wikilink/" * string (old_id.c_str ());
+      if (starts (text, lower) || starts (text, upper)) {
+        tree_assign (node[1], "tmfs://wikilink/" * string (new_id.c_str ()) *
+                             text (N(lower), N(text)));
+        found= true;
+      }
+    }
+    for (int i= 0; i < N(node); ++i) found= replace (node[i]) || found;
+    return found;
+  }
+
+  // Only immutable strings and stable owner ids cross threads. The next task
+  // starts on the GUI after the preceding owner has finished its mutations.
+  void advance () {
+    if (next == owners.size ()) {
+      navigation_message (transclusion ? (changed ? "Transclusion repaired" :
+        "Transclusion target repaired, but no open source node matched") : "Link repaired", "Vault");
+      if (!transclusion)
+        native_vault_jump_to_source (url_system (string (source.c_str ())), string (end.c_str ()));
+      return;
+    }
+    const auto owner= owners[next++];
+    auto self= shared_from_this ();
+    athena::avd::submit_source_task (owner.first, owner.second,
+      [self] (editor_rep& ed) { self->changed= self->replace (ed.the_buffer ()) || self->changed; },
+      [self] (std::string error) {
+        qt_post_to_main_thread ([self, error] {
+          if (!error.empty ()) {
+            navigation_message ("Link repair stopped: " * string (error.c_str ()), "Vault");
+            return;
+          }
+          self->advance ();
+        });
+      });
+  }
+
+  void start (const std::string& relative) {
+    if (!vault_active ()) {
+      navigation_message ("No active vault. Please load a vault first.", "Error");
+      return;
+    }
+    vault_set_node (string (new_id.c_str ()), string (relative.c_str ()),
+                    string (begin.c_str ()), string (end.c_str ()));
+    const string file= as_string (vault_get_root () * url_unix (string (relative.c_str ())));
+    source.assign (file.data (), N(file));
+    for (const auto& entry: published_buffer_metadata ())
+      owners.emplace_back (entry.second.actor_id, entry.second.source_view);
+    advance ();
+  }
+};
+}
+
+void native_wikilink_repair_apply (string bad_uuid, string new_uuid,
+                                  string source, string begin, string end) {
+  auto repair= std::make_shared<link_repair> ();
+  repair->old_id.assign (bad_uuid.data (), N(bad_uuid));
+  repair->new_id.assign (new_uuid.data (), N(new_uuid));
+  repair->begin.assign (begin.data (), N(begin));
+  repair->end.assign (end.data (), N(end));
+  const std::string relative (source.data (), N(source));
+  qt_post_to_main_thread ([repair, relative] { repair->start (relative); });
+}
+
+void native_vault_transclude_repair (string uuid, string, string, string) {
+  if (!vault_active ()) {
+    navigation_message ("No active vault. Please load a vault first.", "Error");
+    return;
+  }
+  const std::string id (uuid.data (), N(uuid));
+  vault_choose_link_native (true, [id] (tree result) {
+    if (!is_func (result, TUPLE, 4) || vault_get_node_model_version () >= 1) return;
+    auto repair= std::make_shared<link_repair> ();
+    repair->transclusion= true;
+    repair->old_id= repair->new_id= id;
+    repair->begin.assign (result[1]->label.data (), N(result[1]->label));
+    repair->end.assign (result[2]->label.data (), N(result[2]->label));
+    const std::string relative (result[0]->label.data (), N(result[0]->label));
+    qt_post_to_main_thread ([repair, relative] { repair->start (relative); });
+  });
 }
 
 void native_vault_jump_to_source (url source, string anchor) {
@@ -79,6 +182,21 @@ void native_artifact_navigation_failed (string source) {
 }
 
 bool native_vault_navigate_url (url target, bool history) {
+  if (is_rooted_tmfs (target, "wikilink-repair-apply")) {
+    const string address= as_string (target, URL_SYSTEM);
+    const QUrl parsed (QString::fromUtf8 (address.data (), N(address)));
+    const auto parts= parsed.path (QUrl::FullyEncoded).mid (1).split ('/');
+    if (parts.size () != 4) {
+      navigation_message ("Invalid wikilink repair target", "Vault");
+      return true;
+    }
+    auto decode= [&] (int index) {
+      const QByteArray bytes= QUrl::fromPercentEncoding (parts[index].toUtf8 ()).toUtf8 ();
+      return string (bytes.constData (), bytes.size ());
+    };
+    native_wikilink_repair_apply (decode (0), decode (1), decode (2), "", decode (3));
+    return true;
+  }
   if (is_rooted_tmfs (target, "transclude")) {
     athena_node_reference_open (as_string (target, URL_SYSTEM));
     return true;

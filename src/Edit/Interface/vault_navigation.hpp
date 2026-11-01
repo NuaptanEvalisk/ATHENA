@@ -9,5 +9,9 @@ void native_artifact_jump_to_position (url source, path position, object history
 void native_artifact_navigation_failed (string source);
 bool native_vault_navigate_url (url target, bool history);
 void native_resolve_selection_as_artifact_name ();
+void native_wikilink_repair_apply (string bad_uuid, string new_uuid,
+                                  string source, string begin, string end);
+void native_vault_transclude_repair (string uuid, string file_hint,
+                                    string begin_hint, string end_hint);
 
 #endif

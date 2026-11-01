@@ -102,13 +102,6 @@
       (vault-tmfs-navigation-name u "Wikilink")
       ""))
 
-(define (vault-wikilink-repair-apply-url? u)
-  (when (string? u) (set! u (system->url u)))
-  (url-rooted-tmfs-protocol? u "wikilink-repair-apply"))
-
-(define (vault-wikilink-repair-apply-name u)
-  (or (vault-tmfs-navigation-name u "wikilink-repair-apply") ""))
-
 (define (vault-wikilink-repair-choice-url bad-uuid new-uuid path anchor)
   (string-append "tmfs://wikilink-repair-apply/"
                  (vault-url-component-encode bad-uuid) "/"
@@ -123,47 +116,6 @@
 (define (get-fuzzy-limit)
   (let ((pref (get-preference "vault fuzzy search limit")))
     (or (string->number pref) 3)))
-
-(define (vault-transclude-replace-in-buffer! buf uuid anchor-b anchor-e)
-  (let ((changed? #f)
-        (t (buffer-get buf)))
-    (tree-search t
-      (lambda (node)
-        (when (and (tree-compound? node)
-                   (== (tree-label node) 'transclude)
-                   (>= (tree-arity node) 1)
-                   (== (tree->string (tree-ref node 0)) uuid))
-          (tree-set! node `(transclude ,uuid ""
-                                       ,anchor-b ,anchor-e))
-          (set! changed? #t))
-        #f))
-    changed?))
-
-(define (vault-transclude-repair-complete bad-uuid res)
-  (when (and (tree? res) (== (tree-label res) 'tuple)
-             (== (tree-arity res) 4) (not (vault-node-model-active?)))
-    (let* ((rel-path (tree->string (tree-ref res 0)))
-           (anchor-b (tree->string (tree-ref res 1)))
-           (anchor-e (tree->string (tree-ref res 2))))
-      (vault-set-node bad-uuid rel-path anchor-b anchor-e)
-      (let ((changed 0))
-        (for (b (buffer-list))
-          (when (vault-transclude-replace-in-buffer!
-                 b bad-uuid anchor-b anchor-e)
-            (set! changed (+ changed 1))))
-        (if (> changed 0)
-            (set-message "Transclusion repaired" "Vault")
-            (set-message
-             "Transclusion target repaired, but no open source node matched"
-             "Vault"))))))
-
-(tm-define (vault-transclude-repair bad-uuid old-file-hint old-anchor-b
-                                    old-anchor-e)
-  (:interactive #t)
-  (if (not (vault-active?))
-      (set-message "No active vault. Please load a vault first." "Error")
-      (vault-choose-link
-       #t (lambda (res) (vault-transclude-repair-complete bad-uuid res)))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -218,32 +170,6 @@
 ;; Wikilink Handler
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-
-(tm-define (wikilink-repair-apply
- bad-uuid new-uuid path anchor-begin anchor-end)
-  (display* "Applying repair: " bad-uuid " -> " new-uuid " at " path "\n")
-  (vault-set-node new-uuid path anchor-begin anchor-end)
-  (let* ((old-link (string-append "tmfs://wikilink/" bad-uuid))
-         (new-link (string-append "tmfs://wikilink/" new-uuid))
-         (old-link-alt (string-append "tmfs://Wikilink/" bad-uuid))
-         (bufs (buffer-list)))
-    (for (b bufs)
-      (let* ((t (buffer-get b)))
-        (tree-search t (lambda (node)
-                         (if (and (tree-compound? node)
-                                  (== (tree-label node) 'hlink)
-                                  (>= (tree-arity node) 2))
-                             (let ((url (tree->string (tree-ref node 1))))
-                               (if (or (string-starts? url old-link)
-                                       (string-starts? url old-link-alt))
-                                   (let* ((base (if (string-starts? url old-link) old-link old-link-alt))
-                                          (suffix (string-drop url (string-length base))))
-                                     (tree-child-set! node 1 (string-append new-link suffix))))))
-                         #f))))
-    (set-message "Link repaired" "Vault")
-    (load-buffer (url-append (vault-get-root) (unix->url path)))
-    (if (not (string-null? anchor-end))
-        (delayed (:idle 100) (go-to-label anchor-end)))))
 
 (define (wikilink-name-parts name)
   (let* ((parts (string-tokenize-by-char name #\/))
@@ -313,18 +239,6 @@
               (apply vault-jump-to-source target)
               (load-browse-buffer
                 (system->url (wikilink-repair-url name)))))))))
-
-(tm-define (go-to-url u . opt-from)
-  (:require (vault-wikilink-repair-apply-url? u))
-  (when (pair? opt-from) (cursor-history-add (car opt-from)))
-  (let* ((name (vault-wikilink-repair-apply-name u))
-         (parts (string-tokenize-by-char name #\/)))
-    (if (= (length parts) 4)
-        (let ((decoded (map vault-url-component-decode parts)))
-          (wikilink-repair-apply
-            (list-ref decoded 0) (list-ref decoded 1)
-            (list-ref decoded 2) "" (list-ref decoded 3)))
-        (set-message "Invalid wikilink repair target" "Vault"))))
 
 (tmfs-load-handler (artifact-disambiguation name)
   (tree->stree (artifact-disambiguation-page name)))
