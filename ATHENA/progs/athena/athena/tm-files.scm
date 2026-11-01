@@ -77,6 +77,14 @@
 (tm-property (choose-file fun text type)
   (:interactive #t))
 
+(tm-property (load-buffer name . opts)
+  (:argument name smart-file "File name")
+  (:default name (propose-name-buffer)))
+
+(tm-property (load-buffer-in-new-window name . opts)
+  (:argument name smart-file "File name")
+  (:default name (propose-name-buffer)))
+
 (tm-define (open-auxiliary aux body . opt-master)
   (open-auxiliary-document
     aux body (if (null? opt-master) (buffer-master) (car opt-master))))
@@ -97,24 +105,6 @@
 ;; Autosave
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (more-recent file suffix1 suffix2)
-  (and (url-exists? (url-glue file suffix1))
-       (url-exists? (url-glue file suffix2))
-       (url-newer? (url-glue file suffix1) (url-glue file suffix2))))
-
-(define (most-recent-suffix file)
-  (if (more-recent file "~" "") "~" ""))
-
-(define (autosave-eligible? name)
-  (and (not (url-rooted-web? name))
-       (or (not (url-rooted-tmfs? name))
-           (tmfs-autosave name "~"))))
-
-(define (autosave-propose name)
-  (and (autosave-eligible? name)
-       (with s (most-recent-suffix name)
-         (and (!= s "")
-              (url-glue name s)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Opening files using external tools
@@ -179,124 +169,6 @@
 ;; Loading buffers
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (load-buffer-open name opts)
-  ;;(display* "load-buffer-open " name ", " opts "\n")
-  (cond ((in? :background opts) (noop))
-        ((in? :new-window opts)
-         (open-buffer-in-window name (buffer-get name) ""))
-        (else
-          (switch-to-buffer name)))
-  (schedule-persistent-fit-width)
-  (buffer-notify-recent name)
-  (when (defined? 'google-cloud-todo-sync-buffer)
-    ;; Loading is coordinated from the global/UI owner.  The idle predicate,
-    ;; however, is editor state and must remain on the loaded buffer's actor.
-    (exec-buffer name
-      (lambda ()
-        (delayed (:idle 1000)
-          (google-cloud-todo-sync-buffer (current-buffer))))))
-  (and-with master (and (url-rooted-tmfs? name) (tmfs-master name))
-    (when (!= master name)
-      (buffer-set-master name master)))
-  (noop))
-
-(define (load-buffer-load name opts)
-  ;;(display* "load-buffer-load " name ", " opts "\n")
-  (with vname `(verbatim ,(url->system name))
-    (cond ((buffer-exists? name)
-           (load-buffer-open name opts))
-          ((url-exists? name)
-           (if (buffer-load name)
-               (set-message `(concat "Could not load " ,vname) "Load file")
-               (load-buffer-open name opts)))
-           (else
-             (with uname (if (string? name) (string->url name) name)
-               (if (buffer-create-source name)
-                   (set-message `(concat "Could not create " ,vname)
-                                "Load file")
-                   (begin
-                     (load-buffer-open name opts)
-                     ;; Registry creation/opening is global/UI-owned, but style
-                     ;; initialization mutates the editor and therefore belongs
-                     ;; to the newly created buffer's BufferActor.
-                     (exec-buffer name (lambda () (buffer-set-default-style)))
-                     (set-message `(concat "Could not load " ,vname
-                                           ". Created new document")
-                                  "Load file"))))))))
-
-(define (load-buffer-check-permissions name opts)
-  ;;(display* "load-buffer-check-permissions " name ", " opts "\n")
-  (let* ((file? (url-test? name "f"))
-         (create? (or file? (url-test? name "c")))
-         (read? (or (not file?) (url-test? name "r"))))
-    (with vname `(verbatim ,(url->system name))
-      (cond ((and (not file?) (not create?))
-             (with msg `(concat "The file " ,vname
-                                " cannot be loaded or created")
-               (set-message msg "Load file")))
-            ((and file? (not read?))
-             (with msg `(concat "You do not have read access to " ,vname)
-               (set-message msg "Load file")))
-            (else (load-buffer-load name opts))))))
-
-(define (load-buffer-check-autosave name opts)
-  ;;(display* "load-buffer-check-autosave " name ", " opts "\n")
-  (let ((proposal (autosave-propose name)))
-    (if (and proposal (nin? :strict opts))
-        (let* ((question "Load more recent autosave file?")
-               ;; Interactive answers resume through the current view and may
-               ;; therefore run on its BufferActor.  Keep only a detached
-               ;; string across that continuation; buffer creation, registry
-               ;; lookup, and opening remain global/UI-owned operations.
-               (name* (url->string name)))
-          (user-confirm question #t
-            (lambda (answ)
-              (exec-global
-                (lambda ()
-                  (let ((name (string->url name*)))
-                    (if answ
-                        (let* ((autosave-name (autosave-propose name))
-                               (format (url-format name)))
-                          ;; Preserve the persisted document-model version.
-                          ;; In particular, a v2 autosave must activate the
-                          ;; same owner-local identity index as a normal load.
-                          (if (buffer-import name autosave-name format)
-                              (set-message "Could not load autosave file"
-                                           "Load file")
-                              (begin
-                                (load-buffer-open name opts)
-                                (buffer-pretend-modified name))))
-                        (load-buffer-check-permissions name opts))))))))
-        (load-buffer-check-permissions name opts))))
-
-(tm-define (load-buffer-main name . opts)
-  ;;(display* "load-buffer-main " name ", " opts "\n")
-  (if (and (not (url-exists? name))
-           (url-exists? (url-append "$ATHENA_FILE_PATH" name)))
-      (set! name (url-resolve (url-append "$ATHENA_FILE_PATH" name) "f")))
-  (if (not (url-rooted? name))
-      (if (current-buffer)
-          (set! name (url-relative (current-buffer) name))
-          (set! name (url-append (url-pwd) name))))
-  (if (== (locase-all (url-suffix name)) "avd")
-      (compound-document-open name)
-      (load-buffer-check-autosave name opts)))
-
-(tm-define (load-buffer name . opts)
-  (:argument name smart-file "File name")
-  (:default  name (propose-name-buffer))
-  ;;(display* "load-buffer " name ", " opts "\n")
-  (exec-global
-    (lambda () (apply load-buffer-main (cons name opts)))))
-
-(tm-define (load-buffer-in-new-window name . opts)
-  (:argument name smart-file "File name")
-  (:default  name (propose-name-buffer))
-  (exec-global
-    (lambda ()
-      (if (buffer->window name)
-          (switch-to-buffer name)
-          (apply load-buffer-main (cons name (cons :new-window opts)))))))
 
 (tm-define (load-browse-buffer name . opt-after-open)
   (:synopsis "Load a buffer or switch to it if already open")

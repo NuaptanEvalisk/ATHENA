@@ -17,6 +17,13 @@
 #include "convert.hpp"
 #include "guile_tm.hpp"
 #include "object.hpp"
+#include "analyze.hpp"
+#include "buffer_actor.hpp"
+#include "document_commands.hpp"
+#include "view_fit.hpp"
+#include "recent_files.hpp"
+#include "GoogleCloudTodo.hpp"
+#include "QTMCompoundDocument.hpp"
 #include <cstdlib>
 #include <QApplication>
 #include <QMessageBox>
@@ -56,6 +63,11 @@ void on_gui (std::function<void()> action) {
   QMetaObject::invokeMethod (QCoreApplication::instance (), std::move (action), Qt::QueuedConnection);
 }
 
+void on_document_gui (std::function<void()> action) {
+  if (current_scheme_execution_context () == nullptr) action ();
+  else on_gui (std::move (action));
+}
+
 url actor_buffer (athena_actor_id actor) {
   if (actor == ATHENA_NO_ACTOR) return url_none ();
   array<url> buffers= get_all_buffers ();
@@ -70,10 +82,129 @@ bool window_exists (url window) {
   return false;
 }
 
+struct load_options {
+  bool background= false, new_window= false, strict= false;
+  explicit load_options (object options) {
+    for (; !is_null (options); options= cdr (options)) {
+      object option= car (options);
+      if (option == keyword_object ("background")) background= true;
+      if (option == keyword_object ("new-window")) new_window= true;
+      if (option == keyword_object ("strict")) strict= true;
+    }
+  }
+};
+
+void schedule_loaded_cloud_sync (athena_actor_id actor, athena_view_id view) {
+  QTimer::singleShot (1000, QCoreApplication::instance (), [actor, view] {
+    auto continuation= actor_continuation_registry::instance ().store ([actor, view] {
+      const auto* context= current_scheme_execution_context ();
+      if (context->editor && context->editor->idle_time () < 1000) {
+        on_gui ([actor, view] { schedule_loaded_cloud_sync (actor, view); });
+        return;
+      }
+      google_cloud_todo_sync_buffer (context->actor->current_buffer_url (), false);
+    });
+    if (!buffer_actor::submit_to (actor, actor_command_kind::run_native_continuation, view,
+          ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_GLOBAL,
+          continuation)) actor_continuation_registry::instance ().discard (continuation);
+  });
+}
+
+void open_loaded_document (url name, load_options options) {
+  if (!options.background) {
+    if (options.new_window) new_buffer_in_new_window (name, get_buffer_tree (name), "");
+    else switch_to_buffer (name);
+  }
+  view_schedule_fit_width ();
+  buffer_notify_recent (name);
+  (void) get_recent_view (name);
+  const auto source= published_buffer_source (encode (name));
+  schedule_loaded_cloud_sync (source.first, source.second);
+  if (is_rooted_tmfs (name)) {
+    object master= call ("tmfs-master", object (name));
+    if (master != object (false)) {
+      const url target= is_string (master) ? url (as_string (master)) : as_url (master);
+      if (target != name) set_master_buffer (name, target);
+    }
+  }
+}
+
+void load_document_permissions (url name, load_options options) {
+  tree filename= compound ("verbatim", as_string (name, URL_SYSTEM));
+  const bool file= is_of_type (name, "f");
+  if (!file && !is_of_type (name, "c")) {
+    get_server ()->set_message (compound ("concat", "The file ", filename,
+      " cannot be loaded or created"), "Load file");
+    return;
+  }
+  if (file && !is_of_type (name, "r")) {
+    get_server ()->set_message (compound ("concat", "You do not have read access to ", filename), "Load file");
+    return;
+  }
+  if (!is_nil (concrete_buffer (name))) { open_loaded_document (name, options); return; }
+  const bool present= exists (name);
+  if (present ? buffer_load (name) : buffer_create_source (name)) {
+    get_server ()->set_message (compound ("concat", present ? "Could not load " : "Could not create ", filename), "Load file");
+    return;
+  }
+  open_loaded_document (name, options);
+  if (!present) {
+    const auto source= published_buffer_source (encode (name));
+    auto continuation= actor_continuation_registry::instance ().store ([] { document_set_default_style (); });
+    if (!buffer_actor::submit_to (source.first, actor_command_kind::run_native_continuation,
+          source.second, ATHENA_NO_BLOB, ATHENA_NO_BLOB,
+          SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_GLOBAL, continuation))
+      actor_continuation_registry::instance ().discard (continuation);
+    get_server ()->set_message (compound ("concat", "Could not load ", filename,
+      ". Created new document"), "Load file");
+  }
+}
+
+url recovery_source (url name) {
+  if (is_rooted_web (name)) return url_none ();
+  if (is_rooted_tmfs (name) && call ("tmfs-autosave", object (name), object ("~")) == object (false))
+    return url_none ();
+  url autosave= glue (name, "~");
+  if (exists (name) && exists (autosave) && as_bool (call ("url-newer?", object (autosave), object (name))))
+    return autosave;
+  return url_none ();
+}
+
+void load_document_gui (url name, load_options options) {
+  const url search= url ("$ATHENA_FILE_PATH") * name;
+  if (!exists (name) && exists (search)) name= resolve (search, "f");
+  if (!is_rooted (name)) {
+    url current= get_current_buffer_safe ();
+    name= is_none (current) ? url_pwd () * name : relative (current, name);
+  }
+  if (locase_all (suffix (name)) == "avd") { compound_document_open (name); return; }
+  const url proposal= options.strict ? url_none () : recovery_source (name);
+  if (is_none (proposal)) { load_document_permissions (name, options); return; }
+  if (headless_mode) {
+    get_server ()->set_message ("Interactive confirmation required", "Load more recent autosave file?");
+    return;
+  }
+  const std::string source= encode (name);
+  auto* dialog= new QMessageBox (QMessageBox::Question, QObject::tr ("Load file"),
+    QObject::tr ("Load more recent autosave file?"), QMessageBox::Yes | QMessageBox::No,
+    QApplication::activeWindow ());
+  dialog->setAttribute (Qt::WA_DeleteOnClose);
+  dialog->setDefaultButton (QMessageBox::Yes);
+  QObject::connect (dialog, &QDialog::finished, dialog, [source, options] (int answer) {
+    const url name (source.c_str ());
+    if (answer != QMessageBox::Yes) { load_document_permissions (name, options); return; }
+    const url autosave= recovery_source (name);
+    if (is_none (autosave) || buffer_import (name, autosave, file_format (name)))
+      get_server ()->set_message ("Could not load autosave file", "Load file");
+    else { open_loaded_document (name, options); pretend_buffer_modified (name); }
+  });
+  dialog->open ();
+}
+
 void revert_document (const std::string& source) {
   const url name (source.c_str ());
   if (is_nil (concrete_buffer (name))) {
-    call ("load-buffer", object (name));
+    load_document_gui (name, load_options (null_object ()));
     return;
   }
   if (name != get_current_buffer_safe ()) switch_to_buffer (name);
@@ -252,6 +383,29 @@ void application_quit () { on_gui ([] { request_quit (false); }); }
 void application_revert_buffer (object arguments) { request_revert (arguments, true); }
 void application_revert_buffer_now (object arguments) { request_revert (arguments, false); }
 
+void application_load_document (url source, object options) {
+  const std::string name= encode (source);
+  const load_options settings (options);
+  on_document_gui ([name, settings] { load_document_gui (url (name.c_str ()), settings); });
+}
+
+void application_load_document_window (url source, object options) {
+  const std::string name= encode (source);
+  load_options settings (options);
+  settings.new_window= true;
+  on_document_gui ([name, settings] {
+    url target (name.c_str ());
+    if (N(buffer_to_windows (target)) != 0) switch_to_buffer (target);
+    else load_document_gui (target, settings);
+  });
+}
+
+void application_open_loaded_document (url source, object options) {
+  const std::string name= encode (source);
+  const load_options settings (options);
+  on_document_gui ([name, settings] { open_loaded_document (url (name.c_str ()), settings); });
+}
+
 void application_import_document (url source, string format, object options) {
   const std::string encoded= encode (source), selected (format.data (), N(format));
   auto retained= std::make_shared<conversion_continuation> (options);
@@ -272,13 +426,10 @@ void application_import_document (url source, string format, object options) {
     url target= source;
     if (format != file_format (source))
       target= url ("tmfs://import/" * format * "/" * as_string (call ("url->tmfs-string", object (source))));
-    array<object> arguments;
-    arguments << object (target);
-    for (object opts= tmscm_to_object (scheme_command_handle_value (retained->handle));
-         !is_null (opts); opts= cdr (opts)) arguments << car (opts);
+    load_options settings (tmscm_to_object (scheme_command_handle_value (retained->handle)));
     const bool latex= format == "latex" || format == "tex" || format == "latex-document";
     if (latex) system_wait ("Importing LaTeX", "please wait");
-    try { call ("load-buffer-main", arguments); }
+    try { load_document_gui (target, settings); }
     catch (...) {
       if (latex) system_wait ("", "");
       throw;

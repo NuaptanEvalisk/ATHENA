@@ -13,5 +13,8 @@ void application_command_line_convert (string from, string to, object next);
 void application_revert_buffer (object arguments);
 void application_revert_buffer_now (object arguments);
 void application_import_document (url source, string format, object options);
+void application_load_document (url source, object options);
+void application_load_document_window (url source, object options);
+void application_open_loaded_document (url source, object options);
 
 #endif

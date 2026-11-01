@@ -41,6 +41,10 @@
   <binding name="revert-buffer-revert" native="application_revert_buffer_now" returns="void" exceptions="scheme"><arg type="object" rest="true" /></binding>
   <binding name="import-buffer" native="application_import_document" returns="void" exceptions="scheme"><arg type="url" /><arg type="string" /><arg type="object" rest="true" /></binding>
   <binding name="import-buffer-main" native="application_import_document" returns="void" exceptions="scheme"><arg type="url" /><arg type="string" /><arg type="object" /></binding>
+  <binding name="load-buffer" native="application_load_document" returns="void" exceptions="scheme"><arg type="url" /><arg type="object" rest="true" /></binding>
+  <binding name="load-buffer-main" native="application_load_document" returns="void" exceptions="scheme"><arg type="url" /><arg type="object" rest="true" /></binding>
+  <binding name="load-buffer-in-new-window" native="application_load_document_window" returns="void" exceptions="scheme"><arg type="url" /><arg type="object" rest="true" /></binding>
+  <binding name="load-buffer-open" native="application_open_loaded_document" returns="void" exceptions="scheme"><arg type="url" /><arg type="object" /></binding>
   <binding name="save-buffer" native="document_save" returns="void" exceptions="scheme"><arg type="object" rest="true" /></binding>
   <binding name="save-buffer-main" native="document_save" returns="void" exceptions="scheme"><arg type="object" rest="true" /></binding>
   <binding name="export-buffer-main" native="document_export_main" returns="void" exceptions="scheme"><arg type="url" /><arg type="object" /><arg type="string" /><arg type="object" /></binding>
