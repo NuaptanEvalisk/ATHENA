@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="vault-flatten-document" native="reference_flatten_document" returns="void" exceptions="scheme" />
   <binding name="insert-wikilink" native="reference_insert_wikilink" returns="void" exceptions="scheme" />
   <binding name="insert-transclude" native="reference_insert_transclusion" returns="void" exceptions="scheme" />
   <binding name="vault-go-before-transclusion" native="reference_before_transclusion" returns="void" exceptions="scheme" />

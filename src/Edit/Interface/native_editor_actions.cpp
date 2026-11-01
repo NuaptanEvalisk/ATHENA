@@ -555,7 +555,7 @@ execute_business_id (editor ed, const QString& id) {
   else if (id == "editor-copy-image")
     clipboard_copy_image ();
   else if (id == "document-flatten-transclusions")
-    (void) call ("vault-flatten-document");
+    reference_flatten_document ();
   else if (id == "focus-transclusion-before")
     reference_before_transclusion ();
   else if (id == "focus-transclusion-select")

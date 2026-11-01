@@ -102,6 +102,7 @@
 (import-from (generic generic-edit))
 
 (import-from (source source-edit))
+(import-from (dynamic fold-edit))
 (import-from (athena athena tm-files))
 (import-from (athena athena tm-vault))
 (import-from (doc help-funcs))

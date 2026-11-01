@@ -19,5 +19,6 @@ void reference_insert_transclusion ();
 void reference_before_transclusion ();
 void reference_after_transclusion ();
 void reference_select_transclusion ();
+void reference_flatten_document ();
 
 #endif

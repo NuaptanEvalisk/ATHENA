@@ -16,9 +16,86 @@
 #include "scheme.hpp"
 #include "vault.hpp"
 #include "QTMVaultChooser.hpp"
+#include "ATHENA/Data/node_reference_export.hpp"
+#include "Data/Convert/Xml/document_file_codec.hpp"
+#include "node_metadata.hpp"
+#include "new_buffer.hpp"
+#include "new_view.hpp"
+#include "new_window.hpp"
+#include "buffer_actor.hpp"
+#include "buffer_state.hpp"
+#include "qt_utilities.hpp"
+#include "QTMNativeDialogs.hpp"
+#include "server.hpp"
 #include <QUrl>
 
 namespace {
+struct flattened_document {
+  int count= 0;
+  using lineage= std::vector<std::string>;
+  void property (athena::node::property& p, const lineage& ancestors, url base) {
+    using namespace athena::node;
+    if (auto rich= std::get_if<rich_text> (&p.data))
+      rich->content= frozen_tree (expand (rich->content, ancestors, base));
+    else if (auto list= std::get_if<athena::node::property::list> (&p.data))
+      for (auto& item: *list) property (item, ancestors, base);
+    else if (auto dict= std::get_if<athena::node::property::dictionary> (&p.data))
+      for (auto& item: *dict) property (item.second, ancestors, base);
+  }
+  tree expand (const tree& source, const lineage& ancestors, url base) {
+    namespace refs= athena::node_reference;
+    if (is_func (source, TRANSCLUDE)) {
+      auto selected= refs::export_reference_view ({refs::targets (source), ancestors});
+      if (!selected || !selected->snapshot ||
+          selected->snapshot->state != athena::node_location::status::resolved)
+        throw std::runtime_error ("Cannot flatten an unresolved, conflicting or cyclic transclusion");
+      ++count;
+      tree result (DOCUMENT);
+      for (const auto& item: selected->snapshot->items) {
+        if (item.state != athena::node_location::status::resolved || item.fragment_xml.empty ())
+          throw std::runtime_error ("Cannot flatten node " + item.id + ": " + item.diagnostic);
+        tree fragment= athena::document::decode_native_xml_bytes (
+          item.fragment_xml, athena::document::xml_kind::fragment).document;
+        if (item.candidates.size () == 1 && item.candidates[0].where.empty () && is_document (fragment))
+          for (int i=0; i<N(fragment); ++i)
+            if (is_compound (fragment[i], "body", 1)) { fragment= fragment[i][0]; break; }
+        auto nested= ancestors;
+        nested.push_back (item.id);
+        fragment= expand (athena::node::content_projection (fragment), nested,
+          item.source_directory.empty () ? url_none () : url_system (string (item.source_directory.c_str ())));
+        if (is_document (fragment)) result << A(fragment);
+        else result << fragment;
+      }
+      return result;
+    }
+    tree result= is_atomic (source) ? tree (source->label) : tree (L(source));
+    if (is_compound (source))
+      for (int i=0; i<N(source); ++i) {
+        tree child= expand (source[i], ancestors, base);
+        if (is_document (source) && is_func (source[i], TRANSCLUDE) && is_document (child))
+          result << A(child);
+        else result << child;
+      }
+    if (const auto* metadata= athena::node::get (source)) {
+      auto fields= *metadata;
+      fields.properties.erase ("athena:artifact-bindings");
+      for (auto& item: fields.properties) property (item.second, ancestors, base);
+      athena::node::set (result, fields);
+    }
+    if (is_func (result, IMAGE) && N(result) > 0 && is_atomic (result[0]) && !is_none (base)) {
+      url image= url_system (result[0]->label);
+      if (!is_rooted (image) && !is_none (image)) result[0]= as_string (base * image);
+    }
+    return result;
+  }
+};
+
+struct reference_document_payload {
+  athena_blob_id id;
+  explicit reference_document_payload (tree t): id (actor_tree_registry::instance ().store (std::move (t))) {}
+  ~reference_document_payload () { actor_tree_registry::instance ().discard (id); }
+};
+
 path focused_transclusion (editor ed) {
   path p= ed->focus_get ();
   if (ed->test_subtree (p) && is_compound (ed->the_subtree (p), "transclude")) return p;
@@ -110,6 +187,49 @@ void reference_select_transclusion () {
   editor ed= get_current_editor ();
   path p= focused_transclusion (ed);
   if (!is_nil (p)) ed->select (p);
+}
+
+void reference_flatten_document () {
+  if (!vault_active ()) {
+    get_current_editor ()->set_message ("No active vault. Please load a vault first.", "Flatten");
+    return;
+  }
+  athena_node_reference_with_native_export ([] (editor_rep&) {
+    const auto* owner= current_scheme_execution_context ();
+    const url source= owner->actor->current_buffer_url ();
+    tree document= copy (owner->actor->current_source (owner->view_id));
+    flattened_document flatten;
+    for (int i=0; i<N(document); ++i)
+      if (is_compound (document[i], "body", 1))
+        document[i][0]= flatten.expand (document[i][0], {}, head (source));
+    auto payload= std::make_shared<reference_document_payload> (athena::node::duplicate (document));
+    const auto version= owner->actor->current_state ()->storage_version;
+    const string source_title= get_title_buffer (source);
+    const string source_name= as_string (source);
+    std::string name (source_name.data (), N(source_name));
+    std::string title (source_title.data (), N(source_title));
+    qt_post_to_main_thread ([payload, version, name, title, count= flatten.count] {
+      url target= make_new_buffer ();
+      try {
+        (void) get_new_view (target);
+        if (!replace_buffer_tree (target, actor_tree_registry::instance ().take (payload->id), version))
+          throw std::runtime_error ("Flattened document replacement rejected");
+        set_master_buffer (target, url (string (name.c_str ())));
+        set_title_buffer (target, string ((title.empty () ? "Untitled" : title).c_str ()) * " (flattened)");
+        switch_to_buffer (target);
+        get_server ()->set_message ("Flattened " * as_string (count) *
+          (count == 1 ? " transclusion" : " transclusions") * " into a new document", "Flatten");
+      }
+      catch (const std::exception& error) {
+        kill_buffer (target);
+        qtm_info_dialog (string (error.what ()), "Flatten");
+      }
+    });
+  }, [] (std::string error) {
+    if (!error.empty ()) qt_post_to_main_thread ([error] {
+      qtm_info_dialog (string (error.c_str ()), "Flatten");
+    });
+  });
 }
 
 tree reference_typed_markup (tree name, tree wrapper, tree arguments) {
