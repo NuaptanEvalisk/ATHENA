@@ -1513,16 +1513,17 @@ command_queue::exec_global (object cmd) {
 
   athena_scheme_handle_id handle=
     scheme_command_handle_acquire (object_to_tmscm (cmd));
-  if (headless_mode) {
-    // Headless views have no canvas endpoint to drain global UI effects.
+  actor_ui_endpoint* endpoint= find_actor_ui_endpoint (context->view_id);
+  if (headless_mode || endpoint == nullptr || !endpoint->viewport ().attached) {
+    // Passive conversion views, like headless views, have no attached canvas
+    // to drain global UI effects. Their global commands still need delivery.
     qt_post_to_main_thread ([handle] {
       schedule_delayed_scheme_handle (
         handle, ATHENA_NO_ACTOR, ATHENA_NO_VIEW, false, true);
     });
     return;
   }
-  actor_ui_endpoint* endpoint= find_actor_ui_endpoint (context->view_id);
-  if (endpoint != nullptr && endpoint->publish (
+  if (endpoint->publish (
         actor_command_kind::ui_schedule_global_scheme, ATHENA_NO_BLOB,
         handle))
     return;

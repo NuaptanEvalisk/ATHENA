@@ -42,17 +42,23 @@ Real-window IME validation after native keyboard/event dispatch is complete,
 confirmed by the user on 2026-11-01. Historical commit `abdd53b8e` records an
 earlier unverified checkpoint, not an open acceptance item.
 
-## Open Command-Line GUI Shutdown Observation
+## Passive-View GUI Dispatch
 
 During the 2026-11-02 file-frontend migration, an isolated offscreen GUI process
 running `-X -c source.ath output.txt -x ...` completed conversion and its native
 file API assertions, but did not exit after the continuation requested
 `(exec-global (lambda () (quit-TeXmacs)))`. The equivalent headless check exited
 successfully. The conversion continuation runs on the source actor, whose view
-was not opened in a visible document window. The shutdown cause is not yet
-established; inspect dispatch from that view before changing quit policy.
+was not opened in a visible document window. Its endpoint existed, but no canvas
+was registered to drain its UI effects. Global commands and native application
+continuations now dispatch through the GUI event queue when the originating
+view is unattached, instead of leaving requests in that endpoint's queue.
 
 Do not use `primitive-exit` from a BufferActor to bypass this observation: a
 temporary diagnostic did so and crashed during process exit. No such bypass
-was added to production. Runtime scripts and logs were discarded after the
-batch; GUI file API assertions passed, but GUI shutdown remains unverified.
+was added to production. Offscreen conversion checks verified normal exit both
+through `exec-global` and through the native `safely-quit-ATHENA` entrypoint.
+The lower-level `quit-TeXmacs` server binding is not an actor-dispatching
+application entrypoint; calling it directly from an actor is rejected by the
+realtime-save context check. No save-policy change was needed. Temporary
+checks and logs are removed after the batch.

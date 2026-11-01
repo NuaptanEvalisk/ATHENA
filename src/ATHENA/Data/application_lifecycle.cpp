@@ -61,7 +61,8 @@ athena_actor_id current_actor () {
 
 void on_gui (std::function<void()> action) {
   const auto* context= current_scheme_execution_context ();
-  if (context && context->editor && context->editor->ui_endpoint) {
+  if (context && context->editor && context->editor->ui_endpoint &&
+      context->editor->ui_endpoint->viewport ().attached) {
     context->editor->ui_endpoint->publish_continuation (std::move (action));
     return;
   }
