@@ -250,7 +250,6 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting linking facilities\n")
-(lazy-define (link link-navigate) go-to-id)
 (define-secure-symbols preview-reference)
 (define-secure-symbols reverse-hierarchy-graph-render global-hierarchy-graph-show
                        websites-manager-show open-websites-manager

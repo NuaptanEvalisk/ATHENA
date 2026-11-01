@@ -4,6 +4,8 @@
 
 #include "scheme.hpp"
 #include <functional>
+#include <set>
+#include <string>
 
 object native_link_flatten (tree link);
 object native_link_type (object link);
@@ -49,8 +51,8 @@ array<tree> native_complete_links (tree t);
 list<string> native_link_constellation ();
 tree native_get_link_locations (url here, tree t);
 void native_register_link_locations (url here, tree locations);
-bool native_resolve_link_id (string id);
-bool native_resolve_link_id (string id, std::function<void(url)> completed);
+bool native_resolve_link_id (string id, std::set<std::string>& attempted,
+                             std::function<void(url)> completed);
 object native_navigation_simplify (object items);
 object native_link_list_to_navigation (object links);
 object native_upward_navigation (object t);
@@ -71,5 +73,6 @@ void native_locus_link_follow ();
 object native_link_process_url (url target);
 void native_link_post_load (url target);
 void native_link_go_to_url (url target, object optional_from);
+void native_link_go_to_id (string id, object optional_from);
 
 #endif

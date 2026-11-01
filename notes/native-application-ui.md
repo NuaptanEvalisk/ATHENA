@@ -68,11 +68,21 @@ checks and logs are removed after the batch.
 `build-navigation-page` now uses a generated native binding. It retains the
 source actor, style and master, loads unresolved locations through the native
 document frontend, waits for the destination actor's typesetting command, and
-returns to the source actor to build the auxiliary page. Locus registration is
-a typesetting operation, so file-load completion alone is insufficient. The
-former Scheme idle-delay loop and lazy registration are removed.
+captures detached target previews there, and returns to the source actor to
+build the auxiliary page. Locus registration is a typesetting operation and
+its registry is actor-local: file-load completion alone is insufficient, and
+the source actor cannot read the target's live loci. The former Scheme
+idle-delay loop and lazy registration are removed.
 
-The focused runtime check covers cross-document loading, auxiliary page creation
-and source-master preservation. A legacy raw `locus` XML fixture was rejected by
-the v3 child-role contract; this check does not establish raw legacy-locus
-persistence support. That compatibility was not added by this migration.
+`go-to-id` now resolves and positions on the destination actor. Resolution
+attempts belong to one navigation request rather than a process-wide set, so a
+later jump to the same document is not suppressed. `go-to-url` uses native
+protocol dispatch and destination-actor post-load positioning; remaining vault
+conditional handlers still wrap that default. `progs/link` and its module
+references are removed.
+
+Focused runtime checks cover cross-document loading, auxiliary page creation,
+source-master preservation, repeated locus navigation and target preview
+transfer. The live-locus fixture uses local macro expansion of a declared tag.
+A legacy raw `locus` source fixture remains rejected by the v3 child-role
+contract; raw legacy-locus persistence compatibility was not added.

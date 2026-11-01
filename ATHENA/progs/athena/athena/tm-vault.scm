@@ -6,8 +6,7 @@
         (kernel athena tm-file-system)
         (kernel athena tm-secure)
         (utils library cursor)
-        (generic document-edit)
-        (link link-navigate)))
+        (generic document-edit)))
 (import-from (kernel athena tm-preferences))
 
 

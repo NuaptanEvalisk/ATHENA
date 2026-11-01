@@ -122,11 +122,13 @@ list<string> types (const navigation_items& items, string suffix= "") {
   return reverse (result);
 }
 
-object automatic_link (tree target, object broken) {
+object automatic_link (tree target, object broken, hashmap<string, tree>* previews= nullptr) {
   object text= object (false);
   if (is_func (target, ID, 1)) {
     const list<tree> nodes= get_trees (target[0]->label);
     if (!is_nil (nodes)) text= tree_to_stree (nodes->item);
+    else if (previews && !is_func ((*previews)[target[0]->label], UNINIT))
+      text= tree_to_stree ((*previews)[target[0]->label]);
   }
   else if (is_compound (target, "url", 1) ||
            (is_compound (target, "script") && N(target) > 0))
@@ -149,12 +151,13 @@ object enumeration (object items) {
   return list_object (list_object (symbol_object ("enumerate"), body));
 }
 
-void append_sections (array<object>& body, const navigation_items& items, string prefix) {
+void append_sections (array<object>& body, const navigation_items& items, string prefix,
+                      hashmap<string, tree>* previews= nullptr) {
   for (list<string> names= types (items); !is_nil (names); names= names->next) {
     body << tree_to_stree (compound ("strong", prefix * names->item));
     array<object> contents;
     for (const auto& item: items)
-      if (item.type == names->item) contents << automatic_link (item.target, object ("Broken"));
+      if (item.type == names->item) contents << automatic_link (item.target, object ("Broken"), previews);
     for (object rows= enumeration (as_list_object (contents)); !is_null (rows); rows= cdr (rows))
       body << car (rows);
   }
@@ -226,17 +229,23 @@ object native_automatic_link (object target, object options) {
 
 object native_link_enumeration (object items) { return enumeration (items); }
 
-object native_navigation_document (tree style, object items) {
+namespace {
+object navigation_document (tree style, object items, hashmap<string, tree>* previews) {
   const auto parsed= read_items (items);
   if (parsed.empty ()) throw std::invalid_argument ("A link page requires navigation candidates");
   array<object> body;
   body << tree_to_stree (compound ("strong", "Source"))
        << automatic_link (tree (ID, parsed.front ().source), object ("Unaccessible"));
-  append_sections (body, filter (parsed, std::nullopt, 1, true), "Direct ");
-  append_sections (body, filter (parsed, std::nullopt, 0, true), "Inverse ");
+  append_sections (body, filter (parsed, std::nullopt, 1, true), "Direct ", previews);
+  append_sections (body, filter (parsed, std::nullopt, 0, true), "Inverse ", previews);
   return cons (symbol_object ("document"),
     list_object (tree_to_stree (compound ("style", style)),
       list_object (symbol_object ("body"), cons (symbol_object ("document"), as_list_object (body)))));
+}
+}
+
+object native_navigation_document (tree style, object items) {
+  return navigation_document (style, items, nullptr);
 }
 
 namespace {
@@ -244,23 +253,32 @@ struct navigation_page_request {
   athena_actor_id actor;
   athena_view_id view;
   athena_blob_id snapshot;
+  std::vector<athena_blob_id> previews;
   std::vector<std::string> ids;
   size_t next= 0;
-  ~navigation_page_request () { actor_tree_registry::instance ().discard (snapshot); }
+  ~navigation_page_request () {
+    actor_tree_registry::instance ().discard (snapshot);
+    for (auto id: previews) actor_tree_registry::instance ().discard (id);
+  }
 };
 
 void continue_navigation_page (std::shared_ptr<navigation_page_request> pending) {
   while (pending->next < pending->ids.size ()) {
     const string id (pending->ids[pending->next++].c_str ());
     if (!is_nil (get_trees (id))) continue;
-    if (native_resolve_link_id (id, [pending] (url target) {
+    const std::string key (id.data (), N(id));
+    std::set<std::string> attempted;
+    if (native_resolve_link_id (id, attempted, [pending, key] (url target) {
       const string name= as_string (target);
       const auto source= published_buffer_source (std::string (name.data (), N(name)));
       // Loci enter the link repository during typesetting, not file loading.
       athena::avd::submit_source_task (source.first, source.second,
-        [] (editor_rep&) {
+        [pending, key] (editor_rep&) {
           const auto* context= current_scheme_execution_context ();
           context->actor->invoke (actor_command_kind::typeset_document, context->view_id);
+          const auto nodes= get_trees (string (key.c_str ()));
+          if (!is_nil (nodes)) pending->previews.push_back (
+            actor_tree_registry::instance ().store (tree (TUPLE, string (key.c_str ()), copy (nodes->item))));
         },
         [pending] (std::string error) {
           if (!error.empty ()) {
@@ -281,7 +299,12 @@ void continue_navigation_page (std::shared_ptr<navigation_page_request> pending)
     tree row= saved[2][i];
     items.push_back ({row[0]->label, row[1], as_int (row[2]->label), row[3]->label, row[4]});
   }
-  tree document= content_to_tree (native_navigation_document (saved[0], write_items (items)));
+  hashmap<string, tree> previews {tree (UNINIT)};
+  for (auto id: pending->previews) {
+    tree preview= actor_tree_registry::instance ().take (id);
+    previews (preview[0]->label)= preview[1];
+  }
+  tree document= content_to_tree (navigation_document (saved[0], write_items (items), &previews));
   application_open_auxiliary ("Link page", document, list_object (object (url (saved[1]->label))));
 }
 }
@@ -306,6 +329,41 @@ void native_build_navigation_page (object encoded) {
   pending->snapshot= actor_tree_registry::instance ().store (
     tree (TUPLE, owner->editor->get_style (), as_string (get_master_buffer (get_current_buffer ())), rows));
   continue_navigation_page (pending);
+}
+
+namespace {
+void continue_id_navigation (const std::string& key, bool history,
+                             std::shared_ptr<std::set<std::string>> attempted) {
+  const string id (key.c_str ());
+  auto nodes= get_trees (id);
+  if (!is_nil (nodes)) {
+    const path ip= obtain_ip (nodes->item);
+    if (!ip_attached (ip)) return;
+    editor ed= get_current_editor ();
+    ed->go_to (ed->command_tree_end (ed->the_root (), reverse (ip)));
+    if (history) call ("cursor-history-add", object (ed->the_path ()));
+    return;
+  }
+  native_resolve_link_id (id, *attempted, [key, history, attempted] (url target) {
+    const string name= as_string (target);
+    const auto owner= published_buffer_source (std::string (name.data (), N(name)));
+    athena::avd::submit_source_task (owner.first, owner.second,
+      [key, history, attempted] (editor_rep&) {
+        const auto* context= current_scheme_execution_context ();
+        context->actor->invoke (actor_command_kind::typeset_document, context->view_id);
+        continue_id_navigation (key, history, attempted);
+      }, [] (std::string error) {
+        if (!error.empty ()) std_warning << "Locus navigation: " << string (error.c_str ()) << LF;
+      });
+  });
+}
+}
+
+void native_link_go_to_id (string id, object optional_from) {
+  const bool history= !is_null (optional_from);
+  if (history) call ("cursor-history-add", car (optional_from));
+  continue_id_navigation (std::string (id.data (), N(id)), history,
+    std::make_shared<std::set<std::string>> ());
 }
 
 namespace {
@@ -439,7 +497,7 @@ void native_link_go_to_vertex (object vertex, object attributes) {
   const string kind= as_symbol (car (vertex));
   const auto fields= as_array_object (cdr (vertex));
   if (kind == "id" && N(fields) == 1)
-    call ("go-to-id", fields[0], object (get_current_editor ()->the_path ()));
+    native_link_go_to_id (as_string (fields[0]), list_object (object (get_current_editor ()->the_path ())));
   else if (kind == "url" && N(fields) == 1) {
     string target= as_string (fields[0]);
     for (int i=0; i<N(target); ++i)

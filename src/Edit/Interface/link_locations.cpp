@@ -34,7 +34,6 @@ struct registry {
   std::map<std::string, names> files;
   std::map<std::string, std::string> ids;
   std::map<std::string, names> locators;
-  std::set<std::string> attempted;
 
   void load () {
     if (loaded) return;
@@ -190,18 +189,15 @@ tree native_get_link_locations (url here, tree t) {
   return result;
 }
 
-bool native_resolve_link_id (string id) {
-  return native_resolve_link_id (id, {});
-}
-
-bool native_resolve_link_id (string id, std::function<void(url)> completed) {
+bool native_resolve_link_id (string id, std::set<std::string>& attempted,
+                             std::function<void(url)> completed) {
   string target;
   {
     std::lock_guard<std::mutex> lock (locations.mutex);
     locations.load ();
     for (const auto& candidate: locate (bytes (id))) {
-      if (locations.attempted.count (candidate) || !exists (url_unix (native (candidate)))) continue;
-      locations.attempted.insert (candidate);
+      if (attempted.count (candidate) || !exists (url_unix (native (candidate)))) continue;
+      attempted.insert (candidate);
       target= native (candidate);
       break;
     }

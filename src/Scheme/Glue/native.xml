@@ -169,10 +169,10 @@
   <binding name="navigation-list-&gt;document" native="native_navigation_document" returns="object" exceptions="scheme"><arg type="content" /><arg type="object" /></binding>
   <binding name="build-navigation-page" native="native_build_navigation_page" returns="void" exceptions="scheme"><arg type="object" /></binding>
   <binding name="go-to-url" native="native_link_go_to_url" returns="void" exceptions="scheme"><arg type="url" /><arg type="object" rest="true" /></binding>
+  <binding name="go-to-id" native="native_link_go_to_id" returns="void" exceptions="scheme"><arg type="string" /><arg type="object" rest="true" /></binding>
   <binding name="get-constellation" native="native_link_constellation" returns="list_string" exceptions="scheme" />
   <binding name="get-link-locations" native="native_get_link_locations" returns="tree" exceptions="scheme"><arg type="url" /><arg type="tree" /></binding>
   <binding name="register-link-locations" native="native_register_link_locations" returns="void" exceptions="scheme"><arg type="url" /><arg type="tree" /></binding>
-  <binding name="resolve-id" native="native_resolve_link_id" returns="bool" exceptions="scheme"><arg type="string" /></binding>
   <binding name="navigation-bidirectional?" native="native_navigation_bidirectional" returns="bool" />
   <binding name="navigation-external?" native="native_navigation_external" returns="bool" />
   <binding name="navigation-build-link-pages?" native="native_navigation_link_pages" returns="bool" />
