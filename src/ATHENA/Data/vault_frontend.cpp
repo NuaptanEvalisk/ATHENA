@@ -17,10 +17,21 @@
 #include "scheme.hpp"
 #include "tm_configure.hpp"
 #include "url.hpp"
+#include "boot.hpp"
+#include "server.hpp"
+#include "native_interfaces.hpp"
+#include "guile_tm.hpp"
+#include "buffer_actor.hpp"
+#include "qt_utilities.hpp"
+#include "file.hpp"
 
 #include <QCoreApplication>
 #include <QMetaObject>
 #include <QTimer>
+#include <QApplication>
+#include <QFileDialog>
+#include <QInputDialog>
+#include <QScopedValueRollback>
 
 #include <filesystem>
 #include <string>
@@ -28,6 +39,23 @@
 namespace fs= std::filesystem;
 
 namespace {
+
+bool vault_preferences_active= false;
+bool vault_preferences_reloading= false;
+
+void reload_preferences (url file) {
+  QScopedValueRollback<bool> loading (vault_preferences_reloading, true);
+  load_user_preferences (file);
+  // Callback registration remains part of the kernel preference service.
+  call ("notify-all-preferences");
+}
+
+void deactivate_preferences () {
+  if (!vault_preferences_active) return;
+  save_user_preferences ();
+  vault_preferences_active= false;
+  reload_preferences ("$ATHENA_HOME_PATH/system/preferences.json");
+}
 
 bool
 preference_on (string name) {
@@ -49,6 +77,123 @@ fs::path
 native_path (url value) {
   string path= as_string (concretize (value), URL_SYSTEM);
   return fs::path (std::string (path.data (), N(path)));
+}
+
+void activate_preferences (url directory, AthenaVaultfileInfo info) {
+  if (info.preferences_path.empty ()) {
+    info.preferences_path= "vprefs.json";
+    std::string error;
+    if (!athena_vaultfile_write (native_path (directory), info, error)) {
+      show_message (string (error.c_str ()), "Vaultfile");
+      return;
+    }
+  }
+  url file= directory * url_unix (string (info.preferences_path.c_str ()));
+  if (suffix (file) != "json") {
+    std_warning << "Vault preferences must use a .json path: "
+                << string (info.preferences_path.c_str ()) << LF;
+    return;
+  }
+  if (!exists (file)) dump_user_preferences (file);
+  vault_preferences_active= true;
+  reload_preferences (file);
+}
+
+void report_root_namespace () {
+  string error= athena_vault_validate_root_namespace ();
+  if (error != "") show_message (error, "Vault");
+}
+
+void load_directory (url directory) {
+  if (!athena_vaultfile_present (native_path (directory))) {
+    vault_create_dialog_native (directory);
+    return;
+  }
+  AthenaVaultfileInfo info;
+  std::string error;
+  if (!athena_vaultfile_read (native_path (directory), info, error)) {
+    show_message (string (error.c_str ()), "Vault");
+    return;
+  }
+  const bool take_preferences= preference_on ("vault take preferences with vault");
+  if (vault_preferences_active) save_user_preferences ();
+  string failure= vault_load (directory, string (info.name.c_str ()),
+    string (info.map_path.c_str ()), string (info.namespace_db_path.c_str ()));
+  if (failure != "") { show_message (failure, "Vault"); return; }
+  // Loading may canonicalize the database and preference locations.
+  if (!athena_vaultfile_read (native_path (directory), info, error)) {
+    show_message (string (error.c_str ()), "Vaultfile");
+    return;
+  }
+  deactivate_preferences ();
+  if (take_preferences) activate_preferences (directory, info);
+  vault_add_recent (directory);
+  get_server ()->set_message ("Loaded vault: " * string (info.name.c_str ()), "Vault");
+  report_root_namespace ();
+}
+
+void sync_preferences_mode () {
+  if (vault_preferences_reloading) return;
+  if (!preference_on ("vault take preferences with vault")) deactivate_preferences ();
+  else if (vault_active () && !vault_preferences_active) {
+    AthenaVaultfileInfo info;
+    std::string error;
+    url directory= vault_get_root ();
+    if (athena_vaultfile_read (native_path (directory), info, error))
+      activate_preferences (directory, info);
+    else show_message (string (error.c_str ()), "Vaultfile");
+  }
+}
+
+void on_gui_directory (url directory, void (*action) (url)) {
+  if (!current_scheme_execution_context ()) { action (directory); return; }
+  const string name= as_string (directory);
+  std::string transfer (name.data (), N(name));
+  qt_post_to_main_thread ([transfer= std::move (transfer), action] {
+    action (url (string (transfer.c_str ())));
+  });
+}
+
+void create_directory_dialog (url directory) {
+  auto* dialog= new QInputDialog (QApplication::activeWindow ());
+  dialog->setAttribute (Qt::WA_DeleteOnClose);
+  dialog->setWindowTitle (QObject::tr ("New Vault"));
+  dialog->setLabelText (QObject::tr ("Vault name"));
+  QObject::connect (dialog, &QInputDialog::textValueSelected, dialog,
+    [directory] (const QString& name) {
+      AthenaVaultfileInfo info;
+      info.name= name.toUtf8 ().toStdString ();
+      std::string error;
+      if (!athena_vaultfile_write (native_path (directory), info, error)) {
+        show_message (string (error.c_str ()), "Vaultfile");
+        return;
+      }
+      load_directory (directory);
+    });
+  dialog->open ();
+}
+
+void open_vault_dialog () {
+  auto* dialog= new QFileDialog (QApplication::activeWindow (), QObject::tr ("Load Vault"));
+  dialog->setAttribute (Qt::WA_DeleteOnClose);
+  dialog->setFileMode (QFileDialog::Directory);
+  dialog->setOption (QFileDialog::ShowDirsOnly);
+#if ATHENA_PLATFORM_IPADOS
+  dialog->setDirectory (qEnvironmentVariable ("ATHENA_VAULTS_PATH"));
+#endif
+  QObject::connect (dialog, &QFileDialog::fileSelected, dialog,
+    [] (const QString& directory) { load_directory (url_system (string (directory.toUtf8 ().constData ()))); });
+  dialog->open ();
+}
+
+void unload_vault () {
+  if (!vault_active ()) {
+    get_server ()->set_message ("No active vault to unload", "Vault");
+    return;
+  }
+  deactivate_preferences ();
+  vault_close ();
+  get_server ()->set_message ("Unloaded vault", "Vault");
 }
 
 bool
@@ -197,6 +342,12 @@ schedule_explorer_after_startup () {
 
 } // namespace
 
+void vault_create_dialog_native (url directory) { on_gui_directory (directory, create_directory_dialog); }
+void vault_load_directory_native (url directory) { on_gui_directory (directory, load_directory); }
+void vault_open_dialog_native () { athena_dispatch_ui (open_vault_dialog); }
+void vault_unload_native () { athena_dispatch_ui (unload_vault); }
+void vault_notify_preferences_mode (string, string) { athena_dispatch_ui (sync_preferences_mode); }
+
 void
 vault_track_current_buffer_if_enabled () {
   if (!preference_on ("vault explorer track current file") || !vault_active ())
@@ -213,8 +364,7 @@ vault_show_explorer_and_track_native () {
 
 void
 vault_load_latest_action_native (string path) {
-  try { (void) call ("load-vault-dir-now", object (url (path))); }
-  catch (...) {}
+  vault_load_directory_native (url (path));
 }
 
 void

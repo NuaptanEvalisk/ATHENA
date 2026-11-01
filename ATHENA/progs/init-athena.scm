@@ -85,7 +85,6 @@
 (register-preference-callback-procedures
   (list notify-header notify-icon-bar notify-toolbar-presentation
         notify-remote-control notify-status-bar notify-zoom-factor))
-(lazy-define (athena athena tm-vault) load-vault-dir load-vault-dir-now)
 (lazy-define (athena athena tm-files)
              buffer-missing-style? buffer-set-default-style command-line-convert)
 (lazy-define (athena athena tm-codex)

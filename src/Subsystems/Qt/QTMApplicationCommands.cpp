@@ -15,6 +15,7 @@
 #include "global_transformation_frontend.hpp"
 #include "recent_files.hpp"
 #include "application_lifecycle.hpp"
+#include "vault_frontend.hpp"
 #include "QTMCommandRegistryInternal.hpp"
 
 #include "QTMAbout.hpp"
@@ -384,8 +385,7 @@ QTMCommandRegistry::registerApplicationCommands () {
         context.shell.data (), QObject::tr ("Load Vault"), initialDirectory);
       if (directory.isEmpty ()) return true;
       try {
-        (void) call (
-          "load-vault-dir", object (url_system (from_qstring (directory))));
+        vault_load_directory_native (url_system (from_qstring (directory)));
         return true;
       }
       catch (...) {
@@ -396,7 +396,7 @@ QTMCommandRegistry::registerApplicationCommands () {
     "file.unload-vault", QTMCommandScope::Application,
     [] (const QTMCommandContext&) {
       try {
-        (void) call ("unload-vault");
+        vault_unload_native ();
         return true;
       }
       catch (...) {
@@ -534,8 +534,7 @@ QTMCommandRegistry::registerApplicationCommands () {
     [] (const QString& key, const QTMCommandContext&) {
       if (key.isEmpty ()) return false;
       try {
-        (void) call (
-          "load-vault-dir", object (url_system (from_qstring (key))));
+        vault_load_directory_native (url_system (from_qstring (key)));
         return true;
       }
       catch (...) {

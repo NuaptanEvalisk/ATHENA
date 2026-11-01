@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="interactive-new-vault" native="vault_create_dialog_native" returns="void" exceptions="scheme"><arg type="url" /></binding>
+  <binding name="load-vault-dir" native="vault_load_directory_native" returns="void" exceptions="scheme"><arg type="url" /></binding>
+  <binding name="load-vault-dir-now" native="vault_load_directory_native" returns="void" exceptions="scheme"><arg type="url" /></binding>
+  <binding name="open-vault" native="vault_open_dialog_native" returns="void" />
+  <binding name="unload-vault" native="vault_unload_native" returns="void" />
+  <binding name="notify-vault-preferences-mode" native="vault_notify_preferences_mode" returns="void"><arg type="string" /><arg type="string" /></binding>
   <binding name="wrapped-print-to-file" native="document_export_pdf" returns="void" exceptions="scheme"><arg type="url" /></binding>
   <binding name="wrapped-print-to-pdf-embeded-with-tm" native="document_export_pdf_with_source" returns="void" exceptions="scheme"><arg type="url" /></binding>
   <binding name="native-export-pdf-dialog" native="document_export_pdf_dialog" returns="void" exceptions="scheme" />

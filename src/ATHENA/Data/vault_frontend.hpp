@@ -8,6 +8,13 @@
 
 #include "string.hpp"
 #include "tree.hpp"
+#include "url.hpp"
+
+void vault_create_dialog_native (url directory);
+void vault_load_directory_native (url directory);
+void vault_open_dialog_native ();
+void vault_unload_native ();
+void vault_notify_preferences_mode (string key, string value);
 
 void vault_track_current_buffer_if_enabled ();
 void vault_show_explorer_and_track_native ();
