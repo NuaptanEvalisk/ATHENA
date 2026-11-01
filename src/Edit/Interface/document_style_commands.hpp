@@ -42,7 +42,6 @@ bool document_has_style_package (string package);
 bool document_has_style_package (editor_rep* ed, string package);
 bool document_not_has_style_package (string package);
 array<string> document_theme_names ();
-array<string> document_poster_title_styles ();
 string document_current_basic_theme (editor_rep* ed);
 void document_add_style_package (string package);
 void document_remove_style_package (string package);

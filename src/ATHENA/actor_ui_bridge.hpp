@@ -74,7 +74,6 @@ enum actor_editor_command_state_flag: std::uint32_t {
   ACTOR_EDITOR_COMMAND_STATE_PROG_MODE= 1U << 9,
   ACTOR_EDITOR_COMMAND_STATE_SOURCE_MODE= 1U << 10,
   ACTOR_EDITOR_COMMAND_STATE_GRAPHICS_MODE= 1U << 11,
-  ACTOR_EDITOR_COMMAND_STATE_POSTER_STYLE= 1U << 12,
   ACTOR_EDITOR_COMMAND_STATE_MANUAL_STYLE= 1U << 13,
   ACTOR_EDITOR_COMMAND_STATE_HEADER_LETTER= 1U << 14,
   ACTOR_EDITOR_COMMAND_STATE_BOOK_STYLE= 1U << 15,
@@ -220,7 +219,6 @@ struct actor_document_menu_snapshot {
   std::vector<actor_focus_choice_snapshot> document_packages;
   std::vector<actor_focus_choice_snapshot> current_packages;
   std::vector<actor_focus_choice_snapshot> document_themes;
-  std::vector<actor_focus_choice_snapshot> document_title_themes;
   std::string document_theme_kind;
   std::string background_color;
   bool background_available= false;
@@ -300,7 +298,6 @@ struct actor_focus_toolbar_snapshot {
   std::vector<actor_focus_choice_snapshot> document_packages;
   std::vector<actor_focus_choice_snapshot> current_packages;
   std::vector<actor_focus_choice_snapshot> document_themes;
-  std::vector<actor_focus_choice_snapshot> document_title_themes;
   std::vector<std::string> slide_names;
   std::string document_theme_kind;
   std::string background_color;
@@ -309,9 +306,6 @@ struct actor_focus_toolbar_snapshot {
   bool slide_propose_title= false;
   bool slide_propose_graphics= false;
   std::vector<actor_focus_hidden_field_snapshot> hidden_fields;
-  bool poster_block_context= false;
-  bool poster_block_titled= false;
-  bool poster_block_wide= false;
   bool script_context= false;
   bool script_insert_up= false;
   bool script_insert_down= false;
@@ -337,7 +331,6 @@ struct actor_focus_toolbar_snapshot {
   bool document_insert_title_available= false;
   bool document_insert_abstract_available= false;
   bool document_insert_screens_available= false;
-  bool poster_insert_title_available= false;
   bool tmdoc_insert_title_available= false;
   bool tmdoc_insert_copyright_available= false;
   bool title_hidden_available= false;

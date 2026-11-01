@@ -32,7 +32,6 @@
     "book": "Default style for writing books",
     "generic": "Default document style",
     "letter": "Default style for writing letters",
-    "poster": "Style for posters",
     "seminar": "Style for presentations using an overhead projector",
     "source": "Style for editing style files and packages",
     "acmart": "ACM article style",
@@ -69,13 +68,6 @@
     "framed-title": "Put titles of slides in wide frames",
     "title-bar": "Put titles of slides in bar at extreme top of screen",
     "math-ss": "Use sans serif font for mathematical formulas",
-    "a0-poster": "A0 page size for posters",
-    "a1-poster": "A1 page size for posters",
-    "a2-poster": "A2 page size for posters",
-    "a3-poster": "A3 page size for posters",
-    "a4-poster": "A4 page size for posters",
-    "landscape-poster": "Landscape orientation for posters",
-    "portrait-poster": "Portrait orientation for posters",
     "centered-program": "Use a centered rendering style for algorithms",
     "framed-program": "Display algorithms inside frames and center",
     "two-columns": "Markup and adjustments for two column documents",
@@ -118,11 +110,6 @@
     "rough-paper",
     "xperiment"
   ],
-  "poster_title_styles": [
-    "plain-poster-title",
-    "framed-poster-title",
-    "topless-poster-title"
-  ],
   "categories": {
     "program-theme": [
       "centered-program",
@@ -135,11 +122,6 @@
     "beamer-title-theme": [
       "title-bar",
       "framed-title"
-    ],
-    "poster-title-style": [
-      "plain-poster-title",
-      "framed-poster-title",
-      "topless-poster-title"
     ]
   },
   "precedes": [
@@ -162,34 +144,16 @@
     [
       ":beamer-theme",
       ":theorem-decorations"
-    ],
-    [
-      "alt-colors",
-      ":poster-theme"
-    ],
-    [
-      ":poster-theme",
-      ":poster-title-style"
-    ],
-    [
-      ":poster-theme",
-      ":theorem-decorations"
     ]
   ],
   "includes": {
     "beamer": [
       "title-bar",
       "bluish"
-    ],
-    "poster": [
-      "boring-white",
-      "framed-poster-title"
     ]
   },
   "defaults": {
     "basic_theme": "plain",
-    "beamer_theme": "bluish",
-    "poster_theme": "boring-white",
-    "poster_title_style": "framed-poster-title"
+    "beamer_theme": "bluish"
   }
 }

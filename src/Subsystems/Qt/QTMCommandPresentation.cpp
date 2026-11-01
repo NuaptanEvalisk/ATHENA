@@ -60,7 +60,6 @@ editor_capability_bit (const QString& name, std::uint32_t& bit) {
     {"prog-mode", ACTOR_EDITOR_COMMAND_STATE_PROG_MODE},
     {"source-mode", ACTOR_EDITOR_COMMAND_STATE_SOURCE_MODE},
     {"graphics-mode", ACTOR_EDITOR_COMMAND_STATE_GRAPHICS_MODE},
-    {"poster-style", ACTOR_EDITOR_COMMAND_STATE_POSTER_STYLE},
     {"manual-style", ACTOR_EDITOR_COMMAND_STATE_MANUAL_STYLE},
     {"header-letter", ACTOR_EDITOR_COMMAND_STATE_HEADER_LETTER},
     {"book-style", ACTOR_EDITOR_COMMAND_STATE_BOOK_STYLE},
@@ -339,7 +338,6 @@ QTMCommandRegistry::loadPresentation () {
              state.available= focus.valid () &&
                (nativeOp == "make-doc-data" ?
                   focus.document_insert_title_available &&
-                  !focus.poster_insert_title_available &&
                   !focus.tmdoc_insert_title_available :
                   focus.document_insert_abstract_available);
            }

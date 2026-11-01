@@ -242,25 +242,6 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
           item.state.checked= checked;
           out.append (std::move (item));
         };
-      if (focus.poster_block_context) {
-        append (
-          QStringLiteral ("poster-insert-up"),
-          QObject::tr ("Insert similar block above"),
-          QStringLiteral ("tm_insert_up"));
-        append (
-          QStringLiteral ("poster-insert-down"),
-          QObject::tr ("Insert similar block below"),
-          QStringLiteral ("tm_insert_down"));
-        append (
-          QStringLiteral ("poster-block-toggle-titled"),
-          QObject::tr ("Toggle titled block"),
-          QStringLiteral ("tm_small_textual"), true,
-          focus.poster_block_titled);
-        append (
-          QStringLiteral ("poster-block-toggle-wide"),
-          QObject::tr ("Make block wide"),
-          QStringLiteral ("tm_wide_float"), true, focus.poster_block_wide);
-      }
       if (focus.script_insert_up)
         append (
           QStringLiteral ("script-insert-up"),
@@ -326,16 +307,12 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
           context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
       }
       static const QSet<QString> allowed {
-        QStringLiteral ("poster-block-toggle-titled"),
-        QStringLiteral ("poster-block-toggle-wide"),
         QStringLiteral ("sqrt-toggle"),
         QStringLiteral ("dueto-add"),
         QStringLiteral ("table-toggle-parwidth"),
         QStringLiteral ("table-make-subtable"),
         QStringLiteral ("table-reset-cell-span"),
         QStringLiteral ("table-join-selected-cells"),
-        QStringLiteral ("poster-insert-up"),
-        QStringLiteral ("poster-insert-down"),
         QStringLiteral ("script-insert-up"),
         QStringLiteral ("script-insert-down")
       };
@@ -348,7 +325,7 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
       actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
       const bool available=
         focus.valid () &&
-        (focus.poster_block_context || focus.script_context ||
+        (focus.script_context ||
          focus.sqrt_context ||
          focus.dueto_available ||
          focus.has (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT) ||
@@ -830,8 +807,6 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
       };
       if (focus.tmdoc_insert_title_available)
         append (QStringLiteral ("tmdoc-insert-title"), QObject::tr ("Title"));
-      else if (focus.poster_insert_title_available)
-        append (QStringLiteral ("poster-insert-title"), QObject::tr ("Title"));
       else if (focus.document_insert_title_available)
         append (QStringLiteral ("document-insert-title"), QObject::tr ("Title"));
       if (focus.document_insert_abstract_available)
@@ -853,7 +828,6 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
         QStringLiteral ("document-insert-title"),
         QStringLiteral ("document-insert-abstract"),
         QStringLiteral ("document-insert-screens"),
-        QStringLiteral ("poster-insert-title"),
         QStringLiteral ("tmdoc-insert-title"),
         QStringLiteral ("tmdoc-insert-copyright")
       };
@@ -869,7 +843,6 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
         (focus.document_insert_title_available ||
          focus.document_insert_abstract_available ||
          focus.document_insert_screens_available ||
-         focus.poster_insert_title_available ||
          focus.tmdoc_insert_title_available ||
          focus.tmdoc_insert_copyright_available);
       return state_if (context, available);

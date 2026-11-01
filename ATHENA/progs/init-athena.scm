@@ -287,9 +287,6 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting editing modes for various special styles\n")
-(lazy-define (various poster-edit)
-             poster-block-context? titled-block-context? block-wide?
-             block-toggle-titled block-toggle-wide make-poster-title)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 

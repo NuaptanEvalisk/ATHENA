@@ -291,16 +291,6 @@ QTMCommandRegistry::registerFocusDocumentCommands () {
         item.state.checked= choice.checked;
         out.append (std::move (item));
       }
-      for (std::size_t i=0; i<focus.document_title_themes.size (); ++i) {
-        const auto& choice= focus.document_title_themes[i];
-        QTMCommandDynamicItem item= enabled_dynamic_item (
-          QStringLiteral ("title/%1").arg (i), qstring (choice.label));
-        item.group= QObject::tr ("Title style");
-        item.state.enabled= enabled;
-        item.state.checkable= true;
-        item.state.checked= choice.checked;
-        out.append (std::move (item));
-      }
       return out;
     },
     [] (const QString& key, const QTMCommandContext& context) {
@@ -311,25 +301,21 @@ QTMCommandRegistry::registerFocusDocumentCommands () {
           context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
       }
       QStringList parts= key.split ('/');
-      if (parts.size () != 2) return false;
+      if (parts.size () != 2 || parts[0] != QStringLiteral ("theme"))
+        return false;
       bool ok= false;
       int index= parts[1].toInt (&ok);
       if (!ok) return false;
       qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
       if (proxy == nullptr) return false;
       actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
-      const std::vector<actor_focus_choice_snapshot>* choices= nullptr;
-      if (parts[0] == QStringLiteral ("theme"))
-        choices= &focus.document_themes;
-      else if (parts[0] == QStringLiteral ("title"))
-        choices= &focus.document_title_themes;
-      if (choices == nullptr || index < 0 ||
-          index >= static_cast<int> (choices->size ()))
+      const auto& choices= focus.document_themes;
+      if (index < 0 || index >= static_cast<int> (choices.size ()))
         return false;
       QJsonObject action;
       action.insert ("op", "focus-document-package");
       const QString name=
-        qstring ((*choices)[static_cast<std::size_t> (index)].value);
+        qstring (choices[static_cast<std::size_t> (index)].value);
       action.insert (
         "action",
         name == QStringLiteral ("alt-colors") ||
@@ -346,8 +332,7 @@ QTMCommandRegistry::registerFocusDocumentCommands () {
       qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
       if (proxy == nullptr) return QTMCommandState {};
       actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
-      if (focus.document_themes.empty () &&
-          focus.document_title_themes.empty ()) {
+      if (focus.document_themes.empty ()) {
         state.available= false;
         state.enabled= false;
       }

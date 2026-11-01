@@ -129,7 +129,6 @@
   (in-generic% (style-has? "generic-style"))
   (in-code% (style-has? "code-style"))
   (in-beamer% (style-has? "beamer-style"))
-  (in-poster% (style-has? "poster-style"))
   (in-auto% (style-has? "automate-dtd"))
   (with-any-selection% (selection-active-any?))
   (with-active-selection% (selection-active-normal?))

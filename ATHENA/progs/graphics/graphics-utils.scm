@@ -323,7 +323,7 @@
   (graphics-graphics-path))
 
 (tm-define (graphics-default-unit)
-  (if (in-poster?) "0.1par" "1cm"))
+  "1cm")
 
 (tm-define (make-graphics . init)
   (when (null? init)

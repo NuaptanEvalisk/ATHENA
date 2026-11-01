@@ -324,18 +324,13 @@ valid_focus_action_id (const QString& id) {
     "toggle-insertion-positioning-not",
     "slide-insert-title",
     "slide-insert-graphics",
-    "poster-block-toggle-titled",
-    "poster-block-toggle-wide",
     "table-toggle-parwidth",
     "sqrt-toggle",
     "dueto-add",
     "document-insert-title",
     "document-insert-abstract",
-    "poster-insert-title",
     "tmdoc-insert-title",
     "tmdoc-insert-copyright",
-    "poster-insert-up",
-    "poster-insert-down",
     "script-insert-up",
     "script-insert-down",
     "document-insert-screens",
@@ -1387,12 +1382,6 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
              state.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT) &&
              state.slide_propose_graphics)
       (void) call ("native-slide-insert-graphics", object (target));
-    else if (id == "poster-block-toggle-titled" &&
-             state.poster_block_context)
-      (void) call ("block-toggle-titled", object (target));
-    else if (id == "poster-block-toggle-wide" &&
-             state.poster_block_context)
-      (void) call ("block-toggle-wide", object (target));
     else if (id == "table-toggle-parwidth" &&
               state.has (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT))
       athena::table_commands::table_toggle_parwidth (ed.operator-> ());
@@ -1403,17 +1392,12 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     else if (id == "document-insert-title" &&
              state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
              state.document_insert_title_available &&
-             !state.poster_insert_title_available &&
              !state.tmdoc_insert_title_available)
       (void) call ("make-doc-data");
     else if (id == "document-insert-abstract" &&
              state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
              state.document_insert_abstract_available)
       (void) call ("make-abstract-data");
-    else if (id == "poster-insert-title" &&
-             state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
-             state.poster_insert_title_available)
-      (void) call ("make-poster-title");
     else if (id == "tmdoc-insert-title" &&
              state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
              state.tmdoc_insert_title_available)
@@ -1422,10 +1406,6 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
              state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
              state.tmdoc_insert_copyright_available)
       (void) call ("tmdoc-insert-copyright-and-license");
-    else if (id == "poster-insert-up" && state.poster_block_context)
-      generic_structured_insert_up ();
-    else if (id == "poster-insert-down" && state.poster_block_context)
-      generic_structured_insert_down ();
     else if (id == "script-insert-up" && state.script_insert_up)
       generic_structured_insert_up ();
     else if (id == "script-insert-down" && state.script_insert_down)
@@ -1836,7 +1816,6 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
   else if (op == "make-doc-data") {
     actor_focus_toolbar_snapshot focus= ed->focus_toolbar_state_snapshot ();
     if (!focus.valid () || !focus.document_insert_title_available ||
-        focus.poster_insert_title_available ||
         focus.tmdoc_insert_title_available) return;
     tree value (
       as_tree_label ("doc-data"),

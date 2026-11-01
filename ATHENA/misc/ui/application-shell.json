@@ -978,20 +978,6 @@
               "icon": "tm_section"
             },
             {
-              "submenu": "menubar-text-poster-block",
-              "label": "Insert a section block",
-              "items": [
-                { "command": "editor.text.poster.plain-titled" },
-                { "command": "editor.text.poster.framed-titled" },
-                { "command": "editor.text.poster.alternate-titled" },
-                { "separator": true },
-                { "command": "editor.text.poster.plain" },
-                { "command": "editor.text.poster.framed" },
-                { "command": "editor.text.poster.alternate" }
-              ],
-              "icon": "tm_block"
-            },
-            {
               "submenu": "menubar-text-enunciation",
               "label": "Insert an enunciation",
               "items": [

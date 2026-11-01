@@ -244,12 +244,6 @@
         "group": "assign-tag"
       },
       {
-        "group": "titled-block-tag"
-      },
-      {
-        "group": "untitled-block-tag"
-      },
-      {
         "group": "tmdoc-traversal-tag"
       },
       {
@@ -1369,24 +1363,6 @@
     "assign-tag": [
       "assign",
       "provide"
-    ],
-    "titled-block-tag": [
-      "plain-titled-block",
-      "framed-titled-block",
-      "alternate-titled-block"
-    ],
-    "untitled-block-tag": [
-      "plain-block",
-      "framed-block",
-      "alternate-block"
-    ],
-    "poster-block-tag": [
-      {
-        "group": "titled-block-tag"
-      },
-      {
-        "group": "untitled-block-tag"
-      }
     ],
     "tmdoc-traversal-tag": [
       "branch",

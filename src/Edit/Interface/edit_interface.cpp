@@ -919,12 +919,7 @@ editor_rep::document_menu_state_snapshot () {
       p= path_up (p);
     }
   }
-  const bool poster=
-    (editor_style_command_flags &
-     ACTOR_EDITOR_COMMAND_STATE_POSTER_STYLE) != 0;
-  string themeKind= poster ? string ("poster"):
-                     snapshot.beamer_style ? string ("beamer"):
-                                             string ("basic");
+  string themeKind= snapshot.beamer_style ? string ("beamer"): string ("basic");
   assign (snapshot.document_theme_kind, themeKind);
   auto append_theme_list=
     [&] (array<string> themes,
@@ -934,13 +929,7 @@ editor_rep::document_menu_state_snapshot () {
           target, themes[i],
           document_has_style_package (this, themes[i]));
     };
-  if (poster) {
-    append_theme_list (document_theme_names (), snapshot.document_themes);
-    append_theme_list (
-      document_poster_title_styles (), snapshot.document_title_themes);
-    snapshot.background_available= true;
-  }
-  else if (snapshot.beamer_style) {
+  if (snapshot.beamer_style) {
     append_theme_list (document_theme_names (), snapshot.document_themes);
     snapshot.background_available= true;
   }
@@ -1202,17 +1191,6 @@ editor_rep::focus_toolbar_state_snapshot () {
   snapshot.hlink_context= is_compound (t, "hlink", 2);
   snapshot.cardlink_context= is_compound (t, "cardlink", 2);
   snapshot.sqrt_multiple= snapshot.sqrt_context && N(t) == 2;
-  try {
-    snapshot.poster_block_context=
-      as_bool (call ("poster-block-context?", object (t)));
-    if (snapshot.poster_block_context) {
-      snapshot.poster_block_titled=
-        as_bool (call ("titled-block-context?", object (t)));
-      snapshot.poster_block_wide=
-        as_bool (call ("block-wide?", object (t)));
-    }
-  }
-  catch (...) {}
   snapshot.script_context= query ("script-context?");
   if (snapshot.script_context) {
     const bool only= query ("script-only-script?");
@@ -1308,9 +1286,6 @@ editor_rep::focus_toolbar_state_snapshot () {
       defined_at_init ("beamer-style") &&
       !(is_document (buffer) && N(buffer) > 0 &&
         is_compound (buffer[N(buffer)-1], "screens"));
-    snapshot.poster_insert_title_available=
-      defined_at_init ("poster-style") &&
-      snapshot.document_insert_title_available;
     const bool manualStyle=
       defined_at_init ("tmdoc-style") && !is_rooted_tmfs (buf->name);
     const path cursor= the_path ();
@@ -1775,12 +1750,7 @@ editor_rep::focus_toolbar_state_snapshot () {
       background.data (), static_cast<std::size_t> (N(background)));
 
     snapshot.beamer_style= defined_at_init ("beamer-style");
-    const bool poster=
-      (editor_style_command_flags &
-       ACTOR_EDITOR_COMMAND_STATE_POSTER_STYLE) != 0;
-    string themeKind= poster ? string ("poster"):
-                       snapshot.beamer_style ? string ("beamer"):
-                       string ("basic");
+    string themeKind= snapshot.beamer_style ? string ("beamer"): string ("basic");
     snapshot.document_theme_kind.assign (
       themeKind.data (), static_cast<std::size_t> (N(themeKind)));
 
@@ -1792,13 +1762,7 @@ editor_rep::focus_toolbar_state_snapshot () {
             target, themes[i],
             document_has_style_package (this, themes[i]));
       };
-    if (poster) {
-      append_theme_list (document_theme_names (), snapshot.document_themes);
-      append_theme_list (
-        document_poster_title_styles (), snapshot.document_title_themes);
-      snapshot.background_available= true;
-    }
-    else if (snapshot.beamer_style) {
+    if (snapshot.beamer_style) {
       append_theme_list (document_theme_names (), snapshot.document_themes);
       snapshot.background_available= true;
     }
@@ -1872,8 +1836,6 @@ editor_rep::refresh_editor_style_command_flags () {
   auto style_has= [this] (const char* capability) {
     return defined_at_init (string (capability));
   };
-  if (style_has ("poster-style"))
-    editor_style_command_flags |= ACTOR_EDITOR_COMMAND_STATE_POSTER_STYLE;
   if (style_has ("tmdoc-style") && !is_rooted_tmfs (buf->name))
     editor_style_command_flags |= ACTOR_EDITOR_COMMAND_STATE_MANUAL_STYLE;
   if (style_has ("header-letter-dtd"))

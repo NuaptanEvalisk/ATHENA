@@ -184,12 +184,6 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
           out, QStringLiteral ("theme/%1").arg (i), qs (choice.label),
           QObject::tr ("Theme"), writable, true, choice.checked);
       }
-      for (std::size_t i=0; i<document.document_title_themes.size (); ++i) {
-        const auto& choice= document.document_title_themes[i];
-        append_item (
-          out, QStringLiteral ("title-theme/%1").arg (i), qs (choice.label),
-          QObject::tr ("Title style"), writable, true, choice.checked);
-      }
 
       append_item (
         out, "source", QObject::tr ("Edit source tree"), QString (), writable,
@@ -441,14 +435,11 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
         return submit_inline_editor_action (
           context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
       }
-      if (key.startsWith (QStringLiteral ("theme/")) ||
-          key.startsWith (QStringLiteral ("title-theme/"))) {
-        const bool title= key.startsWith (QStringLiteral ("title-theme/"));
-        QString suffix= key.mid (title ? 12 : 6);
+      if (key.startsWith (QStringLiteral ("theme/"))) {
+        QString suffix= key.mid (6);
         bool ok= false;
         int index= suffix.toInt (&ok);
-        const auto& choices=
-          title ? document.document_title_themes : document.document_themes;
+        const auto& choices= document.document_themes;
         if (!ok || index < 0 || index >= static_cast<int> (choices.size ()))
           return false;
         QString name= qs (choices[static_cast<std::size_t> (index)].value);

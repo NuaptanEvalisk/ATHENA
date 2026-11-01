@@ -43,7 +43,6 @@ struct style_catalog_data {
   QJsonObject includes;
   QJsonObject defaults;
   QJsonArray themes;
-  QJsonArray poster_title_styles;
   QJsonArray precedes;
 
   style_catalog_data () {
@@ -65,7 +64,6 @@ struct style_catalog_data {
             root.value ("includes").isObject () &&
             root.value ("defaults").isObject () &&
             root.value ("themes").isArray () &&
-            root.value ("poster_title_styles").isArray () &&
             root.value ("precedes").isArray (),
             "unsupported style catalog schema");
     menu_names= root.value ("menu_names").toObject ();
@@ -74,7 +72,6 @@ struct style_catalog_data {
     includes= root.value ("includes").toObject ();
     defaults= root.value ("defaults").toObject ();
     themes= root.value ("themes").toArray ();
-    poster_title_styles= root.value ("poster_title_styles").toArray ();
     precedes= root.value ("precedes").toArray ();
   }
 
@@ -294,11 +291,9 @@ string
 owner_style_category (editor_rep* ed, string style) {
   style_catalog_data& catalog= style_catalog ();
   for (const char* category: {"program-theme", "theorem-decorations",
-                              "beamer-title-theme", "poster-title-style"})
+                              "beamer-title-theme"})
     if (catalog.category (category, style)) return ":" * string (category);
   if (catalog.theme (style)) {
-    if (ed != nullptr && ed->defined_at_init ("poster-style"))
-      return ":poster-theme";
     if (ed != nullptr && ed->defined_at_init ("beamer-style"))
       return ":beamer-theme";
     return ":basic-theme";
@@ -515,11 +510,6 @@ document_current_basic_theme (editor_rep* ed) {
 array<string>
 document_theme_names () {
   return style_catalog ().strings (style_catalog ().themes);
-}
-
-array<string>
-document_poster_title_styles () {
-  return style_catalog ().strings (style_catalog ().poster_title_styles);
 }
 
 bool
