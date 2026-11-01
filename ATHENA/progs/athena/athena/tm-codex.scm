@@ -20,22 +20,6 @@
         (string-append (getenv "ATHENA_HOME_PATH") "/codex")
         configured)))
 
-(define (codex-completion-prompt latex figures?)
-  (string-append
-    "Continue the following ATHENA document selection. It was exported as "
-    "a LaTeX snippet. Return only the LaTeX snippet that should be inserted "
-    "immediately after it: no Markdown fence, explanation, or repetition of "
-    "the supplied text. Preserve its language, mathematical notation, style, "
-    "and level of formality."
-    (if figures?
-        (string-append
-          " Figure placeholders of the form <codex-fig-UUID-N.png> refer "
-          "to the attached images with matching labels. Use their visual "
-          "content when continuing the document.")
-        "")
-    "\n\n"
-    latex))
-
 (define (codex-bridge-path)
   (if (url-exists? "$ATHENA_PATH/bin/athena-codex-bridge")
       (url-concretize "$ATHENA_PATH/bin/athena-codex-bridge")
@@ -56,61 +40,6 @@
     (lambda (figure)
       (when (url-exists? figure) (url-remove figure)))
     figures))
-
-(define codex-visual-node-labels
-  '(image graphics commutative-diagram))
-
-(define (codex-render-selection-figure file figure)
-  (let ((rendered? #f))
-    (catch #t
-      (lambda ()
-        (print-snippet file figure #t)
-        (set! rendered? (url-exists? file)))
-      (lambda (key . args)
-        (display* "Codex figure rendering failed: " key " " args "\n")))
-    (when (and (not rendered?) (url-exists? file))
-      (url-remove file))
-    rendered?))
-
-(define (codex-prepare-selection-figures selection)
-  (let ((uuid (vault-generate-uuid))
-        (figure-number 0)
-        (figures '())
-        (markers '()))
-    (define (rebuild t)
-      (stree->tree
-        (cons (tree-label t)
-              (map (lambda (child) (tree->stree (visit child)))
-                   (tree-children t)))))
-    (define (visit t)
-      (cond
-        ((tree-atomic? t) (tree-copy t))
-        ((in? (tree-label t) codex-visual-node-labels)
-         (let* ((number (+ figure-number 1))
-                (filename
-                  (string-append "codex-fig-" uuid "-"
-                                 (number->string number) ".png"))
-                (marker
-                  (string-append "ATHENACODEXFIG"
-                    (string-replace uuid "-" "") "N"
-                    (number->string number) "PNG"))
-                (placeholder (string-append "<" filename ">"))
-                (file (url-append (url-temp-dir) filename)))
-           (if (codex-render-selection-figure file t)
-               (begin
-                 (set! figure-number number)
-                 (set! figures (cons file figures))
-                 (set! markers (cons (cons marker placeholder) markers))
-                 (stree->tree marker))
-               (rebuild t))))
-        (else (rebuild t))))
-    (list (visit selection) (reverse figures) (reverse markers))))
-
-(define (codex-substitute-figure-markers latex markers)
-  (if (null? markers) latex
-      (codex-substitute-figure-markers
-        (string-replace latex (caar markers) (cdar markers))
-        (cdr markers))))
 
 (define (codex-replace-placeholder buffer placeholder replacement)
   (and (buffer-exists? buffer)
@@ -184,18 +113,13 @@
             (set-message "Codex bridge is not installed" "AI completion")
             (let* ((selection (selection-tree))
                    (end (selection-get-end))
-                   (prepared (codex-prepare-selection-figures selection))
-                   (selection* (list-ref prepared 0))
-                   (figures (list-ref prepared 1))
-                   (markers (list-ref prepared 2))
-                   (latex* (convert (tm->stree selection*)
-                                    "texmacs-stree" "latex-snippet"
-                                    (cons "texmacs->latex:encoding" "utf-8")))
-                   (latex (codex-substitute-figure-markers latex* markers))
+                   (prepared (codex-prepare-selection selection))
+                   (prompt (tree->string (tree-ref prepared 0)))
+                   (figures (map (lambda (t) (system->url (tree->string t)))
+                                 (tree-children (tree-ref prepared 1))))
                    (input (url-glue (url-temp) ".codex-prompt"))
                    (output (url-glue (url-temp) ".codex-output")))
-              (string-save
-                (codex-completion-prompt latex (not (null? figures))) input)
+              (string-save prompt input)
               (let* ((target
                        (if (== destination "temporary-buffer")
                            (codex-temporary-buffer-completion-target)

@@ -1684,6 +1684,7 @@
     <arg type="string" />
     <arg type="string" />
   </binding>
+  <binding name="codex-prepare-selection" native="native_codex_prepare_selection" returns="tree" exceptions="scheme"><arg type="tree" /></binding>
   <binding name="codex-completion-options" native="athena_codex_completion_options" returns="array_string">
     <arg type="string" />
     <arg type="string" />
