@@ -1680,27 +1680,9 @@
     <arg type="tree" />
     <arg type="bool" />
   </binding>
-  <binding name="codex-initialize-models" native="athena_codex_initialize_models" returns="void">
-    <arg type="string" />
-    <arg type="string" />
-  </binding>
-  <binding name="codex-prepare-selection" native="native_codex_prepare_selection" returns="tree" exceptions="scheme"><arg type="tree" /></binding>
-  <binding name="codex-completion-options" native="athena_codex_completion_options" returns="array_string">
-    <arg type="string" />
-    <arg type="string" />
-  </binding>
-  <binding name="codex-run-completion-async" native="athena_codex_run_completion_async" returns="void">
-    <arg type="string" />
-    <arg type="string" />
-    <arg type="string" />
-    <arg type="string" />
-    <arg type="string" />
-    <arg type="string" />
-    <arg type="string" />
-    <arg type="string" />
-    <arg type="array_string" />
-    <arg type="command" />
-  </binding>
+  <binding name="codex-ai-completion" native="native_codex_completion" returns="void" exceptions="scheme" />
+  <binding name="codex-ai-completion-new-buffer" native="native_codex_completion_new_buffer" returns="void" exceptions="scheme" />
+  <binding name="codex-ai-completion-custom" native="native_codex_completion_custom" returns="void" exceptions="scheme" />
   <binding name="document-search-open" native="document_search_open" returns="void" dispatch="ui" />
   <binding name="document-replace-open" native="document_replace_open" returns="void" dispatch="ui" />
   <binding name="document-search-next" native="document_search_next" returns="void">

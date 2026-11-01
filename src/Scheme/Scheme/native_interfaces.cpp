@@ -76,7 +76,6 @@
 #include "QTMTablePropertiesPane.hpp"
 #include "QTMSlidePropertiesPane.hpp"
 #include "QTMVaultFontConfigurator.hpp"
-#include "QTMCodexCompletion.hpp"
 #include "QTMPreferencesDialog.hpp"
 #include "QTMPagePropertiesPane.hpp"
 #include "QTMParagraphPropertiesPane.hpp"
@@ -1107,31 +1106,6 @@ athena_google_cloud_todo_sync_buffer (url arg1) {
 void
 athena_google_cloud_todo_sync_open_buffers () {
   google_cloud_todo_sync_open_buffers (false);
-  return;
-}
-
-void
-athena_codex_initialize_models (string arg1, string arg2) {
-  if (!headless_mode)
-    qtm_codex_initialize_models (arg1,
-                                 arg2);
-  return;
-}
-
-array<string>
-athena_codex_completion_options (string arg1, string arg2) {
-  if (headless_mode) return array<string> ();
-  return array<string> (
-    qtm_codex_completion_options (arg1,
-                                  arg2));
-}
-
-void
-athena_codex_run_completion_async (string arg1, string arg2, string arg3, string arg4, string arg5, string arg6, string arg7, string arg8, array<string> arg9, command arg10) {
-  qtm_codex_run_completion_async (
-    std::move (arg1), std::move (arg2), std::move (arg3), std::move (arg4),
-    std::move (arg5), std::move (arg6), std::move (arg7), std::move (arg8),
-    std::move (arg9), std::move (arg10));
   return;
 }
 

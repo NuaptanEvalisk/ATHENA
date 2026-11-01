@@ -17,6 +17,7 @@
 #include "view_controls.hpp"
 #include "native_input_events.hpp"
 #include "vault_navigation.hpp"
+#include "codex_completion.hpp"
 
 #include "ATHENA/Data/program_model.hpp"
 #include "ATHENA/Data/document_node_model.hpp"
@@ -547,11 +548,11 @@ execute_business_id (editor ed, const QString& id) {
   else if (id == "editor-clear-undo-history")
     ed->clear_undo_history ();
   else if (id == "editor-ai-completion")
-    (void) call ("codex-ai-completion");
+    native_codex_completion ();
   else if (id == "editor-ai-completion-new-buffer")
-    (void) call ("codex-ai-completion-new-buffer");
+    native_codex_completion_new_buffer ();
   else if (id == "editor-ai-completion-custom")
-    (void) call ("codex-ai-completion-custom");
+    native_codex_completion_custom ();
   else if (id == "editor-copy-image")
     clipboard_copy_image ();
   else if (id == "document-flatten-transclusions")

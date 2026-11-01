@@ -219,15 +219,6 @@ athena_google_cloud_todo_sync_buffer (url arg1);
 void
 athena_google_cloud_todo_sync_open_buffers ();
 
-void
-athena_codex_initialize_models (string arg1, string arg2);
-
-array<string>
-athena_codex_completion_options (string arg1, string arg2);
-
-void
-athena_codex_run_completion_async (string arg1, string arg2, string arg3, string arg4, string arg5, string arg6, string arg7, string arg8, array<string> arg9, command arg10);
-
 object
 athena_artifact_resolve_uuid (string arg1);
 
