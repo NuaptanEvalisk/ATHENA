@@ -13,8 +13,11 @@
 #include "Data/Convert/Generic/conversion_executor.hpp"
 #include <QUrlQuery>
 #include "buffer_actor.hpp"
+#include "buffer_name_catalog.hpp"
 #include "scheme_execution_context.hpp"
 #include "ATHENA/Data/compound_edit_batch.hpp"
+#include "ATHENA/Data/application_lifecycle.hpp"
+#include "new_buffer.hpp"
 #include "qt_utilities.hpp"
 #include <optional>
 #include <stdexcept>
@@ -235,6 +238,75 @@ object native_navigation_document (tree style, object items) {
 }
 
 namespace {
+struct navigation_page_request {
+  athena_actor_id actor;
+  athena_view_id view;
+  athena_blob_id snapshot;
+  std::vector<std::string> ids;
+  size_t next= 0;
+  ~navigation_page_request () { actor_tree_registry::instance ().discard (snapshot); }
+};
+
+void continue_navigation_page (std::shared_ptr<navigation_page_request> pending) {
+  while (pending->next < pending->ids.size ()) {
+    const string id (pending->ids[pending->next++].c_str ());
+    if (!is_nil (get_trees (id))) continue;
+    if (native_resolve_link_id (id, [pending] (url target) {
+      const string name= as_string (target);
+      const auto source= published_buffer_source (std::string (name.data (), N(name)));
+      // Loci enter the link repository during typesetting, not file loading.
+      athena::avd::submit_source_task (source.first, source.second,
+        [] (editor_rep&) {
+          const auto* context= current_scheme_execution_context ();
+          context->actor->invoke (actor_command_kind::typeset_document, context->view_id);
+        },
+        [pending] (std::string error) {
+          if (!error.empty ()) {
+            std_warning << "Link page: " << string (error.c_str ()) << LF;
+            return;
+          }
+          athena::avd::submit_source_task (pending->actor, pending->view,
+            [pending] (editor_rep&) { continue_navigation_page (pending); },
+            [] (std::string error) {
+              if (!error.empty ()) std_warning << "Link page: " << string (error.c_str ()) << LF;
+            });
+        });
+    })) return;
+  }
+  tree saved= actor_tree_registry::instance ().take (pending->snapshot);
+  navigation_items items;
+  for (int i=0; i<N(saved[2]); ++i) {
+    tree row= saved[2][i];
+    items.push_back ({row[0]->label, row[1], as_int (row[2]->label), row[3]->label, row[4]});
+  }
+  tree document= content_to_tree (native_navigation_document (saved[0], write_items (items)));
+  application_open_auxiliary ("Link page", document, list_object (object (url (saved[1]->label))));
+}
+}
+
+void native_build_navigation_page (object encoded) {
+  const auto items= read_items (encoded);
+  if (items.empty ()) throw std::invalid_argument ("A link page requires navigation candidates");
+  const auto* owner= current_scheme_execution_context ();
+  if (!owner || !owner->editor)
+    throw std::runtime_error ("A link page requires an owning editor");
+  auto pending= std::make_shared<navigation_page_request> ();
+  pending->actor= owner->actor_id;
+  pending->view= owner->view_id;
+  tree rows (TUPLE);
+  for (const auto& item: items) {
+    tree row (TUPLE);
+    row << item.type << item.attributes << as_string (item.position) << item.source << item.target;
+    rows << row;
+    if (is_func (item.target, ID, 1))
+      pending->ids.emplace_back (item.target[0]->label.data (), N(item.target[0]->label));
+  }
+  pending->snapshot= actor_tree_registry::instance ().store (
+    tree (TUPLE, owner->editor->get_style (), as_string (get_master_buffer (get_current_buffer ())), rows));
+  continue_navigation_page (pending);
+}
+
+namespace {
 void update_link_id (string id) {
   for (list<tree> nodes= get_trees (id) * get_trees ("&" * id);
        !is_nil (nodes); nodes= nodes->next) {
@@ -281,7 +353,7 @@ void native_navigation_follow (object items) {
   if (is_nil (choices)) return;
   if (native_navigation_link_pages () && candidates.size () >= 2) {
     visit_vertex (tree (ID, candidates.front ().source));
-    call ("build-navigation-page", encoded);
+    native_build_navigation_page (encoded);
   }
   else if (is_nil (choices->next)) follow_item (candidates.front ());
   else if (!headless_mode) {

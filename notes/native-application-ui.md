@@ -62,3 +62,17 @@ The lower-level `quit-TeXmacs` server binding is not an actor-dispatching
 application entrypoint; calling it directly from an actor is rejected by the
 realtime-save context check. No save-policy change was needed. Temporary
 checks and logs are removed after the batch.
+
+## Native Link Pages
+
+`build-navigation-page` now uses a generated native binding. It retains the
+source actor, style and master, loads unresolved locations through the native
+document frontend, waits for the destination actor's typesetting command, and
+returns to the source actor to build the auxiliary page. Locus registration is
+a typesetting operation, so file-load completion alone is insufficient. The
+former Scheme idle-delay loop and lazy registration are removed.
+
+The focused runtime check covers cross-document loading, auxiliary page creation
+and source-master preservation. A legacy raw `locus` XML fixture was rejected by
+the v3 child-role contract; this check does not establish raw legacy-locus
+persistence support. That compatibility was not added by this migration.

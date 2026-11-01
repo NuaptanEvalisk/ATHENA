@@ -2,6 +2,7 @@
 #ifndef ATHENA_APPLICATION_LIFECYCLE_HPP
 #define ATHENA_APPLICATION_LIFECYCLE_HPP
 #include "scheme.hpp"
+#include <functional>
 
 void application_close_buffer ();
 void application_close_window (object arguments);
@@ -14,6 +15,7 @@ void application_revert_buffer (object arguments);
 void application_revert_buffer_now (object arguments);
 void application_import_document (url source, string format, object options);
 void application_load_document (url source, object options);
+void application_load_document (url source, object options, std::function<void(url)> completed);
 void application_load_document_window (url source, object options);
 void application_open_loaded_document (url source, object options);
 void application_browse_document (url source, object after_open);

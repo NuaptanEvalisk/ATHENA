@@ -3,6 +3,7 @@
 #define ATHENA_LINK_MARKUP_HPP
 
 #include "scheme.hpp"
+#include <functional>
 
 object native_link_flatten (tree link);
 object native_link_type (object link);
@@ -49,6 +50,7 @@ list<string> native_link_constellation ();
 tree native_get_link_locations (url here, tree t);
 void native_register_link_locations (url here, tree locations);
 bool native_resolve_link_id (string id);
+bool native_resolve_link_id (string id, std::function<void(url)> completed);
 object native_navigation_simplify (object items);
 object native_link_list_to_navigation (object links);
 object native_upward_navigation (object t);
@@ -60,6 +62,7 @@ object native_navigation_first_xtype (object items, string type);
 object native_automatic_link (object target, object options);
 object native_link_enumeration (object items);
 object native_navigation_document (tree style, object items);
+void native_build_navigation_page (object items);
 void native_navigation_follow (object items);
 void native_link_follow_ids (list<string> ids, string event);
 void native_link_execute_script (string source, bool trusted, object arguments);

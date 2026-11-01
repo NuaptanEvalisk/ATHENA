@@ -533,9 +533,15 @@ void application_revert_buffer (object arguments) { request_revert (arguments, t
 void application_revert_buffer_now (object arguments) { request_revert (arguments, false); }
 
 void application_load_document (url source, object options) {
+  application_load_document (source, options, {});
+}
+
+void application_load_document (url source, object options, std::function<void(url)> completed) {
   const std::string name= encode (source);
   const load_options settings (options);
-  on_document_gui ([name, settings] { load_document_gui (url (name.c_str ()), settings); });
+  on_document_gui ([name, settings, completed] {
+    load_document_gui (url (name.c_str ()), settings, completed);
+  });
 }
 
 void application_load_document_window (url source, object options) {

@@ -26,30 +26,6 @@
 ;; n=1 for direct traversal and n=0 for inverse traversal.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (navigation-target item) (car (cddddr item)))
-
-(define (resolve-navigation-list l fun)
-  (if (null? l) (fun)
-      (let* ((id (vertex->id (navigation-target (car l))))
-             (ok (or (nstring? id) (nnull? (id->trees id)))))
-        (if ok (resolve-navigation-list (cdr l) fun)
-            (begin
-              (resolve-id id)
-              (delayed (:idle 25) (resolve-navigation-list (cdr l) fun)))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Link pages
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (build-navigation-page-sub style l)
-  (with doc (navigation-list->document style l)
-    (open-auxiliary "Link page" doc)))
-
-(tm-define (build-navigation-page l)
-  (let* ((style `(tuple ,@(get-style-list)))
-         (fun (lambda () (build-navigation-page-sub style l))))
-    (resolve-navigation-list l fun)))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Jumping to different types of URLs is done in two stages. The load handler,
 ;; changing with the type of root of the url and the post-load handler, which

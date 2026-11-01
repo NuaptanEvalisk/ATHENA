@@ -6,6 +6,7 @@
 #include "convert.hpp"
 #include "analyze.hpp"
 #include "file.hpp"
+#include "ATHENA/Data/application_lifecycle.hpp"
 #include <QSaveFile>
 #include <nlohmann/json.hpp>
 #include <algorithm>
@@ -190,6 +191,10 @@ tree native_get_link_locations (url here, tree t) {
 }
 
 bool native_resolve_link_id (string id) {
+  return native_resolve_link_id (id, {});
+}
+
+bool native_resolve_link_id (string id, std::function<void(url)> completed) {
   string target;
   {
     std::lock_guard<std::mutex> lock (locations.mutex);
@@ -203,6 +208,6 @@ bool native_resolve_link_id (string id) {
   }
   if (target == "") return false;
   // The file-opening frontend retains its actor-to-UI dispatch and prompts.
-  call ("load-buffer", object (url_unix (target)));
+  application_load_document (url_unix (target), null_object (), std::move (completed));
   return true;
 }
