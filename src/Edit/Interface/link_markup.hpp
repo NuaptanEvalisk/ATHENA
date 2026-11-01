@@ -65,5 +65,7 @@ void native_link_follow_ids (list<string> ids, string event);
 void native_link_execute_script (string source, bool trusted, object arguments);
 void native_link_go_to_vertex (object vertex, object attributes);
 void native_locus_link_follow ();
+object native_link_process_url (url target);
+void native_link_post_load (url target);
 
 #endif

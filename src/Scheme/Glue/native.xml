@@ -163,6 +163,8 @@
   <binding name="execute-script" native="native_link_execute_script" returns="void" exceptions="scheme"><arg type="string" /><arg type="bool" /><arg type="object" rest="true" /></binding>
   <binding name="go-to-vertex" native="native_link_go_to_vertex" returns="void" exceptions="scheme"><arg type="object" /><arg type="object" /></binding>
   <binding name="locus-link-follow" native="native_locus_link_follow" returns="void" exceptions="scheme" />
+  <binding name="process-url" native="native_link_process_url" returns="object" exceptions="scheme"><arg type="url" /></binding>
+  <binding name="default-post-handler" native="native_link_post_load" returns="void" exceptions="scheme"><arg type="url" /></binding>
   <binding name="link-mouse-ids" native="native_link_mouse_ids" returns="list_string"><arg type="list_string" /></binding>
   <binding name="link-active-upwards" native="native_link_active_upwards" returns="list_tree" exceptions="scheme"><arg type="tree" /></binding>
   <binding name="create-unique-id" native="native_link_unique_id" returns="string" exceptions="scheme" />

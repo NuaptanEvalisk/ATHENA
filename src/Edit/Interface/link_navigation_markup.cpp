@@ -9,6 +9,9 @@
 #include "editor.hpp"
 #include "command.hpp"
 #include "analyze.hpp"
+#include "generic_editor_commands.hpp"
+#include "Data/Convert/Generic/conversion_executor.hpp"
+#include <QUrlQuery>
 #include "buffer_actor.hpp"
 #include "scheme_execution_context.hpp"
 #include "ATHENA/Data/compound_edit_batch.hpp"
@@ -392,4 +395,47 @@ void native_locus_link_follow () {
        !is_nil (nodes); nodes= nodes->next)
     ids= ids * get_ids (nodes->item);
   native_link_follow_ids (ids, "click");
+}
+
+namespace {
+std::pair<url, string> split_link_url (url target) {
+  const string text= as_string (target);
+  for (int i=0; i<N(text); ++i)
+    if (text[i] == '#' || text[i] == '?')
+      return {url_system (text (0, i)), replace (text (i+1, N(text)), "%3A", ":")};
+  return {target, ""};
+}
+}
+
+object native_link_process_url (url target) {
+  const auto parts= split_link_url (target);
+  return list_object (object (parts.first), object (parts.second));
+}
+
+void native_link_post_load (url target) {
+  const auto parts= split_link_url (target);
+  const string query= parts.second;
+  if (query == "") return;
+  const string format= conversion_file_format (parts.first);
+  editor ed= get_current_editor ();
+  if (format == "texmacs-file" || format == "generic-file" || format == "html-file") {
+    const string label= replace (query, "%3A", ":");
+    ed->go_to_label (label);
+    ed->set_message ("At " * label * ".", "");
+  }
+  else if (format == "cpp-file" || format == "java-file" || format == "scala-file" ||
+           format == "python-file" || format == "julia-file") {
+    const QUrlQuery parameters (QString::fromUtf8 (query.data (), N(query)));
+    const QString line= parameters.queryItemValue ("line", QUrl::FullyDecoded);
+    const QString column= parameters.queryItemValue ("column", QUrl::FullyDecoded);
+    const QByteArray selected= parameters.queryItemValue ("select", QUrl::FullyDecoded).toUtf8 ();
+    const string word (selected.constData (), selected.size ());
+    generic_go_to_line (line.toInt (), null_object ());
+    generic_go_to_column (column.toInt (), null_object ());
+    const object position= generic_select_word (word, ed->the_subtree (path_up (ed->the_path ())), column.toInt ());
+    const QByteArray line_text= line.toUtf8 ();
+    ed->set_message (word, string (line_text.constData (), line_text.size ()) * ":" *
+      as_string (is_int (position) ? as_int (position) : 0));
+  }
+  else cout << "Unhandled format for default queries: " << format << LF;
 }

@@ -16,9 +16,6 @@
         (generic generic-edit)))
 (import-from (kernel athena tm-preferences))
 
-(define (unescape-link-args s)
-  (string-replace s "%3A" ":"))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Navigation lists contain concrete propositions for link traversal.
 ;; One item is of the form
@@ -29,10 +26,6 @@
 ;; n=1 for direct traversal and n=0 for inverse traversal.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (navigation-type item) (car item))
-(tm-define (navigation-attributes item) (cadr item))
-(tm-define (navigation-pos item) (caddr item))
-(tm-define (navigation-source item) (cadddr item))
 (tm-define (navigation-target item) (car (cddddr item)))
 
 (define (resolve-navigation-list l fun)
@@ -77,57 +70,6 @@
            (set-message `(verbatim ,(url->system u)) "Not found"))
           ((== 1 (length l)) (load-browse-buffer (car l) after-open))
           (else (build-disambiguation-page l)))))
-
-(define (process-url u)
-  "Split a simple (not or'ed!!) url in base and query"
-  (let* ((s (url->system u))
-         (m (string-length s))
-         (h (or (string-index s #\#) m))
-         (a (or (string-index s #\?) m))
-         (i (min m h a))
-         (base (substring s 0 i))
-         (qry (substring s (min m (+ 1 i)) m)))
-    (if (< i m)  ; was there either a '?' or a '#' (with args)?
-        (list (system->url (string-drop-right s (+ 1 (string-length qry))))
-              (unescape-link-args qry))
-        (list u ""))))
-
-(define (texmacs-file-post qry)
-  (if (and (string? qry) (not (string-null? qry)))
-      (with dest (unescape-link-args qry)
-        (go-to-label dest)
-        (set-message (replace "At %1." dest) ""))))
-
-(define generic-file-post texmacs-file-post)
-
-(define (source-file-post qry)
-  (let* ((lstr (or (query-ref qry "line") "0"))
-         (cstr (or (query-ref qry "column") "0"))
-         (sstr (or (query-ref qry "select") ""))
-         (line (or (string->number lstr) 0))
-         (column (or (string->number cstr) 0)))
-    (go-to-line line)
-    (go-to-column column)
-    (set! column (or (select-word sstr (cursor-tree) column) 0))
-    (set-message sstr (string-append lstr ":" (number->string column)))))
-
-; FIXME? will this jump to HTML anchors?
-(define html-file-post generic-file-post)
-
-(define (default-post-handler u)
-  (with (base qry) (process-url u)
-    (with fm (file-format base)
-      (cond ((== qry "") (noop))
-            ((== fm "texmacs-file") (texmacs-file-post qry))
-            ((== fm "generic-file") (generic-file-post qry))
-            ((== fm "cpp-file") (source-file-post qry))
-            ((== fm "java-file") (source-file-post qry))
-            ((== fm "scala-file") (source-file-post qry))
-            ((== fm "python-file") (source-file-post qry))
-            ((== fm "julia-file") (source-file-post qry))
-            ((== fm "html-file") (html-file-post qry))
-            (else
-              (display* "Unhandled format for default queries: " fm "\n"))))))
 
 (define (http-post-handler u)
   ; TODO: jump to anchors in HTML
