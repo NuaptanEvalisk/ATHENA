@@ -3,7 +3,24 @@
 #include "Table/table.hpp"
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
+#include "packrat.hpp"
 #include <stdexcept>
+
+tree native_math_check (tree source, bool table) {
+  if (table) {
+    const bool format= is_func (source, TFORMAT);
+    if (format || is_func (source, DOCUMENT) || is_func (source, TABLE) ||
+        is_func (source, ROW) || is_func (source, CELL)) {
+      tree result= copy (source);
+      for (int i= format ? N(source)-1 : 0; i<N(source); ++i)
+        result[i]= native_math_check (source[i], true);
+      return result;
+    }
+    if (source == "") return source;
+  }
+  return packrat_correct ("std-math", table ? "Cell" : "Main", source) ?
+    source : compound ("math-error", source);
+}
 
 namespace {
 void require_equation_counter (edit_env env) {

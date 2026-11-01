@@ -7,6 +7,7 @@
 ******************************************************************************/
 
 #include "native_editor_actions.hpp"
+#include "native_math_edit.hpp"
 
 #include "ATHENA/Data/program_model.hpp"
 #include "ATHENA/Data/document_node_model.hpp"
@@ -1385,7 +1386,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
               state.has (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT))
       athena::table_commands::table_toggle_parwidth (ed.operator-> ());
     else if (id == "sqrt-toggle" && state.sqrt_context)
-      (void) call ("sqrt-toggle", object (target));
+      math_sqrt_toggle (target);
     else if (id == "document-insert-title" &&
              state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
              state.document_insert_title_available &&

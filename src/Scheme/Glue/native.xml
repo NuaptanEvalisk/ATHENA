@@ -725,6 +725,10 @@
     <arg type="procedure" />
   </binding>
   <binding name="insert-return" native="generic_insert_return" returns="void" />
+  <binding name="sqrt-toggle" native="math_sqrt_toggle" returns="void"><arg type="tree" /></binding>
+  <binding name="script-context?" native="math_script_context" returns="bool"><arg type="tree" /></binding>
+  <binding name="script-only-script?" native="math_script_only" returns="bool"><arg type="tree" /></binding>
+  <binding name="math-correct-all" native="math_correct_all" returns="void" />
   <binding name="program-indent" native="program_indent" returns="void"><arg type="bool" /></binding>
   <binding name="program-indent-all" native="program_indent_all" returns="void"><arg type="bool" /></binding>
   <binding name="insert-tabstop" native="program_insert_tabstop" returns="void" />

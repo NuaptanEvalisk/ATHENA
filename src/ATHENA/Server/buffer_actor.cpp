@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "buffer_actor.hpp"
+#include "native_math_edit.hpp"
 #include "ATHENA/Data/buffer_export.hpp"
 #include "ATHENA/Data/document_persistence.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
@@ -248,7 +249,7 @@ run_native_editor_command (editor_rep* editor,
       (void) call ("cursor-history-forward");
       break;
     case native_editor_command_id::math_correct_all:
-      (void) call ("math-correct-all");
+      math_correct_all ();
       break;
     case native_editor_command_id::presentation_first:
       (void) call ("dynamic-operate-on-buffer", keyword_object ("first"));

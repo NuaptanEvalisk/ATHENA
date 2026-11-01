@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "Interface/edit_interface.hpp"
+#include "native_math_edit.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
 #include "Data/NodeContracts/descriptor_values.hpp"
 #include "ATHENA/Data/enunciation_slots.hpp"
@@ -1191,9 +1192,9 @@ editor_rep::focus_toolbar_state_snapshot () {
   snapshot.hlink_context= is_compound (t, "hlink", 2);
   snapshot.cardlink_context= is_compound (t, "cardlink", 2);
   snapshot.sqrt_multiple= snapshot.sqrt_context && N(t) == 2;
-  snapshot.script_context= query ("script-context?");
+  snapshot.script_context= math_script_context (t);
   if (snapshot.script_context) {
-    const bool only= query ("script-only-script?");
+    const bool only= math_script_only (t);
     if (only) {
       string tag= as_string (L(t));
       snapshot.script_insert_up= (tag == "lsub" || tag == "rsub");

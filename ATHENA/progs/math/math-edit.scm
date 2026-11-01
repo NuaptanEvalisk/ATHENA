@@ -34,30 +34,9 @@
   (insert-return))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Structured editing of roots
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (sqrt-toggle t)
-  (when (tree-is? t 'sqrt)
-    (cond ((== (tree-arity t) 1)
-           (tree-insert! t 1 '(""))
-           (tree-go-to t 1 0))
-          ((== (tree-arity t) 2)
-           (tree-remove! t 1 1)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Structured editing of scripts
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (script-context? t)
-  (tree-in? t '(lsub lsup rsub rsup)))
-
-(tm-define (script-only-script? t)
-  (and (tree-is? (tree-up t) 'concat)
-       (not (or (and (tree-ref t :previous)
-                     (script-context? (tree-ref t :previous)))
-                (and (tree-ref t :next)
-                     (script-context? (tree-ref t :next)))))))
 
 (tm-define (variant-circulate t forward?)
   (:require (script-context? t))
@@ -268,24 +247,6 @@
     ;;(tree-set! t v)
     (tree-set! t w)
     (find-and-remove-temp-slot t)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Correction of mathematical formulas
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (math-correct-tree t)
-  (with r (manual-correct t)
-    (when (!= r t)
-      (tree-set! t r))))
-
-(tm-define (math-correct-all)
-  (:synopsis "Correct selected formula or all formulas in document")
-  (if (selection-active-any?)
-      (if (== (selection-tree) (path->tree (selection-path)))
-	  (math-correct-tree (path->tree (selection-path)))
-	  (set-message "Only implemented for complete subtrees"
-		       "correct formula"))
-      (math-correct-tree (buffer-tree))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; UI-independent rules migrated from math-menu.scm

@@ -84,11 +84,15 @@ edit_env_rep::rewrite (tree t) {
   switch (L(t)) {
   case EXTERN:
     {
-      if (!scheme_modules_enabled)
-        return tree (_ERROR, "Scheme callback disabled in offline style analysis");
       int i, n= N(t);
       if (n < 1) return tree (_ERROR, "invalid extern");
       string fun= tm_decode(exec_string (t[0]));
+      if (fun == "math-check" || fun == "math-check-table") {
+        if (n != 2) return tree (_ERROR, "invalid math check");
+        return native_math_check (exec (t[1]), fun == "math-check-table");
+      }
+      if (!scheme_modules_enabled)
+        return tree (_ERROR, "Scheme callback disabled in offline style analysis");
       tree r (TUPLE, n);
       for (i=1; i<n; i++)
 	r[i]= exec (t[i]);

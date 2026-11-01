@@ -29,6 +29,8 @@ tree advance_native_equation (edit_env);
 void validate_native_math_grid_numbering (
   edit_env, const tree& grid, std::optional<bool> block_numbering);
 
+tree native_math_check (tree source, bool table);
+
 // Layout and semantic counter execution enter exactly the same row context.
 // Number/tag rendering belongs to the caller, before it evaluates cell content.
 class native_math_row_scope {
