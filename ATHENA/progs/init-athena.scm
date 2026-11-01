@@ -206,7 +206,7 @@
              make-abstract-data-element doc-data-has-hidden?
              doc-data-deactivated? doc-data-activate-toggle
              test-doc-title-clustering? set-doc-title-clustering
-             previous-section section-context? native-section-switch-to)
+             previous-section section-context?)
 
 ;(display "Booting math mode\n")
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")

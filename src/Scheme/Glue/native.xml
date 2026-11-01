@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="make-section" native="text_make_section" returns="void">
+    <arg type="tree_label" />
+  </binding>
+  <binding name="make-unnamed-section" native="text_make_unnamed_section" returns="void">
+    <arg type="tree_label" />
+  </binding>
   <binding name="make-graphics" native="graphics_make" returns="void">
     <arg type="object" rest="true" />
   </binding>

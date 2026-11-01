@@ -561,23 +561,13 @@ execute_business_id (editor ed, const QString& id) {
   else if (id == "focus-materials-update")
     (void) call ("materials-update-current-document");
   else if (id == "letter-today") {
-    (void) call ("make-header", symbol_object ("letter-date"));
+    text_make_header ("letter-date");
     (void) call ("make", symbol_object ("date"), object (0));
   }
   else if (id == "tmdoc-explain-synopsis")
     (void) call ("tmdoc-insert-explain-synopsis");
   else if (id == "make-alter-colors") (void) call ("make-alter-colors");
   else FAILED ("unknown native editor business id");
-}
-
-void
-make_section (editor ed, string tag) {
-  if (ed->selection_active_any ()) {
-    if (!ed->selection_active_small ()) return;
-    ed->make_compound (as_tree_label (tag));
-    return;
-  }
-  if (!ed->make_return_after ()) ed->make_compound (as_tree_label (tag));
 }
 
 void
@@ -1573,7 +1563,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     if (index < 0 ||
         index >= static_cast<int> (state.section_names.size ()))
       return;
-    (void) call ("native-section-switch-to", object (index));
+    text_section_switch_to (index);
   }
   else if (op == "focus-embedded-image") {
     actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
@@ -1763,15 +1753,11 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     (void) call ("screens-switch-to", object (index));
   }
   else if (op == "make-section")
-    make_section (ed, native_action_string (action.value ("tag")));
+    text_make_section (as_tree_label (native_action_string (action.value ("tag"))));
   else if (op == "make-unnamed-section")
-    (void) call (
-      "make-unnamed-section",
-      symbol_object (native_action_string (action.value ("tag"))));
+    text_make_unnamed_section (as_tree_label (native_action_string (action.value ("tag"))));
   else if (op == "make-header")
-    (void) call (
-      "make-header",
-      symbol_object (native_action_string (action.value ("tag"))));
+    text_make_header (native_action_string (action.value ("tag")));
   else if (op == "make-star")
     (void) call (
       "make*",

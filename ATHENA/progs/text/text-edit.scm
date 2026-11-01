@@ -269,18 +269,6 @@
 ;; Making letter headings or titles
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define (go-end-of-header-element)
-  (if (inside? 'address) (go-end-of 'address))
-  (if (inside? 'destination) (go-end-of 'destination))
-  (if (inside? 'cc) (go-end-of 'cc))
-  (if (inside? 'encl) (go-end-of 'encl))
-  (go-end-line))
-
-(tm-define (make-header l)
-  (go-end-of-header-element)
-  (if (!= (tree->stree (paragraph-tree)) "") (insert-return))
-  (make l))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Sectional commands
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -296,13 +284,6 @@
 	   (with sp (path-previous-section bt bp)
 	     (and (!= sp bp) (path->tree (append (tree->path bt) sp))))))))
 
-(tm-define (native-section-switch-to i)
-  (with secs (tree-search-sections (buffer-tree))
-    (when (and (integer? i) (>= i 0) (< i (length secs)))
-      (with s (list-ref secs i)
-        (when (and (tree? s) (tree->path s) (section-context? s))
-          (tree-go-to s 0 :end))))))
-
 (tm-define
  (go-to-section-title)
  (and-with
@@ -311,43 +292,6 @@
   (when (or (node-group-contains? "section-tag" (tm-car s))
             (node-group-contains? "section*-tag" (tm-car s)))
         (tree-go-to s 0 :start))))
-
-(define (selection-trim-ending)
-  (if (selection-active-any?)
-    (with st (selection-tree)
-      (if (and (not  (tree-atomic? st ))
-               (tree-empty? (tree-ref st :last)))             
-        (begin 
-          (selection-set 
-            (selection-get-start) 
-            (path-previous (root-tree) (selection-get-end)))
-          (selection-trim-ending))))))
-
-(define (make-section-aux l flag)
-  (if (selection-active-any?) 
-    (let 
-      ((cp (cursor-path))
-       (selstart (selection-get-start)))
-      (selection-trim-ending)
-      (if (tree-multi-paragraph? (selection-tree))
-        (set-message "make-section error" "invalid multi-paragraph selection")
-        (with selend  (selection-get-end)
-          (make l)
-          (if flag (make-return-before)
-            (if (or (path-less-eq? cp selstart) (path-less? selend cp))
-              ;; reposition cursor when its path still exists
-              (go-to cp))))))
-    (if (not (make-return-after))
-      (begin 
-        (make l)
-        (if flag (make-return-before))))))
-
-(tm-define (make-section l)
-  (:applicable (not (selection-active-non-small?)))
-  (make-section-aux l #f))
-
-(tm-define (make-unnamed-section l)
-  (make-section-aux l #t))
 
 (tm-define (kbd-enter t shift?)
   (:require (section-context? t))

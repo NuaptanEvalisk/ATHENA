@@ -3,6 +3,7 @@
 #include "native_text_edit.hpp"
 #include "native_interfaces.hpp"
 #include "editor.hpp"
+#include "tree_traverse.hpp"
 #include "Data/NodeContracts/node_groups.hpp"
 
 namespace {
@@ -36,7 +37,35 @@ path floatable_path (tree t) {
     return path (N(t)-1, floatable_path (t[N(t)-1]));
   return path ();
 }
+
+void make_section (tree_label tag, bool unnamed) {
+  editor ed= get_current_editor ();
+  if (ed->selection_active_any ()) {
+    const path cursor= ed->the_path (), start= ed->selection_get_start ();
+    while (ed->selection_active_any ()) {
+      tree selected= ed->selection_get ();
+      if (is_atomic (selected) || N(selected) == 0 || !is_empty (selected[N(selected)-1])) break;
+      ed->selection_set_paths (ed->selection_get_start (),
+        ed->tree_previous_valid (ed->the_root (), ed->selection_get_end ()));
+    }
+    if (is_multi_paragraph (ed->selection_get ())) {
+      ed->set_message ("make-section error", "invalid multi-paragraph selection");
+      return;
+    }
+    const path end= ed->selection_get_end ();
+    call ("make", symbol_object (as_string (tag)));
+    if (unnamed) ed->make_return_before ();
+    else if (path_less_eq (cursor, start) || path_less (end, cursor)) ed->go_to (cursor);
+  }
+  else if (!ed->make_return_after ()) {
+    call ("make", symbol_object (as_string (tag)));
+    if (unnamed) ed->make_return_before ();
+  }
 }
+}
+
+void text_make_section (tree_label tag) { make_section (tag, false); }
+void text_make_unnamed_section (tree_label tag) { make_section (tag, true); }
 
 bool text_float_context (tree t) {
   return is_compound (t, "float") || is_compound (t, "wide-float");
@@ -126,6 +155,27 @@ bool text_node_in_group (tree t, const char* group, bool numbered_variants) {
   if (numbered_variants && ends (tag, "*")) tag= tag (0, N(tag)-1);
   return athena::contracts::standard_node_groups ().contains (
     group, std::string (tag.data (), N(tag)));
+}
+
+void text_make_header (string tag) {
+  editor ed= get_current_editor ();
+  for (const char* label: {"address", "destination", "cc", "encl"}) {
+    const path p= ed->search_upwards (label);
+    if (!is_nil (p)) ed->go_to_end (p);
+  }
+  ed->go_end_line ();
+  if (ed->the_line () != "") ed->insert_return ();
+  call ("make", symbol_object (tag));
+}
+
+void text_section_switch_to (int index) {
+  editor ed= get_current_editor ();
+  const array<tree> sections= search_sections (ed->the_buffer ());
+  if (index < 0 || index >= N(sections)) return;
+  tree section= sections[index];
+  const path ip= obtain_ip (section);
+  if (ip_attached (ip) && text_node_in_group (section, "section-tag", true))
+    ed->go_to_end (reverse (ip) * 0);
 }
 
 bool text_titled_context (tree t) {
