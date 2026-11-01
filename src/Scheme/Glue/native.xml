@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="create-unique-id" native="native_link_unique_id" returns="string" exceptions="scheme" />
+  <binding name="make-locus" native="native_make_locus" returns="void" exceptions="scheme" />
+  <binding name="locus-id" native="native_locus_id" returns="object" exceptions="scheme"><arg type="content" /></binding>
+  <binding name="locus-set" native="native_locus_set" returns="void" exceptions="scheme"><arg type="string" /><arg type="content" /></binding>
+  <binding name="locus-insert-link" native="native_locus_insert_link" returns="void" exceptions="scheme"><arg type="tree" /><arg type="tree" /></binding>
+  <binding name="locus-remove-link" native="native_locus_remove_link" returns="void" exceptions="scheme"><arg type="tree" /></binding>
+  <binding name="locus-remove-all-links" native="native_locus_remove_all_links" returns="void" exceptions="scheme"><arg type="tree" /><arg type="tree" /></binding>
+  <binding name="id-&gt;loci" native="native_id_to_loci" returns="list_tree" exceptions="scheme"><arg type="string" /></binding>
   <binding name="link-flatten" native="native_link_flatten" returns="object" exceptions="scheme"><arg type="content" /></binding>
   <binding name="link-type" native="native_link_type" returns="object" exceptions="scheme"><arg type="object" /></binding>
   <binding name="link-attributes" native="native_link_attributes" returns="object" exceptions="scheme"><arg type="object" /></binding>

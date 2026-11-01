@@ -9,6 +9,7 @@
 *******************************************************************************/
 
 #include "generic_editor_commands.hpp"
+#include "link_markup.hpp"
 #include "analyze.hpp"
 #include "convert.hpp"
 #include "new_document.hpp"
@@ -123,7 +124,7 @@ tree propose_note_id (bool for_reference) {
       found= true;
     }
   if (found) return result;
-  return tree (as_string (call ("create-unique-id")));
+  return tree (native_link_unique_id ());
 }
 
 bool innermost_named (string name, path& p, tree& t) {

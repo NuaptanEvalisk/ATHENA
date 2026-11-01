@@ -252,7 +252,6 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting linking facilities\n")
-(lazy-define (link locus-edit) create-unique-id)
 (lazy-define (link link-navigate) link-active-upwards link-active-ids
              link-follow-ids link-mouse-ids
              heading-word-count-schedule-refresh)
