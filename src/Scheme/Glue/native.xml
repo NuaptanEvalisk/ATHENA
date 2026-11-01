@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="ref-preview" native="reference_preview" returns="object" exceptions="scheme">
+    <arg type="string" />
+  </binding>
+  <binding name="preview-reference" native="reference_show_preview" returns="void" exceptions="scheme">
+    <arg type="tree" /><arg type="tree" />
+  </binding>
   <binding name="ext-typed-ref*" native="reference_typed_markup" returns="tree" exceptions="scheme">
     <arg type="content" /><arg type="content" /><arg type="content" />
   </binding>

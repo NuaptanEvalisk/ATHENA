@@ -6,6 +6,7 @@
 
 #include "native_input_events.hpp"
 #include "generic_keyboard_commands.hpp"
+#include "reference_markup.hpp"
 #include "edit_interface.hpp"
 #include "buffer_actor.hpp"
 #include "language.hpp"
@@ -72,15 +73,12 @@ void update_reference_preview () {
   ed.apply_changes ();
   object id1 (false), tip1 (false), id2 (false), tip2 (false);
   if (inactive_reference ()) {
-    array<object> module;
-    module << symbol_object ("link") << symbol_object ("ref-edit");
-    call ("module-provide", as_list_object (module));
     object cursor= call ("cursor-tree");
     id1= call ("tm->string", cursor);
-    tip1= call ("ref-preview", id1);
+    tip1= reference_preview (as_string (id1));
     if (!present (tip1)) {
       id2= call ("number->label", cursor);
-      if (present (id2)) tip2= call ("ref-preview", id2);
+      if (present (id2)) tip2= reference_preview (as_string (id2));
     }
   }
   object tip= present (tip1) ? tip1 : tip2;

@@ -11,6 +11,9 @@
 #include "reference_markup.hpp"
 #include "analyze.hpp"
 #include "editor.hpp"
+#include "native_text_edit.hpp"
+#include "tree_traverse.hpp"
+#include "scheme.hpp"
 
 namespace {
 tree reference_list (const array<tree>& items) {
@@ -79,4 +82,91 @@ tree reference_smart_markup (tree arguments) {
     groups[group] << arguments[i];
   }
   return reference_list (groups);
+}
+
+namespace {
+tree clean_reference_preview (tree t) {
+  if (text_node_in_group (t, "section-tag")) {
+    tree result (as_tree_label (as_string (L(t)) * "*"));
+    result << A(t);
+    return result;
+  }
+  const string tag= as_string (L(t));
+  if (tag == "label" || tag == "item" || tag == "item*" ||
+      tag == "bibitem" || tag == "bibitem*" || tag == "eq-number")
+    return tree ("");
+  if (is_func (t, DOCUMENT) || is_func (t, CONCAT) || is_func (t, TFORMAT) ||
+      is_func (t, TABLE) || is_func (t, ROW) || is_func (t, CELL)) {
+    tree result (L(t));
+    for (int i=0; i<N(t); ++i) result << clean_reference_preview (t[i]);
+    return is_func (t, CONCAT) ? simplify_concat (result) : result;
+  }
+  return t;
+}
+
+bool expand_reference_preview (tree t) {
+  string tag= as_string (L(t));
+  if (ends (tag, "*")) tag= tag(0, N(tag)-1);
+  return tag == "theorem" || tag == "proposition" || tag == "lemma" ||
+         tag == "corollary" || tag == "conjecture" || tag == "definition" ||
+         tag == "axiom";
+}
+}
+
+object reference_preview (string id) {
+  editor ed= get_current_editor ();
+  path label= ed->search_label (id);
+  if (is_nil (label)) return object (false);
+  label= path_up (label);
+  tree target= ed->the_subtree (label);
+  const string tag= as_string (L(target));
+  if (!text_node_in_group (target, "label-tag") &&
+      tag != "glossary" && tag != "glossary-explain" && tag != "glossary-dup" &&
+      tag != "index" && tag != "subindex" && tag != "subsubindex" &&
+      tag != "index-complex") return object (false);
+  const path root= ed->the_buffer_path ();
+  path context;
+  bool found=false, math=false;
+  for (path p=label; N(p)>=N(root); p=path_up (p)) {
+    tree t= ed->the_subtree (p);
+    math= math || is_compound (t, "math-block") || is_compound (t, "math-grid");
+    if (!found && (is_func (t, ROW) ||
+        (N(p)>N(root) && is_func (ed->the_subtree (path_up (p)), DOCUMENT)))) {
+      context=p;
+      found=true;
+    }
+    if (p == root) break;
+  }
+  if (!found) return object (false);
+  tree doc= ed->the_subtree (context);
+  if (N(context)>=N(root)+2 &&
+      is_func (ed->the_subtree (path_up (context)), DOCUMENT)) {
+    tree parent= ed->the_subtree (path_up (context));
+    tree enclosing= ed->the_subtree (path_up (context, 2));
+    if (expand_reference_preview (enclosing)) doc=parent;
+    else if (text_node_in_group (enclosing, "algorithm-tag") &&
+             last_item (path_up (context)) < N(enclosing)-1)
+      doc=tree (WITH, "par-first", "0em", parent);
+  }
+  if (is_func (doc, ROW)) {
+    tree row (CONCAT);
+    for (int i=0; i<N(doc); ++i)
+      row << (is_func (doc[i], CELL, 1) ? doc[i][0] : doc[i]);
+    doc=simplify_concat (row);
+  }
+  doc=clean_reference_preview (doc);
+  if (math) doc=tree (WITH, "math-display", "true", compound ("math", doc));
+  return tree_to_stree (compound ("preview-balloon", doc));
+}
+
+void reference_show_preview (tree body, tree label) {
+  const path ip= obtain_ip (body);
+  if (!ip_attached (ip) || is_nil (ip) || !is_atomic (label)) return;
+  tree ref= get_current_editor ()->the_subtree (reverse (ip->next));
+  object tip= reference_preview (label->label);
+  if (is_bool (tip) && !as_bool (tip)) return;
+  array<object> args;
+  args << object (label->label) << object (ref) << tip << object ("auto")
+       << object ("auto") << object ("default") << object (0.6);
+  call ("show-tooltip", args);
 }

@@ -3,9 +3,12 @@
 #define ATHENA_REFERENCE_MARKUP_HPP
 
 #include "tree.hpp"
+#include "object.hpp"
 
 tree reference_typed_markup (tree name, tree wrapper, tree arguments);
 tree reference_typed_markup (tree name, tree arguments);
 tree reference_smart_markup (tree arguments);
+object reference_preview (string id);
+void reference_show_preview (tree body, tree label);
 
 #endif
