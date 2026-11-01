@@ -12,6 +12,13 @@ void application_notify_printing_command (string key, string value);
 void application_notify_paper_type (string key, string value);
 void application_notify_printer_dpi (string key, string value);
 void application_notify_enunciations (string key, string value);
+void application_notify_cursor_color (string key, string value);
+void application_notify_selection_color (string key, string value);
+void application_notify_focus_color (string key, string value);
+void application_notify_focus_border_width (string key, string value);
+void application_notify_document_colors (string key, string value);
+void application_notify_labels (string key, string value);
+void application_notify_explorer_track (string key, string value);
 string application_exercises_smaller ();
 string application_number_solutions ();
 #endif

@@ -166,35 +166,6 @@
 ;; Settings
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (notify-cursor-color name val)
-  (gui-set-cursor-color val))
-
-(define (notify-selection-color name val)
-  (gui-set-selection-color val))
-
-(define (notify-focus-color name val)
-  (gui-set-focus-color val))
-
-(define (notify-focus-border-width name val)
-  (gui-set-focus-border-width val))
-
-(define (notify-link-color name val)
-  (refresh-now ""))
-
-(define (notify-document-background-color name val)
-  (refresh-now ""))
-
-(define (notify-labels-mode name val)
-  (refresh-now "labels"))
-
-(define (notify-enunciation-color name val)
-  (refresh-now "enunciations"))
-
-(define (notify-vault-explorer-track name val)
-  (if (== val "on") (vault-track-current-buffer-if-enabled)))
-
-
-
 (define (get-fuzzy-limit)
   (let ((pref (get-preference "vault fuzzy search limit")))
     (or (string->number pref) 3)))
@@ -574,5 +545,6 @@
                                " (UUID: " ,new-uuid ")")))
                   candidates)))))))
 
+;; Native callbacks retain the kernel preference registry's initialization order.
 (register-preference-callback-procedures
   (list notify-cursor-color notify-document-background-color notify-enunciation-color notify-focus-border-width notify-focus-color notify-labels-mode notify-link-color notify-selection-color notify-vault-explorer-track notify-vault-preferences-mode))

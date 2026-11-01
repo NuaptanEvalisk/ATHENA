@@ -57,6 +57,15 @@
   <binding name="notify-paper-type" native="application_notify_paper_type" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /></binding>
   <binding name="notify-printer-dpi" native="application_notify_printer_dpi" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /></binding>
   <binding name="notify-enunciation-rendering" native="application_notify_enunciations" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /></binding>
+  <binding name="notify-cursor-color" native="application_notify_cursor_color" returns="void"><arg type="string" /><arg type="string" /></binding>
+  <binding name="notify-selection-color" native="application_notify_selection_color" returns="void"><arg type="string" /><arg type="string" /></binding>
+  <binding name="notify-focus-color" native="application_notify_focus_color" returns="void"><arg type="string" /><arg type="string" /></binding>
+  <binding name="notify-focus-border-width" native="application_notify_focus_border_width" returns="void"><arg type="string" /><arg type="string" /></binding>
+  <binding name="notify-link-color" native="application_notify_document_colors" returns="void"><arg type="string" /><arg type="string" /></binding>
+  <binding name="notify-document-background-color" native="application_notify_document_colors" returns="void"><arg type="string" /><arg type="string" /></binding>
+  <binding name="notify-labels-mode" native="application_notify_labels" returns="void"><arg type="string" /><arg type="string" /></binding>
+  <binding name="notify-enunciation-color" native="application_notify_enunciations" returns="void"><arg type="string" /><arg type="string" /></binding>
+  <binding name="notify-vault-explorer-track" native="application_notify_explorer_track" returns="void"><arg type="string" /><arg type="string" /></binding>
   <binding name="ext-render-exercises-smaller?" native="application_exercises_smaller" returns="string" />
   <binding name="ext-number-solutions?" native="application_number_solutions" returns="string" />
   <binding name="register-global-transformation" native="register_global_transformation" returns="void" exceptions="scheme">

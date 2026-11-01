@@ -45,6 +45,15 @@ void application_notify_printer_dpi (string, string value) {
   get_server ()->set_printer_dpi (value);
 }
 void application_notify_enunciations (string, string) { athena_dispatch_ui (refresh_enunciations); }
+void application_notify_cursor_color (string, string value) { gui_set_cursor_color (value); }
+void application_notify_selection_color (string, string value) { gui_set_selection_color (value); }
+void application_notify_focus_color (string, string value) { gui_set_focus_color (value); }
+void application_notify_focus_border_width (string, string value) { gui_set_focus_border_width (value); }
+void application_notify_document_colors (string, string) { windows_refresh (""); }
+void application_notify_labels (string, string) { windows_refresh ("labels"); }
+void application_notify_explorer_track (string, string value) {
+  if (value == "on") athena_dispatch_ui (vault_track_current_buffer_if_enabled);
+}
 string application_exercises_smaller () {
   return get_preference ("render solution in smaller font") == "on"? "true": "false";
 }
