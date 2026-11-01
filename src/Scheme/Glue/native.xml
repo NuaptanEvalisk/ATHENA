@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="save-buffer" native="document_save" returns="void" exceptions="scheme"><arg type="object" rest="true" /></binding>
+  <binding name="save-buffer-main" native="document_save" returns="void" exceptions="scheme"><arg type="object" rest="true" /></binding>
+  <binding name="save-buffer-manual" native="document_save_manual" returns="void" exceptions="scheme"><arg type="object" rest="true" /></binding>
+  <binding name="save-buffer-as" native="document_save_as" returns="void" exceptions="scheme"><arg type="object" /><arg type="object" rest="true" /></binding>
+  <binding name="save-buffer-as-main" native="document_save_as" returns="void" exceptions="scheme"><arg type="object" /><arg type="object" rest="true" /></binding>
+  <binding name="save-buffer-as-dialog" native="document_save_dialog" returns="void" exceptions="scheme" />
+  <binding name="cannot-write?" native="document_cannot_write" returns="bool"><arg type="url" /><arg type="string" /></binding>
   <binding name="save-buffer-preserve-current-viewport" native="document_save_preserve_viewport" returns="void"><arg type="url" /></binding>
   <binding name="save-buffer-post" native="document_save_post" returns="void" exceptions="scheme"><arg type="url" /><arg type="object" /></binding>
   <binding name="save-buffer-save" native="document_save_now" returns="bool" exceptions="scheme"><arg type="url" /><arg type="object" /></binding>

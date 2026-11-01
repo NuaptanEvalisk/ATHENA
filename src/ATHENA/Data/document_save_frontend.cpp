@@ -10,11 +10,21 @@
 #include "convert.hpp"
 #include "actor_transport.hpp"
 #include "buffer_actor.hpp"
+#include "buffer_name_catalog.hpp"
 #include "tm_data.hpp"
 #include "scheme_execution_context.hpp"
 #include "GoogleCloudTodo.hpp"
 #include "guile_tm.hpp"
 #include "object.hpp"
+#include "document_persistence.hpp"
+#include "QTMDocumentHistory.hpp"
+#include "boot.hpp"
+#include <QApplication>
+#include <QFileDialog>
+#include <QMessageBox>
+#include <memory>
+#include <functional>
+#include <stdexcept>
 
 namespace {
 void saved_callbacks (object options) {
@@ -100,4 +110,225 @@ void document_save_as_now (url destination, url source, object options) {
   if (!document_save_now (destination, null_object ())) return;
   if (scratch && source != destination && exists (source)) remove (source);
   saved_callbacks (options);
+}
+
+namespace {
+struct save_request {
+  athena_actor_id actor;
+  athena_view_id view;
+  SchemeCapabilitySet capabilities;
+  athena_scheme_handle_id options= ATHENA_NO_SCHEME_HANDLE;
+  std::string source, destination;
+  bool overwrite= false;
+  ~save_request () { scheme_command_handle_release (options); }
+  object arguments () const {
+    return tmscm_to_object (scheme_command_handle_value (options));
+  }
+};
+using save_task= std::shared_ptr<save_request>;
+
+std::string encode_url (url name) {
+  string text= as_string (name);
+  return std::string (text.data (), N(text));
+}
+
+bool open_buffer (url name) {
+  array<url> buffers= get_all_buffers ();
+  for (int i=0; i<N(buffers); ++i) if (buffers[i] == name) return true;
+  return false;
+}
+
+save_task make_save_request (object arguments) {
+  url source= get_current_buffer_safe ();
+  if (!is_null (arguments) && is_url (car (arguments))) {
+    source= as_url (car (arguments));
+    arguments= cdr (arguments);
+  }
+  const auto* context= current_scheme_execution_context ();
+  auto request= std::make_shared<save_request> ();
+  request->source= encode_url (source);
+  if (context && context->actor && context->actor->current_buffer_url () == source) {
+    request->actor= context->actor_id;
+    request->view= context->view_id;
+  }
+  else {
+    auto owner= published_buffer_source (request->source);
+    request->actor= owner.first;
+    request->view= owner.second;
+  }
+  if (request->actor == ATHENA_NO_ACTOR)
+    throw std::runtime_error ("The buffer to save no longer exists");
+  request->capabilities= SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_GLOBAL;
+  request->options= scheme_command_handle_acquire (object_to_tmscm (arguments));
+  for (object opts= arguments; !is_null (opts); opts= cdr (opts))
+    if (car (opts) == keyword_object ("overwrite")) request->overwrite= true;
+  return request;
+}
+
+void resume_save (save_task request, std::function<void()> next) {
+  auto id= actor_continuation_registry::instance ().store ([request, next] {
+    const auto* context= current_scheme_execution_context ();
+    if (!context || !context->actor ||
+        (request->view != ATHENA_NO_VIEW && !context->editor) ||
+        context->actor->current_buffer_url () != url (request->source.c_str ())) return;
+    next ();
+  });
+  auto ticket= buffer_actor::submit_to (
+    request->actor, actor_command_kind::run_native_continuation, request->view,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, request->capabilities, id);
+  if (!ticket) actor_continuation_registry::instance ().discard (id);
+}
+
+void start_save (save_task request, std::function<void()> next) {
+  const auto* context= current_scheme_execution_context ();
+  if (context && context->actor_id == request->actor) next ();
+  else resume_save (request, std::move (next));
+}
+
+void confirm_save (save_task request, QString prompt, std::function<void()> next) {
+  if (headless_mode) {
+    get_server ()->set_message ("Interactive confirmation required", "Save file");
+    return;
+  }
+  QMetaObject::invokeMethod (QCoreApplication::instance (), [request, prompt, next] {
+    auto* dialog= new QMessageBox (QMessageBox::Question, QObject::tr ("Save file"),
+      prompt, QMessageBox::Yes | QMessageBox::No, QApplication::activeWindow ());
+    dialog->setAttribute (Qt::WA_DeleteOnClose);
+    dialog->setDefaultButton (QMessageBox::No);
+    QObject::connect (dialog, &QDialog::finished, dialog, [request, next] (int answer) {
+      if (answer == QMessageBox::Yes) resume_save (request, next);
+    });
+    dialog->open ();
+  }, Qt::QueuedConnection);
+}
+
+void save_as_permissions (save_task request);
+
+void choose_save_destination (save_task request) {
+  if (headless_mode) {
+    get_server ()->set_message ("Choose a destination with Save As", "Save file");
+    return;
+  }
+  url source (request->source.c_str ());
+  string path= is_scratch (source)? string (""): as_string (source, URL_SYSTEM);
+  QString initial= QString::fromUtf8 (path.data (), N(path));
+  QMetaObject::invokeMethod (QCoreApplication::instance (), [request, initial] {
+    auto* dialog= new QFileDialog (QApplication::activeWindow (), QObject::tr ("Save ATHENA file"));
+    dialog->setAttribute (Qt::WA_DeleteOnClose);
+    dialog->setAcceptMode (QFileDialog::AcceptSave);
+    dialog->setFileMode (QFileDialog::AnyFile);
+    dialog->setNameFilter (QObject::tr ("ATHENA documents (*.ath);;ATHENA styles (*.ats);;All files (*)"));
+    dialog->setDefaultSuffix ("ath");
+    if (!initial.isEmpty ()) dialog->selectFile (initial);
+    QObject::connect (dialog, &QFileDialog::fileSelected, dialog, [request] (const QString& path) {
+      QByteArray bytes= path.toUtf8 ();
+      std::string selected (bytes.constData (), bytes.size ());
+      resume_save (request, [request, selected] {
+        request->destination= encode_url (url_system (selected.c_str ()));
+        // QFileDialog already confirmed overwriting an existing file.
+        request->overwrite= true;
+        save_as_permissions (request);
+      });
+    });
+    dialog->open ();
+  }, Qt::QueuedConnection);
+}
+
+void save_as_other_buffer (save_task request) {
+  url destination (request->destination.c_str ());
+  auto save= [request] {
+    document_save_as_now (url (request->destination.c_str ()),
+                         url (request->source.c_str ()), request->arguments ());
+  };
+  if (request->destination != request->source && open_buffer (destination)) {
+    string name= as_string (destination, URL_SYSTEM);
+    confirm_save (request, QObject::tr ("The file %1 is being edited. Discard edits?")
+      .arg (QString::fromUtf8 (name.data (), N(name))), save);
+  }
+  else save ();
+}
+
+void save_as_permissions (save_task request) {
+  url destination (request->destination.c_str ());
+  if (document_cannot_write (destination, "Save file")) return;
+  if (is_of_type (destination, "f") && !request->overwrite)
+    confirm_save (request, QObject::tr ("File already exists. Really overwrite?"),
+                  [request] { save_as_other_buffer (request); });
+  else save_as_other_buffer (request);
+}
+
+void save_faithful (save_task request) {
+  url source (request->source.c_str ());
+  string ext= suffix (source);
+  auto save= [request] {
+    document_save_now (url (request->source.c_str ()), request->arguments ());
+  };
+  if (ext == "ath" || ext == "ats" || ext == "tm" || ext == "ts" ||
+      ext == "tp" || ext == "stm" || ext == "scm" || ext == "") save ();
+  else confirm_save (request, QObject::tr ("Save requires data conversion. Really proceed?"), save);
+}
+
+void save_permissions (save_task request) {
+  url source (request->source.c_str ());
+  document_save_preserve_viewport (source);
+  if (is_scratch (source)) { choose_save_destination (request); return; }
+  if (!open_buffer (source)) {
+    get_server ()->set_message ("The buffer no longer exists", "Save file");
+    return;
+  }
+  if (!buffer_modified (source)) {
+    get_server ()->set_message ("No changes need to be saved", "Save file");
+    document_save_post (source, request->arguments ());
+    return;
+  }
+  if (document_cannot_write (source, "Save file")) return;
+  // Virtual file providers retain their own wrapping/date protocol.
+  object modified= is_rooted_tmfs (source)? call ("tmfs-date", object (source)):
+    object (last_modified (source));
+  object saved= is_rooted_tmfs (source)? call ("buffer-last-save", object (source)):
+    object (get_last_save_buffer (source));
+  if (is_of_type (source, "fr") && is_int (modified) && is_int (saved) &&
+      as_int (modified) > as_int (saved))
+    confirm_save (request, QObject::tr ("The file has changed on disk. Really save?"),
+                  [request] { save_faithful (request); });
+  else save_faithful (request);
+}
+}
+
+bool document_cannot_write (url name, string action) {
+  tree filename= compound ("verbatim", as_string (name, URL_SYSTEM));
+  if (!is_of_type (name, "f") && !is_of_type (name, "c")) {
+    get_server ()->set_message (compound ("concat", "The file ", filename, " cannot be created"), action);
+    return true;
+  }
+  if (is_of_type (name, "f") && !is_of_type (name, "w")) {
+    get_server ()->set_message (compound ("concat", "You do not have write access for ", filename), action);
+    return true;
+  }
+  return false;
+}
+
+void document_save (object arguments) {
+  auto request= make_save_request (arguments);
+  start_save (request, [request] { save_permissions (request); });
+}
+
+void document_save_manual (object arguments) {
+  auto request= make_save_request (arguments);
+  start_save (request, [request] {
+    qtm_document_history_manual_save_requested ();
+    if (!athena_current_buffer_realtime_save_active ()) save_permissions (request);
+  });
+}
+
+void document_save_as (object destination, object arguments) {
+  auto request= make_save_request (arguments);
+  request->destination= encode_url (is_url (destination)? as_url (destination):
+                                   url_system (as_string (destination)));
+  start_save (request, [request] { save_as_permissions (request); });
+}
+
+void document_save_dialog () {
+  auto request= make_save_request (null_object ());
+  start_save (request, [request] { choose_save_destination (request); });
 }

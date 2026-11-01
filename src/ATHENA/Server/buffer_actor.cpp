@@ -13,6 +13,7 @@
 #include "view_zoom.hpp"
 #include "ATHENA/Data/buffer_export.hpp"
 #include "ATHENA/Data/document_persistence.hpp"
+#include "ATHENA/Data/document_save_frontend.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "Data/NodeContracts/builtin_contracts.hpp"
 #include "ATHENA/Data/node_reference.hpp"
@@ -220,7 +221,7 @@ run_native_editor_command (editor_rep* editor,
       break;
     }
     case native_editor_command_id::save:
-      (void) call ("save-buffer-manual");
+      document_save_manual (null_object ());
       break;
     case native_editor_command_id::revert:
       (void) call ("revert-buffer");
@@ -232,7 +233,7 @@ run_native_editor_command (editor_rep* editor,
       (void) call ("safely-kill-buffer");
       break;
     case native_editor_command_id::save_as:
-      (void) call ("save-buffer-as-dialog");
+      document_save_dialog ();
       break;
     case native_editor_command_id::preview:
       (void) call ("preview-buffer");
