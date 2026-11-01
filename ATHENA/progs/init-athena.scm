@@ -85,8 +85,6 @@
 (register-preference-callback-procedures
   (list notify-header notify-icon-bar notify-toolbar-presentation
         notify-remote-control notify-status-bar notify-zoom-factor))
-(lazy-define (athena athena tm-files)
-             command-line-convert)
 (lazy-define (athena athena tm-codex)
              codex-ai-completion codex-ai-completion-new-buffer
              codex-ai-completion-custom)

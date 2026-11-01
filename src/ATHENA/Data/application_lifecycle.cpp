@@ -13,6 +13,10 @@
 #include "scheme_execution_context.hpp"
 #include "editor.hpp"
 #include "QTMNativeDialogs.hpp"
+#include "convert.hpp"
+#include "guile_tm.hpp"
+#include "object.hpp"
+#include <cstdlib>
 #include <QApplication>
 #include <QMessageBox>
 #include <QPushButton>
@@ -24,6 +28,13 @@
 #include <vector>
 
 namespace {
+struct conversion_continuation {
+  athena_scheme_handle_id handle;
+  explicit conversion_continuation (object next):
+    handle (scheme_command_handle_acquire (object_to_tmscm (next))) {}
+  ~conversion_continuation () { scheme_command_handle_release (handle); }
+};
+
 std::string encode (url name) {
   string text= as_string (name);
   return std::string (text.data (), N(text));
@@ -197,6 +208,25 @@ void application_close_window (object arguments) {
 }
 
 void application_quit () { on_gui ([] { request_quit (false); }); }
+
+void application_command_line_convert (string from, string to, object next) {
+  const std::string source (from.data (), N(from)), target (to.data (), N(to));
+  auto continuation= std::make_shared<conversion_continuation> (next);
+  on_gui ([source, target, continuation] {
+    const url name (source.c_str ()), destination (target.c_str ());
+    if (buffer_load (name)) {
+      cerr << "ATHENA: could not load " << source.c_str () << "\n";
+      std::exit (1);
+    }
+    const string format= file_format (destination);
+    if (buffer_export (name, destination, format == "generic" ? string ("verbatim") : format)) {
+      cerr << "ATHENA: could not export " << source.c_str () << " to " << target.c_str () << "\n";
+      std::exit (1);
+    }
+    object next= tmscm_to_object (scheme_command_handle_value (continuation->handle));
+    if (!exec_buffer (name, next)) call (next);
+  });
+}
 void application_restart () { on_gui ([] { request_quit (true); }); }
 void application_new_window () { open_document_window (false); }
 

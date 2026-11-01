@@ -9,5 +9,6 @@ void application_quit ();
 void application_restart ();
 void application_new_window ();
 void application_open_external (url target);
+void application_command_line_convert (string from, string to, object next);
 
 #endif

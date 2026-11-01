@@ -94,30 +94,6 @@
        r)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Exporting buffers
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (command-line-convert from to next)
-  (exec-global
-    (lambda ()
-      (let* ((name (string->url from))
-             (dest (string->url to))
-             (fm (url-format dest)))
-        ;; Do not use load-buffer here: its actor-side UI dispatch is
-        ;; asynchronous, and its missing-file fallback creates an empty buffer.
-        (when (buffer-load name)
-          (display* "ATHENA: could not load " from "\n")
-          (primitive-exit 1))
-        (when (buffer-export name dest (if (== fm "generic") "verbatim" fm))
-          (display* "ATHENA: could not export " from " to " to "\n")
-          (primitive-exit 1))
-        ;; Resume on this buffer's actor so ordinary -x commands which follow
-        ;; a conversion observe the converted buffer as their current buffer.
-        ;; No GUI window switch is needed for this actor-local continuation.
-        (if (not (exec-buffer name next))
-            (exec-global next))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Autosave
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
