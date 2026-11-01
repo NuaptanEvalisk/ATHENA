@@ -24,6 +24,8 @@
 #include "recent_files.hpp"
 #include "GoogleCloudTodo.hpp"
 #include "QTMCompoundDocument.hpp"
+#include "Data/Convert/Generic/conversion_registry.hpp"
+#include "Data/Convert/Generic/conversion_graph.hpp"
 #include <cstdlib>
 #include <QApplication>
 #include <QMessageBox>
@@ -129,7 +131,8 @@ void open_loaded_document (url name, load_options options) {
   }
 }
 
-void load_document_permissions (url name, load_options options) {
+void load_document_permissions (url name, load_options options,
+                                std::function<void(url)> completed= {}) {
   tree filename= compound ("verbatim", as_string (name, URL_SYSTEM));
   const bool file= is_of_type (name, "f");
   if (!file && !is_of_type (name, "c")) {
@@ -141,7 +144,11 @@ void load_document_permissions (url name, load_options options) {
     get_server ()->set_message (compound ("concat", "You do not have read access to ", filename), "Load file");
     return;
   }
-  if (!is_nil (concrete_buffer (name))) { open_loaded_document (name, options); return; }
+  if (!is_nil (concrete_buffer (name))) {
+    open_loaded_document (name, options);
+    if (completed) completed (name);
+    return;
+  }
   const bool present= exists (name);
   if (present ? buffer_load (name) : buffer_create_source (name)) {
     get_server ()->set_message (compound ("concat", present ? "Could not load " : "Could not create ", filename), "Load file");
@@ -158,6 +165,7 @@ void load_document_permissions (url name, load_options options) {
     get_server ()->set_message (compound ("concat", "Could not load ", filename,
       ". Created new document"), "Load file");
   }
+  if (completed) completed (name);
 }
 
 url recovery_source (url name) {
@@ -170,7 +178,8 @@ url recovery_source (url name) {
   return url_none ();
 }
 
-void load_document_gui (url name, load_options options) {
+void load_document_gui (url name, load_options options,
+                         std::function<void(url)> completed= {}) {
   const url search= url ("$ATHENA_FILE_PATH") * name;
   if (!exists (name) && exists (search)) name= resolve (search, "f");
   if (!is_rooted (name)) {
@@ -179,7 +188,7 @@ void load_document_gui (url name, load_options options) {
   }
   if (locase_all (suffix (name)) == "avd") { compound_document_open (name); return; }
   const url proposal= options.strict ? url_none () : recovery_source (name);
-  if (is_none (proposal)) { load_document_permissions (name, options); return; }
+  if (is_none (proposal)) { load_document_permissions (name, options, completed); return; }
   if (headless_mode) {
     get_server ()->set_message ("Interactive confirmation required", "Load more recent autosave file?");
     return;
@@ -190,15 +199,63 @@ void load_document_gui (url name, load_options options) {
     QApplication::activeWindow ());
   dialog->setAttribute (Qt::WA_DeleteOnClose);
   dialog->setDefaultButton (QMessageBox::Yes);
-  QObject::connect (dialog, &QDialog::finished, dialog, [source, options] (int answer) {
+  QObject::connect (dialog, &QDialog::finished, dialog, [source, options, completed] (int answer) {
     const url name (source.c_str ());
-    if (answer != QMessageBox::Yes) { load_document_permissions (name, options); return; }
+    if (answer != QMessageBox::Yes) { load_document_permissions (name, options, completed); return; }
     const url autosave= recovery_source (name);
     if (is_none (autosave) || buffer_import (name, autosave, file_format (name)))
       get_server ()->set_message ("Could not load autosave file", "Load file");
-    else { open_loaded_document (name, options); pretend_buffer_modified (name); }
+    else {
+      open_loaded_document (name, options);
+      pretend_buffer_modified (name);
+      if (completed) completed (name);
+    }
   });
   dialog->open ();
+}
+
+void browse_document_gui (url name, std::function<void(url)> completed) {
+  if (is_rooted (name, "mailto")) { application_open_external (name); return; }
+  if (locase_all (suffix (name)) == "avd") { compound_document_open (name); return; }
+  if (!is_nil (concrete_buffer (name))) {
+    switch_to_buffer (name);
+    if (completed) completed (name);
+    return;
+  }
+  const string format= conversion_format_from_suffix (locase_all (suffix (name)));
+  if (is_rooted_web (name) || is_rooted_tmfs (name) || file_format (name) == "texmacs") {
+    load_document_gui (name, load_options (null_object ()), completed);
+    return;
+  }
+  if (conversion_format_image (format)) { application_open_external (name); return; }
+  if (!is_of_type (name, "f")) {
+    load_document_gui (name, load_options (null_object ()), completed);
+    return;
+  }
+  if (headless_mode) {
+    get_server ()->set_message ("Interactive confirmation required", "Open file");
+    return;
+  }
+  array<string> choices;
+  if (format != "generic" && conversion_graph_search (format * "-document", "texmacs-tree") != tree ("#f"))
+    choices << string ("Convert to ATHENA document") << string ("convert");
+  choices << string ("Edit as plain text") << string ("plain")
+          << string ("Open with system application") << string ("system");
+  const string answer= qtm_linked_file_choice_dialog (as_string (name, URL_SYSTEM), choices);
+  if (answer == "system") application_open_external (name);
+  else if (answer == "convert") {
+    const url target ("tmfs://import/" * format * "/" * as_string (call ("url->tmfs-string", object (name))));
+    load_document_gui (target, load_options (null_object ()), completed);
+  }
+  else if (answer == "plain") {
+    if (buffer_import (name, name, "verbatim"))
+      get_server ()->set_message (compound ("concat", "Could not open ",
+        compound ("verbatim", as_string (name, URL_SYSTEM)), " as plain text"), "Open file");
+    else {
+      open_loaded_document (name, load_options (null_object ()));
+      if (completed) completed (name);
+    }
+  }
 }
 
 void revert_document (const std::string& source) {
@@ -404,6 +461,20 @@ void application_open_loaded_document (url source, object options) {
   const std::string name= encode (source);
   const load_options settings (options);
   on_document_gui ([name, settings] { open_loaded_document (url (name.c_str ()), settings); });
+}
+
+void application_browse_document (url source, object after_open) {
+  const url current= get_current_buffer_safe ();
+  if (!is_rooted (source) && !is_none (current)) source= relative (current, source);
+  const std::string name= encode (source);
+  std::function<void(url)> completed;
+  if (!is_null (after_open) && car (after_open) != object (false)) {
+    auto retained= std::make_shared<conversion_continuation> (car (after_open));
+    completed= [retained] (url target) {
+      exec_buffer (target, tmscm_to_object (scheme_command_handle_value (retained->handle)));
+    };
+  }
+  on_document_gui ([name, completed] { browse_document_gui (url (name.c_str ()), completed); });
 }
 
 void application_import_document (url source, string format, object options) {

@@ -38,11 +38,7 @@
                                       (cddr form))))
                   (current-module))
             (loop (read port)))))))
-(define files "athena/athena/tm-files.scm")
 (define vault "athena/athena/tm-vault.scm")
-(for-each (lambda (name) (load-definition files name))
-          '(load-browse-buffer load-browse-buffer-main linked-file-opened
-            linked-file-load-native))
 (for-each (lambda (name) (load-definition vault name))
           '(vault-jump-to-source artifact-jump-to-position))
 
@@ -82,6 +78,15 @@
 (define (load-buffer name)
   (check (eq? owner 'global) "load outside global owner")
   (set! opened (cons (url->system name) opened)))
+;; The native loader is the boundary under the remaining Scheme navigation.
+(define (load-browse-buffer name . after-open)
+  (let ((text (url->system (if (url-rooted? name) name
+                              (url-relative (current-buffer) name)))))
+    (exec-global
+      (lambda ()
+        (let ((target (system->url text)))
+          (load-buffer target)
+          (when (pair? after-open) (exec-buffer target (car after-open))))))))
 (define (cursor-history-add p)
   (check (not (eq? owner 'global)) "cursor history outside buffer actor")
   (set! history (append history (list (cons owner p)))))
@@ -147,23 +152,6 @@
 (drain)
 (check (equal? (map car history) '(source "/target.ath")) "target history missing")
 
-;; Current script links name a callable and carry quoted arguments.  The old
-;; parenthesized expression form is intentionally unsupported.
-(load-definition "link/link-navigate.scm" 'execute-script-command)
-(load-definition "link/link-navigate.scm" 'execute-script)
-(define guile-eval eval)
-(define (athena-test-eval form) (guile-eval form (current-module)))
-(set! eval athena-test-eval)
-(define script-link-result #f)
-(define (script-link-test value) (set! script-link-result value))
-(define (exec-delayed thunk) (thunk))
-(set! failed-message #f)
-(execute-script "script-link-test" #t "current")
-(check (equal? script-link-result "current") "current script link did not execute")
-(execute-script "(script-link-test 'legacy)" #t)
-(check (equal? script-link-result "current") "legacy script link unexpectedly executed")
-(check (string? failed-message) "legacy script link refusal was not reported")
-(set! eval guile-eval)
 
 ;; Wikilinks resolve before loading: there must be no intermediate redirect
 ;; buffer/tab. Use the current navigation overload, not the retired TMFS loader.

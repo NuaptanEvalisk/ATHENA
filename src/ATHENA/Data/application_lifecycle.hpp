@@ -16,5 +16,6 @@ void application_import_document (url source, string format, object options);
 void application_load_document (url source, object options);
 void application_load_document_window (url source, object options);
 void application_open_loaded_document (url source, object options);
+void application_browse_document (url source, object after_open);
 
 #endif
