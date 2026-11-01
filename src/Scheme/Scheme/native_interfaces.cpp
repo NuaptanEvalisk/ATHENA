@@ -72,7 +72,6 @@
 #include "QTMAbout.hpp"
 #include "QTMESCSymbolPicker.hpp"
 #include "QTMHandwritingSymbolPane.hpp"
-#include "QTMFontSelector.hpp"
 #include "QTMNativeDialogs.hpp"
 #include "QTMTablePropertiesPane.hpp"
 #include "QTMSlidePropertiesPane.hpp"
@@ -1069,19 +1068,6 @@ void athena_graphics_decrease_vsize_fast () {
 }
 void athena_graphics_increase_vsize_fast () {
   athena_graphics_change_extents ("0cm", "+1cm");
-}
-
-array<string>
-athena_native_font_selector (string arg1, string arg2, string arg3, string arg4, string arg5) {
-  if (headless_mode) return array<string> ();
-
-  array<string> result=
-    native_font_selector_dialog (arg1,
-                                 arg2,
-                                 arg3,
-                                 arg4,
-                                 arg5);
-  return array<string> (result);
 }
 
 bool

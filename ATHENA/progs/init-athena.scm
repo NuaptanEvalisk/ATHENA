@@ -266,8 +266,6 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting debugging facilities\n")
-(lazy-define (debug debug-notifications) notify-debug-message
-             acknowledge-debug-messages)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting editing modes for various special styles\n")
@@ -277,11 +275,9 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting fonts\n")
-(lazy-define (fonts font-selector)
-             open-font-selector open-document-font-selector
-             open-document-other-font-selector)
 (tm-property (open-font-selector) (:interactive #t))
 (tm-property (open-document-font-selector) (:interactive #t))
+(tm-property (open-document-other-font-selector prefix) (:interactive #t))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "------------------------------------------------------\n")

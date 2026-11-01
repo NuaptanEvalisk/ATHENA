@@ -73,7 +73,7 @@ void
 debug_message (string channel, string msg) {
   debug_message_sub (channel, msg);
   if (texmacs_started && channel != "debug-widgets")
-    call ("notify-debug-message", object (channel));
+    notify_debug_message (channel);
 }
 
 void
@@ -82,7 +82,7 @@ debug_formatted (string channel, tree msg) {
   if (n>0 && is_tuple (debug_messages[n-1], channel)) {
     debug_messages[n-1][2]= msg;
     if (texmacs_started && channel != "debug-widgets")
-      call ("notify-debug-message", object (channel));
+      notify_debug_message (channel);
   }
 }
 

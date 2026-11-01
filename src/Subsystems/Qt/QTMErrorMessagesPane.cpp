@@ -11,6 +11,7 @@
 #include "QTMErrorMessagesPane.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "basic.hpp"
+#include "analyze.hpp"
 #include "boot.hpp"
 #include "convert.hpp"
 #include "qt_utilities.hpp"
@@ -42,14 +43,37 @@
 #include <QTreeWidgetItem>
 #include <QVBoxLayout>
 #include <iostream>
+#include <atomic>
+#include <cstdint>
 
 static QTMErrorMessagesPane* error_messages_widget= nullptr;
 static ads::CDockWidget* error_messages_dock= nullptr;
+static std::atomic<std::uint64_t> error_message_generation {0};
+// Only the GUI thread acknowledges notifications or opens the pane.
+static std::uint64_t acknowledged_error_generation= 0;
 
 static void
 acknowledge_error_messages () {
-  try { call ("acknowledge-debug-messages"); }
-  catch (...) {}
+  acknowledged_error_generation= error_message_generation.load ();
+}
+
+void
+notify_debug_message (string channel) {
+  if (headless_mode) return;
+  const auto generation= ++error_message_generation;
+  const bool error= ends (channel, "-error");
+  const bool warning= ends (channel, "-warning");
+  if (!error && !warning) return;
+  QCoreApplication* app= QCoreApplication::instance ();
+  if (app == nullptr) return;
+  QTimer::singleShot (1, app, [generation, error, warning] {
+    if (generation <= acknowledged_error_generation) return;
+    if ((error && get_preference ("open console on errors") == "on") ||
+        (warning && get_preference ("open console on warnings") == "on")) {
+      acknowledge_error_messages ();
+      error_messages_show ();
+    }
+  });
 }
 
 static void

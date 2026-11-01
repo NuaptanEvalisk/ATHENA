@@ -184,9 +184,6 @@ void athena_graphics_increase_hsize_fast ();
 void athena_graphics_decrease_vsize_fast ();
 void athena_graphics_increase_vsize_fast ();
 
-array<string>
-athena_native_font_selector (string arg1, string arg2, string arg3, string arg4, string arg5);
-
 bool
 athena_native_preferences_openP ();
 

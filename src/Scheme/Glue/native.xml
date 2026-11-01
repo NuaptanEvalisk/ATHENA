@@ -1406,13 +1406,9 @@
   <binding name="graphics-increase-hsize-fast" native="athena_graphics_increase_hsize_fast" returns="void" />
   <binding name="graphics-decrease-vsize-fast" native="athena_graphics_decrease_vsize_fast" returns="void" />
   <binding name="graphics-increase-vsize-fast" native="athena_graphics_increase_vsize_fast" returns="void" />
-  <binding name="native-font-selector" native="athena_native_font_selector" returns="array_string">
-    <arg type="string" />
-    <arg type="string" />
-    <arg type="string" />
-    <arg type="string" />
-    <arg type="string" />
-  </binding>
+  <binding name="open-font-selector" native="open_font_selector" returns="void" />
+  <binding name="open-document-font-selector" native="open_document_font_selector" returns="void" />
+  <binding name="open-document-other-font-selector" native="open_document_other_font_selector" returns="void"><arg type="string" /></binding>
   <binding name="configure-font-for-vault" native="qtm_configure_font_for_vault" returns="void" dispatch="ui" />
   <binding name="native-open-preferences" native="qtm_preferences_dialog_show" returns="void" dispatch="ui" />
   <binding name="native-preferences-open?" native="athena_native_preferences_openP" returns="bool" />

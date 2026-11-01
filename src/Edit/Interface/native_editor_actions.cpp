@@ -422,7 +422,7 @@ execute_business_id (editor ed, const QString& id) {
   else if (id == "insert-floating-algorithm")
     (void) call ("native-insert-floating-algorithm");
   else if (id == "open-document-font-selector")
-    (void) call ("open-document-font-selector");
+    open_document_font_selector ();
   else if (id == "document-background-pattern")
     generic_document_background_select ("pattern");
   else if (id == "document-background-gradient")

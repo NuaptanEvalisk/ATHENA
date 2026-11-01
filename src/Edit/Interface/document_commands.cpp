@@ -16,9 +16,56 @@
 #include "font.hpp"
 #include "analyze.hpp"
 #include "node_metadata.hpp"
+#include "format_commands.hpp"
+#include "QTMFontSelector.hpp"
+#include "boot.hpp"
 
 #include <cmath>
 #include <initializer_list>
+
+namespace {
+void select_font (bool local, string prefix) {
+  if (headless_mode) return;
+  editor ed= get_current_editor ();
+  const auto get= [&] (string name) {
+    if (local) return ed->get_env_string (name);
+    if (prefix != "" && ed->defined_in_init (prefix * name))
+      return ed->get_init_string (prefix * name);
+    return ed->get_init_string (name);
+  };
+  const string profile= get ("font");
+  const array<string> physical= search_font_exact (logical_font (
+    main_family (profile), get ("font-family"), get ("font-series"), get ("font-shape")));
+  const array<string> selected= native_font_selector_dialog (
+    N(physical) > 0 ? physical[0] : string ("TeXmacs Computer Modern"),
+    N(physical) > 1 ? physical[1] : string ("Regular"),
+    get ("font-base-size"), profile,
+    !local && prefix == "" ? string ("Document font selector") : string ("Font selector"));
+  if (N(selected) != 4) return;
+  const array<string> logical= logical_font (selected[0], selected[1]);
+  array<object> changes;
+  const auto add= [&] (string name, string value) {
+    if (get (name) == value) return;
+    changes << object (name) << object (value);
+  };
+  add ("font", selected[3]);
+  add ("font-family", get_variant (logical));
+  add ("font-series", get_series (logical));
+  add ("font-shape", get_shape (logical));
+  add ("font-base-size", selected[2]);
+  if (N(changes) > 0) {
+    if (local) format_make_multi_with (as_list_object (changes));
+    else if (prefix == "") document_init_multi (as_list_object (changes));
+    else for (int i=0; i<N(changes); i+=2)
+      document_set_init_env (prefix * as_string (changes[i]), tree (as_string (changes[i+1])));
+  }
+  keyboard_focus_on_current_view ("canvas");
+}
+}
+
+void open_font_selector () { select_font (true, ""); }
+void open_document_font_selector () { select_font (false, ""); }
+void open_document_other_font_selector (string prefix) { select_font (false, prefix); }
 
 bool document_in_source_mode () {
   return get_current_editor ()->get_env_string ("preamble") == "true";
