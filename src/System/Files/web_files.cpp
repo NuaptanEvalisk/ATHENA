@@ -138,8 +138,9 @@ get_from_server (url u) {
   object response= call ("tmfs-load", object (name));
   string r;
   if (is_tree (response)) {
-    // Generated documents are native trees, not legacy Cork/Scheme input.
-    const auto xml= athena::document::write_xml (as_tree (response));
+    // TMFS transports generated trees, including metadata and arbitrary markup,
+    // rather than canonical persisted v3 source documents.
+    const auto xml= athena::document::write_xml_v2 (as_tree (response));
     r= string (xml.data (), (int) xml.size ());
   }
   else r= as_string (response);
