@@ -236,7 +236,7 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting linking facilities\n")
-(lazy-define (link link-navigate) link-follow-ids)
+(lazy-define (link link-navigate) go-to-vertex build-navigation-page)
 (define-secure-symbols preview-reference)
 (define-secure-symbols reverse-hierarchy-graph-render global-hierarchy-graph-show
                        websites-manager-show open-websites-manager

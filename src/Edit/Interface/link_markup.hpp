@@ -60,5 +60,7 @@ object native_navigation_first_xtype (object items, string type);
 object native_automatic_link (object target, object options);
 object native_link_enumeration (object items);
 object native_navigation_document (tree style, object items);
+void native_navigation_follow (object items);
+void native_link_follow_ids (list<string> ids, string event);
 
 #endif

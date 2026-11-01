@@ -3,6 +3,13 @@
 #include "link_markup.hpp"
 #include "link.hpp"
 #include "hashmap.hpp"
+#include "server.hpp"
+#include "QTMNativeDialogs.hpp"
+#include "boot.hpp"
+#include "buffer_actor.hpp"
+#include "scheme_execution_context.hpp"
+#include "ATHENA/Data/compound_edit_batch.hpp"
+#include "qt_utilities.hpp"
 #include <optional>
 #include <stdexcept>
 #include <vector>
@@ -219,4 +226,103 @@ object native_navigation_document (tree style, object items) {
   return cons (symbol_object ("document"),
     list_object (tree_to_stree (compound ("style", style)),
       list_object (symbol_object ("body"), cons (symbol_object ("document"), as_list_object (body)))));
+}
+
+namespace {
+void update_link_id (string id) {
+  for (list<tree> nodes= get_trees (id) * get_trees ("&" * id);
+       !is_nil (nodes); nodes= nodes->next) {
+    path ip= obtain_ip (nodes->item);
+    if (ip_attached (ip)) get_server ()->typeset_update (reverse (ip));
+  }
+}
+
+void visit_vertex (tree vertex) {
+  const bool id_vertex= is_func (vertex, ID, 1);
+  const string value= vertex[0]->label;
+  if (!id_vertex || N(value) == 0 || value[0] != '%')
+    declare_visited ((id_vertex ? "id:" : "url:") * value);
+  hashmap<string, bool> updated (false);
+  if (id_vertex) { update_link_id (value); updated (value)= true; }
+  for (list<tree> links= get_links (vertex); !is_nil (links); links= links->next)
+    for (int i=2; i<N(links->item); ++i) {
+      const tree target= links->item[i];
+      if (target != vertex && is_func (target, ID, 1) && !updated[target[0]->label]) {
+        updated (target[0]->label)= true;
+        update_link_id (target[0]->label);
+      }
+    }
+}
+
+void follow_item (const navigation_item& item) {
+  visit_vertex (tree (ID, item.source));
+  if (is_func (item.target, ID, 1) || is_compound (item.target, "url", 1))
+    visit_vertex (item.target);
+  call ("go-to-vertex", write_target (item.target), write_attributes (item.attributes));
+}
+}
+
+void native_navigation_follow (object items) {
+  auto candidates= read_items (items);
+  if (N(types (candidates)) >= 2) {
+    navigation_items explicit_items;
+    for (const auto& item: candidates)
+      if (item.type != "automatic") explicit_items.push_back (item);
+    candidates= std::move (explicit_items);
+  }
+  const object encoded= write_items (candidates);
+  const list<string> choices= native_navigation_xtypes (encoded);
+  if (is_nil (choices)) return;
+  if (native_navigation_link_pages () && candidates.size () >= 2) {
+    visit_vertex (tree (ID, candidates.front ().source));
+    call ("build-navigation-page", encoded);
+  }
+  else if (is_nil (choices->next)) follow_item (candidates.front ());
+  else if (!headless_mode) {
+    const auto* owner= current_scheme_execution_context ();
+    if (!owner || !owner->editor)
+      throw std::runtime_error ("Link navigation requires an owning editor");
+    tree snapshot (TUPLE);
+    for (const auto& item: candidates) {
+      tree row (TUPLE);
+      row << item.type << item.attributes << as_string (item.position) << item.source << item.target;
+      snapshot << row;
+    }
+    struct payload {
+      athena_blob_id id;
+      explicit payload (tree t): id (actor_tree_registry::instance ().store (std::move (t))) {}
+      ~payload () { actor_tree_registry::instance ().discard (id); }
+    };
+    auto pending= std::make_shared<payload> (std::move (snapshot));
+    std::vector<std::string> proposals;
+    for (auto names= choices; !is_nil (names); names= names->next)
+      proposals.emplace_back (names->item.data (), N(names->item));
+    qt_post_to_main_thread ([pending, proposals, actor= owner->actor_id, view= owner->view_id] {
+      QTMInteractiveField field {"Link type", "string", {}};
+      for (const auto& value: proposals) field.proposals << string (value.c_str ());
+      const auto selected= qtm_interactive_dialog ("Follow link", {field});
+      if (N(selected) == 0) return;
+      std::string choice (selected[0].data (), N(selected[0]));
+      athena::avd::submit_source_task (actor, view, [pending, choice] (editor_rep&) {
+        tree snapshot= actor_tree_registry::instance ().take (pending->id);
+        string type (choice.c_str ());
+        const bool inverse= N(type) > 0 && type[N(type)-1] == '*';
+        if (inverse) type= type (0, N(type)-1);
+        for (int i=0; i<N(snapshot); ++i) {
+          tree row= snapshot[i];
+          if (row[0] == type && as_int (row[2]->label) == (inverse ? 0 : 1) && jumpable (row[4])) {
+            follow_item ({row[0]->label, row[1], as_int (row[2]->label), row[3]->label, row[4]});
+            break;
+          }
+        }
+      }, [] (std::string error) {
+        if (!error.empty ()) std_warning << "Link navigation: " << string (error.c_str ()) << LF;
+      });
+    });
+  }
+}
+
+void native_link_follow_ids (list<string> ids, string event) {
+  native_navigation_follow (native_link_list_to_navigation (
+    native_filter_link_list (native_ids_link_list (ids), event)));
 }

@@ -158,6 +158,8 @@
   <binding name="complete-link-list" native="native_complete_link_list" returns="object" exceptions="scheme"><arg type="tree" /><arg type="bool" /></binding>
   <binding name="link-has-cardlink?" native="native_link_has_cardlink" returns="bool"><arg type="list_string" /></binding>
   <binding name="link-active-ids" native="native_link_active_ids" returns="list_string"><arg type="list_string" /></binding>
+  <binding name="navigation-list-follow" native="native_navigation_follow" returns="void" exceptions="scheme"><arg type="object" /></binding>
+  <binding name="link-follow-ids" native="native_link_follow_ids" returns="void" exceptions="scheme"><arg type="list_string" /><arg type="string" /></binding>
   <binding name="link-mouse-ids" native="native_link_mouse_ids" returns="list_string"><arg type="list_string" /></binding>
   <binding name="link-active-upwards" native="native_link_active_upwards" returns="list_tree" exceptions="scheme"><arg type="tree" /></binding>
   <binding name="create-unique-id" native="native_link_unique_id" returns="string" exceptions="scheme" />

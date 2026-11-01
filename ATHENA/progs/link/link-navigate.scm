@@ -237,67 +237,6 @@
            (apply execute-script (cons* (cadr v) ok? (cddr v)))))
         (else (noop))))
 
-(define (vertex-linked-ids v)
-  (let* ((lns (vertex->links v))
-         (vs (list-difference (append-map link-vertices lns) (list v))))
-    (list-remove-duplicates (filter-map vertex->id vs))))
-
-(define (id-update id)
-  (let* ((ts1 (id->trees id))
-         (ts2 (id->trees (string-append "&" id)))
-         (pl (filter-map tree->path (append ts1 ts2))))
-    (for-each update-all-path pl)))
-
-(define (id-set-visited id)
-  (when (not (string-starts? id "%"))
-    (declare-visited (string-append "id:" id)))
-  (for-each id-update (cons id (vertex-linked-ids `(id ,id)))))
-
-(define (url-set-visited url)
-  (declare-visited (string-append "url:" url))
-  (for-each id-update (vertex-linked-ids `(url ,url))))
-
-(define (navigation-item-follow hit)
-  (let* ((source (navigation-source hit))
-         (target (navigation-target hit)))
-    (id-set-visited source)
-    (and-with target-id (vertex->id target)
-      (id-set-visited target-id))
-    (and-with target-url (vertex->url target)
-      (url-set-visited target-url))
-    (go-to-vertex target (navigation-attributes hit))))
-
-(define the-navigation-list '())
-(tm-define (navigation-list-follow-xtyped xtype)
-  (:synopsis "Follow the first link with given @type in @the-navigation-list")
-  (:argument xtype "Link type")
-  (:proposals xtype (navigation-list-xtypes the-navigation-list))
-  (and-with hit (navigation-list-first-xtype the-navigation-list xtype)
-    (set! the-navigation-list #f)
-    (navigation-item-follow hit)))
-
-(tm-define (navigation-list-follow nl)
-  (:synopsis "Follow one of the links in the navigation list @nl")
-  (with types (navigation-list-types nl)
-    (if (and (>= (length types) 2) (in? "automatic" types))
-        (with auto-nl (navigation-list-filter nl "automatic" #t #f)
-          (set! nl (list-difference nl auto-nl))))
-    (with xtypes (navigation-list-xtypes nl)
-      (cond ((null? xtypes) (noop))
-            ((and (navigation-build-link-pages?) (>= (length nl) 2))
-             (id-set-visited (navigation-source (car nl)))
-             (build-navigation-page nl))
-            ((null? (cdr xtypes)) (navigation-item-follow (car nl)))
-            (else
-             (set! the-navigation-list nl)
-             (interactive navigation-list-follow-xtyped))))))
-
-(tm-define (link-follow-ids ids event)
-  (:synopsis "Follow one of the links for identifiers in @ids")
-  (navigation-list-follow
-   (link-list->navigation-list
-    (filter-link-list (ids->link-list ids) event))))
-
 (tm-define (locus-link-follow)
   (:synopsis "Follow one of the links in the current locus")
   (let* ((ts (link-active-upwards (cursor-tree)))
