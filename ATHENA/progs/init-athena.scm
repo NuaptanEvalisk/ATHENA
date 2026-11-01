@@ -200,10 +200,7 @@
 ;(display "Booting text mode\n")
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 (lazy-define (text text-edit)
-             document-propose-title? document-propose-abstract?
-             make-doc-data make-abstract-data
-             make-doc-data-element make-author-data-element
-             make-abstract-data-element doc-data-has-hidden?
+             doc-data-has-hidden?
              doc-data-deactivated? doc-data-activate-toggle
              test-doc-title-clustering? set-doc-title-clustering
              previous-section section-context?)

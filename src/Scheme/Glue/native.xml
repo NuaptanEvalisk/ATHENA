@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="make-doc-data" native="text_make_doc_data" returns="void" />
+  <binding name="make-abstract-data" native="text_make_abstract_data" returns="void" />
+  <binding name="make-doc-data-element" native="text_make_doc_data_element" returns="void"><arg type="tree_label" /></binding>
+  <binding name="make-author-data-element" native="text_make_author_data_element" returns="void"><arg type="tree_label" /></binding>
+  <binding name="make-abstract-data-element" native="text_make_abstract_data_element" returns="void"><arg type="tree_label" /></binding>
   <binding name="make-section" native="text_make_section" returns="void">
     <arg type="tree_label" />
   </binding>

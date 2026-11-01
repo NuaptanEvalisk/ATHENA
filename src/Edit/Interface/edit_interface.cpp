@@ -1077,12 +1077,12 @@ editor_rep::focus_toolbar_state_snapshot () {
   catch (...) {}
   set (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT, query ("screens-context?"));
   set (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT, query ("table-markup-context?"));
-  set (ACTOR_FOCUS_TOOLBAR_DOC_TITLE_CONTEXT, query ("doc-title-context?"));
-  set (ACTOR_FOCUS_TOOLBAR_DOC_AUTHOR_CONTEXT, query ("doc-author-context?"));
-  set (ACTOR_FOCUS_TOOLBAR_ABSTRACT_CONTEXT, query ("abstract-data-context?"));
+  set (ACTOR_FOCUS_TOOLBAR_DOC_TITLE_CONTEXT, text_doc_title_context (t));
+  set (ACTOR_FOCUS_TOOLBAR_DOC_AUTHOR_CONTEXT, text_doc_author_context (t));
+  set (ACTOR_FOCUS_TOOLBAR_ABSTRACT_CONTEXT, text_node_in_group (t, "abstract-data-tag"));
   set (ACTOR_FOCUS_TOOLBAR_ALGORITHM_CONTEXT, text_node_in_group (t, "algorithm-tag"));
   set (ACTOR_FOCUS_TOOLBAR_MARGINAL_NOTE_CONTEXT,
-       query ("marginal-note-context?"));
+       is_compound (t, "marginal-note"));
   set (ACTOR_FOCUS_TOOLBAR_RICH_FLOAT_CONTEXT, text_rich_float_context (t));
   set (ACTOR_FOCUS_TOOLBAR_PHANTOM_FLOAT_CONTEXT,
        is_compound (t, "phantom-float"));

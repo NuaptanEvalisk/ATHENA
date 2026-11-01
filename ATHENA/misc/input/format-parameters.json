@@ -1,5 +1,6 @@
 {
   "version": 1,
+  "focus_no_preferences": ["doc-note", "author-note"],
   "focus_preferences": ["reference", "pageref", "eqref", "smart-ref", "hlink", "locus", "ornament", "float", "around", "around*"],
   "focus_names": {"math": "Inline formula", "wide": "Wide", "wide*": "Wide", "around": "Around", "around*": "Around", "abstract": "Abstract text"},
   "focus_variants": {"lsub": ["lsub", "lsup"], "lsup": ["lsub", "lsup"], "rsub": ["rsub", "rsup"], "rsup": ["rsub", "rsup"], "wide": ["wide"], "wide*": ["wide"], "around": ["around"], "around*": ["around"]},

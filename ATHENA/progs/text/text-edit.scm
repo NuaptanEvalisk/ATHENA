@@ -19,94 +19,10 @@
        (generic generic-edit)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Inserting a title and an abstract
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (document-propose-title?)
-  (with bt (buffer-tree)
-    (with brothers (map tree-label (tree-children bt))
-      (and-with t (tree-ref bt :down)
-        (and (tree-is? bt 'document)
-	     (match? (cursor-tree) "")
-	     (not (in? 'doc-data brothers))
-             (not (style-has? "beamer-style")))))))
-
-(tm-define (document-propose-abstract?)
-  (with bt (buffer-tree)
-    (with brothers (map tree-label (tree-children bt))
-      (and-with t (tree-ref bt :down)
-        (and (tree-is? bt 'document)
-	     (match? (cursor-tree) "")
-             (in? 'doc-data brothers)
-	     (not (in? 'abstract-data brothers)))))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Inserting document, author and abstract data
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(tm-define
- (doc-title-context? t)
- (and (tree-search-upwards t 'doc-data)
-      (or (tree-in? t (node-group-members "doc-title-tag"))
-          (and (tree-is? t 'date) (tree-is? t :up 'doc-date)))))
-
-(tm-define
- (doc-author-context? t)
- (and (tree-search-upwards t 'doc-data)
-      (tree-in? t (node-group-members "author-data-tag"))))
-
 (define doc-data-inactive-tags (node-group-members "doc-title-inactive-tag"))
-
-(tm-define (make-doc-data)
-  (:applicable (not (selection-active-non-small?)))
-  (insert-go-to '(doc-data (doc-title "")) '(0 0 0)))
-
-(tm-define (make-doc-data-element l)
-  (with-innermost t 'doc-data
-    (with pos (1+ (tree-down-index t))
-      (cond ((== l 'doc-author)
-	     (tree-insert! t pos `((,l (author-data (author-name "")))))
-	     (tree-go-to t pos 0 0 0 0))
-	    ((== l 'doc-note)
-	     (tree-insert! t pos `((,l (document ""))))
-	     (tree-go-to t pos 0 0 0))
-	    ((== l 'doc-title-options)
-	     (tree-insert! t pos `((,l))))
-	    ((in? l doc-data-inactive-tags)
-             (let* ((r (tree-search t (cut tree-is? <> l)))
-                    (x (and (pair? r) (car r))))
-               (cond ((not x)
-                      (tree-insert! t pos `((doc-inactive (,l ""))))
-                      (tree-go-to t pos 0 0 0))
-                     (else
-                      (tree-set! x `(doc-inactive ,x))
-                      (tree-go-to x 0 0 :end)))))
-	    (else
-	     (tree-insert! t pos `((,l "")))
-	     (tree-go-to t pos 0 0))))))
-
-(tm-define (make-author-data-element l)
-  (with-innermost t 'author-data
-    (with pos (1+ (tree-down-index t))
-      (cond ((in? l '(author-affiliation author-note))
-	     (tree-insert! t pos `((,l (document ""))))
-	     (tree-go-to t pos 0 0 0))
-	    (else
-	     (tree-insert! t pos `((,l "")))
-	     (tree-go-to t pos 0 0))))))
-
-(tm-define
- (abstract-data-context? t)
- (tree-in? t (node-group-members "abstract-data-tag")))
-
-(tm-define (make-abstract-data)
-  (insert-go-to '(abstract-data (abstract "")) '(0 0 0)))
-
-(tm-define (make-abstract-data-element l)
-  (with-innermost t 'abstract-data
-    (with pos (1+ (tree-down-index t))
-      (tree-insert! t pos `((,l "")))
-      (tree-go-to t pos 0 0))))
 
 (tm-define (kbd-space-bar t shift?)
   (:require (and (tree-is-buffer? t) (in-text?)
@@ -492,39 +408,3 @@
         (list "i, ii, iii, ..." '(macro "x" (number (arg "x") "roman")))
         (list "I, II, III, ..." '(macro "x" (number (arg "x") "Roman")))
         :other))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Editing enunciations
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define
- (enunciation-context? t)
- (tree-in? t (node-group-members "enunciation-tag")))
-
-(tm-define (focus-label t)
-  (:require (enunciation-context? t))
-  (and (== (tree-arity t) 1)
-       (focus-search-label (tree-ref t 0))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; UI-independent rules migrated from text-menu.scm
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (marginal-note-context? t)
-  (tree-is? t 'marginal-note))
-
-(tm-define (focus-can-move? t)
-  (:require (doc-title-context? t))
-  #f)
-
-(tm-define (focus-has-preferences? t)
-  (:require (tree-in? t '(doc-note author-note)))
-  #f)
-
-(tm-define (focus-can-move? t)
-  (:require (doc-author-context? t))
-  #f)
-
-(tm-define (focus-can-move? t)
-  (:require (abstract-data-context? t))
-  #f)

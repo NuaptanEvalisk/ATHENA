@@ -14,6 +14,28 @@ bool parent_tree (tree t, tree& parent) {
   parent= subtree (root, reverse (ip->next));
   return true;
 }
+bool inside_doc_data (tree t) {
+  do {
+    if (is_compound (t, "doc-data")) return true;
+  } while (parent_tree (t, t));
+  return false;
+}
+bool find_descendant (tree t, tree_label tag, tree& found) {
+  if (L(t) == tag) { found= t; return true; }
+  for (int i=0; i<N(t); ++i)
+    if (find_descendant (t[i], tag, found)) return true;
+  return false;
+}
+
+void insert_data_element (const char* parent_tag, tree_label tag, bool document_body) {
+  editor ed= get_current_editor ();
+  const path p= ed->search_upwards (parent_tag);
+  if (is_nil (p)) return;
+  const int pos= (ed->the_path () / p)->item + 1;
+  tree parent= ed->the_subtree (p);
+  tree_insert (parent, pos, tree (TUPLE, tree (tag, document_body ? tree (DOCUMENT, "") : tree (""))));
+  ed->go_to (p * pos * (document_body ? path (0, 0, 0) : path (0, 0)));
+}
 bool floatable_tag (tree t) {
   const string tag= as_string (L(t));
   return tag == "big-figure" || tag == "big-figure*" ||
@@ -180,6 +202,63 @@ void text_section_switch_to (int index) {
 
 bool text_titled_context (tree t) {
   return is_compound (t, "enunciation") || text_node_in_group (t, "titled-tag", true);
+}
+
+bool text_doc_title_context (tree t) {
+  if (!inside_doc_data (t)) return false;
+  tree parent;
+  return text_node_in_group (t, "doc-title-tag") ||
+    (is_compound (t, "date") && parent_tree (t, parent) && is_compound (parent, "doc-date"));
+}
+
+bool text_doc_author_context (tree t) {
+  return text_node_in_group (t, "author-data-tag") && inside_doc_data (t);
+}
+
+void text_make_doc_data () {
+  get_current_editor ()->insert_tree (
+    tree (as_tree_label ("doc-data"), tree (as_tree_label ("doc-title"), "")), path (0, 0, 0));
+}
+
+void text_make_abstract_data () {
+  get_current_editor ()->insert_tree (
+    tree (as_tree_label ("abstract-data"), tree (as_tree_label ("abstract"), "")), path (0, 0, 0));
+}
+
+void text_make_doc_data_element (tree_label tag) {
+  editor ed= get_current_editor ();
+  const path p= ed->search_upwards ("doc-data");
+  if (is_nil (p)) return;
+  const int pos= (ed->the_path () / p)->item + 1;
+  tree parent= ed->the_subtree (p);
+  const string name= as_string (tag);
+  if (name == "doc-author") {
+    tree_insert (parent, pos, tree (TUPLE, tree (tag,
+      tree (as_tree_label ("author-data"), tree (as_tree_label ("author-name"), "")))));
+    ed->go_to (p * pos * path (0, 0, 0, 0));
+  }
+  else if (name == "doc-title-options") tree_insert (parent, pos, tree (TUPLE, tree (tag)));
+  else if (text_node_in_group (tree (tag), "doc-title-inactive-tag")) {
+    tree found;
+    if (find_descendant (parent, tag, found)) {
+      found= tree_insert_node (found, 0, tree (as_tree_label ("doc-inactive")));
+      ed->go_to_end (reverse (obtain_ip (found)) * path (0, 0));
+    }
+    else {
+      tree_insert (parent, pos, tree (TUPLE, tree (as_tree_label ("doc-inactive"), tree (tag, ""))));
+      ed->go_to (p * pos * path (0, 0, 0));
+    }
+  }
+  else insert_data_element ("doc-data", tag, name == "doc-note");
+}
+
+void text_make_author_data_element (tree_label tag) {
+  const string name= as_string (tag);
+  insert_data_element ("author-data", tag, name == "author-affiliation" || name == "author-note");
+}
+
+void text_make_abstract_data_element (tree_label tag) {
+  insert_data_element ("abstract-data", tag, false);
 }
 
 void text_note_toggle_custom (tree t) {

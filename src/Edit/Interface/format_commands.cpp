@@ -614,6 +614,8 @@ void format_toggle_underlined () {
 }
 
 bool format_focus_has_preferences (tree t) {
+  if (parameter_data ().definitions.value ("focus_no_preferences")
+        .toArray ().contains (json_key (as_string (L(t))))) return false;
   return is_extension (t) || parameter_data ().definitions.value ("focus_preferences")
     .toArray ().contains (json_key (as_string (L (t))));
 }

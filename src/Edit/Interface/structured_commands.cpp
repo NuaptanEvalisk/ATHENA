@@ -10,6 +10,7 @@
 
 #include "structured_commands.hpp"
 #include "native_math_edit.hpp"
+#include "native_text_edit.hpp"
 #include "generic_editor_commands.hpp"
 #include "editor.hpp"
 #include "native_interfaces.hpp"
@@ -433,7 +434,10 @@ bool generic_focus_has_toggles (tree t) {
          as_bool (call ("alternate-context?", object (t)));
 }
 
-bool generic_focus_can_move (tree) { return true; }
+bool generic_focus_can_move (tree t) {
+  return !text_doc_title_context (t) && !text_doc_author_context (t) &&
+    !text_node_in_group (t, "abstract-data-tag");
+}
 
 bool generic_focus_can_insert_remove (tree t) {
   if (math_script_context (t)) return true;

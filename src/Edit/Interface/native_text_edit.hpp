@@ -4,6 +4,13 @@
 
 bool text_node_in_group (tree t, const char* group, bool numbered_variants= false);
 bool text_titled_context (tree t);
+bool text_doc_title_context (tree t);
+bool text_doc_author_context (tree t);
+void text_make_doc_data ();
+void text_make_abstract_data ();
+void text_make_doc_data_element (tree_label tag);
+void text_make_author_data_element (tree_label tag);
+void text_make_abstract_data_element (tree_label tag);
 void text_note_toggle_custom (tree t);
 void text_titled_toggle_name (tree t);
 void text_frame_toggle_title (tree t);

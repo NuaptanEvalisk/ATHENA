@@ -1384,11 +1384,11 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
              state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
              state.document_insert_title_available &&
              !state.tmdoc_insert_title_available)
-      (void) call ("make-doc-data");
+      text_make_doc_data ();
     else if (id == "document-insert-abstract" &&
              state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
              state.document_insert_abstract_available)
-      (void) call ("make-abstract-data");
+      text_make_abstract_data ();
     else if (id == "tmdoc-insert-title" &&
              state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
              state.tmdoc_insert_title_available)
@@ -1524,21 +1524,21 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
           !state.has (ACTOR_FOCUS_TOOLBAR_DOC_AUTHOR_CONTEXT))
         return;
       if (value == "today") {
-        (void) call ("make-doc-data-element", symbol_object ("doc-date"));
+        text_make_doc_data_element (as_tree_label ("doc-date"));
         (void) call ("make", symbol_object ("date"), object (0));
       }
       else
-        (void) call ("make-doc-data-element", symbol_object (value));
+        text_make_doc_data_element (as_tree_label (value));
       return;
     }
     if (kind == "author-element") {
       if (!state.has (ACTOR_FOCUS_TOOLBAR_DOC_AUTHOR_CONTEXT)) return;
-      (void) call ("make-author-data-element", symbol_object (value));
+      text_make_author_data_element (as_tree_label (value));
       return;
     }
     if (kind == "abstract-element") {
       if (!state.has (ACTOR_FOCUS_TOOLBAR_ABSTRACT_CONTEXT)) return;
-      (void) call ("make-abstract-data-element", symbol_object (value));
+      text_make_abstract_data_element (as_tree_label (value));
       return;
     }
     if (kind == "title-clustering") {
