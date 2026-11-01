@@ -12,6 +12,7 @@
 #include "Data/NodeContracts/execution_state.hpp"
 #include "modification.hpp"
 #include "unicode_text.hpp"
+#include "program_syntax.hpp"
 #include <KSyntaxHighlighting/AbstractHighlighter>
 #include <KSyntaxHighlighting/Definition>
 #include <KSyntaxHighlighting/Format>
@@ -27,6 +28,23 @@ using namespace KSyntaxHighlighting;
 struct syntax_repository {
   Repository repository;
 };
+
+class token_state_rep final: public observer_rep {
+public:
+  std::vector<program_token> tokens;
+  explicit token_state_rep (int size): tokens (size, program_token::code) {}
+  void announce (tree& ref, modification) override {
+    remove_observer (ref->obs, observer (this));
+  }
+};
+
+token_state_rep* token_state (observer o) {
+  if (is_nil (o)) return nullptr;
+  if (auto* state= dynamic_cast<token_state_rep*> (o.operator-> ())) return state;
+  if (o->get_type () != OBSERVER_LIST) return nullptr;
+  auto* left= token_state (o->get_child (0));
+  return left? left: token_state (o->get_child (1));
+}
 
 Definition definition_for (string name) {
   auto& repository= font_domain_local<syntax_repository> ().repository;
@@ -81,7 +99,10 @@ class program_highlighter final: public AbstractHighlighter {
   std::vector<character> positions;
   QString text;
   std::vector<int> colors;
+  std::vector<program_token> tokens;
   int line_offset= 0;
+  int probe_offset= -1;
+  program_token probe_token= program_token::code;
 
   void append (tree t) {
     if (is_atomic (t)) {
@@ -109,6 +130,10 @@ class program_highlighter final: public AbstractHighlighter {
       append (t[0]); append (t[2]); append (t[1]);
     }
     else if (is_func (t, HIDDEN) || is_func (t, RAW_DATA)) return;
+    else if (is_compound (t, "math")) {
+      text+= QChar::ObjectReplacementCharacter;
+      positions.push_back ({size_t(-1), 0, 0});
+    }
     else {
       for (int i=0; i<N(t); ++i) {
         if (i > 0 && (is_func (t, DOCUMENT) || is_func (t, PARA))) {
@@ -126,7 +151,26 @@ class program_highlighter final: public AbstractHighlighter {
     QColor color= format.textColor (theme ());
     int value= format.textStyle () == Theme::Normal || !color.isValid ()?
       0: int(color.rgb () & 0xffffff) + 1;
-    for (int i=offset; i<offset+length; ++i) colors[line_offset+i]= value;
+    program_token token= program_token::code;
+    switch (format.textStyle ()) {
+    case Theme::Char: case Theme::SpecialChar: case Theme::String:
+    case Theme::VerbatimString: case Theme::SpecialString:
+      token= program_token::string; break;
+    case Theme::Comment: case Theme::Documentation: case Theme::Annotation:
+    case Theme::CommentVar: case Theme::RegionMarker: case Theme::Information:
+    case Theme::Warning: case Theme::Alert:
+      token= program_token::comment; break;
+    default: break;
+    }
+    if (probe_offset >= 0) {
+      if (line_offset+offset <= probe_offset && probe_offset < line_offset+offset+length)
+        probe_token= token;
+      return;
+    }
+    for (int i=offset; i<offset+length; ++i) {
+      colors[line_offset+i]= value;
+      tokens[line_offset+i]= token;
+    }
   }
 
 public:
@@ -134,6 +178,32 @@ public:
     setDefinition (definition);
     setTheme (font_domain_local<syntax_repository> ().repository.defaultTheme (
       Repository::LightTheme));
+  }
+
+  program_token insertion_token (tree line, tree leaf, int offset, State state) {
+    append (line);
+    int position= 0;
+    size_t target= 0;
+    while (target < leaves.size () && leaves[target].operator-> () != leaf.operator-> ())
+      ++target;
+    for (size_t i=0; i<positions.size (); ++i) {
+      const auto& p= positions[i];
+      if (p.leaf < target || (p.leaf == target && p.end <= offset))
+        position= int(i)+1;
+    }
+    // Classify a character inserted at the caret, not the preceding quote.
+    // The preceding-line state retains multiline string/comment context.
+    text= text.left (position) + QLatin1Char ('x');
+    probe_offset= position;
+    line_offset= 0;
+    while (true) {
+      int end= text.indexOf (QChar::LineFeed, line_offset);
+      if (end < 0) end= text.size ();
+      state= highlightLine (QStringView(text).mid(line_offset,end-line_offset),state);
+      if (end == text.size ()) break;
+      line_offset= end+1;
+    }
+    return probe_token;
   }
 
   State line (tree t, int language, const State& before) {
@@ -149,6 +219,7 @@ public:
     leaves.clear (); positions.clear (); text.clear ();
     append (t);
     colors.assign (positions.size (), 0);
+    tokens.assign (positions.size (), program_token::code);
     State after= before;
     line_offset= 0;
     while (true) {
@@ -158,12 +229,19 @@ public:
       if (end == text.size ()) break;
       line_offset= end+1;
     }
-    for (tree leaf: leaves)
+    for (tree leaf: leaves) {
+      if (auto* old= token_state (leaf->obs))
+        remove_observer (leaf->obs, observer (old));
+      attach_observer (leaf, tm_new<token_state_rep> (N(leaf->label)));
       attach_highlight (leaf, language, 0, 0, N(leaf->label));
+    }
     for (size_t i=0; i<positions.size (); ++i) {
       const auto& p= positions[i];
-      if (p.leaf != size_t(-1))
+      if (p.leaf != size_t(-1)) {
         attach_highlight (leaves[p.leaf], language, colors[i], p.begin, p.end);
+        auto* state= token_state (leaves[p.leaf]->obs);
+        for (int j=p.begin; j<p.end; ++j) state->tokens[j]= tokens[i];
+      }
     }
     attach_highlight (t, language);
     attach_observer (t, tm_new<line_state_rep> (language, definition (), before, after));
@@ -201,6 +279,28 @@ public:
     return string (color.constData (), color.size ());
   }
 };
+}
+
+void prepare_program_syntax (tree source, string name) {
+  language lan= prog_language (name);
+  if (!has_highlight (source, lan->hl_lan)) lan->highlight (source);
+}
+
+program_token program_token_at (tree leaf, int offset) {
+  auto* state= token_state (leaf->obs);
+  if (!state || offset < 0 || offset >= int(state->tokens.size ()))
+    return program_token::code;
+  return state->tokens[offset];
+}
+
+program_token program_insertion_token (tree document, int row, tree leaf,
+                                       int offset, string name) {
+  auto definition= definition_for (name);
+  if (!definition.isValid ()) return program_token::code;
+  language lan= prog_language (name);
+  auto* cached= line_state (document[row]->obs, lan->hl_lan);
+  program_highlighter probe (definition);
+  return probe.insertion_token (document[row],leaf,offset,cached?cached->before:State());
 }
 
 bool prog_lang_exists (string name) {

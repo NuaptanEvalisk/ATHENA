@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "edit_cursor.hpp"
+#include "native_program_edit.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
 #include "iterator.hpp"
 #include "tm_buffer.hpp"
@@ -363,8 +364,10 @@ edit_cursor_rep::notify_cursor_moved (int status) {
   cu= current_display_cursor (cu->affinity);
   if (cu->valid) prepare_cursor_environment ();
   notify_change (THE_CURSOR);
-  if (cu->valid && cursor_context_at (tp, cursor_source_boundary ()))
+  if (cu->valid && cursor_context_at (tp, cursor_source_boundary ())) {
+    program_cursor_moved (this);
     call ("notify-cursor-moved", object (status));
+  }
 }
 
 void
@@ -666,8 +669,10 @@ edit_cursor_rep::go_to_here () {
   }
   if (cu->valid) prepare_cursor_environment ();
   notify_change (THE_CURSOR);
-  if (cu->valid && cursor_context_at (tp, cursor_source_boundary ()))
+  if (cu->valid && cursor_context_at (tp, cursor_source_boundary ())) {
+    program_cursor_moved (this);
     call ("notify-cursor-moved", object (DIRECT));
+  }
 }
 
 void
@@ -696,8 +701,10 @@ edit_cursor_rep::go_to (path p) {
       notify_change (THE_CURSOR);
     // A mutation may leave a valid old box but no current source context.
     // apply_changes() sends the hook through go_to_here() after layout.
-    if (cu->valid && cursor_context_at (tp, cursor_source_boundary ()))
+    if (cu->valid && cursor_context_at (tp, cursor_source_boundary ())) {
+      program_cursor_moved (this);
       call ("notify-cursor-moved", object (DIRECT));
+    }
   }
 }
 

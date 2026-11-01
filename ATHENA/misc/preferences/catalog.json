@@ -3654,7 +3654,6 @@
       "type": "boolean",
       "scope": "active",
       "default": "off",
-      "callback": "prog-auto-close-brackets",
       "ui": {
         "category": "Editing",
         "tab": "Maths and Programming",
@@ -3672,7 +3671,6 @@
       "type": "boolean",
       "scope": "active",
       "default": "off",
-      "callback": "highlight-brackets",
       "ui": {
         "category": "Editing",
         "tab": "Maths and Programming",
@@ -3690,7 +3688,6 @@
       "type": "boolean",
       "scope": "active",
       "default": "off",
-      "callback": "select-brackets",
       "ui": {
         "category": "Editing",
         "tab": "Maths and Programming",

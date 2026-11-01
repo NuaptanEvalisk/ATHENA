@@ -14,6 +14,7 @@
 #include "Edit/Interface/format_commands.hpp"
 #include "Edit/Interface/structured_commands.hpp"
 #include "Edit/Interface/generic_keyboard_commands.hpp"
+#include "Edit/Interface/native_program_edit.hpp"
 #include "Edit/Interface/native_keyboard_registry.hpp"
 #include "Edit/Interface/native_keyboard_loader.hpp"
 #include "Edit/Interface/native_input_events.hpp"

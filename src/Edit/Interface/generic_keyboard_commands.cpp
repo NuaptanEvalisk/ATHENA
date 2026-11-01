@@ -9,6 +9,7 @@
 *******************************************************************************/
 
 #include "generic_keyboard_commands.hpp"
+#include "native_program_edit.hpp"
 #include "native_keyboard_registry.hpp"
 #include "editor.hpp"
 #include "file.hpp"
@@ -518,7 +519,10 @@ void generic_kbd_select_if_active (object move) {
   ed->select_from_cursor_if_active ();
 }
 
-void generic_insert_return () { (void) get_current_editor ()->insert_return (); }
+void generic_insert_return () {
+  editor ed= get_current_editor ();
+  if (!program_return (ed.operator-> ())) (void) ed->insert_return ();
+}
 void generic_kbd_space () { dispatch_focus ("kbd-space-bar", false); }
 void generic_kbd_shift_space () { dispatch_focus ("kbd-space-bar", true); }
 void generic_kbd_return () { dispatch_focus ("kbd-enter", false); }
@@ -534,8 +538,14 @@ void generic_kbd_shift_tab () { dispatch_focus ("kbd-variant", false); }
 void generic_kbd_alternate_tab () { dispatch_focus ("kbd-alternate-variant", true); }
 void generic_kbd_shift_alternate_tab () { dispatch_focus ("kbd-alternate-variant", false); }
 void generic_kbd_copy () { get_current_editor ()->selection_copy ("primary"); }
-void generic_kbd_cut () { get_current_editor ()->selection_cut ("primary"); }
-void generic_kbd_paste () { get_current_editor ()->selection_paste ("primary"); }
+void generic_kbd_cut () {
+  editor ed= get_current_editor ();
+  if (!program_clipboard (ed.operator-> (), false)) ed->selection_cut ("primary");
+}
+void generic_kbd_paste () {
+  editor ed= get_current_editor ();
+  if (!program_clipboard (ed.operator-> (), true)) ed->selection_paste ("primary");
+}
 void generic_kbd_cancel () { get_current_editor ()->selection_clear ("primary"); }
 
 void generic_kbd_space_bar (tree t, bool shift) {
@@ -545,6 +555,7 @@ void generic_kbd_space_bar (tree t, bool shift) {
 }
 
 void generic_kbd_enter (tree t, bool shift) {
+  if (program_return (get_current_editor ().operator-> ())) return;
   if (native_grid_enter (get_current_editor ())) return;
   if (generic_table_markup_context (t)) {
     (void) shift;

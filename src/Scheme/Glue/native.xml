@@ -725,6 +725,14 @@
     <arg type="procedure" />
   </binding>
   <binding name="insert-return" native="generic_insert_return" returns="void" />
+  <binding name="program-indent" native="program_indent" returns="void"><arg type="bool" /></binding>
+  <binding name="program-indent-all" native="program_indent_all" returns="void"><arg type="bool" /></binding>
+  <binding name="insert-tabstop" native="program_insert_tabstop" returns="void" />
+  <binding name="remove-tabstop" native="program_remove_tabstop" returns="void" />
+  <binding name="program-bracket" native="program_bracket" returns="void">
+    <arg type="string" /><arg type="string" /><arg type="bool" />
+  </binding>
+  <binding name="program-select-enlarge" native="program_select_enlarge" returns="void" />
   <binding name="kbd-space" native="generic_kbd_space" returns="void" />
   <binding name="kbd-shift-space" native="generic_kbd_shift_space" returns="void" />
   <binding name="kbd-return" native="generic_kbd_return" returns="void" />
