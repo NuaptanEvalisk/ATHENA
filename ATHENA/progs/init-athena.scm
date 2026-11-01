@@ -200,9 +200,6 @@
 ;(display "Booting text mode\n")
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 (lazy-define (text text-edit)
-             doc-data-has-hidden?
-             doc-data-deactivated? doc-data-activate-toggle
-             test-doc-title-clustering? set-doc-title-clustering
              previous-section section-context?)
 
 ;(display "Booting math mode\n")

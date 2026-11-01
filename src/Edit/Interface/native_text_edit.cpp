@@ -20,6 +20,13 @@ bool inside_doc_data (tree t) {
   } while (parent_tree (t, t));
   return false;
 }
+void doc_data_go_to_active (tree t, int index) {
+  editor ed= get_current_editor ();
+  while (index >= 0 && text_node_in_group (t[index], "doc-title-inactive-tag")) --index;
+  const path p= reverse (obtain_ip (t));
+  if (index < 0) ed->go_to_end (p);
+  else if (!(p * index <= ed->the_path ())) ed->go_to_end (p * index);
+}
 bool find_descendant (tree t, tree_label tag, tree& found) {
   if (L(t) == tag) { found= t; return true; }
   for (int i=0; i<N(t); ++i)
@@ -259,6 +266,79 @@ void text_make_author_data_element (tree_label tag) {
 
 void text_make_abstract_data_element (tree_label tag) {
   insert_data_element ("abstract-data", tag, false);
+}
+
+void text_doc_data_toggle_hidden () {
+  editor ed= get_current_editor ();
+  const path p= ed->search_upwards ("doc-data");
+  if (is_nil (p)) return;
+  const int index= (ed->the_path () / p)->item;
+  tree data= ed->the_subtree (p);
+  bool editing= false;
+  for (int i=0; i<N(data); ++i) editing= editing || is_compound (data[i], "doc-inactive");
+  for (int i=0; i<N(data); ++i) {
+    tree child= ed->the_subtree (p)[i];
+    if (editing && is_compound (child, "doc-inactive")) tree_remove_node (child, 0);
+    else if (!editing && text_node_in_group (child, "doc-title-inactive-tag"))
+      tree_insert_node (child, 0, tree (as_tree_label ("doc-inactive")));
+  }
+  if (editing) doc_data_go_to_active (ed->the_subtree (p), index);
+}
+
+void text_doc_title_clustering (string mode) {
+  editor ed= get_current_editor ();
+  const path p= ed->search_upwards ("doc-data");
+  if (is_nil (p)) return;
+  tree data= ed->the_subtree (p);
+  tree options (as_tree_label ("doc-title-options"));
+  if (mode != "") options << mode;
+  int first= -1;
+  for (int i=0; i<N(data); ++i)
+    if (is_compound (data[i], "doc-title-options")) {
+      if (first < 0) first= i;
+      for (int j=0; j<N(data[i]); ++j)
+        if (data[i][j] != "cluster-all" && data[i][j] != "cluster-by-affiliation")
+          options << data[i][j];
+    }
+  if (N(options) == 0) {
+    if (first >= 0) tree_remove (data, first, 1);
+  }
+  else if (first >= 0) tree_assign (data[first], options);
+  else tree_insert (data, (ed->the_path () / p)->item+1, tree (TUPLE, options));
+}
+
+bool text_title_enter (tree t) {
+  editor ed= get_current_editor ();
+  const string tag= as_string (L(t));
+  if (tag == "title") { ed->go_end_line (); ed->insert_return (); }
+  else if (tag == "doc-title") text_make_doc_data_element (as_tree_label ("doc-author"));
+  else if (tag == "author-name") text_make_author_data_element (as_tree_label ("author-affiliation"));
+  else if (tag == "abstract-arxiv" || tag == "abstract-pacs" || tag == "abstract-acm" ||
+           tag == "abstract-msc" || tag == "abstract-keywords") {
+    const path p= reverse (obtain_ip (t));
+    const int pos= (ed->the_path () / p)->item+1;
+    tree_insert (t, pos, tree (TUPLE, tree (CONCAT, "")));
+    ed->go_to (p * pos * path (0, 0));
+  }
+  else if (tag == "doc-inactive") {
+    const path data= ed->search_upwards ("doc-data");
+    if (!is_nil (data)) {
+      tree_remove_node (t, 0);
+      doc_data_go_to_active (ed->the_subtree (data), (ed->the_path () / data)->item);
+    }
+  }
+  else return false;
+  return true;
+}
+
+void text_doc_data_clean (tree t) {
+  for (int i=N(t)-1; i>=0; --i) {
+    tree child= t[i];
+    if (is_empty (child) || (is_compound (child, "doc-author", 1) && is_empty (child[0])))
+      t= tree_remove (t, i, 1);
+    else if (is_compound (child, "doc-author", 1) && is_compound (child[0], "author-data"))
+      text_doc_data_clean (child[0]);
+  }
 }
 
 void text_note_toggle_custom (tree t) {

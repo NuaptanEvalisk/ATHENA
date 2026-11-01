@@ -10,6 +10,7 @@
 
 #include "generic_keyboard_commands.hpp"
 #include "native_program_edit.hpp"
+#include "native_text_edit.hpp"
 #include "native_node_groups.hpp"
 #include "native_keyboard_registry.hpp"
 #include "editor.hpp"
@@ -556,6 +557,7 @@ void generic_kbd_space_bar (tree t, bool shift) {
 }
 
 void generic_kbd_enter (tree t, bool shift) {
+  if (text_title_enter (t)) return;
   if (is_compound (t, "math")) {
     get_current_editor ()->go_to_end (reverse (obtain_ip (t)));
     generic_insert_return ();
@@ -591,10 +593,14 @@ void generic_kbd_alternate_enter (tree t, bool shift) {
 void generic_kbd_remove (tree t, bool forwards) {
   if (!admits_edit_observer (t)) { outward (t, "kbd-remove", forwards); return; }
   editor ed= get_current_editor ();
+  const path title= ed->search_upwards ("doc-data");
   if (ed->selection_active_any ()) {
     ed->selection_cut ("none");
   }
   else ed->remove_text (forwards);
+  if (!is_nil (title) && ed->test_subtree (title) &&
+      is_compound (ed->the_subtree (title), "doc-data"))
+    text_doc_data_clean (ed->the_subtree (title));
 }
 
 void generic_kbd_variant (tree t, bool forwards) {

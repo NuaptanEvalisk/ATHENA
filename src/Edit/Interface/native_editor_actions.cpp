@@ -1516,7 +1516,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
       if ((state.has (ACTOR_FOCUS_TOOLBAR_DOC_TITLE_CONTEXT) ||
            state.has (ACTOR_FOCUS_TOOLBAR_DOC_AUTHOR_CONTEXT)) &&
           state.title_hidden_available)
-        (void) call ("doc-data-activate-toggle");
+        text_doc_data_toggle_hidden ();
       return;
     }
     if (kind == "title-element") {
@@ -1546,14 +1546,11 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
           !state.has (ACTOR_FOCUS_TOOLBAR_DOC_AUTHOR_CONTEXT))
         return;
       if (value == "none")
-        (void) call ("set-doc-title-clustering", object (false));
+        text_doc_title_clustering ("");
       else if (value == "affiliation")
-        (void) call (
-          "set-doc-title-clustering",
-          object (string ("cluster-by-affiliation")));
+        text_doc_title_clustering ("cluster-by-affiliation");
       else if (value == "all")
-        (void) call (
-          "set-doc-title-clustering", object (string ("cluster-all")));
+        text_doc_title_clustering ("cluster-all");
     }
   }
   else if (op == "focus-section-switch") {
