@@ -37,6 +37,8 @@
   <binding name="new-document*" native="application_new_window" returns="void" />
   <binding name="save-buffer" native="document_save" returns="void" exceptions="scheme"><arg type="object" rest="true" /></binding>
   <binding name="save-buffer-main" native="document_save" returns="void" exceptions="scheme"><arg type="object" rest="true" /></binding>
+  <binding name="export-buffer-main" native="document_export_main" returns="void" exceptions="scheme"><arg type="url" /><arg type="object" /><arg type="string" /><arg type="object" /></binding>
+  <binding name="export-buffer" native="document_export" returns="void" exceptions="scheme"><arg type="object" /></binding>
   <binding name="save-buffer-manual" native="document_save_manual" returns="void" exceptions="scheme"><arg type="object" rest="true" /></binding>
   <binding name="save-buffer-as" native="document_save_as" returns="void" exceptions="scheme"><arg type="object" /><arg type="object" rest="true" /></binding>
   <binding name="save-buffer-as-main" native="document_save_as" returns="void" exceptions="scheme"><arg type="object" /><arg type="object" rest="true" /></binding>

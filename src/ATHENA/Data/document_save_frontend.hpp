@@ -13,6 +13,8 @@ void document_save (object arguments);
 void document_save_manual (object arguments);
 void document_save_as (object destination, object arguments);
 void document_save_dialog ();
+void document_export_main (url source, object destination, string format, object options);
+void document_export (object destination);
 bool document_cannot_write (url name, string action);
 void document_save_before_close (url name, std::function<void()> completion);
 

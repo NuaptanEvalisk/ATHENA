@@ -17,6 +17,8 @@
 #include "guile_tm.hpp"
 #include "object.hpp"
 #include "document_persistence.hpp"
+#include "buffer_export.hpp"
+#include "analyze.hpp"
 #include "QTMDocumentHistory.hpp"
 #include "boot.hpp"
 #include <QApplication>
@@ -187,13 +189,14 @@ void start_save (save_task request, std::function<void()> next) {
   else resume_save (request, std::move (next));
 }
 
-void confirm_save (save_task request, QString prompt, std::function<void()> next) {
+void confirm_save (save_task request, QString prompt, std::function<void()> next,
+                   QString title= QObject::tr ("Save file")) {
   if (headless_mode) {
-    get_server ()->set_message ("Interactive confirmation required", "Save file");
+    get_server ()->set_message ("Interactive confirmation required", string (title.toUtf8 ().constData ()));
     return;
   }
-  QMetaObject::invokeMethod (QCoreApplication::instance (), [request, prompt, next] {
-    auto* dialog= new QMessageBox (QMessageBox::Question, QObject::tr ("Save file"),
+  QMetaObject::invokeMethod (QCoreApplication::instance (), [request, prompt, next, title] {
+    auto* dialog= new QMessageBox (QMessageBox::Question, title,
       prompt, QMessageBox::Yes | QMessageBox::No, QApplication::activeWindow ());
     dialog->setAttribute (Qt::WA_DeleteOnClose);
     dialog->setDefaultButton (QMessageBox::No);
@@ -336,6 +339,50 @@ void document_save_as (object destination, object arguments) {
 void document_save_dialog () {
   auto request= make_save_request (null_object ());
   start_save (request, [request] { choose_save_destination (request); });
+}
+
+void document_export_main (url source, object destination, string format, object options) {
+  bool portable= false;
+  if (is_list (destination) && !is_null (destination) && is_url (car (destination))) {
+    object rest= cdr (destination);
+    portable= !is_null (rest) && is_string (car (rest)) && as_string (car (rest)) == "on";
+    destination= car (destination);
+  }
+  for (object opts= options; !is_null (opts); opts= cdr (opts))
+    if (car (opts) == keyword_object ("latex-portable")) portable= true;
+  const bool relative_text= is_string (destination);
+  string target= relative_text ? replace (replace (as_string (destination), ":", "-"), ";", "-") :
+                               as_string (as_url (destination));
+  auto request= make_save_request (cons (object (source), options));
+  request->destination= std::string (target.data (), N(target));
+  const std::string fmt (format.data (), N(format));
+  start_save (request, [request, relative_text, portable, fmt] {
+    url destination= relative_text ? relative (get_master_buffer (url (request->source.c_str ())),
+                                               url_system (request->destination.c_str ())):
+                                    url (request->destination.c_str ());
+    request->destination= encode_url (destination);
+    if (document_cannot_write (destination, "Export file")) return;
+    auto export_document= [request, portable, fmt] {
+      auto settings= conversion_options_snapshot ();
+      if (fmt == "latex" && portable) settings["texmacs->latex:portable"]= "on";
+      url destination (request->destination.c_str ());
+      const bool failed= buffer_export_request (url (request->source.c_str ()), destination,
+                                                string (fmt.c_str ()), settings);
+      get_server ()->set_message (compound ("concat", failed ? "Could not save " : "Exported to ",
+        compound ("verbatim", as_string (destination, URL_SYSTEM))), "Export file");
+    };
+    if (is_of_type (destination, "f") && !request->overwrite)
+      confirm_save (request, QObject::tr ("File already exists. Really overwrite?"),
+                    export_document, QObject::tr ("Export file"));
+    else export_document ();
+  });
+}
+
+void document_export (object destination) {
+  const url target= is_url (destination) ? as_url (destination) : url_system (as_string (destination));
+  string format= file_format (target);
+  if (format == "generic") format= "verbatim";
+  document_export_main (get_current_buffer (), destination, format, list_object (keyword_object ("overwrite")));
 }
 
 void document_save_before_close (url name, std::function<void()> completion) {

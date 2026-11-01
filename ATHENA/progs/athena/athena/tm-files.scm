@@ -93,77 +93,9 @@
        (switch-to-buffer name)
        r)))
 
-(tm-define (buffer-copy buf u)
-  (:synopsis "Creates a copy of @buf in @u and return @u")
-  (with-buffer buf
-    (let* ((styles (get-style-list))
-           (init (get-all-inits))
-           (refl (list-references))
-           (refs (map get-reference refl))
-           (body (tree-copy (buffer-get-body buf))))
-      (view-new u) ; needed by buffer-focus, used in with-buffer
-      (buffer-set-body u body)
-      (with-buffer u
-        (set-style-list styles)
-        (init-env "global-title" (buffer-get-metadata buf "title"))
-        (init-env "global-author" (buffer-get-metadata buf "author"))
-        (init-env "global-subject" (buffer-get-metadata buf "subject"))
-        (for-each
-         (lambda (t)
-           (if (tree-func? t 'associate)
-               (with (var val) (list (tree-ref t 0) (tree-ref t 1))
-                 (init-env-tree (tree->string var) val))))
-         (tree-children init))
-        (for-each set-reference refl refs))
-      u)))
-
-(tm-define (switch-to-buffer* buf)
-  (cond ((== buf (current-buffer)) (noop))
-        ((nnull? (buffer->windows buf))
-         (switch-to-window (car (buffer->windows buf))))
-        (else (switch-to-buffer buf)))
-  (schedule-persistent-fit-width))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Exporting buffers
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (export-buffer-export name to fm opts)
-  ;;(display* "export-buffer-export " name ", " to ", " fm "\n")
-  (with vto `(verbatim ,(url->system to))
-    (if (if (and (== fm "latex") (in? :latex-portable opts))
-            (buffer-export-with-options name to fm
-              '(("texmacs->latex:portable" . "on")))
-            (buffer-export name to fm))
-        (set-message `(concat "Could not save " ,vto) "Export file")
-        (set-message `(concat "Exported to " ,vto) "Export file"))))
-
-(define (export-buffer-check-permissions name to fm opts)
-  ;;(display* "export-buffer-check-permissions " name ", " to ", " fm "\n")
-  (cond ((cannot-write? to "Export file")
-         (noop))
-        ((and (url-test? to "f") (nin? :overwrite opts))
-         (user-confirm "File already exists. Really overwrite?" #f
-           (lambda (answ)
-             (when answ (export-buffer-export name to fm opts)))))
-        (else (export-buffer-export name to fm opts))))
-
-(tm-define (export-buffer-main name to fm opts)
-  ;;(display* "export-buffer-main " name ", " to ", " fm "\n")
-  (when (and (pair? to) (url? (car to)))
-    (when (and (nnull? (cdr to)) (== (cadr to) "on"))
-      (set! opts (cons :latex-portable opts)))
-    (set! to (car to)))
-  (when (string? to)
-    (set! to (string-replace to ":" "-"))
-    (set! to (string-replace to ";" "-"))
-    (set! to (url-relative (buffer-get-master name) to)))
-  (export-buffer-check-permissions name to fm opts))
-
-(tm-define (export-buffer to)
-  (with fm (url-format to)
-    (if (== fm "generic") (set! fm "verbatim"))
-    (export-buffer-main (current-buffer) to fm (list :overwrite))))
 
 (tm-define (command-line-convert from to next)
   (exec-global
@@ -184,10 +116,6 @@
         ;; No GUI window switch is needed for this actor-local continuation.
         (if (not (exec-buffer name next))
             (exec-global next))))))
-
-(tm-define (buffer-exporter fm)
-  (with opts (if (x-gui?) (list) (list :overwrite))
-    (lambda (s) (export-buffer-main (current-buffer) s fm opts))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Autosave
