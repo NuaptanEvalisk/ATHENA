@@ -13,6 +13,8 @@
 #include "materials_edit.hpp"
 #include "application_tools.hpp"
 #include "view_zoom.hpp"
+#include "view_controls.hpp"
+#include "native_input_events.hpp"
 
 #include "ATHENA/Data/program_model.hpp"
 #include "ATHENA/Data/document_node_model.hpp"
@@ -479,7 +481,7 @@ execute_business_id (editor ed, const QString& id) {
   else if (id == "view-toggle-slideshow")
     (void) call ("toggle-slideshow-mode");
   else if (id == "view-toggle-remote-control")
-    (void) call ("toggle-remote-control-mode");
+    native_remote_control_toggle ();
   else if (id == "view-fit-screen")
     view_fit_screen ();
   else if (id == "view-fit-width")
@@ -487,7 +489,7 @@ execute_business_id (editor ed, const QString& id) {
   else if (id == "view-toggle-persistent-fit-width")
     (void) call ("toggle-persistent-fit-width");
   else if (id == "view-toggle-typewriter")
-    (void) call ("toggle-typewriter-mode");
+    view_toggle_typewriter ();
   else if (id == "view-viewport-normal" ||
            id == "view-viewport-typewriter" ||
            id == "view-viewport-hanging") {
@@ -497,7 +499,7 @@ execute_business_id (editor ed, const QString& id) {
                 object (mode));
   }
   else if (id == "view-toggle-snap-pages")
-    (void) call ("toggle-snap-to-pages");
+    view_toggle_snap ();
   else if (id == "view-heading-unfold-all")
     ed->heading_unfold_all ();
   else if (id == "go-save-position")

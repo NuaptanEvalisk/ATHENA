@@ -20,68 +20,6 @@
 ;; View preferences
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (notify-header var val)
-  (show-header (== val "on")))
-
-(define (notify-icon-bar var val)
-  (cond ((== var "main icon bar")
-         (show-icon-bar 0 (== val "on")))
-        ((== var "mode dependent icons")
-         (show-icon-bar 1 (== val "on")))
-        ((== var "focus dependent icons")
-         (show-icon-bar 2 (== val "on")))))
-
-(define (notify-toolbar-presentation var val)
-  (when (current-view)
-    (delayed (:idle 0) (notify-change 256))))
-
-(define (notify-status-bar var val)
-  (show-footer (== val "on")))
-
-(define (notify-zoom-factor var val)
-  (with z (string->number val)
-    (set! z (max (min z 25.0) 0.04))
-    (set-default-zoom-factor z)
-    (set-window-zoom-factor z)))
-
-(define (notify-remote-control var val)
-  (native-remote-control-bind val var))
-
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Changing the view properties
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(tm-define (toggle-visible-header)
-  (:synopsis "Toggle the visibility of the window's header")
-  (:check-mark "v" visible-header?)
-  (with val (not (visible-header?))
-    (if (and (== (windows-number) 1) (os-macos?))
-        (set-boolean-preference "header" val)
-        (show-header val))))
-
-(tm-define (toggle-visible-footer)
-  (:synopsis "Toggle the visibility of the window's footer")
-  (:check-mark "v" visible-footer?)
-  (with val (not (visible-footer?))
-    (if (== (windows-number) 1)
-        (set-boolean-preference "status bar" val)
-        (show-footer val))))
-
-(tm-define (toggle-visible-icon-bar n)
-  (:synopsis "Toggle the visibility of the @n-th icon bar")
-  (:check-mark "v" visible-icon-bar?)
-  (let* ((val (not (visible-icon-bar? n)))
-         (var (cond ((== n 0) "main icon bar")
-                    ((== n 1) "mode dependent icons")
-                    ((== n 2) "focus dependent icons"))))
-    (if (== (windows-number) 1)
-        (set-boolean-preference var val)
-        (show-icon-bar n val))
-    (when (and (os-macos?) (== n 0)
-               (get-boolean-preference "use unified toolbar"))
-      (notify-now "Restart ATHENA to avoid potential visual artefacts"))))
-
 (define saved-informative-flags "default")
 
 (tm-define (toggle-full-screen-mode)
@@ -144,28 +82,11 @@
            (ahash-set! slideshow-revert (current-buffer) old)
            (init-page-rendering "slideshow")))))
 
-(tm-define (toggle-remote-control-mode)
-  (:synopsis "Toggle remote keyboard control mode")
-  (:check-mark "v" remote-control-mode?)
-  (native-remote-control-toggle))
-
-
-(define (snap-to-pages?)
-  (get-boolean-preference "snap to pages"))
-
-(tm-define (toggle-snap-to-pages)
-  (:synopsis "Toggle page snapping")
-  (:check-mark "v" snap-to-pages?)
-  (toggle-preference "snap to pages"))
-
 (define (persistent-fit-width?)
   (get-boolean-preference "persistent fit width"))
 
 (define (persistent-fit-width-applicable?)
   (in? (get-init-page-rendering) (list "paper" "papyrus")))
-
-(define (typewriter-mode?)
-  (get-boolean-preference "typewriter mode"))
 
 (define persistent-fit-width-count 0)
 (define fit-width-editing-position-count 0)
@@ -223,14 +144,5 @@
     (fit-persistent-to-screen-width)
     (schedule-persistent-fit-width)))
 
-(tm-define (toggle-typewriter-mode)
-  (:synopsis "Keep the editing line near the vertical center in scroll view")
-  (:check-mark "v" typewriter-mode?)
-  (set-preference "typewriter mode" (if (typewriter-mode?) "off" "on")))
-
 (tm-define (window-resize-notifier name)
   (schedule-persistent-fit-width))
-
-(register-preference-callback-procedures
-  (list notify-header notify-icon-bar notify-toolbar-presentation
-        notify-remote-control notify-status-bar notify-zoom-factor))

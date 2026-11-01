@@ -81,15 +81,16 @@
 
 ;(display "Booting main TeXmacs functionality\n")
 (import-from (athena athena tm-server))
+(register-preference-callback-procedures
+  (list notify-header notify-icon-bar notify-toolbar-presentation
+        notify-remote-control notify-status-bar notify-zoom-factor))
 (lazy-define (athena athena tm-vault) load-vault-dir load-vault-dir-now)
 (lazy-define (athena athena tm-global-transformation)
              run-global-transformation)
 (lazy-define (athena athena tm-view)
              toggle-full-screen-mode toggle-full-screen-edit-mode
              toggle-panorama-mode toggle-slideshow-mode
-             toggle-remote-control-mode
-             toggle-persistent-fit-width toggle-typewriter-mode
-             toggle-snap-to-pages schedule-persistent-fit-width)
+             toggle-persistent-fit-width schedule-persistent-fit-width)
 (lazy-define (athena athena tm-files)
              buffer-missing-style? buffer-set-default-style command-line-convert
              native-recent-file-provider-data)
