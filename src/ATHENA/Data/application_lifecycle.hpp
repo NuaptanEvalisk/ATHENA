@@ -12,5 +12,6 @@ void application_open_external (url target);
 void application_command_line_convert (string from, string to, object next);
 void application_revert_buffer (object arguments);
 void application_revert_buffer_now (object arguments);
+void application_import_document (url source, string format, object options);
 
 #endif

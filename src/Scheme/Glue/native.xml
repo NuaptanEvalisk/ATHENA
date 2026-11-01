@@ -39,6 +39,8 @@
   <binding name="command-line-convert" native="application_command_line_convert" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /><arg type="procedure" /></binding>
   <binding name="revert-buffer" native="application_revert_buffer" returns="void" exceptions="scheme"><arg type="object" rest="true" /></binding>
   <binding name="revert-buffer-revert" native="application_revert_buffer_now" returns="void" exceptions="scheme"><arg type="object" rest="true" /></binding>
+  <binding name="import-buffer" native="application_import_document" returns="void" exceptions="scheme"><arg type="url" /><arg type="string" /><arg type="object" rest="true" /></binding>
+  <binding name="import-buffer-main" native="application_import_document" returns="void" exceptions="scheme"><arg type="url" /><arg type="string" /><arg type="object" /></binding>
   <binding name="save-buffer" native="document_save" returns="void" exceptions="scheme"><arg type="object" rest="true" /></binding>
   <binding name="save-buffer-main" native="document_save" returns="void" exceptions="scheme"><arg type="object" rest="true" /></binding>
   <binding name="export-buffer-main" native="document_export_main" returns="void" exceptions="scheme"><arg type="url" /><arg type="object" /><arg type="string" /><arg type="object" /></binding>

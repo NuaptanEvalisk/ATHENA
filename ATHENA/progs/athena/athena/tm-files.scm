@@ -336,55 +336,6 @@
   (choose-file load-buffer "Load file" ""))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Importing buffers
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (latex-import-format? fm)
-  (or (== fm "latex")
-      (== fm "tex")
-      (== fm "latex-document")))
-
-(define (import-buffer-import-sub name fm opts)
-  ;;(display* "import-buffer-import " name ", " fm "\n")
-  (if (== fm (url-format name))
-      (apply load-buffer-main (cons name opts))
-      (let* ((s (url->tmfs-string name))
-             (u (string-append "tmfs://import/" fm "/" s)))
-        (apply load-buffer-main (cons u opts)))))
-
-(define (import-buffer-import name fm opts)
-  (if (latex-import-format? fm)
-      (dynamic-wind
-        (lambda () (system-wait "Importing LaTeX" "please wait"))
-        (lambda () (import-buffer-import-sub name fm opts))
-        (lambda () (system-wait "" "")))
-      (import-buffer-import-sub name fm opts)))
-
-(define (import-buffer-check-permissions name fm opts)
-  ;;(display* "import-buffer-check-permissions " name ", " fm "\n")
-  (with vname `(verbatim ,(url->system name))
-    (cond ((not (url-test? name "f"))
-           (with msg `(concat "The file " ,vname " does not exist")
-             (set-message msg "Import file")))
-          ((not (url-test? name "r"))
-           (with msg `(concat "You do not have read access to " ,vname)
-             (set-message msg "Import file")))
-          (else (import-buffer-import name fm opts)))))
-
-(tm-define (import-buffer-main name fm opts)
-  ;;(display* "import-buffer-main " name ", " fm "\n")
-  (if (and (not (url-exists? name))
-           (url-exists? (url-append "$ATHENA_FILE_PATH" name)))
-      (set! name (url-resolve (url-append "$ATHENA_FILE_PATH" name) "f")))
-  (import-buffer-check-permissions name fm opts))
-
-(tm-define (import-buffer name fm . opts)
-  (import-buffer-main name fm opts))
-
-(tm-define (buffer-importer fm)
-  (lambda (s) (import-buffer s fm)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; System dependent conventions for buffer management
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

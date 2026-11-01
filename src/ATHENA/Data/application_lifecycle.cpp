@@ -252,6 +252,41 @@ void application_quit () { on_gui ([] { request_quit (false); }); }
 void application_revert_buffer (object arguments) { request_revert (arguments, true); }
 void application_revert_buffer_now (object arguments) { request_revert (arguments, false); }
 
+void application_import_document (url source, string format, object options) {
+  const std::string encoded= encode (source), selected (format.data (), N(format));
+  auto retained= std::make_shared<conversion_continuation> (options);
+  on_gui ([encoded, selected, retained] {
+    url source (encoded.c_str ());
+    const url search= url ("$ATHENA_FILE_PATH") * source;
+    if (!exists (source) && exists (search)) source= resolve (search, "f");
+    tree filename= compound ("verbatim", as_string (source, URL_SYSTEM));
+    if (!is_of_type (source, "f")) {
+      get_server ()->set_message (compound ("concat", "The file ", filename, " does not exist"), "Import file");
+      return;
+    }
+    if (!is_of_type (source, "r")) {
+      get_server ()->set_message (compound ("concat", "You do not have read access to ", filename), "Import file");
+      return;
+    }
+    const string format (selected.c_str ());
+    url target= source;
+    if (format != file_format (source))
+      target= url ("tmfs://import/" * format * "/" * as_string (call ("url->tmfs-string", object (source))));
+    array<object> arguments;
+    arguments << object (target);
+    for (object opts= tmscm_to_object (scheme_command_handle_value (retained->handle));
+         !is_null (opts); opts= cdr (opts)) arguments << car (opts);
+    const bool latex= format == "latex" || format == "tex" || format == "latex-document";
+    if (latex) system_wait ("Importing LaTeX", "please wait");
+    try { call ("load-buffer-main", arguments); }
+    catch (...) {
+      if (latex) system_wait ("", "");
+      throw;
+    }
+    if (latex) system_wait ("", "");
+  });
+}
+
 void application_command_line_convert (string from, string to, object next) {
   const std::string source (from.data (), N(from)), target (to.data (), N(to));
   auto continuation= std::make_shared<conversion_continuation> (next);

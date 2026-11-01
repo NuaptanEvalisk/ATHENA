@@ -564,9 +564,8 @@ QTMCommandRegistry::registerApplicationCommands () {
         provider_file_filter (key, suffix));
       if (path.isEmpty ()) return true;
       try {
-        (void) call ("import-buffer",
-                     object (url_system (from_qstring (path))),
-                     object (from_qstring (key)));
+        application_import_document (url_system (from_qstring (path)),
+                                     from_qstring (key), null_object ());
         return true;
       }
       catch (...) {
