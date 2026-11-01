@@ -98,7 +98,7 @@
 
 ;; Wikilinks resolve before loading: there must be no intermediate redirect
 ;; buffer/tab. Use the current navigation overload, not the retired TMFS loader.
-(load-definition vault 'go-to-url '(:require (vault-wikilink-navigation-url? u)))
+(load-definition vault 'go-to-url '(:require (and (vault-wikilink-navigation-url? u) (not (vault-node-model-active?)))))
 (define (vault-wikilink-navigation-name u) (url->system u))
 (define (wikilink-navigation-target name)
   (check (eq? owner 'global) "wikilink resolver used the source actor")

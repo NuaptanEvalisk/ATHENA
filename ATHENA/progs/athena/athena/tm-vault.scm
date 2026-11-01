@@ -102,13 +102,6 @@
       (vault-tmfs-navigation-name u "Wikilink")
       ""))
 
-(define (vault-transclusion-source-navigation-url? u)
-  (when (string? u) (set! u (system->url u)))
-  (url-rooted-tmfs-protocol? u "transclusion-source"))
-
-(define (vault-transclusion-source-navigation-name u)
-  (or (vault-tmfs-navigation-name u "transclusion-source") ""))
-
 (define (vault-wikilink-repair-apply-url? u)
   (when (string? u) (set! u (system->url u)))
   (url-rooted-tmfs-protocol? u "wikilink-repair-apply"))
@@ -308,56 +301,18 @@
 (tmfs-permission-handler (artifact name kind)
   (== kind "read"))
 
-;; Vault navigation URLs are commands, not documents. Resolve valid targets
-;; before the generic TMFS loader so following a link never creates an
-;; intermediary redirect buffer. Broken wikilinks explicitly open a repair
-;; document; transclusion-source failures are reported in place.
+;; Native dispatch handles node-model URLs; retain the map-mode repair path.
 (tm-define (go-to-url u . opt-from)
-  (:require (vault-wikilink-navigation-url? u))
+  (:require (and (vault-wikilink-navigation-url? u) (not (vault-node-model-active?))))
   (when (pair? opt-from) (cursor-history-add (car opt-from)))
   (let ((name (string-copy (vault-wikilink-navigation-name u))))
-    (if (vault-node-model-active?)
-        (with (uuid file-hint anchor-hint) (wikilink-name-parts name)
-          ;; Hints remain in the URL for display/backward compatibility only.
-          ;; Identity and navigation come exclusively from the source UUID.
-          (if (string-null? uuid)
-              (set-message "Wikilink has no source UUID" "Wikilink")
-              (node-reference-open
-                (string-append "tmfs://wikilink/" uuid))))
-        (exec-global
-          (lambda ()
-            (let ((target (wikilink-navigation-target name)))
-              (if target
-                  (apply vault-jump-to-source target)
-                  (load-browse-buffer
-                    (system->url (wikilink-repair-url name))))))))))
-
-(tm-define (go-to-url u . opt-from)
-  (:require (url-rooted-tmfs-protocol?
-              (if (string? u) (system->url u) u) "transclude"))
-  (when (pair? opt-from) (cursor-history-add (car opt-from)))
-  (node-reference-open (if (string? u) u (url->system u))))
-
-(tm-define (go-to-url u . opt-from)
-  (:require (vault-transclusion-source-navigation-url? u))
-  (when (pair? opt-from) (cursor-history-add (car opt-from)))
-  (let ((uuid (string-copy
-                (vault-url-component-decode
-                  (vault-transclusion-source-navigation-name u)))))
     (exec-global
       (lambda ()
-        (let ((node (vault-get-node uuid)))
-          (if (and (tree? node) (== (tree-label node) 'tuple))
-              (let* ((rel-path (tree->string (tree-ref node 0)))
-                     (a-begin (tree->string (tree-ref node 1)))
-                     (abs-url
-                       (url-append (vault-get-root) (unix->url rel-path))))
-                (if (url-exists? abs-url)
-                    (vault-jump-to-source abs-url a-begin)
-                    (set-message "Transclusion source file is missing"
-                                 "Transclusion")))
-              (set-message "Transclusion source is not in the Vault map"
-                           "Transclusion")))))))
+        (let ((target (wikilink-navigation-target name)))
+          (if target
+              (apply vault-jump-to-source target)
+              (load-browse-buffer
+                (system->url (wikilink-repair-url name)))))))))
 
 (tm-define (go-to-url u . opt-from)
   (:require (vault-wikilink-repair-apply-url? u))
