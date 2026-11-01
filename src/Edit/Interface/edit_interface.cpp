@@ -1361,7 +1361,7 @@ editor_rep::focus_toolbar_state_snapshot () {
     }
   }
 
-  bool sectionContext= query ("section-context?");
+  bool sectionContext= text_section_context (t);
   bool bufferHasPreviousSection= false;
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_BUFFER))
     bufferHasPreviousSection=
@@ -1553,11 +1553,11 @@ editor_rep::focus_toolbar_state_snapshot () {
             }
             else if (is_list (values[i])) {
               array<object> pair= as_array_object (values[i]);
-              if (N(pair) != 2 ||
-                  !is_string (pair[0]) || !is_string (pair[1]))
+              if (N(pair) != 2 || !is_string (pair[0]))
                 continue;
               string labelValue= as_string (pair[0]);
-              string value= as_string (pair[1]);
+              string value= is_string (pair[1]) ? as_string (pair[1]) :
+                object_to_string (is_tree (pair[1]) ? tree_to_stree (as_tree (pair[1])) : pair[1]);
               choice.label.assign (
                 labelValue.data (),
                 static_cast<std::size_t> (N(labelValue)));

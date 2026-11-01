@@ -1,5 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="section-context?" native="text_section_context" returns="bool"><arg type="tree" /></binding>
+  <binding name="list-context?" native="text_list_context" returns="bool"><arg type="tree" /></binding>
+  <binding name="previous-section" native="text_previous_section" returns="object" />
+  <binding name="go-to-section-title" native="text_go_to_section_title" returns="void" />
+  <binding name="make-tmlist" native="text_make_list" returns="void"><arg type="tree_label" /></binding>
+  <binding name="make-item" native="text_make_item" returns="void" />
+  <binding name="todo-toggle-current" native="text_toggle_todo" returns="void" />
+  <binding name="cloud-todo-toggle-current" native="text_toggle_cloud_todo" returns="void" />
+  <binding name="mouse-toggle-todo-item" native="text_mouse_toggle_todo" returns="void"><arg type="tree" /></binding>
+  <binding name="mouse-toggle-cloud-todo-item" native="text_mouse_toggle_cloud_todo" returns="void"><arg type="tree" /></binding>
+  <binding name="numbered-context?" native="text_numbered_context" returns="bool"><arg type="tree" /></binding>
+  <binding name="numbered-numbered?" native="text_numbered_numbered" returns="bool"><arg type="tree" /></binding>
+  <binding name="numbered-toggle" native="text_numbered_toggle" returns="void"><arg type="tree" /></binding>
   <binding name="make-doc-data" native="text_make_doc_data" returns="void" />
   <binding name="make-abstract-data" native="text_make_abstract_data" returns="void" />
   <binding name="make-doc-data-element" native="text_make_doc_data_element" returns="void"><arg type="tree_label" /></binding>

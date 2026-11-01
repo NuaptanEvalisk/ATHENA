@@ -1649,9 +1649,23 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     }
     if (action.value ("reset").toBool (false))
       generic_parameter_reset (name, mode);
-    else
-      generic_parameter_set (
-        name, object (native_action_string (action.value ("value"))), mode);
+    else {
+      object value (native_action_string (action.value ("value")));
+      if (action.contains ("choice")) {
+        object choices= format_parameter_choices (name);
+        if (!is_list (choices)) return;
+        array<object> entries= as_array_object (choices);
+        const int index= action.value ("choice").toInt (-1);
+        if (index < 0 || index >= N(entries)) return;
+        value= entries[index];
+        if (is_list (value)) {
+          array<object> pair= as_array_object (value);
+          if (N(pair) != 2) return;
+          value= pair[1];
+        }
+      }
+      generic_parameter_set (name, value, mode);
+    }
   }
   else if (op == "focus-style-option") {
     actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
@@ -1767,8 +1781,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
   else if (op == "insert-native-math-block") ed->make_native_math_block (false);
   else if (op == "insert-native-math-grid") ed->make_native_math_block (true);
   else if (op == "make-tmlist")
-    (void) call (
-      "make-tmlist", symbol_object (native_action_string (action.value ("tag"))));
+    text_make_list (as_tree_label (native_action_string (action.value ("tag"))));
   else if (op == "make-toggle")
     (void) call (
       "make-toggle", symbol_object (native_action_string (action.value ("tag"))));

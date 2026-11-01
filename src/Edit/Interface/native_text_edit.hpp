@@ -1,6 +1,7 @@
 // Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later.
 #pragma once
 #include "tree.hpp"
+#include "object.hpp"
 
 bool text_node_in_group (tree t, const char* group, bool numbered_variants= false);
 bool text_titled_context (tree t);
@@ -15,6 +16,21 @@ void text_doc_data_toggle_hidden ();
 void text_doc_title_clustering (string mode);
 bool text_title_enter (tree t);
 void text_doc_data_clean (tree t);
+bool text_section_context (tree t);
+bool text_list_context (tree t);
+object text_previous_section ();
+void text_go_to_section_title ();
+void text_space_bar ();
+bool text_enter (tree t, bool shift);
+void text_make_list (tree_label tag);
+void text_make_item ();
+void text_toggle_todo ();
+void text_toggle_cloud_todo ();
+void text_mouse_toggle_todo (tree t);
+void text_mouse_toggle_cloud_todo (tree t);
+bool text_numbered_context (tree t);
+bool text_numbered_numbered (tree t);
+void text_numbered_toggle (tree t);
 void text_note_toggle_custom (tree t);
 void text_titled_toggle_name (tree t);
 void text_frame_toggle_title (tree t);

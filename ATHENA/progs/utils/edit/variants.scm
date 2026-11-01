@@ -47,32 +47,8 @@
  (or (tree-in? t (node-group-members "numbered-tag"))
      (tree-in? t (numbered-tag-list*))))
 
-(tm-define (numbered-context? t)
-  #f)
-
-(tm-define (numbered-context? t)
-  (:require (numbered-standard-context? t))
-  #t)
-
-(tm-define (numbered-numbered? t)
-  #f)
-
-(tm-define (numbered-numbered? t)
-  (:require (numbered-standard-context? t))
-  (not (symbol-ends? (tree-label t) '*)))
-
 (tm-define (numbered-unnumbered? t)
   (and (numbered-context? t) (not (numbered-numbered? t))))
-
-(tm-define (numbered-toggle t)
-  (and-with p (tree-outer t)
-    (numbered-toggle p)))
-
-(tm-define (numbered-toggle t)
-  (:require (numbered-standard-context? t))
-  (let* ((old (tree-label t))
-         (new (symbol-toggle-number old)))
-    (variant-set t new)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Alternate between two possibilities

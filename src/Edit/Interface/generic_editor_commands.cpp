@@ -525,6 +525,12 @@ generic_search_parameters (object label) {
 
 void
 generic_label_insert (tree t) {
+  if (text_section_context (t)) {
+    editor ed= get_current_editor ();
+    ed->go_to_end (reverse (obtain_ip (t)));
+    ed->make_compound (LABEL);
+    return;
+  }
   if (admits_edit_observer (t)) {
     call ("make", symbol_object ("label"));
     return;
@@ -606,6 +612,20 @@ generic_notify_disactivated (tree) {
 
 object
 generic_focus_label (tree t) {
+  if (text_section_context (t)) {
+    tree parent;
+    return parent_tree (t, parent) && is_func (parent, CONCAT) ?
+      focus_search_label_impl (parent) : object (false);
+  }
+  if (text_list_context (t) || is_compound (t, "bib-list")) {
+    const path p= reverse (obtain_ip (t));
+    const path cursor= path_up (get_current_editor ()->the_path ());
+    if (!(p < cursor)) return object (false);
+    const path relative= cursor / p;
+    tree doc= t[relative->item];
+    if (!is_func (doc, DOCUMENT) || is_nil (relative->next)) return object (false);
+    return focus_search_label_impl (doc[relative->next->item]);
+  }
   if (text_node_in_group (t, "enunciation-tag") && N(t) == 1)
     return focus_search_label_impl (t[0]);
   if (text_node_in_group (t, "algorithm-tag") || text_footnote_context (t) ||
@@ -1482,7 +1502,7 @@ generic_parameter_get (string name, object mode_object) {
 string
 generic_parameter_get_string (string name, object mode) {
   object value= generic_parameter_get (name, mode);
-  return is_string (value) ? as_string (value) : string ("");
+  return is_string (value) ? as_string (value) : object_to_string (value);
 }
 
 bool
@@ -1706,12 +1726,11 @@ generic_focus_parameters_list (tree t, object mode) {
     }
   }
 
-  object inhibited= eval (global ? "inhibit-global-table" : "inhibit-local-table");
   array<string> result;
   for (int i= 0; i < N (visible); ++i) {
     string parameter= visible[i];
     if (string_array_contains (customizable, parameter)) continue;
-    if (scheme_truthy (call ("ahash-ref", inhibited, object (parameter)))) continue;
+    if (format_parameter_inhibited (parameter, global)) continue;
     result << parameter;
   }
   return strings_object (result);

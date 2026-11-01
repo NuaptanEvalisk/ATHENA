@@ -5,6 +5,9 @@
 #include "editor.hpp"
 #include "tree_traverse.hpp"
 #include "Data/NodeContracts/node_groups.hpp"
+#include "format_geometry.hpp"
+#include "sys_utils.hpp"
+#include "Subsystems/Google/GoogleCloudTodo.hpp"
 
 namespace {
 bool parent_tree (tree t, tree& parent) {
@@ -339,6 +342,146 @@ void text_doc_data_clean (tree t) {
     else if (is_compound (child, "doc-author", 1) && is_compound (child[0], "author-data"))
       text_doc_data_clean (child[0]);
   }
+}
+
+bool text_section_context (tree t) {
+  return text_node_in_group (t, "section-tag", true);
+}
+
+bool text_list_context (tree t) {
+  return text_node_in_group (t, "list-tag");
+}
+
+object text_previous_section () {
+  editor ed= get_current_editor ();
+  const path relative= ed->the_path () / ed->the_buffer_path ();
+  tree buffer= ed->the_buffer ();
+  const path previous= previous_section (buffer, relative);
+  return previous == relative ? object (false) :
+    object (subtree (buffer, previous));
+}
+
+void text_go_to_section_title () {
+  object previous= text_previous_section ();
+  if (!is_tree (previous)) return;
+  tree section= as_tree (previous);
+  if (text_node_in_group (section, "section-tag") ||
+      text_node_in_group (section, "section*-tag"))
+    get_current_editor ()->go_to_start (reverse (obtain_ip (section)) * 0);
+}
+
+void text_space_bar () {
+  editor ed= get_current_editor ();
+  const string preference= get_preference ("text spacebar");
+  const path p= ed->the_path ();
+  const tree t= ed->the_subtree (path_up (p));
+  const int offset= last_item (p);
+  const bool previous_space= is_atomic (t) && offset > 0 && t->label[offset-1] == ' ';
+  if (preference == "allow multiple spaces") ed->insert_tree (" ");
+  else if (previous_space && preference == "no multiple spaces") return;
+  else if (previous_space) {
+    ed->remove_text (false);
+    ed->make_space (string ("1em"));
+  }
+  else if (offset > 0 && is_func (t, SPACE, 1)) {
+    if (is_atomic (t[0]) && ends (t[0]->label, "em")) ed->make_space (string ("1em"));
+    else geometry_horizontal (t, true);
+  }
+  else ed->insert_tree (" ");
+}
+
+void text_make_item () {
+  editor ed= get_current_editor ();
+  if (ed->make_return_after ()) return;
+  tree current= ed->the_subtree (path_up (ed->the_path ()));
+  while (!text_list_context (current) && parent_tree (current, current)) {}
+  ed->make_compound (as_tree_label (
+    text_node_in_group (current, "description-tag") ? "item*" : "item"));
+}
+
+void text_make_list (tree_label tag) {
+  editor ed= get_current_editor ();
+  const bool selected= ed->selection_active_any ();
+  const bool description= ed->selection_active_any () && !ed->selection_active_small () &&
+    text_node_in_group (tree (tag), "description-tag");
+  if (selected) ed->selection_cut ("wrapbuf");
+  else ed->selection_cancel ();
+  ed->make_compound (tag);
+  if (description) ed->insert_tree (tree (as_tree_label ("item*"), ""));
+  else text_make_item ();
+  if (selected) ed->selection_paste ("wrapbuf");
+}
+
+bool text_enter (tree t, bool shift) {
+  if (text_title_enter (t)) return true;
+  editor ed= get_current_editor ();
+  if (text_section_context (t)) {
+    ed->go_to_end (reverse (obtain_ip (t)));
+    ed->insert_return ();
+  }
+  else if (text_list_context (t)) {
+    if (shift) ed->make_return_after ();
+    else text_make_item ();
+  }
+  else if (is_compound (t, "item*")) ed->go_to_end (reverse (obtain_ip (t)));
+  else return false;
+  return true;
+}
+
+namespace {
+void toggle_todo (bool cloud) {
+  editor ed= get_current_editor ();
+  const string open= cloud ? "cloud-todo-item" : "todo-item";
+  const string done= cloud ? "cloud-done-item" : "done-item";
+  const auto innermost= [&] (string tag) {
+    for (path p= path_up (ed->the_path ()); ; p= path_up (p)) {
+      if (is_compound (ed->the_subtree (p), tag)) return p;
+      if (p == ed->the_buffer_path ()) return path ();
+    }
+  };
+  path p= innermost (open);
+  if (is_nil (p)) p= innermost (done);
+  if (is_nil (p) && !is_nil (ed->search_upwards (cloud ? "cloud-todo-list" : "todo-list")))
+    p= innermost ("item");
+  if (is_nil (p)) return;
+  tree marker= ed->the_subtree (p);
+  const bool completed= cloud ? is_compound (marker, open) : !is_compound (marker, done);
+  tree_assign_node (marker, as_tree_label (completed ? done : open));
+  if (cloud) google_cloud_todo_push_item (ed->the_subtree (path_up (p)), completed);
+}
+}
+
+void text_toggle_todo () { toggle_todo (false); }
+void text_toggle_cloud_todo () { toggle_todo (true); }
+void text_mouse_toggle_todo (tree t) {
+  if (ip_attached (obtain_ip (t))) get_current_editor ()->go_to_start (reverse (obtain_ip (t)));
+  text_toggle_todo ();
+}
+void text_mouse_toggle_cloud_todo (tree t) {
+  if (ip_attached (obtain_ip (t))) get_current_editor ()->go_to_start (reverse (obtain_ip (t)));
+  text_toggle_cloud_todo ();
+}
+
+bool text_numbered_context (tree t) {
+  return text_node_in_group (t, "numbered-tag", true) ||
+    text_node_in_group (t, "itemize-tag") || text_node_in_group (t, "enumerate-tag");
+}
+bool text_numbered_numbered (tree t) {
+  return text_node_in_group (t, "enumerate-tag") ||
+    (text_node_in_group (t, "numbered-tag", true) && !ends (as_string (L(t)), "*"));
+}
+void text_numbered_toggle (tree t) {
+  string tag= as_string (L(t));
+  if (text_node_in_group (t, "itemize-tag")) tag= "enumerate";
+  else if (text_node_in_group (t, "enumerate-tag")) tag= "itemize";
+  else if (text_node_in_group (t, "numbered-tag", true))
+    tag= ends (tag, "*") ? tag (0, N(tag)-1) : tag * "*";
+  else {
+    object parent= call ("tree-outer", object (t));
+    if (is_tree (parent)) call ("numbered-toggle", parent);
+    return;
+  }
+  call ("variant-set", object (t), symbol_object (tag));
 }
 
 void text_note_toggle_custom (tree t) {

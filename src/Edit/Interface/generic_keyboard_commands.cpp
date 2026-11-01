@@ -553,11 +553,14 @@ void generic_kbd_cancel () { get_current_editor ()->selection_clear ("primary");
 void generic_kbd_space_bar (tree t, bool shift) {
   (void) shift;
   if (!admits_edit_observer (t)) { outward (t, "kbd-space-bar", shift); return; }
-  get_current_editor ()->insert_tree (tree (" "));
+  editor ed= get_current_editor ();
+  if (ed->get_env_string ("mode") == "text" && ed->get_env_string ("language") != "verbatim")
+    text_space_bar ();
+  else ed->insert_tree (tree (" "));
 }
 
 void generic_kbd_enter (tree t, bool shift) {
-  if (text_title_enter (t)) return;
+  if (text_enter (t, shift)) return;
   if (is_compound (t, "math")) {
     get_current_editor ()->go_to_end (reverse (obtain_ip (t)));
     generic_insert_return ();

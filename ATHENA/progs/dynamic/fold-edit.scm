@@ -16,8 +16,7 @@
  (:use (utils library tree)
        (utils library cursor)
        (generic generic-edit)
-       (generic document-edit)
-       (text text-edit)))
+       (generic document-edit)))
 
 (tm-define (screens-buffer?)
   (with t (buffer-tree)

@@ -13,7 +13,7 @@
 
 (texmacs-module
  (doc tmdoc-edit)
- (:use (utils library tree) (utils edit variants) (text text-edit)))
+ (:use (utils library tree) (utils edit variants)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Inserting meta data

@@ -22,8 +22,6 @@
 (tm-define (tree-parameter? t)
   (tree-label-parameter? (tree-label t)))
 
-(tm-define inhibit-local-table (make-ahash-table))
-(tm-define inhibit-global-table (make-ahash-table))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Collecting style options for a tag

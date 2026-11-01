@@ -199,8 +199,7 @@
 
 ;(display "Booting text mode\n")
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
-(lazy-define (text text-edit)
-             previous-section section-context?)
+(define-secure-symbols mouse-toggle-todo-item mouse-toggle-cloud-todo-item)
 
 ;(display "Booting math mode\n")
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")

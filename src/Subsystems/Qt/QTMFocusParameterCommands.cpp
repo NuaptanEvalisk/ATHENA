@@ -196,6 +196,7 @@ execute_parameter_item (
         return false;
       value= qstring (
         parameter->choices[static_cast<std::size_t> (choiceIndex)].value);
+      action.insert ("choice", choiceIndex);
     }
     else if (kind == QStringLiteral ("bool") && parts.size () == 4) {
       value= parts[3] == QStringLiteral ("0") ?

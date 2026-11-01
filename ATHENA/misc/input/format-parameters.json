@@ -1,5 +1,7 @@
 {
   "version": 1,
+  "inhibit_global": ["item-tag", "enum-tag"],
+  "inhibit_local": ["item-1", "item-2", "item-3", "item-4", "enum-1", "enum-2", "enum-3", "enum-4"],
   "focus_no_preferences": ["doc-note", "author-note"],
   "focus_preferences": ["reference", "pageref", "eqref", "smart-ref", "hlink", "locus", "ornament", "float", "around", "around*"],
   "focus_names": {"math": "Inline formula", "wide": "Wide", "wide*": "Wide", "around": "Around", "around*": "Around", "abstract": "Abstract text"},
@@ -17,6 +19,8 @@
     {"groups": ["small-figure-tag", "big-figure-tag"], "numbered_variants": true, "packages": ["captions-above"]}
   ],
   "standard": {
+    "itemize": {"prepend": ["itemize-levels", "item-tag", "item-1", "item-2", "item-3", "item-4"], "inherit": "itemize-1", "exclude": ["itemize-level"]},
+    "enumerate": {"prepend": ["enumerate-levels", "enum-tag", "enum-1", "enum-2", "enum-3", "enum-4"], "inherit": "enumerate-1", "exclude": ["enumerate-level"]},
     "action": ["locus-color"],
     "locus": ["locus-color", "visited-color"],
     "ornament": ["ornament-shape", "ornament-title-style", "ornament-border", "ornament-corner", "ornament-hpadding", "ornament-vpadding", "ornament-color", "ornament-extra-color", "ornament-sunny-color", "ornament-shadow-color"],
@@ -69,6 +73,15 @@
     {"tags": ["skin"], "parameters": [["skin-color", "Skin color"]]}
   ],
   "choices": [
+    {"names": ["itemize-levels", "enumerate-levels"], "values": ["1", "2", "3", "4"]},
+    {"names": ["item-tag", "item-1", "item-2", "item-3", "item-4"], "values": ["<bullet>", "<circ>", "<minus>", "<cdot>", "*", "<rightarrow>", "<Rightarrow>", "<triangleright>", "<blacktriangleright>"], "other": true},
+    {"names": ["enum-tag", "enum-1", "enum-2", "enum-3", "enum-4"], "values": [
+      {"label": "1, 2, 3, ...", "tree": ["macro", "x", ["arg", "x"]]},
+      {"label": "a, b, c, ...", "tree": ["macro", "x", ["number", ["arg", "x"], "alpha"]]},
+      {"label": "A, B, C, ...", "tree": ["macro", "x", ["number", ["arg", "x"], "Alpha"]]},
+      {"label": "i, ii, iii, ...", "tree": ["macro", "x", ["number", ["arg", "x"], "roman"]]},
+      {"label": "I, II, III, ...", "tree": ["macro", "x", ["number", ["arg", "x"], "Roman"]]}
+    ], "other": true},
     {"names": ["padding-above", "padding-below"], "values": ["0fn", "0.5fn", "1fn", "1.5fn", "2fn"], "other": true},
     {"names": ["overlined-sep", "underlined-sep", "leftlined-sep", "rightlined-sep"], "values": ["0sep", "0.5sep", "1sep", "1.5sep", "2sep"], "other": true},
     {"names": ["ornament-hpadding", "ornament-vpadding"], "values": ["0spc", "0.5spc", "1spc", "1.5spc", "2spc"], "other": true},

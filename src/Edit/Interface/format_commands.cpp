@@ -47,6 +47,16 @@ void require_strings (QJsonValue value) {
     ASSERT (item.isString (), "format parameter list must contain strings");
 }
 
+tree parameter_tree (QJsonValue value) {
+  if (value.isString ()) return tree (native_string (value.toString ()));
+  ASSERT (value.isArray (), "parameter tree must be a string or tagged array");
+  const QJsonArray parts= value.toArray ();
+  ASSERT (!parts.isEmpty () && parts[0].isString (), "parameter tree needs a tag");
+  tree result (as_tree_label (native_string (parts[0].toString ())));
+  for (int i=1; i<parts.size (); ++i) result << parameter_tree (parts[i]);
+  return result;
+}
+
 struct format_parameter_data {
   QJsonObject definitions;
   QJsonObject customizable;
@@ -73,7 +83,15 @@ struct format_parameter_data {
             definitions.value ("pen_effects").isObject (),
             "missing format parameter definitions");
     QJsonObject standard= definitions.value ("standard").toObject ();
-    for (auto i= standard.begin (); i != standard.end (); ++i) require_strings (i.value ());
+    for (auto i= standard.begin (); i != standard.end (); ++i) {
+      if (i.value ().isArray ()) require_strings (i.value ());
+      else {
+        const QJsonObject rule= i.value ().toObject ();
+        require_strings (rule.value ("prepend"));
+        require_strings (rule.value ("exclude"));
+        ASSERT (rule.value ("inherit").isString (), "standard parameters need an inherited tag");
+      }
+    }
     for (QJsonValue item: definitions.value ("customizable").toArray ()) {
       ASSERT (item.isObject (), "invalid customizable parameter group");
       QJsonObject group= item.toObject ();
@@ -94,7 +112,11 @@ struct format_parameter_data {
       ASSERT (rule.contains ("names") || rule.contains ("suffixes"), "choice rule needs a match");
       if (rule.contains ("names")) require_strings (rule.value ("names"));
       if (rule.contains ("suffixes")) require_strings (rule.value ("suffixes"));
-      require_strings (rule.value ("values"));
+      ASSERT (rule.value ("values").isArray (), "parameter choices must be an array");
+      for (QJsonValue choice: rule.value ("values").toArray ())
+        ASSERT (choice.isString () || (choice.isObject () &&
+                choice.toObject ().value ("label").isString () &&
+                choice.toObject ().value ("tree").isArray ()), "invalid parameter choice");
       ASSERT (!rule.contains ("other") || rule.value ("other").isBool (), "invalid other choice");
     }
     require_strings (definitions.value ("pens"));
@@ -622,7 +644,24 @@ bool format_focus_has_preferences (tree t) {
 
 object format_standard_parameters (string tag) {
   QJsonValue values= parameter_data ().definitions.value ("standard").toObject ().value (json_key (tag));
+  if (values.isObject ()) {
+    const QJsonObject rule= values.toObject ();
+    array<object> result= as_array_object (json_strings (rule.value ("prepend").toArray ()));
+    object inherited= call ("search-parameters", object (native_string (rule.value ("inherit").toString ())));
+    if (is_list (inherited)) {
+      array<object> items= as_array_object (inherited);
+      for (int i=0; i<N(items); ++i)
+        if (!rule.value ("exclude").toArray ().contains (json_key (as_string (items[i]))))
+          result << items[i];
+    }
+    return as_list_object (result);
+  }
   return values.isArray () ? json_strings (values.toArray ()) : object (false);
+}
+
+bool format_parameter_inhibited (string name, bool global) {
+  return parameter_data ().definitions.value (global ? "inhibit_global" : "inhibit_local")
+    .toArray ().contains (json_key (name));
 }
 
 string format_focus_name (string tag) {
@@ -674,7 +713,19 @@ object format_parameter_choices (string variable) {
     bool matches= rule.value ("names").toArray ().contains (key);
     for (QJsonValue suffix: rule.value ("suffixes").toArray ())
       matches= matches || key.endsWith (suffix.toString ());
-    if (matches) return json_strings (rule.value ("values").toArray (), rule.value ("other").toBool ());
+    if (matches) {
+      array<object> choices;
+      for (QJsonValue value: rule.value ("values").toArray ()) {
+        if (value.isString ()) choices << object (native_string (value.toString ()));
+        else {
+          const QJsonObject choice= value.toObject ();
+          choices << cons (object (native_string (choice.value ("label").toString ())),
+            cons (object (parameter_tree (choice.value ("tree"))), null_object ()));
+        }
+      }
+      if (rule.value ("other").toBool ()) choices << keyword_object ("other");
+      return as_list_object (choices);
+    }
   }
   return object (false);
 }
