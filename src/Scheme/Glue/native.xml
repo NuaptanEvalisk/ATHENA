@@ -1,5 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="navigation-list-simplify" native="native_navigation_simplify" returns="object" exceptions="scheme"><arg type="object" /></binding>
+  <binding name="link-list-&gt;navigation-list" native="native_link_list_to_navigation" returns="object" exceptions="scheme"><arg type="object" /></binding>
+  <binding name="upward-navigation-list" native="native_upward_navigation" returns="object" exceptions="scheme"><arg type="object" /></binding>
+  <binding name="link-may-follow?" native="native_link_may_follow" returns="bool" exceptions="scheme"><arg type="object" /></binding>
+  <binding name="navigation-list-filter" native="native_navigation_filter" returns="object" exceptions="scheme"><arg type="object" /><arg type="object" /><arg type="object" /><arg type="bool" /></binding>
+  <binding name="navigation-list-types" native="native_navigation_types" returns="list_string" exceptions="scheme"><arg type="object" /></binding>
+  <binding name="navigation-list-xtypes" native="native_navigation_xtypes" returns="list_string" exceptions="scheme"><arg type="object" /></binding>
+  <binding name="navigation-list-first-xtype" native="native_navigation_first_xtype" returns="object" exceptions="scheme"><arg type="object" /><arg type="string" /></binding>
+  <binding name="automatic-link" native="native_automatic_link" returns="object" exceptions="scheme"><arg type="object" /><arg type="object" rest="true" /></binding>
+  <binding name="build-enumeration" native="native_link_enumeration" returns="object" exceptions="scheme"><arg type="object" /></binding>
+  <binding name="navigation-list-&gt;document" native="native_navigation_document" returns="object" exceptions="scheme"><arg type="content" /><arg type="object" /></binding>
   <binding name="get-constellation" native="native_link_constellation" returns="list_string" exceptions="scheme" />
   <binding name="get-link-locations" native="native_get_link_locations" returns="tree" exceptions="scheme"><arg type="url" /><arg type="tree" /></binding>
   <binding name="register-link-locations" native="native_register_link_locations" returns="void" exceptions="scheme"><arg type="url" /><arg type="tree" /></binding>

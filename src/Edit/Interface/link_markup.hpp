@@ -49,5 +49,16 @@ list<string> native_link_constellation ();
 tree native_get_link_locations (url here, tree t);
 void native_register_link_locations (url here, tree locations);
 bool native_resolve_link_id (string id);
+object native_navigation_simplify (object items);
+object native_link_list_to_navigation (object links);
+object native_upward_navigation (object t);
+bool native_link_may_follow (object t);
+object native_navigation_filter (object items, object type, object position, bool jumpable);
+list<string> native_navigation_types (object items);
+list<string> native_navigation_xtypes (object items);
+object native_navigation_first_xtype (object items, string type);
+object native_automatic_link (object target, object options);
+object native_link_enumeration (object items);
+object native_navigation_document (tree style, object items);
 
 #endif

@@ -73,14 +73,6 @@
 (define (unescape-link-args s)
   (string-replace s "%3A" ":"))
 
-(tm-define (link-item-id item) (car item))
-(tm-define (link-item-type item) (cadr item))
-(tm-define (link-item-attributes item) (caddr item))
-(tm-define (link-item-vertices item) (cdddr item))
-
-(tm-define (link-may-follow? t)
-  (nnull? (upward-navigation-list t)))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Navigation lists contain concrete propositions for link traversal.
 ;; One item is of the form
@@ -97,67 +89,6 @@
 (tm-define (navigation-source item) (cadddr item))
 (tm-define (navigation-target item) (car (cddddr item)))
 
-(define (navigation-list-sub type attrs nr source l)
-  (if (null? l) l
-      (let* ((head (list type attrs nr source (car l)))
-             (tail (navigation-list-sub type attrs (+ nr 1) source (cdr l))))
-        (if (== source (vertex->id (car l))) tail
-            (cons head tail)))))
-
-(tm-define (navigation-list-simplify l)
-  (with t (make-ahash-table)
-    (for (x l)
-      (with key (list (navigation-target x)
-                      (navigation-type x)
-                      (navigation-attributes x)
-                      (navigation-pos x))
-        (ahash-set! t key x)))
-    (map cdr (ahash-table->list t))))
-
-(tm-define (link-list->navigation-list l)
-  (:synopsis "Transforms the link list @t into a navigation list")
-  (if (null? l) l
-      (let* ((item (car l))
-             (source (link-item-id item))
-             (type (link-item-type item))
-             (attrs (link-item-attributes item))
-             (vertices (link-item-vertices item))
-             (h (navigation-list-sub type attrs 0 source vertices))
-             (r (link-list->navigation-list (cdr l)))
-             (nl (navigation-list-simplify (append h r))))
-        nl)))
-
-(tm-define (upward-navigation-list t)
-  (link-list->navigation-list (upward-link-list t #t)))
-
-(tm-define (navigation-list-filter l type nr jumpable?)
-  (cond ((null? l) l)
-        ((and (or (== type #t) (== (navigation-type (car l)) type))
-              (or (== nr #t) (== (navigation-pos (car l)) nr))
-              (or (not jumpable?)
-                  (func? (navigation-target (car l)) 'id 1)
-                  (func? (navigation-target (car l)) 'url 1)
-                  (func? (navigation-target (car l)) 'script)))
-         (cons (car l) (navigation-list-filter (cdr l) type nr jumpable?)))
-        (else (navigation-list-filter (cdr l) type nr jumpable?))))
-
-(tm-define (navigation-list-types l)
-  (list-remove-duplicates (map navigation-type l)))
-
-(tm-define (navigation-list-xtypes l)
-  (let* ((direct (navigation-list-filter l #t 1 #t))
-         (inverse (navigation-list-filter l #t 0 #t))
-         (dtypes (map navigation-type direct))
-         (itypes (map (cut string-append <> "*")
-                      (map navigation-type inverse))))
-    (list-remove-duplicates (append dtypes itypes))))
-
-(tm-define (navigation-list-first-xtype l xtype)
-  (let* ((inverse? (string-ends? xtype "*"))
-         (type (if inverse? (string-drop-right xtype 1) xtype))
-         (fl (navigation-list-filter l type (if inverse? 0 1) #t)))
-    (and (nnull? fl) (navigation-type fl))))
-
 (define (resolve-navigation-list l fun)
   (if (null? l) (fun)
       (let* ((id (vertex->id (navigation-target (car l))))
@@ -170,60 +101,6 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Link pages
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define (automatic-link-text back)
-  (cond ((func? back 'id 1)
-         (with ts (id->trees (vertex->id back))
-           (and (nnull? ts) (tree->stree (car ts)))))
-        ((func? back 'url 1)
-         `(verbatim ,(vertex->url back)))
-        ((func? back 'script)
-         `(verbatim ,(vertex->script back)))
-        (else #f)))
-
-(tm-define (automatic-link back . opt)
-  (let* ((broken-text (if (null? opt) "Broken" (car opt)))
-         (id (create-unique-id))
-         (text (automatic-link-text back)))
-    (if (not text) `(with "color" "red" ,broken-text)
-        `(locus (id ,id) (link "automatic" (id ,id) ,back) ,text))))
-
-(tm-define (build-enumeration l)
-  (if (<= (length l) 1) l
-      `((enumerate
-         (document
-          ,@(map (lambda (x) `(surround (item) "" ,x)) l))))))
-
-(define (navigation-item->document item)
-  (automatic-link (navigation-target item)))
-
-(define (navigation-list-by-type->document type l)
-  (cons `(strong ,type)
-        (build-enumeration (map navigation-item->document l))))
-
-(define (navigation-list->document style l)
-  (let* ((direct (navigation-list-filter l #t 1 #t))
-         (inverse (navigation-list-filter l #t 0 #t))
-         (direct-types (navigation-list-types direct))
-         (inverse-types (navigation-list-types inverse))
-         (direct-by-type (map (cut navigation-list-filter direct <> #t #f)
-                              direct-types))
-         (inverse-by-type (map (cut navigation-list-filter inverse <> #t #f)
-                               inverse-types)))
-    `(document
-      (style ,style)
-      (body (document
-             (strong "Source")
-             ,(automatic-link `(id ,(navigation-source (car l)))
-                              "Unaccessible")
-             ,@(append-map
-                navigation-list-by-type->document
-                (map (cut string-append "Direct " <>) direct-types)
-                direct-by-type)
-             ,@(append-map
-                navigation-list-by-type->document
-                (map (cut string-append "Inverse " <>) inverse-types)
-                inverse-by-type))))))
 
 (define (build-navigation-page-sub style l)
   (with doc (navigation-list->document style l)
