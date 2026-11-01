@@ -27,6 +27,9 @@ struct QTMInteractiveField {
 void qtm_info_dialog (string message, string title);
 string qtm_linked_file_choice_dialog (string name, array<string> items);
 array<string> qtm_unsaved_buffers_dialog (array<string> buffers, bool restart);
+void qtm_unsaved_buffers_async (
+  array<string> buffers, bool restart,
+  std::function<void(std::vector<std::string>)> completion);
 void qtm_text_report_dialog (string title, string message);
 array<string> qtm_latex_formula_dialog ();
 array<string> qtm_interactive_dialog (

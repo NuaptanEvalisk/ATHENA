@@ -178,6 +178,7 @@ enum class actor_command_kind: std::uint32_t {
   ui_enunciation_slot,
   ui_prooftrack,
   ui_global_action,
+  ui_native_continuation,
   ui_new_buffer,
   ui_open_document_window,
   ui_open_auxiliary_document,

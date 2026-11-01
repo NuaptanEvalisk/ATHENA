@@ -1,4 +1,5 @@
 #include "QTMMainTabWindow.hpp"
+#include "application_lifecycle.hpp"
 #include "athena_platform.hpp"
 #if ATHENA_PLATFORM_IPADOS
 #include "Subsystems/iOS/athena_ios.hpp"
@@ -556,7 +557,7 @@ void QTMMainTabWindow::closeEvent(QCloseEvent *event) {
   if (is_server_started()) {
     event->ignore();
     AthenaQtClosingGuard guard;
-    eval("(safely-quit-ATHENA)");
+    application_quit ();
   } else {
     QMainWindow::closeEvent(event);
   }

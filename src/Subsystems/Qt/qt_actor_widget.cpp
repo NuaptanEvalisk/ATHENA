@@ -827,6 +827,12 @@ qt_actor_widget_rep::drain_external_effects () {
     case actor_command_kind::ui_refresh_chrome:
       windows_delayed_refresh (static_cast<int> (record.argument[0]));
       break;
+    case actor_command_kind::ui_native_continuation: {
+      auto action= endpoint_->take_continuation (record.argument[0]);
+      // Window destruction must not mutate the canvas registry during drain.
+      if (action) qt_post_to_main_thread (std::move (action));
+      break;
+    }
     case actor_command_kind::ui_global_action: {
       tm_view view= concrete_runtime_view (view_id_);
       if (view != nullptr) set_current_view (abstract_view (view));

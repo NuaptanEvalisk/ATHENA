@@ -102,14 +102,15 @@ bool document_save_now (url name, object options) {
   return true;
 }
 
-void document_save_as_now (url destination, url source, object options) {
+bool document_save_as_now (url destination, url source, object options) {
   const bool scratch= is_scratch (source);
   rename_buffer (source, destination);
   pretend_buffer_modified (destination);
   // Complete cleanup before invoking a callback that may close the buffer.
-  if (!document_save_now (destination, null_object ())) return;
+  if (!document_save_now (destination, null_object ())) return false;
   if (scratch && source != destination && exists (source)) remove (source);
   saved_callbacks (options);
+  return true;
 }
 
 namespace {
@@ -120,6 +121,7 @@ struct save_request {
   athena_scheme_handle_id options= ATHENA_NO_SCHEME_HANDLE;
   std::string source, destination;
   bool overwrite= false;
+  std::function<void()> completed;
   ~save_request () { scheme_command_handle_release (options); }
   object arguments () const {
     return tmscm_to_object (scheme_command_handle_value (options));
@@ -237,8 +239,9 @@ void choose_save_destination (save_task request) {
 void save_as_other_buffer (save_task request) {
   url destination (request->destination.c_str ());
   auto save= [request] {
-    document_save_as_now (url (request->destination.c_str ()),
-                         url (request->source.c_str ()), request->arguments ());
+    if (document_save_as_now (url (request->destination.c_str ()),
+                             url (request->source.c_str ()), request->arguments ()) &&
+        request->completed) request->completed ();
   };
   if (request->destination != request->source && open_buffer (destination)) {
     string name= as_string (destination, URL_SYSTEM);
@@ -261,7 +264,8 @@ void save_faithful (save_task request) {
   url source (request->source.c_str ());
   string ext= suffix (source);
   auto save= [request] {
-    document_save_now (url (request->source.c_str ()), request->arguments ());
+    if (document_save_now (url (request->source.c_str ()), request->arguments ()) &&
+        request->completed) request->completed ();
   };
   if (ext == "ath" || ext == "ats" || ext == "tm" || ext == "ts" ||
       ext == "tp" || ext == "stm" || ext == "scm" || ext == "") save ();
@@ -276,9 +280,10 @@ void save_permissions (save_task request) {
     get_server ()->set_message ("The buffer no longer exists", "Save file");
     return;
   }
-  if (!buffer_modified (source)) {
+  if (!athena_buffer_user_modified (source)) {
     get_server ()->set_message ("No changes need to be saved", "Save file");
     document_save_post (source, request->arguments ());
+    if (request->completed) request->completed ();
     return;
   }
   if (document_cannot_write (source, "Save file")) return;
@@ -331,4 +336,17 @@ void document_save_as (object destination, object arguments) {
 void document_save_dialog () {
   auto request= make_save_request (null_object ());
   start_save (request, [request] { choose_save_destination (request); });
+}
+
+void document_save_before_close (url name, std::function<void()> completion) {
+  auto request= make_save_request (list_object (object (name)));
+  request->completed= std::move (completion);
+  start_save (request, [request] {
+    qtm_document_history_manual_save_requested ();
+    url source (request->source.c_str ());
+    if (athena_realtime_save_active (source)) {
+      if (athena_flush_realtime_buffer (source)) request->completed ();
+    }
+    else save_permissions (request);
+  });
 }

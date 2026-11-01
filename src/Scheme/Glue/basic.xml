@@ -2680,6 +2680,7 @@
   </binding>
   <binding name="new-buffer" native="create_buffer" returns="url" />
   <binding name="new-document-buffer" native="new_document_buffer" returns="void" />
+  <binding name="new-document" native="new_document_buffer" returns="void" />
   <binding name="open-buffer-in-window" native="new_buffer_in_new_window" returns="url">
     <arg type="url" />
     <arg type="content" />
@@ -2696,6 +2697,7 @@
   <binding name="cpp-buffer-close" native="kill_buffer" returns="void">
     <arg type="url" />
   </binding>
+  <binding name="buffer-close" native="kill_buffer" returns="void"><arg type="url" /></binding>
   <binding name="kill-window" native="kill_window" returns="void">
     <arg type="url" />
   </binding>

@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "tm_data.hpp"
+#include "application_lifecycle.hpp"
 #include "convert.hpp"
 #include "file.hpp"
 #include "web_files.hpp"
@@ -117,9 +118,7 @@ public:
   inline kill_window_command_rep (url* id2): id (id2) {}
   inline ~kill_window_command_rep () { tm_delete (id); }
   inline void apply () {
-    object cmd= list_object (symbol_object ("safely-kill-window"),
-                             object (as_string (*id)));
-    exec_delayed (scheme_cmd (cmd)); }
+    application_close_window (list_object (object (as_string (*id)))); }
   tm_ostream& print (tm_ostream& out) {
     return out << "<command kill_window>"; }
 };

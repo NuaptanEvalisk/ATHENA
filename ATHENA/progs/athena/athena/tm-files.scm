@@ -12,8 +12,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (texmacs-module (athena athena tm-files)
-  (:use (athena athena tm-server)
-        (athena athena tm-print)
+  (:use (athena athena tm-print)
         (kernel athena tm-document)
         (kernel athena tm-dialogue)
         (utils library cursor)))

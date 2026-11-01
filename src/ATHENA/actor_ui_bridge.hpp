@@ -21,6 +21,8 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <functional>
+#include <unordered_map>
 
 #include "ATHENA/viewport_follow.hpp"
 
@@ -357,6 +359,9 @@ struct actor_focus_toolbar_snapshot {
 class actor_ui_endpoint {
 public:
   explicit actor_ui_endpoint (athena_view_id view_id);
+  ~actor_ui_endpoint ();
+  bool publish_continuation (std::function<void()> action);
+  std::function<void()> take_continuation (std::uint64_t id);
 
   actor_ui_endpoint (const actor_ui_endpoint&)= delete;
   actor_ui_endpoint& operator = (const actor_ui_endpoint&)= delete;
@@ -451,6 +456,9 @@ public:
   void close () noexcept;
 
 private:
+  std::mutex continuations_lock_;
+  std::unordered_map<std::uint64_t, std::function<void()>> continuations_;
+  std::uint64_t next_continuation_= 1;
   struct atomic_viewport {
     std::shared_ptr<viewport_follow_state> cursor_follow;
     std::atomic<SI> visible_x1 {0};

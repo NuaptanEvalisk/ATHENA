@@ -13,6 +13,7 @@
 #include "Edit/Interface/application_tools.hpp"
 #include "global_transformation_frontend.hpp"
 #include "recent_files.hpp"
+#include "application_lifecycle.hpp"
 #include "QTMCommandRegistryInternal.hpp"
 
 #include "QTMAbout.hpp"
@@ -427,7 +428,7 @@ QTMCommandRegistry::registerApplicationCommands () {
     "file.restart", QTMCommandScope::Application,
     [] (const QTMCommandContext&) {
       try {
-        (void) call ("safely-restart-ATHENA");
+        application_restart ();
         return true;
       }
       catch (...) {

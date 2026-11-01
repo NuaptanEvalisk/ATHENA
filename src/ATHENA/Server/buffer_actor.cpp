@@ -14,6 +14,7 @@
 #include "ATHENA/Data/buffer_export.hpp"
 #include "ATHENA/Data/document_persistence.hpp"
 #include "ATHENA/Data/document_save_frontend.hpp"
+#include "ATHENA/Data/application_lifecycle.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "Data/NodeContracts/builtin_contracts.hpp"
 #include "ATHENA/Data/node_reference.hpp"
@@ -230,7 +231,7 @@ run_native_editor_command (editor_rep* editor,
       (void) call ("update-document", object ("all"));
       break;
     case native_editor_command_id::close_document:
-      (void) call ("safely-kill-buffer");
+      application_close_buffer ();
       break;
     case native_editor_command_id::save_as:
       document_save_dialog ();
@@ -242,7 +243,7 @@ run_native_editor_command (editor_rep* editor,
       (void) call ("print-buffer");
       break;
     case native_editor_command_id::close_window:
-      (void) call ("safely-kill-window");
+      application_close_window (null_object ());
       break;
     case native_editor_command_id::history_back:
       (void) call ("cursor-history-backward");

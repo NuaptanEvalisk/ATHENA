@@ -80,7 +80,6 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting main TeXmacs functionality\n")
-(import-from (athena athena tm-server))
 (define-secure-symbols ext-render-exercises-smaller? ext-number-solutions?)
 (application-preferences-initialize)
 (register-preference-callback-procedures

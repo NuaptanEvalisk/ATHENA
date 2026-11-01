@@ -82,6 +82,28 @@ actor_ui_endpoint::actor_ui_endpoint (athena_view_id view_id):
   view_id_ (view_id), zoom_factor_bits_ (double_bits (1.0)),
   effects_ (128), next_effect_id_ (1) {}
 
+actor_ui_endpoint::~actor_ui_endpoint () { close (); }
+
+bool
+actor_ui_endpoint::publish_continuation (std::function<void()> action) {
+  std::lock_guard<std::mutex> guard (continuations_lock_);
+  const auto id= next_continuation_++;
+  continuations_.emplace (id, std::move (action));
+  if (publish (actor_command_kind::ui_native_continuation, ATHENA_NO_BLOB, id)) return true;
+  continuations_.erase (id);
+  return false;
+}
+
+std::function<void()>
+actor_ui_endpoint::take_continuation (std::uint64_t id) {
+  std::lock_guard<std::mutex> guard (continuations_lock_);
+  auto found= continuations_.find (id);
+  if (found == continuations_.end ()) return {};
+  auto action= std::move (found->second);
+  continuations_.erase (found);
+  return action;
+}
+
 athena_view_id
 actor_ui_endpoint::view_id () const noexcept {
   return view_id_;
@@ -501,7 +523,12 @@ actor_ui_endpoint::complete_effect (athena_slot_id slot) {
 
 void
 actor_ui_endpoint::close () noexcept {
-  effects_.close ();
+  decltype (continuations_) abandoned;
+  {
+    std::lock_guard<std::mutex> guard (continuations_lock_);
+    effects_.close ();
+    abandoned.swap (continuations_);
+  }
 }
 
 actor_ui_endpoint*

@@ -1132,6 +1132,25 @@ qtm_unsaved_buffers_dialog (array<string> buffers, bool restart) {
 }
 
 void
+qtm_unsaved_buffers_async (array<string> buffers, bool restart,
+                           std::function<void(std::vector<std::string>)> completion) {
+  QStringList names;
+  for (int i=0; i<N(buffers); ++i) names << qs (buffers[i]);
+  auto* dialog= new UnsavedBuffersDialog (names, restart, QApplication::activeWindow ());
+  dialog->setAttribute (Qt::WA_DeleteOnClose);
+  QObject::connect (dialog, &QDialog::finished, dialog,
+    [dialog, completion] (int result) {
+      std::vector<std::string> selected;
+      selected.push_back (result == QDialog::Accepted? dialog->action.toStdString (): "cancel");
+      if (result == QDialog::Accepted)
+        for (const QString& name: dialog->selectedBuffers ())
+          selected.push_back (name.toUtf8 ().toStdString ());
+      completion (std::move (selected));
+    });
+  dialog->open ();
+}
+
+void
 qtm_text_report_dialog (string title, string message) {
   QString qTitle= qs (title), qMessage= qs (message);
   invoke_gui_blocking ([qTitle, qMessage] () {
