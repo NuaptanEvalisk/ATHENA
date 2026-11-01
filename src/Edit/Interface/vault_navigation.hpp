@@ -13,5 +13,6 @@ void native_wikilink_repair_apply (string bad_uuid, string new_uuid,
                                   string source, string begin, string end);
 void native_vault_transclude_repair (string uuid, string file_hint,
                                     string begin_hint, string end_hint);
+tree native_wikilink_repair_page (string name);
 
 #endif

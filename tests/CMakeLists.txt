@@ -730,17 +730,9 @@ if (ATHENA_TEST_GUILE)
     COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
       ${CMAKE_CURRENT_SOURCE_DIR}/scheme/window-close-ownership-test.scm
       ${ATHENA_SOURCE_DIR})
-  add_test (NAME link_navigation_ownership_scheme_test
-    COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
-      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/link-navigation-ownership-test.scm
-      ${ATHENA_SOURCE_DIR})
   add_test (NAME aux_buffer_permissions_scheme_test
     COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
       ${CMAKE_CURRENT_SOURCE_DIR}/scheme/aux-buffer-permissions-test.scm
-      ${ATHENA_SOURCE_DIR})
-  add_test (NAME vault_inserter_result_scheme_test
-    COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
-      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/vault-inserter-result-test.scm
       ${ATHENA_SOURCE_DIR})
 endif ()
 

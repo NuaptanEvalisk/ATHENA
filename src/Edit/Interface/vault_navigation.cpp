@@ -14,6 +14,7 @@
 #include "qt_utilities.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "file.hpp"
+#include "gui.hpp"
 #include <QUrl>
 #include <functional>
 #include <string>
@@ -139,6 +140,63 @@ void native_vault_transclude_repair (string uuid, string, string, string) {
   });
 }
 
+tree native_wikilink_repair_page (string name) {
+  const QString encoded= QString::fromUtf8 (name.data (), N(name));
+  auto decode= [&] (QString component) {
+    const QByteArray bytes= QUrl::fromPercentEncoding (component.toUtf8 ()).toUtf8 ();
+    return string (bytes.constData (), bytes.size ());
+  };
+  const string uuid= decode (encoded.section ('/', 0, 0));
+  const string file_hint= decode (encoded.section ('/', 1, 1));
+  const string anchor_hint= decode (encoded.section ('/', 2));
+  auto document= [] (tree body) {
+    return tree (DOCUMENT, compound ("style", tree (TUPLE, "generic")), compound ("body", body));
+  };
+  if (vault_get_node_model_version () >= 1)
+    return document (tree (DOCUMENT, compound ("strong", "Broken source UUID: "), uuid,
+      " -- file and anchor hints are not identity in a migrated Vault."));
+  if (file_hint == "")
+    return document (tree (DOCUMENT, compound ("strong", "Error: "),
+      "Broken Wikilink and no file hint provided."));
+
+  bool valid_limit= false;
+  const string preference= get_preference ("vault fuzzy search limit", "3");
+  const int configured= QString::fromUtf8 (preference.data (), N(preference)).toInt (&valid_limit);
+  const int limit= valid_limit ? configured : 3;
+  auto matches= [] (string value, string hint) {
+    return QString::fromUtf8 (value.data (), N(value)).contains (
+      QString::fromUtf8 (hint.data (), N(hint)), Qt::CaseInsensitive);
+  };
+  auto encode= [] (string value) {
+    const QByteArray bytes= QUrl::toPercentEncoding (QString::fromUtf8 (value.data (), N(value)));
+    return string (bytes.constData (), bytes.size ());
+  };
+  tree candidates (DOCUMENT);
+  const array<url> files= vault_get_all_files ();
+  for (int i= 0; i < N(files) && N(candidates) < limit && !gui_interrupted (); ++i) {
+    if (!matches (as_string (tail (files[i])), file_hint)) continue;
+    string anchor;
+    if (anchor_hint != "") {
+      const array<string> labels= vault_get_anchors (files[i]);
+      for (int j= 0; j < N(labels); ++j)
+        if (matches (labels[j], anchor_hint)) { anchor= labels[j]; break; }
+    }
+    const string relative= as_string (delta (vault_get_root () * url (""), files[i]), URL_UNIX);
+    string target_id= vault_find_uuid (relative, "", anchor);
+    if (target_id == "") target_id= vault_generate_uuid ();
+    const string target= "tmfs://wikilink-repair-apply/" * encode (uuid) * "/" *
+      encode (target_id) * "/" * encode (relative) * "/" * encode (anchor);
+    candidates << tree (CONCAT, compound ("item"), tree (HLINK, relative * " #" * anchor, target),
+                        " (UUID: " * target_id * ")");
+  }
+  if (N(candidates) == 0)
+    return document (tree (DOCUMENT, compound ("strong", "Error: "),
+      "Could not find any matches for: ", file_hint));
+  return document (tree (DOCUMENT, compound ("section", "Repair Wikilink"),
+    "The link target could not be resolved. Select a candidate to repair:",
+    compound ("enumerate", candidates)));
+}
+
 void native_vault_jump_to_source (url source, string anchor) {
   const std::string text (anchor.data (), N(anchor));
   on_source (source, [text] (editor_rep& ed) {
@@ -203,27 +261,43 @@ bool native_vault_navigate_url (url target, bool history) {
   }
   const bool wiki= is_rooted_tmfs (target, "wikilink") || is_rooted_tmfs (target, "Wikilink");
   const bool source_link= is_rooted_tmfs (target, "transclusion-source");
-  if ((wiki && vault_get_node_model_version () >= 1) || source_link) {
+  if (wiki || source_link) {
     const string address= as_string (target, URL_SYSTEM);
     const QUrl parsed (QString::fromUtf8 (address.data (), N(address)));
     const QString encoded= parsed.path (QUrl::FullyEncoded);
     const QString component= source_link ? encoded.mid (1) : encoded.section ('/', 1, 1);
     const QByteArray bytes= QUrl::fromPercentEncoding (component.toUtf8 ()).toUtf8 ();
     const std::string id (bytes.constData (), bytes.size ());
-    if (wiki) {
+    if (wiki && vault_get_node_model_version () >= 1) {
       if (id.empty ()) navigation_message ("Wikilink has no source UUID", "Wikilink");
       else athena_node_reference_open ("tmfs://wikilink/" * string (id.c_str ()));
     }
-    else qt_post_to_main_thread ([id] {
-      tree node= vault_get_node (string (id.c_str ()));
-      if (!is_func (node, TUPLE)) {
-        navigation_message ("Transclusion source is not in the Vault map", "Transclusion");
-        return;
-      }
-      const url source= vault_get_root () * url_unix (node[0]->label);
-      if (exists (source)) native_vault_jump_to_source (source, node[1]->label);
-      else navigation_message ("Transclusion source file is missing", "Transclusion");
-    });
+    else {
+      const QByteArray encoded_name= encoded.mid (1).toUtf8 ();
+      const std::string name (encoded_name.constData (), encoded_name.size ());
+      qt_post_to_main_thread ([id, name, wiki] {
+        tree node= vault_get_node (string (id.c_str ()));
+        if (wiki) {
+          if (is_func (node, TUPLE, 3)) {
+            const url source= vault_get_root () * url_unix (node[0]->label);
+            if (exists (source)) {
+              native_vault_jump_to_source (source, node[2]->label);
+              return;
+            }
+          }
+          application_browse_document (
+            url_system ("tmfs://wikilink-repair/" * string (name.c_str ())), null_object ());
+          return;
+        }
+        if (!is_func (node, TUPLE)) {
+          navigation_message ("Transclusion source is not in the Vault map", "Transclusion");
+          return;
+        }
+        const url source= vault_get_root () * url_unix (node[0]->label);
+        if (exists (source)) native_vault_jump_to_source (source, node[1]->label);
+        else navigation_message ("Transclusion source file is missing", "Transclusion");
+      });
+    }
     return true;
   }
   if (!is_rooted_tmfs (target, "artifact")) return false;
