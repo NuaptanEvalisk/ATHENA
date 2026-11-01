@@ -430,27 +430,6 @@
 ;; will tipically depend on the file format.
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (url->item u)
-  (with (base qry) (process-url u)
-    (let* ((file (url->system u))
-           (help? (and (== "texmacs-file" (file-format u)) 
-                       (url-exists-in-help? file)))
-           (text (if help? (help-file-title u) (url->system (url-tail base)))))
-      ($link file text))))
-
-(define (url-list->document l)
-  ($tmdoc
-    ($tmdoc-title "Link disambiguation")
-    ($para "The link you followed points to several locations:")
-    ($description-aligned
-      (with c 0
-        ($for (x l)
-          ($describe-item 
-              (number->string (begin (set! c (+ 1 c)) c)) (url->item x)))))))
-
-(tm-define (build-disambiguation-page l)
-  (open-auxiliary "Disambiguation page" (url-list->document l)))
-
 ; FIXME: many corner cases will get through 
 ;(inexistent relative paths for instance)
 (define (default-filter-url u)

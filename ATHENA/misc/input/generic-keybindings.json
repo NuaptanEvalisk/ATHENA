@@ -4,8 +4,6 @@
   "groups": [
     {
       "bindings": [
-        {"key": "F1", "commands": [{"call": "interactive", "args": [{"procedure": "docgrep-in-doc"}]}]},
-        {"key": "S-F1", "commands": [{"call": "interactive", "args": [{"procedure": "docgrep-in-src"}]}]},
         {"key": "C-S-p", "commands": [{"call": "command-palette-show", "args": []}]},
         {"key": "C-S-P", "commands": [{"call": "command-palette-show", "args": []}]},
         {"key": "C-S-o", "commands": [{"call": "open-quick-switcher", "args": []}]},
@@ -458,7 +456,6 @@
     {
       "profiles": ["macos"],
       "bindings": [
-        {"key": "macos ?", "commands": [{"call": "interactive", "args": [{"procedure": "docgrep-in-doc"}]}]},
         {"key": "macos ,", "commands": [{"call": "open-preferences", "args": []}]},
         {"key": "macos [", "commands": [{"call": "cursor-history-backward", "args": []}]},
         {"key": "macos ]", "commands": [{"call": "cursor-history-forward", "args": []}]},

@@ -656,6 +656,41 @@ athena_open_auxiliary_document (string name, tree document, url master) {
 
 
 void
+native_link_disambiguation (object candidates) {
+  tree items (DOCUMENT);
+  for (object remaining= candidates; !is_null (remaining); remaining= cdr (remaining)) {
+    const url target= as_url (car (remaining));
+    const string address= as_string (target);
+    items << tree (CONCAT, compound ("item"),
+      tree (HLINK, compound ("verbatim", address), address));
+  }
+  tree body (DOCUMENT, compound ("section*", "Link disambiguation"),
+    compound ("enumerate", items));
+  tree document (DOCUMENT, compound ("style", tuple ("generic")),
+    compound ("body", body),
+    compound ("initial", tree (COLLECTION,
+      compound ("associate", "page-medium", "automatic"),
+      compound ("associate", "athena-radioactive-links-suppressed", "true"))));
+  athena_open_auxiliary_document ("Disambiguation page", document,
+    get_master_buffer (get_current_buffer ()));
+}
+
+string
+native_replace_ui_text (string format, object arguments) {
+  tree expression= compound ("replace", format);
+  for (object remaining= arguments; !is_null (remaining); remaining= cdr (remaining)) {
+    const object value= car (remaining);
+    if (is_string (value)) expression << tree (as_string (value));
+    else if (is_tree (value)) expression << as_tree (value);
+    else if (is_url (value)) expression << compound ("verbatim", as_string (as_url (value)));
+    else if (is_list (value) && !is_null (value) && is_symbol (car (value)))
+      expression << content_to_tree (value);
+    else expression << tree (object_to_string (value));
+  }
+  return ui_text (expression);
+}
+
+void
 athena_native_info_dialog (string arg1, string arg2) {
   if (headless_mode) return;
   qtm_info_dialog (arg1, arg2);

@@ -75,9 +75,6 @@ enum class help_action_kind {
   buffer,
   book,
   license,
-  search_documentation,
-  search_source,
-  search_recent,
   shortcuts
 };
 
@@ -161,11 +158,6 @@ const help_action help_actions[]= {
    help_action_kind::article, "about/authors/authors"},
   {"apropos-first", "Original welcome message", "Apropos",
    help_action_kind::article, "about/welcome/first"},
-  {"search-doc", "Documentation", "Search",
-   help_action_kind::search_documentation, ""},
-  {"search-src", "Source code", "Search", help_action_kind::search_source, ""},
-  {"search-recent", "Recent documents", "Search",
-   help_action_kind::search_recent, ""},
   {"full-user-manual", "User manual", "Full manuals", help_action_kind::book,
    "main/man-user-manual"},
   {"shortcuts", "Shortcuts listing", "Tools", help_action_kind::shortcuts, ""}
@@ -194,38 +186,6 @@ execute_help_action (const help_action& action, const QTMCommandContext& context
     case help_action_kind::license:
       (void) call ("load-document", object (string ("$ATHENA_PATH/LICENSE")));
       return true;
-    case help_action_kind::search_documentation:
-    case help_action_kind::search_recent: {
-      bool ok= false;
-      QString query= QInputDialog::getText (
-        context.shell.data (), QObject::tr ("Search help"),
-        QObject::tr ("Search:"), QLineEdit::Normal, QString (), &ok).trimmed ();
-      if (!ok || query.isEmpty ()) return true;
-      (void) call (
-        action.kind == help_action_kind::search_documentation ?
-          "docgrep-in-doc" : "docgrep-in-recent",
-        object (from_qstring (query)));
-      return true;
-    }
-    case help_action_kind::search_source: {
-      bool ok= false;
-      QString query= QInputDialog::getText (
-        context.shell.data (), QObject::tr ("Search source code"),
-        QObject::tr ("Search:"), QLineEdit::Normal, QString (), &ok).trimmed ();
-      if (!ok || query.isEmpty ()) return true;
-      const QStringList locations {
-        QStringLiteral ("Scheme"), QStringLiteral ("Styles"),
-        QStringLiteral ("C++"), QStringLiteral ("All code")
-      };
-      QString where= QInputDialog::getItem (
-        context.shell.data (), QObject::tr ("Search source code"),
-        QObject::tr ("In:"), locations, 3, false, &ok);
-      if (!ok) return true;
-      (void) call (
-        "docgrep-in-src", object (from_qstring (query)),
-        object (from_qstring (where)));
-      return true;
-    }
     case help_action_kind::shortcuts:
       (void) call ("list-all-shortcuts");
       return true;

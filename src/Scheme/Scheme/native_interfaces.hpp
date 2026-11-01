@@ -21,6 +21,8 @@
 
 void athena_dispatch_ui (void (*function) ());
 void athena_open_auxiliary_document (string name, tree document, url master);
+void native_link_disambiguation (object candidates);
+string native_replace_ui_text (string format, object arguments);
 bool athena_node_reference_target (string target);
 bool athena_node_reference_open (string target);
 bool athena_node_reference_position (string identity);

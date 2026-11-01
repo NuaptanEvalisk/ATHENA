@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="build-disambiguation-page" native="native_link_disambiguation" returns="void" exceptions="scheme">
+    <arg type="object" />
+  </binding>
+  <binding name="replace" native="native_replace_ui_text" returns="string" exceptions="scheme">
+    <arg type="string" />
+    <arg type="object" rest="true" />
+  </binding>
   <binding name="export-selection-as-graphics" native="export_selection_as_graphics" returns="void" exceptions="scheme">
     <arg type="url" />
   </binding>

@@ -56,8 +56,7 @@
                  (kernel athena tm-document)
                  (kernel athena tm-language) (kernel athena tm-file-system)
                  (kernel athena tm-states))
-(inherit-modules (kernel gui gui-markup)
-                 (kernel gui kbd-define)
+(inherit-modules (kernel gui kbd-define)
                  (kernel gui kbd-handlers))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
@@ -264,7 +263,6 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting formal and natural languages\n")
-(lazy-define (kernel gui ui-text) replace)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting dynamic features\n")
@@ -288,15 +286,10 @@
              tmdoc-insert-title tmdoc-insert-copyright-and-license)
 (lazy-define (doc tmdoc) tmdoc-expand-help tmdoc-expand-help-manual
              tmdoc-expand-this tmdoc-include)
-(lazy-define (doc docgrep) docgrep-in-doc docgrep-in-src
-             docgrep-in-texts docgrep-in-recent)
 (lazy-define (athena tools shortcut-listing) list-all-shortcuts)
 (lazy-define (doc tmdoc-search) tmdoc-search-style tmdoc-search-tag
              tmdoc-search-parameter tmdoc-search-scheme)
-(lazy-define (doc apidoc) apidoc-all-modules apidoc-all-symbols)
-(lazy-tmfs-handler (doc docgrep) grep)
 (lazy-tmfs-handler (doc tmdoc) help)
-(lazy-tmfs-handler (doc apidoc) apidoc)
 (define-secure-symbols tmdoc-include)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
