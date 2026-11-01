@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
+#include "native_graphics_commands.hpp"
 #include "format_geometry.hpp"
 #include "native_math_edit.hpp"
 #include "structured_commands.hpp"
@@ -189,11 +190,11 @@ bool graphical_text_context (tree t) {
 }
 
 string graphical_attribute (tree t, string name) {
-  return as_string (call ("graphical-get-attribute", object (t), object (name)));
+  return as_string (graphics_object_attribute (t, name));
 }
 
 void set_graphical_attribute (tree t, string name, string value) {
-  (void) call ("graphical-set-attribute", object (t), object (name), object (value));
+  graphics_set_object_attribute (t, name, value);
 }
 
 bool active_graphics_context () {
@@ -212,7 +213,7 @@ void graphical_text_horizontal (tree t, bool forwards) {
 }
 
 void graphical_text_vertical (tree t, bool down) {
-  const string var= as_string (call ("graphics-valign-var", object (t)));
+  const string var= graphics_vertical_alignment (t);
   const string old= graphical_attribute (t, var);
   string value;
   if (down) {
@@ -284,7 +285,7 @@ void geometry_extremal (tree t, bool forward) {
 }
 void geometry_incremental (tree t, bool down) {
   if (graphical_text_context (t)) {
-    const string var= as_string (call ("graphics-valign-var", object (t)));
+    const string var= graphics_vertical_alignment (t);
     set_graphical_attribute (t, var, down ? "top" : "bottom");
     return;
   }

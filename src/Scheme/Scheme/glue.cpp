@@ -13,6 +13,7 @@
 #include "native_interfaces.hpp"
 #include "native_node_groups.hpp"
 #include "native_graphics_grid.hpp"
+#include "native_graphics_commands.hpp"
 #include "native_math_edit.hpp"
 #include "scheme.hpp"
 #include "utf8_edit.hpp"

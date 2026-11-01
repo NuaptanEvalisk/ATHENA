@@ -231,9 +231,6 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting graphics mode\n")
-(lazy-define (graphics graphics-utils) make-graphics)
-(lazy-define (graphics graphics-main) graphics-update-proviso
-             graphics-get-proviso graphics-set-proviso)
 (define-secure-symbols ext-fold-toc-in-reflow? toc-fold-tree toc-unfold-tree)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 

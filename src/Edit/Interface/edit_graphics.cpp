@@ -9,6 +9,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
+#include "native_graphics_commands.hpp"
 #include "Interface/edit_graphics.hpp"
 #include "server.hpp"
 #include "scheme.hpp"
@@ -677,53 +678,12 @@ native_graphics_property_supported (tree object, string property) {
 
 const std::vector<string>&
 native_graphics_all_properties () {
-  static const std::vector<string> names {
-    "gid", "proviso", "magnify", "color", "opacity",
-    "point-style", "point-size", "point-border", "line-width",
-    "line-join", "line-caps", "line-effects", "line-portion",
-    "dash-style", "dash-style-unit", "arrow-begin", "arrow-end",
-    "arrow-length", "arrow-height", "fill-color", "fill-style",
-    "text-at-halign", "text-at-valign", "text-at-repulse",
-    "text-at-snapping", "doc-at-valign", "doc-at-width",
-    "doc-at-hmode", "doc-at-ppsep", "doc-at-border", "doc-at-padding",
-    "pen-enhance"
-  };
-  return names;
+  return graphics_property_names ();
 }
 
 tree
 native_graphics_property_default (string property) {
-  string name= native_graphics_object_property_name (property);
-  if (name == "gid") return tree ("default");
-  if (name == "proviso") return tree ("true");
-  if (name == "magnify") return tree ("1");
-  if (name == "color") return tree ("black");
-  if (name == "opacity") return tree ("100%");
-  if (name == "point-style") return tree ("disk");
-  if (name == "point-size") return tree ("2.5ln");
-  if (name == "point-border") return tree ("1ln");
-  if (name == "line-width") return tree ("1ln");
-  if (name == "line-join" || name == "line-caps" || name == "line-effects")
-    return tree ("normal");
-  if (name == "line-portion") return tree ("1");
-  if (name == "dash-style") return tree ("none");
-  if (name == "dash-style-unit") return tree ("5ln");
-  if (name == "arrow-begin" || name == "arrow-end") return tree ("none");
-  if (name == "arrow-length" || name == "arrow-height") return tree ("5ln");
-  if (name == "fill-color") return tree ("none");
-  if (name == "fill-style") return tree ("plain");
-  if (name == "text-at-halign") return tree ("left");
-  if (name == "text-at-valign") return tree ("base");
-  if (name == "text-at-repulse") return tree ("off");
-  if (name == "text-at-snapping") return tree ("1spc");
-  if (name == "doc-at-valign") return tree ("top");
-  if (name == "doc-at-width") return tree ("1par");
-  if (name == "doc-at-hmode") return tree ("min");
-  if (name == "doc-at-ppsep") return tree ("0fn");
-  if (name == "doc-at-border") return tree ("0ln");
-  if (name == "doc-at-padding") return tree ("0spc");
-  if (name == "pen-enhance") return tree ("gaussian");
-  return tree ("default");
+  return graphics_default_property (property);
 }
 
 string

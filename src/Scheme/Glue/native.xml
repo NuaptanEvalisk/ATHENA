@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="make-graphics" native="graphics_make" returns="void">
+    <arg type="object" rest="true" />
+  </binding>
+  <binding name="graphics-update-proviso" native="graphics_update_proviso" returns="void">
+    <arg type="tree" /><arg type="string" />
+  </binding>
+  <binding name="graphics-rotate" native="graphics_rotate" returns="void" exceptions="scheme">
+    <arg type="double" /><arg type="bool" />
+  </binding>
+  <binding name="graphics-grid-subdivisions" native="graphics_grid_subdivisions" returns="void" exceptions="scheme">
+    <arg type="int" />
+  </binding>
   <binding name="build-disambiguation-page" native="native_link_disambiguation" returns="void" exceptions="scheme">
     <arg type="object" />
   </binding>

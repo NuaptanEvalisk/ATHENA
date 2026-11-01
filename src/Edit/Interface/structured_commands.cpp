@@ -528,6 +528,7 @@ bool generic_table_markup_context (tree t) {
 }
 
 bool generic_structured_horizontal_context (tree t) {
+  if (is_graphical_text (t) && N(t) >= 2) return false;
   if (generic_table_markup_context (t)) return true;
   const auto context= generic_prepared_tree_context (t);
   return context && athena::contracts::editing_query {context->contract_context ()}.variable_arity (t);

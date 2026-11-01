@@ -20,12 +20,6 @@
 
 (reset '(document "abcdef" "next") '(0 0 2))
 (check (not (path->tree #f)) "false path is harmless")
-(check (== (graphics-path-property #f "magnify") "default")
-       "missing graphics path uses property default")
-(check (== (graphics-eval-magnify) "default")
-       "missing graphics context uses magnify default")
-(check (== (graphics-eval-magnify-at #f) "default")
-       "missing graphics object uses magnify default")
 (yank-paragraph)
 (check (equal? (body) '(document "abcdef" "next")) "yank keeps paragraph")
 (check (equal? (tree->stree (selection-tree)) "cdef") "yank selects paragraph suffix")

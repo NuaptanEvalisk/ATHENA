@@ -6,6 +6,7 @@
 * This software falls under the GNU general public license version 3 or later.
 ******************************************************************************/
 
+#include "native_graphics_commands.hpp"
 #include "native_editor_actions.hpp"
 #include "native_math_edit.hpp"
 
@@ -401,7 +402,7 @@ execute_business_id (editor ed, const QString& id) {
     (void) call ("native-insert-inline-image-dialog");
   else if (id == "insert-thumbnails-dialog")
     (void) call ("native-insert-thumbnails-dialog");
-  else if (id == "make-graphics") (void) call ("make-graphics");
+  else if (id == "make-graphics") graphics_insert (tree (TUPLE));
   else if (id == "insert-small-table")
     athena::table_commands::insert_small_table (
       is_nil (ed) ? nullptr : ed.operator-> ());

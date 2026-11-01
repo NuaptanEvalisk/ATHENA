@@ -4104,8 +4104,8 @@ No permanent tests, Notes changes, deployment or commit.
 
 ### Native Graphics Grid Command Plans
 
-The live Ctrl+2 through Ctrl+0 bindings call `graphics-set-grid-aspect`.
-Previously that Scheme command changed visual properties, then synchronized
+The live Ctrl+2 through Ctrl+0 bindings call native `graphics-grid-subdivisions`.
+Previously the Scheme `graphics-set-grid-aspect` command changed visual properties, then synchronized
 the logical grid through helpers that queried the now-invalidated environment.
 Other grid setters shared the same mutable Scheme globals, including a link
 flag that was independent of the current document's authored setting.
@@ -4120,9 +4120,10 @@ remain stored separately from the visible aspect.
 
 The current canvas's `gr-as-visual-grid` is the link authority. Notebook grid
 setup computes its unit, subdivisions and colors in the same plan instead of
-requiring delayed callbacks. The Scheme module retains public command names,
-prompts and checkmark metadata, but no current-grid globals or mutation-time
-environment-fetch helpers. Both native entry points are declared in
+requiring delayed callbacks. Graphics keyboard commands now call native entry
+points directly. The obsolete Scheme graphics modules have been removed;
+object property defaults live in `ATHENA/misc/input/graphics-properties.json`,
+shared by drawing property edits and geometry commands. The remaining bindings are declared in
 `src/Scheme/Glue/native.xml`; CMake generates their wrappers and registration.
 Grid rendering and snapping implementations are unchanged.
 
