@@ -88,7 +88,6 @@
              toggle-full-screen-mode toggle-full-screen-edit-mode
              toggle-panorama-mode toggle-slideshow-mode
              toggle-remote-control-mode
-             fit-to-screen fit-to-screen-width
              toggle-persistent-fit-width toggle-typewriter-mode
              toggle-snap-to-pages schedule-persistent-fit-width)
 (lazy-define (athena athena tm-files)

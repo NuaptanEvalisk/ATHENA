@@ -84,6 +84,7 @@ public:
   double geometry_pinch_angle= 0.0;
   tree reference_navigation_id= tree (TUPLE);
   bool heading_word_count_refresh_pending= false;
+  hashmap<string,double> saved_view_zooms= hashmap<string,double> (0.0);
 
   actor_viewport_snapshot ui_viewport () const;
   bool publish_ui (actor_command_kind kind,

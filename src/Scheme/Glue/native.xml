@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="change-zoom-factor" native="view_change_zoom" returns="void" exceptions="scheme"><arg type="double" /></binding>
+  <binding name="other-zoom-factor" native="view_other_zoom" returns="void" exceptions="scheme"><arg type="string" /></binding>
+  <binding name="save-zoom" native="view_save_zoom" returns="void" exceptions="scheme"><arg type="string" /></binding>
+  <binding name="restore-zoom" native="view_restore_zoom" returns="void" exceptions="scheme"><arg type="string" /></binding>
+  <binding name="zoom-in" native="view_zoom_in" returns="void" exceptions="scheme"><arg type="double" /></binding>
+  <binding name="zoom-out" native="view_zoom_out" returns="void" exceptions="scheme"><arg type="double" /></binding>
+  <binding name="fit-all-to-screen" native="view_fit_all" returns="void" exceptions="scheme" />
+  <binding name="fit-to-screen" native="view_fit_screen" returns="void" exceptions="scheme" />
+  <binding name="fit-to-screen-width" native="view_fit_width" returns="void" exceptions="scheme" />
+  <binding name="fit-to-screen-height" native="view_fit_height" returns="void" exceptions="scheme" />
   <binding name="count-characters" native="tools_count_characters" returns="int" exceptions="scheme"><arg type="object" /></binding>
   <binding name="count-words" native="tools_count_words" returns="int" exceptions="scheme"><arg type="object" /></binding>
   <binding name="count-lines" native="tools_count_lines" returns="int" exceptions="scheme"><arg type="object" /></binding>

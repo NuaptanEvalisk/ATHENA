@@ -12,6 +12,7 @@
 #include "native_text_edit.hpp"
 #include "materials_edit.hpp"
 #include "application_tools.hpp"
+#include "view_zoom.hpp"
 
 #include "ATHENA/Data/program_model.hpp"
 #include "ATHENA/Data/document_node_model.hpp"
@@ -480,9 +481,9 @@ execute_business_id (editor ed, const QString& id) {
   else if (id == "view-toggle-remote-control")
     (void) call ("toggle-remote-control-mode");
   else if (id == "view-fit-screen")
-    (void) call ("fit-to-screen");
+    view_fit_screen ();
   else if (id == "view-fit-width")
-    (void) call ("fit-to-screen-width");
+    view_fit_width ();
   else if (id == "view-toggle-persistent-fit-width")
     (void) call ("toggle-persistent-fit-width");
   else if (id == "view-toggle-typewriter")

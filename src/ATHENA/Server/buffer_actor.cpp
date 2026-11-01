@@ -10,6 +10,7 @@
 
 #include "buffer_actor.hpp"
 #include "native_math_edit.hpp"
+#include "view_zoom.hpp"
 #include "ATHENA/Data/buffer_export.hpp"
 #include "ATHENA/Data/document_persistence.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
@@ -1460,13 +1461,14 @@ buffer_actor::dispatch (actor_command_record& command) {
     break;
   case actor_command_kind::change_zoom:
     if (editor != nullptr)
-      call ("change-zoom-factor",
-            object (argument_double (command.argument[0])));
+      view_change_zoom (argument_double (command.argument[0]));
     break;
   case actor_command_kind::zoom_by:
-    if (editor != nullptr)
-      call (command.argument[0] != 0 ? "zoom-in" : "zoom-out",
-            object (argument_double (command.argument[1])));
+    if (editor != nullptr) {
+      double factor= argument_double (command.argument[1]);
+      if (command.argument[0] != 0) view_zoom_in (factor);
+      else view_zoom_out (factor);
+    }
     break;
   case actor_command_kind::viewport_changed:
     if (editor != nullptr)
