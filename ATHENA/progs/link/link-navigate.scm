@@ -16,17 +16,6 @@
         (generic generic-edit)))
 (import-from (kernel athena tm-preferences))
 
-; FIXME: remove these two and find a better way
-(define (escape-link-args s)
-  "Escape only args of the type #some:label"
-  (let* ((m (string-length s))
-         (h (or (string-index s #\#) m))
-         (a (or (string-index s #\?) m))
-         (i (min m h a))
-         (base (substring s 0 i))
-         (qry (substring s (min m i) m)))
-    (if (< i m) (string-append base (string-replace qry ":" "%3A")) s)))
-
 (define (unescape-link-args s)
   (string-replace s "%3A" ":"))
 
@@ -207,38 +196,3 @@
                   (post (system->url text))
                   (if record-history?
                       (cursor-history-add (cursor-path))))))))
-
-(define (execute-script-command s secure-origin? args)
-  (let* ((sym-fun (eval (string->object (string-append "'" s))))
-	 (sym-cmd (cons sym-fun (map (lambda (x) (list 'quote x)) args)))
-         (ok? (or secure-origin? (secure? sym-cmd)))
-	 (cmd (eval (list 'lambda (list) sym-cmd))))
-    (cond ((or ok? (== (get-preference "security") "accept all scripts"))
-           (exec-delayed cmd))
-          ((== (get-preference "security") "prompt on scripts")
-           (user-confirm `(concat "Execute " ,s "?") #f
-             (lambda (answ)
-               (when answ (exec-delayed cmd)))))
-          (else (set-message "Unsecure script refused" "Evaluate script")))))
-
-(tm-define (execute-script s secure-origin? . opt-location)
-  (if (and (string-starts? s "(") (string-ends? s ")")
-	   (not (string-starts? s "(lambda ")))
-      (set-message "Legacy script links are no longer supported" "Evaluate script")
-      (execute-script-command s secure-origin? opt-location)))
-
-(define (go-to-vertex v attrs)
-  (cond ((func? v 'id 1)
-         (go-to-id (cadr v) (cursor-path)))
-        ((func? v 'url 1)
-         (go-to-url (escape-link-args (cork->utf8 (cadr v))) (cursor-path)))
-        ((func? v 'script)
-         (with ok? (== (assoc-ref attrs "secure") "true")
-           (apply execute-script (cons* (cadr v) ok? (cddr v)))))
-        (else (noop))))
-
-(tm-define (locus-link-follow)
-  (:synopsis "Follow one of the links in the current locus")
-  (let* ((ts (link-active-upwards (cursor-tree)))
-         (ids (append-map tree->ids ts)))
-    (link-follow-ids ids "click")))

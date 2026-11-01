@@ -62,5 +62,8 @@ object native_link_enumeration (object items);
 object native_navigation_document (tree style, object items);
 void native_navigation_follow (object items);
 void native_link_follow_ids (list<string> ids, string event);
+void native_link_execute_script (string source, bool trusted, object arguments);
+void native_link_go_to_vertex (object vertex, object attributes);
+void native_locus_link_follow ();
 
 #endif

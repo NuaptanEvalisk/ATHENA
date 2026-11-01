@@ -6,6 +6,9 @@
 #include "server.hpp"
 #include "QTMNativeDialogs.hpp"
 #include "boot.hpp"
+#include "editor.hpp"
+#include "command.hpp"
+#include "analyze.hpp"
 #include "buffer_actor.hpp"
 #include "scheme_execution_context.hpp"
 #include "ATHENA/Data/compound_edit_batch.hpp"
@@ -258,7 +261,7 @@ void follow_item (const navigation_item& item) {
   visit_vertex (tree (ID, item.source));
   if (is_func (item.target, ID, 1) || is_compound (item.target, "url", 1))
     visit_vertex (item.target);
-  call ("go-to-vertex", write_target (item.target), write_attributes (item.attributes));
+  native_link_go_to_vertex (write_target (item.target), write_attributes (item.attributes));
 }
 }
 
@@ -325,4 +328,68 @@ void native_navigation_follow (object items) {
 void native_link_follow_ids (list<string> ids, string event) {
   native_navigation_follow (native_link_list_to_navigation (
     native_filter_link_list (native_ids_link_list (ids), event)));
+}
+
+void native_link_execute_script (string source, bool trusted, object arguments) {
+  if (starts (source, "(") && ends (source, ")") && !starts (source, "(lambda ")) {
+    get_current_editor ()->set_message ("Legacy script links are no longer supported", "Evaluate script");
+    return;
+  }
+  array<object> quoted;
+  for (; !is_null (arguments); arguments= cdr (arguments))
+    quoted << list_object (symbol_object ("quote"), car (arguments));
+  object expression= cons (eval ("'" * source), as_list_object (quoted));
+  const bool allowed= trusted || as_bool (call ("secure?", expression));
+  const string policy= get_preference ("security");
+  object closure= eval (list_object (symbol_object ("lambda"), null_object (), expression));
+  if (allowed || policy == "accept all scripts") exec_delayed (closure);
+  else if (policy == "prompt on scripts") {
+    if (headless_mode) return;
+    command execute= as_actor_command (closure);
+    std::string text (source.data (), N(source));
+    qt_post_to_main_thread ([execute, text] () mutable {
+      QTMInteractiveField field {"Execute " * string (text.c_str ()) * "?", "question", {}};
+      field.proposals << string ("no") << string ("yes");
+      const auto answer= qtm_interactive_dialog ("Evaluate script", {field});
+      if (N(answer) == 1 && answer[0] == "yes") execute->apply ();
+    });
+  }
+  else get_current_editor ()->set_message ("Unsecure script refused", "Evaluate script");
+}
+
+void native_link_go_to_vertex (object vertex, object attributes) {
+  if (!is_list (vertex) || is_null (vertex) || !is_symbol (car (vertex))) return;
+  const string kind= as_symbol (car (vertex));
+  const auto fields= as_array_object (cdr (vertex));
+  if (kind == "id" && N(fields) == 1)
+    call ("go-to-id", fields[0], object (get_current_editor ()->the_path ()));
+  else if (kind == "url" && N(fields) == 1) {
+    string target= as_string (fields[0]);
+    for (int i=0; i<N(target); ++i)
+      if (target[i] == '#' || target[i] == '?') {
+        target= target (0, i) * replace (target (i, N(target)), ":", "%3A");
+        break;
+      }
+    call ("go-to-url", object (target), object (get_current_editor ()->the_path ()));
+  }
+  else if (kind == "script" && N(fields) > 0) {
+    bool trusted= false;
+    for (; !is_null (attributes); attributes= cdr (attributes)) {
+      object entry= car (attributes);
+      if (is_string (car (entry)) && as_string (car (entry)) == "secure") {
+        trusted= is_string (cdr (entry)) && as_string (cdr (entry)) == "true";
+        break;
+      }
+    }
+    native_link_execute_script (as_string (fields[0]), trusted, cddr (vertex));
+  }
+}
+
+void native_locus_link_follow () {
+  editor ed= get_current_editor ();
+  list<string> ids;
+  for (auto nodes= native_link_active_upwards (ed->the_subtree (path_up (ed->the_path ())));
+       !is_nil (nodes); nodes= nodes->next)
+    ids= ids * get_ids (nodes->item);
+  native_link_follow_ids (ids, "click");
 }
