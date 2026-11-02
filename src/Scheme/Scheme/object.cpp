@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "object.hpp"
+#include "native_dispatch.hpp"
 #include "glue.hpp"
 #include "convert.hpp"
 
@@ -544,34 +545,31 @@ bool exec_file (url u) {
   object ret= eval_file (materialize (u));
   return ret != object ("#<unspecified>"); }
 
-object call (const char* fun) {
-  return tmscm_to_object (call_scheme (eval_scheme(fun))); }
-object call (const char* fun, object a1) {
-  return tmscm_to_object (call_scheme (eval_scheme(fun), object_to_tmscm (a1))); }
-object call (const char* fun, object a1, object a2) {
-  return tmscm_to_object (call_scheme (eval_scheme(fun), object_to_tmscm (a1), object_to_tmscm (a2))); }
-object call (const char* fun, object a1, object a2, object a3) {
-  return tmscm_to_object (call_scheme (eval_scheme(fun), object_to_tmscm (a1),
-                                       object_to_tmscm (a2), object_to_tmscm (a3))); }
-object call (const char* fun, object a1, object a2, object a3, object a4) {
-  return tmscm_to_object (call_scheme (eval_scheme(fun), object_to_tmscm (a1),
-                                       object_to_tmscm (a2), object_to_tmscm (a3), object_to_tmscm (a4))); }
-object call (const char* fun, array<object> a) {
-  return tmscm_to_object (call_scheme (eval_scheme(fun), array_lookup(a))); }
+namespace {
+template<typename... Arguments>
+object named_call (string name, const Arguments&... values) {
+  array<object> arguments;
+  (..., (arguments << values));
+  return call (name, arguments);
+}
+}
 
-object call (string fun) {
-  return tmscm_to_object (call_scheme (eval_scheme(fun))); }
-object call (string fun, object a1) {
-  return tmscm_to_object (call_scheme (eval_scheme(fun), object_to_tmscm (a1))); }
-object call (string fun, object a1, object a2) {
-  return tmscm_to_object (call_scheme (eval_scheme(fun), object_to_tmscm (a1), object_to_tmscm (a2))); }
-object call (string fun, object a1, object a2, object a3) {
-  return tmscm_to_object (call_scheme (eval_scheme(fun), object_to_tmscm (a1),
-                                       object_to_tmscm (a2), object_to_tmscm (a3))); }
-object call (string fun, object a1, object a2, object a3, object a4) {
-  return tmscm_to_object (call_scheme (eval_scheme(fun), object_to_tmscm (a1),
-                                       object_to_tmscm (a2), object_to_tmscm (a3), object_to_tmscm (a4))); }
+object call (const char* fun) { return named_call (fun); }
+object call (const char* fun, object a1) { return named_call (fun, a1); }
+object call (const char* fun, object a1, object a2) { return named_call (fun, a1, a2); }
+object call (const char* fun, object a1, object a2, object a3) { return named_call (fun, a1, a2, a3); }
+object call (const char* fun, object a1, object a2, object a3, object a4) { return named_call (fun, a1, a2, a3, a4); }
+object call (const char* fun, array<object> a) { return call (string (fun), a); }
+
+object call (string fun) { return named_call (fun); }
+object call (string fun, object a1) { return named_call (fun, a1); }
+object call (string fun, object a1, object a2) { return named_call (fun, a1, a2); }
+object call (string fun, object a1, object a2, object a3) { return named_call (fun, a1, a2, a3); }
+object call (string fun, object a1, object a2, object a3, object a4) { return named_call (fun, a1, a2, a3, a4); }
 object call (string fun, array<object> a) {
+  object result;
+  if (native_dispatch_call (fun, a, result)) return result;
+  // Runtime builtins and remaining closures are removed by subsequent stages.
   return tmscm_to_object (call_scheme (eval_scheme(fun), array_lookup(a))); }
 
 object call (object fun) {

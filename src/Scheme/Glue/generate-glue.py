@@ -147,9 +147,60 @@ def read_interfaces(paths):
     return interfaces
 
 
+def native_argument_check(kind, value):
+    if kind in ("object", "tmscm", "scheme_tree"):
+        return None
+    if kind == "tree_label":
+        return f"tmscm_is_symbol ({value})"
+    if kind == "url":
+        return f"(tmscm_is_url ({value}) || tmscm_is_string ({value}))"
+    if kind == "procedure":
+        return f"scm_is_true (scm_procedure_p ({value}))"
+    if kind == "uint":
+        return f"scm_is_unsigned_integer ({value}, 0, std::numeric_limits<unsigned int>::max ())"
+    return f"tmscm_is_{kind} ({value})"
+
+
+def cpp_native_binding(interface, binding):
+    wrapper = wrapper_name(binding.name).replace("tmg_", "tmn_", 1)
+    rest = bool(binding.arguments) and binding.arguments[-1].rest
+    required = len(binding.arguments) - int(rest)
+    lines = ["static object", f"{wrapper} (const array<object>& arguments) {{",
+             f"  if (N(arguments) {'<' if rest else '!='} {required})",
+             f'    throw std::invalid_argument ("{binding.name}: expected '
+             f'{"at least " if rest else ""}{required} arguments");']
+    for i, arg in enumerate(binding.arguments, 1):
+        if arg.rest:
+            lines.extend(["  array<object> remaining;",
+                          f"  for (int i= {required}; i<N(arguments); ++i) remaining << arguments[i];",
+                          f"  object in{i}= as_list_object (remaining);"])
+            continue
+        lines.append(f"  tmscm arg{i}= object_to_tmscm (arguments[{i-1}]);")
+        check = native_argument_check(arg.type, f"arg{i}")
+        if check:
+            lines.extend([f"  if (!({check}))",
+                          f'    throw std::invalid_argument ("{binding.name}: argument {i} '
+                          f'must be {arg.type}");'])
+        lines.append(f"  {arg.type} in{i}= tmscm_to_{arg.type} (arg{i});")
+    native = interface.prefix + binding.native
+    if binding.dispatch == "ui":
+        lines.append(f"  athena_dispatch_ui ({native});")
+    else:
+        arguments = ", ".join(f"std::move (in{i})" if arg.passing == "move" else f"in{i}"
+                              for i, arg in enumerate(binding.arguments, 1))
+        result = "" if binding.returns == "void" else f"{binding.returns} out= "
+        lines.append(f"  {result}{native} ({arguments});")
+    result = ("TMSCM_UNSPECIFIED" if binding.returns == "void"
+              else f"{binding.returns}_to_tmscm (out)")
+    lines.extend([f"  return tmscm_to_object ({result});", "}", ""])
+    return lines
+
+
 def cpp_bindings(interface):
     lines = [f"// Generated from {interface.source}. Do not edit.",
-             "// SPDX-License-Identifier: GPL-3.0-or-later", ""]
+             "// SPDX-License-Identifier: GPL-3.0-or-later",
+             '#include "native_dispatch.hpp"', "#include <limits>",
+             "#include <stdexcept>", ""]
     if any(binding.exceptions == "scheme" for binding in interface.bindings):
         lines.extend(["#include <cstdlib>", "#include <cstring>",
                       "#include <exception>", ""])
@@ -208,11 +259,15 @@ def cpp_bindings(interface):
             ])
         else:
             lines.extend([f"  return {result};", "}", ""])
+    for binding in interface.bindings:
+        lines.extend(cpp_native_binding(interface, binding))
     lines.extend(["void", f"{interface.initializer} () {{"])
     for binding in interface.bindings:
         rest = int(bool(binding.arguments) and binding.arguments[-1].rest)
         lines.append(f'  tmscm_install_procedure ("{binding.name}",  '
                      f'{wrapper_name(binding.name)}, {len(binding.arguments) - rest}, 0, {rest});')
+        native_wrapper = wrapper_name(binding.name).replace("tmg_", "tmn_", 1)
+        lines.append(f'  native_dispatch_register ("{binding.name}", {native_wrapper});')
     return "\n".join([*lines, "}", ""])
 
 

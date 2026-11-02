@@ -45,6 +45,15 @@ with runtime removal; native automation must use the existing interop API.
   The check deliberately does not claim physical cursor-motion coverage:
   direct low-level key calls after source replacement omit `apply_changes()`;
   the real `handle_keypress` entry performs that step.
+- The XML generator now emits direct native command entries as well as the
+  remaining Scheme-facing wrappers. Named C++ calls prefer native entries;
+  receiver, UI dispatch, move/rest arguments and C++ exception unwinding are
+  preserved without evaluating a Scheme procedure name. The deployed keyboard
+  check overrides Scheme `kbd-space` with an error and still inserts a space,
+  demonstrating that the real input path uses native dispatch. Generated
+  arity/type, UI scheduling and exception-boundary checks also passed.
+  `object` marshalling and the fallback for runtime builtins still remain;
+  this is not completion of the value/runtime migration.
 
 ## Known Outstanding Failures
 

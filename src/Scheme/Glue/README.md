@@ -89,6 +89,21 @@ The implementations formerly embedded in `glue.cpp` now live in
 contains marshalling primitives and includes generated wrappers, not dialogs or
 Vault/Materials implementations.
 
+## Direct Native Dispatch
+
+Each XML binding also generates a `tmn_` entry registered in the native command
+dispatcher. Named C++ calls prefer that entry over Scheme lookup. It preserves
+the declared receiver, argument types, trailing rest list, move policy and UI
+dispatch. Invalid arity/types raise `std::invalid_argument`; native exceptions
+remain C++ exceptions instead of invoking Guile's nonlocal error handling.
+The Scheme-facing `tmg_` entry retains its declared exception policy.
+
+This is an intermediate migration boundary, not a Scheme-free value system:
+arguments/results still use `object` and the existing data marshalling. Runtime
+builtins absent from XML still take the legacy path. Remove those consumers and
+their containers in subsequent migration steps; do not add bespoke command-name
+exceptions or handwritten native registrations.
+
 ## Verification
 
 ```sh

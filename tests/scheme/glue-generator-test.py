@@ -24,6 +24,17 @@ class GlueGeneratorTest(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory(prefix="athena-glue-test-")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
+        (self.root / "native_dispatch.hpp").write_text(r'''#pragma once
+#include <vector>
+using object= int;
+template<class T> using array= std::vector<T>;
+template<class T> int N(const array<T>& values) { return values.size(); }
+inline int object_to_tmscm(object value) { return value; }
+inline object tmscm_to_object(int value) { return value; }
+inline bool tmscm_is_int(int value) { return value >= 0; }
+inline bool tmscm_is_string(int) { return true; }
+template<class F> void native_dispatch_register(const char*, F) {}
+''')
 
     def interface(self, body, name="fixture", **attributes):
         attrs = {"version": "1", "prefix": "", "initializer": "initialize_" + name}
@@ -286,6 +297,14 @@ int main() {
   }
   assert(binding == "checked-void" && buffers_freed == 4);
   assert(!active && live == 0 && exceptions == 0);
+  // Direct native callers never enter Scheme's nonlocal-exit machinery.
+  assert(tmn_checked_action({21, 0}) == 42);
+  for (int mode= 1; mode <= 4; ++mode) {
+    bool caught= false;
+    try { tmn_checked_action({21, mode}); }
+    catch (...) { caught= true; }
+    assert(caught && !active && live == 0 && exceptions == 0);
+  }
 }
 ''')
         executable = self.root / "exceptions"
@@ -330,6 +349,18 @@ int main() {
   assert(called == 0 && pending == action);
   pending();
   assert(called == 1);
+  assert(tmn_double_value({21}) == 42);
+  for (auto args: {array<object>{}, array<object>{21, 22}, array<object>{-1}}) {
+    rejected= false;
+    try { tmn_double_value(args); }
+    catch (const std::invalid_argument&) { rejected= true; }
+    assert(rejected);
+  }
+  pending= nullptr;
+  assert(tmn_defer_action({}) == TMSCM_UNSPECIFIED);
+  assert(called == 1 && pending == action);
+  pending();
+  assert(called == 2);
 }
 ''')
         executable = self.root / "bindings"

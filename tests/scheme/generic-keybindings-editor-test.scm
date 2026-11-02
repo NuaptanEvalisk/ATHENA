@@ -20,6 +20,16 @@
 (check (not (equal? (kbd-find-inv-binding '(kbd-left)) ""))
        "semantic inverse lookup remains available")
 
+;; XML-native commands are no longer looked up through Scheme variables.
+(reset "" 0)
+(let ((original kbd-space))
+  (dynamic-wind
+    (lambda () (set! kbd-space (lambda () (error "Unexpected Scheme dispatch"))))
+    (lambda () (key-press "space"))
+    (lambda () (set! kbd-space original))))
+(check (equal? (tree->stree (buffer-tree)) '(document " "))
+       "named key action uses the generated native entry")
+
 ;; A user prefix overrides the shipped registry without creating a closure.
 (set-user-shortcut "C-F12 x" "{\"op\":\"make\",\"tag\":\"strong\"}")
 (reset "" 0)

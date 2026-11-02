@@ -219,7 +219,9 @@ was added or run for these direct-call substitutions.
 This is not complete Guile removal. Further bounded work remains:
 
 - Other native business callers still dispatch by Scheme procedure name.
-- Keyboard actions, conditional bindings and user shortcuts retain closures.
+- Keyboard registry actions, mode conditions and user shortcuts now use native
+  callbacks (`3202f1eaa`); JSON expression arguments and inverse lookups still
+  use Scheme values. See `scheme-runtime-removal.md` for the complete goal.
 - UI callbacks, observers, actor Scheme handles and interactive properties
   retain Guile objects; ownership must survive their replacement.
 - Style `extern` and explicit command-line scripts still invoke Guile.
