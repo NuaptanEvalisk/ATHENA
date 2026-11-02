@@ -1033,8 +1033,8 @@ generated native entries and remain on the secure-function list.
 - Regenerated interfaces and compiled both implementation units with `-j16`;
   log `build_qt6/native-preference-value-cleanup-build.log`. Removed names are
   absent from source/resources/tools/tests; generated setters accept strings.
-  Full linking, runtime binding verification and deployment will be combined
-  with the next runtime cleanup. No tests were added or run.
+  Full linking, runtime binding verification and deployment passed in the
+  combined selector/preference deployment below. No permanent tests were added.
 
 ## Native Style Selector Reading
 
@@ -1052,10 +1052,31 @@ generated native entries and remain on the secure-function list.
 - Compiled the selector and object implementation units with `-j16`; logs:
   `build_qt6/native-style-selector-build.log` and
   `build_qt6/native-reader-removal-build.log`. No permanent tests were added.
-  Combined runtime verification should exercise label/index/pat-any selection
-  and keyword/quote decoding before deployment; that remains pending with the
-  preference changes. The native data reader is not claimed to support arbitrary
+  Combined runtime verification exercised label/index/pat-any selection and
+  keyword/quote decoding before deployment, as recorded below.
+  The native data reader is not claimed to support arbitrary
   Guile reader extensions, which are not the structural selector contract.
+
+## Combined Selector/Preference Deployment
+
+- Full `-j16` build passed. The targeted runtime probe exposed an existing
+  matcher type mismatch: `is_int(object)` accepts integral real values while
+  `as_int(object)` requires exact integers. A selector `1.0` threw instead of
+  simply not matching an integer index. Changed the index predicate to
+  `is_exact_integer`; did not coerce real values in the reader.
+- Rebuilt and reran the full probe successfully: labels, exact integer indices,
+  rejection of real indices, pat-any, keyword, quote binding, string versus
+  label distinction, nested author-note selection and union all passed.
+  Confirmed four retired preference bindings absent and string preference
+  writes/readback working. Printed `NATIVE_SELECTOR_PREFERENCE_OK`, exit zero.
+- Deployed with the official helper, then removed the owned probe script and
+  profile. No permanent regression test or broad suite was added.
+- Logs under `build_qt6`: `native-selector-preference-build.log`,
+  `native-selector-preference-runtime.log` (initial failure),
+  `native-selector-other-boundaries-runtime.log` (isolating the real-index case),
+  `native-selector-exact-index-build.log`,
+  `native-selector-exact-index-runtime.log` (complete passing check), and
+  `native-selector-preference-deploy.log`.
 
 ## Known Outstanding Failure
 

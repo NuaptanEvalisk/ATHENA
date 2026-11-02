@@ -220,7 +220,7 @@ selections select_one (object value, object pattern, const bindings& env) {
   object children= cdr (components (value));
   for (int i=0; is_pair (children); ++i, children= cdr (children)) {
     object child= car (children);
-    if (named (pattern, "%1") || (is_int (pattern) && as_int (pattern)==i) ||
+    if (named (pattern, "%1") || (is_exact_integer (pattern) && as_int (pattern)==i) ||
         (is_symbol (pattern) && compound_value (child) && car (components (child)) == pattern))
       result.push_back ({list_object (object (i)), child, env});
   }
