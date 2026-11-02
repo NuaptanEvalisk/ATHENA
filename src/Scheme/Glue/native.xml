@@ -625,15 +625,6 @@
   <binding name="pen-effect-context?" native="format_pen_effect_context" returns="bool">
     <arg type="tree" />
   </binding>
-  <binding name="get-effect-pen" native="format_get_effect_pen" returns="object">
-    <arg type="object" />
-  </binding>
-  <binding name="set-effect-pen" native="format_set_effect_pen" returns="void">
-    <arg type="object" /><arg type="string" />
-  </binding>
-  <binding name="test-effect-pen?" native="format_test_effect_pen" returns="bool">
-    <arg type="object" /><arg type="string" />
-  </binding>
   <binding name="with-ref" native="format_with_ref" returns="object">
     <arg type="content" /><arg type="content" />
   </binding>

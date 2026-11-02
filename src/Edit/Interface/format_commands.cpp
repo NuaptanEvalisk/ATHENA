@@ -835,33 +835,17 @@ bool format_pen_effect_context (tree t) {
   return parameter_data ().effect_families.contains (json_key (as_string (L (t))));
 }
 
-static bool effect_tree (object value, tree& t) {
-  if (is_tree (value)) { t= as_tree (value); return true; }
-  if (!parent_tree (cursor_tree (), t)) return false;
-  while (true) {
-    if (format_pen_effect_context (t)) return true;
-    if (admits_edit_observer (t) || !parent_tree (t, t)) return false;
-  }
-}
-
-object format_get_effect_pen (object value) {
-  tree t;
-  if (!effect_tree (value, t)) return object (false);
+std::optional<string> format_get_effect_pen (tree t) {
   QJsonValue pen= parameter_data ().effect_pens.value (json_key (as_string (L (t))));
-  return pen.isString () ? object (native_string (pen.toString ())) : object (false);
+  if (!pen.isString ()) return std::nullopt;
+  return native_string (pen.toString ());
 }
 
-void format_set_effect_pen (object value, string pen) {
-  tree t;
-  if (!effect_tree (value, t)) return;
+void format_set_effect_pen (tree t, string pen) {
   const format_parameter_data& data= parameter_data ();
   QJsonValue family= data.effect_families.value (json_key (as_string (L (t))));
   if (!family.isString () || !data.definitions.value ("pens").toArray ().contains (json_key (pen))) return;
   editing_variant_set (t, as_tree_label (pen * "-" * native_string (family.toString ())));
-}
-
-bool format_test_effect_pen (object value, string pen) {
-  return format_get_effect_pen (value) == object (pen);
 }
 
 void format_make_multi_with (object properties) {

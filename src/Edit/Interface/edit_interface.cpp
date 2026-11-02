@@ -1210,9 +1210,10 @@ editor_rep::focus_toolbar_state_snapshot () {
 
   snapshot.pen_effect_context= format_pen_effect_context (t);
   if (snapshot.pen_effect_context) {
+    const auto selected_pen= format_get_effect_pen (t);
     static const char* pens[]= {"gaussian", "oval", "rectangular", "motion"};
     for (const char* pen: pens)
-      if (format_test_effect_pen (object (t), pen)) {
+      if (selected_pen && *selected_pen == pen) {
         snapshot.pen_effect= pen;
         break;
       }

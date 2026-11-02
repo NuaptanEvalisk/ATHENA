@@ -1434,7 +1434,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
         !ed->test_subtree (focus))
       return;
     format_set_effect_pen (
-      object (ed->the_subtree (focus)),
+      ed->the_subtree (focus),
       native_action_string (action.value ("pen")));
   }
   else if (op == "focus-overlay-switch") {

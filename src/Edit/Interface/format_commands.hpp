@@ -53,9 +53,8 @@ struct format_customizable_parameter {
 };
 std::vector<format_customizable_parameter> format_customizable_parameters (tree t);
 bool format_pen_effect_context (tree t);
-object format_get_effect_pen (object t);
-void format_set_effect_pen (object t, string pen);
-bool format_test_effect_pen (object t, string pen);
+std::optional<string> format_get_effect_pen (tree t);
+void format_set_effect_pen (tree t, string pen);
 void format_make_multi_with (object properties);
 void format_make_multi_with (tree wrapper);
 void format_make_line_with (string variable, tree value);

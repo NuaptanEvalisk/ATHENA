@@ -1615,6 +1615,31 @@ generated native entries and remain on the secure-function list.
   accumulated generic/reference/group/macro/font batches still need combined
   linking, fresh-process binding verification and deployment.
 
+## Native Effect Pens And Combined Editor Deployment
+
+- Effect-pen queries take the explicit focus tree and return an optional string;
+  setters accept the tree directly. Snapshot creation reads the pen once before
+  comparing supported choices. JSON remains the source of pen families and
+  allowed values, and variant edits retain the existing editor operation.
+- Removed the three Scheme effect-pen exports, their test-only implicit-cursor
+  protocol and old adapter assertions. Table formatting and other substantive
+  format tests remain unchanged.
+- Full ATHENA.bin build with -j16 passed, covering all changes since fbb1f6473:
+  generic editor values, reference previews, node groups, macro sources,
+  document font initialization and this effect-pen batch. This supersedes their
+  earlier pending linking/deployment notes, including input-header cleanup.
+- Fresh headless startup confirmed all 34 retired bindings are absent and
+  exited successfully with NATIVE_EDITOR_VALUES_BINDINGS_OK. No runtime error
+  was logged. This verifies startup and binding retirement, not interactive
+  GUI behavior; no broad test suite or new permanent tests were added.
+- Deployed through tools/deploy-local-runtime.sh. Build ID:
+  715685120902b8bb5b781689968dfe434d26bee7. Logs in build_qt6:
+  native-editor-values-build.log, native-editor-values-runtime.log and
+  native-editor-values-deploy.log. Temporary probe and profile were removed.
+- Runtime removal remains incomplete: explicit script execution, callback
+  handles, remaining object interfaces and Guile build/package dependencies
+  still require migration.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
