@@ -7,8 +7,6 @@
                    (get-init-tree "page-orientation"))))
 
 (init-env-tree "document-test-macro" '(macro "old"))
-(check (equal? (get-init-env "document-test-macro") "old")
-       "native macro init lookup")
 (set-init-env "document-test-macro" "new")
 (check (equal? (tree->stree (get-init-tree "document-test-macro"))
                '(macro "new"))
@@ -17,10 +15,6 @@
 (check (equal? (tree->stree (get-init-tree "document-test-macro"))
                '(macro "direct"))
        "set-init-env does not double-wrap macro input")
-
-(init-env-tree "document-test-complex" '(concat "a" "b"))
-(check (not (get-init-env "document-test-complex"))
-       "non-atomic non-macro init has no string view")
 
 (set-style-list '("generic" "american" "french"))
 (check (not (test-default-document-language?))

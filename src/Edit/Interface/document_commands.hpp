@@ -11,7 +11,6 @@
 #ifndef ATHENA_DOCUMENT_COMMANDS_HPP
 #define ATHENA_DOCUMENT_COMMANDS_HPP
 
-#include "scheme.hpp"
 #include "tree.hpp"
 #include <optional>
 
@@ -20,23 +19,19 @@ class editor_rep;
 bool document_missing_style ();
 void document_set_default_style ();
 void document_apply_vault_font ();
-bool document_test_default (object variables);
 bool document_in_source_mode ();
 void document_toggle_source_mode ();
-void document_init_default (object variables);
-object document_get_init_env (string variable);
 std::optional<string> document_get_init_text (string variable);
 bool document_test_init (string variable, string value);
 void document_set_init_env (string variable, tree value);
 bool document_test_init_true (string variable);
-void document_init_multi (object values);
+void document_init_multi (tree values);
 void open_font_selector ();
 void open_document_font_selector ();
 void open_document_other_font_selector (string prefix);
 string document_font_display_name (string value);
-bool document_test_init_font (string value, object options);
 void document_remove_font_packages ();
-void document_init_font (string value, object options);
+void document_init_font (string value, std::optional<string> math_font= std::nullopt);
 bool document_test_default_language ();
 void document_set_default_language ();
 string document_get_language ();

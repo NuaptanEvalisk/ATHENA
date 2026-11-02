@@ -46,7 +46,7 @@ void document_apply_vault_font () {
   if (font == "") return;
   // The vault profile owns its math override as well as its main family.
   init_default_current_view ("math-font");
-  document_init_font (font, as_list_object (array<object> ()));
+  document_init_font (font);
 }
 
 namespace {
@@ -69,10 +69,10 @@ void select_font (bool local, string prefix) {
     !local && prefix == "" ? string ("Document font selector") : string ("Font selector"));
   if (N(selected) != 4) return;
   const array<string> logical= logical_font (selected[0], selected[1]);
-  array<object> changes;
+  tree changes (WITH);
   const auto add= [&] (string name, string value) {
     if (get (name) == value) return;
-    changes << object (name) << object (value);
+    changes << tree (name) << tree (value);
   };
   add ("font", selected[3]);
   add ("font-family", get_variant (logical));
@@ -80,8 +80,8 @@ void select_font (bool local, string prefix) {
   add ("font-shape", get_shape (logical));
   add ("font-base-size", selected[2]);
   if (N(changes) > 0) {
-    if (local) format_make_multi_with (as_list_object (changes));
-    else if (prefix == "") document_init_multi (as_list_object (changes));
+    if (local) format_make_multi_with (changes);
+    else if (prefix == "") document_init_multi (changes);
     else for (int i=0; i<N(changes); i+=2)
       document_set_init_env (prefix * as_string (changes[i]), tree (as_string (changes[i+1])));
   }
@@ -107,32 +107,6 @@ void document_toggle_source_mode () {
     ed->init_env ("src-close", tree (get_preference ("source tree closing style")));
   }
   ed->init_env ("preamble", tree (next));
-}
-
-bool
-document_test_default (object variables) {
-  if (!is_list (variables)) return false;
-  editor ed= get_current_editor ();
-  array<object> items= as_array_object (variables);
-  for (int i= 0; i < N (items); ++i) {
-    if (!is_string (items[i])) return false;
-    if (ed->defined_in_init (as_string (items[i]))) return false;
-  }
-  return true;
-}
-
-void
-document_init_default (object variables) {
-  if (!is_list (variables)) return;
-  array<object> items= as_array_object (variables);
-  for (int i= 0; i < N (items); ++i)
-    if (is_string (items[i])) init_default_current_view (as_string (items[i]));
-}
-
-object
-document_get_init_env (string variable) {
-  auto value= document_get_init_text (variable);
-  return value ? object (*value) : object (false);
 }
 
 std::optional<string>
@@ -166,24 +140,13 @@ document_test_init_true (string variable) {
 }
 
 void
-document_init_multi (object values) {
-  if (!is_list (values)) return;
-  array<object> items= as_array_object (values);
-  object default_keyword= keyword_object ("default");
-  for (int i= 0; i + 1 < N (items); i += 2) {
-    if (!is_string (items[i])) continue;
-    string variable= as_string (items[i]);
-    object value= items[i + 1];
-    if (variable == "font" && value == default_keyword) {
-      document_remove_font_packages ();
-      init_default_current_view ("font");
-    }
-    else if (variable == "font" && is_string (value))
-      document_init_font (as_string (value), as_list_object (array<object> ()));
-    else if (value == default_keyword)
-      init_default_current_view (variable);
-    else if (is_string (value))
-      get_current_editor ()->init_env (variable, tree (as_string (value)));
+document_init_multi (tree values) {
+  for (int i= 0; i + 1 < N (values); i += 2) {
+    string variable= as_string (values[i]);
+    if (variable == "font")
+      document_init_font (as_string (values[i + 1]));
+    else
+      get_current_editor ()->init_env (variable, values[i + 1]);
   }
 }
 
@@ -231,12 +194,6 @@ document_font_display_name (string value) {
   return upcase_first (family);
 }
 
-bool
-document_test_init_font (string value, object) {
-  string current= get_current_editor ()->get_init_string ("font");
-  return document_font_display_name (current) == document_font_display_name (value);
-}
-
 void
 document_remove_font_packages () {
   const auto styles= document_get_style_list ();
@@ -247,17 +204,16 @@ document_remove_font_packages () {
 }
 
 void
-document_init_font (string value, object options) {
+document_init_font (string value, std::optional<string> math_font) {
   editor ed= get_current_editor ();
-  array<object> opts= is_list (options) ? as_array_object (options) : array<object> ();
 
   if (value == "TeXmacs Computer Modern") {
-    document_init_font ("roman", list_object (object ("roman")));
+    document_init_font ("roman", string ("roman"));
     return;
   }
   if (value == "roman" &&
-      !(N (opts) == 1 && is_string (opts[0]) && as_string (opts[0]) == "roman")) {
-    document_init_font ("roman", list_object (object ("roman")));
+      (!math_font || *math_font != "roman")) {
+    document_init_font ("roman", string ("roman"));
     return;
   }
   if (tex_gyre_document_font (value)) {
@@ -268,13 +224,13 @@ document_init_font (string value, object options) {
     return;
   }
   if (starts (value, "Stix")) {
-    document_init_font ("stix", list_object (object ("math-stix")));
+    document_init_font ("stix", string ("math-stix"));
     return;
   }
 
   ed->init_env ("font", tree (value));
-  if (N (opts) > 0 && is_string (opts[0]))
-    ed->init_env ("math-font", tree (as_string (opts[0])));
+  if (math_font)
+    ed->init_env ("math-font", tree (*math_font));
   ed->init_env ("font-family", tree ("rm"));
   document_remove_font_packages ();
 
@@ -601,9 +557,9 @@ void document_toggle_reduced_margins () {
 }
 
 bool document_indent_paragraphs () {
-  object value= document_get_init_env ("par-first");
-  if (!is_string (value)) return true;
-  string s= as_string (value);
+  const auto value= document_get_init_text ("par-first");
+  if (!value) return true;
+  const string& s= *value;
   return !(s == "0fn" || s == "0em" || s == "0tab" ||
            s == "0cm" || s == "0mm" || s == "0in");
 }

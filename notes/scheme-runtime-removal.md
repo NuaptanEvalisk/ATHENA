@@ -1590,6 +1590,31 @@ generated native entries and remain on the secure-function list.
   linking, binding verification and deployment remain pending with the preceding
   generic/reference/node-group batches.
 
+## Native Document Font And Initialization Values
+
+- Document font selection builds a native WITH property-pair tree, rather than
+  alternating object lists. Local formatting delegates to the same native
+  format_make_multi_with implementation through a tree overload; the remaining
+  object adapter only decodes old external inputs before entering that core.
+  Table selection restoration and selection wrapping are unchanged.
+- Document initialization consumes that native property tree. Its only active
+  producer supplies string values; removed the obsolete Scheme :default list
+  protocol. Existing native init-default UI actions retain their own path.
+- Font initialization takes an optional math-font string. Computer Modern,
+  roman, Stix and TeX Gyre normalization retain their existing branch order,
+  math override handling and font-package cleanup. Paragraph indentation reads
+  the existing native optional text query directly.
+- Removed six old document bindings, unused default/font predicates and the
+  object init-text adapter. document_commands.hpp and its implementation no
+  longer use object or include scheme.hpp. Removed the old font alias adapter
+  test/CMake registration and two retired getter assertions; retained document
+  macro-wrapper mutation and page/language checks.
+- Generation and both document_commands/format_commands implementation units
+  passed with -j16. Logs: build_qt6/native-document-font-values-glue.log and
+  build_qt6/native-document-font-values-build.log. No tests added or run. The
+  accumulated generic/reference/group/macro/font batches still need combined
+  linking, fresh-process binding verification and deployment.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

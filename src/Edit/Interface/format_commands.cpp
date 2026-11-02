@@ -865,7 +865,10 @@ bool format_test_effect_pen (object value, string pen) {
 }
 
 void format_make_multi_with (object properties) {
-  tree wrapper= property_wrapper (properties);
+  format_make_multi_with (property_wrapper (properties));
+}
+
+void format_make_multi_with (tree wrapper) {
   if (N (wrapper) == 0) return;
   editor ed= get_current_editor ();
   if (ed->selection_active_table ()) {
