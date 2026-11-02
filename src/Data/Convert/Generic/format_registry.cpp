@@ -112,11 +112,16 @@ bool matches (const Format& format, string source) {
 }
 }
 
-scheme_tree conversion_format_name (string id) {
+std::optional<string> conversion_format_display_name (string id) {
   const auto& formats= registry ().formats;
   auto it= formats.find (std::string (id.data (), N(id)));
-  if (it == formats.end ()) return tree ("#f");
-  return tree (scm_quote (it->second.name));
+  if (it == formats.end ()) return std::nullopt;
+  return it->second.name;
+}
+
+scheme_tree conversion_format_name (string id) {
+  auto name= conversion_format_display_name (id);
+  return name ? tree (scm_quote (*name)) : tree ("#f");
 }
 
 bool conversion_format_hidden (string id) {

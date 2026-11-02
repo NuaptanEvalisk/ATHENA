@@ -3,7 +3,9 @@
 ******************************************************************************/
 #pragma once
 #include "tree.hpp"
+#include <optional>
 
+std::optional<string> conversion_format_display_name (string id);
 tree conversion_format_name (string id);
 tree conversion_format_suffixes (string id);
 bool conversion_format_hidden (string id);

@@ -41,6 +41,7 @@
 #include "document_commands.hpp"
 #include "document_style_commands.hpp"
 #include "format_commands.hpp"
+#include "Data/Convert/Generic/conversion_registry.hpp"
 #include "generic_editor_commands.hpp"
 #include "source_commands.hpp"
 #include "presentation_commands.hpp"
@@ -1056,10 +1057,9 @@ editor_rep::focus_toolbar_state_snapshot () {
     }
   }
 
-  auto query= [&] (const char* procedure, bool fallback= false) {
+  auto query= [&] (bool (*predicate) (tree), bool fallback= false) {
     try {
-      object value= call (procedure, object (t));
-      return is_bool (value) ? as_bool (value) : fallback;
+      return predicate (t);
     }
     catch (...) {
       return fallback;
@@ -1069,13 +1069,13 @@ editor_rep::focus_toolbar_state_snapshot () {
     if (enabled) snapshot.flags |= static_cast<std::uint32_t> (flag);
   };
 
-  set (ACTOR_FOCUS_TOOLBAR_BUFFER, query ("tree-is-buffer?"));
+  set (ACTOR_FOCUS_TOOLBAR_BUFFER, query (admits_edit_observer));
   try {
     set (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT, defined_at_init ("code-style"));
   }
   catch (...) {}
-  set (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT, query ("screens-context?"));
-  set (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT, query ("table-markup-context?"));
+  set (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT, query (presentation_screens));
+  set (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT, query (generic_table_markup_context));
   set (ACTOR_FOCUS_TOOLBAR_DOC_TITLE_CONTEXT, text_doc_title_context (t));
   set (ACTOR_FOCUS_TOOLBAR_DOC_AUTHOR_CONTEXT, text_doc_author_context (t));
   set (ACTOR_FOCUS_TOOLBAR_ABSTRACT_CONTEXT, text_node_in_group (t, "abstract-data-tag"));
@@ -1087,28 +1087,28 @@ editor_rep::focus_toolbar_state_snapshot () {
        is_compound (t, "phantom-float"));
   set (ACTOR_FOCUS_TOOLBAR_FLOATABLE_CONTEXT, text_floatable_context (t));
   set (ACTOR_FOCUS_TOOLBAR_FOOTNOTE_CONTEXT, text_footnote_context (t));
-  set (ACTOR_FOCUS_TOOLBAR_BALLOON_CONTEXT, query ("balloon-context?"));
+  set (ACTOR_FOCUS_TOOLBAR_BALLOON_CONTEXT, query (generic_balloon_context));
   set (ACTOR_FOCUS_TOOLBAR_DETACHED_NOTE_CONTEXT,
        text_node_in_group (t, "detached-note-tag"));
   set (ACTOR_FOCUS_TOOLBAR_TITLED_CONTEXT, text_titled_context (t));
   set (ACTOR_FOCUS_TOOLBAR_FRAME_CONTEXT,
        text_node_in_group (t, "frame-tag") || text_node_in_group (t, "frame-titled-tag"));
-  set (ACTOR_FOCUS_TOOLBAR_CAN_MOVE, query ("focus-can-move?", true));
+  set (ACTOR_FOCUS_TOOLBAR_CAN_MOVE, query (generic_focus_can_move, true));
   set (ACTOR_FOCUS_TOOLBAR_CAN_INSERT_REMOVE,
-       query ("focus-can-insert-remove?"));
-  set (ACTOR_FOCUS_TOOLBAR_HORIZONTAL, query ("structured-horizontal?"));
-  set (ACTOR_FOCUS_TOOLBAR_VERTICAL, query ("structured-vertical?"));
-  set (ACTOR_FOCUS_TOOLBAR_CAN_INSERT, query ("focus-can-insert?"));
-  set (ACTOR_FOCUS_TOOLBAR_CAN_REMOVE, query ("focus-can-remove?"));
+       query (generic_focus_can_insert_remove));
+  set (ACTOR_FOCUS_TOOLBAR_HORIZONTAL, query (generic_structured_horizontal_context));
+  set (ACTOR_FOCUS_TOOLBAR_VERTICAL, query (generic_structured_vertical_context));
+  set (ACTOR_FOCUS_TOOLBAR_CAN_INSERT, query (generic_focus_can_insert));
+  set (ACTOR_FOCUS_TOOLBAR_CAN_REMOVE, query (generic_focus_can_remove));
   set (ACTOR_FOCUS_TOOLBAR_CURSOR_INSIDE, tree_command_cursor_inside (t));
   set (ACTOR_FOCUS_TOOLBAR_HAS_PREFERENCES,
-       query ("focus-has-preferences?"));
-  set (ACTOR_FOCUS_TOOLBAR_HAS_PARAMETERS, query ("focus-has-parameters?"));
-  set (ACTOR_FOCUS_TOOLBAR_CAN_SEARCH, query ("focus-can-search?"));
+       query (format_focus_has_preferences));
+  set (ACTOR_FOCUS_TOOLBAR_HAS_PARAMETERS, query (generic_focus_has_parameters));
+  set (ACTOR_FOCUS_TOOLBAR_CAN_SEARCH, query (generic_focus_can_search));
   set (ACTOR_FOCUS_TOOLBAR_HAS_SEARCH_MENU,
-       query ("focus-has-search-menu?"));
+       query (generic_focus_has_search_menu));
   try {
-    object label= call ("focus-label", object (t));
+    object label= generic_focus_label (t);
     set (ACTOR_FOCUS_TOOLBAR_HAS_LABEL, is_tree (label));
     object value= generic_focus_get_label (t);
     if (is_string (value)) {
@@ -1126,9 +1126,9 @@ editor_rep::focus_toolbar_state_snapshot () {
       athena::table_commands::eqnarray_numbered (this, t);
   }
   else {
-    snapshot.numbered_available= query ("numbered-context?");
+    snapshot.numbered_available= query (text_numbered_context);
     if (snapshot.numbered_available)
-      snapshot.numbered_checked= query ("numbered-numbered?");
+      snapshot.numbered_checked= query (text_numbered_numbered);
   }
   const bool alternateFirst= text_node_in_group (t, "alternate-first-tag");
   const bool alternateSecond= text_node_in_group (t, "alternate-second-tag");
@@ -1436,18 +1436,15 @@ editor_rep::focus_toolbar_state_snapshot () {
     catch (...) {}
   }
   try {
-    object name= call ("focus-tag-name", symbol_object (tag));
-    if (is_string (name)) {
-      string value= as_string (name);
-      snapshot.tag_name.assign (
-        value.data (), static_cast<std::size_t> (N(value)));
-    }
+    string value= generic_focus_tag_name (symbol_object (tag));
+    snapshot.tag_name.assign (
+      value.data (), static_cast<std::size_t> (N(value)));
   }
   catch (...) {}
   if (snapshot.tag_name.empty ()) snapshot.tag_name= snapshot.tag_label;
 
   try {
-    object raw= call ("focus-variants-of", object (t));
+    object raw= generic_focus_variants_of (t);
     if (is_list (raw)) {
       array<object> values= as_array_object (raw);
       for (int i=0; i<N(values); ++i) {
@@ -1459,8 +1456,7 @@ editor_rep::focus_toolbar_state_snapshot () {
           value.data (), static_cast<std::size_t> (N(value)));
         string display= value;
         try {
-          object name= call ("focus-tag-name", symbol_object (value));
-          if (is_string (name)) display= as_string (name);
+          display= generic_focus_tag_name (symbol_object (value));
         }
         catch (...) {}
         snapshot.variant_names.emplace_back (
@@ -1640,8 +1636,8 @@ editor_rep::focus_toolbar_state_snapshot () {
     string language= get_env_string ("prog-language");
     string display= language;
     try {
-      object name= call ("format-get-name", object (language));
-      if (is_string (name)) display= as_string (name);
+      auto name= conversion_format_display_name (language);
+      if (name) display= *name;
     }
     catch (...) {}
     snapshot.code_language.assign (
@@ -1751,40 +1747,32 @@ editor_rep::focus_toolbar_state_snapshot () {
 
     if (snapshot.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT)) {
       try {
-        object rawSwitch= call ("slide-get-switch", object (t));
-        if (is_tree (rawSwitch)) {
-          tree sw= as_tree (rawSwitch);
-          for (int i=0; i<N(sw); ++i) {
-            string label= "Slide " * as_string (i + 1);
-            try {
-              object name= call (
-                "get-slide-name", object (sw[i]), object (i));
-              if (is_string (name)) label= as_string (name);
-            }
-            catch (...) {}
-            snapshot.slide_names.emplace_back (
-              label.data (), static_cast<std::size_t> (N(label)));
+        tree sw= presentation_slide_switch (t);
+        for (int i=0; i<N(sw); ++i) {
+          string label= "Slide " * as_string (i + 1);
+          try {
+            label= presentation_slide_name (sw[i], i);
           }
+          catch (...) {}
+          snapshot.slide_names.emplace_back (
+            label.data (), static_cast<std::size_t> (N(label)));
         }
       }
       catch (...) {}
       try {
-        object rawDocument= call ("slide-get-document", object (t));
-        if (is_tree (rawDocument)) {
-          tree slide= as_tree (rawDocument);
-          const bool hasTitle=
-            N(slide) > 0 && is_compound (slide[0], "tit");
-          snapshot.slide_propose_title= !hasTitle;
-          const bool emptyDocument=
-            is_document (slide) && N(slide) == 1 && slide[0] == "";
-          const bool titleOnly=
-            is_document (slide) && N(slide) == 1 && hasTitle;
-          const bool titleAndEmpty=
-            is_document (slide) && N(slide) == 2 && hasTitle &&
-            slide[1] == "";
-          snapshot.slide_propose_graphics=
-            emptyDocument || titleOnly || titleAndEmpty;
-        }
+        tree slide= presentation_slide_document (t);
+        const bool hasTitle=
+          N(slide) > 0 && is_compound (slide[0], "tit");
+        snapshot.slide_propose_title= !hasTitle;
+        const bool emptyDocument=
+          is_document (slide) && N(slide) == 1 && slide[0] == "";
+        const bool titleOnly=
+          is_document (slide) && N(slide) == 1 && hasTitle;
+        const bool titleAndEmpty=
+          is_document (slide) && N(slide) == 2 && hasTitle &&
+          slide[1] == "";
+        snapshot.slide_propose_graphics=
+          emptyDocument || titleOnly || titleAndEmpty;
       }
       catch (...) {}
     }

@@ -646,6 +646,21 @@ generated native entries and remain on the secure-function list.
   Logs: `build_qt6/native-editor-dispatch-combined-{build,deploy}.log`.
   No unrelated tests or extra regression suite were run.
 
+## Native Focus Snapshot Queries
+
+- Focus toolbar predicates use typed native function pointers instead of
+  procedure names, preserving existing exception defaults. Label, variant,
+  display-name and slide queries call their native implementations directly.
+  `edit_interface.cpp` no longer invokes `call`.
+- Added a native optional-text format display-name query. The existing registry
+  remains the sole data source; the legacy serialized-name function delegates
+  to it. The toolbar no longer serializes and parses a language display name.
+- Compiled both affected implementation units with `-j16` (including the final
+  snapshot cleanup); logs: `build_qt6/native-focus-snapshot-build.log` and
+  `build_qt6/native-focus-snapshot-final-build.log`. No new tests were needed.
+  Full linking/deployment is deferred; installed runtime remains `c7b8db073`.
+  Object-valued metadata still needs migration.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
