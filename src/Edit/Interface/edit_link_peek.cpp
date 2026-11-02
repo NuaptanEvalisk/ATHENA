@@ -6,6 +6,7 @@
 * This software falls under the GNU general public license version 3 or later.
 ******************************************************************************/
 
+#include "link_markup.hpp"
 #include "Interface/edit_interface.hpp"
 #include "ATHENA/Data/link_peek.hpp"
 #include "ATHENA/Data/node_reference.hpp"
@@ -188,7 +189,7 @@ bool edit_interface_rep::mouse_link_peek (string type, SI x, SI y, int modifiers
     auto popup= ui_endpoint->popup_menu_state ();
     if (N(data) == 1 && popup.touch_request == (std::uint64_t) data[0] &&
         !popup.touch_target.empty ())
-      call ("go-to-url", object (string (popup.touch_target.data (), popup.touch_target.size ())));
+      native_link_go_to_url (string (popup.touch_target.data (), popup.touch_target.size ()));
     return true;
   }
   if (type == "move" && !(modifiers & 1)) {
@@ -227,7 +228,7 @@ bool edit_interface_rep::mouse_link_peek (string type, SI x, SI y, int modifiers
     link_peek_pressed_target= "";
     if (follow) {
       clear_link_peek ();
-      call ("go-to-url", object (target));
+      native_link_go_to_url (target);
     }
     return true;
   }

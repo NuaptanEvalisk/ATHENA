@@ -521,7 +521,7 @@ void native_link_go_to_vertex (object vertex, object attributes) {
         target= target (0, i) * replace (target (i, N(target)), ":", "%3A");
         break;
       }
-    call ("go-to-url", object (target), object (get_current_editor ()->the_path ()));
+    native_link_go_to_url (target, std::optional<path> (get_current_editor ()->the_path ()));
   }
   else if (kind == "script" && N(fields) > 0) {
     bool trusted= false;
@@ -590,9 +590,22 @@ void browse_navigation_target (url target, const std::string& original,
 }
 }
 
+void native_link_go_to_url (string target, std::optional<path> from) {
+#ifdef OS_MINGW
+  native_link_go_to_url (url_system (target), from);
+#else
+  native_link_go_to_url (url (target), from);
+#endif
+}
+
 void native_link_go_to_url (url target, object optional_from) {
-  const bool history= !is_null (optional_from);
-  if (history) cursor_history_add (as_path (car (optional_from)));
+  native_link_go_to_url (target, is_null (optional_from) ? std::nullopt :
+    std::optional<path> (as_path (car (optional_from))));
+}
+
+void native_link_go_to_url (url target, std::optional<path> from) {
+  const bool history= from.has_value ();
+  if (history) cursor_history_add (*from);
   if (native_vault_navigate_url (target, history)) return;
   const string text= as_string (target, URL_SYSTEM);
   const std::string original (text.data (), N(text));
@@ -616,11 +629,7 @@ void native_link_go_to_url (url target, object optional_from) {
       get_current_editor ()->set_message (compound ("verbatim", as_string (expanded, URL_SYSTEM)), "Not found");
     }
     else if (N(choices) == 1) browse_navigation_target (choices[0], original, post, history);
-    else {
-      array<object> encoded;
-      for (int i=0; i<N(choices); ++i) encoded << object (choices[i]);
-      native_link_disambiguation (as_list_object (encoded));
-    }
+    else native_link_disambiguation (choices);
     return;
   }
   const url base= split_link_url (target).first;

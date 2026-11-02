@@ -9,6 +9,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
+#include "link_markup.hpp"
 #include "Interface/edit_interface.hpp"
 #include "native_input_events.hpp"
 #include "tree_commands.hpp"
@@ -2299,13 +2300,13 @@ edit_interface_rep::apply_changes () {
     update_mouse_loci ();
     update_focus_loci ();
     if (!is_nil (focus_ids) && got_focus)
-      call ("link-follow-ids", object (focus_ids), object ("focus"));
+      native_link_follow_ids (focus_ids, "focus");
   }
   else if (env_change & THE_SELECTION) {
     update_focus_loci ();
     if (!headless_mode) qtm_tooltip_close ();
     if (!is_nil (focus_ids) && got_focus)
-      call ("link-follow-ids", object (focus_ids), object ("focus"));
+      native_link_follow_ids (focus_ids, "focus");
   }
   if (env_change & THE_LOCUS) {
     if (locus_new_rects != locus_rects) {

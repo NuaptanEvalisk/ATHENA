@@ -9,6 +9,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
+#include "link_markup.hpp"
 #include "edit_interface.hpp"
 #include "boot.hpp"
 #include "analyze.hpp"
@@ -387,7 +388,7 @@ edit_interface_rep::handle_keypress (string key, time_t t) {
     }
     update_focus_loci ();
     if (!is_nil (focus_ids) && got_focus)
-      call ("link-follow-ids", object (focus_ids), object ("focus"));
+      native_link_follow_ids (focus_ids, "focus");
     notify_change (THE_DECORATIONS);
     end_editing ();
     //time_t t2= texmacs_time ();
@@ -438,7 +439,7 @@ edit_interface_rep::handle_text_input (string text, time_t t) {
     (void) complete_try_realtime ();
     update_focus_loci ();
     if (!is_nil (focus_ids) && got_focus)
-      call ("link-follow-ids", object (focus_ids), object ("focus"));
+      native_link_follow_ids (focus_ids, "focus");
     notify_change (THE_DECORATIONS);
     end_editing ();
 #ifdef USE_EXCEPTIONS

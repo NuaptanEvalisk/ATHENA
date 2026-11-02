@@ -515,10 +515,18 @@ athena_open_auxiliary_document (string name, tree document, url master) {
 
 void
 native_link_disambiguation (object candidates) {
-  tree items (DOCUMENT);
+  array<url> targets;
   for (object remaining= candidates; !is_null (remaining); remaining= cdr (remaining)) {
-    const url target= as_url (car (remaining));
-    const string address= as_string (target);
+    targets << as_url (car (remaining));
+  }
+  native_link_disambiguation (targets);
+}
+
+void
+native_link_disambiguation (array<url> candidates) {
+  tree items (DOCUMENT);
+  for (int i=0; i<N(candidates); ++i) {
+    const string address= as_string (candidates[i]);
     items << tree (CONCAT, compound ("item"),
       tree (HLINK, compound ("verbatim", address), address));
   }

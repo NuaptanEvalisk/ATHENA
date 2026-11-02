@@ -614,6 +614,24 @@ generated native entries and remain on the secure-function list.
   were added or run. These changes and structured/geometry dispatch still await
   the next combined link/deployment; installed runtime remains `38e61043f`.
 
+## Native Link Entry Points
+
+- Mouse/keyboard focus events, hover/double-click handling and peek navigation
+  call native link functions directly; no fixed `go-to-url` or `link-follow-ids`
+  C++ name dispatch remains.
+- URL navigation now has a typed optional source path. An absent source and a
+  provided empty path remain distinct for history recording. The script adapter
+  only unpacks arguments. Native string navigation preserves the previous
+  Windows `url_system` conversion rather than changing path interpretation.
+- URL disambiguation accepts its native URL array directly instead of creating
+  an object list merely to iterate it again. The script-facing adapter remains
+  for its existing binding.
+- Compiled the six affected implementation units and the string-entry follow-up
+  with `-j16`; logs: `build_qt6/native-link-dispatch-build.log` and
+  `build_qt6/native-link-string-entry-build.log`. No new tests were needed for
+  the direct API transition. Full linking/deployment remains pending together
+  with the preceding structured/insertion batches.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

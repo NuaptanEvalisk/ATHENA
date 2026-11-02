@@ -462,7 +462,7 @@ edit_interface_rep::mouse_message (string message, SI x, SI y) {
       r[1]->label, as_double (r[2]->label), as_double (r[3]->label),
       as_path (r[4]->label));
   if (is_tuple (r, "direct-link", 1) && is_atomic (r[1])) {
-    call ("go-to-url", object (r[1]->label));
+    native_link_go_to_url (r[1]->label);
     return true;
   }
   return r != "";
@@ -492,7 +492,7 @@ edit_interface_rep::mouse_extra_click (SI x, SI y) {
   if (!move_to_physical (x, y)) return false;
   if (mouse_message ("double-click", x, y)) return true;
   if (!is_nil (mouse_ids)) {
-    call ("link-follow-ids", object (mouse_ids), object ("double-click"));
+    native_link_follow_ids (mouse_ids, "double-click");
     return true;
   }
   if (!move_to_physical (x, y)) return false;
@@ -582,7 +582,7 @@ edit_interface_rep::mouse_select (SI x, SI y, int mods, bool drag) {
   if (mouse_message ("select" , x, y)) return;
   if (!is_nil (mouse_ids) && (mods & (ShiftMask+Mod2Mask)) == 0 && !drag) {
     if (!native_link_has_cardlink (mouse_ids)) {
-      call ("link-follow-ids", object (mouse_ids), object ("click"));
+      native_link_follow_ids (mouse_ids, "click");
       disable_double_clicks ();
       return;
     }
@@ -997,7 +997,7 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
     // NOTE: this notification is needed to prevent the window to scroll to
     // the current cursor position when hovering over the locus
     // but a cleaner solution would be welcome
-    call ("link-follow-ids", object (mouse_ids), object ("mouse-over"));
+    native_link_follow_ids (mouse_ids, "mouse-over");
   }
   if (type == "move") {
     mouse_message ("move", x, y);
