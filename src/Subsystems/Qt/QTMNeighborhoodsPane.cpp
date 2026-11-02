@@ -15,7 +15,7 @@
 #include "QTMToast.hpp"
 #include "new_buffer.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
+#include "ATHENA/Data/application_lifecycle.hpp"
 #include "vault.hpp"
 
 #include <DockManager.h>
@@ -56,8 +56,7 @@ tm_string (const QString& s) {
 static void
 neighborhoods_load_file (url file) {
   if (is_none (file)) return;
-  exec_delayed (scheme_cmd (list_object (symbol_object ("load-buffer"),
-                            object (file))));
+  application_queue_open_document (file);
   QTimer::singleShot (120, [] () { neighborhoods_pane_refresh (); });
 }
 

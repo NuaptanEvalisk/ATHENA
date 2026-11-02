@@ -18,7 +18,7 @@
 #include "boot.hpp"
 #include "namespaces.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
+#include "ATHENA/Data/application_lifecycle.hpp"
 #include "vault.hpp"
 
 #include <DockWidget.h>
@@ -2109,8 +2109,7 @@ QTMNamespaceManager::editHomepage () {
                           "Homepage file does not exist.");
     return;
   }
-  exec_delayed (scheme_cmd (list_object (symbol_object ("load-buffer"),
-                            object (url_system (from_qstring (abs))))));
+  application_queue_open_document (url_system (from_qstring (abs)));
 }
 
 void

@@ -22,7 +22,7 @@
 #include "namespace_ontology.hpp"
 #include "namespaces.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
+#include "ATHENA/Data/application_lifecycle.hpp"
 #include "vault.hpp"
 
 #include <DockAreaWidget.h>
@@ -120,23 +120,6 @@ namespace_explorer_relative_path (const QString& root, const QString& path) {
   return rel == "." ? QFileInfo (path).fileName () : rel;
 }
 
-static string
-namespace_explorer_scheme_quote (const QString& s) {
-  QByteArray bytes= s.toUtf8 ();
-  std::string out= "\"";
-  for (char ch: bytes) {
-    unsigned char c= (unsigned char) ch;
-    if (c == '\\') out += "\\\\";
-    else if (c == '"') out += "\\\"";
-    else if (c == '\n') out += "\\n";
-    else if (c == '\r') out += "\\r";
-    else if (c == '\t') out += "\\t";
-    else out.push_back ((char) c);
-  }
-  out += "\"";
-  return string (out.c_str ());
-}
-
 static QString
 namespace_explorer_namespace_url (const QStringList& path, bool technical) {
   QStringList parts= path;
@@ -148,8 +131,7 @@ namespace_explorer_namespace_url (const QStringList& path, bool technical) {
 static void
 namespace_explorer_load_url (const QString& tmfs) {
   if (tmfs.isEmpty ()) return;
-  exec_delayed (scheme_cmd ("(load-buffer (string->url " *
-                            namespace_explorer_scheme_quote (tmfs) * "))"));
+  application_queue_open_document (url (from_qstring (tmfs)));
 }
 
 static void
@@ -642,8 +624,7 @@ QTMNamespaceExplorer::openFile (QTreeWidgetItem* item) {
   if (path.isEmpty () || !pathInVault (path) || !QFileInfo::exists (path))
     return;
 
-  exec_delayed (scheme_cmd (list_object (symbol_object ("load-buffer"),
-                            object (url_system (from_qstring (path))))));
+  application_queue_open_document (url_system (from_qstring (path)));
 }
 
 void

@@ -990,9 +990,6 @@
     <arg type="tree" />
   </binding>
   <binding name="wheel-capture?" native="generic_wheel_capture" returns="bool" />
-  <binding name="wheel-event" native="generic_wheel_event" returns="void">
-    <arg type="object" /><arg type="object" />
-  </binding>
   <binding name="focus-has-variants?" native="generic_focus_has_variants" returns="bool">
     <arg type="tree" />
   </binding>

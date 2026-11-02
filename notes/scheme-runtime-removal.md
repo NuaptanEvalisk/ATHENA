@@ -143,15 +143,28 @@ with runtime removal; native automation must use the existing interop API.
   exercised interactively. Temporary data was removed; successful logs are
   `build_qt6/native-file-keyboard-{build,deploy,runtime}.log`.
 
+- Explorer, Namespace, neighborhood and reverse-hierarchy document opening now
+  queues native lifecycle work on the GUI owner, without Scheme source quoting
+  or expression construction. Global-search UUID fallback and formula AST
+  inspection schedule native work on the current document's actor/view.
+  Swipe events call native structured-edit handlers directly; the unused empty
+  wheel-event callback and binding are removed. Qt business pages no longer
+  construct Scheme commands; the general delayed-execution infrastructure still
+  remains for editor source mutations and script actions.
+- Removed the retired `Subsystems/Gnutls` contact implementation and its three
+  unused certificate bindings. Whole-source/resource searches found no caller
+  of either contact factory or certificate API outside the dead implementation
+  and glue declarations. This removes its invalid certificate callback/session
+  handling rather than porting unreachable functionality. Hodarium's active
+  `ATHENA/Hodarium/peer_tls.cpp`, system GnuTLS dependency and native TLS
+  verification are unchanged.
+  The combined -j16 build and official local deployment passed. No new tests
+  were added or run for these direct substitutions and dead-code removals;
+  the actual window interactions were not exercised. Logs are under
+  `build_qt6/native-navigation-cleanup-{build,deploy}.log`.
+
 ## Known Outstanding Failures
 
-- `gnutls.cpp` still invokes missing certificate-interaction callbacks and
-  overwrites the handshake error with a status-formatting result.
-  A follow-up source search found no callers of either legacy TLS contact
-  factory outside that file. Its certificate utilities appear only in generated
-  binding declarations; audit their remaining consumers before migrating this
-  potentially dead legacy networking layer. Hodarium's `peer_tls.cpp` is an
-  independent active GnuTLS consumer and must not be removed with it.
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
   inconsistent. See the concrete core evidence in `native-application-ui.md`.
 

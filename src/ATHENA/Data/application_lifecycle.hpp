@@ -32,6 +32,7 @@ void application_open_auxiliary (string name, tree body, object master);
 void application_open_document_dialog ();
 void application_open_window_dialog ();
 void application_open_document_url (url source);
+void application_queue_open_document (url source);
 void application_open_window_url (url source);
 
 #endif

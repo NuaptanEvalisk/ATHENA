@@ -45,7 +45,6 @@ void generic_swipe_down ();
 void generic_structured_maximize (tree t);
 void generic_structured_minimize (tree t);
 bool generic_wheel_capture ();
-void generic_wheel_event (object x, object y);
 bool generic_focus_has_variants (tree t);
 bool generic_focus_has_toggles (tree t);
 bool generic_focus_can_move (tree t);

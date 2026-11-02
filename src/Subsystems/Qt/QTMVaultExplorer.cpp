@@ -16,7 +16,7 @@
 #include "editor.hpp"
 #include "boot.hpp"
 #include "scheme_execution_context.hpp"
-#include "scheme.hpp"
+#include "ATHENA/Data/application_lifecycle.hpp"
 #include "qt_utilities.hpp"
 #include "vault.hpp"
 #include "namespaces.hpp"
@@ -285,8 +285,7 @@ QTMVaultExplorer::loadIndex (const QModelIndex& index) {
 
   QString suffix= info.suffix ().toLower ();
   if (suffix == "ath" || suffix == "tm") {
-    exec_delayed (scheme_cmd (list_object (symbol_object ("load-buffer"),
-                              object (url_system (from_qstring (path))))));
+    application_queue_open_document (url_system (from_qstring (path)));
   }
   else {
     QDesktopServices::openUrl (QUrl::fromLocalFile (path));

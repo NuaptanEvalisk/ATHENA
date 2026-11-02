@@ -523,6 +523,10 @@ void application_open_window_dialog () { open_document_dialog (true); }
 void application_open_document_url (url source) {
   if (!is_none (source)) application_load_document (source, null_object ());
 }
+void application_queue_open_document (url source) {
+  const std::string name= encode (source);
+  on_gui ([name] { application_open_document_url (url (name.c_str ())); });
+}
 void application_open_window_url (url source) {
   if (!is_none (source)) application_load_document_window (source, null_object ());
 }

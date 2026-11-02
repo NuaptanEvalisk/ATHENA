@@ -11,6 +11,7 @@
 
 #include "edit_interface.hpp"
 #include "native_input_events.hpp"
+#include "structured_commands.hpp"
 #include "format_geometry.hpp"
 #include "Interface/selection_autoscroll.hpp"
 #include "Interface/table_resize.hpp"
@@ -1033,7 +1034,10 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
     popup_open= false;
   }
 
-  if (starts (type, "swipe-")) eval ("(" * type * ")");
+  if (type == "swipe-left") generic_swipe_left ();
+  else if (type == "swipe-right") generic_swipe_right ();
+  else if (type == "swipe-up") generic_swipe_up ();
+  else if (type == "swipe-down") generic_swipe_down ();
   if (inside_active_graphics (true)) {
     if (type == "pinch-start") {
       native_graphics_canvas_pinch_start ();
@@ -1180,9 +1184,6 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
       (type == "press-right"))
     notify_change (THE_DECORATIONS);
 
-  if (type == "wheel" && N(data) == 2)
-    eval ("(wheel-event " * as_string (data[0]) *
-          " " * as_string (data[1]) * ")");
 }
 
 /******************************************************************************

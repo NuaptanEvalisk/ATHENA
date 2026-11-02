@@ -231,10 +231,9 @@ This is not complete Guile removal. Further bounded work remains:
   expression evaluation or fallback. Argument/result marshalling and the
   reentrant environment scope still depend on Guile. Explicit command-line
   scripts also remain until the value/runtime migration is complete.
-- GnuTLS certificate-error handling calls two missing interactive procedures.
-  Its status-print call also overwrites the handshake return code. Audit the
-  handshake lifecycle before replacing that interaction; do not silently trust
-  an invalid certificate or treat an error as success.
+- The obsolete GnuTLS contact layer and its unused certificate bindings were
+  removed after confirming no callers. This also removes its broken certificate
+  callback/error handling. Hodarium's independent native TLS remains in use.
 - The obsolete `ext-tmhtml-eqnarray*` export hook and style Scheme-module
   loading are removed. A `use-module` node now reports an explicit error.
 - The exception-boundary failure described above is still separate work.

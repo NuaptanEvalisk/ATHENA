@@ -13,7 +13,7 @@
 #include "QTMMainTabWindow.hpp"
 #include "editor.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
+#include "new_buffer.hpp"
 #include "new_view.hpp"
 
 #include <DockWidget.h>
@@ -440,7 +440,9 @@ formula_ast_show () {
       showError ("No active document editor.");
       return;
     }
-    exec_delayed (scheme_cmd ("(formula-ast-show)"));
+    qt_schedule_buffer_idle (get_current_buffer_safe (), 0, [] {
+      formula_ast_show ();
+    });
     return;
   }
   editor ed= get_current_editor ();

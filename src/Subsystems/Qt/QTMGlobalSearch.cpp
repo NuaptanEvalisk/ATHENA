@@ -34,6 +34,7 @@
 #include "renderer.hpp"
 #include "scheme.hpp"
 #include "link.hpp"
+#include "link_markup.hpp"
 #include "tm_buffer.hpp"
 #include "tm_ostream.hpp"
 #include "tm_window.hpp"
@@ -1096,9 +1097,10 @@ QTMGlobalSearch::openResult (QListWidgetItem* item) {
 
   const Result result= results[index];
   if (!result.occurrenceAvailable && !result.sourceUuid.isEmpty ()) {
-    const url target (from_qstring ("tmfs://wikilink/" + result.sourceUuid));
-    exec_delayed (scheme_cmd (list_object (symbol_object ("go-to-url"),
-                                          object (target))));
+    const std::string target= ("tmfs://wikilink/" + result.sourceUuid).toStdString ();
+    qt_schedule_buffer_idle (get_current_buffer_safe (), 0, [target] {
+      native_link_go_to_url (url (target.c_str ()), null_object ());
+    });
     return;
   }
   if (!result.occurrenceAvailable) {

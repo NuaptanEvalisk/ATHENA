@@ -28,7 +28,7 @@
 #include "new_buffer.hpp"
 #include "new_view.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
+#include "ATHENA/Data/application_lifecycle.hpp"
 #include "tm_ostream.hpp"
 #include "vault.hpp"
 
@@ -259,8 +259,7 @@ file_node_kind (const QString& kind) {
 static void
 open_graph_url (const QString& target) {
   if (target.isEmpty ()) return;
-  exec_delayed (scheme_cmd ("(load-buffer (string->url " *
-                            scm_quote (from_qstring (target)) * "))"));
+  application_queue_open_document (url (from_qstring (target)));
 }
 
 static void

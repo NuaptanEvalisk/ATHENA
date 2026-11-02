@@ -2454,15 +2454,6 @@
   <binding name="sql-quote" native="sql_quote" returns="string">
     <arg type="string" />
   </binding>
-  <binding name="generate-self-signed-certificate" native="generate_self_signed" returns="bool">
-    <arg type="scheme_tree" />
-    <arg type="url" />
-    <arg type="url" />
-  </binding>
-  <binding name="trust-certificate" native="trust_certificate" returns="bool">
-    <arg type="string" />
-  </binding>
-  <binding name="disable-certificate-time-checks" native="disable_certificate_time_checks" returns="void" />
   <binding name="tree-bounding-rectangle" native="get_bounding_rectangle" returns="array_int">
     <arg type="tree" />
   </binding>

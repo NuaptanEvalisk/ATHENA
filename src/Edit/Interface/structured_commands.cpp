@@ -439,7 +439,6 @@ void generic_structured_maximize (tree t) { if (!presentation_structured (t, "ma
 void generic_structured_minimize (tree t) { if (!presentation_structured (t, "minimize", false)) outward (t, "structured-minimize"); }
 
 bool generic_wheel_capture () { return false; }
-void generic_wheel_event (object, object) {}
 
 bool generic_focus_has_variants (tree t) {
   object variants= call ("focus-variants-of", object (t));

@@ -88,7 +88,6 @@
 #include "iterator.hpp"
 #include "Freetype/tt_tools.hpp"
 #include "Sqlite3/sqlite3.hpp"
-#include "Gnutls/gnutls.hpp"
 
 #include <utility>
 
