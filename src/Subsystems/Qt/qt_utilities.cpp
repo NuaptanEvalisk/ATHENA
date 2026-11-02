@@ -191,15 +191,28 @@ void qt_schedule_editor_task (int delay, std::function<int()> action) {
                      delay, std::move (action));
 }
 
-void qt_schedule_editor_idle (int idle, std::function<void()> action) {
+static std::function<int()> editor_idle_action (int idle, std::function<void()> action) {
   const time_t start= texmacs_time ();
-  qt_schedule_editor_task (0, [idle, start, action= std::move (action)] {
+  return [idle, start, action= std::move (action)] {
     const int remaining= headless_mode ? idle - int (texmacs_time () - start) :
       idle - get_current_editor ()->idle_time ();
     if (remaining > 0) return remaining;
     action ();
     return -1;
-  });
+  };
+}
+
+void qt_schedule_editor_idle (int idle, std::function<void()> action) {
+  qt_schedule_editor_task (0, editor_idle_action (idle, std::move (action)));
+}
+
+void qt_schedule_buffer_idle (url buffer, int idle, std::function<void()> action) {
+  ASSERT (current_scheme_execution_context () == nullptr,
+          "buffer idle scheduling requires the GUI owner");
+  tm_view view= concrete_view (get_recent_view (buffer));
+  if (view == nullptr) return;
+  queue_editor_task (view->buf->actor->id (), view->runtime_id, 0,
+                     editor_idle_action (idle, std::move (action)));
 }
 
 bool

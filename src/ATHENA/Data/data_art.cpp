@@ -471,19 +471,19 @@ bool athena_data_art_cover_present (url source) {
   return cover_present (get_buffer_body (source));
 }
 
-static object generate_cover (url source, tree body) {
+static url generate_cover (url source, tree body) {
   url cover= glue (url_temp (), ".png");
   string seed= "ATHENA DataArt cover seed\n" * as_string (source) * "\n\n" *
     tree_to_scheme (body);
   string error= athena_data_art_generate (seed, cover);
-  if (error == "" && exists (cover)) return object (cover);
+  if (error == "" && exists (cover)) return cover;
   if (exists (cover)) remove (cover);
   std_warning << "data-art cover generation failed"
               << (error == "" ? string ("") : ": " * error) << "\n";
-  return object (false);
+  return url_none ();
 }
 
-object athena_data_art_generate_cover (url source) {
+url athena_data_art_generate_cover (url source) {
   return generate_cover (source, get_buffer_body (source));
 }
 
@@ -514,11 +514,11 @@ object athena_data_art_prepare_export (url source, object target) {
     return object (false);
   tree body= get_buffer_body (source);
   if (cover_present (body)) return object (false);
-  object cover= generate_cover (source, body);
-  if (is_bool (cover)) return object (false);
-  body= insert_cover (body, as_url (cover));
+  url cover= generate_cover (source, body);
+  if (is_none (cover)) return object (false);
+  body= insert_cover (body, cover);
   return object (athena_data_art_export_payload (
-    get_buffer_tree (source), body, as_url (cover), athena_data_art_source_version ()));
+    get_buffer_tree (source), body, cover, athena_data_art_source_version ()));
 }
 
 void athena_data_art_insert_cover (url source, url cover) {

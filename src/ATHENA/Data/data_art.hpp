@@ -25,7 +25,7 @@ int athena_data_art_source_version ();
 bool athena_data_art_enabled ();
 bool athena_data_art_pdf_target (object target);
 bool athena_data_art_cover_present (url source);
-object athena_data_art_generate_cover (url source);
+url athena_data_art_generate_cover (url source);
 tree athena_data_art_body_with_cover (tree body, url cover);
 tree athena_data_art_doc_data_with_cover (tree body, url cover);
 tree athena_data_art_export_payload (tree document, tree body, url cover, int version);

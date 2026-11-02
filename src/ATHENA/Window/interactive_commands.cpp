@@ -3,6 +3,7 @@
 #include "interactive_commands.hpp"
 #include "guile_tm.hpp"
 #include "file.hpp"
+#include "convert.hpp"
 #include "editor.hpp"
 #include "server.hpp"
 #include "new_buffer.hpp"
@@ -26,30 +27,76 @@
 #include <memory>
 #include <mutex>
 #include <vector>
+#include <algorithm>
 
 namespace {
 bool is_pair (object value) { return tmscm_is_pair (object_to_tmscm (value)); }
 QJsonObject command_properties;
 std::mutex history_mutex;
 std::once_flag history_loaded;
-std::map<std::string, std::string> history;
+std::map<std::string, interactive_history_rows> history;
 bool history_modified= false;
 std::string bytes (string value) { return std::string (value.data (), N(value)); }
 void load_history () {
   std::call_once (history_loaded, [] {
-    const url source ("$ATHENA_HOME_PATH/system/interactive.scm");
-    if (!exists (source)) return;
+    const url current ("$ATHENA_HOME_PATH/system/interactive.json");
     string text;
-    if (load_string (source, text, false)) return;
-    for (object entries= string_to_object (text); is_pair (entries); entries= cdr (entries)) {
-      object entry= car (entries);
-      history[bytes (as_symbol (car (entry)))]= bytes (object_to_string (cdr (entry)));
+    if (exists (current)) {
+      if (load_string (current, text, false))
+        throw std::runtime_error ("Could not read interactive history");
+      QJsonParseError error;
+      const auto document= QJsonDocument::fromJson (QByteArray (text.data (), N(text)), &error);
+      const auto root= document.object ();
+      if (error.error != QJsonParseError::NoError || root["version"].toInt () != 1 ||
+          !root["commands"].isObject ())
+        throw std::runtime_error ("Invalid interactive history");
+      const auto commands= root["commands"].toObject ();
+      for (auto command= commands.begin (); command != commands.end (); ++command) {
+        if (!command.value ().isArray ()) throw std::runtime_error ("Invalid history rows");
+        interactive_history_rows rows;
+        for (const auto& entry: command.value ().toArray ()) {
+          if (!entry.isObject ()) throw std::runtime_error ("Invalid history row");
+          interactive_history_row row;
+          const auto fields= entry.toObject ();
+          for (auto field= fields.begin (); field != fields.end (); ++field) {
+            if (!field.value ().isString ()) throw std::runtime_error ("Invalid history value");
+            row[field.key ().toStdString ()]= field.value ().toString ().toStdString ();
+          }
+          rows.push_back (std::move (row));
+        }
+        history.emplace (command.key ().toStdString (), std::move (rows));
+      }
+      return;
     }
+
+    // Legacy history is data, not code. Import only string and URL answers;
+    // obsolete non-text values remain available in the untouched source file.
+    const url legacy ("$ATHENA_HOME_PATH/system/interactive.scm");
+    if (!exists (legacy) || load_string (legacy, text, false)) return;
+    const tree entries= string_to_scheme_tree (text);
+    for (int i=0; i<N(entries); ++i) {
+      const tree entry= entries[i];
+      if (!is_tuple (entry) || N(entry) != 3 || !is_atomic (entry[0]) ||
+          entry[1] != "." || !is_tuple (entry[2])) continue;
+      interactive_history_rows rows;
+      for (int j=0; j<N(entry[2]); ++j) {
+        const tree fields= entry[2][j];
+        interactive_history_row row;
+        for (int k=0; k<N(fields); ++k) {
+          const tree field= fields[k];
+          if (!is_tuple (field) || N(field) != 3 || !is_atomic (field[0]) ||
+              !is_quoted (field[0]->label) || !is_atomic (field[2]) ||
+              !is_quoted (field[2]->label)) continue;
+          if (field[1] != "." && field[1] != "system->url" &&
+              field[1] != "string->url") continue;
+          row[bytes (scm_unquote (field[0]->label))]= bytes (scm_unquote (field[2]->label));
+        }
+        if (!row.empty ()) rows.push_back (std::move (row));
+      }
+      history[bytes (entry[0]->label)]= std::move (rows);
+    }
+    history_modified= true;
   });
-}
-object get_history (string name) {
-  const auto found= history.find (bytes (name));
-  return found == history.end () ? null_object () : string_to_object (string (found->second.c_str ()));
 }
 }
 
@@ -64,28 +111,19 @@ void interactive_properties_initialize () {
   command_properties= document.object ();
 }
 
-void interactive_learn (string name, object values) {
-  array<object> normalized;
-  for (; is_pair (values); values= cdr (values)) {
-    object entry= car (values), value= cdr (entry);
-    if (is_tree (value)) value= tree_to_stree (as_tree (value));
-    else if (is_bool (value)) value= object (as_bool (value) ? "true" : "false");
-    normalized << cons (car (entry), value);
-  }
-  const object row= as_list_object (normalized);
+void interactive_learn (string name, interactive_history_row values) {
   load_history ();
   std::lock_guard<std::mutex> guard (history_mutex);
-  array<object> rows;
-  rows << row;
-  for (object old= get_history (name); is_pair (old); old= cdr (old))
-    if (car (old) != row) rows << car (old);
-  history[bytes (name)]= bytes (object_to_string (as_list_object (rows)));
+  auto& rows= history[bytes (name)];
+  rows.erase (std::remove (rows.begin (), rows.end (), values), rows.end ());
+  rows.insert (rows.begin (), std::move (values));
   history_modified= true;
 }
-object interactive_learned (string name) {
+interactive_history_rows interactive_learned (string name) {
   load_history ();
   std::lock_guard<std::mutex> guard (history_mutex);
-  return get_history (name);
+  const auto found= history.find (bytes (name));
+  return found == history.end () ? interactive_history_rows () : found->second;
 }
 void interactive_forget (string name) {
   load_history ();
@@ -97,12 +135,24 @@ void interactive_history_save () {
   load_history ();
   std::lock_guard<std::mutex> guard (history_mutex);
   if (!history_modified) return;
-  string text= "(\n";
-  for (const auto& entry: history)
-    text << "(" << object_to_string (symbol_object (string (entry.first.c_str ())))
-         << " . " << string (entry.second.c_str ()) << ")\n";
-  text << ")\n";
-  if (!save_string ("$ATHENA_HOME_PATH/system/interactive.scm", text)) history_modified= false;
+  QJsonObject commands;
+  for (const auto& entry: history) {
+    QJsonArray rows;
+    for (const auto& row: entry.second) {
+      QJsonObject fields;
+      for (const auto& field: row)
+        fields[QString::fromStdString (field.first)]= QString::fromStdString (field.second);
+      rows.append (fields);
+    }
+    commands[QString::fromStdString (entry.first)]= rows;
+  }
+  QJsonObject root;
+  root["version"]= 1;
+  root["commands"]= commands;
+  const QByteArray data= QJsonDocument (root).toJson (QJsonDocument::Compact);
+  if (!save_string ("$ATHENA_HOME_PATH/system/interactive.json",
+                   string (data.constData (), data.size ())))
+    history_modified= false;
 }
 void interactive_command (string function, array<string> labels) {
   const auto* context= current_scheme_execution_context ();
@@ -114,7 +164,7 @@ void interactive_command (string function, array<string> labels) {
   if (N(labels) == 0 && arguments.isEmpty ())
     throw std::invalid_argument ("Missing interactive argument metadata: " + bytes (function));
 
-  const object learned= interactive_learned (function);
+  const auto learned= interactive_learned (function);
   std::vector<QTMInteractiveField> fields;
   std::vector<bool> passwords;
   const int count= N(labels) ? N(labels) : arguments.size ();
@@ -132,18 +182,14 @@ void interactive_command (string function, array<string> labels) {
       if (is_string (initial)) field.proposals << as_string (initial);
       else if (is_url (initial)) field.proposals << as_string (as_url (initial));
     }
-    for (object rows= learned; is_pair (rows); rows= cdr (rows)) {
-      for (object row= car (rows); is_pair (row); row= cdr (row)) {
-        if (car (car (row)) != object (as_string (i))) continue;
-        const object value= cdr (car (row));
-        if (!is_string (value)) break;
-        const string proposal= as_string (value);
-        bool present= false;
-        for (int j=0; j<N(field.proposals); ++j)
-          present= present || field.proposals[j] == proposal;
-        if (!present) field.proposals << proposal;
-        break;
-      }
+    for (const auto& row: learned) {
+      const auto found= row.find (std::to_string (i));
+      if (found == row.end ()) continue;
+      const string proposal (found->second.data (), found->second.size ());
+      bool present= false;
+      for (int j=0; j<N(field.proposals); ++j)
+        present= present || field.proposals[j] == proposal;
+      if (!present) field.proposals << proposal;
     }
     passwords.push_back (field.type == "password");
     fields.push_back (std::move (field));
@@ -157,14 +203,13 @@ void interactive_command (string function, array<string> labels) {
         [command, passwords, answers= std::move (answers)] {
           if (current_scheme_execution_context ()->editor == nullptr) return;
           array<object> arguments;
-          object learned= null_object ();
+          interactive_history_row learned;
           for (const auto& answer: answers)
             arguments << object (string (answer.data (), answer.size ()));
-          for (int i=N(arguments)-1; i>=0; --i)
-            learned= cons (cons (object (as_string (i)),
-              passwords[i] ? object ("") : arguments[i]), learned);
+          for (std::size_t i=0; i<answers.size (); ++i)
+            learned[std::to_string (i)]= passwords[i] ? std::string () : answers[i];
           const string function (command.data (), command.size ());
-          interactive_learn (function, learned);
+          interactive_learn (function, std::move (learned));
           object result;
           if (!native_dispatch_call (function, arguments, result))
             throw std::invalid_argument ("Unknown native interactive command: " + command);
@@ -177,18 +222,6 @@ void interactive_command (string function, array<string> labels) {
     });
 }
 
-void interactive_schedule_idle (int milliseconds, object continuation) {
-  struct retained_callback {
-    athena_scheme_handle_id handle;
-    explicit retained_callback (object value):
-      handle (scheme_command_handle_acquire (object_to_tmscm (value))) {}
-    ~retained_callback () { scheme_command_handle_release (handle); }
-  };
-  auto callback= std::make_shared<retained_callback> (continuation);
-  qt_schedule_editor_idle (milliseconds, [callback] {
-    call (tmscm_to_object (scheme_command_handle_value (callback->handle)));
-  });
-}
 void interactive_startup () {
   qt_schedule_editor_idle (10000, document_autosave_schedule);
   if (headless_mode) return;

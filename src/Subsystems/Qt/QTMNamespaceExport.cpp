@@ -33,6 +33,8 @@
 #include "tm_ostream.hpp"
 #include "tree.hpp"
 #include "vault.hpp"
+#include "ATHENA/Data/data_art.hpp"
+#include "generic_frontend.hpp"
 
 #include <QApplication>
 #include <QByteArray>
@@ -1320,18 +1322,19 @@ build_export_document (const ExportContext& cx,
 
 static void
 schedule_export_finalization (url buffer, bool includeDataArt) {
-  string b= as_string (buffer);
-  string cmd= "(schedule-idle 1 (lambda () ";
-  if (includeDataArt) {
-    cmd << "(let* ((buf (string->url " << scm_quote (b) << ")) "
-        << "(cover (data-art-generate-cover buf))) "
-        << "(when cover "
-        << "(data-art-insert-cover-in-doc-data-buffer buf cover))) ";
-  }
-  cmd << "(switch-to-buffer (string->url " << scm_quote (b) << ")) "
-      << "(update-document \"all\") "
-      << "(schedule-idle 1000 (lambda () (system-wait \"\" \"\")))))";
-  exec_delayed (scheme_cmd (cmd));
+  const string source= as_string (buffer);
+  const std::string name (source.data (), N(source));
+  qt_schedule_buffer_idle (buffer, 1, [name, includeDataArt] {
+    const url target (string (name.data (), name.size ()));
+    if (includeDataArt) {
+      const url cover= athena_data_art_generate_cover (target);
+      if (!is_none (cover)) athena_data_art_insert_doc_data_cover (target, cover);
+    }
+    generic_update_document ("all");
+    qt_schedule_editor_idle (1000, [] {
+      qt_post_to_main_thread ([] { system_wait ("", ""); });
+    });
+  });
 }
 
 static bool

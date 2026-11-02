@@ -1,6 +1,5 @@
 // Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later.
 #include "recent_files.hpp"
-#include "scheme.hpp"
 #include "ATHENA/Window/interactive_commands.hpp"
 #include "analyze.hpp"
 
@@ -12,9 +11,12 @@ bool autosave_file (url name) {
 
 array<url> recent_file_list (int limit) {
   array<url> result;
-  object entries= interactive_learned ("recent-buffer");
-  for (; !is_null (entries) && N(result) < limit; entries= cdr (entries)) {
-    url name= url_unix (as_string (cdr (car (car (entries)))));
+  const auto entries= interactive_learned ("recent-buffer");
+  for (const auto& entry: entries) {
+    if (N(result) >= limit) break;
+    const auto value= entry.find ("0");
+    if (value == entry.end ()) continue;
+    url name= url_unix (string (value->second.data (), value->second.size ()));
     if (is_rooted_tmfs (name) &&
         !starts (as_string (name, URL_UNIX), "tmfs://part/")) continue;
     if (!autosave_file (name)) result << name;
@@ -24,7 +26,7 @@ array<url> recent_file_list (int limit) {
 
 void buffer_notify_recent (url name) {
   if (autosave_file (name)) return;
-  interactive_learn ("recent-buffer",
-        list_object (cons (object ("0"), object (as_string (name, URL_UNIX)))));
+  const string text= as_string (name, URL_UNIX);
+  interactive_learn ("recent-buffer", {{"0", std::string (text.data (), N(text))}});
   interactive_history_save ();
 }

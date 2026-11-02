@@ -37,6 +37,8 @@ void qt_post_to_main_thread (std::function<void()> action);
 // work. Return a delay in milliseconds to repeat, or a negative value to stop.
 void qt_schedule_editor_task (int delay, std::function<int()> action);
 void qt_schedule_editor_idle (int idle, std::function<void()> action);
+// GUI-owned entry: bind work to this buffer before the active tab can change.
+void qt_schedule_buffer_idle (url buffer, int idle, std::function<void()> action);
 class object;
 object qt_call_in_buffer (url buffer, const char* function, array<object> args);
 object qt_call_in_buffer (url buffer, const char* function);

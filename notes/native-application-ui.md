@@ -218,12 +218,15 @@ was added or run for these direct-call substitutions.
 
 This is not complete Guile removal. Further bounded work remains:
 
-- Other native business callers still dispatch by Scheme procedure name.
+- XML-defined named calls now use generated native dispatch. Remaining runtime
+  builtins and procedure-valued callbacks still enter Guile.
 - Keyboard registry actions, mode conditions and user shortcuts now use native
   callbacks (`3202f1eaa`); JSON expression arguments and inverse lookups still
   use Scheme values. See `scheme-runtime-removal.md` for the complete goal.
-- UI callbacks, observers, actor Scheme handles and interactive properties
-  retain Guile objects; ownership must survive their replacement.
+- UI callbacks, observers and actor Scheme handles retain Guile objects;
+  ownership must survive their replacement. Interactive fields now use native
+  JSON metadata and asynchronous Qt forms, while argument/recent-file history
+  uses native containers and JSON persistence.
 - Style `extern` now selects only generated native entries, without Scheme
   expression evaluation or fallback. Argument/result marshalling and the
   reentrant environment scope still depend on Guile. Explicit command-line

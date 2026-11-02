@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
   <binding name="tm-select" native="native_tree_select" returns="object" exceptions="scheme"><arg type="object" /><arg type="object" /></binding>
-  <binding name="schedule-idle" native="interactive_schedule_idle" returns="void"><arg type="int" /><arg type="procedure" /></binding>
   <binding name="native-dialogue-initialize" native="interactive_startup" returns="void" />
   <binding name="choose-file" native="interactive_choose_file" returns="void" exceptions="scheme"><arg type="procedure" /><arg type="string" /><arg type="string" /><arg type="object" rest="true" /></binding>
   <binding name="get-preference" native="application_preference_get" returns="object"><arg type="string" /></binding>
@@ -1944,7 +1943,6 @@
   <binding name="data-art-enabled?" native="athena_data_art_enabled" returns="bool" />
   <binding name="data-art-pdf-target?" native="athena_data_art_pdf_target" returns="bool"><arg type="object" /></binding>
   <binding name="data-art-cover-present-in-buffer?" native="athena_data_art_cover_present" returns="bool" exceptions="scheme"><arg type="url" /></binding>
-  <binding name="data-art-generate-cover" native="athena_data_art_generate_cover" returns="object" exceptions="scheme"><arg type="url" /></binding>
   <binding name="data-art-body-with-cover" native="athena_data_art_body_with_cover" returns="tree" exceptions="scheme"><arg type="tree" /><arg type="url" /></binding>
   <binding name="data-art-doc-data-with-cover" native="athena_data_art_doc_data_with_cover" returns="tree" exceptions="scheme"><arg type="tree" /><arg type="url" /></binding>
   <binding name="data-art-export-payload" native="athena_data_art_export_payload" returns="tree" exceptions="scheme"><arg type="tree" /><arg type="tree" /><arg type="url" /><arg type="int" /></binding>

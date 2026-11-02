@@ -71,10 +71,10 @@ with runtime removal; native automation must use the existing interop API.
   keyboard prewarming and autosave scheduling no longer construct Scheme
   commands. Delayed editor tasks retain actor/view identity and use native
   continuation mailboxes; ownerless startup work adopts a concrete view before
-  executing. The transitional `schedule-idle` binding still retains an existing
-  Scheme callback for namespace export, but no longer creates a second lambda
-  or uses a Scheme idle-step procedure. That consumer and the general delayed
-  Scheme queue still need removal.
+  executing. At that stage, the transitional `schedule-idle` binding retained
+  a callback for namespace export. That binding and consumer are now removed
+  by the native export finalization described below; the general delayed
+  Scheme queue still needs removal.
   The -j16 build and deployment passed. A headless runtime check opened another
   buffer before the delayed callback and confirmed the callback still mutated
   its original buffer. The first offscreen-GUI probe waited indefinitely because
@@ -91,14 +91,35 @@ with runtime removal; native automation must use the existing interop API.
   Removed procedure introspection, lazy-definition forcing, property-table
   initialization and the old server/frame interactive interface. Defunct
   command-input shortcuts now open the existing native command palette.
-  Recent-file and argument-history APIs use explicit command names; their
-  persisted value containers still depend on `object` and remain to migrate.
+  Recent-file and argument-history APIs use explicit command names. Their
+  formerly Scheme-backed value containers are replaced below.
   The -j16 build and official deployment passed. A temporary headless check
   loaded all keymaps, checked prompt inverse metadata and removal of both old
   interactive bindings, and invoked the print-to-file shortcut without errors.
   This did not fill in or submit the Qt form and does not claim visual or
   end-to-end answer-submission coverage. The temporary profile was removed;
   logs are under `build_qt6/native-interactive-commands-*.log`.
+
+- Namespace export finalization is bound to the newly created export buffer's
+  actor/view before active-tab changes can redirect it. Cover generation,
+  document update and wait-overlay dismissal use native calls; there is no
+  generated Scheme command or focus-stealing switch-to-buffer step. Removed
+  the last `schedule-idle` consumer and binding. Cover generation now returns
+  a native URL with `url_none()` for failure.
+- Interactive/recent-file history is native string-map/vector data, read and
+  written as `system/interactive.json`. Missing JSON triggers a one-time data
+  import using the existing native S-expression reader, not Guile execution.
+  String and URL answers are retained; unsupported obsolete non-text values
+  remain in the untouched legacy file. History retrieval no longer reparses
+  Scheme values or creates rooted objects. Default providers and actual native
+  command marshalling still use the transitional `object` dispatcher.
+  Built with -j16 and deployed. Temporary-profile checks passed for legacy
+  string/URL import, deduplication/order, hidden/autosave filtering, preservation
+  of a two-field answer and fresh-process JSON reload. Removed idle/cover Scheme
+  bindings were also absent at runtime. Namespace export finalization was
+  compiled and inspected for actor ownership, not exercised as an end-to-end
+  namespace export. Temporary data was removed; logs are under
+  `build_qt6/native-history-*.log`.
 
 ## Known Outstanding Failures
 
