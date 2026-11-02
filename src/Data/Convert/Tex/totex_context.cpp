@@ -50,7 +50,7 @@ struct LatexExportContext {
   string latex_style;
   array<object> latex_packages;
   array<object> latex_extra_packages;
-  array<object> latex_virtual_packages;
+  array<string> latex_virtual_packages;
   array<object> latex_all_packages;
   string latex_texmacs_style;
   array<object> latex_texmacs_packages;
@@ -3835,13 +3835,13 @@ latex_export_add_latex_extra_package (string package) {
 }
 
 void
-latex_export_set_latex_virtual_packages (object packages) {
-  latex_export_context.latex_virtual_packages= as_array_object (packages);
+latex_export_set_latex_virtual_packages (const array<string>& packages) {
+  latex_export_context.latex_virtual_packages= copy (packages);
 }
 
-object
+array<string>
 latex_export_latex_virtual_packages () {
-  return as_list_object (latex_export_context.latex_virtual_packages);
+  return copy (latex_export_context.latex_virtual_packages);
 }
 
 void

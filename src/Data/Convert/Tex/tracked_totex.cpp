@@ -154,7 +154,7 @@ latex_check_transparency (string ums, string s,
 ******************************************************************************/
 
 string
-tree_to_latex_document (tree d, object opts) {
+tree_to_latex_document (tree d, const conversion_options& opts) {
   return conversion_latex_document (d, opts, conversion_source_url (), conversion_target_url ());
 }
 
@@ -171,7 +171,7 @@ purify (tree d) {
 }
 
 bool
-tracked_tree_to_latex_document (tree d, object opts, string& s, string& ms) {
+tracked_tree_to_latex_document (tree d, const conversion_options& opts, string& s, string& ms) {
   tree   t      = extract (d, "body");
   string tt_opt = "texmacs->latex:transparent-source-tracking";
   bool   tt_flag= get_preference (tt_opt, "off") == "on";
@@ -213,7 +213,7 @@ tracked_tree_to_latex_document (tree d, object opts, string& s, string& ms) {
 }
 
 string
-tracked_texmacs_to_latex (tree doc, object opts) {
+tracked_texmacs_to_latex (tree doc, const conversion_options& opts) {
   tree xdoc= latex_expand (doc);
   if (get_preference ("texmacs->latex:source-tracking", "off") != "on")
     return tree_to_latex_document (xdoc, opts);

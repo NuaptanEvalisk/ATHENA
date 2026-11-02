@@ -1147,7 +1147,7 @@ latex_export_recompute_dependencies () {
   array<string> packages= object_strings (latex_export_latex_packages ());
   array<string> extra= object_strings (latex_export_latex_extra_packages ());
   array<string> virtual_packages=
-    object_strings (latex_export_latex_virtual_packages ());
+    latex_export_latex_virtual_packages ();
   for (int i=0; i<N(packages); ++i) append_unique (all, packages[i]);
   for (int i=0; i<N(extra); ++i) append_unique (all, extra[i]);
   for (int i=0; i<N(virtual_packages); ++i) append_unique (all, virtual_packages[i]);

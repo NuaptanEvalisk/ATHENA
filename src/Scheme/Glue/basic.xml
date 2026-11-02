@@ -1408,14 +1408,6 @@
     <arg type="string" />
     <arg type="bool" />
   </binding>
-  <binding name="conservative-texmacs-&gt;latex" native="conservative_texmacs_to_latex" returns="string">
-    <arg type="content" />
-    <arg type="object" />
-  </binding>
-  <binding name="tracked-texmacs-&gt;latex" native="tracked_texmacs_to_latex" returns="string">
-    <arg type="content" />
-    <arg type="object" />
-  </binding>
   <binding name="serialize-latex" native="serialize_latex" returns="string" exceptions="scheme">
     <arg type="scheme_tree" />
   </binding>
@@ -1457,9 +1449,6 @@
   </binding>
   <binding name="latex-add-extra" native="latex_compat_add_extra" returns="void">
     <arg type="string" />
-  </binding>
-  <binding name="latex-set-virtual-packages" native="latex_compat_set_virtual_packages" returns="void">
-    <arg type="object" />
   </binding>
   <binding name="latex-set-texmacs-style" native="latex_export_set_latex_texmacs_style" returns="void">
     <arg type="string" />
@@ -1539,10 +1528,6 @@
   <binding name="latex-export-add-latex-extra-package" native="latex_export_add_latex_extra_package" returns="bool">
     <arg type="string" />
   </binding>
-  <binding name="latex-export-set-latex-virtual-packages" native="latex_export_set_latex_virtual_packages" returns="void">
-    <arg type="object" />
-  </binding>
-  <binding name="latex-export-latex-virtual-packages" native="latex_export_latex_virtual_packages" returns="object" />
   <binding name="latex-export-set-latex-all-packages" native="latex_export_set_latex_all_packages" returns="void">
     <arg type="object" />
   </binding>

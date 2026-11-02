@@ -419,14 +419,14 @@ latex_recover_preamble (string news, string olds) {
 * Conserve as much of the style and preamble as possible, otherwise
 ******************************************************************************/
 
-static object
+static array<string>
 get_used_packages (string src) {
   hashmap<string,path> h= latex_get_packages (src);
-  object packs= null_object ();
+  array<string> packs;
   iterator<string> it= iterate (h);
   while (it->busy ())
-    packs= cons (object (it->next ()), packs);
-  return packs;
+    packs << it->next ();
+  return reverse (packs);
 }
 
 static string
@@ -551,7 +551,7 @@ latex_merge_preamble (string olds, string news) {
 ******************************************************************************/
 
 string
-conservative_texmacs_to_latex (tree doc, object opts) {
+conservative_texmacs_to_latex (tree doc, const conversion_options& opts) {
   if (get_preference ("texmacs->latex:conservative", "off") != "on")
     return tracked_texmacs_to_latex (doc, opts);
   tree atts= extract (doc, "attachments");
@@ -566,7 +566,7 @@ conservative_texmacs_to_latex (tree doc, object opts) {
   latex_export_set_latex_virtual_packages (get_used_packages (lsource));
   latex_export_recompute_dependencies ();
   string conv= tracked_texmacs_to_latex (idoc, opts);
-  latex_export_set_latex_virtual_packages (null_object ());
+  latex_export_set_latex_virtual_packages (array<string> ());
   latex_export_recompute_dependencies ();
   if (latex_unchanged_metadata (target, doc))
     conv= latex_merge_metadata (lsource, conv);

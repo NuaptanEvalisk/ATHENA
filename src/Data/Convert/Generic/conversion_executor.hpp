@@ -21,4 +21,4 @@ object conversion_execute (object input, string from, string to,
 url conversion_source_url ();
 url conversion_target_url ();
 editor_rep* conversion_rendering_editor ();
-string conversion_latex_document (tree input, object options, url source, url target);
+string conversion_latex_document (tree input, const conversion_options& options, url source, url target);

@@ -1881,6 +1881,27 @@ generated native entries and remain on the secure-function list.
   and Guile build/packaging dependencies remain outstanding. Overall goal is
   active, not complete.
 
+## Native Tracked Export Options And Virtual Packages
+
+- Conservative and source-tracked LaTeX export now pass native option maps
+  through conversion_latex_document into the driver. The executor no longer
+  constructs an option association list for any HTML/LaTeX backend.
+- Virtual package state uses native string arrays. Collection preserves the
+  previous reverse-iteration order, and setter/getter copies avoid exposing
+  mutable shared array storage. Dependency recomputation consumes the native
+  list directly. Other package-state fields are not yet migrated.
+- Removed five unused conservative/tracked/virtual-package bindings and the
+  unused compatibility setter. Export tracking, merging and dependency logic
+  are otherwise unchanged.
+- Interface generation and six affected implementations compiled with -j16.
+  Logs: build_qt6/native-tracked-export-glue.log and
+  build_qt6/native-tracked-export-build.log. No tests added/run; combined linking,
+  runtime checks and deployment remain pending.
+- tracked/conservative files still include scheme.hpp for get_preference,
+  whose conversion-mode cache/default semantics must be retained during its
+  later move to the native preferences layer. Payload objects and other export
+  state remain outstanding; the overall goal is not complete.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

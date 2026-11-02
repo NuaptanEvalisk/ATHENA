@@ -46,12 +46,6 @@ latex_compat_add_extra (string package) {
     latex_export_recompute_dependencies ();
 }
 
-void
-latex_compat_set_virtual_packages (object packages) {
-  latex_export_set_latex_virtual_packages (packages);
-  latex_export_recompute_dependencies ();
-}
-
 bool
 latex_compat_has_style (string style) {
   return style == latex_export_latex_style ();
