@@ -660,20 +660,6 @@ object_to_string (object obj) {
 
 
 /******************************************************************************
-* Conversions to functional objects
-******************************************************************************/
-
-static inline array<tmscm >
-array_lookup (array<object> a) {
-  const int n=N(a);
-  array<tmscm > tmscm (n);
-  int i;
-  for (i=0; i<n; i++) tmscm [i]= object_to_tmscm (a[i]);
-  return tmscm ;
-}
-
-
-/******************************************************************************
 * Evaluation and function calls
 ******************************************************************************/
 
@@ -721,14 +707,6 @@ object call (object fun, object a1) {
   return tmscm_to_object (call_scheme (object_to_tmscm (fun), object_to_tmscm (a1))); }
 object call (object fun, object a1, object a2) {
   return tmscm_to_object (call_scheme (object_to_tmscm (fun), object_to_tmscm (a1), object_to_tmscm (a2))); }
-object call (object fun, object a1, object a2, object a3) {
-  return tmscm_to_object (call_scheme (object_to_tmscm (fun), object_to_tmscm (a1),
-                                       object_to_tmscm (a2), object_to_tmscm (a3))); }
-object call (object fun, object a1, object a2, object a3, object a4) {
-  return tmscm_to_object (call_scheme (object_to_tmscm (fun), object_to_tmscm (a1),
-                                       object_to_tmscm (a2), object_to_tmscm (a3), object_to_tmscm (a4))); }
-object call (object fun, array<object> a) {
-  return tmscm_to_object (call_scheme (object_to_tmscm (fun), array_lookup(a))); }
 
 /******************************************************************************
 * User preferences

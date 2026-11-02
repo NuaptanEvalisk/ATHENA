@@ -1113,6 +1113,22 @@ generated native entries and remain on the secure-function list.
   Combined full build/deployment remains pending with native predicate dispatch
   and Guile debug-preference removal.
 
+## Retired Unused Procedure Call Arities
+
+- Audited production and C++ test callers before deleting object-procedure
+  invocation overloads with three/four arguments or an argument array. Removed
+  their lower Guile overloads, object-to-SCM array helper and variable-arity
+  apply path. Only the still-used zero/one/two-argument procedure calls remain.
+- Compiled both runtime implementation units with `-j16`; log
+  `build_qt6/native-unused-procedure-call-build.log`. No tests were added or run;
+  full build/deployment remains pending with the preceding dispatcher cleanup.
+- The global transformation frontend still selects `.scm` files, loads and
+  registers a Scheme transformer, then runs the native prepare/preview/backup/
+  apply pipeline through its callback. A user decision was requested on the
+  actual supported UI surface: retire the old script menu in favor of AUDMAP,
+  or retain a menu for external transformation programs. Do not silently delete
+  this active menu. Other runtime cleanup can proceed while that is decided.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

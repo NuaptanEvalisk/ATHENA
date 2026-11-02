@@ -172,9 +172,6 @@ tmscm eval_scheme (string s);
 tmscm call_scheme (tmscm fun);
 tmscm call_scheme (tmscm fun, tmscm a1);
 tmscm call_scheme (tmscm fun, tmscm a1, tmscm a2);
-tmscm call_scheme (tmscm fun, tmscm a1, tmscm a2, tmscm a3);
-tmscm call_scheme (tmscm fun, tmscm a1, tmscm a2, tmscm a3, tmscm a4);
-tmscm call_scheme (tmscm fun, array<tmscm> a);
 
 
 template<typename Return, typename... Args>
