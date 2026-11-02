@@ -31,12 +31,16 @@
 #include "widget.hpp"
 #include "promise.hpp"
 #include "scheme.hpp"
+#include "object.hpp"
+#include "native_dispatch.hpp"
 #include "Edit/Interface/format_geometry.hpp"
 #include "Qt/QTMVaultSearchWorker.hpp"
 
 #include <atomic>
 #include <thread>
 #include <vector>
+#include <limits>
+#include <stdexcept>
 
 bool headless_mode= true;
 bool is_headless () { return true; }
@@ -61,6 +65,7 @@ private slots:
   void nativeGeometryPreservesActorDocument ();
   void startsLazily ();
   void nativeCallbacksRemainOwnedUntilResolution ();
+  void nativeValuesPreserveBridgeSemantics ();
   void cursorBlinkCoalescesWithoutQueueingDuplicates ();
   void ownsCommandsAndDocumentContext ();
   void preservesSynchronousInvocationContext ();
@@ -1081,6 +1086,52 @@ TestBufferActor::nativeCallbacksRemainOwnedUntilResolution () {
   QVERIFY (released_on_owner);
 }
 
+void TestBufferActor::nativeValuesPreserveBridgeSemantics () {
+  object text ("alpha");
+  tmscm bridge= object_to_tmscm (text);
+  QVERIFY (scm_is_eq (bridge, object_to_tmscm (text)));
+  scm_c_string_set_x (bridge, 0, SCM_MAKE_CHAR ('A'));
+  QCOMPARE (as_string (text), string ("Alpha"));
+  QVERIFY (text == object ("Alpha"));
+  QVERIFY (text == tmscm_to_object (bridge));
+
+  tree source (TUPLE, "before");
+  object value (source);
+  object legacy= tmscm_to_object (object_to_tmscm (value));
+  QVERIFY (strong_equal (as_tree (value), as_tree (legacy)));
+  source[0]= "after";
+  QCOMPARE (as_tree (legacy)[0], tree ("after"));
+  QVERIFY (value == legacy);
+  object location (url ("/tmp/native-object"));
+  QVERIFY (location == object (url ("/tmp/native-object")));
+  QVERIFY (location != object (url ("/tmp/other-object")));
+  QVERIFY (location == tmscm_to_object (object_to_tmscm (location)));
+  object values= list_object (object (42), text, value);
+  QCOMPARE (as_int (car (values)), 42);
+  QCOMPARE (as_string (cadr (values)), string ("Alpha"));
+  QVERIFY (strong_equal (as_tree (caddr (values)), source));
+
+  for (double number: {0.0, -0.0, 1.5, std::numeric_limits<double>::quiet_NaN ()}) {
+    object native (number);
+    object old= tmscm_to_object (object_to_tmscm (native));
+    QVERIFY (native == object (number));
+    QVERIFY (native == old);
+  }
+  QVERIFY (object (0.0) != object (-0.0));
+  QVERIFY (object (1) != object (1.0));
+  QVERIFY (is_int (object (1.0)));
+  QVERIFY_EXCEPTION_THROWN (as_int (object (1.0)), std::invalid_argument);
+  QVERIFY (is_double (object (1)));
+  QVERIFY (symbol_object ("name") != object ("name"));
+  QVERIFY (symbol_object ("name") != keyword_object ("name"));
+  QCOMPARE (keyword_name (keyword_object ("name")), string ("name"));
+  object result;
+  array<object> arguments;
+  arguments << object ("native");
+  QVERIFY (native_dispatch_call ("utf8-byte-length", arguments, result));
+  QCOMPARE (as_int (result), 6);
+}
+
 static void run_tests (int argc, char** argv) {
   int result;
   {
@@ -1097,6 +1148,16 @@ static void run_tests (int argc, char** argv) {
 }
 
 int main (int argc, char** argv) {
+  // Construction, access and destruction must work before Guile is booted.
+  {
+    object number (42), text ("native"), boolean (true), symbol= symbol_object ("name");
+    tree source (TUPLE, "payload");
+    object value (source);
+    if (as_int (number) != 42 || as_double (number) != 42.0 ||
+        as_string (text) != "native" || !as_bool (boolean) ||
+        as_symbol (symbol) != "name" || !strong_equal (as_tree (value), source) ||
+        number != object (42) || is_list (value)) return 2;
+  }
   qputenv ("GUILE_AUTO_COMPILE", "0");
   start_scheme (argc, argv, run_tests);
   return 1;

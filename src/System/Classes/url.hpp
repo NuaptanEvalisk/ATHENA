@@ -38,8 +38,8 @@ public:
   url (const char* name);
   url (string name);
   url (string dir, string name);
-  inline bool operator == (url u) { return rep->t == u->t; }
-  inline bool operator != (url u) { return rep->t != u->t; }
+  inline bool operator == (url u) const { return rep->t == u->t; }
+  inline bool operator != (url u) const { return rep->t != u->t; }
   inline url operator [] (int i) { return url (rep->t[i]); }
   friend url as_url (tree t);
 };

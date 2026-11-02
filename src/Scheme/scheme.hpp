@@ -32,12 +32,14 @@ class object_rep : concrete_struct {
 };
 
 class tmscm_object_rep;
+class native_object_rep;
 
 class object {
 public:
   CONCRETE(object);
   object ();
   object (tmscm_object_rep* o);
+  object (native_object_rep* o);
   object (void *); // left intentionally undefined to inhibith implicit conversion of pointers to bool
   object (bool b); // implicit conversion to bool is dangerous!!! (all pointers match this conversion)
   object (int i);

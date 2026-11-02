@@ -30,10 +30,7 @@ class tmscm_object_rep: public object_rep {
   template<typename C, typename A1> friend C* tm_new (const A1& a1); 
 };
 
-inline tmscm  object_to_tmscm  (object o) {
-  tmscm_object_rep *oo = static_cast<tmscm_object_rep*>(o.operator->());
-  return tmscm_root_value (oo->handle);
-}
+tmscm object_to_tmscm (object o);
 inline object tmscm_to_object (tmscm  obj) { return tm_new<tmscm_object_rep> (obj); }
 
 

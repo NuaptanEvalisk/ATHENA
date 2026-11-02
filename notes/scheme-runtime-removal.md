@@ -285,12 +285,10 @@ generated native entries and remain on the secure-function list.
   strings rather than through the command dispatcher.
 - These changes were included in the subsequent native-dispatch-marshalling
   build and deployment. No tests were added or run for the direct substitutions.
-- The central remaining data boundary is object.cpp/object.hpp: even native
-  scalar, tree and list constructors allocate Guile-rooted objects, and object
-  hashing still invokes the Scheme hash procedure. Removing named editor calls
-  is not removal of this data/runtime dependency. The next substantive step
-  must address the value representation and its marshalling, not just rename
-  call sites or add more Scheme helpers.
+- This audit identified object.cpp/object.hpp as the central data boundary:
+  constructors then allocated Guile-rooted objects and hashing called Scheme.
+  The subsequent native payload work below replaces ordinary scalar/tree
+  storage; lists, other legacy values and hashing still require migration.
 
 ## Native Dispatch Marshalling
 
@@ -302,8 +300,8 @@ generated native entries and remain on the secure-function list.
 - Scheme-facing wrappers remain separate. The explicit residual bridge handles
   types without native value APIs, including bytes, uint and callback handles,
   as well as unspecified/structured Scheme results. The object implementation
-  itself is still Guile-rooted: this removes the generated round trip, not the
-  entire runtime dependency.
+  still has a legacy representation alongside the native payloads below:
+  removing the generated round trip is not removal of the runtime dependency.
 - Two targeted generator compilation/execution checks cover native arity/type
   checking and C++ exception unwinding versus Scheme nonlocal exits. Both pass;
   their native entry checks assert no object-to-SCM argument conversion occurs.
@@ -311,6 +309,32 @@ generated native entries and remain on the secure-function list.
   confirms representative generated bindings are registered; this is not an
   interactive editing check. Temporary profiles are removed. Logs are under
   `build_qt6/native-value-marshalling-{build,runtime,deploy}.log`.
+
+## Native Object Payloads
+
+- C++ bool/int/double/string, symbols, keywords, source trees, URLs,
+  modifications and patches now retain native payloads. Construction, type
+  checks, normal access and same-representation equality do not allocate a
+  Guile root. Source trees retain their existing identity, not serialized copies.
+- Explicit object-to-SCM access lazily creates a rooted bridge for remaining
+  Scheme consumers. Exported strings remain readable after Scheme mutation;
+  repeated bridge access preserves identity. Native numeric equality retains
+  signed-zero distinction and NaN equality, and integer-to-double access remains
+  accepted. This is a temporary boundary, not a replacement interpreter.
+- Lists, paths, arrays, procedures, parsing/printing and mixed native/legacy
+  equality still use the old representation. The native payload does not make
+  object/tree reference counts thread-safe; actor ownership remains mandatory.
+- Startup exposed a URL comparison recursion: the non-const URL equality
+  member was unavailable to variant comparison, which implicitly constructed
+  objects and recursed. URL equality/inequality are now const, retaining their
+  existing tree comparison. GDB identified this transition before deployment.
+- Built the application and targeted check with `-j16`. The
+  `nativeValuesPreserveBridgeSemantics` check passed, including construction and
+  access before Guile startup, mutable bridge strings, source-tree identity,
+  numeric semantics and URL equality. Isolated application startup printed
+  `NATIVE_OBJECT_BOOT_OK` and exited normally; its profile was removed. This
+  does not claim interactive editor verification. Logs are in
+  `build_qt6/native-object-storage-{build,values-test,runtime,deploy}.log`.
 
 ## Known Outstanding Failure
 
