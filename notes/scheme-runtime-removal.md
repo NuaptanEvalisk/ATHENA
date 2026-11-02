@@ -1852,13 +1852,34 @@ generated native entries and remain on the secure-function list.
 - Removed latex-export-convert-top/tree exports with no product consumers.
   Updated the existing C++ serialization comparison to call the native driver,
   retaining its assertions; removed retired names from the generator assertion.
-- Interface generation and tottex driver/context, HTML semantics and executor
+- Interface generation and LaTeX driver/context, HTML semantics and executor
   compilation passed with -j16 (totex_driver.cpp and totex_context.cpp). Logs:
   build_qt6/native-latex-options-glue.log and
   build_qt6/native-latex-options-build.log. No tests added/run; accumulated full
   linking, export checks and deployment remain pending.
 - Conversion payload objects, LaTeX state and conservative/tracked APIs still
   need migration. Overall runtime removal remains incomplete.
+
+## Combined Native Export Options Deployment
+
+- Full ATHENA.bin build passed with -j16 through f52b3ab22, covering Materials
+  adapter removal, application statistics/preferences, native conversion request
+  maps and HTML/LaTeX driver options. This supersedes their pending deployment
+  notes above.
+- A temporary headless probe verified the 15 retired bindings were absent,
+  exported a metadata-valid MathBlock to HTML/MathJax, exported a native math
+  variant to LaTeX, and checked character/word/line counts through the real
+  conversion entrypoints. Final run reported NATIVE_EXPORT_OPTIONS_OK and exited
+  normally without logged errors. The first probe omitted mandatory MathBlock
+  numbering metadata and was correctly rejected; only the probe was corrected.
+- Deployed through tools/deploy-local-runtime.sh, build ID:
+  5186754fcb0ab5377f1bb61a29db14e3a745015a. Logs under build_qt6:
+  native-export-options-full-build.log, native-export-options-runtime.log and
+  native-export-options-deploy.log. Temporary probe/profile removed. No permanent
+  tests or broad regression run added.
+- Conversion payloads, LaTeX export state, remaining callback/execution paths
+  and Guile build/packaging dependencies remain outstanding. Overall goal is
+  active, not complete.
 
 ## Known Outstanding Failure
 
