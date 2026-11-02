@@ -29,18 +29,6 @@ latex_compat_set_style (string style) {
 }
 
 void
-latex_compat_set_packages (object packages) {
-  latex_export_set_latex_packages (packages);
-  latex_export_recompute_dependencies ();
-}
-
-void
-latex_compat_set_extra (object packages) {
-  latex_export_set_latex_extra_packages (packages);
-  latex_export_recompute_dependencies ();
-}
-
-void
 latex_compat_add_extra (string package) {
   if (latex_export_add_latex_extra_package (package))
     latex_export_recompute_dependencies ();
@@ -49,11 +37,6 @@ latex_compat_add_extra (string package) {
 bool
 latex_compat_has_style (string style) {
   return style == latex_export_latex_style ();
-}
-
-bool
-latex_compat_has_package (string package) {
-  return object_list_contains_string (latex_export_latex_packages (), package);
 }
 
 bool

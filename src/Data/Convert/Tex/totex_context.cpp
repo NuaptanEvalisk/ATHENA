@@ -48,10 +48,10 @@ struct LatexExportContext {
   url save_target_url;
   string latex_language;
   string latex_style;
-  array<object> latex_packages;
-  array<object> latex_extra_packages;
+  array<string> latex_packages;
+  array<string> latex_extra_packages;
   array<string> latex_virtual_packages;
-  array<object> latex_all_packages;
+  array<string> latex_all_packages;
   string latex_texmacs_style;
   array<object> latex_texmacs_packages;
   array<object> latex_dependencies;
@@ -137,9 +137,9 @@ prepend_unique_string (array<object>& values, string value) {
 }
 
 bool
-contains_string (const array<object>& values, string value) {
+contains_string (const array<string>& values, string value) {
   for (int i=0; i<N(values); ++i)
-    if (is_string (values[i]) && as_string (values[i]) == value) return true;
+    if (values[i] == value) return true;
   return false;
 }
 
@@ -3807,30 +3807,32 @@ latex_export_latex_style () {
 }
 
 void
-latex_export_set_latex_packages (object packages) {
-  latex_export_context.latex_packages= as_array_object (packages);
+latex_export_set_latex_packages (const array<string>& packages) {
+  latex_export_context.latex_packages= copy (packages);
 }
 
-object
+array<string>
 latex_export_latex_packages () {
-  return as_list_object (latex_export_context.latex_packages);
+  return copy (latex_export_context.latex_packages);
 }
 
 void
-latex_export_set_latex_extra_packages (object packages) {
-  latex_export_context.latex_extra_packages= as_array_object (packages);
+latex_export_set_latex_extra_packages (const array<string>& packages) {
+  latex_export_context.latex_extra_packages= copy (packages);
 }
 
-object
+array<string>
 latex_export_latex_extra_packages () {
-  return as_list_object (latex_export_context.latex_extra_packages);
+  return copy (latex_export_context.latex_extra_packages);
 }
 
 bool
 latex_export_add_latex_extra_package (string package) {
   if (contains_string (latex_export_context.latex_extra_packages, package))
     return false;
-  prepend_unique_string (latex_export_context.latex_extra_packages, package);
+  array<string> next;
+  next << package << latex_export_context.latex_extra_packages;
+  latex_export_context.latex_extra_packages= next;
   return true;
 }
 
@@ -3845,13 +3847,13 @@ latex_export_latex_virtual_packages () {
 }
 
 void
-latex_export_set_latex_all_packages (object packages) {
-  latex_export_context.latex_all_packages= as_array_object (packages);
+latex_export_set_latex_all_packages (const array<string>& packages) {
+  latex_export_context.latex_all_packages= copy (packages);
 }
 
-object
+array<string>
 latex_export_latex_all_packages () {
-  return as_list_object (latex_export_context.latex_all_packages);
+  return copy (latex_export_context.latex_all_packages);
 }
 
 void

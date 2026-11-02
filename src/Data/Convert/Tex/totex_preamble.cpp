@@ -369,7 +369,7 @@ use_package_command (scheme_tree document, object colors, object colormaps) {
   }
   if (has_xcolor_options) append_unique (used, "xcolor");
 
-  array<string> all= object_strings (latex_export_latex_all_packages ());
+  array<string> all= latex_export_latex_all_packages ();
   array<string> first;
   for (int i=0; i<N(all); ++i)
     if (all[i] != "amsthm") first << all[i];
@@ -1082,7 +1082,7 @@ preamble_data_native (scheme_tree text, scheme_tree style, scheme_tree,
                "\\newcommand{\\labelitemiv}{\\labelitemii}\n";
 
   string options;
-  array<string> all= object_strings (latex_export_latex_all_packages ());
+  array<string> all= latex_export_latex_all_packages ();
   if (contains_string (all, "amsthm") && string_atom (style) &&
       atom_text (style) == "amsart")
     options= "[amsthm]";
@@ -1144,14 +1144,14 @@ latex_export_packages_simplify (object packages) {
 void
 latex_export_recompute_dependencies () {
   array<string> all;
-  array<string> packages= object_strings (latex_export_latex_packages ());
-  array<string> extra= object_strings (latex_export_latex_extra_packages ());
+  array<string> packages= latex_export_latex_packages ();
+  array<string> extra= latex_export_latex_extra_packages ();
   array<string> virtual_packages=
     latex_export_latex_virtual_packages ();
   for (int i=0; i<N(packages); ++i) append_unique (all, packages[i]);
   for (int i=0; i<N(extra); ++i) append_unique (all, extra[i]);
   for (int i=0; i<N(virtual_packages); ++i) append_unique (all, virtual_packages[i]);
-  latex_export_set_latex_all_packages (string_list_object (all));
+  latex_export_set_latex_all_packages (all);
 
   array<string> roots;
   roots << latex_export_latex_style ();

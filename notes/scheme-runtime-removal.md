@@ -1902,6 +1902,25 @@ generated native entries and remain on the secure-function list.
   later move to the native preferences layer. Payload objects and other export
   state remain outstanding; the overall goal is not complete.
 
+## Native LaTeX Package State
+
+- Ordinary, extra and merged LaTeX package lists now use string arrays in the
+  export context. Setters/getters copy array storage; extra-package insertion
+  retains duplicate suppression and prepend order. The driver and publisher
+  paths construct native lists, and preamble/dependency recomputation consumes
+  them directly instead of converting object lists.
+- Removed eight unused package setter/query/compatibility bindings and three
+  compatibility implementations. Kept the extra-package getter used by existing
+  mathematical dependency checks, now generated with array_string marshalling.
+- Interface generation and context, driver, publishers, preamble and compatibility
+  compilation passed with -j16. Logs:
+  build_qt6/native-latex-package-state-glue.log and
+  build_qt6/native-latex-package-state-build.log. No tests added/run; combined
+  linking, runtime checks and deployment remain pending.
+- TeXmacs style-package/dependency lists and other export state still use object
+  containers. They remain in scope along with conversion payloads and the full
+  runtime/build removal goal.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

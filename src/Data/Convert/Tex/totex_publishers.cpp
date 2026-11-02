@@ -1944,8 +1944,8 @@ publisher_prepare (scheme_tree, scheme_tree document, scheme_tree& result) {
   }
   if (elsevier_style ()) {
     if (ifac_style ()) {
-      array<object> packages; packages << object ("natbib");
-      latex_export_set_latex_packages (as_list_object (packages));
+      array<string> packages; packages << "natbib";
+      latex_export_set_latex_packages (packages);
       latex_export_recompute_dependencies ();
     }
     result= elsevier_create_frontmatter (document);

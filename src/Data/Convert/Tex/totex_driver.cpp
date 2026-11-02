@@ -212,8 +212,8 @@ convert_tmfile_native (scheme_tree value, const conversion_options& options) {
   string main_style= transformed_style_class (transformed);
 
   latex_export_set_latex_style (main_style);
-  latex_export_set_latex_packages (null_object ());
-  latex_export_set_latex_extra_packages (null_object ());
+  latex_export_set_latex_packages (array<string> ());
+  latex_export_set_latex_extra_packages (array<string> ());
   latex_export_recompute_dependencies ();
 
   latex_export_document_reset (language);
