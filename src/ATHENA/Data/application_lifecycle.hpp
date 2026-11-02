@@ -4,6 +4,10 @@
 #include "scheme.hpp"
 #include <functional>
 
+struct application_document_load_options {
+  bool background= false, new_window= false, strict= false;
+};
+
 void application_close_buffer ();
 void application_close_window (object arguments);
 void application_quit ();
@@ -16,7 +20,10 @@ void application_revert_buffer_now (object arguments);
 void application_import_document (url source, string format, object options);
 void application_load_document (url source, object options);
 void application_load_document (url source, object options, std::function<void(url)> completed);
+void application_load_document (url source, application_document_load_options options,
+                                std::function<void(url)> completed= {});
 void application_load_document_window (url source, object options);
+void application_load_document_window (url source, application_document_load_options options);
 void application_open_loaded_document (url source, object options);
 void application_browse_document (url source);
 void application_browse_document (url source, std::function<void(url)> completed);

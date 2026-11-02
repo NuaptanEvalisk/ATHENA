@@ -638,7 +638,7 @@ void native_link_go_to_url (url target, std::optional<path> from) {
 
 void native_link_open_label (url target, string label) {
   const std::string destination (label.data (), N(label));
-  application_load_document (target, null_object (), [destination] (url loaded) {
+  application_load_document (target, application_document_load_options {}, [destination] (url loaded) {
     const string name= as_string (loaded);
     const auto owner= published_buffer_source (std::string (name.data (), N(name)));
     athena::avd::submit_source_task (owner.first, owner.second,

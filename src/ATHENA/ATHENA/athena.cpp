@@ -208,8 +208,8 @@ void run_startup_task (size_t index, std::string document= {}) {
 
 void open_startup_documents () {
   for (size_t index= 0; index < startup_documents.size (); ++index) {
-    const object options= index == 0 ? null_object () :
-      list_object (keyword_object ("new-window"));
+    application_document_load_options options;
+    options.new_window= index != 0;
     application_load_document (url (startup_documents[index].c_str ()), options);
   }
   startup_documents.clear ();

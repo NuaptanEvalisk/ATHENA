@@ -204,6 +204,6 @@ bool native_resolve_link_id (string id, std::set<std::string>& attempted,
   }
   if (target == "") return false;
   // The file-opening frontend retains its actor-to-UI dispatch and prompts.
-  application_load_document (url_unix (target), null_object (), std::move (completed));
+  application_load_document (url_unix (target), application_document_load_options {}, std::move (completed));
   return true;
 }

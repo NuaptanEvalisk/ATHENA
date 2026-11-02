@@ -81,17 +81,17 @@ bool window_exists (url window) {
   return false;
 }
 
-struct load_options {
-  bool background= false, new_window= false, strict= false;
-  explicit load_options (object options) {
-    for (; !is_null (options); options= cdr (options)) {
-      object option= car (options);
-      if (option == keyword_object ("background")) background= true;
-      if (option == keyword_object ("new-window")) new_window= true;
-      if (option == keyword_object ("strict")) strict= true;
-    }
+using load_options= application_document_load_options;
+load_options decode_load_options (object options) {
+  load_options result;
+  for (; !is_null (options); options= cdr (options)) {
+    object option= car (options);
+    if (option == keyword_object ("background")) result.background= true;
+    if (option == keyword_object ("new-window")) result.new_window= true;
+    if (option == keyword_object ("strict")) result.strict= true;
   }
-};
+  return result;
+}
 
 void schedule_loaded_cloud_sync (athena_actor_id actor, athena_view_id view) {
   QTimer::singleShot (1000, QCoreApplication::instance (), [actor, view] {
@@ -218,12 +218,12 @@ void browse_document_gui (url name, std::function<void(url)> completed) {
   }
   const string format= conversion_format_from_suffix (locase_all (suffix (name)));
   if (is_rooted_web (name) || is_rooted_tmfs (name) || file_format (name) == "texmacs") {
-    load_document_gui (name, load_options (null_object ()), completed);
+    load_document_gui (name, load_options {}, completed);
     return;
   }
   if (conversion_format_image (format)) { application_open_external (name); return; }
   if (!is_of_type (name, "f")) {
-    load_document_gui (name, load_options (null_object ()), completed);
+    load_document_gui (name, load_options {}, completed);
     return;
   }
   if (headless_mode) {
@@ -239,14 +239,14 @@ void browse_document_gui (url name, std::function<void(url)> completed) {
   if (answer == "system") application_open_external (name);
   else if (answer == "convert") {
     const url target ("tmfs://import/" * format * "/" * tmfs_encode_url (name));
-    load_document_gui (target, load_options (null_object ()), completed);
+    load_document_gui (target, load_options {}, completed);
   }
   else if (answer == "plain") {
     if (buffer_import (name, name, "verbatim"))
       get_server ()->set_message (compound ("concat", "Could not open ",
         compound ("verbatim", as_string (name, URL_SYSTEM)), " as plain text"), "Open file");
     else {
-      open_loaded_document (name, load_options (null_object ()));
+      open_loaded_document (name, load_options {});
       if (completed) completed (name);
     }
   }
@@ -255,7 +255,7 @@ void browse_document_gui (url name, std::function<void(url)> completed) {
 void revert_document (const std::string& source) {
   const url name (source.c_str ());
   if (is_nil (concrete_buffer (name))) {
-    load_document_gui (name, load_options (null_object ()));
+    load_document_gui (name, load_options {});
     return;
   }
   if (name != get_current_buffer_safe ()) switch_to_buffer (name);
@@ -505,22 +505,22 @@ void open_document_dialog (bool window) {
       QObject::tr ("Load file"), QString::fromUtf8 (initial.c_str ()));
     if (selected.isEmpty ()) return;
     const url source= url_system (string (selected.toUtf8 ().constData ()));
-    if (window) application_load_document_window (source, null_object ());
-    else application_load_document (source, null_object ());
+    if (window) application_load_document_window (source, load_options {});
+    else application_load_document (source, load_options {});
   });
 }
 }
 void application_open_document_dialog () { open_document_dialog (false); }
 void application_open_window_dialog () { open_document_dialog (true); }
 void application_open_document_url (url source) {
-  if (!is_none (source)) application_load_document (source, null_object ());
+  if (!is_none (source)) application_load_document (source, load_options {});
 }
 void application_queue_open_document (url source) {
   const std::string name= encode (source);
   on_gui ([name] { application_open_document_url (url (name.c_str ())); });
 }
 void application_open_window_url (url source) {
-  if (!is_none (source)) application_load_document_window (source, null_object ());
+  if (!is_none (source)) application_load_document_window (source, load_options {});
 }
 void application_revert_buffer (object arguments) { request_revert (arguments, true); }
 void application_revert_buffer_now (object arguments) { request_revert (arguments, false); }
@@ -530,16 +530,23 @@ void application_load_document (url source, object options) {
 }
 
 void application_load_document (url source, object options, std::function<void(url)> completed) {
+  application_load_document (source, decode_load_options (options), std::move (completed));
+}
+
+void application_load_document (url source, application_document_load_options settings,
+                                std::function<void(url)> completed) {
   const std::string name= encode (source);
-  const load_options settings (options);
   on_document_gui ([name, settings, completed] {
     load_document_gui (url (name.c_str ()), settings, completed);
   });
 }
 
 void application_load_document_window (url source, object options) {
+  application_load_document_window (source, decode_load_options (options));
+}
+
+void application_load_document_window (url source, application_document_load_options settings) {
   const std::string name= encode (source);
-  load_options settings (options);
   settings.new_window= true;
   on_document_gui ([name, settings] {
     url target (name.c_str ());
@@ -550,7 +557,7 @@ void application_load_document_window (url source, object options) {
 
 void application_open_loaded_document (url source, object options) {
   const std::string name= encode (source);
-  const load_options settings (options);
+  const load_options settings= decode_load_options (options);
   on_document_gui ([name, settings] { open_loaded_document (url (name.c_str ()), settings); });
 }
 
@@ -567,7 +574,7 @@ void application_browse_document (url source, std::function<void(url)> completed
 
 void application_import_document (url source, string format, object options) {
   const std::string encoded= encode (source), selected (format.data (), N(format));
-  const load_options settings (options);
+  const load_options settings= decode_load_options (options);
   on_gui ([encoded, selected, settings] {
     url source (encoded.c_str ());
     const url search= url ("$ATHENA_FILE_PATH") * source;

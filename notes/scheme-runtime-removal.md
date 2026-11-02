@@ -798,6 +798,26 @@ generated native entries and remain on the secure-function list.
   needed. Full linking/deployment remains pending with the preceding metadata,
   shortcut-query and zoom changes; installed runtime remains `e5161f143`.
 
+## Native Document Load Options
+
+- Startup document opening, ordinary open dialogs, link navigation and native
+  document/window entry points use a typed options structure. Background,
+  new-window and strict flags remain unchanged; script options only decode
+  into that structure at their existing binding boundary.
+- Removed temporary empty object lists from browse/reuse paths and keyword
+  lists from startup window selection. Kept completion callbacks, GUI/actor
+  scheduling and the separate window entry point's existing-window reuse.
+- Startup `-x`/init scripts remain active consumers: the provable migration
+  launcher and document profiler still use them, while the load audit uses a
+  Scheme driver. They need native interop replacements before removal, not
+  silent deletion of their workflows.
+- Compiled the startup translation unit and three affected implementation
+  units with `-j16`; logs: `build_qt6/native-startup-load-options-build.log`
+  and `build_qt6/native-document-load-options-final-build.log`. The first
+  compile attempt used the wrong make target for the startup translation unit;
+  corrected to the executable target. Full link/deployment remains pending
+  with the preceding four batches; installed runtime remains `e5161f143`.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
