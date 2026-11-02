@@ -157,7 +157,7 @@
       ]
     },
     "tree:angle-brackets": {
-      "kind": "scheme-call",
+      "kind": "native-call",
       "function": "make-bracket-open",
       "args": [
         "⟨",
@@ -165,7 +165,7 @@
       ]
     },
     "tree:norm-brackets": {
-      "kind": "scheme-call",
+      "kind": "native-call",
       "function": "make-bracket-open",
       "args": [
         "‖",

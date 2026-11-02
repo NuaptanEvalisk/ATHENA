@@ -18,6 +18,7 @@
 #include "reference_markup.hpp"
 #include "native_node_groups.hpp"
 #include "native_keyboard_registry.hpp"
+#include "native_dispatch.hpp"
 #include "editor.hpp"
 #include "file.hpp"
 #include "hashset.hpp"
@@ -37,6 +38,7 @@
 #include <QJsonObject>
 #include <QJsonParseError>
 #include <QJsonValue>
+#include <stdexcept>
 
 namespace {
 
@@ -221,25 +223,29 @@ bool execute_json_keyboard_action (QJsonObject descriptor, string capture= "") {
   return false;
 }
 
-object json_keyboard_dispatch_result (QJsonObject descriptor,
-                                      string capture= "") {
-  if (execute_json_keyboard_action (descriptor, capture)) return object (true);
+bool dispatch_json_keyboard_action (QJsonObject descriptor,
+                                   string capture= "") {
+  if (execute_json_keyboard_action (descriptor, capture)) return true;
   string kind= keyboard_native_string (descriptor.value ("kind").toString ());
-  if (kind != "scheme-call") return object (false);
+  if (kind != "native-call") return false;
 
   QJsonValue function_value= descriptor.value ("function");
   QJsonValue args_value= descriptor.value ("args");
   ASSERT (function_value.isString () && args_value.isArray (),
-          "invalid Scheme keyboard action descriptor");
-  array<object> command;
-  command << symbol_object (keyboard_native_string (function_value.toString ()));
+          "invalid native keyboard action descriptor");
+  array<object> args;
   for (QJsonValue value: args_value.toArray ()) {
     object arg;
     ASSERT (json_keyboard_argument (value, capture, arg),
             "invalid keyboard action call argument");
-    command << arg;
+    args << arg;
   }
-  return as_list_object (command);
+  object result;
+  if (!native_dispatch_call (keyboard_native_string (function_value.toString ()),
+                             args, result))
+    throw std::invalid_argument ("Unknown native keyboard action: " +
+                                 function_value.toString ().toStdString ());
+  return true;
 }
 
 tree focus_tree () {
@@ -467,9 +473,16 @@ void generic_kbd_end_line_raw () { dispatch_focus ("kbd-extremal", true); }
 void generic_kbd_page_up_raw () { dispatch_focus ("kbd-incremental", false); }
 void generic_kbd_page_down_raw () { dispatch_focus ("kbd-incremental", true); }
 
-void generic_kbd_plain_move (object move) {
+static void dispatch_keyboard_move (string move) {
+  object result;
+  if (!native_dispatch_call (move, array<object> (), result))
+    throw std::invalid_argument ("Unknown native movement command: " +
+                                 std::string (move.data (), N(move)));
+}
+
+void generic_kbd_plain_move (string move) {
   get_current_editor ()->select_from_keyboard (false);
-  (void) call (move);
+  dispatch_keyboard_move (move);
 }
 
 void generic_kbd_left () {
@@ -512,16 +525,16 @@ void generic_kbd_page_down () {
   generic_kbd_page_down_raw ();
 }
 
-void generic_kbd_select (object move) {
+void generic_kbd_select (string move) {
   editor ed= get_current_editor ();
   ed->select_from_shift_keyboard ();
-  (void) call (move);
+  dispatch_keyboard_move (move);
   ed->select_from_cursor ();
 }
 
-void generic_kbd_select_if_active (object move) {
+void generic_kbd_select_if_active (string move) {
   editor ed= get_current_editor ();
-  (void) call (move);
+  dispatch_keyboard_move (move);
   ed->select_from_cursor_if_active ();
 }
 
@@ -740,12 +753,12 @@ void generic_hybrid_kbd_sup () {
   ed->make_script (true, true);
 }
 
-object
+static bool
 generic_escape_symbol_dispatch (string action) {
   generic_keyboard_action_data& data= keyboard_action_data ();
   QJsonValue descriptor= data.escape_actions.value (keyboard_json_key (action));
   if (descriptor.isObject ())
-    return json_keyboard_dispatch_result (descriptor.toObject ());
+    return dispatch_json_keyboard_action (descriptor.toObject ());
 
   for (QJsonValue value: data.escape_rules) {
     if (!value.isObject ()) continue;
@@ -756,27 +769,21 @@ generic_escape_symbol_dispatch (string action) {
     string prefix= keyboard_native_string (prefix_value.toString ());
     if (!starts (action, prefix)) continue;
     string capture= action (N (prefix), N (action));
-    return json_keyboard_dispatch_result (action_value.toObject (), capture);
+    return dispatch_json_keyboard_action (action_value.toObject (), capture);
   }
 
   string help;
   command cmd;
   if (native_latex_get_command (action, help, cmd)) {
     cmd ();
-    return object (true);
+    return true;
   }
-  return object (false);
+  return false;
 }
 
 void
 generic_escape_symbol_insert (string action) {
-  object dispatch= generic_escape_symbol_dispatch (action);
-  if (is_bool (dispatch) && as_bool (dispatch)) return;
-  if (as_bool (call ("pair?", dispatch))) {
-    object proc= eval (call ("car", dispatch));
-    (void) call ("apply", proc, call ("cdr", dispatch));
-    return;
-  }
+  if (generic_escape_symbol_dispatch (action)) return;
   get_current_editor ()->key_press (action);
 }
 

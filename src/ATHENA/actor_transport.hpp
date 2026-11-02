@@ -181,7 +181,6 @@ enum class actor_command_kind: std::uint32_t {
   ui_open_document_window,
   ui_open_auxiliary_document,
   ui_close_buffer,
-  ui_choose_file,
   ui_vault_backup_dispatch_realtime,
   ui_continuous_rag_saved,
   ui_vault_explorer_track_file,

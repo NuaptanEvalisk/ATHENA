@@ -1,7 +1,6 @@
 // Copyright (C) 1999 Joris van der Hoeven, 2026 ATHENA contributors.
 // GPL-3.0-or-later.
 #include "interactive_commands.hpp"
-#include "guile_tm.hpp"
 #include "file.hpp"
 #include "convert.hpp"
 #include "editor.hpp"
@@ -30,7 +29,6 @@
 #include <algorithm>
 
 namespace {
-bool is_pair (object value) { return tmscm_is_pair (object_to_tmscm (value)); }
 QJsonObject command_properties;
 std::mutex history_mutex;
 std::once_flag history_loaded;
@@ -235,16 +233,4 @@ void interactive_startup () {
       get_server ()->set_message (string (message.c_str ()), message.empty () ? string ("") : "ATHENA " * texmacs_version (""));
     });
   }
-}
-
-void interactive_choose_file (object action, string title, string type, object options) {
-  string prompt= starts (title, "Save") ? "Save as:" :
-    starts (title, "Export") ? "Export as:" :
-    title == "Select database" ? "Selected database:" : "";
-  url base= is_pair (options) && is_pair (cdr (options)) ?
-    as_url (cadr (options)) : get_master_buffer (get_current_buffer ());
-  if (is_pair (options)) {
-    prompt= as_string (car (options));
-  }
-  get_server ()->choose_file (action, title, type, prompt, base);
 }

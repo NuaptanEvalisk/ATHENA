@@ -56,8 +56,6 @@ public:
   void set_right_footer (string s);
   void set_message (tree left, tree right, bool temp= false);
   void recall_message ();
-  void choose_file (object fun, string title, string type,
-                    string prompt, url name);
 };
 
 widget box_widget (box b, bool trans, SI padding= 5*PIXEL);

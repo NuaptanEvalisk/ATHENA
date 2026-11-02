@@ -77,8 +77,6 @@ public:
   virtual void set_center_message (tree m) = 0;
   virtual tree get_center_message () = 0;
   virtual void recall_message () = 0;
-  virtual void choose_file (object fun, string title, string type,
-			    string prompt, url name) = 0;
 
   /* Miscellaneous routines */
   virtual void   style_clear_cache () = 0;

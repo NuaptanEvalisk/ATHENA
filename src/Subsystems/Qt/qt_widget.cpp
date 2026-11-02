@@ -17,7 +17,6 @@
 #include "qt_simple_widget.hpp"
 #include "qt_tm_widget.hpp"
 #include "qt_window_widget.hpp"
-#include "qt_chooser_widget.hpp"
 #include "qt_color_picker_widget.hpp"
 
 #include "boot.hpp"
@@ -569,10 +568,6 @@ widget input_text_widget (command call_back, string type, array<string> def,
 widget color_picker_widget (command call_back, bool bg, array<tree> proposals) {
   if (headless_mode) return headless_widget ();
   return tm_new<qt_color_picker_widget_rep> (call_back, bg, proposals);
-}
-widget file_chooser_widget (command cmd, string type, string prompt) {
-  if (headless_mode) return headless_widget ();
-  return tm_new<qt_chooser_widget_rep> (cmd, type, prompt);
 }
 widget texmacs_widget (int mask, command quit) {
   if (headless_mode) return headless_widget ();

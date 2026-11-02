@@ -17,7 +17,6 @@ TODO
 * Implement qt_gui_rep::set_mouse_pointer, qt_gui_rep::show_wait_indicator
 * Help -> (Apple) Search. How to customize this?
 * Clean menu cache on language changes.
-* qt_chooser_widget_rep is only partially implemented (e.g. crop images, filters, ... does not work)
 * Paint interrupts on slow machines.
 * Implement image_gc
 

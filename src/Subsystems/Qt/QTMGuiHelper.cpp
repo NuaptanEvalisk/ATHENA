@@ -13,7 +13,7 @@
 #include "QTMGuiHelper.hpp"
 #include "qt_tm_widget.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
+#include "ATHENA/Data/application_lifecycle.hpp"
 #include "iterator.hpp"
 #include <QFileOpenEvent>
 
@@ -42,8 +42,15 @@ QTMGuiHelper::eventFilter (QObject *obj, QEvent *event) {
     const char *win= new_window_flag? ":new-window": ":current-window";
     if (DEBUG_EVENTS)
       debug_events << "File open event: " << s << " " << win << LF;
-    exec_delayed (scheme_cmd (list_object (symbol_object ("load-buffer"),
-                              object (url_system (s)), eval (win))));
+    const std::string filename (tmp.constData (), tmp.size ());
+    const bool new_window= new_window_flag;
+    // OS open events may arrive before startup creates the first editor.
+    qt_schedule_editor_task (0, [filename, new_window] {
+      const url source= url_system (string (filename.c_str ()));
+      if (new_window) application_open_window_url (source);
+      else application_open_document_url (source);
+      return -1;
+    });
     new_window_flag= true;
     return true;
   } else {

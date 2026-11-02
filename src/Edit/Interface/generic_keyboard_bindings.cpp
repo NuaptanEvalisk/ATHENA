@@ -71,7 +71,7 @@ void validate_expression (QJsonValue value) {
     ASSERT (item.size () == 1, "invalid keymap value descriptor");
     QString kind= item.begin ().key ();
     QJsonValue data= item.begin ().value ();
-    if (kind == "symbol" || kind == "procedure" || kind == "keyword") {
+    if (kind == "symbol" || kind == "keyword") {
       ASSERT (binding_string (data) != "", "empty keymap identifier");
     }
     else if (kind == "number") {
@@ -184,8 +184,7 @@ bool truth (object value) {
 }
 
 // Source reconstruction is only for inverse key lookup and command metadata.
-// Native commands use generated dispatch; remaining procedure-valued operands
-// still require migration away from Scheme.
+// Native commands use generated dispatch, including named movement actions.
 object expression (QJsonValue value, bool source) {
   if (value.isString ()) return object (binding_string (value));
   if (value.isBool ()) return object (value.toBool ());
@@ -205,10 +204,6 @@ object expression (QJsonValue value, bool source) {
     return object (true);
   }
   if (item.contains ("number")) return object (item["number"].toDouble ());
-  if (item.contains ("procedure")) {
-    object name= symbol_object (binding_string (item["procedure"]));
-    return source ? name : eval (name);
-  }
   if (item.contains ("symbol")) {
     object name= symbol_object (binding_string (item["symbol"]));
     return source ? list_object (symbol_object ("quote"), name) : name;

@@ -25,7 +25,7 @@ Each binding has `key` and either `text` (optionally `help`) or an ordered
 `commands` array. Command/argument descriptors include:
 
 - `{"call":"name","args":[...]}`: call the current public procedure.
-- `{"procedure":"name"}`: pass the current procedure as an argument.
+- Movement wrappers receive a native command name as a string, not a procedure.
 - `{"symbol":"name"}`: pass a literal symbol.
 - `{"keyword":"name"}`: pass a Scheme keyword such as `:next`.
 - `{"list":[...]}`: pass a literal Scheme list.

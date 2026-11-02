@@ -40,7 +40,8 @@ with runtime removal; native automation must use the existing interop API.
 - Keyboard storage and dispatch now use native callbacks and context identities,
   including user shortcut prefixes and search/spelling/completion dispatch.
   Removed the Scheme closure-registration/catalog APIs. JSON command expressions
-  and inverse-lookup values still use Scheme and are not yet migrated.
+  and inverse-lookup values still use the Guile-backed object container; native
+  movement and ESC actions no longer evaluate Scheme procedures.
   The -j16 build and deployed actor-owned text/prefix/inverse checks passed.
   The check deliberately does not claim physical cursor-motion coverage:
   direct low-level key calls after source replacement omit `apply_changes()`;
@@ -121,10 +122,36 @@ with runtime removal; native automation must use the existing interop API.
   namespace export. Temporary data was removed; logs are under
   `build_qt6/native-history-*.log`.
 
+- Save As shortcuts now use the same native asynchronous save frontend as the
+  menu. Removed the callback-based choose-file bindings, server/frame bridge,
+  dedicated actor UI message, unused chooser widgets and their obsolete tests.
+  Independent image insertion and Namespace file dialogs are unchanged.
+  OS FileOpen events wait for a concrete startup editor through native tasks,
+  then use native document loading, retaining first-current/subsequent-new-window
+  semantics without generating Scheme expressions.
+- Selection and plain-movement keymaps pass command identities to generated
+  native dispatch instead of looking up Scheme procedures. ESC angle/norm
+  bracket descriptors also dispatch natively; their intermediate Scheme call
+  list and unused public dispatch binding are removed. Argument containers
+  remain transitional objects, not a completed runtime-value migration.
+  The -j16 build and official deployment passed. A temporary headless runtime
+  loaded all keyboard domains and confirmed removal of the three retired
+  chooser/ESC bindings. Direct synthetic movement and bracket checks were not
+  valid: they bypassed the editor preparation boundary and reported awaiting
+  layout/mode preparation. They were stopped, not used to justify cursor fixes
+  or claim end-to-end input coverage. OS FileOpen and Save As dialogs were not
+  exercised interactively. Temporary data was removed; successful logs are
+  `build_qt6/native-file-keyboard-{build,deploy,runtime}.log`.
+
 ## Known Outstanding Failures
 
 - `gnutls.cpp` still invokes missing certificate-interaction callbacks and
   overwrites the handshake error with a status-formatting result.
+  A follow-up source search found no callers of either legacy TLS contact
+  factory outside that file. Its certificate utilities appear only in generated
+  binding declarations; audit their remaining consumers before migrating this
+  potentially dead legacy networking layer. Hodarium's `peer_tls.cpp` is an
+  independent active GnuTLS consumer and must not be removed with it.
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
   inconsistent. See the concrete core evidence in `native-application-ui.md`.
 

@@ -2,7 +2,6 @@
 <glue version="1" prefix="" initializer="initialize_glue_native">
   <binding name="tm-select" native="native_tree_select" returns="object" exceptions="scheme"><arg type="object" /><arg type="object" /></binding>
   <binding name="native-dialogue-initialize" native="interactive_startup" returns="void" />
-  <binding name="choose-file" native="interactive_choose_file" returns="void" exceptions="scheme"><arg type="procedure" /><arg type="string" /><arg type="string" /><arg type="object" rest="true" /></binding>
   <binding name="get-preference" native="application_preference_get" returns="object"><arg type="string" /></binding>
   <binding name="set-preference" native="application_preference_set" returns="void"><arg type="string" /><arg type="object" /></binding>
   <binding name="reset-preference" native="application_preference_reset" returns="void"><arg type="string" /></binding>
@@ -1130,7 +1129,7 @@
   <binding name="kbd-page-up-raw" native="generic_kbd_page_up_raw" returns="void" />
   <binding name="kbd-page-down-raw" native="generic_kbd_page_down_raw" returns="void" />
   <binding name="kbd-plain-move" native="generic_kbd_plain_move" returns="void">
-    <arg type="procedure" />
+    <arg type="string" />
   </binding>
   <binding name="kbd-left" native="generic_kbd_left" returns="void" />
   <binding name="kbd-right" native="generic_kbd_right" returns="void" />
@@ -1141,10 +1140,10 @@
   <binding name="kbd-page-up" native="generic_kbd_page_up" returns="void" />
   <binding name="kbd-page-down" native="generic_kbd_page_down" returns="void" />
   <binding name="kbd-select" native="generic_kbd_select" returns="void">
-    <arg type="procedure" />
+    <arg type="string" />
   </binding>
   <binding name="kbd-select-if-active" native="generic_kbd_select_if_active" returns="void">
-    <arg type="procedure" />
+    <arg type="string" />
   </binding>
   <binding name="insert-return" native="generic_insert_return" returns="void" />
   <binding name="sqrt-toggle" native="math_sqrt_toggle" returns="void"><arg type="tree" /></binding>
@@ -1211,9 +1210,6 @@
   <binding name="hybrid-kbd-backslash" native="generic_hybrid_kbd_backslash" returns="void" />
   <binding name="hybrid-kbd-sub" native="generic_hybrid_kbd_sub" returns="void" />
   <binding name="hybrid-kbd-sup" native="generic_hybrid_kbd_sup" returns="void" />
-  <binding name="escape-symbol-native-dispatch" native="generic_escape_symbol_dispatch" returns="object">
-    <arg type="string" />
-  </binding>
   <binding name="handwriting-symbol-input-description" native="generic_handwriting_symbol_input_description" returns="string">
     <arg type="string" />
   </binding>

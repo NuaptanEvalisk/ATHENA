@@ -777,11 +777,7 @@ foreach (_test_file ${TEST_SRC_FILES})
       _test_name STREQUAL "preview_math_font_test")
     set_tests_properties (${_test_name} PROPERTIES TIMEOUT 30)
   endif ()
-  if (_test_name STREQUAL "file_chooser_test")
-    set_tests_properties (${_test_name} PROPERTIES TIMEOUT 30)
-  endif ()
-  if (_test_name STREQUAL "file_chooser_test" OR
-      _test_name STREQUAL "native_interactive_dialog_test" OR
+  if (_test_name STREQUAL "native_interactive_dialog_test" OR
       _test_name STREQUAL "completing_combo_box_test")
     set_property (TEST ${_test_name} APPEND PROPERTY ENVIRONMENT
       "QT_QPA_PLATFORM=offscreen")

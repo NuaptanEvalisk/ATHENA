@@ -100,7 +100,7 @@ public:
    */
   enum types {
     none = 0,
-    input_widget,    file_chooser,       window_widget,      view_widget,
+    input_widget,                       window_widget,      view_widget,
     horizontal_menu, vertical_menu,      horizontal_list,    vertical_list,
     tile_menu,       minibar_menu,       menu_separator,     menu_group, 
     pulldown_button, pullright_button,   menu_button,        balloon_widget,
@@ -143,7 +143,7 @@ public:
   string type_as_string() { 
     static const char* qt_widget_type_strings[] = {
       "none",
-      "input_widget",       "file_chooser",       "window_widget",
+      "input_widget",                            "window_widget",
       "view_widget",        "horizontal_menu",    "vertical_menu",
       "horizontal_list",    "vertical_list",      "tile_menu",
       "minibar_menu",       "menu_separator",     "menu_group",

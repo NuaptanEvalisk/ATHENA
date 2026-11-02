@@ -14,5 +14,4 @@ void interactive_history_save ();
 void interactive_command (string function, array<string> labels);
 void interactive_startup ();
 void interactive_properties_initialize ();
-void interactive_choose_file (object action, string title, string type, object options);
 #endif

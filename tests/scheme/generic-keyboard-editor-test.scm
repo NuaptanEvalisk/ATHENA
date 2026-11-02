@@ -100,15 +100,15 @@
 (check (equal? (cursor-path) '(0 0 1 1)) "alternate tab cursor")
 
 (reset "abcd" 1)
-(kbd-select (lambda () (tree-go-to (tree-ref (buffer-tree) 0) 2)))
+(kbd-select "go-end")
 (check (selection-active-any?) "native kbd-select activates selection")
 (check (equal? (selection-get-start) '(0 0 1)) "native kbd-select start")
-(check (equal? (selection-get-end) '(0 0 2)) "native kbd-select end")
-(check (equal? (cursor-path) '(0 0 2)) "native kbd-select cursor")
+(check (equal? (selection-get-end) '(0 0 4)) "native kbd-select end")
+(check (equal? (cursor-path) '(0 0 4)) "native kbd-select cursor")
 
 (reset "abcd" 1)
-(kbd-plain-move (lambda () (tree-go-to (tree-ref (buffer-tree) 0) 3)))
-(check (equal? (cursor-path) '(0 0 3)) "native kbd-plain-move procedure bridge")
+(kbd-plain-move "go-end")
+(check (equal? (cursor-path) '(0 0 4)) "native kbd-plain-move command dispatch")
 
 (define (legacy-kbd-horizontal t forwards?)
   (if (tree-is-buffer? t)

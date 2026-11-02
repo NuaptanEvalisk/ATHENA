@@ -839,7 +839,6 @@ file (GLOB_RECURSE ATHENA_Qt_SRCS CONFIGURE_DEPENDS "${ATHENA_SOURCE_DIR}/src/Su
 set (ATHENA_Qt_Moc_HDRS
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAbout.hpp
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMApplication.hpp
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMFileDialog.hpp
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMGuiHelper.hpp
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMMenuHelper.hpp
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPipeLink.hpp

@@ -14,7 +14,6 @@
 #include "actor_ui_bridge.hpp"
 #include "buffer_state.hpp"
 #include "buffer_name_catalog.hpp"
-#include "ATHENA/Window/tm_dialogue.hpp"
 #include "tm_buffer.hpp"
 #include "ATHENA/Data/interop_document_codec.hpp"
 #include "ATHENA/Data/new_buffer.hpp"
@@ -65,8 +64,6 @@ private slots:
   void ownsCommandsAndDocumentContext ();
   void preservesSynchronousInvocationContext ();
   void widgetPromiseFailureStaysNonFatal ();
-  void chooserResultEvaluatesGlobally ();
-  void chooserResultEvaluatesOnOwningActor ();
   void drainsInFifoOrderAndRejectsAfterShutdown ();
   void documentNodesRemainActorOwned ();
   void fullSourceRetainsUnknownAttributesAndLiveBody ();
@@ -536,37 +533,6 @@ TestBufferActor::cursorBlinkCoalescesWithoutQueueingDuplicates () {
   endpoint.finish_coalesced_command (actor_command_kind::cursor_blink);
 }
 
-class capture_chooser_argument_rep: public command_rep {
-  bool& called;
-  bool& direct_url;
-  bool& listed_url;
-  string& system_path;
-  string& option;
-public:
-  capture_chooser_argument_rep (bool& called2, bool& direct_url2,
-                                bool& listed_url2, string& system_path2,
-                                string& option2):
-    called (called2), direct_url (direct_url2), listed_url (listed_url2),
-    system_path (system_path2), option (option2) {}
-  void apply () override {}
-  void apply (object args) override {
-    array<object> values= as_array_object (args);
-    called= N(values) == 1;
-    if (!called) return;
-    direct_url= is_url (values[0]);
-    if (direct_url) {
-      system_path= concretize (as_url (values[0]));
-      return;
-    }
-    if (!is_list (values[0])) return;
-    array<object> list= as_array_object (values[0]);
-    listed_url= N(list) == 2 && is_url (list[0]) && is_string (list[1]);
-    if (listed_url) {
-      system_path= concretize (as_url (list[0]));
-      option= as_string (list[1]);
-    }
-  }
-};
 
 void
 TestBufferActor::sourceCommitPreservesBorrowedMetadata () {
@@ -1004,75 +970,6 @@ TestBufferActor::widgetPromiseFailureStaysNonFatal () {
   tm_delete (buffer);
 }
 
-void
-TestBufferActor::chooserResultEvaluatesGlobally () {
-  object direct= evaluate_chooser_result (
-    "(system->url \"/tmp/Algebraic Theories (Adamek)/ATVR 01 Abstract Algebraic Categories.ath\")");
-  QVERIFY (is_url (direct));
-  QCOMPARE (concretize (as_url (direct)),
-            string ("/tmp/Algebraic Theories (Adamek)/ATVR 01 Abstract Algebraic Categories.ath"));
-
-  object listed= evaluate_chooser_result (
-    "(list (system->url \"/tmp/athena chooser portable.tex\") \"on\")");
-  QVERIFY (is_list (listed));
-  array<object> values= as_array_object (listed);
-  QCOMPARE (N(values), 2);
-  QVERIFY (is_url (values[0]));
-  QVERIFY (is_string (values[1]));
-  QCOMPARE (concretize (as_url (values[0])),
-            string ("/tmp/athena chooser portable.tex"));
-  QCOMPARE (as_string (values[1]), string ("on"));
-}
-
-void
-TestBufferActor::chooserResultEvaluatesOnOwningActor () {
-  tm_buffer buffer= tm_new<tm_buffer_rep> (url ("actor-chooser-test.ath"));
-  const athena_view_id view= 11;
-  bool called= false;
-  bool direct_url= false;
-  bool listed_url= false;
-  string system_path;
-  string option;
-  command callback= tm_new<capture_chooser_argument_rep> (
-    called, direct_url, listed_url, system_path, option);
-
-  athena_continuation_id continuation=
-    actor_continuation_registry::instance ().store ([&] {
-      dispatch_actor_chooser_result (
-        callback,
-        "(system->url \"/tmp/athena chooser export.tex\")",
-        buffer->actor->id (), view, SCHEME_CAPABILITY_BUFFER);
-    });
-  QVERIFY (buffer->actor->invoke (
-    actor_command_kind::run_native_continuation, view,
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
-    SCHEME_CAPABILITY_BUFFER, continuation));
-  QVERIFY (buffer->actor->wait_until_idle ());
-
-  QVERIFY (called);
-  QVERIFY (direct_url);
-  QCOMPARE (system_path, string ("/tmp/athena chooser export.tex"));
-
-  called= direct_url= listed_url= false;
-  system_path= option= "";
-  continuation= actor_continuation_registry::instance ().store ([&] {
-    dispatch_actor_chooser_result (
-      callback,
-      "(list (system->url \"/tmp/athena portable export.tex\") \"on\")",
-      buffer->actor->id (), view, SCHEME_CAPABILITY_BUFFER);
-  });
-  QVERIFY (buffer->actor->invoke (
-    actor_command_kind::run_native_continuation, view,
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
-    SCHEME_CAPABILITY_BUFFER, continuation));
-  QVERIFY (buffer->actor->wait_until_idle ());
-  QVERIFY (called);
-  QVERIFY (!direct_url);
-  QVERIFY (listed_url);
-  QCOMPARE (system_path, string ("/tmp/athena portable export.tex"));
-  QCOMPARE (option, string ("on"));
-  tm_delete (buffer);
-}
 
 void
 TestBufferActor::ownsCommandsAndDocumentContext () {

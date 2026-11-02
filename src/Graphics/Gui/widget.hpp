@@ -133,11 +133,6 @@ widget texmacs_widget (int mask, command quit);
   // the main TeXmacs widget and a command which is called on exit
   // the mask variable indicates whether the menu, icon bars, status bar, etc.
   // are visible or not
-widget file_chooser_widget (command cmd, string type, string prompt);
-  // file chooser widget for files of a given 'type';
-  // for files of type "image", the widget includes a previsualizer for images
-  // 'prompt' contains a prompt if we intend to save the file
-  // and the empty string otherwise
 widget color_picker_widget (command cmd, bool bg, array<tree> proposals);
   // widgets for selecting a color, a pattern or a background image,
   // encoded by a tree. On input, we give a list of recently used proposals
