@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMPreferencesDialog.hpp"
+#include "generic_frontend.hpp"
 #include "user_shortcuts.hpp"
 #include "Edit/Interface/application_tools.hpp"
 #include "athena_platform.hpp"
@@ -373,9 +374,9 @@ font_families () {
 static QStringList
 preferred_fonts () {
   QStringList result;
-  list<string> xs= as_list_string (call ("get-user-preferred-fonts"));
-  for (list<string> it= xs; !is_nil (it); it= it->next)
-    result << to_qstring_pref (it->item);
+  const array<string> fonts= generic_preferred_font_names ();
+  for (int i=0; i<N(fonts); ++i)
+    result << to_qstring_pref (fonts[i]);
   return result;
 }
 
@@ -394,9 +395,9 @@ random_hex_token (int bytes) {
 
 static void
 set_preferred_fonts (const QStringList& fonts) {
-  array<object> xs;
-  for (const QString& f: fonts) xs << object (from_qstring_pref (f));
-  set_preference ("preferred fonts", object_to_string (as_list_object (xs)));
+  array<string> values;
+  for (const QString& f: fonts) values << from_qstring_pref (f);
+  generic_set_preferred_fonts (values);
 }
 
 static void

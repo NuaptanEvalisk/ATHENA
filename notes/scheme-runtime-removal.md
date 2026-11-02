@@ -692,6 +692,22 @@ generated native entries and remain on the secure-function list.
   parameter separation. Full linking/deployment is pending with the preceding
   focus and view-action batches; installed runtime remains `c7b8db073`.
 
+## Native Preferred Font Data
+
+- Preferred-font reads and writes use native string arrays and the existing
+  S-expression data reader/writer. The stored quoted-string-list format stays
+  unchanged; no Scheme evaluation, object parser or object printer is needed
+  by the Qt preferences interface.
+- The existing script-facing font getter adapts the same native result, keeping
+  a single preference interpretation. Empty/non-list/non-string-list data yields
+  no preferred fonts rather than entering the UI as non-text values.
+- Compiled both implementation units with `-j16`; log:
+  `build_qt6/native-preferred-fonts-build.log`. Full linking/deployment remains
+  pending with the preceding batches; installed runtime remains `c7b8db073`.
+- Fixed literal-name business `call` sites are gone from active source outside
+  the runtime itself. This narrow audit does not cover variable-name/procedure
+  calls, object parsing/printing, startup scripts or Guile lifecycle ownership.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

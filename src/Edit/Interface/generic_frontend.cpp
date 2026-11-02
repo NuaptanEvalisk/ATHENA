@@ -1,6 +1,7 @@
 // Copyright (C) 2001-2026 ATHENA contributors. GPL-3.0-or-later.
 #include "insertion_commands.hpp"
 #include "generic_frontend.hpp"
+#include "convert.hpp"
 #include "tooltip_commands.hpp"
 #include "generic_editor_commands.hpp"
 #include "document_style_commands.hpp"
@@ -282,11 +283,28 @@ void generic_make_with_package (tree_label label, string name) {
   else ed->make_compound (label);
 }
 object generic_preferred_fonts () {
+  array<object> result;
+  const array<string> fonts= generic_preferred_font_names ();
+  for (int i=0; i<N(fonts); ++i) result << object (fonts[i]);
+  return as_list_object (result);
+}
+array<string> generic_preferred_font_names () {
   string value= get_preference ("preferred fonts");
-  if (value == "")
-    return null_object ();
-  object parsed= string_to_object (value);
-  return is_list (parsed) ? parsed : null_object ();
+  array<string> result;
+  if (value == "") return result;
+  tree parsed= string_to_scheme_tree (value);
+  if (!is_tuple (parsed)) return result;
+  for (int i=0; i<N(parsed); ++i) {
+    if (!is_atomic (parsed[i]) || !is_quoted (parsed[i]->label))
+      return array<string> ();
+    result << raw_unquote (parsed[i]->label);
+  }
+  return result;
+}
+void generic_set_preferred_fonts (array<string> fonts) {
+  tree values (TUPLE);
+  for (int i=0; i<N(fonts); ++i) values << tree (raw_quote (fonts[i]));
+  set_preference ("preferred fonts", scheme_tree_to_string (values));
 }
 tree generic_render_cardlink (tree body, tree destination) {
   string type= generic_cardlink_native_type (destination);

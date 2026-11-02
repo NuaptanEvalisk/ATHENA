@@ -18,6 +18,8 @@ void generic_install_style (url);
 void generic_install_style_dialog ();
 void generic_make_with_package (tree_label, string);
 object generic_preferred_fonts ();
+array<string> generic_preferred_font_names ();
+void generic_set_preferred_fonts (array<string> fonts);
 tree generic_render_cardlink (tree, tree);
 void generic_display_balloon (tree, tree, tree, tree, tree);
 void generic_clear_style_cache ();
