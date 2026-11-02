@@ -28,10 +28,12 @@
 #include <cstdlib>
 #include <fstream>
 #include <filesystem>
+#include <exception>
 #include <iomanip>
 #include <optional>
 #include <random>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <vector>
 #ifndef OS_MINGW
@@ -71,6 +73,9 @@
 #include "rag_delegation_crypto.hpp"
 #include "native_keyboard_loader.hpp"
 #include "native_interfaces.hpp"
+#include "application_lifecycle.hpp"
+#include "buffer_actor.hpp"
+#include "buffer_name_catalog.hpp"
 
 #ifdef QTTEXMACS
 #include "Qt/QTMApplication.hpp"
@@ -95,7 +100,6 @@ extern bool   char_clip;
 
 extern url    tm_init_file;
 extern url    tm_init_buffer_file;
-extern string my_init_cmds;
 extern string original_path;
 
 extern int geometry_w, geometry_h;
@@ -144,7 +148,73 @@ string website_post_command_dir;
 string website_post_command_id;
 bool   aofm_ignore_nonempty_dest = false;
 int    aofm_convert_vault_parallelism = 0;
-string extra_init_cmd;
+namespace {
+enum class startup_operation { convert, execute, quit };
+struct startup_task {
+  startup_operation operation;
+  std::string source, destination;
+};
+std::vector<startup_task> startup_tasks;
+std::vector<std::string> startup_documents;
+
+void execute_startup_script (const std::string& source, const std::string& document) {
+  const auto owner= published_buffer_source (document);
+  if (document.empty () || owner.first == ATHENA_NO_ACTOR || owner.second == ATHENA_NO_VIEW) {
+    eval (string (source.c_str ()));
+    return;
+  }
+  std::exception_ptr failure;
+  const auto continuation= actor_continuation_registry::instance ().store ([source, &failure] {
+    try { eval (string (source.c_str ())); }
+    catch (...) { failure= std::current_exception (); }
+  });
+  if (!buffer_actor::invoke_on (owner.first, actor_command_kind::run_native_continuation,
+      owner.second, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
+      SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_UI | SCHEME_CAPABILITY_GLOBAL,
+      continuation)) {
+    actor_continuation_registry::instance ().discard (continuation);
+    throw std::runtime_error ("Startup command document has closed");
+  }
+  if (failure) std::rethrow_exception (failure);
+}
+
+void run_startup_task (size_t index, std::string document= {}) {
+  if (index == startup_tasks.size ()) {
+    startup_tasks.clear ();
+    return;
+  }
+  const auto task= startup_tasks[index];
+  switch (task.operation) {
+  case startup_operation::convert:
+    application_command_line_convert (string (task.source.c_str ()),
+      string (task.destination.c_str ()), [index, source= task.source] {
+        run_startup_task (index + 1, source);
+      });
+    return;
+  case startup_operation::execute:
+    try { execute_startup_script (task.source, document); }
+    catch (const std::exception& error) {
+      cerr << "ATHENA: startup command failed: " << error.what () << "\n";
+      std::exit (1);
+    }
+    break;
+  case startup_operation::quit:
+    get_server ()->quit ();
+    return;
+  }
+  qt_post_to_main_thread ([index, document] { run_startup_task (index + 1, document); });
+}
+
+void open_startup_documents () {
+  for (size_t index= 0; index < startup_documents.size (); ++index) {
+    const object options= index == 0 ? null_object () :
+      list_object (keyword_object ("new-window"));
+    application_load_document (url (startup_documents[index].c_str ()), options);
+  }
+  startup_documents.clear ();
+  qt_post_to_main_thread ([] { run_startup_task (0); });
+}
+}
 bool exec_exit= true;
 static std::string athena_to_std_string (const string& s);
 
@@ -668,7 +738,6 @@ ATHENA_init_paths (int& argc, char** argv) {
 ******************************************************************************/
 
 string the_default_font;
-string where= "";
 
 #if ATHENA_ENABLE_CLI
 static void
@@ -772,7 +841,6 @@ set_global_options  (int argc, char** argv)  {
 #if ATHENA_ENABLE_CLI
   // parse command line options
   bool flag= true;
-  string conversion_continuations= "";
 
   for (int i=1; i<argc; i++) {
     if (argv[i][0] == '\0') argc= i;
@@ -936,7 +1004,7 @@ set_global_options  (int argc, char** argv)  {
         exit (0);
       }
       else if ((s == "-q") || (s == "-quit"))
-        my_init_cmds= my_init_cmds * " (quit-TeXmacs)";
+        startup_tasks.push_back ({startup_operation::quit, {}, {}});
       else if ((s == "-r") || (s == "-reverse"))
         set_reverse_colors (true);
       else if ((s == "-c") || (s == "-convert") || (s == "-C")) {
@@ -944,17 +1012,15 @@ set_global_options  (int argc, char** argv)  {
         if (i<argc) {
           url in  ("$PWD", argv[i-1]);
           url out ("$PWD", argv[ i ]);
-          // Loading crosses to the UI owner. Keep subsequent commands,
-          // including headless exit, inside its completion continuation.
-          my_init_cmds= my_init_cmds * " " *
-            "(command-line-convert " * scm_quote (as_string (in)) * " " *
-            scm_quote (as_string (out)) * " (lambda ()";
-          conversion_continuations= conversion_continuations * " (noop)))";
+          const string source= as_string (in), target= as_string (out);
+          startup_tasks.push_back ({startup_operation::convert,
+            std::string (source.data (), N(source)),
+            std::string (target.data (), N(target))});
         }
       }
       else if ((s == "-x") || (s == "-execute")) {
         i++;
-        if (i<argc) my_init_cmds= (my_init_cmds * " ") * argv[i];
+        if (i<argc) startup_tasks.push_back ({startup_operation::execute, argv[i], {}});
       }
       else if ((s == "-X")) {
         exec_exit= false;
@@ -977,22 +1043,15 @@ set_global_options  (int argc, char** argv)  {
       if (DEBUG_STD) debug_boot << "Loading " << s << "...\n";
       url u= url_system (s);
       if (!is_rooted (u)) u= resolve (url_pwd (), "") * u;
-      string b= scm_quote (as_string (u));
-      string cmd= "(load-buffer " * b * " " * where * ")";
-      where= " :new-window";
-      extra_init_cmd << cmd;
+      const string name= as_string (u);
+      startup_documents.emplace_back (name.data (), N(name));
     }
   } // for (int i...)
   if (flag) debug (DEBUG_FLAG_AUTO, true);
   // End parse command line options
 
-  // In headless mode the automatic quit can be reached from a conversion
-  // continuation running on that buffer's actor.  Server shutdown owns
-  // process-global pipe/Qt state, so never execute it on the BufferActor.
   if (headless_mode && exec_exit)
-    my_init_cmds= my_init_cmds *
-      " (exec-global (lambda () (quit-TeXmacs)))";
-  my_init_cmds= my_init_cmds * conversion_continuations;
+    startup_tasks.push_back ({startup_operation::quit, {}, {}});
 
   // Further options via environment variables
   // End options via environment variables
@@ -1125,10 +1184,6 @@ TeXmacs_main (int argc, char** argv) {
 #endif
     bool needs_startup_buffer_policy= number_buffers () == 0;
 
-    // Compile on the bootstrap thread before opening a window starts actors
-    // which may concurrently publish lazily loaded module definitions.
-    object startup_commands;
-    if (N (extra_init_cmd) > 0) startup_commands= scheme_cmd (extra_init_cmd);
     if (!headless_mode) {
       startup_progress (94, "Building application workspace");
       bench_start ("show application shell");
@@ -1174,9 +1229,8 @@ TeXmacs_main (int argc, char** argv) {
     }
     if (vault_maintenance_toc_worker_file != "" &&
         vault_maintenance_toc_worker_marker != "") {
-      string cmd= "(load-buffer (system->url " *
-                  scm_quote (vault_maintenance_toc_worker_file) * ") :strict)";
-      eval (cmd);
+      application_load_document (url_system (vault_maintenance_toc_worker_file),
+        list_object (keyword_object ("strict")));
       bool failed= true;
       try {
         url document= url_system (vault_maintenance_toc_worker_file);
@@ -1246,10 +1300,10 @@ TeXmacs_main (int argc, char** argv) {
       qt_post_to_main_thread (ads_restore_visible_panes);
     });
 
-    // inject scheme commands
-    if (N(extra_init_cmd) > 0) exec_delayed (startup_commands);
-    if (N(extra_init_cmd) > 0)
+    if (!startup_documents.empty () || !startup_tasks.empty ()) {
+      qt_post_to_main_thread (open_startup_documents);
       startup_progress (97, "Scheduling startup tasks");
+    }
     startup_progress (98, "Preparing workspace");
 #ifdef QTTEXMACS
     google_tasks_schedule_background_refresh ();

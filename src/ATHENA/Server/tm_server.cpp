@@ -49,7 +49,6 @@
 server* the_server= NULL;
 bool texmacs_started= false;
 url tm_init_file= url_none ();
-string my_init_cmds= "";
 
 /******************************************************************************
 * Execution of commands
@@ -132,13 +131,6 @@ tm_server_rep::tm_server_rep (): def_zoomf (1.0), center_message ("") {
   if (!is_none (tm_init_file)) exec_file (tm_init_file);
   finalize_scheme_bootstrap ();
   bench_cumul ("initialize application");
-  if (my_init_cmds != "") {
-    my_init_cmds= "(begin" * my_init_cmds * ")";
-    // The top-level command-line initialization owns process-global state.
-    // Nested ordinary delayed commands select their own execution domain;
-    // editor-idle work must remain free to attach to a BufferActor.
-    exec_delayed_global (scheme_cmd (my_init_cmds));
-  }
 #ifdef OS_GNU_LINUX
   return; // in order to avoid segmentation faults
 #elif defined OS_POWERPC_GNU_LINUX

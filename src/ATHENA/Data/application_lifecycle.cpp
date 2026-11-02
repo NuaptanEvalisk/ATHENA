@@ -582,8 +582,8 @@ void application_browse_document (url source, std::function<void(url)> completed
 
 void application_import_document (url source, string format, object options) {
   const std::string encoded= encode (source), selected (format.data (), N(format));
-  auto retained= std::make_shared<conversion_continuation> (options);
-  on_gui ([encoded, selected, retained] {
+  const load_options settings (options);
+  on_gui ([encoded, selected, settings] {
     url source (encoded.c_str ());
     const url search= url ("$ATHENA_FILE_PATH") * source;
     if (!exists (source) && exists (search)) source= resolve (search, "f");
@@ -600,7 +600,6 @@ void application_import_document (url source, string format, object options) {
     url target= source;
     if (format != file_format (source))
       target= url ("tmfs://import/" * format * "/" * tmfs_encode_url (source));
-    load_options settings (tmscm_to_object (scheme_command_handle_value (retained->handle)));
     const bool latex= format == "latex" || format == "tex" || format == "latex-document";
     if (latex) system_wait ("Importing LaTeX", "please wait");
     try { load_document_gui (target, settings); }
@@ -612,10 +611,9 @@ void application_import_document (url source, string format, object options) {
   });
 }
 
-void application_command_line_convert (string from, string to, object next) {
+void application_command_line_convert (string from, string to, std::function<void()> next) {
   const std::string source (from.data (), N(from)), target (to.data (), N(to));
-  auto continuation= std::make_shared<conversion_continuation> (next);
-  on_gui ([source, target, continuation] {
+  on_gui ([source, target, next= std::move (next)] {
     const url name (source.c_str ()), destination (target.c_str ());
     if (buffer_load (name)) {
       cerr << "ATHENA: could not load " << source.c_str () << "\n";
@@ -626,8 +624,7 @@ void application_command_line_convert (string from, string to, object next) {
       cerr << "ATHENA: could not export " << source.c_str () << " to " << target.c_str () << "\n";
       std::exit (1);
     }
-    object next= tmscm_to_object (scheme_command_handle_value (continuation->handle));
-    if (!exec_buffer (name, next)) call (next);
+    next ();
   });
 }
 void application_restart () { on_gui ([] { request_quit (true); }); }

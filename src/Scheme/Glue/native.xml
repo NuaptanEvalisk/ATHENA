@@ -188,7 +188,6 @@
   <binding name="safely-restart-ATHENA" native="application_restart" returns="void" />
   <binding name="new-document*" native="application_new_window" returns="void" />
   <binding name="load-external" native="application_open_external" returns="void" exceptions="scheme"><arg type="url" /></binding>
-  <binding name="command-line-convert" native="application_command_line_convert" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /><arg type="procedure" /></binding>
   <binding name="revert-buffer" native="application_revert_buffer" returns="void" exceptions="scheme"><arg type="object" rest="true" /></binding>
   <binding name="revert-buffer-revert" native="application_revert_buffer_now" returns="void" exceptions="scheme"><arg type="object" rest="true" /></binding>
   <binding name="import-buffer" native="application_import_document" returns="void" exceptions="scheme"><arg type="url" /><arg type="string" /><arg type="object" rest="true" /></binding>

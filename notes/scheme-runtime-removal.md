@@ -235,6 +235,31 @@ generated native entries and remain on the secure-function list.
   cross-document navigation was not exercised. Build and deployment logs are
   `build_qt6/native-label-navigation-{build,deploy}.log`.
 
+## Native Startup Task Sequencing
+
+- Positional file arguments call the native loader directly, retaining the
+  first-document/subsequent-window behavior. They no longer build load-buffer
+  expressions or wait for an ownerless Scheme delayed queue.
+- Conversion and quit options are ordered native tasks. Each conversion exports
+  its own loaded buffer before its C++ completion advances the task queue.
+  Automatic headless quit stays on the application thread. The internal
+  command-line-convert Scheme binding and the server's my_init_cmds expression
+  accumulator are removed.
+- Explicit -x scripts are still a remaining Scheme feature, not native command
+  execution. After conversion they run synchronously on that source document's
+  actor before subsequent tasks continue; no Scheme continuation wraps the
+  conversion pipeline. Arbitrary script support and its tooling consumers still
+  require migration before Guile removal.
+- Import options are decoded into native load flags before GUI dispatch instead
+  of retaining a Guile handle. The ToC maintenance worker calls the strict native
+  loader directly rather than evaluating a fabricated Scheme expression.
+- Built with -j16 and deployed through the official helper. A headless runtime
+  check converted text to v3 .ath, then that output to HTML, then exported text
+  through a following -x command. All outputs contained the sentinel, the
+  removed command-line-convert binding was absent, and automatic exit returned
+  zero. No permanent test was added. The temporary profile and documents were
+  removed; logs remain under `build_qt6/native-startup-tasks-*.log`.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
