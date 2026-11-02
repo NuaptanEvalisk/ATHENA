@@ -1434,6 +1434,22 @@ generated native entries and remain on the secure-function list.
 - No tests added or run. Full linking/runtime binding verification/deployment
   remains pending with the style-list read/write batches.
 
+## Native Node Variant Query Core
+
+- Shared node variant discovery now computes native strings before any binding
+  adaptation. Math variant cycling consumes a native string array, avoiding
+  symbol construction and list decoding in the editing path.
+- Standard catalog variants and the current evaluation scope's dynamic group
+  lookup remain the same single implementation. Forward/backward wraparound
+  and edit dispatch are unchanged. Existing object variant/similar interfaces
+  only adapt this core until their remaining consumers are migrated.
+- Both implementation units compiled with `-j16`; log
+  `build_qt6/native-node-variant-values-build.log`. No tests added or run. Full
+  linking/deployment remains pending with the style-list batches.
+- Next consumers are generic_focus_variants_of, focus snapshots and variant
+  actions. They still use object lists and should consume the native query and
+  JSON-configured variant arrays directly.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

@@ -127,10 +127,10 @@ void native_variant_circulate (tree t, bool forward) {
     return;
   }
   if (editing_variant_context (t)) {
-    array<object> choices= as_array_object (native_node_variants (symbol_object (as_string (L(t)))));
+    array<string> choices= native_node_variants (as_string (L(t)));
     for (int i=0; i<N(choices); ++i)
-      if (as_symbol (choices[i]) == as_string (L(t))) {
-        editing_variant_set (t, as_tree_label (as_symbol (choices[(i + (forward ? 1 : N(choices)-1)) % N(choices)])));
+      if (choices[i] == as_string (L(t))) {
+        editing_variant_set (t, as_tree_label (choices[(i + (forward ? 1 : N(choices)-1)) % N(choices)]));
         return;
       }
     return;

@@ -39,21 +39,29 @@ object native_node_group_find (object tag, string group) {
 }
 
 namespace {
-object variants (object tag, bool numbered) {
-  if (!is_symbol (tag)) return object (false);
-  const auto name= bytes (as_symbol (tag));
+std::vector<std::string> variants (string tag, bool numbered) {
+  const auto name= bytes (tag);
   auto values= standard_node_groups ().variants (name, numbered);
   if (values.size () == 1 && values.front () == name) {
     auto group= athena::contracts::group_find (athena::contracts::current_evaluation_state ().contracts,
       numbered ? "similar-tag" : "variant-tag", name);
     if (!group.empty ()) values= members (group);
   }
-  return symbols (values);
+  return values;
 }
 }
 
-object native_node_variants (object tag) { return variants (tag, false); }
-object native_node_similar (object tag) { return variants (tag, true); }
+array<string> native_node_variants (string tag) {
+  array<string> result;
+  for (const auto& value: variants (tag, false)) result << text (value);
+  return result;
+}
+object native_node_variants (object tag) {
+  return is_symbol (tag) ? symbols (variants (as_symbol (tag), false)) : object (false);
+}
+object native_node_similar (object tag) {
+  return is_symbol (tag) ? symbols (variants (as_symbol (tag), true)) : object (false);
+}
 object native_node_alternate (object tag) {
   if (!is_symbol (tag)) return object (false);
   const auto name= standard_node_groups ().alternate (bytes (as_symbol (tag)));
