@@ -1,5 +1,4 @@
 ;; Native document preamble queries and actor-owned show/hide/toggle behavior.
-(import-from (generic document-part))
 (init-style "generic")
 
 (define (check condition message . details)

@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMPreferencesDialog.hpp"
+#include "user_shortcuts.hpp"
 #include "Edit/Interface/application_tools.hpp"
 #include "athena_platform.hpp"
 #if ATHENA_ENABLE_PLUGINS
@@ -1252,7 +1253,7 @@ QTMPreferencesDialog::buildKeyboardPage () {
   add_combo (form, "automatic brackets");
   QPushButton* shortcuts= new QPushButton ("Edit keyboard shortcuts");
   QObject::connect (shortcuts, &QPushButton::clicked, [] () {
-    (void) call ("open-shortcuts-editor", string (""), string (""));
+    user_shortcuts_open_native ();
   });
   form->addRow (label ("Advanced settings:"), shortcuts);
   finish_page (input);

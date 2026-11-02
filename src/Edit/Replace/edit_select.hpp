@@ -44,6 +44,7 @@ protected:
     tree selection, std::shared_ptr<const evaluation_environment_checkpoint> context,
     bool graphics);
   void apply_paste (const native_paste_plan& prepared, bool local_transfer);
+  void store_cut_selection (string key, tree clipboard);
 
 public:
   edit_select_rep ();

@@ -1,6 +1,5 @@
 ;; Native generic document style commands execute on the owning BufferActor
 ;; while preserving the public Scheme style extension points.
-(import-from (generic document-style))
 (init-style "generic")
 
 (define (check condition message . details)

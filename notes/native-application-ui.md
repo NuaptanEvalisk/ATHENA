@@ -121,3 +121,53 @@ Final registration checks exercise TMFS loads, titles and permissions after
 normal startup with no former application module loaded. Batches were built
 with `-j16` and deployed through `tools/deploy-local-runtime.sh`; temporary
 runtime homes, scripts, generated figures and logs were cleaned after use.
+
+## Generic, Dynamic And Source Frontends
+
+The former `progs/generic`, `progs/dynamic` and `progs/source` implementations
+now live in native code:
+
+- `generic_frontend.cpp` owns insertion dialogs, figure wrapping, document
+  updates and global-search result navigation. Destination positioning is an
+  owner task after loading, rather than a timed Scheme continuation.
+- `presentation_commands.cpp` owns folds, switches, overlays, slide editing,
+  traversal, presentation expansion and navigation markup. Slideshow clipboard
+  insertion uses `edit_select.cpp`'s normal version and source-identity pipeline.
+- `source_commands.cpp` owns source activation, macro definition lookup/editing,
+  style extraction and parameter/theme analysis.
+- `Typeset/Env/title_markup.cpp` owns title, author and abstract rendering,
+  including note deduplication and author clustering.
+
+Bindings in `src/Scheme/Glue/native.xml` retain the entrypoints needed by the
+remaining kernel, keymap dispatcher and style `extern` calls. The removed
+modules are not imported or relocated into another Scheme directory.
+
+### Custom shortcuts
+
+`user_shortcuts.cpp` stores custom bindings in
+`$ATHENA_HOME_PATH/system/shortcuts.json` using Qt JSON and atomic `QSaveFile`
+replacement. Example:
+
+```json
+{
+  "version": 1,
+  "bindings": [
+    {"key": "C-A-t", "action": {"op": "make", "tag": "theorem"}}
+  ]
+}
+```
+
+Actions use the existing native editor-action schema, also used by menus and
+toolbars. The Qt shortcut editor validates these JSON actions. Custom bindings
+form a separate override layer, including multi-stroke prefixes; removing one
+reveals the default binding, and later loading a keymap cannot replace a user
+override. There is no `shortcuts.scm` reader or migration tool.
+
+### Completion checks
+
+The native runtime passed focused checks for ordinary, clustered, abbreviated
+and AMS title expansion, abstract options, custom shortcut overrides and
+multi-key prefixes, folding/unfolding, and macro parameter discovery. These
+checks ran in a temporary profile and did not exercise every presentation or
+clipboard workflow. The temporary scripts and runtime data were removed after
+use. The three retired source directories are removed as well as their files.

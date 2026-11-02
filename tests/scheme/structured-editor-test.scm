@@ -1,5 +1,4 @@
 ;; Native structured commands execute against a real BufferActor-owned tree.
-(import-from (generic generic-edit))
 (init-style "generic")
 
 (define (body) (tree->stree (buffer-tree)))

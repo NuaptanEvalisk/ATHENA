@@ -1,0 +1,43 @@
+// Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later.
+#pragma once
+#include "scheme.hpp"
+
+bool presentation_context (tree);
+bool presentation_screens (tree);
+bool presentation_overlays (tree);
+bool presentation_overlay (tree);
+int presentation_overlay_current (tree);
+int presentation_overlay_count (tree);
+bool presentation_overlay_visible (tree, int);
+void presentation_overlay_switch (tree, int);
+tree presentation_slide_document (tree);
+tree presentation_slide_switch (tree);
+string presentation_slide_name (tree, int);
+void presentation_slide_title (tree);
+void presentation_slide_graphics (tree);
+tree presentation_slide_background ();
+void presentation_set_slide_background (tree);
+void presentation_switch_to (object);
+void presentation_make (tree_label);
+void presentation_make_unroll (tree_label);
+void presentation_make_list (tree_label, tree_label);
+void presentation_make_screens ();
+void presentation_style_changed ();
+void presentation_operate (tree, string mode, string environment= "");
+void presentation_operate_buffer (object mode);
+bool presentation_traverse (tree, string);
+void presentation_traverse_buffer (object);
+void presentation_move (bool forwards, bool extremal);
+void presentation_first ();
+void presentation_last ();
+void presentation_next ();
+void presentation_previous ();
+bool presentation_structured (tree, string operation, bool forwards);
+bool presentation_enter (tree, bool shift);
+bool presentation_alternate (tree);
+bool presentation_variant (tree, bool);
+void presentation_make_slides ();
+string presentation_screens_index (tree);
+string presentation_screens_arity (tree);
+tree presentation_screens_bar (tree);
+int presentation_page_count ();

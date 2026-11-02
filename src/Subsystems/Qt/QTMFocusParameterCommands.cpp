@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMCommandRegistry.hpp"
+#include "user_shortcuts.hpp"
 #include "QTMCommandRegistryInternal.hpp"
 
 #include <QColor>
@@ -356,9 +357,7 @@ QTMCommandRegistry::registerFocusParameterCommands () {
       QString command= qstring (focus.tag_shortcut_command);
       if (command.isEmpty ()) return false;
       try {
-        (void) call (
-          "open-shortcuts-editor", object (string ("")),
-          object (from_qstring (command)));
+        user_shortcuts_open_native ("", from_qstring (command));
         return true;
       }
       catch (...) {

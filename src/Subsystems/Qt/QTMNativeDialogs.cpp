@@ -7,6 +7,7 @@
 ******************************************************************************/
 
 #include "QTMNativeDialogs.hpp"
+#include "user_shortcuts.hpp"
 
 #include "athena_platform.hpp"
 #include "QTMMenuHelper.hpp"
@@ -659,7 +660,8 @@ public:
     shortcutLayout->addWidget (shortcut, 1);
     shortcutLayout->addWidget (record);
     form->addRow ("Shortcut:", shortcutRow);
-    form->addRow ("Command:", command);
+    form->addRow ("JSON action:", command);
+    command->setPlaceholderText ("{\"op\":\"make\",\"tag\":\"theorem\"}");
     editorLayout->addLayout (form);
     QLabel* note= new QLabel (
       "Use ATHENA shortcut syntax (for example C-x, A-F1, or a multi-key sequence).",
@@ -685,7 +687,7 @@ public:
     buttons->button (QDialogButtonBox::Save)->setText ("Save and Close");
     editorLayout->addWidget (buttons);
     connect (buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
-    connect (buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
+    connect (buttons, &QDialogButtonBox::accepted, this, [this] { if (applyCurrent ()) accept (); });
 
     connect (list, &QListWidget::currentItemChanged,
              this, [this] (QListWidgetItem* current, QListWidgetItem*) {
@@ -741,15 +743,22 @@ public:
     }
   }
 
-  void applyCurrent () {
+  bool applyCurrent () {
     QString shown= shortcut->text ().trimmed ();
     QString cmd= command->text ().trimmed ();
-    if (shown.isEmpty () || cmd.isEmpty ()) return;
+    if (shown.isEmpty () && cmd.isEmpty ()) return true;
+    QString error;
+    if (shown.isEmpty ()) error= "Enter a shortcut key sequence.";
+    if (!error.isEmpty () || !user_shortcut_action_valid (cmd, &error)) {
+      QMessageBox::warning (this, "Keyboard shortcuts", error);
+      return false;
+    }
     if (!selectedShortcut.isEmpty () && selectedShortcut != shown)
       entries.remove (selectedShortcut);
     entries.insert (shown, cmd);
     selectedShortcut= shown;
     refreshList (shown);
+    return true;
   }
 
   void removeCurrent () {

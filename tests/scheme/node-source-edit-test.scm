@@ -1,6 +1,5 @@
 ;; Focused source-metadata checks on a BufferActor-owned editor. Use an
 ;; isolated profile; this test does not save documents or open a vault.
-(import-from (generic document-part) (generic generic-edit))
 (init-style "generic")
 
 (define (check condition label)

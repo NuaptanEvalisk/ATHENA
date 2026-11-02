@@ -9,6 +9,7 @@
 *******************************************************************************/
 
 #include "document_style_commands.hpp"
+#include "presentation_commands.hpp"
 #include "boot.hpp"
 #include "analyze.hpp"
 #include "editor.hpp"
@@ -464,10 +465,12 @@ document_set_main_style (string style) {
   if (N(styles) == 0) styles << style;
   else styles[0]= style;
   set_style_strings (styles);
+  document_notify_new_style (style);
 }
 
 void
 document_notify_new_style (string) {
+  presentation_style_changed ();
 }
 
 bool

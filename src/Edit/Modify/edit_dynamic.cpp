@@ -16,6 +16,7 @@
 #include "ATHENA/Data/enunciation_model.hpp"
 #include "format_commands.hpp"
 #include "native_dynamic_commands.hpp"
+#include "presentation_commands.hpp"
 #include "native_latex_commands.hpp"
 #include "native_interfaces.hpp"
 #include "buffer_state.hpp"
@@ -1356,15 +1357,6 @@ dynamic_toggle_side (tree t) {
   return 0;
 }
 
-void
-dynamic_toggle (tree t) {
-  const string tag= dynamic_tag (t);
-  if (dynamic_toggle_side (t) == 0) return;
-  const auto next= athena::contracts::standard_node_groups ().alternate (
-    std::string_view (tag.data (), N (tag)));
-  (void) tree_assign_node (t, as_tree_label (string (next.c_str ())));
-}
-
 bool dynamic_alternative (string tag) {
   return dynamic_group (tag, "alternative-tag");
 }
@@ -1398,76 +1390,11 @@ dynamic_switch_set (tree t, int i, bool show, bool hidden, bool unroll) {
     (void) tree_insert_node (child, 0, tree (as_tree_label (hide)));
 }
 
-void
-dynamic_switch_set (tree t, int i, bool show) {
-  if (i < 0 || i >= N(t)) return;
-  dynamic_switch_set (t, i, show, dynamic_hidden (t[i]), dynamic_unroll (dynamic_tag (t)));
-}
-
-void
-dynamic_switch_range (tree t, int first, int last, bool show) {
-  for (int i= std::max (0, first); i < std::min (last, N(t)); ++i)
-    dynamic_switch_set (t, i, show);
-}
-
 int
 dynamic_switch_last_visible (tree t) {
   for (int i= N(t)-1; i >= 0; --i)
     if (!dynamic_hidden (t[i])) return i;
   return -1;
-}
-
-void
-dynamic_operate_tree (tree t, const string& mode) {
-  if (is_atomic (t)) return;
-  const string tag= dynamic_tag (t);
-  if (tag == "traversed") {
-    if (N(t) == 0) return;
-    dynamic_operate_tree (t[0], mode);
-    if (mode == "unfold" || mode == "expand" || mode == "var-expand")
-      (void) tree_remove_node (t, 0);
-    return;
-  }
-  if (tag == "fold-back" || tag == "keep-folded") {
-    if (N(t) != 0) dynamic_operate_tree (t[0], mode);
-    return;
-  }
-
-  // Match the original post-order traversal: descendants before their wrapper.
-  for (int i= 0; i < N(t); ++i)
-    dynamic_operate_tree (t[i], mode);
-
-  const int side= dynamic_toggle_side (t);
-  if ((side == 1 && (mode == "unfold" || mode == "expand" ||
-                     mode == "var-expand")) ||
-      (side == 2 && (mode == "fold" || mode == "compress" ||
-                     mode == "var-compress"))) {
-    dynamic_toggle (t);
-    return;
-  }
-  const string current= dynamic_tag (t);
-  if (!dynamic_switch (current)) return;
-
-  if (mode == "expand")
-    dynamic_switch_range (t, 0, N(t), true);
-  else if (mode == "compress") {
-    dynamic_switch_set (t, 0, true);
-    dynamic_switch_range (t, 1, N(t), false);
-  }
-  else if (mode == "var-expand") {
-    if (dynamic_alternative (current))
-      (void) tree_assign_node (t, as_tree_label ("expanded"));
-    if (dynamic_alternative (current) || dynamic_unroll (current))
-      dynamic_switch_range (t, 0, N(t), true);
-  }
-  else if (mode == "var-compress") {
-    if (dynamic_expanded (current))
-      (void) tree_assign_node (t, as_tree_label ("switch"));
-    if (dynamic_expanded (current) || dynamic_unroll (current)) {
-      dynamic_switch_set (t, 0, true);
-      dynamic_switch_range (t, 1, N(t), false);
-    }
-  }
 }
 
 bool
@@ -1564,7 +1491,7 @@ native_dynamic_buffer_command (editor ed, string operation, string mode) {
   if (is_atomic (body)) return;
   ed->start_editing ();
   if (operation == "operate")
-    dynamic_operate_tree (body, mode);
+    presentation_operate (body, mode);
   else if (operation == "filter")
     dynamic_filter_tree (body, mode, false);
   ed->end_editing ();

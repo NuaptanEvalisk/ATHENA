@@ -93,11 +93,12 @@
 (initialize-node-groups)
 (import-from (utils edit variants))
 (import-from (utils library cursor))
-(import-from (generic document-edit))
-(import-from (generic generic-edit))
-
-(import-from (source source-edit))
-(import-from (dynamic fold-edit))
+(import-from (utils edit selections))
+(import-from (utils misc tooltip))
+(define-secure-symbols doc-data author-data abstract-data ext-edit-macro
+  screens-index screens-arity screens-bar screens-switch-to
+  ext-cardlink-render system-icon-for-link cardlink-native-type cardlink-native-render
+  display-balloon)
 (register-preference-callback-procedures (list notify-autosave))
 (tm-property (choose-file fun text type) (:interactive #t))
 (tm-property (load-buffer name . opts)
@@ -147,26 +148,9 @@
         notify-vault-explorer-track notify-vault-preferences-mode))
 (import-from (doc help-funcs))
 (generic-keyboard-load)
-(lazy-define (generic document-part)
-             buffer-has-preamble? in-preamble-mode? toggle-preamble-mode)
-(lazy-define (generic document-edit) update-document set-document-language)
 (tmfs-handler "material" 'load material-info-page)
 (tmfs-handler "material" 'title materials-page-title)
 (tmfs-handler "material" 'permission? materials-page-permission?)
-(lazy-define (generic generic-edit) notify-activated notify-disactivated
-             wheel-capture?
-             native-insert-include-dialog
-             native-insert-link-image-dialog
-             native-insert-inline-image-dialog
-             native-insert-thumbnails-dialog
-             native-insert-small-figure
-             native-insert-big-figure
-             native-insert-floating-figure
-             native-insert-floating-table
-             native-insert-floating-algorithm)
-(lazy-define (generic global-search) open-global-search
-             global-search-open-result global-search-open-occurrence)
-(lazy-define (generic format-widgets) open-paragraph-format open-page-format)
 (tm-property (open-replace) (:interactive #t))
 (tm-property (make-with var val) (:check-mark "o" test-env?))
 (tm-property (make-line-with var val)
@@ -230,15 +214,8 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting source mode\n")
-(lazy-define (source macro-edit)
-             has-macro-source? edit-macro-source edit-focus-macro-source
-             native-personal-macro-provider-data)
-(lazy-define (source source-edit) extract-style-file)
-(lazy-define (source shortcut-edit) init-user-shortcuts has-user-shortcut?)
-(lazy-define (source shortcut-widgets) open-shortcuts-editor)
 (tm-property (open-shortcuts-editor . opt) (:interactive #t))
-(when (url-exists? "$ATHENA_HOME_PATH/system/shortcuts.scm")
-  (delayed (:idle 100) (init-user-shortcuts)))
+(init-user-shortcuts)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting table mode\n")
@@ -252,13 +229,6 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting dynamic features\n")
-(lazy-define (dynamic fold-edit)
-             screens-switch-to dynamic-make-slides overlays-context?
-             overlay-context? overlays-current overlays-arity
-             overlays-switch-to overlay-current overlay-arity overlay-visible?
-             native-overlays-switch-parent
-             slide-get-switch slide-get-document get-slide-name
-             native-slide-insert-title native-slide-insert-graphics)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting documentation\n")

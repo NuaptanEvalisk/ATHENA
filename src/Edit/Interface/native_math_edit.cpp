@@ -1,6 +1,7 @@
 // Copyright (C) 1999 Joris van der Hoeven, 2026 ATHENA contributors.
 // GPL-3.0-or-later.
 #include "native_math_edit.hpp"
+#include "presentation_commands.hpp"
 #include "editor.hpp"
 #include "tree_correct.hpp"
 #include "convert.hpp"
@@ -99,6 +100,7 @@ bool math_bracket_geometry (tree t, bool down, bool reset) {
 }
 
 void native_variant_circulate (tree t, bool forward) {
+  if (presentation_variant (t, forward)) return;
   if (math_script_context (t)) {
     if (math_script_only (t)) {
       tree_label label= is_func (t, LSUB) ? LSUP : is_func (t, LSUP) ? LSUB :

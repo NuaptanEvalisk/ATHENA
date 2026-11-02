@@ -2830,7 +2830,6 @@
       "type": "choice",
       "scope": "active",
       "default": "1",
-      "callback": "doc-update-times",
       "ui": {
         "category": "Editing",
         "tab": "Generic and Text",

@@ -1,5 +1,94 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="doc-data" native="native_doc_data" returns="tree"><arg type="tree" /><arg type="tree" /></binding>
+  <binding name="author-data" native="native_author_data" returns="tree"><arg type="tree" /></binding>
+  <binding name="abstract-data" native="native_abstract_data" returns="tree"><arg type="tree" /></binding>
+  <binding name="screens-index" native="presentation_screens_index" returns="string"><arg type="tree" /></binding>
+  <binding name="screens-arity" native="presentation_screens_arity" returns="string"><arg type="tree" /></binding>
+  <binding name="nr-pages" native="presentation_page_count" returns="int" />
+  <binding name="screens-bar" native="presentation_screens_bar" returns="tree"><arg type="tree" /></binding>
+  <binding name="dynamic-first" native="presentation_first" returns="void" />
+  <binding name="dynamic-last" native="presentation_last" returns="void" />
+  <binding name="dynamic-next" native="presentation_next" returns="void" />
+  <binding name="dynamic-previous" native="presentation_previous" returns="void" />
+  <binding name="dynamic-operate-on-buffer" native="presentation_operate_buffer" returns="void"><arg type="object" /></binding>
+  <binding name="dynamic-traverse-buffer" native="presentation_traverse_buffer" returns="void"><arg type="object" /></binding>
+  <binding name="dynamic-make-slides" native="presentation_make_slides" returns="void" />
+  <binding name="screens-switch-to" native="presentation_switch_to" returns="void"><arg type="object" /></binding>
+  <binding name="screens-context?" native="presentation_screens" returns="bool"><arg type="tree" /></binding>
+  <binding name="overlays-context?" native="presentation_overlays" returns="bool"><arg type="tree" /></binding>
+  <binding name="overlay-context?" native="presentation_overlay" returns="bool"><arg type="tree" /></binding>
+  <binding name="overlays-current" native="presentation_overlay_current" returns="int"><arg type="tree" /></binding>
+  <binding name="overlay-current" native="presentation_overlay_current" returns="int"><arg type="tree" /></binding>
+  <binding name="overlays-arity" native="presentation_overlay_count" returns="int"><arg type="tree" /></binding>
+  <binding name="overlay-arity" native="presentation_overlay_count" returns="int"><arg type="tree" /></binding>
+  <binding name="overlay-visible?" native="presentation_overlay_visible" returns="bool"><arg type="tree" /><arg type="int" /></binding>
+  <binding name="overlays-switch-to" native="presentation_overlay_switch" returns="void"><arg type="tree" /><arg type="int" /></binding>
+  <binding name="native-overlays-switch-parent" native="presentation_overlay_switch" returns="void"><arg type="tree" /><arg type="int" /></binding>
+  <binding name="slide-get-switch" native="presentation_slide_switch" returns="tree"><arg type="tree" /></binding>
+  <binding name="slide-get-document" native="presentation_slide_document" returns="tree"><arg type="tree" /></binding>
+  <binding name="get-slide-name" native="presentation_slide_name" returns="string"><arg type="tree" /><arg type="int" /></binding>
+  <binding name="native-slide-insert-title" native="presentation_slide_title" returns="void"><arg type="tree" /></binding>
+  <binding name="native-slide-insert-graphics" native="presentation_slide_graphics" returns="void"><arg type="tree" /></binding>
+  <binding name="slide-get-bg-color" native="presentation_slide_background" returns="tree" />
+  <binding name="slide-set-bg-color" native="presentation_set_slide_background" returns="void"><arg type="tree" /></binding>
+  <binding name="make-toggle" native="presentation_make" returns="void"><arg type="tree_label" /></binding>
+  <binding name="make-switch" native="presentation_make" returns="void"><arg type="tree_label" /></binding>
+  <binding name="make-overlays" native="presentation_make" returns="void"><arg type="tree_label" /></binding>
+  <binding name="make-overlay" native="presentation_make" returns="void"><arg type="tree_label" /></binding>
+  <binding name="make-unroll" native="presentation_make_unroll" returns="void"><arg type="tree_label" /></binding>
+  <binding name="make-switch-list" native="presentation_make_list" returns="void"><arg type="tree_label" /><arg type="tree_label" /></binding>
+  <binding name="make-screens" native="presentation_make_screens" returns="void" />
+  <binding name="native-presentation-alternate" native="presentation_alternate" returns="bool"><arg type="tree" /></binding>
+  <binding name="make-latex" native="source_make_latex" returns="void" />
+  <binding name="activate-compound" native="source_activate_compound" returns="void" />
+  <binding name="inactive-toggle" native="source_inactive_toggle" returns="void"><arg type="tree" /></binding>
+  <binding name="remove-unary-document" native="source_remove_unary_document" returns="void" />
+  <binding name="extract-style-file" native="source_extract_style" returns="void"><arg type="bool" /></binding>
+  <binding name="has-macro-source?" native="source_has_macro" returns="bool"><arg type="object" /></binding>
+  <binding name="edit-macro-source" native="source_edit_macro" returns="void"><arg type="object" /></binding>
+  <binding name="edit-focus-macro-source" native="source_edit_focus_macro" returns="void" />
+  <binding name="native-personal-macro-provider-data" native="source_personal_macros" returns="array_string" />
+  <binding name="get-definition" native="source_get_definition" returns="tree"><arg type="object" /></binding>
+  <binding name="ext-edit-macro" native="source_render_edit_macro" returns="tree"><arg type="tree" /></binding>
+  <binding name="search-options" native="source_search_options" returns="object"><arg type="object" /></binding>
+  <binding name="search-tag-options" native="source_search_tag_options" returns="object"><arg type="tree" /></binding>
+  <binding name="search-tag-parameters" native="source_search_tag_parameters" returns="object"><arg type="tree" /></binding>
+  <binding name="assigned-parameters" native="source_assigned_parameters" returns="object"><arg type="object" /></binding>
+  <binding name="theme-guess" native="source_theme_guess" returns="object"><arg type="string" /></binding>
+  <binding name="theme->members" native="source_theme_members" returns="object"><arg type="string" /></binding>
+  <binding name="member->theme" native="source_member_theme" returns="object"><arg type="string" /></binding>
+  <binding name="search-themes" native="source_search_themes" returns="object"><arg type="object" /></binding>
+  <binding name="search-tag-themes" native="source_search_tag_themes" returns="object"><arg type="tree" /></binding>
+  <binding name="edit-package-source" native="source_edit_package" returns="void"><arg type="string" /></binding>
+  <binding name="edit-style-source" native="source_edit_style" returns="void" />
+  <binding name="native-insert-include-dialog" native="generic_insert_include_dialog" returns="void" />
+  <binding name="native-insert-link-image-dialog" native="generic_insert_link_image_dialog" returns="void" />
+  <binding name="native-insert-inline-image-dialog" native="generic_insert_inline_image_dialog" returns="void" />
+  <binding name="native-insert-thumbnails-dialog" native="generic_insert_thumbnails_dialog" returns="void" />
+  <binding name="make-anim" native="generic_make_animation" returns="void"><arg type="tree_label" /></binding>
+  <binding name="update-document" native="generic_update_document" returns="void"><arg type="string" /></binding>
+  <binding name="open-global-search" native="generic_open_global_search" returns="void" />
+  <binding name="global-search-open-result" native="generic_search_open_result" returns="void"><arg type="url" /><arg type="path" /></binding>
+  <binding name="global-search-open-occurrence" native="generic_search_open_occurrence" returns="void"><arg type="url" /><arg type="path" /><arg type="path" /></binding>
+  <binding name="open-paragraph-format" native="generic_open_paragraph_format" returns="void" />
+  <binding name="open-page-format" native="generic_open_page_format" returns="void" />
+  <binding name="set-main-style" native="document_set_main_style" returns="void"><arg type="string" /></binding>
+  <binding name="install-custom-style" native="generic_install_style" returns="void"><arg type="url" /></binding>
+  <binding name="choose-and-install-custom-style" native="generic_install_style_dialog" returns="void" />
+  <binding name="make*" native="generic_make_with_package" returns="void"><arg type="tree_label" /><arg type="string" /></binding>
+  <binding name="get-user-preferred-fonts" native="generic_preferred_fonts" returns="object" />
+  <binding name="ext-cardlink-render" native="generic_render_cardlink" returns="tree"><arg type="tree" /><arg type="tree" /></binding>
+  <binding name="display-balloon" native="generic_display_balloon" returns="void"><arg type="tree" /><arg type="tree" /><arg type="tree" /><arg type="tree" /><arg type="tree" /></binding>
+  <binding name="style-clear-cache" native="generic_clear_style_cache" returns="void" />
+  <binding name="init-user-shortcuts" native="user_shortcuts_initialize" returns="void" exceptions="scheme" />
+  <binding name="open-shortcuts-editor" native="user_shortcuts_open" returns="void" exceptions="scheme"><arg type="object" rest="true" /></binding>
+  <binding name="has-user-shortcut?" native="user_shortcuts_has" returns="bool" exceptions="scheme"><arg type="string" /></binding>
+  <binding name="user-shortcuts-list" native="user_shortcuts_list" returns="array_string" />
+  <binding name="get-user-shortcut" native="user_shortcuts_get" returns="string"><arg type="string" /></binding>
+  <binding name="set-user-shortcut" native="user_shortcuts_set" returns="void" exceptions="scheme"><arg type="string" /><arg type="string" /></binding>
+  <binding name="remove-user-shortcut" native="user_shortcuts_remove" returns="void" exceptions="scheme"><arg type="string" /></binding>
+  <binding name="user-shortcut-run" native="user_shortcuts_run" returns="void" exceptions="scheme"><arg type="string" /></binding>
   <binding name="vault-flatten-document" native="reference_flatten_document" returns="void" exceptions="scheme" />
   <binding name="insert-wikilink" native="reference_insert_wikilink" returns="void" exceptions="scheme" />
   <binding name="insert-transclude" native="reference_insert_transclusion" returns="void" exceptions="scheme" />

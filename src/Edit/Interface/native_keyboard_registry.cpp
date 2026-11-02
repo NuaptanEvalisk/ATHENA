@@ -6,6 +6,7 @@
 
 #include "native_keyboard_registry.hpp"
 #include "native_keyboard_loader.hpp"
+#include "user_shortcuts.hpp"
 #include "object.hpp"
 #include "server.hpp"
 #include "new_buffer.hpp"
@@ -158,6 +159,8 @@ void native_keyboard_bind_source (string key, object source) {
 }
 
 object native_keyboard_find (string key) {
+  object user= user_shortcuts_find (key);
+  if (!(is_bool (user) && !as_bool (user))) return user;
   native_keyboard_force (false);
   auto& r= keyboard ();
   const auto entry= resolve (r.snapshot (r.forward, key));
@@ -165,6 +168,8 @@ object native_keyboard_find (string key) {
 }
 
 string native_keyboard_cached_inverse (object source) {
+  string user= user_shortcuts_inverse (source);
+  if (user != "") return user;
   auto& r= keyboard ();
   const auto entry= resolve (r.snapshot (r.inverse, object_to_string (source)));
   return entry ? text (entry->key) : string ("");

@@ -38,6 +38,10 @@
 #include "document_style_commands.hpp"
 #include "format_commands.hpp"
 #include "generic_editor_commands.hpp"
+#include "source_commands.hpp"
+#include "presentation_commands.hpp"
+#include "user_shortcuts.hpp"
+#include <QJsonDocument>
 #include "new_style.hpp"
 #include "structured_commands.hpp"
 #include "language.hpp"
@@ -1138,13 +1142,14 @@ editor_rep::focus_toolbar_state_snapshot () {
   snapshot.pure_alternate_context= query ("pure-alternate-context?");
   if (snapshot.alternate_available) {
     try {
-      object label= call ("alternate-second-name", object (t));
+      const bool fold= text_node_in_group (t, "folded-tag") || text_node_in_group (t, "unfolded-tag");
+      object label= fold ? object (string ("Unfold")) : call ("alternate-second-name", object (t));
       if (is_string (label)) {
         string value= as_string (label);
         snapshot.alternate_label.assign (
           value.data (), static_cast<std::size_t> (N(value)));
       }
-      object icon= call (
+      object icon= fold && alternateSecond ? object (string ("tm_alternate_both")) : call (
         alternateSecond ? "alternate-second-icon" : "alternate-first-icon",
         object (t));
       if (is_string (icon)) {
@@ -1236,17 +1241,11 @@ editor_rep::focus_toolbar_state_snapshot () {
   }
 
   try {
-    snapshot.overlays_context= as_bool (call ("overlays-context?", object (t)));
-    snapshot.overlay_context= as_bool (call ("overlay-context?", object (t)));
+    snapshot.overlays_context= presentation_overlays (t);
+    snapshot.overlay_context= presentation_overlay (t);
     if (snapshot.overlays_context || snapshot.overlay_context) {
-      object current= call (
-        snapshot.overlays_context ? "overlays-current" : "overlay-current",
-        object (t));
-      object count= call (
-        snapshot.overlays_context ? "overlays-arity" : "overlay-arity",
-        object (t));
-      if (is_int (current)) snapshot.overlay_current= as_int (current);
-      if (is_int (count)) snapshot.overlay_count= as_int (count);
+      snapshot.overlay_current= presentation_overlay_current (t);
+      snapshot.overlay_count= presentation_overlay_count (t);
       if (snapshot.overlay_context && N(t) > 0 && is_atomic (t[0])) {
         const string ref= as_string (t[0]);
         snapshot.overlay_reference= as_int (ref);
@@ -1255,8 +1254,7 @@ editor_rep::focus_toolbar_state_snapshot () {
         for (int i=1; i<=snapshot.overlay_count; ++i) {
           bool visible= false;
           try {
-            visible= as_bool (
-              call ("overlay-visible?", object (t), object (i)));
+            visible= presentation_overlay_visible (t, i);
           }
           catch (...) {}
           snapshot.overlay_visible.push_back (visible);
@@ -1458,15 +1456,17 @@ editor_rep::focus_toolbar_state_snapshot () {
   if (snapshot.tag_extension) {
     try {
       snapshot.tag_macro_source_available=
-        as_bool (call ("has-macro-source?", symbol_object (tag)));
+        source_has_macro (symbol_object (tag));
     }
     catch (...) {}
-    const string command= "(make '" * tag * ")";
+    const QByteArray encoded= QJsonDocument (QJsonObject {{"op", "make"},
+      {"tag", QString::fromUtf8 (tag.data (), N(tag))}}).toJson (QJsonDocument::Compact);
+    const string command (encoded.constData (), encoded.size ());
     snapshot.tag_shortcut_command.assign (
       command.data (), static_cast<std::size_t> (N(command)));
     try {
       snapshot.tag_shortcut_exists=
-        as_bool (call ("has-user-shortcut?", object (command)));
+        user_shortcuts_has (command);
     }
     catch (...) {}
   }
@@ -1614,7 +1614,7 @@ editor_rep::focus_toolbar_state_snapshot () {
   catch (...) {}
 
   try {
-    object themes= call ("search-tag-themes", object (t));
+    object themes= source_search_tag_themes (t);
     if (is_list (themes)) {
       array<object> themeValues= as_array_object (themes);
       for (int i=0; i<N(themeValues); ++i) {
@@ -1622,7 +1622,7 @@ editor_rep::focus_toolbar_state_snapshot () {
         if (is_string (themeValues[i])) theme= as_string (themeValues[i]);
         else if (is_symbol (themeValues[i])) theme= as_symbol (themeValues[i]);
         else continue;
-        object members= call ("theme->members", object (theme));
+        object members= source_theme_members (theme);
         if (!is_list (members)) continue;
         array<object> memberValues= as_array_object (members);
         for (int j=0; j<N(memberValues); ++j) {
@@ -1644,7 +1644,7 @@ editor_rep::focus_toolbar_state_snapshot () {
   catch (...) {}
 
   try {
-    object options= call ("search-tag-options", object (t));
+    object options= source_search_tag_options (t);
     if (is_list (options)) {
       array<object> values= as_array_object (options);
       for (int i=0; i<N(values); ++i) {

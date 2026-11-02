@@ -1,5 +1,4 @@
 ;; Generic keyboard fallbacks execute on the owning BufferActor.
-(import-from (generic generic-edit))
 (init-style "generic")
 
 (define (body) (tree->stree (buffer-tree)))

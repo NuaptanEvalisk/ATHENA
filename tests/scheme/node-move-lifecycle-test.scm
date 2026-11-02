@@ -1,6 +1,5 @@
 ;; Real BufferActor cut/paste integration for one-use source move credentials.
 ;; Both vaults and all buffers are isolated temporary fixtures.
-(import-from (generic generic-edit))
 
 (define (check condition label)
   (unless condition (error "Node move lifecycle regression" label)))

@@ -99,11 +99,12 @@
 
 (tm-define (alternate-toggle t)
   (and-with p (tree-outer t)
-    (alternate-toggle p)))
+    (unless (native-presentation-alternate t) (alternate-toggle p))))
 
 (tm-define (alternate-toggle t)
   (:require (alternate-standard-context? t))
-  (variant-set t (symbol-toggle-alternate (tree-label t))))
+  (unless (native-presentation-alternate t)
+    (variant-set t (symbol-toggle-alternate (tree-label t)))))
 
 (tm-define (alternate-fold t)
   (and-with p (tree-outer t)

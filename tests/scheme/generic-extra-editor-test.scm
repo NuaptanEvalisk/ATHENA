@@ -1,5 +1,4 @@
 ;; Remaining generic editing commands preserve their Scheme behavior.
-(import-from (generic generic-edit))
 (module-provide '(generic live-spell))
 (init-style "generic")
 

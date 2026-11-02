@@ -1,4 +1,3 @@
-(import-from (generic document-edit))
 
 (init-style "generic")
 

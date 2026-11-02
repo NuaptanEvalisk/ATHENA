@@ -1,5 +1,4 @@
 ;; Native generic document environment commands execute on the owning BufferActor.
-(import-from (generic document-edit))
 (init-style "generic")
 
 (define (check condition message)

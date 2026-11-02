@@ -1,5 +1,4 @@
 ;; Native exact tree updates on a real owner editor. No vault or saved file.
-(import-from (generic generic-edit))
 (init-style "generic")
 (define (check condition label)
   (unless condition (error "Native tree diff regression" label)))

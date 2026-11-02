@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMGlobalSearch.hpp"
+#include "generic_frontend.hpp"
 #include "QTMDocumentIdentity.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "actor_ui_bridge.hpp"
@@ -1104,12 +1105,7 @@ QTMGlobalSearch::openResult (QListWidgetItem* item) {
     status->setText ("Source identity unavailable. Run the search again.");
     return;
   }
-  array<object> cmd;
-  cmd << symbol_object ("global-search-open-occurrence");
-  cmd << object (result.file);
-  cmd << list_object (symbol_object ("quote"), object (result.hitStart));
-  cmd << list_object (symbol_object ("quote"), object (result.hitEnd));
-  exec_delayed (scheme_cmd (as_list_object (cmd)));
+  generic_search_open_occurrence (result.file, result.hitStart, result.hitEnd);
 }
 
 void

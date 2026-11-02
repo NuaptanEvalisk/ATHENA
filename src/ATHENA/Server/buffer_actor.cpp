@@ -34,6 +34,9 @@
 #include "object.hpp"
 #include "outline_snapshot.hpp"
 #include "native_editor_actions.hpp"
+#include "source_commands.hpp"
+#include "presentation_commands.hpp"
+#include "generic_frontend.hpp"
 #include "Edit/Interface/selection_image_export.hpp"
 #include "Edit/Interface/document_print.hpp"
 #include "structured_commands.hpp"
@@ -229,7 +232,7 @@ run_native_editor_command (editor_rep* editor,
       (void) call ("revert-buffer");
       break;
     case native_editor_command_id::update_all:
-      (void) call ("update-document", object ("all"));
+      generic_update_document ("all");
       break;
     case native_editor_command_id::close_document:
       application_close_buffer ();
@@ -256,22 +259,22 @@ run_native_editor_command (editor_rep* editor,
       math_correct_all ();
       break;
     case native_editor_command_id::presentation_first:
-      (void) call ("dynamic-operate-on-buffer", keyword_object ("first"));
+      presentation_operate_buffer (keyword_object ("first"));
       break;
     case native_editor_command_id::presentation_previous_screen:
-      (void) call ("screens-switch-to", keyword_object ("previous"));
+      presentation_switch_to (keyword_object ("previous"));
       break;
     case native_editor_command_id::presentation_previous:
-      (void) call ("dynamic-traverse-buffer", keyword_object ("previous"));
+      presentation_traverse_buffer (keyword_object ("previous"));
       break;
     case native_editor_command_id::presentation_next:
-      (void) call ("dynamic-traverse-buffer", keyword_object ("next"));
+      presentation_traverse_buffer (keyword_object ("next"));
       break;
     case native_editor_command_id::presentation_next_screen:
-      (void) call ("screens-switch-to", keyword_object ("next"));
+      presentation_switch_to (keyword_object ("next"));
       break;
     case native_editor_command_id::presentation_last:
-      (void) call ("dynamic-operate-on-buffer", keyword_object ("last"));
+      presentation_operate_buffer (keyword_object ("last"));
       break;
     case native_editor_command_id::print_to_file:
       document_print_file_dialog ();
@@ -1294,11 +1297,9 @@ buffer_actor::dispatch (actor_command_record& command) {
     if (editor == nullptr || editor->ui_endpoint == nullptr) break;
     std::vector<actor_dynamic_menu_item_snapshot> items;
     try {
-      list<string> values=
-        as_list_string (call ("native-personal-macro-provider-data"));
+      array<string> values= source_personal_macros ();
       std::vector<string> flat;
-      for (list<string> it= values; !is_nil (it); it= it->next)
-        flat.push_back (it->item);
+      for (int i= 0; i < N(values); ++i) flat.push_back (values[i]);
       for (std::size_t i= 0; i + 2 < flat.size (); i += 3) {
         actor_dynamic_menu_item_snapshot item;
         item.group= std::string (

@@ -9,6 +9,10 @@
 *******************************************************************************/
 
 #include "generic_keyboard_commands.hpp"
+#include "presentation_commands.hpp"
+#include "source_commands.hpp"
+#include "native_interfaces.hpp"
+#include "document_commands.hpp"
 #include "native_program_edit.hpp"
 #include "native_text_edit.hpp"
 #include "reference_markup.hpp"
@@ -564,6 +568,7 @@ void generic_kbd_space_bar (tree t, bool shift) {
 }
 
 void generic_kbd_enter (tree t, bool shift) {
+  if (source_enter (t) || presentation_enter (t, shift)) return;
   if (text_enter (t, shift)) return;
   if (is_compound (t, "math")) {
     get_current_editor ()->go_to_end (reverse (obtain_ip (t)));
@@ -598,6 +603,12 @@ void generic_kbd_alternate_enter (tree t, bool shift) {
 }
 
 void generic_kbd_remove (tree t, bool forwards) {
+  if (is_compound (t, "show-preamble", 1) && is_empty (t[0])) {
+    document_buffer_hide_preamble ();
+    if (document_buffer_has_preamble ()) tree_remove (get_current_editor ()->the_buffer (), 0, 1);
+    get_current_editor ()->typeset_invalidate_all ();
+    return;
+  }
   if (!admits_edit_observer (t)) { outward (t, "kbd-remove", forwards); return; }
   editor ed= get_current_editor ();
   const path title= ed->search_upwards ("doc-data");
@@ -611,6 +622,7 @@ void generic_kbd_remove (tree t, bool forwards) {
 }
 
 void generic_kbd_variant (tree t, bool forwards) {
+  if (source_variant (t, forwards)) return;
   if (native_node_group_contains ("combinatorial-number-tag", symbol_object (as_string (L(t))))) {
     call ("variant-circulate", object (t), object (forwards));
     return;

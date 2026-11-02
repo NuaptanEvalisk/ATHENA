@@ -1,6 +1,5 @@
 ;; Run with QApplication and an actual actor-owned view. A headless test skips
 ;; system icon queries entirely and cannot detect GUI/actor wait cycles.
-(import-from (generic generic-edit))
 (init-style "generic")
 (buffer-set-body (current-buffer)
   (stree->tree '(document

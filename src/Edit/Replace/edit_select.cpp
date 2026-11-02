@@ -1214,6 +1214,20 @@ edit_select_rep::apply_paste (const native_paste_plan& prepared, bool local_tran
         if (athena::node::contains_metadata (t[1]))
           t[1]= athena::document_node::duplicate_source_nodes (t[1]);
       }
+      // Whole slides are inserted as siblings, after the ordinary clipboard
+      // version checks and source-move/duplicate identity decision above.
+      const path slideshow= search_upwards ("slideshow");
+      bool slides= is_document (t[1]) && N(t[1]) > 1;
+      for (int i= 0; slides && i < N(t[1]); ++i)
+        slides= is_compound (t[1][i], "slide");
+      if (slides && direct_mode && !is_nil (slideshow)) {
+        const path document= slideshow * 0;
+        if (is_func (subtree (et, slideshow), as_tree_label ("slideshow"), 1) &&
+            is_document (subtree (et, document)) && document < tp) {
+          insert (document * (tp / document)->item, t[1]);
+          return;
+        }
+      }
       if (is_nil (wrapper_body)) insert_tree (t[1]);
       else {
         tree payload= copy (simplify_correct (t[1]));
@@ -1369,7 +1383,52 @@ edit_select_rep::raw_cut (path p1, path p2) {
 }
 
 void
+edit_select_rep::store_cut_selection (string key, tree clipboard) {
+  if (key == "none") return;
+  athena::document_node::source_move_ticket move;
+  if (selection_export == "default" && node_identities_active () &&
+      athena::node::contains_metadata (clipboard) &&
+      buf != nullptr && buf->actor != nullptr) {
+    move= athena::document_node::issue_source_move (
+      clipboard, source_move_vault_key (buf),
+      {buf->actor->id (), runtime_view_id});
+  }
+  try {
+    selection_set (key, clipboard, false,
+      move.token.empty () ? string () :
+        string (move.token.data (), (int) move.token.size ()));
+  }
+  catch (...) {
+    if (!move.token.empty ())
+      athena::document_node::invalidate_source_move (move.token);
+    throw;
+  }
+  if (!move.token.empty ()) start_slave (move.marker);
+}
+
+void
 edit_select_rep::selection_cut (string key) {
+  const path slideshow= search_upwards ("slideshow");
+  if (!is_nil (slideshow) && selection_active_normal () &&
+      is_compound (subtree (et, slideshow), "slideshow", 1)) {
+    const path document= slideshow * 0;
+    tree slides= subtree (et, document);
+    path a= selection_get_start (), b= selection_get_end ();
+    if (is_document (slides) && document < a && document < b) {
+      int first= (a / document)->item, last= (b / document)->item;
+      if (first >= 0 && last < N(slides) && first < last &&
+          last-first+1 < N(slides) && is_compound (slides[first], "slide") &&
+          is_compound (slides[last], "slide")) {
+        tree clipboard (DOCUMENT);
+        for (int i= first; i <= last; ++i) clipboard << copy (slides[i]);
+        store_cut_selection (key, clipboard);
+        remove (document * first, last-first+1);
+        if (first < N(subtree (et, document))) go_to_start (document * first);
+        else go_to_end (document * (first-1));
+        return;
+      }
+    }
+  }
   if (inside_active_graphics ()) {
     if (key != "none") {
       tree t= native_graphics_copy_selection ();
@@ -1419,28 +1478,7 @@ edit_select_rep::selection_cut (string key) {
           navigation, body, p1 / rp, p2 / rp);
       })) throw std::runtime_error ("Selection extraction is awaiting layout");
       if (key != "none") {
-        tree clipboard= simplify_correct (sel);
-        athena::document_node::source_move_ticket move;
-        if (selection_export == "default" && node_identities_active () &&
-            athena::node::contains_metadata (clipboard) &&
-            buf != nullptr && buf->actor != nullptr) {
-          const std::string vault_key= source_move_vault_key (buf);
-          move= athena::document_node::issue_source_move (
-            clipboard, vault_key,
-            {buf->actor->id (), runtime_view_id});
-        }
-        try {
-          selection_set (
-            key, clipboard, false,
-            move.token.empty () ? string () :
-              string (move.token.data (), (int) move.token.size ()));
-        }
-        catch (...) {
-          if (!move.token.empty ())
-            athena::document_node::invalidate_source_move (move.token);
-          throw;
-        }
-        if (!move.token.empty ()) start_slave (move.marker);
+        store_cut_selection (key, simplify_correct (sel));
       }
       // Clipboard metadata must use the selected display before repositioning
       // the caret for the actual cut.

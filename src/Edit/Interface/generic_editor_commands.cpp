@@ -9,6 +9,7 @@
 *******************************************************************************/
 
 #include "generic_editor_commands.hpp"
+#include "source_commands.hpp"
 #include "link_markup.hpp"
 #include "analyze.hpp"
 #include "convert.hpp"
@@ -513,15 +514,7 @@ generic_select_word (string word, tree t, int column) {
 
 object
 generic_search_parameters (object label) {
-  string name;
-  if (is_string (label)) name= as_string (label);
-  else if (is_symbol (label)) name= as_symbol (label);
-  else return object (false);
-
-  if (name == "reference" || name == "pageref" || name == "eqref" ||
-      name == "smart-ref" || name == "hlink")
-    return call ("standard-parameters", object ("locus"));
-  return object (false);
+  return source_search_parameters (label);
 }
 
 void
@@ -604,11 +597,18 @@ generic_make_thumbnails_sub (object files, int columns) {
 }
 
 void
-generic_notify_activated (tree) {
+generic_notify_activated (tree t) {
+  if (is_atomic (t)) return;
+  const string tag= as_string (L(t));
+  for (const char* name: {"set-this-page-header", "set-this-page-footer", "set-header", "set-footer",
+       "set-odd-page-header", "set-even-page-header", "set-odd-page-footer", "set-even-page-footer",
+       "set-page-number", "set-page-number-macro"})
+    if (tag == name) { get_current_editor ()->invalidate_all (); return; }
 }
 
 void
-generic_notify_disactivated (tree) {
+generic_notify_disactivated (tree t) {
+  generic_notify_activated (t);
 }
 
 object
@@ -1597,13 +1597,16 @@ generic_parameter_name (string name) {
 
 bool
 generic_parameter_show_in_menu (string name) {
+  for (const char* hidden: {"the-label", "auto-nr", "current-part", "language", "page-nr",
+       "page-the-page", "prog-language", "caption-summarized", "figure-width", "title-theme", "overlay-nr"})
+    if (name == hidden) return false;
   if (name == "appendix-prefix") return false;
   if (ends (name, "-numbered")) {
     const string section= name (0, N(name)-9);
     if (athena::contracts::standard_node_groups ().contains (
           "section-tag", std::string (section.data (), N(section)))) return false;
   }
-  object theme= call ("member->theme", object (name));
+  object theme= source_member_theme (name);
   return is_bool (theme) && !as_bool (theme);
 }
 
@@ -1660,7 +1663,13 @@ generic_focus_tag_name (object label) {
 }
 
 object
-generic_child_proposals (tree, int) {
+generic_child_proposals (tree t, int i) {
+  if (generic_tree_child_type (t, i) == "duration") {
+    array<object> values;
+    for (const char* s: {"0.25s", "0.5s", "1s", "1.5s", "2s", "2.5s", "3s", "4s", "5s", "10s"}) values << object (string (s));
+    values << keyword_object ("other");
+    return as_list_object (values);
+  }
   return object (false);
 }
 

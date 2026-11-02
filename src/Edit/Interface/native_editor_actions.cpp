@@ -18,6 +18,9 @@
 #include "native_input_events.hpp"
 #include "vault_navigation.hpp"
 #include "codex_completion.hpp"
+#include "source_commands.hpp"
+#include "presentation_commands.hpp"
+#include "generic_frontend.hpp"
 
 #include "ATHENA/Data/program_model.hpp"
 #include "ATHENA/Data/document_node_model.hpp"
@@ -125,6 +128,17 @@ native_action_tree (const QJsonValue& value) {
 bool
 has_string (const QJsonObject& object, const char* name) {
   return object.value (QString::fromLatin1 (name)).isString ();
+}
+
+bool valid_action_tree (const QJsonValue& value) {
+  if (value.isString ()) return true;
+  if (!value.isArray ()) return false;
+  const QJsonArray fields= value.toArray ();
+  if (fields.isEmpty () || !fields[0].isString () || fields[0].toString ().isEmpty ())
+    return false;
+  for (int i= 1; i < fields.size (); ++i)
+    if (!valid_action_tree (fields[i])) return false;
+  return true;
 }
 
 bool
@@ -405,13 +419,13 @@ execute_business_id (editor ed, const QString& id) {
   else if (id == "open-latex-formula-dialog")
     math_open_latex_dialog ();
   else if (id == "insert-include-dialog")
-    (void) call ("native-insert-include-dialog");
+    generic_insert_include_dialog ();
   else if (id == "insert-link-image-dialog")
-    (void) call ("native-insert-link-image-dialog");
+    generic_insert_link_image_dialog ();
   else if (id == "insert-inline-image-dialog")
-    (void) call ("native-insert-inline-image-dialog");
+    generic_insert_inline_image_dialog ();
   else if (id == "insert-thumbnails-dialog")
-    (void) call ("native-insert-thumbnails-dialog");
+    generic_insert_thumbnails_dialog ();
   else if (id == "make-graphics") graphics_insert (tree (TUPLE));
   else if (id == "insert-small-table")
     athena::table_commands::insert_small_table (
@@ -420,15 +434,15 @@ execute_business_id (editor ed, const QString& id) {
     athena::table_commands::insert_big_table (
       is_nil (ed) ? nullptr : ed.operator-> ());
   else if (id == "insert-small-figure")
-    (void) call ("native-insert-small-figure");
+    generic_insert_figure ("small-figure");
   else if (id == "insert-big-figure")
-    (void) call ("native-insert-big-figure");
+    generic_insert_figure ("big-figure");
   else if (id == "insert-floating-figure")
-    (void) call ("native-insert-floating-figure");
+    generic_insert_figure ("floating-figure");
   else if (id == "insert-floating-table")
-    (void) call ("native-insert-floating-table");
+    generic_insert_figure ("floating-table");
   else if (id == "insert-floating-algorithm")
-    (void) call ("native-insert-floating-algorithm");
+    generic_insert_figure ("floating-algorithm");
   else if (id == "open-document-font-selector")
     open_document_font_selector ();
   else if (id == "document-background-pattern")
@@ -442,21 +456,21 @@ execute_business_id (editor ed, const QString& id) {
   else if (id == "document-toggle-preamble-mode")
     document_toggle_preamble_mode ();
   else if (id == "document-update-all")
-    (void) call ("update-document", object (string ("all")));
+    generic_update_document ("all");
   else if (id == "document-update-buffer")
-    (void) call ("update-document", object (string ("buffer")));
+    generic_update_document ("buffer");
   else if (id == "document-update-materials")
-    (void) call ("update-document", object (string ("materials")));
+    generic_update_document ("materials");
   else if (id == "document-update-table-of-contents")
-    (void) call ("update-document", object (string ("table-of-contents")));
+    generic_update_document ("table-of-contents");
   else if (id == "document-update-index")
-    (void) call ("update-document", object (string ("index")));
+    generic_update_document ("index");
   else if (id == "document-update-glossary")
-    (void) call ("update-document", object (string ("glossary")));
+    generic_update_document ("glossary");
   else if (id == "document-extract-style-file")
-    (void) call ("extract-style-file", object (true));
+    source_extract_style (true);
   else if (id == "document-extract-style-package")
-    (void) call ("extract-style-file", object (false));
+    source_extract_style (false);
   else if (id == "document-refresh-inclusions")
     get_server ()->inclusions_gc ();
   else if (id == "document-refresh-pictures")
@@ -573,7 +587,7 @@ execute_business_id (editor ed, const QString& id) {
   }
   else if (id == "tmdoc-explain-synopsis")
     (void) call ("tmdoc-insert-explain-synopsis");
-  else if (id == "make-alter-colors") (void) call ("make-alter-colors");
+  else if (id == "make-alter-colors") presentation_make (as_tree_label ("alter-colors"));
   else FAILED ("unknown native editor business id");
 }
 
@@ -595,10 +609,8 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
   const QString op= opValue.toString ();
 
   if (op == "insert-tree")
-    return action.contains ("value") &&
-           (action.value ("value").isString () ||
-            action.value ("value").isArray ()) ?
-             true : fail_validation (error, "insert-tree requires value");
+    return valid_action_tree (action.value ("value")) ? true :
+      fail_validation (error, "insert-tree requires text or a tagged JSON tree");
   if (op == "make")
     return has_string (action, "tag") &&
            (!action.contains ("arity") || action.value ("arity").isDouble ()) ?
@@ -1124,11 +1136,11 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     else if (kind == "remove" && current)
       document_remove_style_package (name);
     else if (kind == "edit" && current)
-      (void) call ("edit-package-source", object (name));
+      source_edit_package (name);
   }
   else if (op == "document-edit-style") {
     if (!ed->document_menu_state_snapshot ().ready) return;
-    (void) call ("edit-style-source");
+    source_edit_style ();
   }
   else if (op == "document-install-style") {
     if (!ed->document_menu_state_snapshot ().ready) return;
@@ -1299,7 +1311,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     else if (id == "alternate-toggle" && state.alternate_available)
       (void) call ("alternate-toggle", object (target));
     else if (id == "inactive-toggle" && state.hidden_toggle_available)
-      (void) call ("inactive-toggle", object (target));
+      source_inactive_toggle (target);
     else if (id == "algorithm-toggle-number" &&
              state.has (ACTOR_FOCUS_TOOLBAR_ALGORITHM_CONTEXT) &&
              !state.algorithm_named)
@@ -1372,11 +1384,11 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     else if (id == "slide-insert-title" &&
              state.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT) &&
              state.slide_propose_title)
-      (void) call ("native-slide-insert-title", object (target));
+      presentation_slide_title (target);
     else if (id == "slide-insert-graphics" &&
              state.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT) &&
              state.slide_propose_graphics)
-      (void) call ("native-slide-insert-graphics", object (target));
+      presentation_slide_graphics (target);
     else if (id == "table-toggle-parwidth" &&
               state.has (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT))
       athena::table_commands::table_toggle_parwidth (ed.operator-> ());
@@ -1406,10 +1418,10 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     else if (id == "document-insert-screens" &&
              state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
              state.document_insert_screens_available)
-      (void) call ("make-screens");
+      presentation_make_screens ();
     else if (id == "edit-focus-macro-source" &&
              state.tag_extension && state.tag_macro_source_available)
-      (void) call ("edit-focus-macro-source");
+      source_edit_focus_macro ();
     else if (id == "table-make-subtable" &&
              state.has (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT) &&
              state.table_subtable_available)
@@ -1492,8 +1504,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     const int index= action.value ("index").toInt (-1);
     if (index < 1 || index > state.overlay_count) return;
     tree target= ed->the_subtree (focus);
-    (void) call (
-      "native-overlays-switch-parent", object (target), object (index));
+    presentation_overlay_switch (target, index);
   }
   else if (op == "focus-overlay-reference") {
     actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
@@ -1723,7 +1734,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     else if (kind == "remove" && current)
       document_remove_style_package (name);
     else if (kind == "edit" && current)
-      (void) call ("edit-package-source", object (name));
+      source_edit_package (name);
   }
   else if (op == "focus-document-edit-style") {
     actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
@@ -1731,7 +1742,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
         (!state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
          !state.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT)))
       return;
-    (void) call ("edit-style-source");
+    source_edit_style ();
   }
   else if (op == "focus-document-install-style") {
     actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
@@ -1763,7 +1774,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     if (index < 0 ||
         index >= static_cast<int> (state.slide_names.size ()))
       return;
-    (void) call ("screens-switch-to", object (index));
+    presentation_switch_to (object (index));
   }
   else if (op == "make-section")
     text_make_section (as_tree_label (native_action_string (action.value ("tag"))));
@@ -1772,10 +1783,9 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
   else if (op == "make-header")
     text_make_header (native_action_string (action.value ("tag")));
   else if (op == "make-star")
-    (void) call (
-      "make*",
-      symbol_object (native_action_string (action.value ("tag"))),
-      object (native_action_string (action.value ("style"))));
+    generic_make_with_package (
+      as_tree_label (native_action_string (action.value ("tag"))),
+      native_action_string (action.value ("style")));
   else if (op == "tmdoc-branch")
     (void) call (
       "tmdoc-make-branch",
@@ -1784,29 +1794,15 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
   else if (op == "insert-native-math-grid") ed->make_native_math_block (true);
   else if (op == "make-tmlist")
     text_make_list (as_tree_label (native_action_string (action.value ("tag"))));
-  else if (op == "make-toggle")
-    (void) call (
-      "make-toggle", symbol_object (native_action_string (action.value ("tag"))));
-  else if (op == "make-switch")
-    (void) call (
-      "make-switch", symbol_object (native_action_string (action.value ("tag"))));
+  else if (op == "make-toggle" || op == "make-switch" || op == "make-overlays" || op == "make-overlay")
+    presentation_make (as_tree_label (native_action_string (action.value ("tag"))));
   else if (op == "make-unroll")
-    (void) call (
-      "make-unroll", symbol_object (native_action_string (action.value ("tag"))));
+    presentation_make_unroll (as_tree_label (native_action_string (action.value ("tag"))));
   else if (op == "make-switch-list")
-    (void) call (
-      "make-switch-list",
-      symbol_object (native_action_string (action.value ("tag"))),
-      symbol_object (native_action_string (action.value ("list"))));
-  else if (op == "make-overlays")
-    (void) call (
-      "make-overlays",
-      symbol_object (native_action_string (action.value ("tag"))));
-  else if (op == "make-overlay")
-    (void) call (
-      "make-overlay",
-      symbol_object (native_action_string (action.value ("tag"))));
-  else if (op == "make-screens") (void) call ("make-screens");
+    presentation_make_list (
+      as_tree_label (native_action_string (action.value ("tag"))),
+      as_tree_label (native_action_string (action.value ("list"))));
+  else if (op == "make-screens") presentation_make_screens ();
   else if (op == "make-insertion")
     generic_make_insertion (native_action_string (action.value ("tag")));
   else if (op == "make-label") generic_make_label ();
