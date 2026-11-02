@@ -1,5 +1,6 @@
 // Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later.
 #include "document_print.hpp"
+#include "presentation_commands.hpp"
 #include "editor.hpp"
 #include "new_buffer.hpp"
 #include "new_view.hpp"
@@ -240,8 +241,7 @@ void export_pdf (url target, bool attach_source) {
             concrete_buffer (transient)->actor->id (), concrete_view (view)->runtime_id,
             [destination, references, attach_source] (editor_rep&) {
               athena::node_reference::export_reference_scope frozen (references);
-              // Presentation transformations remain owned by dynamic/fold-edit.
-              call ("dynamic-make-slides");
+              presentation_make_slides ();
               export_pdf_ready (url (text (destination)), attach_source);
             },
             [name] (std::string error) {

@@ -7,6 +7,7 @@
 ******************************************************************************/
 
 #include "insertion_commands.hpp"
+#include "application_preferences.hpp"
 #include "cursor_history.hpp"
 #include "editing_utilities.hpp"
 #include "native_graphics_commands.hpp"
@@ -495,8 +496,7 @@ execute_business_id (editor ed, const QString& id) {
            id == "view-viewport-hanging") {
     const string mode= id == "view-viewport-typewriter" ? "on" :
                        id == "view-viewport-hanging" ? "hanging" : "off";
-    (void) call ("set-preference", object (string ("typewriter mode")),
-                object (mode));
+    application_preference_set ("typewriter mode", mode);
   }
   else if (id == "view-toggle-snap-pages")
     view_toggle_snap ();
@@ -1238,7 +1238,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     if (!ed->test_subtree (focus)) return;
     tree target= ed->the_subtree (focus);
     string tag= native_action_string (action.value ("tag"));
-    object variants= call ("focus-variants-of", object (target));
+    object variants= generic_focus_variants_of (target);
     bool allowed= false;
     if (is_list (variants)) {
       array<object> values= as_array_object (variants);

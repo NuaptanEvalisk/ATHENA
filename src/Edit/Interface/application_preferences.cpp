@@ -77,7 +77,10 @@ object application_preference_get (string key) {
 }
 void application_preference_set (string key, object value) {
   const string text= is_string (value) ? as_string (value) : object_to_string (value);
-  if (get_user_preference (key, "default") != text) set_preference (key, text);
+  application_preference_set (key, text);
+}
+void application_preference_set (string key, string value) {
+  if (get_user_preference (key, "default") != value) set_preference (key, value);
 }
 void application_preference_reset (string key) {
   if (!has_user_preference (key)) return;

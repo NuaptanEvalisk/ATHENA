@@ -661,6 +661,21 @@ generated native entries and remain on the secure-function list.
   Full linking/deployment is deferred; installed runtime remains `c7b8db073`.
   Object-valued metadata still needs migration.
 
+## Native View Actions And Slide Export
+
+- Viewport mode actions use a native text preference setter. The object-valued
+  script adapter delegates to it, retaining the unchanged-value notification
+  suppression in one implementation. Focus variant actions call their existing
+  native provider directly.
+- Slide PDF preparation invokes the native presentation transformation on the
+  same owning actor, removing the outdated reference to `dynamic/fold-edit`.
+- The backtrace preference still controls Guile's own debugging option. It is
+  not ATHENA's `debug_set` facility; remove that preference with the runtime
+  rather than silently changing its meaning during this batch.
+- Compiled the three changed implementation units with `-j16`; log:
+  `build_qt6/native-actions-print-build.log`. No new tests were needed. Combined
+  linking/deployment remains pending along with the focus snapshot batch.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
