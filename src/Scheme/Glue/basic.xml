@@ -1447,19 +1447,10 @@
   <binding name="latex-set-texmacs-style" native="latex_export_set_latex_texmacs_style" returns="void">
     <arg type="string" />
   </binding>
-  <binding name="latex-set-texmacs-packages" native="latex_export_set_latex_texmacs_packages" returns="void">
-    <arg type="object" />
-  </binding>
   <binding name="latex-has-style?" native="latex_compat_has_style" returns="bool">
     <arg type="string" />
   </binding>
   <binding name="latex-has-texmacs-style?" native="latex_compat_has_texmacs_style" returns="bool">
-    <arg type="string" />
-  </binding>
-  <binding name="latex-has-texmacs-package?" native="latex_compat_has_texmacs_package" returns="bool">
-    <arg type="string" />
-  </binding>
-  <binding name="latex-depends?" native="latex_compat_depends" returns="bool">
     <arg type="string" />
   </binding>
   <binding name="tmtex" native="latex_export_convert_node" returns="scheme_tree" exceptions="scheme">
@@ -1516,14 +1507,6 @@
     <arg type="string" />
   </binding>
   <binding name="latex-export-latex-texmacs-style" native="latex_export_latex_texmacs_style" returns="string" />
-  <binding name="latex-export-set-latex-texmacs-packages" native="latex_export_set_latex_texmacs_packages" returns="void">
-    <arg type="object" />
-  </binding>
-  <binding name="latex-export-latex-texmacs-packages" native="latex_export_latex_texmacs_packages" returns="object" />
-  <binding name="latex-export-set-latex-dependencies" native="latex_export_set_latex_dependencies" returns="void">
-    <arg type="object" />
-  </binding>
-  <binding name="latex-export-latex-dependencies" native="latex_export_latex_dependencies" returns="object" />
   <binding name="latex-export-enter" native="latex_export_enter" returns="void" />
   <binding name="latex-export-leave" native="latex_export_leave" returns="void" />
   <binding name="tmtex-reset-athena-object-placeholders" native="latex_export_reset_placeholders" returns="void" />

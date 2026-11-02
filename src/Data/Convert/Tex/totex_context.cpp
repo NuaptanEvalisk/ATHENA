@@ -53,8 +53,7 @@ struct LatexExportContext {
   array<string> latex_virtual_packages;
   array<string> latex_all_packages;
   string latex_texmacs_style;
-  array<object> latex_texmacs_packages;
-  array<object> latex_dependencies;
+  array<string> latex_dependencies;
   int serial;
   int ref_count;
   int auto_produce;
@@ -87,7 +86,7 @@ struct LatexExportContext {
     mathjax (false), replace_style (true), portable (false),
     cjk_document (false), use_catcodes (false), use_unicode (false),
     use_ascii (false), use_macros (false) {
-    latex_dependencies << object ("generic");
+    latex_dependencies << string ("generic");
   }
 
   void reset () {
@@ -1383,10 +1382,6 @@ file_output_native (scheme_tree args) {
   latex_export_context.latex_texmacs_style=
     stree_list (styles) && N(styles) > 0 && string_atom (styles[0])
       ? atom_text (styles[0]) : string ("none");
-  latex_export_context.latex_texmacs_packages= array<object> ();
-  if (stree_list (styles))
-    for (int i=1; i<N(styles); ++i)
-      latex_export_context.latex_texmacs_packages << stree_object (styles[i]);
 
   if (get_preference ("texmacs->latex:expand-user-macros", "off") == "on")
     doc_preamble= scheme_tree (TUPLE);
@@ -3867,23 +3862,13 @@ latex_export_latex_texmacs_style () {
 }
 
 void
-latex_export_set_latex_texmacs_packages (object packages) {
-  latex_export_context.latex_texmacs_packages= as_array_object (packages);
+latex_export_set_latex_dependencies (const array<string>& dependencies) {
+  latex_export_context.latex_dependencies= copy (dependencies);
 }
 
-object
-latex_export_latex_texmacs_packages () {
-  return as_list_object (latex_export_context.latex_texmacs_packages);
-}
-
-void
-latex_export_set_latex_dependencies (object dependencies) {
-  latex_export_context.latex_dependencies= as_array_object (dependencies);
-}
-
-object
+array<string>
 latex_export_latex_dependencies () {
-  return as_list_object (latex_export_context.latex_dependencies);
+  return copy (latex_export_context.latex_dependencies);
 }
 
 void

@@ -224,11 +224,9 @@ normalize_import_name (string name, bool& was_end) {
 
 bool
 depends_on (string package) {
-  object deps= latex_export_latex_dependencies ();
-  if (!is_list (deps)) return false;
-  array<object> values= as_array_object (deps);
+  array<string> values= latex_export_latex_dependencies ();
   for (int i=0; i<N(values); ++i)
-    if (is_string (values[i]) && as_string (values[i]) == package) return true;
+    if (values[i] == package) return true;
   return false;
 }
 

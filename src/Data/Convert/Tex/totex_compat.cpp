@@ -9,19 +9,6 @@
 #include "convert.hpp"
 #include "scheme.hpp"
 
-namespace {
-
-bool
-object_list_contains_string (object values, string value) {
-  if (!is_list (values)) return false;
-  array<object> items= as_array_object (values);
-  for (int i=0; i<N(items); ++i)
-    if (is_string (items[i]) && as_string (items[i]) == value) return true;
-  return false;
-}
-
-} // namespace
-
 void
 latex_compat_set_style (string style) {
   latex_export_set_latex_style (style);
@@ -42,17 +29,6 @@ latex_compat_has_style (string style) {
 bool
 latex_compat_has_texmacs_style (string style) {
   return style == latex_export_latex_texmacs_style ();
-}
-
-bool
-latex_compat_has_texmacs_package (string package) {
-  return object_list_contains_string (latex_export_latex_texmacs_packages (),
-                                      package);
-}
-
-bool
-latex_compat_depends (string package) {
-  return object_list_contains_string (latex_export_latex_dependencies (), package);
 }
 
 scheme_tree

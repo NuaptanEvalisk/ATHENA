@@ -1921,6 +1921,19 @@ generated native entries and remain on the secure-function list.
   containers. They remain in scope along with conversion payloads and the full
   runtime/build removal goal.
 
+## Native LaTeX Dependency State
+
+- Dependency recomputation and registry selection now share native string arrays,
+  preserving the generic initial dependency and detached storage ownership.
+- Removed the unused TeXmacs package-state mirror, its compatibility queries
+  and seven unused bindings. The actual document style processing is unchanged.
+- Interface generation and four implementation units compiled with -j16.
+  Logs: build_qt6/native-latex-dependency-state-glue.log and
+  build_qt6/native-latex-dependency-state-build.log. No tests added/run;
+  combined linking and deployment remain pending with the preceding batches.
+- Other export object containers, conversion payloads and runtime/build removal
+  remain outstanding. This batch does not complete the overall goal.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

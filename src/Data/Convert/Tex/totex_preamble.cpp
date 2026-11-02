@@ -1156,8 +1156,7 @@ latex_export_recompute_dependencies () {
   array<string> roots;
   roots << latex_export_latex_style ();
   for (int i=0; i<N(all); ++i) roots << all[i];
-  latex_export_set_latex_dependencies (
-    string_list_object (package_dependencies (roots)));
+  latex_export_set_latex_dependencies (package_dependencies (roots));
 }
 
 string
