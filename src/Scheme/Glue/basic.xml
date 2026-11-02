@@ -1999,18 +1999,6 @@
     <arg type="scheme_tree" />
     <arg type="string" />
   </binding>
-  <binding name="native-html-convert" native="html_export_convert" returns="scheme_tree" exceptions="scheme">
-    <arg type="scheme_tree" />
-    <arg type="object" />
-    <arg type="url" />
-    <arg type="url" />
-  </binding>
-  <binding name="native-html-export-document" native="html_export_document" returns="scheme_tree" exceptions="scheme">
-    <arg type="object" />
-    <arg type="object" />
-    <arg type="url" />
-    <arg type="url" />
-  </binding>
   <binding name="native-html-import-element" native="html_import_element" returns="scheme_tree" exceptions="scheme">
     <arg type="string" />
     <arg type="scheme_tree" />

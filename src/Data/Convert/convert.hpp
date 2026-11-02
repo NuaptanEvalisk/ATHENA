@@ -318,7 +318,6 @@ scheme_tree html_export_text (string source, bool preformatted);
 scheme_tree html_export_image_output (scheme_tree source, string location);
 scheme_tree html_export_picture_output (scheme_tree source, string location,
                                         scheme_tree extents, double scale);
-scheme_tree html_export_convert (scheme_tree source, object options, url source_url, url target);
 scheme_tree html_import_element (string tag, scheme_tree attrs, scheme_tree body);
 scheme_tree html_import_whitespace (string mode, scheme_tree nodes, bool preserve);
 scheme_tree html_import_serial (scheme_tree source, bool preserve);

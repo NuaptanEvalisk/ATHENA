@@ -55,6 +55,7 @@
 #include "Kernel/Types/node_metadata.hpp"
 #include "convert.hpp"
 #include "Data/Convert/Generic/conversion_executor.hpp"
+#include "Data/Convert/Xml/html_export.hpp"
 #include "Scheme/Scheme/object.hpp"
 #include "file.hpp"
 #include "web_files.hpp"
@@ -2471,9 +2472,9 @@ private slots:
     const tree baseline (DOCUMENT,
       compound ("style", "generic"),
       compound ("body", tree (DOCUMENT, "HTML baseline text.")));
-    const string before= as_string (call ("serialize-html",
-      call ("native-html-export-document", call ("tree->stree", object (baseline)),
-        options, object (url_none ()), object (url_none ()))));
+    const string before= serialize_html (html_export_document (
+      tree_to_scheme_tree (baseline), conversion_options_from_scheme (options),
+      url_none (), url_none ()));
     const string after= as_string (html_document_for_test (object (baseline), options));
     QVERIFY (!before.empty ());
     QCOMPARE (after, before);

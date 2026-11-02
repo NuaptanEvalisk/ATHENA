@@ -1822,6 +1822,24 @@ generated native entries and remain on the secure-function list.
   interfaces; this does not claim conversion is object-free. The entire runtime
   removal goal remains active.
 
+## Native HTML Export Boundary
+
+- HTML document export now accepts a prepared serialized tree and native
+  conversion_options map. Native document preparation remains at the executor
+  boundary, preserving v3 metadata preparation versus already-serialized input.
+  The HTML exporter no longer converts options through association lists.
+- Removed unused native-html-convert and native-html-export-document bindings.
+  The existing C++ MathJax/metadata check now calls the native document exporter
+  directly; its substantive assertions remain unchanged. No new tests added or
+  tests run.
+- Interface generation and html_semantics/conversion_executor compilation
+  passed with -j16. Logs: build_qt6/native-html-options-glue.log and
+  build_qt6/native-html-options-build.log. Combined linking, runtime export
+  verification and deployment remain pending.
+- HTML's MathJax path still converts options for latex_export_convert_top.
+  LaTeX driver/state and conversion payload objects remain explicit next work,
+  alongside the rest of the overall runtime-removal goal.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

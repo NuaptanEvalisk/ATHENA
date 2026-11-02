@@ -236,8 +236,9 @@ static object execute_step (object input, const conversion_edge& edge,
   if (action == "import-html-tree") return object (html_import_document (as_scheme_tree (input)));
   if (action == "import-html-stree") return serial (html_import_document_serial (as_scheme_tree (input)));
   if (action == "export-html" || action == "export-html-document") {
-    tree html= html_export_document (input, conversion_options_to_scheme (values),
-                                      source, target, rendering_editor);
+    tree prepared= is_tree (input) ? latex_export_prepare_v3_source (as_tree (input))
+                                    : as_scheme_tree (input);
+    tree html= html_export_document (prepared, values, source, target, rendering_editor);
     return action == "export-html" ? serial (html) : object (serialize_html (html));
   }
   if (action == "export-latex" || action == "export-latex-document") {

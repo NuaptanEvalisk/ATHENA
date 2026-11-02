@@ -1574,27 +1574,18 @@ public:
 };
 }
 
-scheme_tree html_export_convert (scheme_tree source, object options, url source_url,
+static scheme_tree html_export_convert (scheme_tree source, const conversion_options& options, url source_url,
                                  url target, editor_rep* rendering_editor) {
   source= html_export_prepare_source (source);
   export_environment env= {{"source-url", quoted (as_string (source_url))}, {"math", tree ("#f")},
     {"math-display", tree ("#f")}, {"preformatted", tree ("#f")}, {"mag", quoted ("1")},
     {"left-margin", tree ("0")}, {"right-margin", tree ("0")}};
-  return html_exporter (target, source_url, conversion_options_from_scheme (options),
+  return html_exporter (target, source_url, options,
                         rendering_editor).run (source, env);
 }
 
-// Retain the established generated Scheme entry point. Its arguments contain
-// no editor handle; it can render non-graphical HTML without an actor view.
-scheme_tree html_export_convert (scheme_tree source, object options,
-                                 url source_url, url target) {
-  return html_export_convert (source, options, source_url, target, nullptr);
-}
-
-scheme_tree html_export_document (object input, object options, url origin,
+scheme_tree html_export_document (scheme_tree source, const conversion_options& options, url origin,
                                   url target, editor_rep* rendering_editor) {
-  tree source= is_tree (input) ? latex_export_prepare_v3_source (as_tree (input))
-                                : as_scheme_tree (input);
   source= html_export_prepare_source (source);
   if (head (source, "document")) {
     tree body= tree ("#f"), style= tuple ("tuple"), initial= tuple ("collection");
