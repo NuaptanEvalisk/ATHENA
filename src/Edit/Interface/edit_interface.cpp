@@ -1470,7 +1470,7 @@ editor_rep::focus_toolbar_state_snapshot () {
   auto append_parameter=
     [&] (std::vector<actor_focus_parameter_snapshot>& target,
          const string& parameter, const string& explicitLabel,
-         object mode) {
+         generic_parameter_mode mode) {
       const std::string key (
         parameter.data (), static_cast<std::size_t> (N(parameter)));
       for (const auto& existing: target)
@@ -1514,23 +1514,16 @@ editor_rep::focus_toolbar_state_snapshot () {
       target.push_back (std::move (item));
     };
 
-  object globalMode= keyword_object ("global");
-  array<object> localModeItems;
-  localModeItems << keyword_object ("local")
-                 << symbol_object (as_string (L (t)));
-  object localMode= as_list_object (localModeItems);
+  generic_parameter_mode globalMode {true, ""};
+  generic_parameter_mode localMode {false, as_string (L (t))};
 
   auto append_parameter_list=
     [&] (std::vector<actor_focus_parameter_snapshot>& target,
-         object mode) {
+         generic_parameter_mode mode) {
       try {
-        object raw= generic_focus_parameters_list_memo (t, mode);
-        if (!is_list (raw)) return;
-        array<object> values= as_array_object (raw);
+        array<string> values= generic_focus_parameters_list_memo (t, mode);
         for (int i=0; i<N(values); ++i)
-          if (is_string (values[i]))
-            append_parameter (
-              target, as_string (values[i]), string (""), mode);
+          append_parameter (target, values[i], string (""), mode);
       }
       catch (...) {}
     };

@@ -138,21 +138,6 @@
 (check (equal? (inputter-encode "plain" "string") "plain")
        "native inputter encode preserves ordinary strings")
 
-(parameter-set "page-screen-margin" "true" :global)
-(check (parameter-test? "page-screen-margin" "true" :global)
-       "native global parameter test sees explicit value")
-(check (equal? (parameter-get "page-screen-margin" :global) "true")
-       "native global parameter getter preserves string value")
-(check (equal? (parameter-get-string "page-screen-margin" :global) "true")
-       "native global parameter string getter preserves string value")
-(check (not (parameter-default? "page-screen-margin" :global))
-       "native global parameter default predicate sees explicit override")
-(check (parameter-enabled? "page-screen-margin" :global)
-       "native parameter-enabled delegates to true-value policy")
-(parameter-reset "page-screen-margin" :global)
-(check (parameter-default? "page-screen-margin" :global)
-       "native global parameter reset clears explicit override")
-
 (define (legacy-focus-doc-arg-name t i previous)
   (let* ((raw (tree-child-name t i))
          (base (cond ((not (equal? raw "")) raw)
@@ -227,15 +212,6 @@
   '("fast" "slow" :other))
 (check (equal? (child-proposals proposal-tree 0) '("fast" "slow" :other))
        "native child proposal baseline remains a Scheme extension point")
-
-(define parameter-tree (stree->tree '(section "Title")))
-(check (equal? (focus-parameters-list-memo parameter-tree :global)
-               (focus-parameters-list parameter-tree :global))
-       "native focus parameter memoization returns computed value")
-(focus-parameters-cache-clear)
-(check (equal? (focus-parameters-list-memo parameter-tree :global)
-               (focus-parameters-list parameter-tree :global))
-       "native cache clearing invalidates focus parameter memoization")
 
 (check (equal? (tree->stree
                   (focus-search-label

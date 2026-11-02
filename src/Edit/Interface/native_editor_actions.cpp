@@ -1598,26 +1598,22 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
       }
     if (!allowed) return;
 
-    object mode;
-    if (scope == "global") mode= keyword_object ("global");
-    else {
+    generic_parameter_mode mode {scope == "global", ""};
+    if (!mode.global) {
       path focus= ed->focus_get ();
       if (!ed->test_subtree (focus)) return;
       tree target= ed->the_subtree (focus);
-      array<object> items;
-      items << keyword_object ("local")
-            << symbol_object (as_string (L (target)));
-      mode= as_list_object (items);
+      mode.focus_label= as_string (L (target));
     }
     if (action.value ("reset").toBool (false))
       generic_parameter_reset (name, mode);
     else {
-      object value (native_action_string (action.value ("value")));
+      tree value (native_action_string (action.value ("value")));
       if (action.contains ("choice")) {
         const auto entries= format_parameter_choices (name);
         const int index= action.value ("choice").toInt (-1);
         if (index < 0 || static_cast<std::size_t> (index) >= entries.size ()) return;
-        value= object (entries[index].value);
+        value= entries[index].value;
       }
       generic_parameter_set (name, value, mode);
     }

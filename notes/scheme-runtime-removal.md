@@ -1240,6 +1240,26 @@ generated native entries and remain on the secure-function list.
   consume explicit init-file options through `exec_file`. Do not delete the
   evaluator on the assumption that removing `progs` removed those consumers.
 
+## Native Focus Parameter Mode And Lists
+
+- Focus parameter snapshots and actions now share a native global/local mode
+  structure with the expected focus label. Removed keyword/list construction
+  and parsing from this production path. Local label validation, global init
+  values, local effective cursor values and reset behavior are unchanged.
+- Parameter application takes a native tree, including structured choice
+  values. Parameter lists and their memoized results remain native string
+  arrays instead of round-tripping through object lists.
+- Removed nine unused Scheme parameter/list bindings and their obsolete
+  assertions, plus the unused test/get/enabled wrappers and list serializer.
+  Native callers keep the actual UI behavior; no replacement Scheme API added.
+- XML generation and the three affected implementation units compiled with
+  `-j16`; log `build_qt6/native-parameter-mode-build.log`. No tests added or run.
+  Full linking/runtime verification/deployment remain pending with the prior
+  procedure-reflection cleanup. Installed binary remains `0063a1106`.
+- The lower `format_tree_with_*` accessors and customizable-parameter metadata
+  still expose object values. They are the next ownership boundaries to migrate,
+  not evidence that this entire formatting subsystem is already Scheme-free.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

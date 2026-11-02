@@ -139,13 +139,14 @@ scheme_tree generic_inputter_encode (string value, string type);
 bool generic_focus_set_hidden_child (tree t, int i, string value);
 bool generic_focus_set_hidden_child (tree t, int i, string value,
                                      const athena::contracts::editing_query&);
-bool generic_parameter_test (string name, object value, object mode);
-void generic_parameter_set (string name, object value, object mode);
-object generic_parameter_get (string name, object mode);
-string generic_parameter_get_string (string name, object mode);
-bool generic_parameter_default (string name, object mode);
-void generic_parameter_reset (string name, object mode);
-bool generic_parameter_enabled (string name, object mode);
+struct generic_parameter_mode {
+  bool global;
+  string focus_label;
+};
+void generic_parameter_set (string name, tree value, generic_parameter_mode mode);
+string generic_parameter_get_string (string name, generic_parameter_mode mode);
+bool generic_parameter_default (string name, generic_parameter_mode mode);
+void generic_parameter_reset (string name, generic_parameter_mode mode);
 object generic_focus_doc_arg_names (tree t, int start, object previous_names);
 string generic_parameter_name (string name);
 bool generic_parameter_show_in_menu (string name);
@@ -153,8 +154,8 @@ bool generic_parameter_value (object value);
 object generic_focus_variants_of (tree t);
 string generic_focus_tag_name (object label);
 object generic_child_proposals (tree t, int i);
-object generic_focus_parameters_list (tree t, object mode);
-object generic_focus_parameters_list_memo (tree t, object mode);
+array<string> generic_focus_parameters_list (tree t, generic_parameter_mode mode);
+array<string> generic_focus_parameters_list_memo (tree t, generic_parameter_mode mode);
 void generic_focus_parameters_cache_clear ();
 
 #endif
