@@ -13,6 +13,7 @@
 
 #include "scheme.hpp"
 #include <memory>
+#include <optional>
 
 namespace athena::contracts { struct editing_query; }
 class evaluation_environment_checkpoint;
@@ -57,11 +58,8 @@ void generic_make_link_image (object values);
 void generic_make_thumbnails_sub (object files, int columns);
 void generic_notify_activated (tree t);
 void generic_notify_disactivated (tree t);
-object generic_focus_label (tree t);
-object generic_focus_get_label (tree t);
-object generic_focus_set_label (tree t, string value);
-object generic_focus_list_search_label (object children);
-object generic_focus_search_label (tree t);
+std::optional<tree> generic_focus_label (tree t);
+void generic_focus_set_label (tree t, string value);
 void generic_search_next ();
 void generic_search_previous ();
 void generic_focus_open_search_tool (tree t);
@@ -146,13 +144,10 @@ void generic_parameter_set (string name, tree value, generic_parameter_mode mode
 string generic_parameter_get_string (string name, generic_parameter_mode mode);
 bool generic_parameter_default (string name, generic_parameter_mode mode);
 void generic_parameter_reset (string name, generic_parameter_mode mode);
-object generic_focus_doc_arg_names (tree t, int start, object previous_names);
 string generic_parameter_name (string name);
 bool generic_parameter_show_in_menu (string name);
-bool generic_parameter_value (object value);
 array<string> generic_focus_variants_of (tree t);
 string generic_focus_tag_name (string label);
-object generic_child_proposals (tree t, int i);
 array<string> generic_focus_parameters_list (tree t, generic_parameter_mode mode);
 array<string> generic_focus_parameters_list_memo (tree t, generic_parameter_mode mode);
 void generic_focus_parameters_cache_clear ();

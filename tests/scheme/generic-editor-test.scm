@@ -87,9 +87,6 @@
                           (cell "")))))))
        "native thumbnail builder preserves rows, width, and padding")
 
-(check (not (focus-label (stree->tree '(focus-unknown "x"))))
-       "generic focus-label baseline is false")
-
 ;; Generic focus-menu field policy is native but must continue to agree with
 ;; the DRD and rich-length primitives that define its semantics.
 (define menu-with (stree->tree '(with "foo-bar" "value" "body")))
@@ -132,66 +129,8 @@
 (check (equal? (inputter-encode "plain" "string") "plain")
        "native inputter encode preserves ordinary strings")
 
-(define (legacy-focus-doc-arg-name t i previous)
-  (let* ((raw (tree-child-name t i))
-         (base (cond ((not (equal? raw "")) raw)
-                     ((equal? (tree-child-type t i) "regular") "body")
-                     (else (tree-child-type t i)))))
-    (let loop ((n 1))
-      (let ((candidate (if (= n 1) base
-                           (string-append base (number->string n)))))
-        (if (member candidate previous) (loop (+ n 1)) candidate)))))
-(define (legacy-focus-doc-arg-names t i previous)
-  (if (>= i (tree-arity t)) '()
-      (let ((name (legacy-focus-doc-arg-name t i previous)))
-        (cons name
-              (legacy-focus-doc-arg-names t (+ i 1) (cons name previous))))))
-(define doc-name-tree
-  (stree->tree '(with "foo" "one" "foo" "two" "body")))
-(check (equal? (focus-doc-arg-names doc-name-tree 0 '())
-               (legacy-focus-doc-arg-names doc-name-tree 0 '()))
-       "native documentation argument naming preserves DRD conflict policy")
-(check (equal? (focus-doc-arg-names doc-name-tree 1 '("body" "value"))
-               (legacy-focus-doc-arg-names doc-name-tree 1 '("body" "value")))
-       "native documentation argument naming honors existing names")
-
-(check (parameter-value? "plain")
-       "native parameter value predicate accepts strings")
-(check (parameter-value? '("Label" "value"))
-       "native parameter value predicate accepts labelled pairs")
-(check (not (parameter-value? '(1 "value")))
-       "native parameter value predicate rejects nonstring labels")
 (check (not (parameter-show-in-menu? "language"))
        "Scheme parameter visibility specialization remains authoritative")
-
-(define proposal-tree (stree->tree '(native-proposal-extension "x")))
-(check (not (child-proposals proposal-tree 0))
-       "native child proposal baseline returns false")
-(tm-define (child-proposals t i)
-  (:require (tree-is? t 'native-proposal-extension))
-  '("fast" "slow" :other))
-(check (equal? (child-proposals proposal-tree 0) '("fast" "slow" :other))
-       "native child proposal baseline remains a Scheme extension point")
-
-(check (equal? (tree->stree
-                  (focus-search-label
-                   (stree->tree
-                     '(document "x" (concat "a" (label "target"))))))
-               '(label "target"))
-       "native focus label search walks structural children")
-(check (equal? (tree->stree
-                 (focus-search-label
-                   (stree->tree
-                     '(with "mode" "ignored"
-                            (document (label "last"))))))
-               '(label "last"))
-       "native focus label search follows the final with child")
-(check (equal? (tree->stree
-                 (focus-list-search-label
-                   (list (stree->tree '(foo "x"))
-                         (stree->tree '(label "listed")))))
-               '(label "listed"))
-       "native focus label list search returns the first matching label")
 
 (buffer-set-body
   (current-buffer-url)

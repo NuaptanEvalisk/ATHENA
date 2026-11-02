@@ -1105,11 +1105,10 @@ editor_rep::focus_toolbar_state_snapshot () {
   set (ACTOR_FOCUS_TOOLBAR_HAS_SEARCH_MENU,
        query (generic_focus_has_search_menu));
   try {
-    object label= generic_focus_label (t);
-    set (ACTOR_FOCUS_TOOLBAR_HAS_LABEL, is_tree (label));
-    object value= generic_focus_get_label (t);
-    if (is_string (value)) {
-      string labelValue= as_string (value);
+    const auto label= generic_focus_label (t);
+    set (ACTOR_FOCUS_TOOLBAR_HAS_LABEL, label.has_value ());
+    if (label && is_atomic ((*label)[0])) {
+      string labelValue= as_string ((*label)[0]);
       snapshot.focus_label_value.assign (
         labelValue.data (), static_cast<std::size_t> (N(labelValue)));
     }

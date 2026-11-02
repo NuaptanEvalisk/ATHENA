@@ -1475,6 +1475,38 @@ generated native entries and remain on the secure-function list.
 - This straightforward signature change has not been built or tested separately;
   include it in the pending combined style/focus build and deployment.
 
+## Native Focus Labels And Retired Metadata
+
+- Focus label search returns optional native trees. Structural traversal no
+  longer allocates object lists, and focus snapshots query the label only once.
+  Reference navigation and label edits retain the original attached tree and
+  tree_set_diff edit path; absent labels remain distinct from empty labels.
+- Removed the five unused Scheme focus-label exports and their simple traversal
+  assertions. Native editor actions and Qt focus commands remain supported.
+- Removed unconsumed documentation argument naming, parameter-value and child
+  proposal exports, their implementations and obsolete Scheme assertions. These
+  had no production consumers in source or packaged resources. Also removed the
+  unused scheme_truthy helper.
+- Combined ATHENA.bin build with -j16 passed, including all style/focus commits
+  since ff39c969b. Log: build_qt6/native-style-focus-values-build.log.
+
+## Combined Style And Focus Deployment
+
+- Supersedes the pending full-build/deployment notes in the style-list,
+  style-category, node-variant and focus sections above. The combined binary
+  was deployed with tools/deploy-local-runtime.sh; build ID:
+  4d96f53dd3cf5bebf0f4f3136ab7f533f481a8ef.
+- Fresh headless startup checked that all 14 retired style/focus bindings are
+  absent. It exited successfully with NATIVE_STYLE_FOCUS_BINDINGS_OK and no
+  runtime errors. This is binding/startup evidence, not interactive GUI coverage.
+  No broad test suite was run or new permanent tests added.
+- Logs: build_qt6/native-style-focus-values-runtime.log and
+  build_qt6/native-style-focus-values-deploy.log. Temporary probe and profile
+  were removed after use.
+- Next runtime boundaries still include explicit startup evaluation, actor
+  procedure handles and the GUI global procedure queue. These remain real
+  Scheme dependencies; this deployment does not complete runtime removal.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

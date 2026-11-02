@@ -172,9 +172,9 @@ void reference_resolve_at_cursor () {
 bool reference_navigate (tree t, bool forwards, bool extremal) {
   editor ed=get_current_editor ();
   if (!tie_context (t)) {
-    object label=generic_focus_label (t);
-    if (!is_tree (label)) return false;
-    t=as_tree (label);
+    const auto label=generic_focus_label (t);
+    if (!label) return false;
+    t=*label;
     ed->go_to_end (reverse (obtain_ip (t)));
   }
   if (N(t)==0) return true;

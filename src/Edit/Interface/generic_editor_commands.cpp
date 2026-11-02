@@ -184,34 +184,29 @@ bool image_payload (object values, url& target,
   return true;
 }
 
-object focus_search_label_impl (tree t);
+std::optional<tree> focus_search_label_impl (tree t);
 
-object focus_list_search_label_impl (object children) {
-  if (!is_list (children)) return object (false);
-  array<object> items= as_array_object (children);
-  for (int i= 0; i < N (items); ++i) {
-    if (!is_tree (items[i])) continue;
-    object found= focus_search_label_impl (as_tree (items[i]));
-    if (is_tree (found)) return found;
+std::optional<tree> focus_children_search_label (tree parent) {
+  for (int i= 0; i < N (parent); ++i) {
+    auto found= focus_search_label_impl (parent[i]);
+    if (found) return found;
   }
-  return object (false);
+  return std::nullopt;
 }
 
-object focus_search_label_impl (tree t) {
-  if (is_compound (t, "label") && N (t) == 1) return object (t);
-  if (!is_compound (t)) return object (false);
+std::optional<tree> focus_search_label_impl (tree t) {
+  if (is_compound (t, "label") && N (t) == 1) return t;
+  if (!is_compound (t)) return std::nullopt;
   string label= as_string (L (t));
   if (label == "document" || label == "concat" || label == "table" ||
       label == "row" || label == "cell") {
-    array<object> children;
-    for (int i= 0; i < N (t); ++i) children << object (t[i]);
-    return focus_list_search_label_impl (as_list_object (children));
+    return focus_children_search_label (t);
   }
   if (label == "tformat" || label == "with" || label == "surround") {
-    if (N (t) == 0) return object (false);
+    if (N (t) == 0) return std::nullopt;
     return focus_search_label_impl (t[N (t) - 1]);
   }
-  return object (false);
+  return std::nullopt;
 }
 
 bool innermost_balloon (tree& result) {
@@ -576,57 +571,35 @@ generic_notify_disactivated (tree t) {
   generic_notify_activated (t);
 }
 
-object
+std::optional<tree>
 generic_focus_label (tree t) {
   if (text_section_context (t)) {
     tree parent;
     return parent_tree (t, parent) && is_func (parent, CONCAT) ?
-      focus_search_label_impl (parent) : object (false);
+      focus_search_label_impl (parent) : std::nullopt;
   }
   if (text_list_context (t) || is_compound (t, "bib-list")) {
     const path p= reverse (obtain_ip (t));
     const path cursor= path_up (get_current_editor ()->the_path ());
-    if (!(p < cursor)) return object (false);
+    if (!(p < cursor)) return std::nullopt;
     const path relative= cursor / p;
     tree doc= t[relative->item];
-    if (!is_func (doc, DOCUMENT) || is_nil (relative->next)) return object (false);
+    if (!is_func (doc, DOCUMENT) || is_nil (relative->next)) return std::nullopt;
     return focus_search_label_impl (doc[relative->next->item]);
   }
   if (text_node_in_group (t, "enunciation-tag") && N(t) == 1)
     return focus_search_label_impl (t[0]);
   if (text_node_in_group (t, "algorithm-tag") || text_footnote_context (t) ||
       text_node_in_group (t, "figure-tag")) {
-    array<object> children;
-    for (int i=0; i<N(t); ++i) children << object (t[i]);
-    return focus_list_search_label_impl (as_list_object (children));
+    return focus_children_search_label (t);
   }
-  return object (false);
+  return std::nullopt;
 }
 
-object
-generic_focus_get_label (tree t) {
-  object label= generic_focus_label (t);
-  if (!is_tree (label)) return object (false);
-  tree l= as_tree (label);
-  if (N (l) != 1 || !is_atomic (l[0])) return object (false);
-  return object (as_string (l[0]));
-}
-
-object
+void
 generic_focus_set_label (tree t, string value) {
-  object label= generic_focus_label (t);
-  if (!is_tree (label)) return object (false);
-  return object (tree_set_diff (as_tree (label)[0], tree (value)));
-}
-
-object
-generic_focus_list_search_label (object children) {
-  return focus_list_search_label_impl (children);
-}
-
-object
-generic_focus_search_label (tree t) {
-  return focus_search_label_impl (t);
+  const auto label= generic_focus_label (t);
+  if (label) (void) tree_set_diff ((*label)[0], tree (value));
 }
 
 void
@@ -1471,54 +1444,6 @@ generic_parameter_reset (string name, generic_parameter_mode mode) {
   format_tree_with_reset (focus, tree (name));
 }
 
-namespace {
-
-string focus_doc_avoid_conflict (string name, array<string> previous) {
-  for (int suffix= 1; ; ++suffix) {
-    string candidate= suffix == 1 ? name : name * as_string (suffix);
-    bool found= false;
-    for (int i= 0; i < N (previous); ++i)
-      if (previous[i] == candidate) {
-        found= true;
-        break;
-      }
-    if (!found) return candidate;
-  }
-}
-
-string focus_doc_arg_name (tree t, int i, array<string> previous,
-                           const athena::contracts::editing_query& query) {
-  string name= query.child_name (t, i);
-  if (name == "") {
-    string type= scoped_child_type (t, i, query);
-    name= type == "regular" ? string ("body") : type;
-  }
-  return focus_doc_avoid_conflict (name, previous);
-}
-
-} // namespace
-
-object
-generic_focus_doc_arg_names (tree t, int start, object previous_names) {
-  const auto context= generic_prepared_tree_context (t);
-  if (!context) return as_list_object (array<object> ());
-  const athena::contracts::editing_query query {context->contract_context ()};
-  array<string> previous;
-  if (is_list (previous_names)) {
-    array<object> items= as_array_object (previous_names);
-    for (int i= 0; i < N (items); ++i)
-      if (is_string (items[i])) previous << as_string (items[i]);
-  }
-
-  array<object> result;
-  for (int i= start; i < N (t); ++i) {
-    string name= focus_doc_arg_name (t, i, previous, query);
-    result << object (name);
-    previous << name;
-  }
-  return as_list_object (result);
-}
-
 string
 generic_parameter_name (string name) {
   editor ed= get_current_editor ();
@@ -1541,14 +1466,6 @@ generic_parameter_show_in_menu (string name) {
           "section-tag", std::string (section.data (), N(section)))) return false;
   }
   return !source_member_theme (name).has_value ();
-}
-
-bool
-generic_parameter_value (object value) {
-  if (is_string (value)) return true;
-  if (!is_list (value)) return false;
-  array<object> items= as_array_object (value);
-  return N (items) == 2 && is_string (items[0]);
 }
 
 array<string>
@@ -1593,25 +1510,10 @@ generic_focus_tag_name (string label) {
   return focus_tag_name (label);
 }
 
-object
-generic_child_proposals (tree t, int i) {
-  if (generic_tree_child_type (t, i) == "duration") {
-    array<object> values;
-    for (const char* s: {"0.25s", "0.5s", "1s", "1.5s", "2s", "2.5s", "3s", "4s", "5s", "10s"}) values << object (string (s));
-    values << keyword_object ("other");
-    return as_list_object (values);
-  }
-  return object (false);
-}
-
 namespace {
 
 hashmap<tree,array<string>> focus_parameters_cache=
   hashmap<tree,array<string>> (array<string> ());
-
-bool scheme_truthy (object value) {
-  return !(is_bool (value) && !as_bool (value));
-}
 
 bool string_array_contains (array<string> values, string value) {
   for (int i= 0; i < N (values); ++i)
