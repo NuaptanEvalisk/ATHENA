@@ -2201,17 +2201,6 @@ buffer_actor::dispatch (actor_command_record& command) {
     publish_realtime_state (true, command.argument[0] == 0);
     break;
   }
-  case actor_command_kind::attach_notifier:
-    if (!impl_->state.notifier_attached) {
-      string id= as_string (impl_->state.name, URL_UNIX);
-      tree& body= subtree (
-        impl_->state.document, impl_->state.root_path);
-      call ("buffer-initialize", id, body, impl_->state.name);
-      impl_->state.links= link_repository (true);
-      impl_->state.links->insert_locus (id, body, "buffer-notify");
-      impl_->state.notifier_attached= true;
-    }
-    break;
   case actor_command_kind::export_buffer: {
     // A thrown conversion/export must not leave the default success value in
     // a synchronous reply. execute() reports exceptions but still replies.

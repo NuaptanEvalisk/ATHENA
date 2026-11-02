@@ -162,7 +162,6 @@ enum class actor_command_kind: std::uint32_t {
   mark_saved,
   mark_autosaved,
   set_realtime_save_paused,
-  attach_notifier,
   export_buffer,
   latex_expand_buffer,
   ui_invalidate,

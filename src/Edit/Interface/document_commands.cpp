@@ -101,10 +101,10 @@ void document_toggle_source_mode () {
   editor ed= get_current_editor ();
   string next= ed->get_env_string ("preamble") == "true" ? "false" : "true";
   if (next == "true") {
-    ed->init_env ("src-style", tree (as_string (call ("get-preference", object ("source tree style")))));
-    ed->init_env ("src-special", tree (as_string (call ("get-preference", object ("source tree special rendering")))));
-    ed->init_env ("src-compact", tree (as_string (call ("get-preference", object ("source tree compactification")))));
-    ed->init_env ("src-close", tree (as_string (call ("get-preference", object ("source tree closing style")))));
+    ed->init_env ("src-style", tree (get_preference ("source tree style")));
+    ed->init_env ("src-special", tree (get_preference ("source tree special rendering")));
+    ed->init_env ("src-compact", tree (get_preference ("source tree compactification")));
+    ed->init_env ("src-close", tree (get_preference ("source tree closing style")));
   }
   ed->init_env ("preamble", tree (next));
 }

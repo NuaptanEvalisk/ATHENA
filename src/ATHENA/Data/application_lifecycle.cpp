@@ -175,7 +175,7 @@ url recovery_source (url name) {
   if (is_rooted_tmfs (name))
     return url_none ();
   url autosave= glue (name, "~");
-  if (exists (name) && exists (autosave) && as_bool (call ("url-newer?", object (autosave), object (name))))
+  if (exists (name) && exists (autosave) && application_url_newer (autosave, name))
     return autosave;
   return url_none ();
 }

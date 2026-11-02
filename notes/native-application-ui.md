@@ -194,3 +194,38 @@ escapes the Scheme VM call and is caught by actor dispatch, but the subsequent
 `actor_dispatch_request.failure` holds that runtime_error. Evidence is in
 `build_qt6/native-startup-core-{context,message}.log`. This exception cleanup
 issue was not changed by the bounded startup migration and remains unresolved.
+
+## Direct Native Business Calls (2026-11-02)
+
+The first post-`progs` batch removes Guile dispatch from macro activation,
+source-mode preferences, LaTeX expansion preferences, autosave timestamp
+comparison, saved-buffer timestamp lookup, file chooser format metadata and
+the table/cell property pane. Table snapshots and edits still execute in their
+existing BufferActor continuations; Qt does not read editor state directly.
+The conversion registry still returns some `scheme_tree` values, which are
+native trees, not evaluated Scheme expressions.
+
+The obsolete buffer notifier API, actor command and state are removed together
+with its XML binding. Its only remaining entry was the binding itself, and its
+`buffer-initialize` and `buffer-notify` callbacks no longer existed. Generic
+macro creation also no longer attempts to load the deleted `generic-edit`
+module.
+
+The -j16 build and official local deployment completed. A temporary headless
+startup check confirmed that the deployed runtime no longer defines
+`buffer-attach-notifier`; it exited successfully. No editor regression suite
+was added or run for these direct-call substitutions.
+
+This is not complete Guile removal. Further bounded work remains:
+
+- Other native business callers still dispatch by Scheme procedure name.
+- Keyboard actions, conditional bindings and user shortcuts retain closures.
+- UI callbacks, observers, actor Scheme handles and interactive properties
+  retain Guile objects; ownership must survive their replacement.
+- Style `extern` and explicit command-line scripts still invoke Guile.
+- GnuTLS certificate-error handling calls two missing interactive procedures.
+  Its status-print call also overwrites the handshake return code. Audit the
+  handshake lifecycle before replacing that interaction; do not silently trust
+  an invalid certificate or treat an error as success.
+- `env-math.ats` retains an obsolete `ext-tmhtml-eqnarray*` export hook.
+- The exception-boundary failure described above is still separate work.

@@ -15,6 +15,8 @@
 #include "buffer_actor.hpp"
 #include "qt_utilities.hpp"
 #include "scheme.hpp"
+#include "editor.hpp"
+#include "table_commands.hpp"
 #include "server.hpp"
 
 #include <DockWidget.h>
@@ -97,8 +99,8 @@ private:
     if (loading || is_none (targetBuffer)) return;
     const bool cell= cellMode;
     postEdit ([cell, key, value] {
-      call (cell ? "cell-set-format*" : "table-set-format*",
-            object (ts (key)), object (ts (value)));
+      if (cell) native_cell_set_format_star (ts (key), ts (value));
+      else native_table_set_format_star (ts (key), ts (value));
     });
   }
 
@@ -112,7 +114,7 @@ private:
   void setExtents (int rowCount, int columnCount) {
     if (loading || is_none (targetBuffer)) return;
     postEdit ([rowCount, columnCount] {
-      call ("table-set-extents", object (rowCount), object (columnCount));
+      get_current_editor ()->table_set_extents (rowCount, columnCount);
     });
   }
 
@@ -255,12 +257,13 @@ private:
     auto task= std::make_shared<std::packaged_task<PropertySnapshot()>> (
       [cell, keys] {
         PropertySnapshot snapshot;
+        editor ed= get_current_editor ();
         for (const auto& key: keys)
-          snapshot.values[key]= qs (as_string (call (
-            cell ? "cell-get-format" : "table-get-format", object (ts (key)))));
+          snapshot.values[key]= qs (cell ? ed->cell_get_format (ts (key)) :
+                                         ed->table_get_format (ts (key)));
         if (!cell) {
-          snapshot.rows= as_int (call ("table-nr-rows"));
-          snapshot.columns= as_int (call ("table-nr-columns"));
+          snapshot.rows= ed->table_nr_rows ();
+          snapshot.columns= ed->table_nr_columns ();
         }
         return snapshot;
       });

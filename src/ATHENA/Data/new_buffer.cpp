@@ -284,11 +284,6 @@ tm_buffer_rep::~tm_buffer_rep () {
 * Check for changes in the buffer
 ******************************************************************************/
 
-void
-tm_buffer_rep::attach_notifier () {
-  (void) invoke_buffer_actor (this, actor_command_kind::attach_notifier);
-}
-
 bool
 tm_buffer_rep::needs_to_be_saved () {
   if (buf->read_only) return false;
@@ -1007,13 +1002,6 @@ pretend_buffer_autosaved (url name) {
   tm_buffer buf= concrete_buffer (name);
   if (is_nil (buf)) return;
   (void) invoke_buffer_actor (buf, actor_command_kind::mark_autosaved);
-}
-
-void
-attach_buffer_notifier (url name) {
-  tm_buffer buf= concrete_buffer (name);
-  if (is_nil (buf)) return;
-  buf->attach_notifier ();
 }
 
 /******************************************************************************

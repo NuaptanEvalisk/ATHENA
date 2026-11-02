@@ -15,6 +15,7 @@
 #include "cursor_navigation.hpp"
 #include "ATHENA/Data/enunciation_model.hpp"
 #include "format_commands.hpp"
+#include "generic_editor_commands.hpp"
 #include "native_dynamic_commands.hpp"
 #include "presentation_commands.hpp"
 #include "native_latex_commands.hpp"
@@ -221,7 +222,6 @@ edit_dynamic_rep::make_compound (tree_label l, int n, path replace_input) {
       return true;
     }
   }
-  eval ("(use-modules (generic generic-edit))");
   const tree definition= context->effective_value (tag);
   if (n == -1 && is_func (definition, MACRO) &&
       query.describe (l).layout_origin == athena::contracts::property_authority::inferred)
@@ -320,14 +320,14 @@ edit_dynamic_rep::activate () {
     tree u (make_tree_label (st[0]->label));
     u << A (st (1, N(st)));
     assign (p, u);
-    call ("notify-activated", object (subtree (et, p)));
+    generic_notify_activated (subtree (et, p));
     go_to (prepare_command_boundary (p, p, false, *prepared));
     correct (path_up (p));
   }
   else {
     bool acc= (p * 0 < path_up (tp) && query.accessible (st, tp[N(p)+1]));
     remove_node (p * 0);
-    call ("notify-activated", object (subtree (et, p)));
+    generic_notify_activated (subtree (et, p));
     if (!acc) go_to (prepare_command_boundary (p, p, false, *prepared));
     correct (path_up (p));
   }
@@ -359,7 +359,7 @@ edit_dynamic_rep::go_to_argument (path p, bool start_flag,
         (!inactive) && (!in_source ()))
       {
         insert_node (path_up (p) * 0, INACTIVE);
-        call ("notify-disactivated", object (subtree (et, path_up (p) * 0)));
+        generic_notify_disactivated (subtree (et, path_up (p) * 0));
         p= path_up (p) * path (0, i);
       }
     go_to (prepare_command_boundary (root, p, start_flag, prepared));

@@ -17,6 +17,7 @@
 #include "native_editor_actions.hpp"
 #include "qt_actor_widget.hpp"
 #include "file.hpp"
+#include "Data/Convert/Generic/conversion_registry.hpp"
 #include "scheme.hpp"
 #include "tm_ostream.hpp"
 
@@ -80,8 +81,7 @@ array_string_list (const array<string>& values, int start= 0) {
 inline QString
 provider_format_suffix (const QString& format) {
   try {
-    object value= call ("format-default-suffix", object (from_qstring (format)));
-    if (is_string (value)) return to_qstring (as_string (value));
+    return to_qstring (conversion_format_default_suffix (from_qstring (format)));
   }
   catch (...) {}
   return QString ();

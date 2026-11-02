@@ -33,7 +33,6 @@ public:
   tm_buffer_rep (url name);
   ~tm_buffer_rep ();
 
-  void attach_notifier ();
   bool needs_to_be_saved ();
   bool needs_to_be_autosaved ();
 };

@@ -16,6 +16,7 @@
 #include "analyze.hpp"
 #include "convert.hpp"
 #include "converter.hpp"
+#include "Data/Convert/Generic/conversion_registry.hpp"
 #include "scheme.hpp"
 #include "gui_text.hpp"
 #include "editor.hpp"
@@ -180,7 +181,7 @@ qt_chooser_widget_rep::set_type (const string& _type)
 
   if (format_exists (_type)) {
     nameFilter = to_qstring (ui_text
-                             (as_string (call ("format-get-name", _type))
+                             (scm_unquote (conversion_format_name (_type)->label)
                               * " file"));
   } else if (_type == "image") {
     nameFilter = QStringLiteral ("Image file");
@@ -192,12 +193,11 @@ qt_chooser_widget_rep::set_type (const string& _type)
   }
 
   nameFilter += " (";
-  object ret = call ("format-get-suffixes*", _type);
-  array<object> suffixes = as_array_object (ret);
+  tree suffixes= conversion_format_suffixes (_type);
   if (N(suffixes) > 1)
-    defaultSuffix = to_qstring (as_string (suffixes[1]));
+    defaultSuffix = to_qstring (scm_unquote (suffixes[1]->label));
   for (int i = 1; i < N(suffixes); ++i)
-    nameFilter += " *." + to_qstring (as_string (suffixes[i]));
+    nameFilter += " *." + to_qstring (scm_unquote (suffixes[i]->label));
   nameFilter += " )";
   
   type = _type;
@@ -240,15 +240,14 @@ qt_chooser_kde_filter (const string& type) {
   if (type == "generic")
     return QStringLiteral ("*|All files (*)");
 
-  object ret= call ("format-get-suffixes*", type);
-  array<object> suffixes= as_array_object (ret);
+  tree suffixes= conversion_format_suffixes (type);
   QString patterns;
   for (int i=1; i<N(suffixes); ++i) {
     if (!patterns.isEmpty ()) patterns += " ";
-    patterns += "*." + to_qstring (as_string (suffixes[i]));
+    patterns += "*." + to_qstring (scm_unquote (suffixes[i]->label));
   }
   if (patterns.isEmpty ()) patterns= "*";
-  QString label= to_qstring (ui_text (as_string (call ("format-get-name", type))
+  QString label= to_qstring (ui_text (scm_unquote (conversion_format_name (type)->label)
                                       * " file"));
   return patterns + "|" + label + " (" + patterns + ")";
 }

@@ -1281,10 +1281,8 @@ value_to_compound (tree t, hashmap<string,tree> h) {
 tree
 edit_typeset_rep::exec_latex (tree t, path p) {
   t= convert_OTS1_symbols_to_universal_encoding (t);
-  bool expand_unknown_macros= "on" == as_string (
-      call ("get-preference", "texmacs->latex:expand-macros"));
-  bool expand_user_macro= "on" == as_string (
-      call ("get-preference", "texmacs->latex:expand-user-macros"));
+  bool expand_unknown_macros= "on" == get_preference ("texmacs->latex:expand-macros");
+  bool expand_user_macro= "on" == get_preference ("texmacs->latex:expand-user-macros");
   if (!expand_unknown_macros && !expand_user_macro)
     return t;
   const auto context= conversion_context_at (p);

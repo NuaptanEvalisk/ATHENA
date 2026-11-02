@@ -11,7 +11,6 @@
 #ifndef BUFFER_STATE_HPP
 #define BUFFER_STATE_HPP
 
-#include "link.hpp"
 #include "new_data.hpp"
 #include "new_document.hpp"
 #include "url.hpp"
@@ -42,8 +41,6 @@ struct buffer_document_state {
   path root_path;
   new_data data;
   std::shared_ptr<const athena::contracts::detached_environment> field_environment;
-  link_repository links;
-  bool notifier_attached;
   std::unique_ptr<athena::interop::document_nodes> interop_node_registry;
   std::optional<athena::document::document_file> storage;
   bool storage_capture_failed= false;
@@ -63,7 +60,7 @@ struct buffer_document_state {
     master (url (std::move (master2))), title (std::move (title2)),
     read_only (read_only2), last_save (last_save2),
     document (make_document_tree ()), source_envelope (DOCUMENT), root_path (0),
-    data (), links (), notifier_attached (false) {}
+    data () {}
 
   buffer_document_state (const buffer_document_state&)= delete;
   buffer_document_state& operator = (const buffer_document_state&)= delete;

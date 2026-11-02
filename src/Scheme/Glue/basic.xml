@@ -2558,9 +2558,6 @@
   <binding name="buffer-pretend-autosaved" native="pretend_buffer_autosaved" returns="void">
     <arg type="url" />
   </binding>
-  <binding name="buffer-attach-notifier" native="attach_buffer_notifier" returns="void">
-    <arg type="url" />
-  </binding>
   <binding name="buffer-has-name?" native="buffer_has_name" returns="bool">
     <arg type="url" />
   </binding>
