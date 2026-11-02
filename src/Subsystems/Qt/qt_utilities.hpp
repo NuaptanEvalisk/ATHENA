@@ -39,11 +39,9 @@ void qt_schedule_editor_task (int delay, std::function<int()> action);
 void qt_schedule_editor_idle (int idle, std::function<void()> action);
 // GUI-owned entry: bind work to this buffer before the active tab can change.
 void qt_schedule_buffer_idle (url buffer, int idle, std::function<void()> action);
-class object;
-object qt_call_in_buffer (url buffer, const char* function, array<object> args);
-object qt_call_in_buffer (url buffer, const char* function);
-object qt_call_in_buffer (url buffer, const char* function, object arg);
-object qt_call_in_buffer (url buffer, const char* function, object a, object b);
+// Synchronous actor call: the caller waits without pumping GUI events.
+// Capture detached inputs; copy actor-owned trees before returning them.
+bool qt_with_buffer (url buffer, std::function<void()> action);
 
 typedef quartet<SI,SI,SI,SI> coord4;
 typedef pair<SI,SI> coord2;

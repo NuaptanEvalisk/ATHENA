@@ -20,6 +20,7 @@
 #include "Kernel/Types/node_metadata_transform.hpp"
 #include "buffer_name_catalog.hpp"
 #include "Qt/qt_utilities.hpp"
+#include "document_print.hpp"
 
 #include <QTemporaryDir>
 
@@ -888,12 +889,13 @@ export_document_pdf (const fs::path& source, const fs::path& target,
     athena::node_reference::export_reference_scope references (
       athena::node_reference::prepare_headless_export (owner.first, owner.second));
     url target_url= url_system (std_to_tm (target.string ()));
-    object prepared= qt_call_in_buffer (
-      source_buffer, "data-art-prepare-export",
-      object (source_buffer), object (target_url));
+    std::optional<tree> prepared;
+    if (!qt_with_buffer (source_buffer, [&] {
+      prepared= athena_data_art_prepare_export (source_buffer, target_url);
+    })) throw std::runtime_error ("Could not prepare PDF export in the source BufferActor");
     bool used_data_art_payload= false;
-    if (is_tree (prepared)) {
-      tree payload= as_tree (prepared);
+    if (prepared) {
+      tree payload= std::move (*prepared);
       if (is_func (payload, TUPLE, 4) && is_atomic (payload[2]) &&
           is_atomic (payload[3]) &&
           (payload[3] == "1" || payload[3] == "2" || payload[3] == "3")) {
@@ -909,9 +911,7 @@ export_document_pdf (const fs::path& source, const fs::path& target,
       else throw std::runtime_error ("Invalid DataArt export snapshot");
     }
     if (!dispatched && !used_data_art_payload) {
-      object printed= qt_call_in_buffer (
-        source_buffer, "wrapped-print-to-file", object (target_url));
-      dispatched= !(is_bool (printed) && !as_bool (printed));
+      dispatched= qt_with_buffer (source_buffer, [&] { document_export_pdf (target_url); });
     }
     references.require_ready ();
   }

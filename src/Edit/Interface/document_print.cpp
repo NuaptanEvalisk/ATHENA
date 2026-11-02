@@ -62,14 +62,14 @@ struct temporary_cover {
 }
 
 void document_print_with_cover (url target) {
-  export_wait wait (athena_data_art_pdf_target (object (target)));
+  export_wait wait (athena_data_art_pdf_target (target));
   url source= get_current_buffer_safe ();
-  object prepared= athena_data_art_prepare_export (source, object (target));
-  if (is_bool (prepared)) {
+  auto prepared= athena_data_art_prepare_export (source, target);
+  if (!prepared) {
     get_current_editor ()->print_to_file (target);
     return;
   }
-  tree payload= as_tree (prepared);
+  tree payload= *prepared;
   temporary_cover cover {url (as_string (payload[2]))};
   string error= athena_data_art_export_snapshot (
     source, target, copy (payload[0]), copy (payload[1]), as_int (payload[3]));

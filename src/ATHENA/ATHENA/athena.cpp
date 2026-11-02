@@ -53,6 +53,7 @@
 #include "data_cache.hpp"
 #include "new_buffer.hpp"
 #include "new_view.hpp"
+#include "editor.hpp"
 #include "new_document.hpp"
 #include "new_style.hpp"
 #include "tm_window.hpp"
@@ -1234,10 +1235,10 @@ TeXmacs_main (int argc, char** argv) {
       bool failed= true;
       try {
         url document= url_system (vault_maintenance_toc_worker_file);
-        object generated= qt_call_in_buffer (
-          document, "generate-aux", object (string ("table-of-contents")));
-        failed= (is_bool (generated) && !as_bool (generated)) ||
-                buffer_save (document);
+        bool generated= qt_with_buffer (document, [] {
+          get_current_editor ()->generate_aux ("table-of-contents");
+        });
+        failed= !generated || buffer_save (document);
       }
       catch (...) {
         failed= true;

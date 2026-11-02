@@ -38,6 +38,10 @@ void insertion_insert (tree content, object selectors) {
 
 void insertion_make (tree_label tag, object arity) {
   const int count= is_null (arity) ? -1 : as_int (car (arity));
+  insertion_make (tag, count);
+}
+
+void insertion_make (tree_label tag, int count) {
   editor ed= get_current_editor ();
   tree wrapper (tag, "");
   if (text_node_in_group (wrapper, "make-wrapped-tag")) {

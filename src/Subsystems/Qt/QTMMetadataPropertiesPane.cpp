@@ -13,7 +13,8 @@
 #include "QTMMainTabWindow.hpp"
 #include "new_buffer.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
+#include "editor.hpp"
+#include "new_view.hpp"
 
 #include <DockManager.h>
 #include <DockWidget.h>
@@ -125,8 +126,11 @@ QString
 QTMMetadataPropertiesPane::getMetadata (const QString& key) const {
   if (!targetLooksUsable ()) return "";
   try {
-    return qs (as_string (qt_call_in_buffer (targetBuffer, "get-metadata",
-                                object (tm_string (key)))));
+    QString result;
+    qt_with_buffer (targetBuffer, [&] {
+      result= qs (get_current_editor ()->get_metadata (tm_string (key)));
+    });
+    return result;
   }
   catch (...) {
     return "";
@@ -138,8 +142,9 @@ QTMMetadataPropertiesPane::setMetadata (const QString& variable,
                                         const QString& value) {
   if (!targetLooksUsable ()) return;
   try {
-    qt_call_in_buffer (targetBuffer, "init-env", object (tm_string (variable)),
-          object (tm_string (value)));
+    qt_with_buffer (targetBuffer, [&] {
+      get_current_editor ()->init_env (tm_string (variable), tm_string (value));
+    });
   }
   catch (...) {}
 }
@@ -147,10 +152,10 @@ QTMMetadataPropertiesPane::setMetadata (const QString& variable,
 void
 QTMMetadataPropertiesPane::resetMetadata () {
   if (!targetLooksUsable ()) return;
-  array<object> args;
-  for (const MetadataField& field: metadata_fields)
-    args << object (string (field.variable));
-  try { qt_call_in_buffer (targetBuffer, "init-default", args); }
+  try { qt_with_buffer (targetBuffer, [] {
+    for (const MetadataField& field: metadata_fields)
+      init_default_current_view (string (field.variable));
+  }); }
   catch (...) {}
 }
 

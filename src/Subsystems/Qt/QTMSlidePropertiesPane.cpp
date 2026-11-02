@@ -11,7 +11,7 @@
 #include "QTMNativeDialogs.hpp"
 #include "new_buffer.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
+#include "presentation_commands.hpp"
 #include "tree.hpp"
 
 #include <DockWidget.h>
@@ -122,12 +122,19 @@ public:
 private:
   tree background () const {
     if (is_none (targetBuffer)) return tree ("");
-    try { return as_tree (qt_call_in_buffer (targetBuffer, "slide-get-bg-color")); }
+    try {
+      tree result ("");
+      qt_with_buffer (targetBuffer, [&] { result= copy (presentation_slide_background ()); });
+      return result;
+    }
     catch (...) { return tree (""); }
   }
   void setBackground (tree value) {
     if (is_none (targetBuffer)) return;
-    try { qt_call_in_buffer (targetBuffer, "slide-set-bg-color", object (value)); }
+    tree detached= copy (value);
+    try { qt_with_buffer (targetBuffer, [&] {
+      presentation_set_slide_background (std::move (detached));
+    }); }
     catch (...) {}
     refresh ();
   }

@@ -15,6 +15,7 @@
 #include "tree.hpp"
 #include "url.hpp"
 #include "scheme.hpp"
+#include <optional>
 
 // Returns the empty string on success and a diagnostic on failure.
 string athena_data_art_generate (string seed, url output);
@@ -24,12 +25,14 @@ int athena_data_art_source_version ();
 
 bool athena_data_art_enabled ();
 bool athena_data_art_pdf_target (object target);
+bool athena_data_art_pdf_target (url target);
 bool athena_data_art_cover_present (url source);
 url athena_data_art_generate_cover (url source);
 tree athena_data_art_body_with_cover (tree body, url cover);
 tree athena_data_art_doc_data_with_cover (tree body, url cover);
 tree athena_data_art_export_payload (tree document, tree body, url cover, int version);
 object athena_data_art_prepare_export (url source, object target);
+std::optional<tree> athena_data_art_prepare_export (url source, url target);
 void athena_data_art_insert_cover (url source, url cover);
 void athena_data_art_insert_doc_data_cover (url source, url cover);
 

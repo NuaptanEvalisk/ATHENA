@@ -177,7 +177,7 @@ struct VaultBugcheckRun: std::enable_shared_from_this<VaultBugcheckRun> {
     const std::string file= files[index];
     url target= url_system (string (file.c_str ()));
     try {
-      (void) qt_call_in_buffer (target, "update-forced");
+      (void) qt_with_buffer (target, [] { get_current_editor ()->typeset_forced (); });
     }
     catch (...) {
       add_error (file, "typeset error", "exception while forcing typeset");

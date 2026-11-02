@@ -131,11 +131,17 @@ document_init_default (object variables) {
 
 object
 document_get_init_env (string variable) {
+  auto value= document_get_init_text (variable);
+  return value ? object (*value) : object (false);
+}
+
+std::optional<string>
+document_get_init_text (string variable) {
   tree value= get_current_editor ()->get_init_value (variable);
-  if (is_atomic (value)) return object (as_string (value));
+  if (is_atomic (value)) return as_string (value);
   if (is_compound (value, "macro") && N (value) == 1 && is_atomic (value[0]))
-    return object (as_string (value[0]));
-  return object (false);
+    return as_string (value[0]);
+  return std::nullopt;
 }
 
 bool

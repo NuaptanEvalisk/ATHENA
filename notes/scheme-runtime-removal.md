@@ -453,10 +453,9 @@ generated native entries and remain on the secure-function list.
   The generic conversion executor uses native byte values for image payloads
   and native values for serialized structures. Generated native bindings marshal
   bytes and structure-tree results through the same interfaces.
-- The next ownership boundary is `qt_call_in_buffer`: property panes still
-  exchange rooted Scheme handles with their buffer actors. Native object
-  reference counts remain actor-confined, so replacing those handles requires
-  detached data transport, not shared cross-thread object instances.
+- The subsequent native buffer UI change below removes the property-pane
+  `qt_call_in_buffer` handle boundary. Native object reference counts remain
+  actor-confined; shared cross-thread object instances are not a replacement.
 - Removed two invalid `is_nil` checks on publisher metadata structure trees;
   absent title commands and empty IEEE fields use explicit tuple emptiness.
 - Built application and focused value target with `-j16`. Pre-runtime binary
@@ -466,6 +465,30 @@ generated native entries and remain on the secure-function list.
   with `NATIVE_STRUCTURE_VALUES_OK`. Deployed with the runtime helper and
   removed the startup profile. Logs are under
   `build_qt6/native-structure-values-{build,test,runtime,deploy}.log`.
+
+## Native Buffer UI Calls
+
+- Replaced every `qt_call_in_buffer` consumer with synchronous native actions
+  through `qt_with_buffer`. Page, paragraph, metadata, slide background and
+  handwriting panes invoke their native editor functions directly, without
+  function-name lookup, object arguments or rooted Scheme result handles.
+- The caller waits on the existing actor response condition without pumping GUI
+  events. Inputs are local immutable values or detached tree copies; returned
+  editor trees are copied on their actor. A completion flag is published only
+  after the action and frozen export-reference checks finish successfully.
+- Website PDF export, ToC maintenance and vault bugcheck use the same native
+  action path. DataArt preparation has a typed optional-tree result, shared by
+  website export and interactive printing. Its payload already detaches source
+  and body trees. Existing Scheme-facing DataArt declarations are still pending
+  removal; they no longer have production consumers.
+- Added typed native initialization-text and insertion-arity entry points so
+  these UI calls do not construct temporary Scheme command arguments.
+- Built with `-j16` and deployed with the runtime helper. Ran the actual headless
+  ToC maintenance worker on a temporary XML v3 document: it invoked the native
+  actor action, saved successfully, wrote `ok`, and exited zero. Removed its
+  document/profile directory. Logs are
+  `build_qt6/native-buffer-ui-{build,fixture,runtime,deploy}.log`.
+  No interactive pane sweep or unrelated test suite was run.
 
 ## Known Outstanding Failure
 

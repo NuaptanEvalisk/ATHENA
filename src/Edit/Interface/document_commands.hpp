@@ -13,6 +13,7 @@
 
 #include "scheme.hpp"
 #include "tree.hpp"
+#include <optional>
 
 class editor_rep;
 
@@ -24,6 +25,7 @@ bool document_in_source_mode ();
 void document_toggle_source_mode ();
 void document_init_default (object variables);
 object document_get_init_env (string variable);
+std::optional<string> document_get_init_text (string variable);
 bool document_test_init (string variable, string value);
 void document_set_init_env (string variable, tree value);
 bool document_test_init_true (string variable);

@@ -13,7 +13,9 @@
 #include "QTMMainTabWindow.hpp"
 #include "new_buffer.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
+#include "document_commands.hpp"
+#include "editor.hpp"
+#include "new_view.hpp"
 
 #include <DockWidget.h>
 #include <QApplication>
@@ -292,8 +294,12 @@ QString
 QTMParagraphPropertiesPane::getString (const QString& variable) const {
   if (!targetLooksUsable ()) return "";
   try {
-    return qs (as_string (qt_call_in_buffer (targetBuffer, "get-init-env",
-                                object (tm_string (variable)))));
+    QString result;
+    qt_with_buffer (targetBuffer, [&] {
+      auto value= document_get_init_text (tm_string (variable));
+      if (value) result= qs (*value);
+    });
+    return result;
   }
   catch (...) {
     return "";
@@ -305,8 +311,9 @@ QTMParagraphPropertiesPane::setString (const QString& variable,
                                        const QString& value) {
   if (!targetLooksUsable ()) return;
   try {
-    qt_call_in_buffer (targetBuffer, "init-env", object (tm_string (variable)),
-          object (tm_string (value)));
+    qt_with_buffer (targetBuffer, [&] {
+      get_current_editor ()->init_env (tm_string (variable), tm_string (value));
+    });
   }
   catch (...) {}
 }
@@ -314,10 +321,11 @@ QTMParagraphPropertiesPane::setString (const QString& variable,
 void
 QTMParagraphPropertiesPane::resetParagraphVariables () {
   if (!targetLooksUsable ()) return;
-  array<object> args;
-  for (const QString& variable: paragraph_variables ())
-    args << object (tm_string (variable));
-  try { qt_call_in_buffer (targetBuffer, "init-default", args); }
+  const auto variables= paragraph_variables ();
+  try { qt_with_buffer (targetBuffer, [&] {
+    for (const QString& variable: variables)
+      init_default_current_view (tm_string (variable));
+  }); }
   catch (...) {}
 }
 

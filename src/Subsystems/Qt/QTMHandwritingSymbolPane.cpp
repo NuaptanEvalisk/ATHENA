@@ -14,7 +14,7 @@
 #include "QTMVaultPreviewWidget.hpp"
 #include "new_buffer.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
+#include "generic_keyboard_commands.hpp"
 #include "sys_utils.hpp"
 #include "tree.hpp"
 
@@ -69,9 +69,12 @@ input_description (const QString& command) {
   try {
     url buffer= get_current_buffer_safe ();
     if (is_none (buffer)) return QString ();
-    return q_string (std_string (as_string (
-      qt_call_in_buffer (buffer, "handwriting-symbol-input-description",
-                         object (tm_string (command))))));
+    QString result;
+    qt_with_buffer (buffer, [&] {
+      result= q_string (std_string (generic_handwriting_symbol_input_description (
+        tm_string (command))));
+    });
+    return result;
   }
   catch (...) { return QString (); }
 }
@@ -531,8 +534,9 @@ QTMHandwritingSymbolPane::insertCurrent () {
                             "No active ATHENA buffer.");
       return;
     }
-    (void) qt_call_in_buffer (buffer, "handwriting-symbol-insert",
-                              object (tm_string (command)));
+    qt_with_buffer (buffer, [&] {
+      generic_handwriting_symbol_insert (tm_string (command));
+    });
   }
   catch (...) {
     QMessageBox::warning (this, "Handwritten Symbol",

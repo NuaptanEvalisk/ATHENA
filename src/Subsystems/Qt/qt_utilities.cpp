@@ -66,47 +66,27 @@
 #include "tm_buffer.hpp"
 #include "tm_window.hpp"
 #include "buffer_actor.hpp"
-#include "guile_tm.hpp"
-#include "object.hpp"
 #include "ATHENA/Data/node_reference_export.hpp"
 
 #define SCREEN_PIXEL (PIXEL)
 
-object
-qt_call_in_buffer (url buffer, const char* function, array<object> args) {
+bool
+qt_with_buffer (url buffer, std::function<void()> action) {
   tm_view view= concrete_view (get_recent_view (buffer));
-  if (view == nullptr) return object (false);
-  if (view->buf->actor->is_owner_thread ()) return call (function, args);
+  if (view == nullptr) return false;
+  if (view->buf->actor->is_owner_thread ()) { action (); return true; }
 
-  struct request {
-    athena_scheme_handle_id arguments= ATHENA_NO_SCHEME_HANDLE;
-    athena_scheme_handle_id result= ATHENA_NO_SCHEME_HANDLE;
-    ~request () {
-      scheme_command_handle_release (arguments);
-      scheme_command_handle_release (result);
-    }
-  };
-  auto state= std::make_shared<request> ();
-  array<object> transferable;
-  for (int i= 0; i < N (args); ++i)
-    transferable << (is_tree (args[i]) ?
-      object (copy (as_tree (args[i]))) : args[i]);
-  state->arguments= scheme_command_handle_acquire (
-    object_to_tmscm (as_list_object (transferable)));
+  bool completed= false;
   athena_continuation_id id= actor_continuation_registry::instance ().store (
-    [state, function, frozen= athena::node_reference::current_export_references ()] {
+    [&completed, action= std::move (action), frozen= athena::node_reference::current_export_references ()] {
       std::unique_ptr<athena::node_reference::export_reference_scope> references;
       if (frozen) {
         references= std::make_unique<athena::node_reference::export_reference_scope> (frozen);
         athena::node_reference::verify_export_origin ();
       }
-      object values= tmscm_to_object (
-        scheme_command_handle_value (state->arguments));
-      object result= call (function, as_array_object (values));
+      action ();
       if (references) references->require_ready ();
-      // Property trees are detached once on this cold UI query boundary.
-      if (is_tree (result)) result= object (copy (as_tree (result)));
-      state->result= scheme_command_handle_acquire (object_to_tmscm (result));
+      completed= true;
     });
   if (!view->buf->actor->invoke (
         actor_command_kind::run_native_continuation, view->runtime_id,
@@ -114,29 +94,9 @@ qt_call_in_buffer (url buffer, const char* function, array<object> args) {
         SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_UI |
           SCHEME_CAPABILITY_GLOBAL, id)) {
     (void) actor_continuation_registry::instance ().discard (id);
-    return object (false);
+    return false;
   }
-  if (state->result == ATHENA_NO_SCHEME_HANDLE) return object (false);
-  return tmscm_to_object (scheme_command_handle_value (state->result));
-}
-
-object
-qt_call_in_buffer (url buffer, const char* function) {
-  return qt_call_in_buffer (buffer, function, array<object> ());
-}
-
-object
-qt_call_in_buffer (url buffer, const char* function, object arg) {
-  array<object> args;
-  args << arg;
-  return qt_call_in_buffer (buffer, function, args);
-}
-
-object
-qt_call_in_buffer (url buffer, const char* function, object a, object b) {
-  array<object> args;
-  args << a << b;
-  return qt_call_in_buffer (buffer, function, args);
+  return completed;
 }
 
 void

@@ -14,7 +14,11 @@
 #include "new_buffer.hpp"
 #include "qt_utilities.hpp"
 #include "qt_widget.hpp"
-#include "scheme.hpp"
+#include "document_commands.hpp"
+#include "editor.hpp"
+#include "insertion_commands.hpp"
+#include "new_view.hpp"
+#include "view_modes.hpp"
 #include "tm_window.hpp"
 
 #include <DockWidget.h>
@@ -175,8 +179,10 @@ QTMPagePropertiesPane::buildFormatTab () {
   connect (renderingCombo, &QComboBox::currentTextChanged,
            this, [this] (const QString& text) {
     if (!loading) {
-      qt_call_in_buffer (targetBuffer, "init-page-rendering",
-            object (tm_string (encodeRendering (text))));
+      const QString rendering= encodeRendering (text);
+      qt_with_buffer (targetBuffer, [&] {
+        view_init_page_rendering (tm_string (rendering));
+      });
       refreshFormat ();
     }
   });
@@ -343,8 +349,12 @@ QString
 QTMPagePropertiesPane::getString (const QString& variable) const {
   if (!targetLooksUsable ()) return "";
   try {
-    return qs (as_string (qt_call_in_buffer (targetBuffer, "get-init-env",
-                                object (tm_string (variable)))));
+    QString result;
+    qt_with_buffer (targetBuffer, [&] {
+      auto value= document_get_init_text (tm_string (variable));
+      if (value) result= qs (*value);
+    });
+    return result;
   }
   catch (...) {
     return "";
@@ -355,8 +365,11 @@ bool
 QTMPagePropertiesPane::getBool (const QString& variable) const {
   if (!targetLooksUsable ()) return false;
   try {
-    return as_bool (qt_call_in_buffer (targetBuffer, "style-has?",
-                         object (tm_string (variable))));
+    bool result= false;
+    qt_with_buffer (targetBuffer, [&] {
+      result= get_current_editor ()->defined_at_init (tm_string (variable));
+    });
+    return result;
   }
   catch (...) {
     return false;
@@ -368,8 +381,9 @@ QTMPagePropertiesPane::setString (const QString& variable,
                                   const QString& value) {
   if (!targetLooksUsable ()) return;
   try {
-    qt_call_in_buffer (targetBuffer, "init-env", object (tm_string (variable)),
-          object (tm_string (value)));
+    qt_with_buffer (targetBuffer, [&] {
+      get_current_editor ()->init_env (tm_string (variable), tm_string (value));
+    });
   }
   catch (...) {}
 }
@@ -377,10 +391,10 @@ QTMPagePropertiesPane::setString (const QString& variable,
 void
 QTMPagePropertiesPane::resetVariables (const QStringList& variables) {
   if (!targetLooksUsable ()) return;
-  array<object> args;
-  for (const QString& variable: variables)
-    args << object (tm_string (variable));
-  try { qt_call_in_buffer (targetBuffer, "init-default", args); }
+  try { qt_with_buffer (targetBuffer, [&] {
+    for (const QString& variable: variables)
+      init_default_current_view (tm_string (variable));
+  }); }
   catch (...) {}
 }
 
@@ -463,8 +477,9 @@ QTMPagePropertiesPane::refreshFormat () {
 
   QString rendering;
   try {
-    rendering= qs (as_string (qt_call_in_buffer (
-      targetBuffer, "get-init-page-rendering")));
+    qt_with_buffer (targetBuffer, [&] {
+      rendering= qs (document_get_init_page_rendering ());
+    });
   }
   catch (...) {
     rendering= getString ("page-medium");
@@ -681,8 +696,9 @@ QTMPagePropertiesPane::rebuildHeaderEditors () {
     QVBoxLayout* groupLayout= new QVBoxLayout (group);
     tree body;
     try {
-      body= as_tree (qt_call_in_buffer (targetBuffer, "get-init-tree",
-                           object (string (spec.variable))));
+      qt_with_buffer (targetBuffer, [&] {
+        body= copy (get_current_editor ()->get_init_value (string (spec.variable)));
+      });
     }
     catch (...) {
       body= "";
@@ -712,26 +728,28 @@ QTMPagePropertiesPane::applyHeaders () {
       url inputUrl (string ("tmfs://aux/") * tm_string (variable));
       tree body= get_buffer_body (inputUrl);
       if (is_func (body, DOCUMENT, 1)) body= body[0];
-      qt_call_in_buffer (targetBuffer, "init-env-tree",
-            object (tm_string (variable)), object (body));
+      tree detached= copy (body);
+      qt_with_buffer (targetBuffer, [&] {
+        get_current_editor ()->init_env (tm_string (variable), std::move (detached));
+      });
     }
     catch (...) {}
   }
-  try { qt_call_in_buffer (targetBuffer, "refresh-window"); }
+  try { qt_with_buffer (targetBuffer, [] { get_current_editor ()->invalidate_all (); }); }
   catch (...) {}
 }
 
 void
 QTMPagePropertiesPane::insertHeaderTab () {
   if (!is_header_aux_buffer (get_current_buffer_safe ())) return;
-  try { qt_call_in_buffer (get_current_buffer_safe (), "make-htab", object ("5mm")); }
+  try { qt_with_buffer (get_current_buffer_safe (), [] { get_current_editor ()->make_htab ("5mm"); }); }
   catch (...) {}
 }
 
 void
 QTMPagePropertiesPane::insertHeaderPageNumber () {
   if (!is_header_aux_buffer (get_current_buffer_safe ())) return;
-  try { qt_call_in_buffer (get_current_buffer_safe (), "make", symbol_object ("page-the-page")); }
+  try { qt_with_buffer (get_current_buffer_safe (), [] { insertion_make (make_tree_label ("page-the-page")); }); }
   catch (...) {}
 }
 
