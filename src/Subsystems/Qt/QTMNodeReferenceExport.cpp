@@ -14,9 +14,7 @@
 #include "buffer_name_catalog.hpp"
 #include "editor.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
-#include "object.hpp"
-#include "guile_tm.hpp"
+#include "scheme_execution_context.hpp"
 #include <QCoreApplication>
 #include <QPointer>
 #include <QTimer>
@@ -27,13 +25,11 @@ namespace ref= athena::node_reference;
 struct request {
   athena_actor_id actor;
   athena_view_id view;
-  SchemeCapabilitySet capabilities;
   std::uint64_t epoch;
   std::string source;
   std::vector<int> cursor, selection_start, selection_end;
   bool selected= false;
   vault_context_handle vault;
-  athena_scheme_handle_id action= ATHENA_NO_SCHEME_HANDLE;
   std::function<void(editor_rep&)> native_action;
   std::function<void(std::string)> completion;
   std::unique_ptr<ref::export_preparation> preparation;
@@ -41,7 +37,6 @@ struct request {
   std::shared_ptr<athena::node_location::service> locator;
   std::set<ref::selection> requested;
   unsigned rounds= 0;
-  ~request () { scheme_command_handle_release (action); }
 };
 void resume_preparation (std::shared_ptr<request>, std::vector<ref::selection>);
 std::string text (string s) { return {s.data (), std::size_t (N(s))}; }
@@ -72,8 +67,7 @@ void perform (const std::shared_ptr<request>& job) {
       resume_preparation (job, std::move (missing));
       return;
     }
-    if (job->native_action) job->native_action (*editor);
-    else (void) call_scheme (scheme_command_handle_value (job->action));
+    job->native_action (*editor);
     frozen.require_ready ();
     if (job->completion) job->completion ({});
   }
@@ -131,20 +125,12 @@ public:
       if (!job->ready && (!vault_context_is_current (job->vault) || ref::source_epoch () != job->epoch))
         job->preparation->cancel ();
       if (!job->ready) { ++it; continue; }
-      if (job->native_action) {
-        athena::avd::submit_source_task (job->actor, job->view,
-          [job] (editor_rep&) { perform (job); },
-          [job] (std::string error) {
-            if (!error.empty ()) job->completion (std::move (error));
-          });
-        it= pending.erase (it);
-        continue;
-      }
-      auto continuation= actor_continuation_registry::instance ().store ([job] { perform (job); });
-      if (buffer_actor::try_submit_to (job->actor, actor_command_kind::run_native_continuation,
-          job->view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, job->capabilities, continuation))
-        it= pending.erase (it);
-      else { actor_continuation_registry::instance ().discard (continuation); ++it; }
+      athena::avd::submit_source_task (job->actor, job->view,
+        [job] (editor_rep&) { perform (job); },
+        [job] (std::string error) {
+          if (!error.empty ()) job->completion (std::move (error));
+        });
+      it= pending.erase (it);
     }
   }
 };
@@ -159,51 +145,6 @@ void resume_preparation (std::shared_ptr<request> job, std::vector<ref::selectio
   });
 }
 } // namespace
-
-bool athena_node_reference_with_export (object action) {
-  const auto* context= current_scheme_execution_context ();
-  if (!context || !context->actor || !context->editor) return false;
-  auto source= context->actor->current_source (context->view_id);
-  auto seeds= ref::export_selections (source);
-  if (ref::current_export_references ()) {
-    (void) call (action); return true;
-  }
-  if (seeds.empty ()) {
-    try {
-      ref::export_reference_scope probe (std::make_shared<const ref::prepared_references> ());
-      context->editor->probe_print_references ();
-      seeds= probe.missing ();
-    }
-    catch (const std::exception& e) {
-      context->editor->set_message ("Export failed", tree (e.what ()), true);
-      return false;
-    }
-    if (seeds.empty ()) { (void) call (action); return true; }
-  }
-  auto vault= vault_capture_context ();
-  if (!vault || !QCoreApplication::instance ()) {
-    context->editor->set_message ("Export failed", "Node references require an active vault", true);
-    return false;
-  }
-  auto job= std::make_shared<request> ();
-  job->actor= context->actor_id; job->view= context->view_id;
-  job->capabilities= context->capabilities; job->epoch= ref::source_epoch ();
-  job->source= text (as_string (context->actor->current_buffer_url ()));
-  job->cursor= indices (context->editor->the_path ());
-  job->selected= context->editor->selection_active_any ();
-  if (job->selected) {
-    job->selection_start= indices (context->editor->selection_get_start ());
-    job->selection_end= indices (context->editor->selection_get_end ());
-  }
-  job->vault= vault;
-  job->locator= athena::node_location::for_vault (vault);
-  job->action= scheme_command_handle_acquire (object_to_tmscm (action));
-  context->editor->set_message ("Preparing export references", "Export", true);
-  qt_post_to_main_thread ([job, seeds= std::move (seeds)] () mutable {
-    controller ()->add (job, std::move (seeds));
-  });
-  return true;
-}
 
 void athena_node_reference_with_native_export (
   std::function<void(editor_rep&)> action, std::function<void(std::string)> completion) {
@@ -229,7 +170,7 @@ void athena_node_reference_with_native_export (
   }
   auto job= std::make_shared<request> ();
   job->actor= context->actor_id; job->view= context->view_id;
-  job->capabilities= context->capabilities; job->epoch= ref::source_epoch ();
+  job->epoch= ref::source_epoch ();
   job->source= text (as_string (context->actor->current_buffer_url ()));
   job->cursor= indices (context->editor->the_path ());
   job->selected= context->editor->selection_active_any ();

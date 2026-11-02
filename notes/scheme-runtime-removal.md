@@ -349,6 +349,19 @@ generated native entries and remain on the secure-function list.
   deferred to the next consolidated runtime batch; the installed binary remains
   the native object payload build from `724562e78`.
 
+## Native-Only Reference Export Continuations
+
+- All product reference-export callers already use the native callback API
+  (printing, selection image export, reference markup and AVD). Removed the
+  unused Scheme export entry, its handle ownership and alternate dispatch path;
+  kept reference discovery, source/selection validation and native completion.
+- The removed Vault chooser was the last producer of
+  `invoke_scheme_handle_tree`. Removed that actor command and its handler as
+  well. Removed only the legacy Scheme export-entry assertion from the bridge
+  test; the other node-reference assertions remain.
+- This removal batch has not yet been built/deployed. Include it together with
+  the preceding save/chooser cleanup in the next consolidated build.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

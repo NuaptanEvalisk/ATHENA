@@ -1637,27 +1637,6 @@ buffer_actor::dispatch (actor_command_record& command) {
     scheme_command_handle_release (arguments);
     break;
   }
-  case actor_command_kind::invoke_scheme_handle_tree: {
-    athena_scheme_handle_id handle= command.argument[0];
-    if (editor == nullptr) {
-      (void) actor_tree_registry::instance ().discard (command.payload0);
-      scheme_command_handle_release (handle);
-      break;
-    }
-    tree value= actor_tree_registry::instance ().take (command.payload0);
-    try {
-      tmscm procedure= scheme_command_handle_value (handle);
-      if (scm_is_eq (procedure, SCM_UNDEFINED))
-        FAILED ("Scheme command handle is no longer live");
-      (void) call_scheme (procedure, tree_to_tmscm (value));
-    }
-    catch (...) {
-      scheme_command_handle_release (handle);
-      throw;
-    }
-    scheme_command_handle_release (handle);
-    break;
-  }
   case actor_command_kind::evaluate_widget_handle: {
     athena_scheme_handle_id handle= command.argument[0];
     // A failed dispatch is still acknowledged. Never return the input Scheme
@@ -2339,7 +2318,6 @@ buffer_actor::dispatch (actor_command_record& command) {
        command.kind == actor_command_kind::replace_document ||
        command.kind == actor_command_kind::replace_body ||
        command.kind == actor_command_kind::invoke_scheme_handle ||
-       command.kind == actor_command_kind::invoke_scheme_handle_tree ||
        command.kind == actor_command_kind::evaluate_widget_handle ||
        command.kind == actor_command_kind::run_scheme_handle))
     editor->mark_native_ink_interaction_dirty ();
