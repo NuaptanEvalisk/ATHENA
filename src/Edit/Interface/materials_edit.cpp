@@ -6,9 +6,6 @@
 #include "new_buffer.hpp"
 #include "ATHENA/Data/materials_document.hpp"
 #include "Subsystems/Qt/QTMMaterialCitationDialog.hpp"
-#include "guile_tm.hpp"
-#include "object.hpp"
-#include <memory>
 #include <set>
 
 namespace {
@@ -32,16 +29,6 @@ tree focused_references () {
   return UNINIT;
 }
 
-// Retain an attached node without copying owner-local trees through Qt.
-struct reference_target {
-  athena_scheme_handle_id handle;
-  explicit reference_target (tree node):
-    handle (scheme_command_handle_acquire (object_to_tmscm (object (node)))) {}
-  ~reference_target () { scheme_command_handle_release (handle); }
-  tree get () const {
-    return as_tree (tmscm_to_object (scheme_command_handle_value (handle)));
-  }
-};
 }
 
 void materials_update_current_document () {
@@ -105,9 +92,7 @@ void materials_insert_references () {
 void materials_append_references () {
   tree node= focused_references ();
   if (node == UNINIT) return;
-  auto target= std::make_shared<reference_target> (node);
-  qtm_material_choose_references_async ([target] (tree chosen) {
-    tree node= target->get ();
+  qtm_material_choose_references_async ([node] (tree chosen) mutable {
     if (!ip_attached (obtain_ip (node)) || is_atomic (chosen) || L(chosen) != TUPLE) return;
     tree all (TUPLE);
     std::set<std::string> seen;

@@ -375,6 +375,21 @@ generated native entries and remain on the secure-function list.
   helper and removed the check profile. No interactive editing or full export
   check was run. Logs: `build_qt6/native-callback-cleanup-{build,runtime,deploy}.log`.
 
+## Actor-Owned Materials And Completion Nodes
+
+- Materials chooser callbacks now stay in the originating BufferActor's native
+  callback registry. Qt carries an ID and independently stored result, not the
+  callback or its attached tree. Appending references consequently retains the
+  target tree directly on its owner instead of rooting it through Guile.
+- AI completion retains its placeholder in the same actor-owned registry;
+  process completion submits only the callback ID. View destruction and actor
+  shutdown release the retained node through the existing callback lifecycle.
+  Process-owned request data continues to retain temporary files until process
+  completion, even if its editor has closed.
+- No new tests were added: this reuses the previously checked callback
+  execution/cancellation/view/shutdown ownership mechanism. This batch has not
+  yet been rebuilt or interactively exercised; include it in the next build.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

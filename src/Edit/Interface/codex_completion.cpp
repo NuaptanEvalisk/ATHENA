@@ -3,7 +3,6 @@
 #include "editor.hpp"
 #include "scheme.hpp"
 #include "native_interfaces.hpp"
-#include "object.hpp"
 #include "scheme_native_context.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "Data/Convert/Generic/conversion_executor.hpp"
@@ -11,7 +10,7 @@
 #include "file.hpp"
 #include "boot.hpp"
 #include "tree_traverse.hpp"
-#include "guile_tm.hpp"
+#include "buffer_actor.hpp"
 #include "scheme_execution_context.hpp"
 #include "ATHENA/Data/compound_edit_batch.hpp"
 #include "buffer_name_catalog.hpp"
@@ -106,10 +105,10 @@ struct completion_request: std::enable_shared_from_this<completion_request> {
   std::vector<std::string> images;
   athena_actor_id actor= 0;
   athena_view_id view= 0;
-  athena_scheme_handle_id placeholder= ATHENA_NO_SCHEME_HANDLE;
+  athena_continuation_id completion= ATHENA_NO_CONTINUATION;
+  SchemeCapabilitySet capabilities= SCHEME_CAPABILITY_NONE;
 
   ~completion_request () {
-    scheme_command_handle_release (placeholder);
     std::error_code ignored;
     if (!input.empty ()) std::filesystem::remove (input, ignored);
     if (!output.empty ()) std::filesystem::remove (output, ignored);
@@ -120,11 +119,14 @@ struct completion_request: std::enable_shared_from_this<completion_request> {
     const auto* owner= current_scheme_execution_context ();
     actor= owner->actor_id;
     view= owner->view_id;
-    placeholder= scheme_command_handle_acquire (object_to_tmscm (object (node)));
+    capabilities= owner->capabilities;
+    completion= owner->actor->retain_native_callback (
+      [self= shared_from_this (), node] {
+        self->finish (*current_scheme_execution_context ()->editor, node);
+      });
   }
 
-  void finish (editor_rep& ed) {
-    tree node= as_tree (tmscm_to_object (scheme_command_handle_value (placeholder)));
+  void finish (editor_rep& ed, tree node) {
     const path ip= obtain_ip (node);
     if (!ip_attached (ip) || !is_compound (node, "athena-codex-thinking", 0)) return;
     tree replacement;
@@ -165,12 +167,8 @@ struct completion_request: std::enable_shared_from_this<completion_request> {
   }
 
   void completed () {
-    auto self= shared_from_this ();
-    athena::avd::submit_source_task (actor, view,
-      [self] (editor_rep& ed) { self->finish (ed); },
-      [self] (std::string error) {
-        if (!error.empty ()) std_warning << "Codex completion: " << native_text (error) << LF;
-      });
+    buffer_actor::submit_to (actor, actor_command_kind::resolve_native_callback,
+      view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, capabilities, completion, 1);
   }
 
   void launch () {
