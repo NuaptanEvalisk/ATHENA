@@ -228,24 +228,6 @@ athena_google_cloud_todo_sync_buffer (url arg1);
 void
 athena_google_cloud_todo_sync_open_buffers ();
 
-object
-athena_artifact_resolve_uuid (string arg1);
-
-object
-athena_material_resolve_uuid (string arg1);
-
-object
-athena_material_find_by_identifier (string arg1, string arg2);
-
-object
-athena_material_get (string arg1);
-
-tree
-athena_materials_search (string arg1, int arg2);
-
-tree
-athena_materials_list (int arg1, int arg2);
-
 tree
 athena_materials_update_document (tree arg1, string arg2);
 

@@ -115,6 +115,3 @@ void materials_set_reference_style (string style) {
   tree_assign (node[0], tree (style));
   materials_update_current_document ();
 }
-
-string materials_page_title (string, object) { return "Material"; }
-bool materials_page_permission (string, string kind) { return kind == "read"; }

@@ -1567,9 +1567,6 @@
   <binding name="artifact-open-uuid" native="artifacts_open_uuid" returns="bool">
     <arg type="string" />
   </binding>
-  <binding name="artifact-resolve-uuid" native="athena_artifact_resolve_uuid" returns="object">
-    <arg type="string" />
-  </binding>
   <binding name="artifact-disambiguation-page" native="athena_artifact_disambiguation_page" returns="tree">
     <arg type="string" />
   </binding>
@@ -1587,26 +1584,6 @@
   <binding name="materials-set-reference-style" native="materials_set_reference_style" returns="void" exceptions="scheme"><arg type="string" /></binding>
   <binding name="materials-set-document-citation-style" native="materials_set_document_style" returns="void" exceptions="scheme"><arg type="string" /></binding>
   <binding name="materials-use-default-citation-style" native="materials_use_default_style" returns="void" exceptions="scheme" />
-  <binding name="materials-page-title" native="materials_page_title" returns="string"><arg type="string" /><arg type="object" /></binding>
-  <binding name="materials-page-permission?" native="materials_page_permission" returns="bool"><arg type="string" /><arg type="string" /></binding>
-  <binding name="material-resolve-uuid" native="athena_material_resolve_uuid" returns="object">
-    <arg type="string" />
-  </binding>
-  <binding name="material-find-by-identifier" native="athena_material_find_by_identifier" returns="object">
-    <arg type="string" />
-    <arg type="string" />
-  </binding>
-  <binding name="material-get" native="athena_material_get" returns="object">
-    <arg type="string" />
-  </binding>
-  <binding name="materials-search" native="athena_materials_search" returns="tree">
-    <arg type="string" />
-    <arg type="int" />
-  </binding>
-  <binding name="materials-list" native="athena_materials_list" returns="tree">
-    <arg type="int" />
-    <arg type="int" />
-  </binding>
   <binding name="materials-update-document" native="athena_materials_update_document" returns="tree">
     <arg type="tree" />
     <arg type="string" />

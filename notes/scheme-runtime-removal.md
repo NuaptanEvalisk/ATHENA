@@ -1760,6 +1760,24 @@ generated native entries and remain on the secure-function list.
   native-insertion-values-deploy.log. Temporary probe/profile removed.
 - The full runtime-removal goal remains active and incomplete.
 
+## Retired Materials And Artifact Query Adapters
+
+- Removed eight unconsumed exports: artifact-resolve-uuid,
+  material-resolve-uuid, material-find-by-identifier, material-get,
+  materials-search, materials-list, materials-page-title and
+  materials-page-permission?. Removed their implementations and private
+  material-record/search-hit tree serialization helpers.
+- MaterialsStore APIs, native document citation updates, manager UI, info pages
+  and artifact navigation remain unchanged. The removed title/permission
+  functions were unused constants, not the active TMFS policy.
+- materials_edit.hpp now includes only the native string declaration instead
+  of scheme.hpp. Interface generation and both affected implementations
+  compiled with -j16. Logs: build_qt6/retired-material-query-glue.log and
+  build_qt6/retired-material-query-build.log.
+- No tests added/run. Full linking, runtime export checks and deployment are
+  pending a combined batch; the installed runtime is still 444f20dcd's build.
+  The overall runtime-removal goal remains incomplete.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
