@@ -11,20 +11,17 @@
 #ifndef ATHENA_FORMAT_COMMANDS_HPP
 #define ATHENA_FORMAT_COMMANDS_HPP
 
-#include "scheme.hpp"
+#include "tree.hpp"
+#include "array.hpp"
 #include <vector>
 #include <optional>
 
-object format_with_ref (tree t, tree variable);
 tree format_with_set (tree t, tree variable, tree value);
 void format_with_simplify (tree t);
 void format_with_merge (tree t);
 bool format_test_env (string variable, string value);
-void format_tree_with_set (tree t, object properties);
 void format_tree_with_set (tree t, tree properties);
-object format_tree_with_get (object t, tree variable);
 std::optional<tree> format_tree_with_get (tree t, tree variable);
-void format_tree_with_reset (object t, tree variable);
 void format_tree_with_reset (tree t, tree variable);
 bool format_with_like_check_insert (tree t);
 void format_make_with_like (tree t);
@@ -55,10 +52,9 @@ std::vector<format_customizable_parameter> format_customizable_parameters (tree 
 bool format_pen_effect_context (tree t);
 std::optional<string> format_get_effect_pen (tree t);
 void format_set_effect_pen (tree t, string pen);
-void format_make_multi_with (object properties);
 void format_make_multi_with (tree wrapper);
 void format_make_line_with (string variable, tree value);
-void format_make_multi_line_with (object properties);
+void format_make_multi_line_with (tree wrapper);
 void format_make_interactive_with (string variable);
 void format_make_interactive_line_with (string variable);
 void format_make_interactive_with_opacity ();

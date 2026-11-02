@@ -1674,6 +1674,24 @@ generated native entries and remain on the secure-function list.
   build_qt6/native-source-boundary-build.log. No tests added or run; full linking
   and deployment remain pending with the formatting prompt changes.
 
+## Native Formatting Property Trees
+
+- Formatting command declarations no longer include scheme.hpp or expose
+  object values. Multi-property and multi-line commands take a native WITH
+  tree containing variable/value pairs without a body; the existing wrapper
+  shape contract is enforced before selection mutation.
+- Removed object overloads for tree property set/get/reset and multi-property
+  application, plus the unused with-ref query. The native optional inherited
+  property query remains in use by editor focus commands.
+- Retained temporary XML entrypoints for mutation checks with typed tree/content
+  arguments. Retired with-ref/tree-with-get exports; adjusted existing observer,
+  selection, undo and table checks to the new property-tree inputs without
+  adding tests or restoring retired Scheme extensibility.
+- Interface generation and format_commands.cpp compilation passed with -j16.
+  Logs: build_qt6/native-format-property-glue.log and
+  build_qt6/native-format-property-build.log. No tests run. Combined binary
+  linking, runtime binding checks and deployment are still pending.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

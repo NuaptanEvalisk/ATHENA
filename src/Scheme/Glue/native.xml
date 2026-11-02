@@ -605,13 +605,13 @@
   </binding>
   <binding name="make-interactive-with-opacity" native="format_make_interactive_with_opacity" returns="void" />
   <binding name="make-multi-with" native="format_make_multi_with" returns="void">
-    <arg type="object" />
+    <arg type="content" />
   </binding>
   <binding name="make-line-with" native="format_make_line_with" returns="void">
     <arg type="string" /><arg type="content" />
   </binding>
   <binding name="make-multi-line-with" native="format_make_multi_line_with" returns="void">
-    <arg type="object" />
+    <arg type="content" />
   </binding>
   <binding name="make-page-break" native="format_make_page_break" returns="void" />
   <binding name="make-new-page" native="format_make_new_page" returns="void" />
@@ -621,9 +621,6 @@
   </binding>
   <binding name="pen-effect-context?" native="format_pen_effect_context" returns="bool">
     <arg type="tree" />
-  </binding>
-  <binding name="with-ref" native="format_with_ref" returns="object">
-    <arg type="content" /><arg type="content" />
   </binding>
   <binding name="with-set" native="format_with_set" returns="tree">
     <arg type="tree" /><arg type="content" /><arg type="content" />
@@ -638,13 +635,10 @@
     <arg type="string" /><arg type="string" />
   </binding>
   <binding name="tree-with-set" native="format_tree_with_set" returns="void">
-    <arg type="tree" /><arg type="object" rest="true" />
-  </binding>
-  <binding name="tree-with-get" native="format_tree_with_get" returns="object">
-    <arg type="object" /><arg type="content" />
+    <arg type="tree" /><arg type="content" />
   </binding>
   <binding name="tree-with-reset" native="format_tree_with_reset" returns="void">
-    <arg type="object" /><arg type="content" />
+    <arg type="tree" /><arg type="content" />
   </binding>
   <binding name="with-like-check-insert" native="format_with_like_check_insert" returns="bool" exceptions="scheme">
     <arg type="content" />

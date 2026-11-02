@@ -231,15 +231,6 @@ bool at_body_border (tree t, bool at_end) {
     at_boundary (source * i);
 }
 
-tree property_wrapper (object properties) {
-  tree wrapper (WITH);
-  ASSERT (is_list (properties), "format properties must be a list");
-  for (object p= properties; !is_null (p); p= cdr (p))
-    wrapper << content_to_tree (car (p));
-  ASSERT (N (wrapper) % 2 == 0, "format properties must be variable/value pairs");
-  return wrapper;
-}
-
 bool innermost_with (tree& t) {
   t= cursor_tree ();
   while (true) {
@@ -528,11 +519,6 @@ void format_make_alternate (string prompt, string proposal, tree_label tag) {
   format_prompt (prompt, proposal, format_prompt_action::wrapper, "", tag);
 }
 
-object format_with_ref (tree t, tree variable) {
-  int i= property_index (t, variable);
-  return i < 0 ? object (false) : object (t[i + 1]);
-}
-
 tree format_with_set (tree t, tree variable, tree value) {
   int i= property_index (t, variable);
   if (i >= 0) {
@@ -575,10 +561,6 @@ bool format_test_env (string variable, string value) {
   return get_current_editor ()->get_env_string (variable) == value;
 }
 
-void format_tree_with_set (tree t, object properties) {
-  format_tree_with_set (t, property_wrapper (properties));
-}
-
 void format_tree_with_set (tree t, tree wrapper) {
   ASSERT (is_func (wrapper, WITH) && N(wrapper) % 2 == 0,
           "format wrapper must contain variable/value pairs without a body");
@@ -588,23 +570,12 @@ void format_tree_with_set (tree t, tree wrapper) {
   format_with_merge (current.get ());
 }
 
-object format_tree_with_get (object value, tree variable) {
-  if (!is_tree (value)) return object (false);
-  auto found= format_tree_with_get (as_tree (value), variable);
-  return found ? object (*found) : object (false);
-}
-
 std::optional<tree> format_tree_with_get (tree t, tree variable) {
   do {
     int i= property_index (t, variable, true);
     if (i >= 0) return t[i + 1];
   } while (enclosing_property_scope (t, t));
   return std::nullopt;
-}
-
-void format_tree_with_reset (object value, tree variable) {
-  if (!is_tree (value)) return;
-  format_tree_with_reset (as_tree (value), variable);
 }
 
 void format_tree_with_reset (tree t, tree variable) {
@@ -841,11 +812,9 @@ void format_set_effect_pen (tree t, string pen) {
   editing_variant_set (t, as_tree_label (pen * "-" * native_string (family.toString ())));
 }
 
-void format_make_multi_with (object properties) {
-  format_make_multi_with (property_wrapper (properties));
-}
-
 void format_make_multi_with (tree wrapper) {
+  ASSERT (is_func (wrapper, WITH) && N(wrapper) % 2 == 0,
+          "format wrapper must contain variable/value pairs without a body");
   if (N (wrapper) == 0) return;
   editor ed= get_current_editor ();
   if (ed->selection_active_table ()) {
@@ -891,8 +860,10 @@ void format_make_line_with (string variable, tree value) {
   ed->remove_text (false);
 }
 
-void format_make_multi_line_with (object properties) {
-  if (is_null (properties)) return;
+void format_make_multi_line_with (tree properties) {
+  ASSERT (is_func (properties, WITH) && N(properties) % 2 == 0,
+          "format wrapper must contain variable/value pairs without a body");
+  if (N (properties) == 0) return;
   editor ed= get_current_editor ();
   if (ed->selection_active_table ()) { format_make_multi_with (properties); return; }
   if (!ed->selection_active_normal ()) ed->select_line ();
