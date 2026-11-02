@@ -438,8 +438,7 @@ void generic_structured_minimize (tree t) { if (!presentation_structured (t, "mi
 bool generic_wheel_capture () { return false; }
 
 bool generic_focus_has_variants (tree t) {
-  object variants= generic_focus_variants_of (t);
-  return is_list (variants) && N (as_array_object (variants)) > 1;
+  return N (generic_focus_variants_of (t)) > 1;
 }
 
 bool generic_focus_has_toggles (tree t) {

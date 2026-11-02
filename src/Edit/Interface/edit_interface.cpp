@@ -1441,24 +1441,18 @@ editor_rep::focus_toolbar_state_snapshot () {
   if (snapshot.tag_name.empty ()) snapshot.tag_name= snapshot.tag_label;
 
   try {
-    object raw= generic_focus_variants_of (t);
-    if (is_list (raw)) {
-      array<object> values= as_array_object (raw);
-      for (int i=0; i<N(values); ++i) {
-        string value;
-        if (is_symbol (values[i])) value= as_symbol (values[i]);
-        else if (is_string (values[i])) value= as_string (values[i]);
-        else continue;
-        snapshot.variants.emplace_back (
-          value.data (), static_cast<std::size_t> (N(value)));
-        string display= value;
-        try {
-          display= generic_focus_tag_name (symbol_object (value));
-        }
-        catch (...) {}
-        snapshot.variant_names.emplace_back (
-          display.data (), static_cast<std::size_t> (N(display)));
+    const auto values= generic_focus_variants_of (t);
+    for (int i=0; i<N(values); ++i) {
+      const string value= values[i];
+      snapshot.variants.emplace_back (
+        value.data (), static_cast<std::size_t> (N(value)));
+      string display= value;
+      try {
+        display= generic_focus_tag_name (symbol_object (value));
       }
+      catch (...) {}
+      snapshot.variant_names.emplace_back (
+        display.data (), static_cast<std::size_t> (N(display)));
     }
   }
   catch (...) {}

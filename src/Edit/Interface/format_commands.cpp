@@ -754,16 +754,16 @@ string format_focus_name (string tag) {
   return string (value.constData (), value.size ());
 }
 
-object format_focus_variants (string tag) {
+std::optional<array<string>> format_focus_variants (string tag) {
   QJsonValue values= parameter_data ().definitions.value ("focus_variants")
     .toObject ().value (json_key (tag));
-  if (!values.isArray ()) return object (false);
-  array<object> result;
+  if (!values.isArray ()) return std::nullopt;
+  array<string> result;
   for (QJsonValue value: values.toArray ()) {
     QByteArray bytes= value.toString ().toUtf8 ();
-    result << symbol_object (string (bytes.constData (), bytes.size ()));
+    result << string (bytes.constData (), bytes.size ());
   }
-  return as_list_object (result);
+  return result;
 }
 
 format_style_options format_standard_options (string name) {

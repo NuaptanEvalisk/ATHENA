@@ -169,22 +169,10 @@
 (check (not (parameter-show-in-menu? "language"))
        "Scheme parameter visibility specialization remains authoritative")
 
-(define variant-tree (stree->tree '(section "Title")))
-(check (equal? (focus-variants-of variant-tree)
-               (variants-of (tree-label variant-tree)))
-       "native focus variant baseline preserves variants-of policy")
 (check (equal? (focus-tag-name 'section)
                (string-replace
                  (upcase-first (tree-name (stree->tree '(section)))) "-" " "))
        "native focus tag naming preserves generic display policy")
-
-(tm-define (focus-variants-of t)
-  (:require (tree-is? t 'native-variant-extension))
-  '(native-one native-two))
-(check (equal? (focus-variants-of
-                 (stree->tree '(native-variant-extension "x")))
-               '(native-one native-two))
-       "native focus variant baseline remains a Scheme extension point")
 
 (define proposal-tree (stree->tree '(native-proposal-extension "x")))
 (check (not (child-proposals proposal-tree 0))

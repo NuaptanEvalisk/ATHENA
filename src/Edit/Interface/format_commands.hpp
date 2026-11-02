@@ -42,7 +42,7 @@ struct format_style_options {
 };
 format_style_options format_standard_options (string tag);
 string format_focus_name (string tag);
-object format_focus_variants (string tag);
+std::optional<array<string>> format_focus_variants (string tag);
 struct format_parameter_choice {
   string label;
   tree value;

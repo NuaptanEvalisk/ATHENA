@@ -1551,11 +1551,11 @@ generic_parameter_value (object value) {
   return N (items) == 2 && is_string (items[0]);
 }
 
-object
+array<string>
 generic_focus_variants_of (tree t) {
-  object configured= format_focus_variants (as_string (L(t)));
-  if (is_list (configured)) return configured;
-  return native_node_variants (symbol_object (as_string (L (t))));
+  const auto configured= format_focus_variants (as_string (L(t)));
+  if (configured) return *configured;
+  return native_node_variants (as_string (L (t)));
 }
 
 namespace {

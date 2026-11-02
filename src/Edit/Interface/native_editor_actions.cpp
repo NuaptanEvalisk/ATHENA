@@ -1238,19 +1238,12 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     if (!ed->test_subtree (focus)) return;
     tree target= ed->the_subtree (focus);
     string tag= native_action_string (action.value ("tag"));
-    object variants= generic_focus_variants_of (target);
+    const auto variants= generic_focus_variants_of (target);
     bool allowed= false;
-    if (is_list (variants)) {
-      array<object> values= as_array_object (variants);
-      for (int i=0; i<N(values); ++i) {
-        string value;
-        if (is_symbol (values[i])) value= as_symbol (values[i]);
-        else if (is_string (values[i])) value= as_string (values[i]);
-        else continue;
-        if (value == tag) {
-          allowed= true;
-          break;
-        }
+    for (int i=0; i<N(variants); ++i) {
+      if (variants[i] == tag) {
+        allowed= true;
+        break;
       }
     }
     if (allowed) editing_variant_set (target, as_tree_label (tag));

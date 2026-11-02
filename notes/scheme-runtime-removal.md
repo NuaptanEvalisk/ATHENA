@@ -1450,6 +1450,21 @@ generated native entries and remain on the secure-function list.
   actions. They still use object lists and should consume the native query and
   JSON-configured variant arrays directly.
 
+## Native Focus Variant Consumers
+
+- JSON focus variants return optional native string arrays, preserving explicit
+  empty overrides versus absent configuration. Generic focus variants now use
+  the shared native node query when no JSON override exists.
+- Focus snapshots, structured has-variants checks and variant action validation
+  consume native arrays directly. Action membership validation and catalog/group
+  order are unchanged. Display-name lookup still has its separate object adapter.
+- Removed the obsolete focus-variants-of binding and its old Scheme extension
+  assertions. The lower node binding adapters remain pending final retirement.
+- XML generation and five implementation units compiled with `-j16`; log
+  `build_qt6/native-focus-variant-values-build.log`. No tests added or run. Full
+  combined linking/runtime verification/deployment remains pending with the
+  style-list and node-variant batches.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
