@@ -757,6 +757,22 @@ generated native entries and remain on the secure-function list.
   `build_qt6/native-keymap-metadata-build.log`. No full link/deployment in this
   batch; installed runtime remains `e5161f143`. No resource schema changed.
 
+## Native Shortcut Query Parameters
+
+- Added native string-based inverse queries and optional-text system-label
+  queries. Menu shortcut lookup, geometry wrapper hints and alternate-tab
+  guidance no longer parse command text into Scheme objects just to query keys.
+- User macro shortcut matching consumes the normalized native command tree.
+  It retains precedence over shipped bindings and matches explicit quoted
+  macro names; the object adapter no longer owns this interpretation.
+- Existing object-valued binding entry points delegate to the native queries.
+  Their initial object printing and the remaining shortcut-dialog object API
+  are still pending removal.
+- Compiled all five affected implementation units with `-j16`; log:
+  `build_qt6/native-keyboard-query-build.log`. No new tests were needed for
+  this parameter transition. Full linking/deployment remains pending together
+  with metadata serialization; installed runtime remains `e5161f143`.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

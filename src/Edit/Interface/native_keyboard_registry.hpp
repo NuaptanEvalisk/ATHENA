@@ -28,8 +28,11 @@ void native_keyboard_unbind (const std::string& context, string key);
 std::optional<native_key_binding> native_keyboard_find (string key);
 bool native_keyboard_has_binding (string key);
 string native_keyboard_inverse (object source);
+string native_keyboard_inverse (string source);
 string native_keyboard_cached_inverse (object source);
+string native_keyboard_cached_inverse (string source);
 object native_keyboard_system_inverse (object source);
+std::optional<string> native_keyboard_system_inverse (string source);
 object native_keyboard_reverse (object source);
 void native_keyboard_list_shortcuts ();
 

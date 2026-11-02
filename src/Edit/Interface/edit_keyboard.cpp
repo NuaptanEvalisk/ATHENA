@@ -319,7 +319,7 @@ edit_interface_rep::kbd (string s) {
 
 tree
 edit_interface_rep::kbd_shortcut (string cmd) {
-  string s= native_keyboard_inverse (string_to_object (cmd));
+  string s= native_keyboard_inverse (cmd);
   return kbd (s);
 }
 

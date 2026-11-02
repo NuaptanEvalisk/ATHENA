@@ -162,23 +162,37 @@ bool native_keyboard_has_binding (string key) {
 }
 
 string native_keyboard_cached_inverse (object source) {
-  string user= user_shortcuts_inverse (source);
+  return native_keyboard_cached_inverse (object_to_string (source));
+}
+
+string native_keyboard_cached_inverse (string source) {
+  tree data= expand_quote (string_to_scheme_tree (source));
+  string user= user_shortcuts_inverse (data);
   if (user != "") return user;
   auto& r= keyboard ();
-  const auto entry= resolve (r.snapshot (r.inverse, source_key (object_to_string (source))));
+  const auto entry= resolve (r.snapshot (r.inverse, scheme_tree_to_string (data)));
   return entry ? text (entry->key) : string ("");
 }
 
 string native_keyboard_inverse (object source) {
+  return native_keyboard_inverse (object_to_string (source));
+}
+
+string native_keyboard_inverse (string source) {
   native_keyboard_force (false);
   return native_keyboard_cached_inverse (source);
 }
 
 object native_keyboard_system_inverse (object source) {
+  auto result= native_keyboard_system_inverse (object_to_string (source));
+  return result ? object (*result) : object (false);
+}
+
+std::optional<string> native_keyboard_system_inverse (string source) {
   tree label= get_server ()->kbd_system_rewrite (native_keyboard_inverse (source));
   if (is_compound (label, "render-key", 1)) label= label[0];
   if (is_func (label, WITH) && N(label) > 0) label= label[N(label)-1];
-  return is_atomic (label) ? object (label->label) : object (false);
+  return is_atomic (label) ? std::optional<string> (label->label) : std::nullopt;
 }
 
 object native_keyboard_reverse (object source) {

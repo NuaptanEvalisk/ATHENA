@@ -192,18 +192,12 @@ void user_shortcuts_run (string key) {
   if (!action.isEmpty ())
     native_editor_action_execute (get_current_editor (), action);
 }
-string user_shortcuts_inverse (object source) {
+string user_shortcuts_inverse (tree source) {
   // Macro insertion labels use the same source form as the shipped keymaps.
-  if (!is_list (source))
+  if (!is_tuple (source, "make", 1) || !is_tuple (source[1], "quote", 1) ||
+      !is_atomic (source[1][1]))
     return "";
-  auto args= as_array_object (source);
-  if (N (args) != 2 || !is_symbol (args[0]) || as_symbol (args[0]) != "make" ||
-      !is_list (args[1]))
-    return "";
-  auto quoted= as_array_object (args[1]);
-  if (N (quoted) != 2 || !is_symbol (quoted[1]))
-    return "";
-  QJsonObject action{{"op", "make"}, {"tag", qs (as_symbol (quoted[1]))}};
+  QJsonObject action{{"op", "make"}, {"tag", qs (source[1][1]->label)}};
   std::lock_guard<std::mutex> lock (mutex);
   for (auto i= shortcuts.begin (); i != shortcuts.end (); ++i)
     if (i.value () == action)

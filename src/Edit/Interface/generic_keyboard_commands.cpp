@@ -647,7 +647,7 @@ void generic_kbd_variant (tree t, bool forwards) {
   }
   if (!admits_edit_observer (t)) { outward (t, generic_kbd_variant, forwards); return; }
   if (!ed->complete_try () && forwards) {
-    string binding= native_keyboard_inverse (list_object (symbol_object ("kbd-alternate-tab")));
+    string binding= native_keyboard_inverse (string ("(kbd-alternate-tab)"));
     tree shortcut= get_server ()->kbd_system_rewrite (binding);
     ed->set_message (
       tree (CONCAT, "Use ", shortcut, " in order to insert a tab"), "tab");

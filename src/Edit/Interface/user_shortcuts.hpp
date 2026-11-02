@@ -13,6 +13,6 @@ string user_shortcuts_get (string shortcut);
 void user_shortcuts_set (string shortcut, string action);
 void user_shortcuts_remove (string shortcut);
 std::optional<native_key_binding> user_shortcuts_find (string rewritten_key);
-string user_shortcuts_inverse (object source);
+string user_shortcuts_inverse (tree source);
 void user_shortcuts_run (string rewritten_key);
 bool user_shortcut_action_valid (const QString&, QString* error);
