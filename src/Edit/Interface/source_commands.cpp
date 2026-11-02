@@ -129,10 +129,10 @@ void collect_sub (tree t, names& values, names& visited) {
 void collect_parameters (string name, names& values, names& visited) {
   if (!visited.insert (name).second)
     return;
-  object standard= format_standard_parameters (name);
-  if (is_list (standard)) {
-    for (auto item : objects (standard))
-      values.insert (as_string (item));
+  auto standard= format_standard_parameters (name);
+  if (standard) {
+    for (int i=0; i<N(*standard); ++i)
+      values.insert ((*standard)[i]);
     return;
   }
   tree def= definition (name);
@@ -327,17 +327,21 @@ object source_search_options (object label) {
 object source_search_tag_options (tree t) {
   return source_search_options (symbol_object (as_string (L (t))));
 }
-object source_search_parameters (object label) {
-  string name= name_of (label);
+array<string> source_search_parameters (string name) {
   if (name == "reference" || name == "pageref" || name == "eqref" ||
       name == "smart-ref" || name == "hlink")
     name= "locus";
   names values, visited;
   collect_parameters (name, values, visited);
-  return name_list (values);
+  array<string> result;
+  for (const auto& value: values) result << value;
+  return result;
 }
 object source_search_tag_parameters (tree t) {
-  return source_search_parameters (symbol_object (as_string (L (t))));
+  array<object> result;
+  const auto values= source_search_parameters (as_string (L (t)));
+  for (int i=0; i<N(values); ++i) result << object (values[i]);
+  return as_list_object (result);
 }
 object source_assigned_parameters (object label) {
   names values, visited;
@@ -384,8 +388,9 @@ object source_member_theme (string variable) {
 object source_search_themes (object label) {
   array<object> out;
   names seen;
-  for (auto p : objects (source_search_parameters (label))) {
-    object theme= source_member_theme (as_string (p));
+  const auto parameters= source_search_parameters (name_of (label));
+  for (int i=0; i<N(parameters); ++i) {
+    object theme= source_member_theme (parameters[i]);
     if (is_string (theme) && seen.insert (as_string (theme)).second)
       out << theme;
   }

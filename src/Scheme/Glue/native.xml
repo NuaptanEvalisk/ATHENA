@@ -641,9 +641,6 @@
   <binding name="focus-has-preferences?" native="format_focus_has_preferences" returns="bool">
     <arg type="tree" />
   </binding>
-  <binding name="standard-parameters" native="format_standard_parameters" returns="object">
-    <arg type="string" />
-  </binding>
   <binding name="pen-effect-context?" native="format_pen_effect_context" returns="bool">
     <arg type="tree" />
   </binding>
@@ -1153,9 +1150,6 @@
   </binding>
   <binding name="select-word" native="generic_select_word" returns="object">
     <arg type="string" /><arg type="tree" /><arg type="int" />
-  </binding>
-  <binding name="search-parameters" native="generic_search_parameters" returns="object">
-    <arg type="object" />
   </binding>
   <binding name="recenter-window" native="generic_recenter_window" returns="void" />
   <binding name="make-label" native="generic_make_label" returns="void" />

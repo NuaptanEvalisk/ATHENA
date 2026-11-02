@@ -10,7 +10,7 @@ bool source_variant (tree, bool);
 void source_extract_style (bool);
 object source_search_options (object);
 object source_search_tag_options (tree);
-object source_search_parameters (object);
+array<string> source_search_parameters (string);
 object source_search_tag_parameters (tree);
 object source_assigned_parameters (object);
 object source_theme_guess (string);

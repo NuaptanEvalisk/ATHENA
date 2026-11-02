@@ -39,12 +39,6 @@
        "select-word missing result")
 (check (not (selection-active-any?)) "missing word leaves selection inactive")
 
-(check (equal? (search-parameters "reference")
-               '("locus-color" "visited-color"))
-       "reference search parameters")
-(check (null? (search-parameters "not-a-reference"))
-       "unknown search parameters remain empty after macro discovery")
-
 (reset '(document "abc") '(0 0 1))
 (label-insert (buffer-tree))
 (check (equal? (body) '(document (concat "a" (inactive (label "")) "bc")))

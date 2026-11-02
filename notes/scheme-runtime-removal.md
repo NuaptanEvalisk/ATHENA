@@ -1297,6 +1297,23 @@ generated native entries and remain on the secure-function list.
   the editing algorithm is unchanged. Full combined linking and deployment
   remain pending with the preceding parameter metadata batches.
 
+## Native Parameter Discovery
+
+- Standard parameter lookup returns `optional<array<string>>`, preserving the
+  essential distinction between a known empty parameter list and an unknown
+  definition that must continue through macro discovery.
+- Source parameter discovery accepts a native label string and returns native
+  strings. JSON inheritance prepend/exclude rules, reference-to-locus mapping,
+  visited-name recursion handling, deduplication and ordering are unchanged.
+  Focus parameter discovery and theme discovery consume native arrays.
+- Removed the generic forwarding function, its object-list decoder and two old
+  Scheme bindings with obsolete metadata assertions. The tag-level source
+  binding still adapts the native result for its remaining interface consumers.
+- XML generation and all three implementation units compiled with `-j16`; log
+  `build_qt6/native-parameter-discovery-build.log`. No tests added or run.
+  Combined full linking/runtime verification/deployment remains pending;
+  installed runtime remains the `0063a1106` deployment.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

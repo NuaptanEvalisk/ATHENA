@@ -11,6 +11,7 @@
 #include "insertion_commands.hpp"
 #include "editing_utilities.hpp"
 #include "format_commands.hpp"
+#include "source_commands.hpp"
 #include "generic_editor_commands.hpp"
 #include "generic_keyboard_commands.hpp"
 #include "editor.hpp"
@@ -722,21 +723,24 @@ bool format_focus_has_preferences (tree t) {
     .toArray ().contains (json_key (as_string (L (t))));
 }
 
-object format_standard_parameters (string tag) {
+std::optional<array<string>> format_standard_parameters (string tag) {
   QJsonValue values= parameter_data ().definitions.value ("standard").toObject ().value (json_key (tag));
   if (values.isObject ()) {
     const QJsonObject rule= values.toObject ();
-    array<object> result= as_array_object (json_strings (rule.value ("prepend").toArray ()));
-    object inherited= generic_search_parameters (object (native_string (rule.value ("inherit").toString ())));
-    if (is_list (inherited)) {
-      array<object> items= as_array_object (inherited);
-      for (int i=0; i<N(items); ++i)
-        if (!rule.value ("exclude").toArray ().contains (json_key (as_string (items[i]))))
-          result << items[i];
-    }
-    return as_list_object (result);
+    array<string> result;
+    for (const auto& value: rule.value ("prepend").toArray ())
+      result << native_string (value.toString ());
+    const auto inherited= source_search_parameters (
+      native_string (rule.value ("inherit").toString ()));
+    for (int i=0; i<N(inherited); ++i)
+      if (!rule.value ("exclude").toArray ().contains (json_key (inherited[i])))
+        result << inherited[i];
+    return result;
   }
-  return values.isArray () ? json_strings (values.toArray ()) : object (false);
+  if (!values.isArray ()) return std::nullopt;
+  array<string> result;
+  for (const auto& value: values.toArray ()) result << native_string (value.toString ());
+  return result;
 }
 
 bool format_parameter_inhibited (string name, bool global) {

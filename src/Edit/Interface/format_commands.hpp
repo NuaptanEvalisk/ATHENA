@@ -34,7 +34,7 @@ void format_toggle_italic ();
 void format_toggle_small_caps ();
 void format_toggle_underlined ();
 bool format_focus_has_preferences (tree t);
-object format_standard_parameters (string tag);
+std::optional<array<string>> format_standard_parameters (string tag);
 bool format_parameter_inhibited (string name, bool global);
 object format_standard_options (object tag);
 string format_focus_name (string tag);

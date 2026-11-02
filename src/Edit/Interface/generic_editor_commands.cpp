@@ -484,11 +484,6 @@ generic_select_word (string word, tree t, int column) {
   return object (begin);
 }
 
-object
-generic_search_parameters (object label) {
-  return source_search_parameters (label);
-}
-
 void
 generic_label_insert (tree t) {
   if (text_section_context (t)) {
@@ -1620,15 +1615,6 @@ bool scheme_truthy (object value) {
   return !(is_bool (value) && !as_bool (value));
 }
 
-array<string> string_list (object value) {
-  array<string> result;
-  if (!is_list (value)) return result;
-  array<object> items= as_array_object (value);
-  for (int i= 0; i < N (items); ++i)
-    if (is_string (items[i])) result << as_string (items[i]);
-  return result;
-}
-
 bool string_array_contains (array<string> values, string value) {
   for (int i= 0; i < N (values); ++i)
     if (values[i] == value) return true;
@@ -1645,8 +1631,7 @@ tree focus_parameters_cache_key (tree t, generic_parameter_mode mode) {
 
 array<string>
 generic_focus_parameters_list (tree t, generic_parameter_mode mode) {
-  object found= generic_search_parameters (symbol_object (as_string (L (t))));
-  array<string> parameters= string_list (found);
+  array<string> parameters= source_search_parameters (as_string (L (t)));
   array<string> visible;
   for (int i= 0; i < N (parameters); ++i)
     if (generic_parameter_show_in_menu (parameters[i]))
