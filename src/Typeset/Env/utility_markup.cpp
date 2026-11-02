@@ -1,6 +1,7 @@
 // Copyright (C) 2001 Joris van der Hoeven, 2026 ATHENA contributors.
 // GPL-3.0-or-later.
 #include "utility_markup.hpp"
+#include "tm_configure.hpp"
 #include "native_interfaces.hpp"
 #include "editor.hpp"
 #include "Edit/Interface/tree_pattern.hpp"
@@ -75,6 +76,12 @@ tree numbered_line (tree source, tree root) {
 }
 }
 
+string markup_application_version () { return ATHENA_VERSION; }
+string markup_build_user () { return BUILD_USER; }
+string markup_build_date () { return BUILD_DATE; }
+string markup_host_os () { return HOST_OS; }
+string markup_host_vendor () { return HOST_VENDOR; }
+string markup_host_cpu () { return HOST_CPU; }
 string markup_version_release (tree type) { return texmacs_version (as_string (type)); }
 string markup_language_suffix () { return "en"; }
 tree markup_map (tree function, tree tuple) {

@@ -1,6 +1,12 @@
 // Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later.
 #pragma once
 #include "tree.hpp"
+string markup_application_version ();
+string markup_build_user ();
+string markup_build_date ();
+string markup_host_os ();
+string markup_host_vendor ();
+string markup_host_cpu ();
 string markup_version_release (tree type);
 string markup_language_suffix ();
 tree markup_map (tree function, tree tuple);

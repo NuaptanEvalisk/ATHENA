@@ -46,7 +46,6 @@ evaluate_if (tree t) {
   if (N(t)==3) return evaluate (t[2]);
   return "";
 }
-
 tree
 evaluate_case (tree t) {
   if (N(t) < 2) return evaluate_error ("bad case");
@@ -150,20 +149,6 @@ evaluate_use_package (tree t) {
     tree body= load_style_body (name);
     if (is_func (body, _ERROR)) std_warning << body[0] << LF;
     else evaluate (filter_style (body));
-  }
-  return "";
-}
-
-tree
-evaluate_use_module (tree t) {
-  int i, n= N(t);
-  for (i=0; i<n; i++) {
-    string s= evaluate_string (t[i]);
-    if (starts (s, "(")) eval ("(use-modules " * s * ")");
-    tree t= std_env[THE_MODULES] * tuple (s);
-    assoc_environment local (1);
-    local->raw_write (0, THE_MODULES, t);
-    assign (std_env, local);
   }
   return "";
 }

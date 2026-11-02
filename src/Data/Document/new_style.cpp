@@ -320,12 +320,12 @@ style_cache_generation () {
 ******************************************************************************/
 
 style_environment_ptr
-get_style_environment (tree style, url source_name, bool scheme_modules) {
+get_style_environment (tree style, url source_name, bool native_callbacks) {
   init_style_data ();
   athena::contracts::initialize_builtins ();
   ASSERT (is_tuple (style), "style tuple expected");
   tree key (TUPLE, copy (style), as_string (head (source_name)),
-            as_string_bool (scheme_modules));
+            as_string_bool (native_callbacks));
   if (sd->styles->contains (key)) return sd->styles[key];
   bool busy= false;
   for (int i=0; i<N(style); i++)
@@ -346,7 +346,7 @@ get_style_environment (tree style, url source_name, bool scheme_modules) {
   hashmap<string,tree> latt;
   hashmap<string,tree> gatt;
   edit_env env (contract_state, source_name, lref, gref, laux, gaux, latt, gatt);
-  env->set_scheme_modules_enabled (scheme_modules);
+  env->set_native_callbacks_enabled (native_callbacks);
   if (!busy) {
     env->exec (tree (USE_PACKAGE, A (style)));
     env->analyze_contracts ();

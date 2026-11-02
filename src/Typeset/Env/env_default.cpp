@@ -54,7 +54,6 @@ initialize_default_env () {
   env (TABULAR)          = tabular_m;   // tabular macro
   env (THE_LABEL)        = "?";         // value of the next label
   env (THE_TAGS)         = tree(TUPLE); // current tags
-  env (THE_MODULES)      = tree(TUPLE); // necessary modules and plug-ins
   env (WARN_MISSING)     = "true";      // warn about missing references
   env (GLOBAL_TITLE)     = "";          // global document title
   env (GLOBAL_AUTHOR)    = "";          // global document author

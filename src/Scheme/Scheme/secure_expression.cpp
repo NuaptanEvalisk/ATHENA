@@ -12,8 +12,10 @@
 #include <stdexcept>
 #include <vector>
 #include <algorithm>
+#include <unordered_set>
 
 namespace {
+std::unordered_set<std::string> secure_functions;
 using environment= std::vector<object>;
 bool is_pair (object value) { return tmscm_is_pair (object_to_tmscm (value)); }
 bool secure (object expression, const environment& locals);
@@ -66,12 +68,15 @@ bool secure (object expression, const environment& locals) {
   if (head == symbol_object ("quote")) return true;
   if (head == symbol_object ("quasiquote")) return quasiquote (tail, locals);
   if (is_symbol (head))
-    return call ("property", head, keyword_object ("secure")) != object (false) && arguments (tail, locals);
+    return native_secure_function (as_symbol (head)) && arguments (tail, locals);
   return arguments (expression, locals);
 }
 }
 
 bool native_secure_expression (object expression) { return secure (expression, {}); }
+bool native_secure_function (string name) {
+  return secure_functions.count (std::string (name.data (), N(name))) != 0;
+}
 object native_secure_eval (object expression) {
   return native_secure_expression (expression) ? eval (expression) : object (false);
 }
@@ -82,9 +87,10 @@ void native_secure_initialize () {
   const QJsonDocument document= QJsonDocument::fromJson (input.readAll (), &error);
   if (error.error != QJsonParseError::NoError || !document.isArray ())
     throw std::runtime_error ("Invalid secure symbol registry");
+  std::unordered_set<std::string> names;
   for (const auto& entry: document.array ()) {
     if (!entry.isString ()) throw std::runtime_error ("Secure symbol name must be a string");
-    call ("property-set!", symbol_object (from_qstring (entry.toString ())),
-          keyword_object ("secure"), object (true), null_object ());
+    names.insert (entry.toString ().toStdString ());
   }
+  secure_functions= std::move (names);
 }

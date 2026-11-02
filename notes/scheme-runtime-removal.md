@@ -54,6 +54,18 @@ with runtime removal; native automation must use the existing interop API.
   arity/type, UI scheduling and exception-boundary checks also passed.
   `object` marshalling and the fallback for runtime builtins still remain;
   this is not completion of the value/runtime migration.
+- Style `extern` uses generated native entries exclusively. Its security
+  allowlist is a native immutable-after-startup set, rather than Scheme
+  procedure properties. Version/build metadata functions are native too.
+  Retired HTML eqnarray hooks and style module loading/state are removed;
+  explicit `use-module` nodes report unsupported functionality. Structured
+  argument/result values and the reentrant environment scope are still Guile
+  backed and remain in the complete goal.
+  The -j16 build and official deployment passed. An actor-owned runtime check
+  replaced the Scheme version procedure with a throwing lambda; style extern
+  still returned the native version. Structured tuple arguments and explicit
+  rejection of style module loading also passed. The temporary profile was
+  removed; logs are under `build_qt6/native-style-extern-*.log`.
 
 ## Known Outstanding Failures
 
@@ -61,7 +73,6 @@ with runtime removal; native automation must use the existing interop API.
   overwrites the handshake error with a status-formatting result.
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
   inconsistent. See the concrete core evidence in `native-application-ui.md`.
-- `env-math.ats` still declares the retired HTML eqnarray extern hook.
 
 Do not describe these as fixed by removal of `progs`. They remain explicit
 parts of the complete runtime-removal work.

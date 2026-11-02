@@ -2,5 +2,6 @@
 #pragma once
 #include "scheme.hpp"
 bool native_secure_expression (object expression);
+bool native_secure_function (string name);
 object native_secure_eval (object expression);
 void native_secure_initialize ();

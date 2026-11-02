@@ -14,6 +14,7 @@
 #include "std_environment.hpp"
 #include "vars.hpp"
 #include "scheme.hpp"
+#include "native_dispatch.hpp"
 #include "secure_expression.hpp"
 
 extern int script_status;
@@ -83,23 +84,21 @@ rewrite_impl (tree t) {
   case EXTERN:
     {
       int i, n= N(t);
-      tree r (TUPLE, n);
-      for (i=0; i<n; i++)
-	r[i]= evaluate (t[i]);
-      object expr= null_object ();
-      for (i=n-1; i>0; i--)
-	expr= cons (object (r[i]), expr);
+      if (n < 1) return tree (_ERROR, "invalid extern");
       string fun= evaluate_string (t[0]);
-      expr= cons (string_to_object (fun), expr);
       bool secure= as_bool (std_env ["secure"]);
-      if (!secure && script_status < 2) {
-	if (!native_secure_expression (expr))
-	  return tree (_ERROR, "insecure script");
-      }
-      environment old_env= reenter_rewrite_env;
+      if (!secure && script_status < 2 && !native_secure_function (fun))
+        return tree (_ERROR, "insecure native callback");
+      array<object> arguments;
+      for (i=1; i<n; i++) arguments << object (evaluate (t[i]));
+      struct restore_environment {
+        environment previous;
+        ~restore_environment () { reenter_rewrite_env= previous; }
+      } restore {reenter_rewrite_env};
       reenter_rewrite_env= std_env;
-      object o= eval (expr);
-      reenter_rewrite_env= old_env;
+      object o;
+      if (!native_dispatch_call (fun, arguments, o))
+        return tree (_ERROR, "unknown native extern: " * fun);
       return content_to_tree (o);
     }
 #ifdef CLASSICAL_MACRO_EXPANSION

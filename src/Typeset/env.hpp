@@ -163,7 +163,7 @@ public:
   url                          cur_file_name;
   athena::contracts::package_inclusion_handle package_origin;
   bool                         secure;
-  bool                         scheme_modules_enabled;
+  bool                         native_callbacks_enabled;
   hashmap<string,tree>&        local_ref;
   hashmap<string,tree>&        global_ref;
   hashmap<string,tree>&        local_aux;
@@ -310,7 +310,6 @@ private:
   bool exec_until_while (tree t, path p, string var, int level);
   tree exec_for_each (tree t);
   tree exec_use_package (tree t);
-  tree exec_use_module (tree t);
 
   tree exec_or (tree t);
   tree exec_xor (tree t);
@@ -454,8 +453,8 @@ public:
 		hashmap<string,tree>& local_att,
 		hashmap<string,tree>& global_att);
   ~edit_env_rep ();
-  void   set_scheme_modules_enabled (bool enabled) {
-    scheme_modules_enabled= enabled;
+  void   set_native_callbacks_enabled (bool enabled) {
+    native_callbacks_enabled= enabled;
   }
   void   style_init_env ();
 

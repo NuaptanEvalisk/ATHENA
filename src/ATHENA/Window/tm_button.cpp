@@ -32,13 +32,10 @@
 #include "Format/format.hpp"
 #include "new_style.hpp"
 
-void use_modules (tree t);
-
 void
 initialize_environment (edit_env& env, tree doc, athena::contracts::evaluation_state& contract_state) {
   tree style= extract (doc, "style");
   get_style_environment (style, env->base_file_name, true)->restore (*env.operator-> ());
-  use_modules (env->read (THE_MODULES));
   tree init= extract (doc, "initial");
   for (int i=0; i<N(init); i++)
     if (is_func (init[i], ASSOCIATE, 2) && is_atomic (init[i][0]))

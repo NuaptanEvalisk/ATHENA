@@ -22,6 +22,7 @@
 #include "image_files.hpp"
 #include "brush.hpp"
 #include "scheme.hpp"
+#include "native_dispatch.hpp"
 #include "secure_expression.hpp"
 #include "scheme_native_context.hpp"
 #include "page_type.hpp"
@@ -92,24 +93,18 @@ edit_env_rep::rewrite (tree t) {
         if (n != 2) return tree (_ERROR, "invalid math check");
         return native_math_check (exec (t[1]), fun == "math-check-table");
       }
-      if (!scheme_modules_enabled)
-        return tree (_ERROR, "Scheme callback disabled in offline style analysis");
-      tree r (TUPLE, n);
+      if (!native_callbacks_enabled)
+        return tree (_ERROR, "Native callback disabled in offline style analysis");
+      if (!secure && script_status < 2 && !native_secure_function (fun))
+        return tree (_ERROR, "insecure native callback");
+      array<object> arguments;
       for (i=1; i<n; i++)
-	r[i]= exec (t[i]);
-      object expr= null_object ();
-      for (i=n-1; i>0; i--)
-	expr= cons (object (r[i]), expr);
-      expr= cons (string_to_object (fun), expr);
-      if (!secure && script_status < 2) {
-	if (!native_secure_expression (expr))
-	  return tree (_ERROR, "insecure script");
-      }
-      object o= [&] () {
-        rewrite_environment context;
-        context.bind (edit_env (this));
-        return eval (expr);
-      } ();
+        arguments << object (exec (t[i]));
+      rewrite_environment context;
+      context.bind (edit_env (this));
+      object o;
+      if (!native_dispatch_call (fun, arguments, o))
+        return tree (_ERROR, "unknown native extern: " * fun);
       return content_to_tree (o);
     }
   case MAP_ARGS:
@@ -361,7 +356,7 @@ edit_env_rep::exec (tree t) {
   case USE_PACKAGE:
     return exec_use_package (t);
   case USE_MODULE:
-    return exec_use_module (t);
+    return tree (_ERROR, "Scheme modules are no longer supported");
 
   case OR:
     return exec_or (t);
@@ -1380,18 +1375,6 @@ edit_env_rep::exec_use_package (tree t) {
         exec (filter_style (body));
       }
     }
-  }
-  return "";
-}
-
-tree
-edit_env_rep::exec_use_module (tree t) {
-  if (!scheme_modules_enabled) return "";
-  int i, n= N(t);
-  for (i=0; i<n; i++) {
-    string s= exec_string (t[i]);
-    if (starts (s, "(")) eval ("(use-modules " * s * ")");
-    assign (THE_MODULES, read (THE_MODULES) * tuple (s));
   }
   return "";
 }

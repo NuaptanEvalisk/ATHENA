@@ -305,20 +305,10 @@ edit_typeset_rep::divide_lengths (string l1, string l2) {
 ******************************************************************************/
 
 void
-use_modules (tree t) {
-  if (is_tuple (t))
-    for (int i=0; i<N(t); i++) {
-      string s= as_string (t[i]);
-      if (starts (s, "(")) eval ("(use-modules " * s * ")");
-    }
-}
-
-void
 edit_typeset_rep::typeset_style_use_cache (tree style) {
   style= preprocess_style (style, buf->master);
   contract_state= athena::contracts::evaluation_state (athena::contracts::builtin_contracts ().snapshot ());
   get_style_environment (style, buf->master, true)->restore (*env.operator-> ());
-  use_modules (env->read (THE_MODULES));
 }
 
 void
@@ -327,7 +317,6 @@ edit_typeset_rep::typeset_preamble () {
   env->write_default_env ();
   if (buf->field_environment) {
     buf->field_environment->restore (*env.operator-> ());
-    use_modules (env->read (THE_MODULES));
   }
   else typeset_style_use_cache (the_style);
   env->update ();

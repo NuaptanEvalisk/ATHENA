@@ -224,10 +224,14 @@ This is not complete Guile removal. Further bounded work remains:
   use Scheme values. See `scheme-runtime-removal.md` for the complete goal.
 - UI callbacks, observers, actor Scheme handles and interactive properties
   retain Guile objects; ownership must survive their replacement.
-- Style `extern` and explicit command-line scripts still invoke Guile.
+- Style `extern` now selects only generated native entries, without Scheme
+  expression evaluation or fallback. Argument/result marshalling and the
+  reentrant environment scope still depend on Guile. Explicit command-line
+  scripts also remain until the value/runtime migration is complete.
 - GnuTLS certificate-error handling calls two missing interactive procedures.
   Its status-print call also overwrites the handshake return code. Audit the
   handshake lifecycle before replacing that interaction; do not silently trust
   an invalid certificate or treat an error as success.
-- `env-math.ats` retains an obsolete `ext-tmhtml-eqnarray*` export hook.
+- The obsolete `ext-tmhtml-eqnarray*` export hook and style Scheme-module
+  loading are removed. A `use-module` node now reports an explicit error.
 - The exception-boundary failure described above is still separate work.

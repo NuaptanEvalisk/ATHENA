@@ -840,21 +840,7 @@ initialize_scheme () {
   "    (lambda (port) (display obj port))))\n"
   "(define (object->string obj)\n"
   "  (call-with-output-string\n"
-  "    (lambda (port) (write obj port))))\n"
-  "\n"
-  "(define (texmacs-version) \"" ATHENA_VERSION "\")\n"
-  "(define (texmacs-build-user) \"" BUILD_USER "\")\n"
-  "(define (texmacs-build-date) \"" BUILD_DATE "\")\n"
-  "(define (texmacs-host-os) \"" HOST_OS "\")\n"
-  "(define (texmacs-host-vendor) \"" HOST_VENDOR "\")\n"
-  "(define (texmacs-host-cpu) \"" HOST_CPU "\")\n"
-  "(define (texmacs-build-info)\n"
-  "  `((version . ,(texmacs-version))\n"
-  "    (build-user . ,(texmacs-build-user))\n"
-  "    (build-date . ,(texmacs-build-date))\n"
-  "    (host-os . ,(texmacs-host-os))\n"
-  "    (host-vendor . ,(texmacs-host-vendor))\n"
-  "    (host-cpu . ,(texmacs-host-cpu))))";
+  "    (lambda (port) (write obj port))))\n";
   
   execution_context_fluid= scm_make_thread_local_fluid (SCM_BOOL_F);
   scm_c_define ("%athena-execution-context-fluid", execution_context_fluid);

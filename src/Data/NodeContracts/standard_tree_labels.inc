@@ -889,7 +889,6 @@
   init_var (SCROLL_BARS, TYPE_BOOLEAN);
   init_var (THE_LABEL, TYPE_REGULAR);
   init_var (THE_TAGS, TYPE_ADHOC);
-  init_var (THE_MODULES, TYPE_ADHOC);
   init_var (WARN_MISSING, TYPE_BOOLEAN);
   init_var (GLOBAL_TITLE, TYPE_STRING);
   init_var (GLOBAL_AUTHOR, TYPE_STRING);

@@ -181,7 +181,7 @@ evaluate_impl (tree t) {
   case USE_PACKAGE:
     return evaluate_use_package (t);
   case USE_MODULE:
-    return evaluate_use_module (t);
+    return evaluate_error ("Scheme modules are no longer supported");
 
   /* Computational markup */
   case OR:
