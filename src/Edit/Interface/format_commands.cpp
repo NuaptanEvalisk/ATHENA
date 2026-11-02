@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
+#include "insertion_commands.hpp"
 #include "editing_utilities.hpp"
 #include "format_commands.hpp"
 #include "editor.hpp"
@@ -641,7 +642,7 @@ void format_make_with_like (tree t) {
   }
   else if (is_compound (t) && N (t) == 1)
     // The public constructor includes mode-dependent inline/block wrapping.
-    call ("make", symbol_object (as_string (L (t))));
+    insertion_make (L (t));
   else if (is_compound (t) && N (t) > 0) {
     t= copy (t);
     path destination (N (t) - 1, 0);
@@ -916,7 +917,7 @@ void format_make_multi_line_with (object properties) {
 }
 
 static void page_break (const char* tag) {
-  call ("make", symbol_object (tag));
+  insertion_make (as_tree_label (tag));
   call ("insert-return");
 }
 

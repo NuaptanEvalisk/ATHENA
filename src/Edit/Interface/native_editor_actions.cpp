@@ -6,6 +6,7 @@
 * This software falls under the GNU general public license version 3 or later.
 ******************************************************************************/
 
+#include "insertion_commands.hpp"
 #include "cursor_history.hpp"
 #include "editing_utilities.hpp"
 #include "native_graphics_commands.hpp"
@@ -543,7 +544,7 @@ execute_business_id (editor ed, const QString& id) {
     materials_update_current_document ();
   else if (id == "letter-today") {
     text_make_header ("letter-date");
-    (void) call ("make", symbol_object ("date"), object (0));
+    insertion_make (as_tree_label ("date"), 0);
   }
   else if (id == "make-alter-colors") presentation_make (as_tree_label ("alter-colors"));
   else FAILED ("unknown native editor business id");
@@ -966,12 +967,11 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     const string tag= native_action_string (action.value ("tag"));
     if (!ed->selection_active_any ()) {
       // The ordinary constructor already handles the canonical node model,
-      // DRD arities, inactive arguments and caret placement.  Keep Scheme's
-      // large-selection wrapping until its contract has a native implementation.
+      // arities, inactive arguments and caret placement. Selections use the
+      // shared insertion command's wrapping rules.
       ed->make_compound (as_tree_label (tag), arity);
     }
-    else if (arity < 0) (void) call ("make", symbol_object (tag));
-    else (void) call ("make", symbol_object (tag), object (arity));
+    else insertion_make (as_tree_label (tag), arity < 0 ? -1 : arity);
   }
   else if (op == "make-program") {
     const string language= native_action_string (action.value ("language"));
@@ -1264,7 +1264,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     if (id == "numbered-toggle" && state.numbered_available) {
       if (!athena::table_commands::eqnarray_toggle_numbering (
             ed.operator-> (), target))
-        (void) call ("numbered-toggle", object (target));
+        text_numbered_toggle (target);
     }
     else if (id == "alternate-toggle" && state.alternate_available)
       editing_alternate_toggle (target);
@@ -1487,7 +1487,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
         return;
       if (value == "today") {
         text_make_doc_data_element (as_tree_label ("doc-date"));
-        (void) call ("make", symbol_object ("date"), object (0));
+        insertion_make (as_tree_label ("date"), 0);
       }
       else
         text_make_doc_data_element (as_tree_label (value));

@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 *******************************************************************************/
 
+#include "insertion_commands.hpp"
 #include "cursor_history.hpp"
 #include "editing_utilities.hpp"
 #include "generic_editor_commands.hpp"
@@ -528,7 +529,7 @@ generic_label_insert (tree t) {
     return;
   }
   if (admits_edit_observer (t)) {
-    call ("make", symbol_object ("label"));
+    insertion_make (LABEL);
     return;
   }
   tree parent;

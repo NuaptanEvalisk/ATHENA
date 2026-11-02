@@ -600,6 +600,20 @@ generated native entries and remain on the secure-function list.
   added or run for this direct dispatch replacement. Full linking/deployment
   is deferred to the next combined build; installed runtime is `38e61043f`.
 
+## Native Insertion And Variant Calls
+
+- Replaced all fixed C++ `make`, `numbered-toggle` and `variant-circulate`
+  calls with the existing typed insertion/text/math implementations. This
+  covers section/header creation, source mode, format commands, keyboard
+  variants, labels and JSON native editor actions.
+- Retained insertion's shared selection-wrapping implementation. Omitted
+  arities still use `-1`; JSON actions continue treating any negative arity as
+  omitted. Removed the obsolete comment claiming wrapping remained in Scheme.
+- Compiled the eight affected translation units with `-j16`; logs:
+  `build_qt6/native-insertion-{dispatch,actions}-build.log`. No regression tests
+  were added or run. These changes and structured/geometry dispatch still await
+  the next combined link/deployment; installed runtime remains `38e61043f`.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

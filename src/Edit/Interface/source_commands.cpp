@@ -1,6 +1,7 @@
 // Native source editing, macro lookup and parameter/theme analysis.
 // Copyright (C) 1999-2013 Joris van der Hoeven, 2026 ATHENA contributors.
 // GPL-3.0-or-later.
+#include "insertion_commands.hpp"
 #include "source_commands.hpp"
 #include "editor.hpp"
 #include "native_interfaces.hpp"
@@ -250,7 +251,7 @@ void list_macros (tree t, names& out) {
 
 void source_make_latex () {
   auto ed= get_current_editor ();
-  if (ed->selection_active_any ()) call ("make", symbol_object ("latex"));
+  if (ed->selection_active_any ()) insertion_make (as_tree_label ("latex"));
   else ed->make_compound (LATEX);
   ed->set_message ("Type a latex command followed by return", "latex");
 }

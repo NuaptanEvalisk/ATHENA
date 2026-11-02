@@ -1,5 +1,6 @@
 // Copyright (C) 2001 Joris van der Hoeven, 2026 ATHENA contributors.
 // GPL-3.0-or-later.
+#include "insertion_commands.hpp"
 #include "editing_utilities.hpp"
 #include "native_text_edit.hpp"
 #include "native_interfaces.hpp"
@@ -86,12 +87,12 @@ void make_section (tree_label tag, bool unnamed) {
       return;
     }
     const path end= ed->selection_get_end ();
-    call ("make", symbol_object (as_string (tag)));
+    insertion_make (tag);
     if (unnamed) ed->make_return_before ();
     else if (path_less_eq (cursor, start) || path_less (end, cursor)) ed->go_to (cursor);
   }
   else if (!ed->make_return_after ()) {
-    call ("make", symbol_object (as_string (tag)));
+    insertion_make (tag);
     if (unnamed) ed->make_return_before ();
   }
 }
@@ -198,7 +199,7 @@ void text_make_header (string tag) {
   }
   ed->go_end_line ();
   if (ed->the_line () != "") ed->insert_return ();
-  call ("make", symbol_object (tag));
+  insertion_make (as_tree_label (tag));
 }
 
 void text_section_switch_to (int index) {
@@ -479,7 +480,7 @@ void text_numbered_toggle (tree t) {
     tag= ends (tag, "*") ? tag (0, N(tag)-1) : tag * "*";
   else {
     object parent= tree_command_outer (t);
-    if (is_tree (parent)) call ("numbered-toggle", parent);
+    if (is_tree (parent)) text_numbered_toggle (as_tree (parent));
     return;
   }
   editing_variant_set (t, as_tree_label (tag));

@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 *******************************************************************************/
 
+#include "native_math_edit.hpp"
 #include "generic_keyboard_commands.hpp"
 #include "presentation_commands.hpp"
 #include "source_commands.hpp"
@@ -636,7 +637,7 @@ void generic_kbd_remove (tree t, bool forwards) {
 void generic_kbd_variant (tree t, bool forwards) {
   if (source_variant (t, forwards)) return;
   if (native_node_group_contains ("combinatorial-number-tag", symbol_object (as_string (L(t))))) {
-    call ("variant-circulate", object (t), object (forwards));
+    native_variant_circulate (t, forwards);
     return;
   }
   editor ed= get_current_editor ();

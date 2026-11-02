@@ -1,4 +1,5 @@
 // Copyright (C) 2001-2026 ATHENA contributors. GPL-3.0-or-later.
+#include "insertion_commands.hpp"
 #include "generic_frontend.hpp"
 #include "tooltip_commands.hpp"
 #include "generic_editor_commands.hpp"
@@ -277,7 +278,7 @@ void generic_make_with_package (tree_label label, string name) {
       !get_current_editor ()->defined_at_init (name * "-package"))
     document_add_style_package (name);
   auto ed= get_current_editor ();
-  if (ed->selection_active_any ()) call ("make", symbol_object (as_string (label)));
+  if (ed->selection_active_any ()) insertion_make (label);
   else ed->make_compound (label);
 }
 object generic_preferred_fonts () {
