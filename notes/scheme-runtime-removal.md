@@ -1094,7 +1094,7 @@ generated native entries and remain on the secure-function list.
   `build_qt6/native-debug-preference-removal-build.log` and
   `build_qt6/native-pattern-predicate-build.log`. No new tests were added.
   Full build/deployment and targeted native-predicate dispatch/unknown-name
-  rejection verification remain pending with the next batch.
+  rejection verification passed in the combined runtime deployment below.
 
 ## Retired Named Scheme Call Fallback
 
@@ -1110,8 +1110,8 @@ generated native entries and remain on the secure-function list.
   Scheme APIs need migration/removal, not a restored production fallback.
 - Compiled `object.cpp` with `-j16`; log
   `build_qt6/native-named-call-cleanup-build.log`. No tests were added or run.
-  Combined full build/deployment remains pending with native predicate dispatch
-  and Guile debug-preference removal.
+  Combined full build/deployment passed below; full compilation also exposed
+  the implicit URL hash dependency missed by the explicit-call audit.
 
 ## Retired Unused Procedure Call Arities
 
@@ -1121,13 +1121,33 @@ generated native entries and remain on the secure-function list.
   apply path. Only the still-used zero/one/two-argument procedure calls remain.
 - Compiled both runtime implementation units with `-j16`; log
   `build_qt6/native-unused-procedure-call-build.log`. No tests were added or run;
-  full build/deployment remains pending with the preceding dispatcher cleanup.
+  full build/deployment passed in the combined runtime deployment below.
 - The global transformation frontend still selects `.scm` files, loads and
   registers a Scheme transformer, then runs the native prepare/preview/backup/
   apply pipeline through its callback. A user decision was requested on the
   actual supported UI surface: retire the old script menu in favor of AUDMAP,
   or retain a menu for external transformation programs. Do not silently delete
   this active menu. Other runtime cleanup can proceed while that is decided.
+
+## Native URL Hash And Combined Runtime Deployment
+
+- Full build exposed an implicit consumer of removed `hash(object)`:
+  `hashmap<url,tm_window>` previously converted URL keys to objects because URL
+  lacked its own hash. The earlier explicit-call audit missed that template
+  conversion. Added native URL hashing using its underlying tree, matching
+  URL's existing structural equality instead of restoring Scheme hashing.
+- Corrected full `-j16` build passed. Runtime verification shadowed Scheme
+  `tree?` with a throwing function while native pattern matching still passed;
+  a Scheme-only predicate was rejected with the expected native error. Retired
+  Guile preference/default callback checks passed. Printed
+  `NATIVE_RUNTIME_DISPATCH_OK` and exited normally.
+- Deployed through the official helper and removed the owned probe script and
+  profile. Logs under `build_qt6`: `native-runtime-dispatch-build.log` (initial
+  compile failure), `native-url-hash-build.log` (successful rebuild),
+  `native-runtime-dispatch-runtime.log`, and `native-runtime-dispatch-deploy.log`.
+- Next identified printer consumers include slide-background display and
+  focus-parameter cache keys that convert existing trees to Scheme objects
+  before printing. They can use native representations at their call sites.
 
 ## Known Outstanding Failure
 
