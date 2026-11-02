@@ -13,6 +13,7 @@
 #include "qt_utilities.hpp"
 #include "presentation_commands.hpp"
 #include "tree.hpp"
+#include "convert.hpp"
 
 #include <DockWidget.h>
 #include <QApplication>
@@ -162,7 +163,7 @@ private:
     tree value= background ();
     if (is_atomic (value)) current->setText ("Current: " + qString (value->label));
     else current->setText (
-      "Current: " + qString (object_to_string (tree_to_stree (value))));
+      "Current: " + qString (scheme_tree_to_string (tree_to_scheme_tree (value))));
   }
   url targetBuffer;
   QLabel* current= nullptr;

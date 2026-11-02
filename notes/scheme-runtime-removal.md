@@ -1149,6 +1149,24 @@ generated native entries and remain on the secure-function list.
   focus-parameter cache keys that convert existing trees to Scheme objects
   before printing. They can use native representations at their call sites.
 
+## Native Focus And Slide Value Formatting
+
+- Focus parameter caching uses a native tuple key of label, global/local mode
+  and copied style tree, rather than Scheme-printing mode/style into a string.
+  The mode distinction follows the actual parameter computation; copying style
+  prevents later mutation of a stored hash key. Cache invalidation is unchanged.
+- Parameter retrieval has one native tree implementation shared by the retained
+  object binding and native display path. Display text reads atomic values
+  directly and serializes compounds with the existing native tree writer.
+  Effective cursor-context lookup and one-body atomic macro unwrapping remain.
+- Slide-background display likewise writes the native tree directly without
+  creating or printing a Scheme object.
+- Compiled both implementation units with `-j16`; logs
+  `build_qt6/native-focus-slide-values-build.log` and
+  `build_qt6/native-parameter-values-build.log`. No tests were needed or added.
+  Full linking/deployment will be combined with subsequent printer cleanup;
+  installed runtime remains the combined deployment recorded at `90c8e9d78`.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
