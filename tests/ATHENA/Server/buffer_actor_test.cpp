@@ -69,7 +69,6 @@ private slots:
   void cursorBlinkCoalescesWithoutQueueingDuplicates ();
   void ownsCommandsAndDocumentContext ();
   void preservesSynchronousInvocationContext ();
-  void widgetPromiseFailureStaysNonFatal ();
   void drainsInFifoOrderAndRejectsAfterShutdown ();
   void documentNodesRemainActorOwned ();
   void fullSourceRetainsUnknownAttributesAndLiveBody ();
@@ -952,29 +951,6 @@ TestBufferActor::preservesSynchronousInvocationContext () {
   tm_delete (buffer);
 }
 
-void
-TestBufferActor::widgetPromiseFailureStaysNonFatal () {
-  // Global promises and BufferActor-owned promises should both degrade to an
-  // empty widget when a menu extension returns a non-widget.  The Scheme-side
-  // diagnostic is sufficient; the UI path must not throw "widget expected".
-  promise<widget> global= as_promise_widget (eval ("(lambda () #f)"));
-  QVERIFY (!is_nil (global ()));
-
-  tm_buffer buffer= tm_new<tm_buffer_rep> (url ("actor-widget-promise-test.ath"));
-  const athena_view_id view= 13;
-  bool actor_fallback= false;
-  athena_continuation_id continuation=
-    actor_continuation_registry::instance ().store ([&] {
-      promise<widget> owned= as_promise_widget (eval ("(lambda () #f)"));
-      actor_fallback= !is_nil (owned ());
-    });
-  QVERIFY (buffer->actor->invoke (
-    actor_command_kind::run_native_continuation, view,
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER,
-    continuation));
-  QVERIFY (actor_fallback);
-  tm_delete (buffer);
-}
 
 
 void

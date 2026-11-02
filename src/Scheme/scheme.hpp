@@ -123,18 +123,9 @@ url as_url (object obj);
 array<double> as_array_double (object obj);
 modification as_modification (object obj);
 patch as_patch (object obj);
-// Immediate Scheme commands are execution-local.  They preserve the
-// synchronous mutation semantics expected by editor code such as keyboard
-// shortcuts and hybrid command activation.
-command as_command (object obj);
-// Actor callbacks may outlive the current Scheme call or cross through Qt.
-// Bind them to the source BufferActor and dispatch invocation through its
-// mailbox instead of executing on the caller's owner.
-command as_actor_command (object obj);
 #ifdef WIDGET_H // FIXME: dirty hack
 widget as_widget (object obj);
 widget take_widget (object obj);
-promise<widget> as_promise_widget (object obj);
 #endif
 
 object tree_to_stree (tree t);

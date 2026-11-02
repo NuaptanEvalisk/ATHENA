@@ -239,26 +239,6 @@
   <binding name="math-symbol-type" native="math_symbol_type" returns="string">
     <arg type="content" />
   </binding>
-  <binding name="object-&gt;command" native="as_actor_command" returns="command">
-    <arg type="object" />
-  </binding>
-  <binding name="command-eval" native="eval" returns="void">
-    <arg type="command" />
-  </binding>
-  <binding name="command-apply" native="apply" returns="void">
-    <arg type="command" />
-    <arg type="object" />
-  </binding>
-  <binding name="ads-show-tool-pane" native="ads_show_tool_pane" returns="void">
-    <arg type="object" />
-    <arg type="string" />
-    <arg type="string" />
-    <arg type="object" />
-    <arg type="bool" />
-  </binding>
-  <binding name="ads-close-tool-pane" native="ads_close_tool_pane" returns="void">
-    <arg type="string" />
-  </binding>
   <binding name="exec-global" native="exec_global" returns="void">
     <arg type="object" />
   </binding>

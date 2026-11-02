@@ -536,6 +536,22 @@ generated native entries and remain on the secure-function list.
   helper and removed the profile. Logs:
   `build_qt6/native-one-shot-commands-{build,runtime,deploy}.log`.
 
+## Retired Scheme Widget And Command Bridges
+
+- Removed unconsumed Scheme command adapters, widget promises and the legacy
+  ADS tool-pane API. Native ADS panes and their lifecycle remain unchanged.
+- Deleted the corresponding actor opcodes, dispatch handlers and widget
+  transport registry. Native continuations/actions and the still-used one-shot
+  script boundary remain separate.
+- Removed the obsolete widget-promise test and assertions for retired glue
+  declarations. No replacement tests are needed for APIs with no consumers.
+- The remaining widget/command smob marshalling and generator types still need
+  cleanup; this batch does not claim that the value/runtime bridge is gone.
+- Built with `-j16`; headless startup confirmed all five retired bindings were
+  absent, printed `RETIRED_WIDGET_BRIDGE_OK`, and exited zero. Deployed with the
+  runtime helper and removed the temporary profile. Logs are under
+  `build_qt6/native-retire-widget-bridge-{build,runtime,deploy}.log`.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

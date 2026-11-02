@@ -527,9 +527,6 @@ actor_ui_endpoint* register_actor_ui_endpoint (athena_view_id view_id);
 actor_ui_endpoint* find_actor_ui_endpoint (athena_view_id view_id) noexcept;
 void unregister_actor_ui_endpoint (athena_view_id view_id) noexcept;
 
-athena_resource_id actor_ui_store_widget (widget&& value);
-widget actor_ui_take_widget (athena_resource_id id);
-bool actor_ui_discard_widget (athena_resource_id id) noexcept;
 
 using actor_ui_action= void (*) ();
 athena_resource_id actor_ui_register_action (actor_ui_action action);

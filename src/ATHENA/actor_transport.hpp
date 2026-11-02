@@ -126,8 +126,6 @@ enum class actor_command_kind: std::uint32_t {
   render_view,
   set_render_connection,
   run_scheme_handle,
-  invoke_scheme_handle,
-  evaluate_widget_handle,
   run_native_continuation,
   resolve_native_callback,
   resume_hybrid_activation,

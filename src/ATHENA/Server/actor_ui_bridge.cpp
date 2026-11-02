@@ -66,11 +66,6 @@ std::mutex endpoint_registry_lock;
 std::unordered_map<athena_view_id, std::unique_ptr<actor_ui_endpoint>>
   endpoint_registry;
 
-std::mutex widget_registry_lock;
-std::unordered_map<athena_resource_id, std::unique_ptr<widget>>
-  widget_registry;
-athena_resource_id next_widget_id= 1;
-
 std::mutex action_registry_lock;
 std::unordered_map<actor_ui_action, athena_resource_id> action_ids;
 std::unordered_map<athena_resource_id, actor_ui_action> action_registry;
@@ -562,41 +557,6 @@ unregister_actor_ui_endpoint (athena_view_id view_id) noexcept {
   endpoint->close ();
 }
 
-athena_resource_id
-actor_ui_store_widget (widget&& value) {
-  auto owned= std::make_unique<widget> (std::move (value));
-  std::lock_guard<std::mutex> guard (widget_registry_lock);
-  athena_resource_id id= next_widget_id++;
-  if (id == 0) id= next_widget_id++;
-  widget_registry.emplace (id, std::move (owned));
-  return id;
-}
-
-widget
-actor_ui_take_widget (athena_resource_id id) {
-  std::unique_ptr<widget> owned;
-  {
-    std::lock_guard<std::mutex> guard (widget_registry_lock);
-    auto found= widget_registry.find (id);
-    if (found == widget_registry.end ()) return widget ();
-    owned= std::move (found->second);
-    widget_registry.erase (found);
-  }
-  return std::move (*owned);
-}
-
-bool
-actor_ui_discard_widget (athena_resource_id id) noexcept {
-  std::unique_ptr<widget> owned;
-  {
-    std::lock_guard<std::mutex> guard (widget_registry_lock);
-    auto found= widget_registry.find (id);
-    if (found == widget_registry.end ()) return false;
-    owned= std::move (found->second);
-    widget_registry.erase (found);
-  }
-  return true;
-}
 
 athena_resource_id
 actor_ui_register_action (actor_ui_action action) {

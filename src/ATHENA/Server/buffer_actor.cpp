@@ -1590,68 +1590,6 @@ buffer_actor::dispatch (actor_command_record& command) {
     if (failure != nullptr) std::rethrow_exception (failure);
     break;
   }
-  case actor_command_kind::invoke_scheme_handle: {
-    athena_scheme_handle_id handle= command.argument[0];
-    athena_scheme_handle_id arguments= command.argument[1];
-    // A source-bound callback may outlive its view. Cancel it; never execute
-    // with a null editor or borrow whichever view happens to be current.
-    if (command.view_id != ATHENA_NO_VIEW && editor == nullptr) {
-      scheme_command_handle_release (handle);
-      scheme_command_handle_release (arguments);
-      break;
-    }
-    try {
-      tmscm procedure= scheme_command_handle_value (handle);
-      if (scm_is_eq (procedure, SCM_UNDEFINED))
-        FAILED ("Scheme command handle is no longer live");
-      if (arguments == ATHENA_NO_SCHEME_HANDLE)
-        (void) call_scheme (procedure);
-      else {
-        tmscm value= scheme_command_handle_value (arguments);
-        if (scm_is_eq (value, SCM_UNDEFINED))
-          FAILED ("Scheme argument handle is no longer live");
-        object args= tmscm_to_object (value);
-        array<object> values= as_array_object (args);
-        array<tmscm> arguments_scm (N (values));
-        for (int i= 0; i < N (values); ++i)
-          arguments_scm[i]= object_to_tmscm (values[i]);
-        (void) call_scheme (procedure, arguments_scm);
-      }
-    }
-    catch (...) {
-      scheme_command_handle_release (handle);
-      scheme_command_handle_release (arguments);
-      throw;
-    }
-    scheme_command_handle_release (handle);
-    scheme_command_handle_release (arguments);
-    break;
-  }
-  case actor_command_kind::evaluate_widget_handle: {
-    athena_scheme_handle_id handle= command.argument[0];
-    // A failed dispatch is still acknowledged. Never return the input Scheme
-    // handle as though it were an output widget resource ID.
-    command.argument[0]= ATHENA_NO_RESOURCE;
-    try {
-      tmscm procedure= scheme_command_handle_value (handle);
-      if (scm_is_eq (procedure, SCM_UNDEFINED))
-        FAILED ("Scheme widget promise handle is no longer live");
-      tmscm result= call_scheme (procedure);
-      // Menu/widget promises are extension points.  Scheme reports its own
-      // evaluation error; do not turn a failed promise into a second fatal
-      // BufferActor exception ("widget expected") which can stall lazy menus
-      // and the command palette.  Degrade this one promise to an empty widget.
-      widget value= tmscm_is_widget (result) ? tmscm_to_widget (result) :
-                    glue_widget ();
-      command.argument[0]= actor_ui_store_widget (std::move (value));
-    }
-    catch (...) {
-      scheme_command_handle_release (handle);
-      throw;
-    }
-    scheme_command_handle_release (handle);
-    break;
-  }
   case actor_command_kind::run_native_continuation: {
     std::function<void()> continuation=
       actor_continuation_registry::instance ().take (command.argument[0]);
@@ -2307,8 +2245,6 @@ buffer_actor::dispatch (actor_command_record& command) {
        command.kind == actor_command_kind::native_drawing_trim ||
        command.kind == actor_command_kind::replace_document ||
        command.kind == actor_command_kind::replace_body ||
-       command.kind == actor_command_kind::invoke_scheme_handle ||
-       command.kind == actor_command_kind::evaluate_widget_handle ||
        command.kind == actor_command_kind::run_scheme_handle))
     editor->mark_native_ink_interaction_dirty ();
 
