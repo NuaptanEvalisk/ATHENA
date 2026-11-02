@@ -11,13 +11,12 @@
 #ifndef ATHENA_DOCUMENT_STYLE_COMMANDS_HPP
 #define ATHENA_DOCUMENT_STYLE_COMMANDS_HPP
 
-#include "scheme.hpp"
+#include "array.hpp"
+#include "list.hpp"
+#include "url.hpp"
 
 class editor_rep;
 
-object document_style_category (string style);
-bool document_style_category_overrides (object left, object right);
-bool document_style_category_precedes (object left, object right);
 bool document_style_includes (string style, string included);
 bool document_style_overrides (string left, string right);
 bool document_style_precedes (string left, string right);

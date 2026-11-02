@@ -1416,6 +1416,24 @@ generated native entries and remain on the secure-function list.
   the legacy Scheme category-specialization test is not an active extension
   contract and should be retired with those exports.
 
+## Retired Style Category Object Exports
+
+- Removed three unused category object bindings and their implementations.
+  Native style category, override and precedence operations still use the
+  existing catalog. document_style_commands now exposes only native types and
+  no longer includes scheme.hpp in its public header.
+- Removed the old document-style editor test and both CMake registrations. Its
+  substantive cases required retired tm-define overrides of category/include
+  policy; the remaining resolver assertion did not justify retaining that
+  obsolete Scheme workflow.
+- Targeted `-j16` compilation passed. Initial CMake regeneration caught a
+  missed test name in the grouped property list; removed it and regenerated
+  successfully. Logs in `build_qt6`: `native-style-category-removal-build.log`,
+  `native-style-category-glue.log` (initial failure), and
+  `native-style-category-glue-corrected.log` (success).
+- No tests added or run. Full linking/runtime binding verification/deployment
+  remains pending with the style-list read/write batches.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

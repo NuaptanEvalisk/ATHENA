@@ -785,15 +785,6 @@
   <binding name="buffer-hide-preamble" native="document_buffer_hide_preamble" returns="void" />
   <binding name="toggle-preamble-mode" native="document_toggle_preamble_mode" returns="void" />
   <binding name="buffer-make-preamble" native="document_buffer_make_preamble" returns="void" />
-  <binding name="style-category" native="document_style_category" returns="object">
-    <arg type="string" />
-  </binding>
-  <binding name="style-category-overrides?" native="document_style_category_overrides" returns="bool">
-    <arg type="object" /><arg type="object" />
-  </binding>
-  <binding name="style-category-precedes?" native="document_style_category_precedes" returns="bool">
-    <arg type="object" /><arg type="object" />
-  </binding>
   <binding name="style-includes?" native="document_style_includes" returns="bool">
     <arg type="string" /><arg type="string" />
   </binding>

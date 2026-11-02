@@ -297,33 +297,7 @@ owner_style_precedes (editor_rep* ed, string left, string right) {
     owner_style_category (ed, left), owner_style_category (ed, right));
 }
 
-string
-style_category_object_name (object value) {
-  if (is_symbol (value)) return as_symbol (value);
-  if (is_string (value)) return as_string (value);
-  return "";
-}
-
 } // namespace
-
-object
-document_style_category (string style) {
-  string category= owner_style_category (current_style_editor (), style);
-  return starts (category, ":") ? symbol_object (category) : object (category);
-}
-
-bool
-document_style_category_overrides (object left, object right) {
-  string l= style_category_object_name (left);
-  string r= style_category_object_name (right);
-  return l != "" && l == r;
-}
-
-bool
-document_style_category_precedes (object left, object right) {
-  return style_catalog ().precedes_category (
-    style_category_object_name (left), style_category_object_name (right));
-}
 
 bool
 document_style_includes (string style, string included) {
