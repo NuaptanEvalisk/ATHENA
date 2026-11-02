@@ -27,16 +27,6 @@
 
 namespace {
 using names= std::set<string>;
-std::vector<object> objects (object value) {
-  auto a= as_array_object (value);
-  std::vector<object> out;
-  for (int i= 0; i < N (a); ++i)
-    out.push_back (a[i]);
-  return out;
-}
-string name_of (object x) {
-  return is_symbol (x) ? as_symbol (x) : as_string (x);
-}
 bool tag (tree t, const char* name) {
   return is_compound (t, name);
 }
@@ -350,16 +340,10 @@ array<string> source_search_themes (string label) {
   }
   return out;
 }
-bool source_has_macro (object label) {
-  string name= name_of (label);
+bool source_has_macro (string name) {
   return is_func (find_definition (get_current_editor ()->the_buffer (), name, true),
                   ASSIGN, 2) ||
          macro_package (name) != "";
-}
-tree source_get_definition (object label) {
-  string name= name_of (label);
-  tree found= find_definition (get_current_editor ()->the_buffer (), name, true);
-  return is_func (found, ASSIGN, 2) ? found : tree (ASSIGN, name, definition (name));
 }
 void source_edit_package (string name) {
   application_browse_document (document_url_resolve_package (name),
@@ -370,8 +354,7 @@ void source_edit_style () {
   if (N (styles))
     source_edit_package (styles[0]);
 }
-void source_edit_macro (object label) {
-  string name= name_of (label);
+void source_edit_macro (string name) {
   auto ed= get_current_editor ();
   tree found= find_definition (ed->the_buffer (), name, true);
   if (is_func (found, ASSIGN, 2)) {
@@ -408,7 +391,7 @@ void source_edit_focus_macro () {
   string name= is_atomic (t) ? string ("string") : as_string (L (t));
   if (is_func (t, COMPOUND) && N (t) && is_atomic (t[0]))
     name= t[0]->label;
-  source_edit_macro (object (name));
+  source_edit_macro (name);
 }
 array<string> source_personal_macros () {
   array<string> result;

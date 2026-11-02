@@ -1417,7 +1417,7 @@ editor_rep::focus_toolbar_state_snapshot () {
   if (snapshot.tag_extension) {
     try {
       snapshot.tag_macro_source_available=
-        source_has_macro (symbol_object (tag));
+        source_has_macro (tag);
     }
     catch (...) {}
     const QByteArray encoded= QJsonDocument (QJsonObject {{"op", "make"},

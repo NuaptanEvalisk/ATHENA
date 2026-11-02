@@ -1574,6 +1574,22 @@ generated native entries and remain on the secure-function list.
   build_qt6/native-node-group-consumers-build.log. Combined linking, runtime
   verification and deployment remain pending with generic/reference batches.
 
+## Native Macro Source Queries
+
+- Macro-source availability and editing take native string names. Focus toolbar
+  snapshots and focused-macro editing no longer construct symbols/objects.
+  Definition search, preamble visibility, package opening and asynchronous
+  destination-actor positioning retain their existing behavior.
+- Removed unconsumed get-definition implementation and three old Scheme exports
+  (has-macro-source?, edit-macro-source, get-definition), plus unused object-list
+  and name conversion helpers. source_commands.hpp no longer includes
+  scheme.hpp; the implementation contains no object values.
+- XML generation and source_commands/edit_interface compilation passed with
+  -j16. Logs: build_qt6/native-macro-source-values-glue.log and
+  build_qt6/native-macro-source-values-build.log. No tests added or run. Combined
+  linking, binding verification and deployment remain pending with the preceding
+  generic/reference/node-group batches.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
