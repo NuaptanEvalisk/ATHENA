@@ -1260,6 +1260,24 @@ generated native entries and remain on the secure-function list.
   still expose object values. They are the next ownership boundaries to migrate,
   not evidence that this entire formatting subsystem is already Scheme-free.
 
+## Native Customizable Parameter Metadata
+
+- Customizable formatting parameters now return native name/label records
+  directly from the JSON catalog. Both focus UI snapshots and parameter-list
+  filtering consume those records without building or decoding object lists.
+  Catalog order and per-arity overrides are unchanged.
+- Removed the forwarding-only memo function, unused context predicate and all
+  three old Scheme bindings, along with their obsolete metadata/extension
+  assertions. No native cache or secondary registry was introduced.
+- XML generation and three affected implementation units compiled with `-j16`;
+  log `build_qt6/native-customizable-parameters-build.log`. No tests added or run.
+  Full combined linking/runtime verification/deployment remains pending;
+  installed runtime is still the `0063a1106` deployment.
+- Lower property access is the next remaining formatting boundary:
+  `format_tree_with_get/reset` search enclosing scopes, while `set` preserves
+  observers through wrapper simplification/merging. Their native migration must
+  retain those semantics rather than replace them with direct assignments.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

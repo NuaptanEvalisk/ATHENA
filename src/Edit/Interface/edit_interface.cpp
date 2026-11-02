@@ -1531,19 +1531,9 @@ editor_rep::focus_toolbar_state_snapshot () {
   append_parameter_list (snapshot.local_parameters, localMode);
 
   try {
-    object raw= format_customizable_parameters_memo (t);
-    if (is_list (raw)) {
-      array<object> values= as_array_object (raw);
-      for (int i=0; i<N(values); ++i) {
-        if (!is_list (values[i])) continue;
-        array<object> pair= as_array_object (values[i]);
-        if (N(pair) < 1 || !is_string (pair[0])) continue;
-        string label= "";
-        if (N(pair) > 1 && is_string (pair[1])) label= as_string (pair[1]);
-        append_parameter (
-          snapshot.local_parameters, as_string (pair[0]), label, localMode);
-      }
-    }
+    for (const auto& parameter: format_customizable_parameters (t))
+      append_parameter (snapshot.local_parameters, parameter.name,
+                        parameter.label, localMode);
   }
   catch (...) {}
 

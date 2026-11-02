@@ -1656,16 +1656,8 @@ generic_focus_parameters_list (tree t, generic_parameter_mode mode) {
   bool global= mode.global;
   array<string> customizable;
   if (!global) {
-    object definitions= format_customizable_parameters_memo (t);
-    if (is_list (definitions)) {
-      array<object> items= as_array_object (definitions);
-      for (int i= 0; i < N (items); ++i) {
-        if (!is_list (items[i])) continue;
-        array<object> pair= as_array_object (items[i]);
-        if (N (pair) > 0 && is_string (pair[0]))
-          customizable << as_string (pair[0]);
-      }
-    }
+    for (const auto& parameter: format_customizable_parameters (t))
+      customizable << parameter.name;
   }
 
   array<string> result;

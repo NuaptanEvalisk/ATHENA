@@ -40,9 +40,10 @@ struct format_parameter_choice {
   tree value;
 };
 std::vector<format_parameter_choice> format_parameter_choices (string variable);
-object format_customizable_parameters (tree t);
-object format_customizable_parameters_memo (tree t);
-bool format_customizable_context (tree t);
+struct format_customizable_parameter {
+  string name, label;
+};
+std::vector<format_customizable_parameter> format_customizable_parameters (tree t);
 bool format_pen_effect_context (tree t);
 object format_get_effect_pen (object t);
 void format_set_effect_pen (object t, string pen);

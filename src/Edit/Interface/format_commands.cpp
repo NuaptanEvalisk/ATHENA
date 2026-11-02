@@ -800,26 +800,19 @@ std::vector<format_parameter_choice> format_parameter_choices (string variable) 
   return {};
 }
 
-object format_customizable_parameters (tree t) {
+std::vector<format_customizable_parameter> format_customizable_parameters (tree t) {
   QJsonObject group= parameter_data ().customizable.value (json_key (as_string (L (t)))).toObject ();
   QJsonObject by_arity= group.value ("parameters_by_arity").toObject ();
   QJsonArray values= by_arity.value (QString::number (N(t))).toArray ();
   if (!by_arity.contains (QString::number (N(t))))
     values= group.value ("parameters").toArray ();
-  object result= null_object ();
-  for (int i= values.size () - 1; i >= 0; --i)
-    result= cons (json_strings (values[i].toArray ()), result);
+  std::vector<format_customizable_parameter> result;
+  for (const auto& value: values) {
+    const QJsonArray parameter= value.toArray ();
+    result.push_back ({native_string (parameter[0].toString ()),
+                      native_string (parameter[1].toString ())});
+  }
   return result;
-}
-
-object format_customizable_parameters_memo (tree t) {
-  // Native definitions are already indexed. Resolve extensions without caching
-  // mutable Scheme objects across actors or hiding subsequently loaded rules.
-  return format_customizable_parameters (t);
-}
-
-bool format_customizable_context (tree t) {
-  return !is_null (format_customizable_parameters_memo (t));
 }
 
 bool format_pen_effect_context (tree t) {
