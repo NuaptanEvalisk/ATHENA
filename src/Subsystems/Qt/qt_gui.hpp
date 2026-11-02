@@ -105,7 +105,6 @@ public:
   ~command_queue();
 
   void exec (object cmd);
-  void exec_pause (object cmd);
   void exec_global (object cmd);
   void exec_handle (std::uint64_t handle, std::uint64_t actor_id,
                     std::uint64_t view_id, bool pause,
@@ -210,7 +209,6 @@ public:
   /* befriended interface functions */
   friend class QTMGuiHelper;
   friend void exec_delayed (object cmd);
-  friend void exec_delayed_pause (object cmd);
   friend void exec_delayed_global (object cmd);
   friend void exec_global (object cmd);
   friend void schedule_delayed_scheme_handle (

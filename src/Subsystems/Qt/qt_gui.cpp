@@ -1486,24 +1486,6 @@ command_queue::exec (object cmd) {
 }
 
 void
-command_queue::exec_pause (object cmd) {
-  athena_scheme_handle_id handle=
-    scheme_command_handle_acquire (object_to_tmscm (cmd));
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
-  if (context != nullptr && context->view_id != ATHENA_NO_VIEW) {
-    actor_ui_endpoint* endpoint=
-      find_actor_ui_endpoint (context->view_id);
-    if (endpoint != nullptr && endpoint->publish (
-          actor_command_kind::ui_schedule_scheme, ATHENA_NO_BLOB,
-          handle, 1))
-      return;
-    scheme_command_handle_release (handle);
-    return;
-  }
-  exec_handle (handle, ATHENA_NO_ACTOR, ATHENA_NO_VIEW, true);
-}
-
-void
 command_queue::exec_global (object cmd) {
   const SchemeExecutionContext* context= current_scheme_execution_context ();
   if (context == nullptr) {
@@ -1694,9 +1676,6 @@ command_queue::must_wait (time_t now) const {
 
 void exec_delayed (object cmd) {
   the_gui->delayed_commands.exec(cmd);
-}
-void exec_delayed_pause (object cmd) {
-  the_gui->delayed_commands.exec_pause(cmd);
 }
 void exec_delayed_global (object cmd) {
   athena_scheme_handle_id handle=

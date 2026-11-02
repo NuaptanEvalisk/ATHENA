@@ -130,7 +130,7 @@ link_repository_rep::insert_locus (string id, tree t) {
 
 void
 link_repository_rep::insert_locus (string id, tree t, string cb) {
-  observer obs= scheme_observer (t, cb);
+  observer obs= native_command_observer (t, cb);
   register_pointer (id, obs);
   attach_observer (t, obs);
   ids= list<string> (id, ids);

@@ -15,6 +15,7 @@ void native_mouse_event (string kind, int x, int y, int modifiers,
 void native_delayed_mouse_event (string kind, int x, int y, int modifiers,
                                  double time, array<double> data);
 void native_keyboard_insert (tree value);
+void native_deferred_tree_set (tree source, tree value);
 bool native_remote_control_enabled ();
 void native_remote_control_toggle ();
 void native_remote_control_bind (string key, string command);

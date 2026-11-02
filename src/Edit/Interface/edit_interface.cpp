@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "Interface/edit_interface.hpp"
+#include "native_input_events.hpp"
 #include "tree_commands.hpp"
 #include "QTMNativeDialogs.hpp"
 #include "native_math_edit.hpp"
@@ -536,9 +537,7 @@ edit_interface_rep::cursor_visible () {
           tree old_xt= eb[path_up (sp)]->get_info ("scroll-x");
           tree new_xt= as_string (p) * "%";
           if (new_xt != old_xt && is_accessible (obtain_ip (old_xt))) {
-            object fun= symbol_object ("tree-set");
-            object cmd= list_object (fun, old_xt, new_xt);
-            exec_delayed (scheme_cmd (cmd));
+            native_deferred_tree_set (old_xt, new_xt);
             temp_invalid_cursor= true;
           }
         }
@@ -557,9 +556,7 @@ edit_interface_rep::cursor_visible () {
           tree old_yt= eb[path_up (sp)]->get_info ("scroll-y");
           tree new_yt= as_string (p) * "%";
           if (new_yt != old_yt && is_accessible (obtain_ip (old_yt))) {
-            object fun= symbol_object ("tree-set");
-            object cmd= list_object (fun, old_yt, new_yt);
-            exec_delayed (scheme_cmd (cmd));
+            native_deferred_tree_set (old_yt, new_yt);
             temp_invalid_cursor= true;
           }
         }

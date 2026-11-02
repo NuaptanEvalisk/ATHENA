@@ -11,7 +11,7 @@
 
 #include "Boxes/composite.hpp"
 #include "Boxes/construct.hpp"
-#include "scheme.hpp"
+#include "native_input_events.hpp"
 
 bool in_presentation_mode ();
 
@@ -173,9 +173,7 @@ scrollbar_box_rep::message (tree type, SI x, SI y, rectangles& rs) {
     u= tree (as_string (p) * "%");
   }
   if (u != t && is_accessible (obtain_ip (t))) {
-    object fun= symbol_object ("tree-set");
-    object cmd= list_object (fun, t, u);
-    exec_delayed (scheme_cmd (cmd));
+    native_deferred_tree_set (t, u);
   }
   return "done";
 }

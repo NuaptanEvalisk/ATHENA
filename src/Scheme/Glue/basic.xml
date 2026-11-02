@@ -262,9 +262,6 @@
   <binding name="exec-delayed" native="exec_delayed" returns="void">
     <arg type="object" />
   </binding>
-  <binding name="exec-delayed-pause" native="exec_delayed_pause" returns="void">
-    <arg type="object" />
-  </binding>
   <binding name="exec-global" native="exec_global" returns="void">
     <arg type="object" />
   </binding>

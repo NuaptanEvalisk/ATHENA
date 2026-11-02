@@ -13,6 +13,7 @@
 #include "buffer_actor.hpp"
 #include "language.hpp"
 #include "native_node_groups.hpp"
+#include "native_interfaces.hpp"
 #include "QTMNativeDialogs.hpp"
 
 #include <QCoreApplication>
@@ -93,6 +94,24 @@ void update_reference_preview () {
 }
 
 } // namespace
+
+void native_deferred_tree_set (tree source, tree value) {
+  const auto* context= current_scheme_execution_context ();
+  ASSERT (context && context->editor && context->actor_id != ATHENA_NO_ACTOR,
+          "deferred tree mutation requires its BufferActor");
+  // Keep live tree references on their owner; only the continuation id is queued.
+  const auto id= actor_continuation_registry::instance ().store (
+    [source= std::move (source), value= std::move (value)] {
+      if (current_scheme_execution_context ()->editor == nullptr) return;
+      if (tree_active (source)) tree_set_diff (source, value);
+      else tree_assign (source, value);
+    });
+  // A rendering callback must not wait for space in its own mailbox.
+  if (!buffer_actor::try_submit_to (context->actor_id,
+        actor_command_kind::run_native_continuation, context->view_id,
+        ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, id))
+    actor_continuation_registry::instance ().discard (id);
+}
 
 bool native_remote_control_enabled () { return remote_enabled.load (); }
 void native_remote_control_toggle () {

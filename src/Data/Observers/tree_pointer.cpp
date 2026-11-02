@@ -15,7 +15,8 @@
 #include "modification.hpp"
 #include "link.hpp"
 #include "list.hpp"
-#include "scheme.hpp"
+#include "native_dispatch.hpp"
+#include <stdexcept>
 
 /******************************************************************************
 * Definition of the tree_pointer_rep class
@@ -26,6 +27,7 @@ private:
   tree_rep* ptr;
   bool flag;
   string cb;
+  void dispatch (const char* event, tree ref, object change);
 
 public:
   tree_pointer_rep (tree ref, bool flag2):
@@ -61,25 +63,35 @@ public:
 ******************************************************************************/
 
 void
+tree_pointer_rep::dispatch (const char* event, tree ref, object change) {
+  object result;
+  array<object> args;
+  args << symbol_object (event) << object (ref) << change;
+  if (!native_dispatch_call (cb, args, result))
+    throw std::invalid_argument ("Unknown native tree observer: " +
+                                 std::string (cb.data (), N(cb)));
+}
+
+void
 tree_pointer_rep::announce (tree& ref, modification mod) {
   //cout << "Announce " << mod << "\n";
   (void) ref;
   if (N(cb) != 0 && ip_attached (obtain_ip (ref)))
-    call (cb, symbol_object ("announce"), ref, mod);
+    dispatch ("announce", ref, object (mod));
 }
 
 void
 tree_pointer_rep::done (tree& ref, modification mod) {
   //cout << "Done " << mod->p << "\n";
   if (N(cb) != 0 && ip_attached (obtain_ip (ref)))
-    call (cb, symbol_object ("done"), ref, mod);
+    dispatch ("done", ref, object (mod));
 }
 
 void
 tree_pointer_rep::touched (tree& ref, path p) {
   //cout << "Touched " << p << "\n";
   if (N(cb) != 0 && ip_attached (obtain_ip (ref)))
-    call (cb, symbol_object ("touched"), ref, p);
+    dispatch ("touched", ref, object (p));
 }
 
 /******************************************************************************
@@ -203,7 +215,7 @@ tree_pointer (tree ref, bool flag) {
 }
 
 observer
-scheme_observer (tree ref, string cb) {
+native_command_observer (tree ref, string cb) {
   return tm_new<tree_pointer_rep> (ref, cb);
 }
 

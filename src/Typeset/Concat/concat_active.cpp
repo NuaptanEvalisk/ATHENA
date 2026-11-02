@@ -158,8 +158,7 @@ build_locus (edit_env env, tree t, list<string>& ids, string& col, string &ref,
         string id= as_string (arg[0]);
         string cb= as_string (arg[1]);
         if (accessible) {
-          if (env->secure ||
-              native_secure_expression (string_to_object ("(" * cb * " #f #f #f)")))
+          if (env->secure || native_secure_function (cb))
             env->link_env->insert_locus (id, body, cb);
         }
         ids= list<string> (id, ids);

@@ -163,10 +163,41 @@ with runtime removal; native automation must use the existing interop API.
   the actual window interactions were not exercised. Logs are under
   `build_qt6/native-navigation-cleanup-{build,deploy}.log`.
 
-## Known Outstanding Failures
+## Native Tree Callbacks
+
+- Inner-canvas cursor scrolling, mouse scrolling and scrollbar boxes queue
+  native tree updates directly on the originating BufferActor. The queued
+  continuation retains the original tree identity and uses the existing native
+  diff/assignment routines. It does not copy live, non-atomic tree references
+  through Qt timers or reinterpret them through Scheme.
+- Submission is nonblocking because an actor cannot wait for a free slot in
+  its own mailbox. Failed submissions release the retained trees on that same
+  actor. Accepted tasks are consumed before the actor's closed transport ends;
+  closed-view tasks drop without redirecting to another editor.
+- Tree observer announce/done/touched callbacks use generated native command
+  dispatch only, with no Scheme lookup fallback. Locus registration consults
+  the native secure-function set directly instead of parsing a fabricated
+  expression. Callback arguments still use the transitional object container.
+- Removed the unused exec-delayed-pause binding, API and queue wrapper. The
+  general delayed Scheme queue remains for script actions and old label jumps;
+  removing this unused entry is not removal of that infrastructure.
+  Built with -j16 and deployed through the official helper. No tests were
+  added or run; queue shutdown/drain, owner-thread release and nonblocking
+  self-submission were inspected in the transport implementation. Interactive
+  canvas scrolling was not exercised. Logs are under
+  `build_qt6/native-tree-callbacks-{build,deploy}.log`.
+
+Next callback audit: an XML parse of shipped ATS resources found named script
+callbacks for reference preview and named action callbacks for fold/unfold,
+todo toggling and cloud-todo toggling, with no relay or observer instances.
+Their native entry points should replace the generic script evaluator; do not
+introduce another expression interpreter. Relay event dispatch in
+`Typeset/Boxes/Modifier/change_boxes.cpp` is the other secure-eval consumer.
+
+## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
   inconsistent. See the concrete core evidence in `native-application-ui.md`.
 
-Do not describe these as fixed by removal of `progs`. They remain explicit
-parts of the complete runtime-removal work.
+Do not describe this as fixed by removal of `progs`. It remains an explicit
+part of the complete runtime-removal work.
