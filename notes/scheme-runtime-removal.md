@@ -1507,6 +1507,30 @@ generated native entries and remain on the secure-function list.
   procedure handles and the GUI global procedure queue. These remain real
   Scheme dependencies; this deployment does not complete runtime removal.
 
+## Native Generic Editor Values
+
+- generic_editor_commands.hpp and generic_frontend.hpp no longer include
+  scheme.hpp or expose object values. Source-link navigation uses native line
+  and column arguments and an optional integer selection result. Its existing
+  link-navigation history handling remains in the navigation owner; the unused
+  Scheme optional-history argument was removed.
+- Thumbnail insertion accepts an array of URLs directly from the native Qt
+  dialog. Embedded-image name suggestions return optional strings directly to
+  focus snapshots. Image insertion still uses the existing native make_image
+  path; removed the unused inline/link image list wrappers.
+- Removed 13 unused Scheme exports: navigation and selection, image wrappers
+  and thumbnails, preferred fonts, embedded suffix/proposal and four live-spell
+  query adapters. Kept native spelling range/word/language helpers and their
+  active context-menu implementation. Deleted the obsolete live-spell adapter
+  test and both CMake registrations, and removed related retired-interface
+  assertions from generic/embedded image tests without removing image save and
+  replacement checks.
+- XML generation and the four changed implementation units passed with -j16.
+  Logs: build_qt6/native-generic-values-glue.log and
+  build_qt6/native-generic-values-build.log. No tests were added or run. Full
+  link, fresh-process binding verification and deployment remain pending; the
+  installed binary is still the combined style/focus deployment above.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

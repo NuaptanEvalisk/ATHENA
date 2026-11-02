@@ -1341,9 +1341,9 @@ editor_rep::focus_toolbar_state_snapshot () {
   snapshot.embedded_image_context= generic_embedded_image_context (t);
   snapshot.linked_image_context= generic_linked_image_context (t);
   if (snapshot.embedded_image_context) {
-    object proposal= generic_embedded_propose (t, 1);
-    if (is_string (proposal)) {
-      string value= as_string (proposal);
+    const auto proposal= generic_embedded_propose (t, 1);
+    if (proposal) {
+      const string& value= *proposal;
       snapshot.embedded_image_proposal.assign (
         value.data (), static_cast<std::size_t> (N(value)));
     }

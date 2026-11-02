@@ -57,12 +57,12 @@ void chosen (editor_rep& ed, const std::string& kind, const std::string& file,
     auto files= directory.entryList (
         {"*.gif", "*.jpg", "*.jpeg", "*.JPG", "*.JPEG", "*.png", "*.PNG"},
         QDir::Files | QDir::Readable, QDir::Name);
-    array<object> values;
+    array<url> values;
     for (auto name : files) {
       auto bytes= directory.absoluteFilePath (name).toUtf8 ();
-      values << object (url_system (string (bytes.data (), bytes.size ())));
+      values << url_system (string (bytes.data (), bytes.size ()));
     }
-    generic_make_thumbnails_sub (as_list_object (values), columns);
+    generic_make_thumbnails_sub (values, columns);
   } else
     ed.make_image (
         as_string (delta (get_master_buffer (ed.get_name ()), target), URL_UNIX),
@@ -281,12 +281,6 @@ void generic_make_with_package (tree_label label, string name) {
   auto ed= get_current_editor ();
   if (ed->selection_active_any ()) insertion_make (label);
   else ed->make_compound (label);
-}
-object generic_preferred_fonts () {
-  array<object> result;
-  const array<string> fonts= generic_preferred_font_names ();
-  for (int i=0; i<N(fonts); ++i) result << object (fonts[i]);
-  return as_list_object (result);
 }
 array<string> generic_preferred_font_names () {
   string value= get_preference ("preferred fonts");

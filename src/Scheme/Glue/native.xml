@@ -130,7 +130,6 @@
   <binding name="install-custom-style" native="generic_install_style" returns="void"><arg type="url" /></binding>
   <binding name="choose-and-install-custom-style" native="generic_install_style_dialog" returns="void" />
   <binding name="make*" native="generic_make_with_package" returns="void"><arg type="tree_label" /><arg type="string" /></binding>
-  <binding name="get-user-preferred-fonts" native="generic_preferred_fonts" returns="object" />
   <binding name="ext-cardlink-render" native="generic_render_cardlink" returns="tree"><arg type="tree" /><arg type="tree" /></binding>
   <binding name="display-balloon" native="generic_display_balloon" returns="void"><arg type="tree" /><arg type="tree" /><arg type="tree" /><arg type="tree" /><arg type="tree" /></binding>
   <binding name="style-clear-cache" native="generic_clear_style_cache" returns="void" />
@@ -1117,26 +1116,8 @@
   <binding name="handwriting-symbol-insert" native="generic_handwriting_symbol_insert" returns="void">
     <arg type="string" />
   </binding>
-  <binding name="go-to-line" native="generic_go_to_line" returns="void">
-    <arg type="int" /><arg type="object" rest="true" />
-  </binding>
-  <binding name="go-to-column" native="generic_go_to_column" returns="void">
-    <arg type="int" /><arg type="object" rest="true" />
-  </binding>
-  <binding name="select-word" native="generic_select_word" returns="object">
-    <arg type="string" /><arg type="tree" /><arg type="int" />
-  </binding>
   <binding name="recenter-window" native="generic_recenter_window" returns="void" />
   <binding name="make-label" native="generic_make_label" returns="void" />
-  <binding name="make-inline-image" native="generic_make_inline_image" returns="void">
-    <arg type="object" />
-  </binding>
-  <binding name="make-link-image" native="generic_make_link_image" returns="void">
-    <arg type="object" />
-  </binding>
-  <binding name="make-thumbnails-sub" native="generic_make_thumbnails_sub" returns="void">
-    <arg type="object" /><arg type="int" />
-  </binding>
   <binding name="notify-activated" native="generic_notify_activated" returns="void">
     <arg type="tree" />
   </binding>
@@ -1163,12 +1144,6 @@
   </binding>
   <binding name="linked-image-context?" native="generic_linked_image_context" returns="bool">
     <arg type="tree" />
-  </binding>
-  <binding name="embedded-suffix" native="generic_embedded_suffix" returns="object">
-    <arg type="tree" />
-  </binding>
-  <binding name="embedded-propose" native="generic_embedded_propose" returns="object">
-    <arg type="tree" /><arg type="int" />
   </binding>
   <binding name="save-embedded-image" native="generic_save_embedded_image" returns="void">
     <arg type="tree" /><arg type="url" />
@@ -1205,10 +1180,6 @@
     <arg type="string" />
   </binding>
   <binding name="spell-live-insert-current-word" native="generic_spell_live_insert_current_word" returns="void" />
-  <binding name="spell-live-current-selection" native="generic_spell_live_current_selection" returns="object" />
-  <binding name="spell-live-current-word" native="generic_spell_live_current_word" returns="object" />
-  <binding name="spell-live-current-language" native="generic_spell_live_current_language" returns="object" />
-  <binding name="spell-live-current-suggestions" native="generic_spell_live_current_suggestions" returns="object" />
   <binding name="test-balloon-halign?" native="generic_test_balloon_halign" returns="bool">
     <arg type="string" />
   </binding>

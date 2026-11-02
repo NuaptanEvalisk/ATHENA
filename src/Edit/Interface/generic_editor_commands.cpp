@@ -9,7 +9,6 @@
 *******************************************************************************/
 
 #include "insertion_commands.hpp"
-#include "cursor_history.hpp"
 #include "editing_utilities.hpp"
 #include "generic_editor_commands.hpp"
 #include "source_commands.hpp"
@@ -59,12 +58,6 @@ bool innermost_document (tree root, path cursor, path& document_path) {
     return true;
   }
   return false;
-}
-
-void add_history (object optional_from) {
-  if (is_null (optional_from)) return;
-  array<object> args= as_array_object (optional_from);
-  if (N (args) > 0) cursor_history_add (as_path (args[0]));
 }
 
 bool first_relative_index (path prefix, path cursor, int& index) {
@@ -169,21 +162,6 @@ bool parameter_focus_matches (const generic_parameter_mode& mode, tree& focus) {
   return is_compound (focus) && as_string (L (focus)) == mode.focus_label;
 }
 
-bool image_payload (object values, url& target,
-                    string& w, string& h, string& x, string& y) {
-  if (!is_list (values)) return false;
-  array<object> items= as_array_object (values);
-  if (N (items) != 5 || !is_url (items[0])) return false;
-  for (int i= 1; i < 5; ++i)
-    if (!is_string (items[i])) return false;
-  target= as_url (items[0]);
-  w= as_string (items[1]);
-  h= as_string (items[2]);
-  x= as_string (items[3]);
-  y= as_string (items[4]);
-  return true;
-}
-
 std::optional<tree> focus_search_label_impl (tree t);
 
 std::optional<tree> focus_children_search_label (tree parent) {
@@ -221,17 +199,6 @@ bool innermost_balloon (tree& result) {
       }
     }
     p= path_up (p);
-  }
-  return false;
-}
-
-bool tree_label_in_scheme_list (tree t, object labels) {
-  if (!is_list (labels)) return false;
-  string label= as_string (L (t));
-  array<object> items= as_array_object (labels);
-  for (int i= 0; i < N (items); ++i) {
-    if (is_symbol (items[i]) && as_symbol (items[i]) == label) return true;
-    if (is_string (items[i]) && as_string (items[i]) == label) return true;
   }
   return false;
 }
@@ -434,8 +401,7 @@ tree cardlink_replace_whole (tree target, tree replacement) {
 } // namespace
 
 void
-generic_go_to_line (int line, object optional_from) {
-  add_history (optional_from);
+generic_go_to_line (int line) {
   editor ed= get_current_editor ();
   tree root= ed->the_root ();
   path document_path;
@@ -446,8 +412,7 @@ generic_go_to_line (int line, object optional_from) {
 }
 
 void
-generic_go_to_column (int column, object optional_from) {
-  add_history (optional_from);
+generic_go_to_column (int column) {
   editor ed= get_current_editor ();
   tree root= ed->the_root ();
   path document_path;
@@ -460,23 +425,23 @@ generic_go_to_column (int column, object optional_from) {
   ed->go_to (document_path * line * column);
 }
 
-object
+std::optional<int>
 generic_select_word (string word, tree t, int column) {
-  if (!is_atomic (t)) return object (false);
+  if (!is_atomic (t)) return std::nullopt;
   string text= as_string (t);
   int pos= max (0, column - N (word));
   int begin= search_forwards (word, pos, text);
-  if (begin < 0) return object (false);
+  if (begin < 0) return std::nullopt;
 
   path ip= obtain_ip (t);
-  if (!ip_attached (ip)) return object (false);
+  if (!ip_attached (ip)) return std::nullopt;
   path p= reverse (ip);
   editor ed= get_current_editor ();
   ed->go_to (p * begin);
   ed->selection_set_start ();
   ed->go_to (p * (begin + N (word)));
   ed->selection_set_end ();
-  return object (begin);
+  return begin;
 }
 
 void
@@ -508,38 +473,21 @@ generic_make_label () {
 }
 
 void
-generic_make_inline_image (object values) {
-  url target;
-  string w, h, x, y;
-  if (!image_payload (values, target, w, h, x, y)) return;
-  get_current_editor ()->make_image (delta_unix (target), false, w, h, x, y);
-}
-
-void
-generic_make_link_image (object values) {
-  url target;
-  string w, h, x, y;
-  if (!image_payload (values, target, w, h, x, y)) return;
-  get_current_editor ()->make_image (delta_unix (target), true, w, h, x, y);
-}
-
-void
-generic_make_thumbnails_sub (object files, int columns) {
-  if (!is_list (files) || columns <= 0) return;
-  array<object> items= as_array_object (files);
+generic_make_thumbnails_sub (array<url> files, int columns) {
+  if (columns <= 0) return;
   double ratio= (1.0 / ((double) columns)) - 0.02;
   string width= as_string (ratio) * "par";
 
   array<tree> rows;
-  int row_count= (N (items) + columns - 1) / columns;
+  int row_count= (N (files) + columns - 1) / columns;
   if (row_count == 0) row_count= 1;
   for (int r= 0; r < row_count; ++r) {
     array<tree> cells;
     for (int c= 0; c < columns; ++c) {
       int i= r * columns + c;
       tree content= tree ("");
-      if (i < N (items) && is_url (items[i])) {
-        string file= delta_unix (as_url (items[i]));
+      if (i < N (files)) {
+        string file= delta_unix (files[i]);
         content= compound ("image", file, width, "", "", "");
       }
       cells << compound ("cell", content);
@@ -665,19 +613,11 @@ generic_linked_image_context (tree t) {
   return linked_image_context_impl (t);
 }
 
-object
-generic_embedded_suffix (tree t) {
-  string file;
-  if (!embedded_image_name (t, file)) return object (false);
-  string ext= suffix (url (file));
-  return object (ext == "" ? file : ext);
-}
-
-object
+std::optional<string>
 generic_embedded_propose (tree t, int number) {
   string proposal;
-  if (!embedded_proposal_string (t, number, proposal)) return object (false);
-  return object (proposal);
+  if (!embedded_proposal_string (t, number, proposal)) return std::nullopt;
+  return proposal;
 }
 
 void
@@ -791,49 +731,6 @@ generic_embed_this_image () {
 void
 generic_embed_all_images () {
   generic_embed_images (current_document_tree ());
-}
-
-object
-generic_spell_live_current_selection () {
-  path start_path, end_path;
-  if (!spell_live_current_range (start_path, end_path)) return object (false);
-  return list_object (object (start_path), object (end_path));
-}
-
-object
-generic_spell_live_current_word () {
-  path start_path, end_path;
-  string word;
-  if (!spell_live_current_range (start_path, end_path) ||
-      !spell_live_current_word_impl (start_path, end_path, word))
-    return object (false);
-  return object (word);
-}
-
-object
-generic_spell_live_current_language () {
-  path start_path, end_path;
-  if (!spell_live_current_range (start_path, end_path)) return object (false);
-  const auto language= spell_live_language_at (start_path);
-  return language ? object (*language) : object (false);
-}
-
-object
-generic_spell_live_current_suggestions () {
-  path start_path, end_path;
-  string word;
-  if (!spell_live_current_range (start_path, end_path) ||
-      !spell_live_current_word_impl (start_path, end_path, word))
-    return object (list<string> ());
-
-  const auto language= spell_live_language_at (start_path);
-  if (!language) return object (list<string> ());
-  tree checked= spell_check (*language, word);
-  list<string> suggestions;
-  if (is_tuple (checked))
-    for (int i= 1; i < N (checked) && i <= 9; ++i)
-      if (is_atomic (checked[i])) suggestions << as_string (checked[i]);
-  return object (suggestions);
 }
 
 bool

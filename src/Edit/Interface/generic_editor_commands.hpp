@@ -11,7 +11,10 @@
 #ifndef ATHENA_GENERIC_EDITOR_COMMANDS_HPP
 #define ATHENA_GENERIC_EDITOR_COMMANDS_HPP
 
-#include "scheme.hpp"
+#include "array.hpp"
+#include "path.hpp"
+#include "tree.hpp"
+#include "url.hpp"
 #include <memory>
 #include <optional>
 
@@ -47,15 +50,13 @@ string generic_tree_child_name (tree, int);
 string generic_tree_child_long_name (tree, int);
 string generic_tree_child_type (tree, int);
 
-void generic_go_to_line (int line, object optional_from);
-void generic_go_to_column (int column, object optional_from);
-object generic_select_word (string word, tree t, int column);
+void generic_go_to_line (int line);
+void generic_go_to_column (int column);
+std::optional<int> generic_select_word (string word, tree t, int column);
 void generic_label_insert (tree t);
 void generic_recenter_window ();
 void generic_make_label ();
-void generic_make_inline_image (object values);
-void generic_make_link_image (object values);
-void generic_make_thumbnails_sub (object files, int columns);
+void generic_make_thumbnails_sub (array<url> files, int columns);
 void generic_notify_activated (tree t);
 void generic_notify_disactivated (tree t);
 std::optional<tree> generic_focus_label (tree t);
@@ -70,8 +71,7 @@ bool generic_balloon_context (tree t);
 bool generic_image_context (tree t);
 bool generic_embedded_image_context (tree t);
 bool generic_linked_image_context (tree t);
-object generic_embedded_suffix (tree t);
-object generic_embedded_propose (tree t, int number);
+std::optional<string> generic_embedded_propose (tree t, int number);
 void generic_save_embedded_image (tree t, url name);
 void generic_link_embedded_image (tree t, url name);
 void generic_link_embedded_image_copies (tree t, url name);
@@ -84,10 +84,6 @@ void generic_embed_image (tree t);
 void generic_embed_images (tree t);
 void generic_embed_this_image ();
 void generic_embed_all_images ();
-object generic_spell_live_current_selection ();
-object generic_spell_live_current_word ();
-object generic_spell_live_current_language ();
-object generic_spell_live_current_suggestions ();
 bool generic_test_balloon_halign (string value);
 void generic_set_balloon_halign (string value);
 bool generic_test_balloon_valign (string value);

@@ -489,15 +489,6 @@ add_test(NAME document_part_editor_test
     --runtime ${ATHENA_GUILE_PREFIX}
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
 set_tests_properties(document_part_editor_test PROPERTIES TIMEOUT 90)
-add_test(NAME live_spell_editor_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/live-spell-editor-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(live_spell_editor_test PROPERTIES TIMEOUT 90)
 add_test(NAME global_typeset_refresh_editor_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
@@ -693,7 +684,6 @@ set(_athena_application_runtime_tests
   document_edit_editor_test
   embedded_image_editor_test
   document_part_editor_test
-  live_spell_editor_test
   global_typeset_refresh_editor_test
   node_move_lifecycle_test
   node_new_v2_test

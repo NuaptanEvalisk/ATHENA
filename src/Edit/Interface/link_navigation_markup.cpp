@@ -586,12 +586,12 @@ void native_link_post_load (url target) {
     const QString column= parameters.queryItemValue ("column", QUrl::FullyDecoded);
     const QByteArray selected= parameters.queryItemValue ("select", QUrl::FullyDecoded).toUtf8 ();
     const string word (selected.constData (), selected.size ());
-    generic_go_to_line (line.toInt (), null_object ());
-    generic_go_to_column (column.toInt (), null_object ());
-    const object position= generic_select_word (word, ed->the_subtree (path_up (ed->the_path ())), column.toInt ());
+    generic_go_to_line (line.toInt ());
+    generic_go_to_column (column.toInt ());
+    const auto position= generic_select_word (word, ed->the_subtree (path_up (ed->the_path ())), column.toInt ());
     const QByteArray line_text= line.toUtf8 ();
     ed->set_message (word, string (line_text.constData (), line_text.size ()) * ":" *
-      as_string (is_int (position) ? as_int (position) : 0));
+      as_string (position.value_or (0)));
   }
   else cout << "Unhandled format for default queries: " << format << LF;
 }

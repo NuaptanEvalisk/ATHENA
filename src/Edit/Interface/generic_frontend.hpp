@@ -1,6 +1,9 @@
 // Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later.
 #pragma once
-#include "scheme.hpp"
+#include "array.hpp"
+#include "path.hpp"
+#include "tree.hpp"
+#include "url.hpp"
 void generic_insert_dialog (string kind);
 void generic_insert_include_dialog ();
 void generic_insert_link_image_dialog ();
@@ -17,7 +20,6 @@ void generic_open_page_format ();
 void generic_install_style (url);
 void generic_install_style_dialog ();
 void generic_make_with_package (tree_label, string);
-object generic_preferred_fonts ();
 array<string> generic_preferred_font_names ();
 void generic_set_preferred_fonts (array<string> fonts);
 tree generic_render_cardlink (tree, tree);

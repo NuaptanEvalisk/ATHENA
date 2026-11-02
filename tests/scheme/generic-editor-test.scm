@@ -20,25 +20,6 @@
 (check (equal? (selection-get-start) '(0 0)) "select-all start")
 (check (equal? (selection-get-end) '(0 1)) "select-all end")
 
-(reset '(document "aa" "bb" "cc") '(0 0 1))
-(go-to-line 2)
-(check (equal? (cursor-path) '(0 2 0)) "go-to-line")
-
-(reset '(document "abcdef") '(0 0 1))
-(go-to-column 4)
-(check (equal? (cursor-path) '(0 0 4)) "go-to-column")
-
-(reset '(document "zero alpha beta alpha") '(0 0 12))
-(let ((result (select-word "alpha" (tree-ref (buffer-tree) 0) 18)))
-  (check (= result 16) "select-word result"))
-(check (equal? (selection-get-start) '(0 0 16)) "select-word start")
-(check (equal? (selection-get-end) '(0 0 21)) "select-word end")
-
-(reset '(document "no match") '(0 0 2))
-(check (not (select-word "alpha" (tree-ref (buffer-tree) 0) 2))
-       "select-word missing result")
-(check (not (selection-active-any?)) "missing word leaves selection inactive")
-
 (reset '(document "abc") '(0 0 1))
 (label-insert (buffer-tree))
 (check (equal? (body) '(document (concat "a" (inactive (label "")) "bc")))
@@ -47,45 +28,6 @@
 
 (reset '(document "abc") '(0 0 1))
 (recenter-window)
-
-(reset '(document "ab") '(0 0 1))
-(make-link-image '("linked.png" "2cm" "3cm" "4cm" "5cm"))
-(check (equal? (body)
-               '(document (concat "a"
-                                  (image "linked.png" "2cm" "3cm" "4cm" "5cm")
-                                  "b")))
-       "linked image wrapper preserves path and dimensions")
-
-(reset '(document "ab") '(0 0 1))
-(make-inline-image
-  '("$ATHENA_PATH/misc/images/windows/SmallTile.png" "1cm" "" "" ""))
-(check (tree-is? (tree-ref (buffer-tree) 0 1) 'image)
-       "inline image wrapper inserts an image node")
-(check (= (tree-arity (tree-ref (buffer-tree) 0 1)) 5)
-       "inline image wrapper preserves image arity")
-(check (equal? (tree->stree (tree-ref (buffer-tree) 0 1 1)) "1cm")
-       "inline image wrapper preserves requested width")
-
-(reset '(document "") '(0 0 0))
-(make-thumbnails-sub
-  (list (string->url "one.png")
-        (string->url "two.png")
-        (string->url "three.png"))
-  2)
-(check (equal? (body)
-               '(document
-                  (tabular*
-                    (tformat
-                      (twith "table-width" "1par")
-                      (twith "table-hyphen" "yes")
-                      (table
-                        (row
-                          (cell (image "one.png" "0.48par" "" "" ""))
-                          (cell (image "two.png" "0.48par" "" "" "")))
-                        (row
-                          (cell (image "three.png" "0.48par" "" "" ""))
-                          (cell "")))))))
-       "native thumbnail builder preserves rows, width, and padding")
 
 ;; Generic focus-menu field policy is native but must continue to agree with
 ;; the DRD and rich-length primitives that define its semantics.

@@ -22,21 +22,6 @@
        "native embedded-image predicate recognizes raw-data tuple")
 (check (not (linked-image-context? embedded))
        "embedded image is not linked")
-(check (equal? (embedded-suffix embedded) "png")
-       "native embedded suffix returns filename extension")
-(define extensionless
-  (stree->tree '(image (tuple (raw-data "abc") "png") "1cm" "" "" "")))
-(check (equal? (embedded-suffix extensionless) "png")
-       "native embedded suffix falls back to extensionless filename")
-(check (not (embedded-suffix linked))
-       "native embedded suffix rejects linked image")
-
-(define proposal-source
-  (stree->tree '(image (tuple (raw-data "abc") "named.png") "1cm" "" "" "")))
-(check (equal? (embedded-propose proposal-source 3)
-               (url->string (url-relative (current-buffer-url) "named.png")))
-       "native embedded proposal preserves named file with suffix")
-
 (define save-target (string->url "/tmp/athena-embedded-save-test.bin"))
 (save-embedded-image embedded save-target)
 (check (equal? (string-load save-target) "abc")
