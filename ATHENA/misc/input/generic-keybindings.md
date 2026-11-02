@@ -40,8 +40,10 @@ There is no Scheme source text in the data. Registered callbacks enter the
 native dispatcher without changing thread or actor ownership. Their original
 semantic source is retained as metadata so menu shortcuts and reverse lookup do
 not expose dispatcher indices.
-This metadata still uses the legacy object printer; removing the runtime from
-metadata serialization is separate from native command execution.
+Metadata is serialized with the native data writer. The registry normalizes
+both registration and inverse queries with the native data reader/writer,
+including quote abbreviations. Legacy object-valued inverse-query adapters
+still print their input object before entering this native normalization.
 
 All keymap JSON strings are UTF-8. Text actions contain the actual Unicode text
 inserted into documents; legacy Cork bytes and `<#...>` character tokens are

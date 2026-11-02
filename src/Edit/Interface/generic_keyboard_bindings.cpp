@@ -12,6 +12,7 @@
 #include "auto_close.hpp"
 #include "table_commands.hpp"
 #include "file.hpp"
+#include "convert.hpp"
 #include "native_keyboard_prefixes.hpp"
 #include "native_keyboard_registry.hpp"
 #include "native_dispatch.hpp"
@@ -26,6 +27,7 @@
 #include <QJsonObject>
 #include <QJsonParseError>
 #include <climits>
+#include <charconv>
 #include <cmath>
 #include <stdexcept>
 #include <unordered_map>
@@ -192,6 +194,29 @@ bool truth (object value) {
   return !(is_bool (value) && !as_bool (value));
 }
 
+tree command_data (object value) {
+  if (is_list (value)) {
+    tree result (TUPLE);
+    for (; is_pair (value); value= cdr (value))
+      result << command_data (car (value));
+    return result;
+  }
+  if (is_string (value)) return raw_quote (as_string (value));
+  if (is_symbol (value)) return as_symbol (value);
+  if (is_keyword (value)) return "#:" * keyword_name (value);
+  if (is_bool (value)) return as_bool (value) ? "#t" : "#f";
+  if (is_int (value)) return as_string (as_int (value));
+  if (is_double (value)) {
+    char buffer[64];
+    auto encoded= std::to_chars (buffer, buffer + sizeof (buffer), as_double (value));
+    ASSERT (encoded.ec == std::errc (), "cannot encode keymap number");
+    string number (buffer, encoded.ptr - buffer);
+    if (!occurs (".", number) && !occurs ("e", number)) number << ".0";
+    return number;
+  }
+  throw std::invalid_argument ("Unsupported native keymap metadata value");
+}
+
 // Source reconstruction is only for inverse key lookup and command metadata.
 // Native commands use generated dispatch, including named movement actions.
 object expression (QJsonValue value, bool source) {
@@ -328,14 +353,14 @@ void register_group (int g) {
     string source;
     if (binding.contains ("text")) {
       action.text= binding["text"].toString ().toStdString ();
-      source= object_to_string (object (binding_string (binding["text"])));
+      source= scm_quote (binding_string (binding["text"]));
     }
     else {
       array<object> terms;
       for (QJsonValue command: binding["commands"].toArray ())
         terms << expression (command, true);
-      source= object_to_string (N(terms) == 1 ? terms[0] :
-        cons (symbol_object ("begin"), as_list_object (terms)));
+      source= scheme_tree_to_string (command_data (N(terms) == 1 ? terms[0] :
+        cons (symbol_object ("begin"), as_list_object (terms))));
       action.action= [g, b] { (void) generic_keyboard_run (g, b); };
     }
     action.help= binding["help"].toString ().toStdString ();

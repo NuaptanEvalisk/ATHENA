@@ -6,6 +6,7 @@
 
 #include "native_keyboard_registry.hpp"
 #include "analyze.hpp"
+#include "convert.hpp"
 #include "native_keyboard_loader.hpp"
 #include "user_shortcuts.hpp"
 #include "server.hpp"
@@ -28,12 +29,23 @@ string text (const std::string& value) {
   return string (value.data (), value.size ());
 }
 
+tree expand_quote (tree data) {
+  if (!is_tuple (data)) return data;
+  if (is_tuple (data, "'", 1)) data[0]= "quote";
+  for (int i=0; i<N(data); ++i) data[i]= expand_quote (data[i]);
+  return data;
+}
+
+string source_key (string source) {
+  return scheme_tree_to_string (expand_quote (string_to_scheme_tree (source)));
+}
+
 struct binding {
   native_keyboard_context context;
   native_key_binding value;
   std::string key, source;
   binding (native_keyboard_context c, native_key_binding a, string k, string s):
-    context (std::move (c)), value (std::move (a)), key (bytes (k)), source (bytes (s)) {}
+    context (std::move (c)), value (std::move (a)), key (bytes (k)), source (bytes (source_key (s))) {}
 };
 
 using binding_ptr= std::shared_ptr<const binding>;
@@ -153,7 +165,7 @@ string native_keyboard_cached_inverse (object source) {
   string user= user_shortcuts_inverse (source);
   if (user != "") return user;
   auto& r= keyboard ();
-  const auto entry= resolve (r.snapshot (r.inverse, object_to_string (source)));
+  const auto entry= resolve (r.snapshot (r.inverse, source_key (object_to_string (source))));
   return entry ? text (entry->key) : string ("");
 }
 
@@ -174,7 +186,7 @@ object native_keyboard_reverse (object source) {
   if (is_tree (source)) source= tree_to_stree (as_tree (source));
   if (!is_string (source)) return object (false);
   auto& r= keyboard ();
-  const auto entries= r.snapshot (r.inverse, object_to_string (string_to_object (as_string (source))));
+  const auto entries= r.snapshot (r.inverse, source_key (as_string (source)));
   return entries.empty () ? object (false) : object (text (entries.front ()->key));
 }
 

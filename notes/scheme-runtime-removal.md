@@ -742,6 +742,21 @@ generated native entries and remain on the secure-function list.
   helper deployment succeeded; logs:
   `build_qt6/native-keymap-combined-{build,deploy}.log`.
 
+## Native Keymap Metadata Serialization
+
+- Registration serializes its native literal/list values with the existing
+  data writer rather than Guile's object printer. Real values use shortest
+  round-trip decimal formatting and retain the `.0` distinction from integers.
+- The registry normalizes registration and lookup keys using the native data
+  reader/writer, expanding quote abbreviations to explicit quote forms. This
+  keeps whitespace and string-escape spelling from breaking inverse lookup.
+- String-based reverse lookup no longer parses and prints through Guile.
+  Object-valued inverse queries still use the old object printer before native
+  normalization; that adapter and user-shortcut objects remain to be migrated.
+- Both affected implementation units compiled with `-j16`; log:
+  `build_qt6/native-keymap-metadata-build.log`. No full link/deployment in this
+  batch; installed runtime remains `e5161f143`. No resource schema changed.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
