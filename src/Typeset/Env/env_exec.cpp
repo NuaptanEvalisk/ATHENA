@@ -23,7 +23,7 @@
 #include "brush.hpp"
 #include "scheme.hpp"
 #include "native_dispatch.hpp"
-#include "secure_expression.hpp"
+#include "native_command_security.hpp"
 #include "scheme_native_context.hpp"
 #include "page_type.hpp"
 #include "typesetter.hpp"

@@ -472,6 +472,12 @@ struct buffer_actor::implementation {
   buffer_document_state state;
   std::unordered_map<athena_view_id, actor_view> views;
   std::unordered_map<athena_view_id, std::uint64_t> hybrid_activations;
+  struct pending_callback {
+    athena_view_id view;
+    std::function<void()> action;
+  };
+  std::unordered_map<athena_continuation_id, pending_callback> callbacks;
+  athena_continuation_id next_callback= 1;
 
   implementation (buffer_actor* actor, string name, string master,
                   string title, bool read_only, int last_save):
@@ -532,6 +538,28 @@ buffer_actor::~buffer_actor () {
 athena_actor_id
 buffer_actor::id () const noexcept {
   return id_;
+}
+
+athena_continuation_id
+buffer_actor::retain_native_callback (std::function<void()> callback) {
+  ASSERT (is_owner_thread (), "native callbacks belong to their BufferActor");
+  const auto id= impl_->next_callback++;
+  impl_->callbacks.emplace (id, implementation::pending_callback {
+    current_scheme_execution_context ()->view_id, std::move (callback)});
+  return id;
+}
+
+void
+buffer_actor::resolve_native_callback (athena_continuation_id id, bool run) {
+  ASSERT (is_owner_thread (), "native callbacks resolve on their BufferActor");
+  auto entry= impl_->callbacks.find (id);
+  if (entry == impl_->callbacks.end ()) return;
+  auto callback= std::move (entry->second);
+  impl_->callbacks.erase (entry);
+  const auto* context= current_scheme_execution_context ();
+  if (run && callback.view == context->view_id &&
+      (callback.view == ATHENA_NO_VIEW || context->editor != nullptr))
+    callback.action ();
 }
 
 actor_command_ticket
@@ -1176,6 +1204,9 @@ buffer_actor::dispatch (actor_command_record& command) {
   }
   case actor_command_kind::destroy_view:
     impl_->hybrid_activations.erase (command.view_id);
+    for (auto it= impl_->callbacks.begin (); it != impl_->callbacks.end ();)
+      if (it->second.view == command.view_id) it= impl_->callbacks.erase (it);
+      else ++it;
     if (editor != nullptr) {
       editor->buf= nullptr;
       impl_->views.erase (command.view_id);
@@ -1658,6 +1689,9 @@ buffer_actor::dispatch (actor_command_record& command) {
     if (continuation) continuation ();
     break;
   }
+  case actor_command_kind::resolve_native_callback:
+    resolve_native_callback (command.argument[0], command.argument[1] != 0);
+    break;
   case actor_command_kind::suspend_view:
     if (editor != nullptr) editor->suspend ();
     break;

@@ -130,6 +130,7 @@ enum class actor_command_kind: std::uint32_t {
   invoke_scheme_handle_tree,
   evaluate_widget_handle,
   run_native_continuation,
+  resolve_native_callback,
   resume_hybrid_activation,
   rename_buffer,
   save_buffer,

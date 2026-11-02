@@ -15,7 +15,7 @@
 #include "sys_utils.hpp"
 #include "analyze.hpp"
 #include "scheme.hpp"
-#include "secure_expression.hpp"
+#include "native_command_security.hpp"
 #include "packrat.hpp"
 #include "convert.hpp"
 #include "converter.hpp"

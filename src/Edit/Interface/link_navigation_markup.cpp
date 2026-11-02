@@ -21,6 +21,7 @@
 #include "new_buffer.hpp"
 #include "qt_utilities.hpp"
 #include "native_interfaces.hpp"
+#include "native_dispatch.hpp"
 #include "file.hpp"
 #include <optional>
 #include <stdexcept>
@@ -467,30 +468,44 @@ void native_link_follow_ids (list<string> ids, string event) {
 }
 
 void native_link_execute_script (string source, bool trusted, object arguments) {
-  if (starts (source, "(") && ends (source, ")") && !starts (source, "(lambda ")) {
-    get_current_editor ()->set_message ("Legacy script links are no longer supported", "Evaluate script");
+  if (starts (source, "(")) {
+    get_current_editor ()->set_message (
+      "Scheme expressions are not supported in document actions", "Document action");
     return;
   }
-  array<object> quoted;
-  for (; !is_null (arguments); arguments= cdr (arguments))
-    quoted << list_object (symbol_object ("quote"), car (arguments));
-  object expression= cons (eval ("'" * source), as_list_object (quoted));
-  const bool allowed= trusted || native_secure_expression (expression);
+  const auto* owner= current_scheme_execution_context ();
+  ASSERT (owner && owner->actor && owner->editor,
+          "document actions require their owning editor");
+  const bool allowed= trusted || native_secure_function (source);
   const string policy= get_preference ("security");
-  object closure= eval (list_object (symbol_object ("lambda"), null_object (), expression));
-  if (allowed || policy == "accept all scripts") exec_delayed (closure);
-  else if (policy == "prompt on scripts") {
-    if (headless_mode) return;
-    command execute= as_actor_command (closure);
-    std::string text (source.data (), N(source));
-    qt_post_to_main_thread ([execute, text] () mutable {
-      QTMInteractiveField field {"Execute " * string (text.c_str ()) * "?", "question", {}};
-      field.proposals << string ("no") << string ("yes");
-      const auto answer= qtm_interactive_dialog ("Evaluate script", {field});
-      if (N(answer) == 1 && answer[0] == "yes") execute->apply ();
-    });
+  const bool immediate= allowed || policy == "accept all scripts";
+  if (!immediate && (policy != "prompt on scripts" || headless_mode)) {
+    get_current_editor ()->set_message ("Untrusted action refused", "Document action");
+    return;
   }
-  else get_current_editor ()->set_message ("Unsecure script refused", "Evaluate script");
+  const auto callback= owner->actor->retain_native_callback ([source, arguments] {
+    object result;
+    if (!native_dispatch_call (source, as_array_object (arguments), result))
+      throw std::invalid_argument ("Unknown native document action: " +
+                                   std::string (source.data (), N(source)));
+  });
+  if (immediate) {
+    if (!owner->actor->try_submit (actor_command_kind::resolve_native_callback,
+          owner->view_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB,
+          owner->capabilities, callback, 1))
+      owner->actor->resolve_native_callback (callback, false);
+    return;
+  }
+  QTMInteractiveField field {"Execute " * source * "?", "question", {}};
+  field.proposals << string ("no") << string ("yes");
+  qtm_interactive_form_async ("Document action", {field},
+    [actor= owner->actor_id, view= owner->view_id,
+     capabilities= owner->capabilities, callback] (std::vector<std::string> answer) {
+      const bool run= answer.size () == 1 && answer[0] == "yes";
+      (void) buffer_actor::submit_to (actor,
+        actor_command_kind::resolve_native_callback, view,
+        ATHENA_NO_BLOB, ATHENA_NO_BLOB, capabilities, callback, run);
+    });
 }
 
 void native_link_go_to_vertex (object vertex, object attributes) {

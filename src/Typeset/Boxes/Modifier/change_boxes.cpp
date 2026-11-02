@@ -13,7 +13,9 @@
 #include "Boxes/construct.hpp"
 #include "Boxes/inline_link.hpp"
 #include "scheme.hpp"
-#include "secure_expression.hpp"
+#include "native_command_security.hpp"
+#include "native_dispatch.hpp"
+#include <stdexcept>
 #include "gui.hpp"
 #include "effect.hpp"
 #include "analyze.hpp"
@@ -1074,8 +1076,9 @@ relay_box_rep::message (tree type, SI x, SI y, rectangles& rs) {
   bool framed= args[0] == "relay-with-frame" && N(args) >= 2 &&
                is_atomic (args[1]);
   int callback= framed? 1: 0;
+  const string function= args[callback]->label;
+  if (!native_secure_function (function)) return "";
   array<object> objs;
-  objs << symbol_object (args[callback]->label);
   objs << object (type);
   frame f;
   if (framed && relay_find_frame (bs[0], sx(0), sy(0), f)) {
@@ -1084,8 +1087,10 @@ relay_box_rep::message (tree type, SI x, SI y, rectangles& rs) {
   }
   else objs << object ((int) x) << object ((int) y);
   for (int i=callback+1; i<N(args); i++) objs << object (args[i]);
-  object cmd= as_list_object (objs);
-  object r= native_secure_eval (cmd);
+  object r;
+  if (!native_dispatch_call (function, objs, r))
+    throw std::invalid_argument ("Unknown native relay command: " +
+                                 std::string (function.data (), N(function)));
   if (!is_bool (r) || as_bool (r))
     rs << rectangle (x3, y3, x4, y4);
   if (is_string (r)) return as_string (r);

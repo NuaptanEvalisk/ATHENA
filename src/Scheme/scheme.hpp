@@ -145,7 +145,6 @@ void aofm_cache_preferences ();
 object eval (const char* expr);
 object eval (string expr);
 object eval (object expr);
-object eval_secure (string expr);
 object eval_file (string name);
 bool   exec_file (url u);
 void   exec_delayed (object cmd);

@@ -60,6 +60,7 @@ private slots:
   void nativeGeometryLengths ();
   void nativeGeometryPreservesActorDocument ();
   void startsLazily ();
+  void nativeCallbacksRemainOwnedUntilResolution ();
   void cursorBlinkCoalescesWithoutQueueingDuplicates ();
   void ownsCommandsAndDocumentContext ();
   void preservesSynchronousInvocationContext ();
@@ -1027,6 +1028,57 @@ TestBufferActor::drainsInFifoOrderAndRejectsAfterShutdown () {
     ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, rejected));
   QVERIFY (actor_continuation_registry::instance ().discard (rejected));
   tm_delete (buffer);
+}
+
+void
+TestBufferActor::nativeCallbacksRemainOwnedUntilResolution () {
+  tm_buffer buffer= tm_new<tm_buffer_rep> (url ("native-callback-test.ath"));
+  int executed= 0, released= 0;
+  std::thread::id owner;
+  bool released_on_owner= true;
+  athena_continuation_id pending= 0;
+  auto retain= [&] (athena_view_id view= ATHENA_NO_VIEW) {
+    const auto setup= actor_continuation_registry::instance ().store ([&] {
+      owner= std::this_thread::get_id ();
+      auto payload= std::shared_ptr<int> (new int (0), [&] (int* value) {
+        released_on_owner= released_on_owner && std::this_thread::get_id () == owner;
+        ++released;
+        delete value;
+      });
+      pending= buffer->actor->retain_native_callback ([&, payload] { ++executed; });
+    });
+    return buffer->actor->invoke (actor_command_kind::run_native_continuation,
+      view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
+      SCHEME_CAPABILITY_BUFFER, setup);
+  };
+  auto resolve= [&] (bool run, athena_view_id view= ATHENA_NO_VIEW) {
+    return buffer->actor->invoke (actor_command_kind::resolve_native_callback,
+      view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
+      SCHEME_CAPABILITY_BUFFER, pending, run);
+  };
+  QVERIFY (retain ());
+  QVERIFY (resolve (true));
+  QCOMPARE (executed, 1);
+  QCOMPARE (released, 1);
+  QVERIFY (resolve (true));
+  QCOMPARE (executed, 1);
+  QVERIFY (retain ());
+  QVERIFY (resolve (false));
+  QCOMPARE (executed, 1);
+  QCOMPARE (released, 2);
+  QVERIFY (retain ());
+  QVERIFY (resolve (true, 77));
+  QCOMPARE (executed, 1);
+  QCOMPARE (released, 3);
+  QVERIFY (retain (77));
+  QVERIFY (buffer->actor->invoke (actor_command_kind::destroy_view, 77));
+  QCOMPARE (released, 4);
+  QVERIFY (resolve (true, 77));
+  QCOMPARE (executed, 1);
+  QVERIFY (retain ());
+  tm_delete (buffer);
+  QCOMPARE (released, 5);
+  QVERIFY (released_on_owner);
 }
 
 static void run_tests (int argc, char** argv) {

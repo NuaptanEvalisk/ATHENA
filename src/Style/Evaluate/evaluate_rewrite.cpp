@@ -15,7 +15,7 @@
 #include "vars.hpp"
 #include "scheme.hpp"
 #include "native_dispatch.hpp"
-#include "secure_expression.hpp"
+#include "native_command_security.hpp"
 
 extern int script_status;
 

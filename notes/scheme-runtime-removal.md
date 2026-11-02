@@ -150,7 +150,8 @@ with runtime removal; native automation must use the existing interop API.
   Swipe events call native structured-edit handlers directly; the unused empty
   wheel-event callback and binding are removed. Qt business pages no longer
   construct Scheme commands; the general delayed-execution infrastructure still
-  remains for editor source mutations and script actions.
+  remains for old label jumps and explicit startup scripts; source mutations
+  and document actions are migrated below.
 - Removed the retired `Subsystems/Gnutls` contact implementation and its three
   unused certificate bindings. Whole-source/resource searches found no caller
   of either contact factory or certificate API outside the dead implementation
@@ -179,7 +180,7 @@ with runtime removal; native automation must use the existing interop API.
   the native secure-function set directly instead of parsing a fabricated
   expression. Callback arguments still use the transitional object container.
 - Removed the unused exec-delayed-pause binding, API and queue wrapper. The
-  general delayed Scheme queue remains for script actions and old label jumps;
+  general delayed Scheme queue remains for startup scripts and old label jumps;
   removing this unused entry is not removal of that infrastructure.
   Built with -j16 and deployed through the official helper. No tests were
   added or run; queue shutdown/drain, owner-thread release and nonblocking
@@ -187,12 +188,34 @@ with runtime removal; native automation must use the existing interop API.
   canvas scrolling was not exercised. Logs are under
   `build_qt6/native-tree-callbacks-{build,deploy}.log`.
 
-Next callback audit: an XML parse of shipped ATS resources found named script
-callbacks for reference preview and named action callbacks for fold/unfold,
-todo toggling and cloud-todo toggling, with no relay or observer instances.
-Their native entry points should replace the generic script evaluator; do not
-introduce another expression interpreter. Relay event dispatch in
-`Typeset/Boxes/Modifier/change_boxes.cpp` is the other secure-eval consumer.
+## Native Document Actions
+
+An XML parse of shipped ATS resources found named script callbacks for reference
+preview and named action callbacks for fold/unfold, todo toggling and cloud-todo
+toggling, with no relay or observer instances. All these named callbacks have
+generated native entries and remain on the secure-function list.
+
+- Document actions dispatch a native command name with literal argument values.
+  No Scheme symbol lookup, quoted-expression construction, lambda evaluation or
+  apply remains. Embedded Scheme expressions, including lambdas, are explicitly
+  refused. Trusted actions and the existing allow/prompt/deny preferences retain
+  their behavior; approval now uses an asynchronous native form.
+- Pending callbacks live inside their BufferActor, bound to their original view.
+  GUI messages carry only IDs and approval state, not live tree/object payloads.
+  Resolution removes the callback before invocation; cancellation, wrong-view
+  resolution, view destruction and actor shutdown release it on the owner thread.
+  Canvas deferred updates now use the same owner-held callback mechanism.
+- Relay boxes use secure native dispatch with literal event/coordinate/payload
+  arguments. The recursive Scheme expression checker, secure-eval bindings and
+  unused eval_secure wrapper are deleted. `native_command_security` now contains
+  only the native name allowlist. Transitional argument objects still need the
+  final value-container migration.
+- Built ATHENA.bin and the targeted buffer_actor_test with -j16 and deployed
+  through the official helper. Only nativeCallbacksRemainOwnedUntilResolution
+  was run: execution, duplicate resolution, cancellation, wrong-view resolution,
+  view destruction and actor shutdown passed, including owner-thread destruction
+  of callback payloads. The approval dialog was not exercised interactively.
+  Logs: `build_qt6/native-document-actions-{build,deploy,owner-test}.log`.
 
 ## Known Outstanding Failure
 

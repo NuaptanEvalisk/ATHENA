@@ -223,8 +223,10 @@ This is not complete Guile removal. Further bounded work remains:
 - Keyboard registry actions, mode conditions and user shortcuts now use native
   callbacks (`3202f1eaa`); JSON expression arguments and inverse lookups still
   use Scheme values. See `scheme-runtime-removal.md` for the complete goal.
-- UI callbacks, observers and actor Scheme handles retain Guile objects;
-  ownership must survive their replacement. Interactive fields now use native
+- UI callbacks and actor Scheme handles still retain Guile objects;
+  ownership must survive their replacement. Observers now dispatch native
+  commands; document actions use owner-held native callbacks, with argument
+  containers still transitional. Interactive fields now use native
   JSON metadata and asynchronous Qt forms, while argument/recent-file history
   uses native containers and JSON persistence.
 - Style `extern` now selects only generated native entries, without Scheme

@@ -537,8 +537,6 @@ object eval (string expr) {
   return tmscm_to_object (eval_scheme (expr)); }
 object eval (object expr) {
   return call ("primitive-eval", expr); }
-object eval_secure (string expr) {
-  return call ("secure-eval", string_to_object (expr)); }
 object eval_file (string name) {
   return tmscm_to_object (eval_scheme_file (name)); }
 bool exec_file (url u) {

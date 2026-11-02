@@ -23,8 +23,6 @@
   <binding name="in-verbatim?" native="editor_mode_verbatim" returns="bool" />
   <binding name="in-variants-disabled?" native="editor_mode_variants_disabled" returns="bool" />
   <binding name="like-emacs?" native="editor_mode_emacs" returns="bool" />
-  <binding name="secure?" native="native_secure_expression" returns="bool"><arg type="object" /></binding>
-  <binding name="secure-eval" native="native_secure_eval" returns="object"><arg type="object" /></binding>
   <binding name="texmacs-version-release*" native="markup_version_release" returns="string"><arg type="tree" /></binding>
   <binding name="texmacs-version" native="markup_application_version" returns="string" />
   <binding name="texmacs-build-user" native="markup_build_user" returns="string" />

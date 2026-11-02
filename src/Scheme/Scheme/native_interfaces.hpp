@@ -5,7 +5,7 @@
 
 #include "scheme.hpp"
 #include "Edit/Interface/tree_pattern.hpp"
-#include "secure_expression.hpp"
+#include "native_command_security.hpp"
 #include "ATHENA/Window/interactive_commands.hpp"
 #include "modification.hpp"
 #include "patch.hpp"

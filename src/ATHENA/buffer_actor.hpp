@@ -49,6 +49,10 @@ public:
 
   athena_actor_id id () const noexcept;
 
+  // Owner-thread only. Payloads remain here while UI holds just an opaque id.
+  athena_continuation_id retain_native_callback (std::function<void()> callback);
+  void resolve_native_callback (athena_continuation_id id, bool execute);
+
   actor_command_ticket submit (
     actor_command_kind kind, athena_view_id view_id= ATHENA_NO_VIEW,
     athena_blob_id payload0= ATHENA_NO_BLOB,
