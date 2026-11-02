@@ -13,7 +13,7 @@
 #include "ATHENA/Data/new_buffer.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
+#include "document_save_frontend.hpp"
 #include "sys_utils.hpp"
 #include "tm_data.hpp"
 
@@ -55,7 +55,7 @@ saveModifiedMaintenanceBuffers () {
   array<url> buffers= get_all_buffers ();
   for (int i=0; i<N(buffers); ++i) {
     if (is_aux_buffer (buffers[i]) || !buffer_modified (buffers[i])) continue;
-    try { (void) call ("save-buffer", object (buffers[i])); }
+    try { document_save (buffers[i]); }
     catch (...) { return false; }
   }
   for (int i=0; i<N(buffers); ++i)

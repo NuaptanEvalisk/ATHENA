@@ -676,6 +676,22 @@ generated native entries and remain on the secure-function list.
   `build_qt6/native-actions-print-build.log`. No new tests were needed. Combined
   linking/deployment remains pending along with the focus snapshot batch.
 
+## Native Save Request Parameters
+
+- Save request construction accepts a native source URL and overwrite flag;
+  the existing script argument decoder delegates to that implementation.
+  Actor/view lookup, capabilities, queued continuation and permission handling
+  remain unchanged.
+- Vault maintenance invokes a native save entry point. Autosave, the save
+  dialog and close-time saving no longer construct one-element object lists
+  merely to identify their source buffer.
+- Manual-save and export argument adapters still use objects and remain part
+  of the ongoing removal. This batch does not change their completion behavior.
+- Compiled both affected implementation units with `-j16`; log:
+  `build_qt6/native-save-request-build.log`. No new tests were needed for the
+  parameter separation. Full linking/deployment is pending with the preceding
+  focus and view-action batches; installed runtime remains `c7b8db073`.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

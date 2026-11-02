@@ -126,12 +126,7 @@ bool open_buffer (url name) {
   return false;
 }
 
-save_task make_save_request (object arguments) {
-  url source= get_current_buffer_safe ();
-  if (!is_null (arguments) && is_url (car (arguments))) {
-    source= as_url (car (arguments));
-    arguments= cdr (arguments);
-  }
+save_task make_save_request (url source, bool overwrite= false) {
   const auto* context= current_scheme_execution_context ();
   auto request= std::make_shared<save_request> ();
   request->source= encode_url (source);
@@ -147,9 +142,20 @@ save_task make_save_request (object arguments) {
   if (request->actor == ATHENA_NO_ACTOR)
     throw std::runtime_error ("The buffer to save no longer exists");
   request->capabilities= SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_GLOBAL;
-  for (object opts= arguments; !is_null (opts); opts= cdr (opts))
-    if (car (opts) == keyword_object ("overwrite")) request->overwrite= true;
+  request->overwrite= overwrite;
   return request;
+}
+
+save_task make_save_request (object arguments) {
+  url source= get_current_buffer_safe ();
+  if (!is_null (arguments) && is_url (car (arguments))) {
+    source= as_url (car (arguments));
+    arguments= cdr (arguments);
+  }
+  bool overwrite= false;
+  for (object opts= arguments; !is_null (opts); opts= cdr (opts))
+    if (car (opts) == keyword_object ("overwrite")) overwrite= true;
+  return make_save_request (source, overwrite);
 }
 
 void resume_save (save_task request, std::function<void()> next) {
@@ -303,6 +309,11 @@ void document_save (object arguments) {
   start_save (request, [request] { save_permissions (request); });
 }
 
+void document_save (url source, bool overwrite) {
+  auto request= make_save_request (source, overwrite);
+  start_save (request, [request] { save_permissions (request); });
+}
+
 void document_save_manual (object arguments) {
   auto request= make_save_request (arguments);
   start_save (request, [request] {
@@ -319,7 +330,7 @@ void document_save_as (object destination, object arguments) {
 }
 
 void document_save_dialog () {
-  auto request= make_save_request (null_object ());
+  auto request= make_save_request (get_current_buffer_safe ());
   start_save (request, [request] { choose_save_destination (request); });
 }
 
@@ -375,7 +386,7 @@ bool document_autosave_enabled (url source) {
 
 void document_autosave (url source) {
   if (!document_autosave_enabled (source)) return;
-  auto request= make_save_request (list_object (object (source)));
+  auto request= make_save_request (source);
   start_save (request, [request] {
     const url source (request->source.c_str ());
     if (!document_autosave_enabled (source) || !buffer_modified_since_autosave (source)) return;
@@ -434,7 +445,7 @@ void document_autosave_schedule () { athena_dispatch_ui (autosave_schedule_gui);
 void document_notify_autosave (string, string) { athena_dispatch_ui (notify_autosave_gui); }
 
 void document_save_before_close (url name, std::function<void()> completion) {
-  auto request= make_save_request (list_object (object (name)));
+  auto request= make_save_request (name);
   request->completed= std::move (completion);
   start_save (request, [request] {
     qtm_document_history_manual_save_requested ();

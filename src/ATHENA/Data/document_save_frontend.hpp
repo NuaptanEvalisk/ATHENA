@@ -10,6 +10,7 @@ void document_save_post (url name);
 bool document_save_now (url name);
 bool document_save_as_now (url destination, url source);
 void document_save (object arguments);
+void document_save (url source, bool overwrite= false);
 void document_save_manual (object arguments);
 void document_save_as (object destination, object arguments);
 void document_save_dialog ();
