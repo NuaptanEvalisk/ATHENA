@@ -658,11 +658,6 @@ content_to_tree (object obj) {
   return result;
 }
 
-object
-string_to_object (string s) {
-  return tmscm_to_object (scm_read (scm_open_input_string (string_to_tmscm (s))));
-}
-
 string
 object_to_string (object obj) {
   return tmscm_to_string (scm_object_to_string (object_to_tmscm (obj), SCM_UNDEFINED));

@@ -128,7 +128,6 @@ object tree_to_stree (tree t);
 object scheme_tree_to_object (scheme_tree t);
 tree   stree_to_tree (object obj);
 tree   content_to_tree (object obj);
-object string_to_object (string s);
 string object_to_string (object obj);
 
 void notify_preferences_booted ();

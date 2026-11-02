@@ -1036,6 +1036,27 @@ generated native entries and remain on the secure-function list.
   Full linking, runtime binding verification and deployment will be combined
   with the next runtime cleanup. No tests were added or run.
 
+## Native Style Selector Reading
+
+- Atomic style selectors now use the existing native structural-data reader,
+  not Guile `scm_read`. The selector conversion preserves keyword values,
+  quote abbreviations, integer versus real values and string/symbol distinction.
+  The existing leading-parenthesis literal rule and structured `pat-*` handling
+  remain unchanged. No expression evaluation or replacement interpreter was
+  introduced.
+- Audited shipped selector calls in the APS/AIP styles: author-name,
+  author-affiliation, author-homepage with pat-any, and author-note/document
+  with pat-any. The standard pattern package defines the extern entry.
+- Removed `string_to_object` after confirming no remaining repository callers.
+  Preference cleanup and this change remove its last two business consumers.
+- Compiled the selector and object implementation units with `-j16`; logs:
+  `build_qt6/native-style-selector-build.log` and
+  `build_qt6/native-reader-removal-build.log`. No permanent tests were added.
+  Combined runtime verification should exercise label/index/pat-any selection
+  and keyword/quote decoding before deployment; that remains pending with the
+  preference changes. The native data reader is not claimed to support arbitrary
+  Guile reader extensions, which are not the structural selector contract.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

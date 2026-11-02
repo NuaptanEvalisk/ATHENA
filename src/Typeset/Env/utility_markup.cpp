@@ -6,12 +6,26 @@
 #include "editor.hpp"
 #include "Edit/Interface/tree_pattern.hpp"
 #include "analyze.hpp"
+#include "convert.hpp"
 
 namespace {
+object selector_value (tree value) {
+  if (is_atomic (value)) {
+    const string text= value->label;
+    if (starts (text, "#:")) return keyword_object (text (2, N(text)));
+    if (!is_int (text) && is_double (text)) return object (as_double (text));
+    return scheme_tree_to_object (value);
+  }
+  if (is_tuple (value, "'", 1))
+    return list_object (symbol_object ("quote"), selector_value (value[1]));
+  object result= null_object ();
+  for (int i=N(value)-1; i>=0; --i) result= cons (selector_value (value[i]), result);
+  return result;
+}
 object selector (tree pattern) {
   if (is_atomic (pattern)) {
     string s= pattern->label;
-    return starts (s, "(") ? object (s) : string_to_object (s);
+    return starts (s, "(") ? object (s) : selector_value (string_to_scheme_tree (s));
   }
   const string name= as_string (L(pattern));
   if (name == "pat-any") return keyword_object ("%1");
