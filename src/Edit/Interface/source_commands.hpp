@@ -1,6 +1,7 @@
 // Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later.
 #pragma once
 #include "scheme.hpp"
+#include <optional>
 void source_make_latex ();
 void source_activate_compound ();
 void source_inactive_toggle (tree);
@@ -13,11 +14,9 @@ object source_search_tag_options (tree);
 array<string> source_search_parameters (string);
 object source_search_tag_parameters (tree);
 object source_assigned_parameters (object);
-object source_theme_guess (string);
-object source_theme_members (string);
-object source_member_theme (string);
-object source_search_themes (object);
-object source_search_tag_themes (tree);
+std::optional<array<string>> source_theme_members (string);
+std::optional<string> source_member_theme (string);
+array<string> source_search_themes (string);
 bool source_has_macro (object);
 void source_edit_macro (object);
 void source_edit_focus_macro ();

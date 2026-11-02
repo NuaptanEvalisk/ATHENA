@@ -348,56 +348,41 @@ object source_assigned_parameters (object label) {
   assigned (name_of (label), values, visited);
   return name_list (values);
 }
-object source_theme_members (string theme) {
+std::optional<array<string>> source_theme_members (string theme) {
   tree def= definition ("with-" * theme);
   if (!is_func (def, MACRO, 2) || !is_func (def[1], WITH))
-    return object (false);
+    return std::nullopt;
   tree body= def[1];
-  array<object> out;
+  array<string> out;
   for (int i= 0; i + 1 < N (body); i+= 2) {
     if (!is_atomic (body[i]) || !is_func (body[i + 1], VALUE, 1) ||
         !is_atomic (body[i + 1][0]) ||
         body[i + 1][0]->label != theme * "-" * body[i]->label)
-      return object (false);
-    out << object (body[i]->label);
+      return std::nullopt;
+    out << body[i]->label;
   }
-  return as_list_object (out);
+  return out;
 }
-object source_theme_guess (string variable) {
-  tree def= definition (variable);
-  if (!is_func (def, MACRO, 2) || !is_func (def[1], WITH) || N (def[1]) < 3)
-    return object (false);
-  tree body= def[1];
-  if (!is_atomic (body[0]) || !is_func (body[1], VALUE, 1) || !is_atomic (body[1][0]))
-    return object (false);
-  string suffix= "-" * body[0]->label, value= body[1][0]->label;
-  return ends (value, suffix) ? object (value (0, N (value) - N (suffix)))
-                              : object (false);
-}
-object source_member_theme (string variable) {
+std::optional<string> source_member_theme (string variable) {
   for (int i= N (variable) - 1; i >= 0; --i)
     if (variable[i] == '-') {
-      object members= source_theme_members (variable (0, i));
-      if (is_list (members))
-        for (auto member : objects (members))
-          if (as_string (member) == variable (i + 1, N (variable)))
-            return object (variable (0, i));
+      const auto members= source_theme_members (variable (0, i));
+      if (members)
+        for (int j=0; j<N(*members); ++j)
+          if ((*members)[j] == variable (i + 1, N (variable)))
+            return variable (0, i);
     }
-  return object (false);
+  return std::nullopt;
 }
-object source_search_themes (object label) {
-  array<object> out;
+array<string> source_search_themes (string label) {
+  array<string> out;
   names seen;
-  const auto parameters= source_search_parameters (name_of (label));
+  const auto parameters= source_search_parameters (label);
   for (int i=0; i<N(parameters); ++i) {
-    object theme= source_member_theme (parameters[i]);
-    if (is_string (theme) && seen.insert (as_string (theme)).second)
-      out << theme;
+    const auto theme= source_member_theme (parameters[i]);
+    if (theme && seen.insert (*theme).second) out << *theme;
   }
-  return as_list_object (out);
-}
-object source_search_tag_themes (tree t) {
-  return source_search_themes (symbol_object (as_string (L (t))));
+  return out;
 }
 bool source_has_macro (object label) {
   string name= name_of (label);

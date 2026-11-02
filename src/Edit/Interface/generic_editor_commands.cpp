@@ -1540,8 +1540,7 @@ generic_parameter_show_in_menu (string name) {
     if (athena::contracts::standard_node_groups ().contains (
           "section-tag", std::string (section.data (), N(section)))) return false;
   }
-  object theme= source_member_theme (name);
-  return is_bool (theme) && !as_bool (theme);
+  return !source_member_theme (name).has_value ();
 }
 
 bool
@@ -1569,9 +1568,9 @@ string focus_tag_name (string name) {
     name= text_algorithm_root (name);
   }
 
-  object theme= source_member_theme (name);
-  if (is_string (theme)) {
-    string prefix= as_string (theme);
+  const auto theme= source_member_theme (name);
+  if (theme) {
+    string prefix= *theme;
     int start= min (N (name), N (prefix) + 1);
     return focus_tag_name (name (start, N (name)));
   }

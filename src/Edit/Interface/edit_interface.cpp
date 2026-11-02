@@ -1538,30 +1538,16 @@ editor_rep::focus_toolbar_state_snapshot () {
   catch (...) {}
 
   try {
-    object themes= source_search_tag_themes (t);
-    if (is_list (themes)) {
-      array<object> themeValues= as_array_object (themes);
-      for (int i=0; i<N(themeValues); ++i) {
-        string theme;
-        if (is_string (themeValues[i])) theme= as_string (themeValues[i]);
-        else if (is_symbol (themeValues[i])) theme= as_symbol (themeValues[i]);
-        else continue;
-        object members= source_theme_members (theme);
-        if (!is_list (members)) continue;
-        array<object> memberValues= as_array_object (members);
-        for (int j=0; j<N(memberValues); ++j) {
-          string member;
-          if (is_string (memberValues[j]))
-            member= as_string (memberValues[j]);
-          else if (is_symbol (memberValues[j]))
-            member= as_symbol (memberValues[j]);
-          else continue;
-          string variable= theme * "-" * member;
-          append_parameter (
-            snapshot.global_parameters, variable, string (""), globalMode);
-          append_parameter (
-            snapshot.local_parameters, variable, string (""), localMode);
-        }
+    const auto themes= source_search_themes (as_string (L (t)));
+    for (int i=0; i<N(themes); ++i) {
+      const auto members= source_theme_members (themes[i]);
+      if (!members) continue;
+      for (int j=0; j<N(*members); ++j) {
+        string variable= themes[i] * "-" * (*members)[j];
+        append_parameter (
+          snapshot.global_parameters, variable, string (""), globalMode);
+        append_parameter (
+          snapshot.local_parameters, variable, string (""), localMode);
       }
     }
   }

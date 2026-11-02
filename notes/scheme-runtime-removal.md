@@ -1314,6 +1314,21 @@ generated native entries and remain on the secure-function list.
   Combined full linking/runtime verification/deployment remains pending;
   installed runtime remains the `0063a1106` deployment.
 
+## Native Theme Parameter Discovery
+
+- Theme member lookup returns optional native string arrays, distinguishing an
+  invalid theme definition from a valid empty theme. Member-to-theme lookup
+  returns an optional string and retains longest-prefix-first matching.
+- Theme discovery, focus parameter expansion, menu visibility and recursive
+  tag naming now use those values directly. Theme definition validation,
+  parameter ordering and duplicate suppression are unchanged.
+- Removed the unused theme-guess implementation, tag forwarding wrapper and
+  five Scheme bindings, plus obsolete Scheme specialization assertions.
+- XML generation and three implementation units compiled with `-j16`; log
+  `build_qt6/native-theme-discovery-build.log`. No tests added or run. Full
+  combined linking/runtime verification/deployment remains pending with the
+  preceding focus-parameter batches; installed runtime remains `0063a1106`.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

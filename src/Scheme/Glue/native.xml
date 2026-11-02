@@ -117,11 +117,6 @@
   <binding name="search-tag-options" native="source_search_tag_options" returns="object"><arg type="tree" /></binding>
   <binding name="search-tag-parameters" native="source_search_tag_parameters" returns="object"><arg type="tree" /></binding>
   <binding name="assigned-parameters" native="source_assigned_parameters" returns="object"><arg type="object" /></binding>
-  <binding name="theme-guess" native="source_theme_guess" returns="object"><arg type="string" /></binding>
-  <binding name="theme->members" native="source_theme_members" returns="object"><arg type="string" /></binding>
-  <binding name="member->theme" native="source_member_theme" returns="object"><arg type="string" /></binding>
-  <binding name="search-themes" native="source_search_themes" returns="object"><arg type="object" /></binding>
-  <binding name="search-tag-themes" native="source_search_tag_themes" returns="object"><arg type="tree" /></binding>
   <binding name="edit-package-source" native="source_edit_package" returns="void"><arg type="string" /></binding>
   <binding name="edit-style-source" native="source_edit_style" returns="void" />
   <binding name="native-insert-include-dialog" native="generic_insert_include_dialog" returns="void" />

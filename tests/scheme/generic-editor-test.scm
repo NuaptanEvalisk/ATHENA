@@ -166,9 +166,6 @@
                  (string->symbol
                    (tree-name (list (string->symbol "page-screen-margin"))))))
        "native parameter naming preserves focus tag naming policy")
-(check (equal? (parameter-show-in-menu? "page-screen-margin")
-               (not (member->theme "page-screen-margin")))
-       "native parameter visibility baseline preserves theme membership policy")
 (check (not (parameter-show-in-menu? "language"))
        "Scheme parameter visibility specialization remains authoritative")
 
@@ -188,15 +185,6 @@
                  (stree->tree '(native-variant-extension "x")))
                '(native-one native-two))
        "native focus variant baseline remains a Scheme extension point")
-
-(tm-define (member->theme name)
-  (:require (equal? name "native-theme-special"))
-  "native-theme")
-(tm-define (focus-tag-name label)
-  (:require (equal? label 'special))
-  "Specialized tag")
-(check (equal? (focus-tag-name 'native-theme-special) "Specialized tag")
-       "native focus tag recursion redispatches through Scheme specialization")
 
 (define proposal-tree (stree->tree '(native-proposal-extension "x")))
 (check (not (child-proposals proposal-tree 0))
