@@ -773,6 +773,19 @@ generated native entries and remain on the secure-function list.
   this parameter transition. Full linking/deployment remains pending together
   with metadata serialization; installed runtime remains `e5161f143`.
 
+## Native Zoom Number Parsing
+
+- Custom zoom input and zoom preference notifications use Qt's numeric parser
+  rather than constructing Scheme objects. The input contract is a complete
+  decimal/scientific numeric value, with the existing optional percent suffix
+  on custom zoom. Scheme reader-specific numeric syntax is no longer accepted.
+- Finite-number checks, the 0.04 to 25.0 clamp, preference propagation and
+  editor notifications stay in their existing native implementations.
+- Both implementation units compiled with `-j16`; log:
+  `build_qt6/native-zoom-parser-build.log`. No additional tests were needed.
+  Full linking/deployment remains pending with the two keyboard batches;
+  installed runtime remains `e5161f143`.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

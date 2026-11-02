@@ -10,6 +10,7 @@
 #include "scheme_execution_context.hpp"
 #include "native_interfaces.hpp"
 #include "native_input_events.hpp"
+#include <QString>
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -44,9 +45,9 @@ void view_notify_change (int changes) {
     actor_continuation_registry::instance ().discard (continuation);
 }
 void view_notify_zoom (string, string value) {
-  object number= string_to_object (value);
-  if (!is_double (number)) throw std::runtime_error ("Invalid zoom preference");
-  double zoom= as_double (number);
+  bool valid= false;
+  double zoom= QString::fromUtf8 (value.data (), N(value)).toDouble (&valid);
+  if (!valid) throw std::runtime_error ("Invalid zoom preference");
   if (!std::isfinite (zoom)) throw std::runtime_error ("Zoom preference must be finite");
   zoom= std::clamp (zoom, 0.04, 25.0);
   get_server ()->set_default_zoom_factor (zoom);

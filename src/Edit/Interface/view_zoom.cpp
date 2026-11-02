@@ -4,8 +4,8 @@
 #include "server.hpp"
 #include "new_window.hpp"
 #include "renderer.hpp"
-#include "scheme.hpp"
 #include "analyze.hpp"
+#include <QString>
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
@@ -25,11 +25,11 @@ void view_change_zoom (double zoom) {
 void view_other_zoom (string value) {
   bool percent= ends (value, "%");
   if (percent) value= value (0, N(value)-1);
-  object number= string_to_object (value);
-  if (!is_int (number) && !is_double (number))
+  bool valid= false;
+  double number= QString::fromUtf8 (value.data (), N(value)).toDouble (&valid);
+  if (!valid)
     throw std::runtime_error ("Invalid zoom factor");
-  view_change_zoom ((is_int (number)? as_int (number): as_double (number)) *
-                    (percent? 0.01: 1.0));
+  view_change_zoom (number * (percent? 0.01: 1.0));
 }
 
 namespace {
