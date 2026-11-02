@@ -1360,6 +1360,27 @@ generated native entries and remain on the secure-function list.
   combined full build, runtime verification and deployment. Installed runtime
   remains the `0063a1106` deployment until that succeeds.
 
+## Combined Focus Metadata Deployment
+
+- Full `ATHENA.bin` build with `-j16` passed for all pending batches from
+  procedure reflection removal through native style help (`ee405e3e9` through
+  `b31d5478c`). This supersedes their earlier pending-link/deployment notes.
+- A temporary headless probe confirmed all retired bindings in those batches
+  are absent. It exercised native property lookup through the retained adapter:
+  the last duplicate wins, an empty property stays present, and a missing
+  property returns absence. The nullary restart notification was callable.
+  It printed `NATIVE_FOCUS_METADATA_OK` and exited normally. No broad suite or
+  interactive UI test was performed.
+- Deployed with the official helper; executable build ID:
+  `011be25944adeff955548178555917b2226fd7a6`. Removed the owned probe and profile.
+  Logs in `build_qt6`: `native-focus-metadata-build.log`,
+  `native-focus-metadata-runtime.log`, `native-focus-metadata-deploy.log`.
+- Next concrete production object transport is style-list access:
+  `current_style_strings` is already native, while `document_get_style_list`
+  converts it to objects for source commands, document settings and UI snapshots
+  that immediately convert it back. Native list access should replace that path
+  without changing style normalization or actor ownership.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
