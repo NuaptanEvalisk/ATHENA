@@ -956,7 +956,7 @@ qt_gui_rep::process_queued_events (int max) {
 #ifdef QT_CPU_FIX
     if (ev.x1 != qp_type::QP_NULL &&
         ev.x1 != qp_type::QP_SOCKET_NOTIFICATION &&
-        ev.x1 != qp_type::QP_DELAYED_COMMANDS)
+        ev.x1 != qp_type::QP_GLOBAL_COMMANDS)
       tm_wake_up ();
 #endif
     switch (ev.x1) {
@@ -1021,9 +1021,9 @@ qt_gui_rep::process_queued_events (int max) {
         x.x1->apply (x.x2);
       }
         break;
-      case qp_type::QP_DELAYED_COMMANDS :
+      case qp_type::QP_GLOBAL_COMMANDS :
       {
-        delayed_commands.exec_pending();
+        global_commands.exec_pending();
       }
         break;
         
@@ -1034,7 +1034,7 @@ qt_gui_rep::process_queued_events (int max) {
       case qp_type::QP_COMMAND:
       case qp_type::QP_COMMAND_ARGS:
       case qp_type::QP_RESIZE:
-      case qp_type::QP_DELAYED_COMMANDS:
+      case qp_type::QP_GLOBAL_COMMANDS:
         break;
       default:
         count++;
@@ -1094,8 +1094,8 @@ qt_gui_rep::process_command (command _cmd, object _args) {
 }
 
 void
-qt_gui_rep::process_delayed_commands () {
-  add_event (queued_event (qp_type::QP_DELAYED_COMMANDS, blackbox()));
+qt_gui_rep::process_global_commands () {
+  add_event (queued_event (qp_type::QP_GLOBAL_COMMANDS, blackbox()));
 }
 
 /*!
@@ -1191,10 +1191,10 @@ qt_gui_rep::update () {
   }
   
     // 2.
-    // Manage delayed commands
+    // Run pending process-global script callbacks.
   
-  if (delayed_commands.must_wait (now))
-    process_delayed_commands();
+  if (global_commands.has_pending ())
+    process_global_commands ();
   
     // 3.
     // If there are pending events in the private queue process them until the
@@ -1237,9 +1237,7 @@ qt_gui_rep::update () {
       !athena_has_open_ads_panes ())
     qApp->quit ();
   
-  time_t delay = delayed_commands.lapse - texmacs_time();
-  if (needing_update) delay = 0;
-  else                delay = std::max ((time_t)0, std::min (std_delay, delay));
+  time_t delay= needing_update || global_commands.has_pending () ? 0 : std_delay;
   if (postpone_treatment) delay= 9; // NOTE: force occasional display
  
   updatetimer->start (delay);
@@ -1248,7 +1246,7 @@ qt_gui_rep::update () {
   if (!headless_mode &&
       startup_splash_hide_allowed &&
       !startup_splash_hidden &&
-      !delayed_commands.must_wait (texmacs_time())) {
+      !global_commands.has_pending ()) {
     startup_splash_hidden= true;
     tmapp()->set_splash_progress (100, "Ready");
     tmapp()->hide_splash ();
@@ -1461,29 +1459,10 @@ external_event (string type, time_t t) {
 }
 
 /******************************************************************************
- * Delayed commands
+ * One-shot global script commands
  ******************************************************************************/
 
-command_queue::command_queue() : lapse (0), wait (true) { }
 command_queue::~command_queue() { clear_pending(); /* implicit */ }
-
-void
-command_queue::exec (object cmd) {
-  athena_scheme_handle_id handle=
-    scheme_command_handle_acquire (object_to_tmscm (cmd));
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
-  if (context != nullptr && context->view_id != ATHENA_NO_VIEW) {
-    actor_ui_endpoint* endpoint=
-      find_actor_ui_endpoint (context->view_id);
-    if (endpoint != nullptr && endpoint->publish (
-          actor_command_kind::ui_schedule_scheme, ATHENA_NO_BLOB,
-          handle, 0))
-      return;
-    scheme_command_handle_release (handle);
-    return;
-  }
-  exec_handle (handle, ATHENA_NO_ACTOR, ATHENA_NO_VIEW, false);
-}
 
 void
 command_queue::exec_global (object cmd) {
@@ -1500,8 +1479,7 @@ command_queue::exec_global (object cmd) {
     // Passive conversion views, like headless views, have no attached canvas
     // to drain global UI effects. Their global commands still need delivery.
     qt_post_to_main_thread ([handle] {
-      schedule_delayed_scheme_handle (
-        handle, ATHENA_NO_ACTOR, ATHENA_NO_VIEW, false, true);
+      schedule_global_scheme_handle (handle, ATHENA_NO_VIEW);
     });
     return;
   }
@@ -1513,143 +1491,48 @@ command_queue::exec_global (object cmd) {
 }
 
 void
-command_queue::exec_handle (
-  std::uint64_t handle, std::uint64_t actor_id, std::uint64_t view_id,
-  bool pause, bool force_global) {
+command_queue::exec_handle (std::uint64_t handle, std::uint64_t view_id) {
   if (handle == ATHENA_NO_SCHEME_HANDLE) return;
   handles << handle;
-  actor_ids << actor_id;
   view_ids << view_id;
-  execution_domains << (force_global ? 1 : 0);
-  time_t now= texmacs_time ();
-  start_times << (pause ? now : now - 1000000000);
-  lapse= now;
   if (gui_event_loop_started) the_gui->need_update ();
-  wait= true;
-}
-
-void
-command_queue::complete_handle (
-  std::uint64_t handle, std::uint64_t actor_id, std::uint64_t view_id,
-  bool repeat, std::int64_t delay) {
-  if (repeat) {
-    exec_handle (handle, actor_id, view_id, true);
-    start_times[N (start_times) - 1]= texmacs_time () +
-      static_cast<time_t> (delay);
-  }
-  else scheme_command_handle_release (handle);
 }
 
 void
 command_queue::exec_pending () {
-  static const int delayed_command_call_budget= 20;
-  static const time_t delayed_command_time_budget= 25;
+  static const int command_call_budget= 20;
+  static const time_t command_time_budget= 25;
   array<std::uint64_t> h= handles;
-  array<std::uint64_t> actors= actor_ids;
   array<std::uint64_t> views= view_ids;
-  array<int> domains= execution_domains;
-  array<time_t> times= start_times;
   handles= array<std::uint64_t> (0);
-  actor_ids= array<std::uint64_t> (0);
   view_ids= array<std::uint64_t> (0);
-  execution_domains= array<int> (0);
-  start_times= array<time_t> (0);
-  int i, n= N (h);
-  int processed_calls= 0;
-  time_t batch_begin= texmacs_time ();
-  for (i = 0; i<n; i++) {
-    time_t now =  texmacs_time ();
-    if ((now - times[i]) >= 0) {
-      athena_actor_id actor_id= actors[i];
-      athena_view_id view_id= views[i];
-      bool force_global= domains[i] != 0;
-      if (!force_global && actor_id == ATHENA_NO_ACTOR) {
-        bool adopted_view= false;
-        if (has_current_view ()) {
-          tm_view view= concrete_view (get_current_view_safe ());
-          if (view != nullptr) {
-            actor_id= view->buf->actor->id ();
-            view_id= view->runtime_id;
-            adopted_view= true;
-          }
-        }
-        if (!adopted_view && !headless_mode) {
-          // Ownerless GUI work is editor-bound by default. During startup the
-          // current view can be absent or only partially constructed, so never
-          // run such Scheme on the GUI thread until a concrete BufferActor view
-          // is available. Truly process-global work uses exec_delayed_global.
-          handles << h[i];
-          actor_ids << ATHENA_NO_ACTOR;
-          view_ids << ATHENA_NO_VIEW;
-          execution_domains << 0;
-          start_times << now + 1;
-          continue;
-        }
-      }
-      bool allow_repeat= now - times[i] < 1000000000;
-      if (actor_id != ATHENA_NO_ACTOR) {
-        actor_command_ticket ticket= buffer_actor::submit_to (
-          actor_id, actor_command_kind::run_scheme_handle, view_id,
-          ATHENA_NO_BLOB, ATHENA_NO_BLOB,
-          SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_UI |
-            SCHEME_CAPABILITY_GLOBAL,
-          h[i], allow_repeat ? 1 : 0);
-        if (!ticket) scheme_command_handle_release (h[i]);
-      }
-      else {
-        if (view_id != ATHENA_NO_VIEW) {
-          tm_view view= concrete_runtime_view (view_id);
-          if (view != nullptr) set_current_view (abstract_view (view));
-        }
-        tmscm command= scheme_command_handle_value (h[i]);
-        if (scm_is_eq (command, SCM_UNDEFINED)) continue;
-        try {
-          tmscm result= call_scheme (command);
-          if (allow_repeat && tmscm_is_int (result)) {
-            handles << h[i];
-            actor_ids << ATHENA_NO_ACTOR;
-            view_ids << view_id;
-            execution_domains << 1;
-            start_times << now + static_cast<time_t> (tmscm_to_int (result));
-          }
-          else scheme_command_handle_release (h[i]);
-        }
-        catch (...) {
-          scheme_command_handle_release (h[i]);
-          throw;
-        }
-      }
-      processed_calls++;
-      time_t call_end= texmacs_time ();
-      if (processed_calls >= delayed_command_call_budget ||
-          call_end - batch_begin >= delayed_command_time_budget) {
-        for (int j=i+1; j<n; j++) {
-          handles << h[j];
-          actor_ids << actors[j];
-          view_ids << views[j];
-          execution_domains << domains[j];
-          start_times << times[j];
-        }
-        break;
-      }
+  auto retain_remaining= [&] (int next) {
+    for (int j=next; j<N(h); ++j) {
+      handles << h[j];
+      view_ids << views[j];
     }
-    else {
-      handles << h[i];
-      actor_ids << actors[i];
-      view_ids << views[i];
-      execution_domains << domains[i];
-      start_times << times[i];
+  };
+  time_t batch_begin= texmacs_time ();
+  for (int i=0; i<N(h); ++i) {
+    if (views[i] != ATHENA_NO_VIEW) {
+      tm_view view= concrete_runtime_view (views[i]);
+      if (view != nullptr) set_current_view (abstract_view (view));
+    }
+    try {
+      tmscm command= scheme_command_handle_value (h[i]);
+      if (!scm_is_eq (command, SCM_UNDEFINED)) (void) call_scheme (command);
+    }
+    catch (...) {
+      scheme_command_handle_release (h[i]);
+      retain_remaining (i+1);
+      throw;
+    }
+    scheme_command_handle_release (h[i]);
+    if (i+1 >= command_call_budget || texmacs_time () - batch_begin >= command_time_budget) {
+      retain_remaining (i+1);
+      break;
     }
   }
-  if (N(handles) > 0) {
-    wait = true;  // wait_for_delayed_commands
-    lapse = start_times[0];
-    int n = N(start_times);
-    for (i = 1; i<n; i++) {
-      if (lapse > start_times[i]) lapse = start_times[i];
-    }
-  } else
-    wait = false;
 }
 
 void
@@ -1657,49 +1540,22 @@ command_queue::clear_pending () {
   for (int i= 0; i < N (handles); ++i)
     scheme_command_handle_release (handles[i]);
   handles= array<std::uint64_t> (0);
-  actor_ids= array<std::uint64_t> (0);
   view_ids= array<std::uint64_t> (0);
-  execution_domains= array<int> (0);
-  start_times = array<time_t> (0);
-  wait = false;
-}
-
-bool
-command_queue::must_wait (time_t now) const {
-  return wait && (lapse <= now);
 }
 
 
 /******************************************************************************
- * Delayed commands interface
+ * Global script command interface
  ******************************************************************************/
 
-void exec_delayed (object cmd) {
-  the_gui->delayed_commands.exec(cmd);
-}
-void exec_delayed_global (object cmd) {
-  athena_scheme_handle_id handle=
-    scheme_command_handle_acquire (object_to_tmscm (cmd));
-  the_gui->delayed_commands.exec_handle (
-    handle, ATHENA_NO_ACTOR, ATHENA_NO_VIEW, false, true);
-}
 void exec_global (object cmd) {
-  the_gui->delayed_commands.exec_global(cmd);
+  the_gui->global_commands.exec_global(cmd);
 }
-void schedule_delayed_scheme_handle (
-  std::uint64_t handle, std::uint64_t actor_id, std::uint64_t view_id,
-  bool pause, bool force_global) {
-  the_gui->delayed_commands.exec_handle (
-    handle, actor_id, view_id, pause, force_global);
-}
-void complete_delayed_scheme_handle (
-  std::uint64_t handle, std::uint64_t actor_id, std::uint64_t view_id,
-  bool repeat, std::int64_t delay) {
-  the_gui->delayed_commands.complete_handle (
-    handle, actor_id, view_id, repeat, delay);
+void schedule_global_scheme_handle (std::uint64_t handle, std::uint64_t view_id) {
+  the_gui->global_commands.exec_handle (handle, view_id);
 }
 void clear_pending_commands () {
-  the_gui->delayed_commands.clear_pending();
+  the_gui->global_commands.clear_pending();
 }
 
 

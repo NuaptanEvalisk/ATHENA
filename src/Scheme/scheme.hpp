@@ -160,15 +160,8 @@ object eval (string expr);
 object eval (object expr);
 object eval_file (string name);
 bool   exec_file (url u);
-void   exec_delayed (object cmd);
-void   exec_delayed_global (object cmd);
 void   exec_global (object cmd);
-void   schedule_delayed_scheme_handle (
-         std::uint64_t handle, std::uint64_t actor_id,
-         std::uint64_t view_id, bool pause, bool force_global= false);
-void   complete_delayed_scheme_handle (
-         std::uint64_t handle, std::uint64_t actor_id,
-         std::uint64_t view_id, bool repeat, std::int64_t delay);
+void   schedule_global_scheme_handle (std::uint64_t handle, std::uint64_t view_id);
 void   exec_pending_commands ();
 void   clear_pending_commands ();
 void   protected_call (object cmd);

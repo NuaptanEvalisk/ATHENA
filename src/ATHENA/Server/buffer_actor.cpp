@@ -1577,26 +1577,16 @@ buffer_actor::dispatch (actor_command_record& command) {
       scheme_command_handle_release (handle);
       break;
     }
-    bool allow_repeat= command.argument[1] != 0;
-    bool repeat= false;
-    std::int64_t delay= 0;
     std::exception_ptr failure;
     try {
       tmscm procedure= scheme_command_handle_value (handle);
       if (scm_is_eq (procedure, SCM_UNDEFINED))
-        FAILED ("delayed Scheme command handle is no longer live");
-      tmscm result= call_scheme (procedure);
-      if (allow_repeat && tmscm_is_int (result)) {
-        repeat= true;
-        delay= static_cast<std::int64_t> (tmscm_to_int (result));
-      }
+        FAILED ("buffer Scheme command handle is no longer live");
+      (void) call_scheme (procedure);
     }
     catch (...) { failure= std::current_exception (); }
 
-    bool returned= editor != nullptr && editor->publish_ui (
-      actor_command_kind::ui_scheme_completed, handle,
-      repeat ? 1 : 0, static_cast<std::uint64_t> (delay));
-    if (!returned) scheme_command_handle_release (handle);
+    scheme_command_handle_release (handle);
     if (failure != nullptr) std::rethrow_exception (failure);
     break;
   }

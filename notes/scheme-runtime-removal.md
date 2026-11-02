@@ -509,10 +509,32 @@ generated native entries and remain on the secure-function list.
   `NATIVE_CONTENT_VALUES_OK` and exited zero. Deployed with the runtime helper,
   removed the profile, and retained logs under
   `build_qt6/native-content-values-{build,runtime,deploy}.log`.
-- The Qt Scheme delayed-command queue is the next confirmed unused path:
-  `exec-delayed` has no production consumers and `exec_delayed_global` has no
-  callers. Its handle queue and UI scheduling messages can be removed together;
-  native editor scheduling is separate and must remain.
+- `exec-delayed` and `exec_delayed_global` have no callers. A follow-up audit
+  found that the same queue also services `exec-global`, which audit/migration
+  scripts and runtime checks still use. The queue cannot be removed wholesale
+  until those consumers are migrated. Native editor scheduling is separate.
+
+## Retired Repeating Scheme Scheduling
+
+- Deleted `exec-delayed`, `exec_delayed_global`, timer/repeat state, automatic
+  current-editor adoption, delayed UI scheduling and completion messages.
+- `exec-buffer` remains a supported script boundary for now. Its actor command
+  executes once and releases its handle directly on success or failure, rather
+  than publishing a GUI completion event merely to release the handle.
+- The remaining global script queue preserves source-view selection, bounded
+  execution batches and shutdown cleanup. It retains unexecuted handles if a
+  callback throws. Empty queues no longer set the GUI update interval from an
+  expired delayed-command timestamp; pending work still requests immediate
+  updates. Native scheduled tasks are unchanged.
+- `exec-global` and `exec-buffer` consumers must still be migrated before the
+  remaining one-shot queue and script runtime can be removed. This is not a
+  Scheme-free event loop yet.
+- Built with `-j16`. An isolated headless runtime verified `exec-delayed` was
+  absent and dispatched 45 one-shot global callbacks from a buffer actor,
+  exceeding the per-batch call budget. All completed, printed
+  `ONE_SHOT_GLOBAL_CALLBACKS_OK` and exited zero. Deployed with the runtime
+  helper and removed the profile. Logs:
+  `build_qt6/native-one-shot-commands-{build,runtime,deploy}.log`.
 
 ## Known Outstanding Failure
 

@@ -1184,18 +1184,8 @@ qt_actor_widget_rep::drain_external_effects () {
       if (view != nullptr) qtm_document_history_manual_request (view->buf);
       break;
     }
-    case actor_command_kind::ui_schedule_scheme:
-      schedule_delayed_scheme_handle (
-        record.argument[0], actor_id_, view_id_, record.argument[1] != 0);
-      break;
     case actor_command_kind::ui_schedule_global_scheme:
-      schedule_delayed_scheme_handle (
-        record.argument[0], ATHENA_NO_ACTOR, view_id_, false, true);
-      break;
-    case actor_command_kind::ui_scheme_completed:
-      complete_delayed_scheme_handle (
-        record.argument[0], actor_id_, view_id_, record.argument[1] != 0,
-        static_cast<std::int64_t> (record.argument[2]));
+      schedule_global_scheme_handle (record.argument[0], view_id_);
       break;
     default:
       break;

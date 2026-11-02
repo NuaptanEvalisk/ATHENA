@@ -42,7 +42,7 @@ public:
   enum id_t {
     QP_NULL,    QP_KEYPRESS,     QP_TEXT_INPUT, QP_KEYBOARD_FOCUS,
     QP_MOUSE,   QP_RESIZE,       QP_SOCKET_NOTIFICATION,
-    QP_COMMAND, QP_COMMAND_ARGS, QP_DELAYED_COMMANDS };
+    QP_COMMAND, QP_COMMAND_ARGS, QP_GLOBAL_COMMANDS };
   id_t sid;
   inline qp_type (id_t sid2 = QP_NULL): sid (sid2) {}
   inline qp_type (const qp_type& s): sid (s.sid) {}
@@ -89,32 +89,16 @@ public:
  */
 class command_queue {
   array<std::uint64_t> handles;
-  array<std::uint64_t> actor_ids;
   array<std::uint64_t> view_ids;
-  array<int> execution_domains;
-  array<time_t> start_times;
-  time_t lapse;
-  
-  bool wait;
-    // this flag is used in update() to insert QP_DELAYED_COMMANDS events in
-    // the TeXmacs event queue to have delayed command handling properly
-    // interspersed with the other events
 
 public:
-  command_queue();
   ~command_queue();
 
-  void exec (object cmd);
   void exec_global (object cmd);
-  void exec_handle (std::uint64_t handle, std::uint64_t actor_id,
-                    std::uint64_t view_id, bool pause,
-                    bool force_global= false);
-  void complete_handle (std::uint64_t handle, std::uint64_t actor_id,
-                        std::uint64_t view_id, bool repeat,
-                        std::int64_t delay);
+  void exec_handle (std::uint64_t handle, std::uint64_t view_id);
   void exec_pending ();
   void clear_pending ();
-  bool must_wait (time_t now) const;
+  bool has_pending () const { return N(handles) != 0; }
   
   friend class qt_gui_rep;
 };
@@ -153,7 +137,7 @@ class qt_gui_rep {
   bool  needing_update;
 
   event_queue     waiting_events;
-  command_queue delayed_commands;
+  command_queue global_commands;
 
 public:
   QTMGuiHelper*  gui_helper;
@@ -203,20 +187,13 @@ public:
   void process_resize (qt_simple_widget_rep *wid, SI x, SI y);
   void process_command (command _cmd);
   void process_command (command _cmd, object _args);
-  void process_delayed_commands (); 
+  void process_global_commands ();
   void process_queued_events (int max = -1);
   
   /* befriended interface functions */
   friend class QTMGuiHelper;
-  friend void exec_delayed (object cmd);
-  friend void exec_delayed_global (object cmd);
   friend void exec_global (object cmd);
-  friend void schedule_delayed_scheme_handle (
-    std::uint64_t handle, std::uint64_t actor_id,
-    std::uint64_t view_id, bool pause, bool force_global);
-  friend void complete_delayed_scheme_handle (
-    std::uint64_t handle, std::uint64_t actor_id,
-    std::uint64_t view_id, bool repeat, std::int64_t delay);
+  friend void schedule_global_scheme_handle (std::uint64_t handle, std::uint64_t view_id);
   friend void clear_pending_commands ();
   friend void needs_update ();
 };
