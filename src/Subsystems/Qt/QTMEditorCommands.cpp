@@ -341,8 +341,6 @@ editor_command_id (const QString& id) {
     return native_editor_command_id::focus_exit_right;
   if (id == "editor.focus.remove-tag")
     return native_editor_command_id::focus_remove_tag;
-  if (id == "editor.focus.help")
-    return native_editor_command_id::focus_help;
   return native_editor_command_id::none;
 }
 
@@ -489,14 +487,6 @@ native_editor_command_state (const QString& id,
     result.available=
       genericFocus && focus.has (ACTOR_FOCUS_TOOLBAR_CURSOR_INSIDE);
     result.enabled= result.available && !snapshot.read_only ();
-    break;
-  case native_editor_command_id::focus_help:
-    result.available=
-      genericFocus ||
-      (focus.valid () &&
-       (focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) ||
-        focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT)));
-    result.enabled= result.available;
     break;
   default:
     break;

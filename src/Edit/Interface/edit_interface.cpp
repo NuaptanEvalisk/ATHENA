@@ -913,7 +913,6 @@ editor_rep::document_menu_state_snapshot () {
   catch (...) {}
 
   snapshot.beamer_style= defined_at_init ("beamer-style");
-  snapshot.automate_style= defined_at_init ("automate-dtd");
   {
     tree root= the_root ();
     path p= the_path ();

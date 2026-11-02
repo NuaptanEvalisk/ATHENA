@@ -1721,13 +1721,6 @@
       ]
     },
     {
-      "id": "automate",
-      "label": "Automate",
-      "items": [
-        { "provider": "automate-menu" }
-      ]
-    },
-    {
       "id": "focus",
       "label": "Focus",
       "items": [
@@ -1902,7 +1895,6 @@
           ]
         },
         { "command": "editor.focus.search" },
-        { "command": "editor.focus.help" },
         { "separator": true },
         { "command": "namespace.open" },
         { "command": "namespace.refresh" }
@@ -2359,7 +2351,6 @@
         { "menu": "manual" },
         { "menu": "source" },
         { "menu": "dynamic" },
-        { "menu": "automate" },
         { "menu": "focus" },
         { "menu": "format" },
         { "menu": "document" },

@@ -1417,20 +1417,6 @@
       "implied-python",
       "implied-julia",
       "implied-shell"
-    ],
-    "auto-block-tag": [
-      "block-if",
-      "block-for",
-      "block-while",
-      "block-assign",
-      "block-intersperse"
-    ],
-    "auto-inline-tag": [
-      "inline-if",
-      "inline-for",
-      "inline-while",
-      "inline-assign",
-      "inline-intersperse"
     ]
   },
   "alternates": [

@@ -81,8 +81,6 @@ menu_reference_visible (
     return !graphicsOnly && editor.presentation_mode ();
   if (id == QStringLiteral ("format"))
     return !graphicsOnly;
-  if (id == QStringLiteral ("automate"))
-    return document.ready && document.automate_style;
   return true;
 }
 

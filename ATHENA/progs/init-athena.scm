@@ -60,23 +60,9 @@
 
 ;(display "Booting utilities\n")
 (import-from (utils library cpp-wrap))
-(import-from (utils base environment))
 (lazy-define (utils library cursor) notify-cursor-moved cursor-history-add)
-(lazy-define (utils automate auto-edit)
-             make-block-if make-block-if-else make-block-for make-block-while
-             make-block-assign make-block-intersperse make-block-tag
-             make-inline-if make-inline-if-else make-inline-for make-inline-while
-             make-inline-assign make-inline-intersperse make-inline-tag
-             make-output-string make-inline-output make-block-output)
-(lazy-define (utils cas cas-out) cas->stree)
-
-(lazy-define (utils test test-convert) delayed-quit
-             build-manual build-ref-suite run-test-suite)
-(import-from (utils library smart-table))
 
 (import-from (utils misc markup-funcs))
-(lazy-tmfs-handler (utils automate auto-tmfs) automate)
-(lazy-define (utils automate auto-tmfs) auto-load-help focus-help)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting main TeXmacs functionality\n")

@@ -16,7 +16,6 @@
     {"id":"editor.focus.exit-left","label":"Exit left","category":"Focus","icon":"tm_exit_left","help":"Exit the focused tag on the left","palette":false},
     {"id":"editor.focus.exit-right","label":"Exit right","category":"Focus","icon":"tm_exit_right","help":"Exit the focused tag on the right","palette":false},
     {"id":"editor.focus.remove-tag","label":"Remove tag","category":"Focus","icon":"tm_focus_delete","help":"Remove the focused structure","palette":false},
-    {"id":"editor.focus.help","label":"Describe tag","category":"Focus","icon":"tm_focus_help","help":"Describe the focused tag","palette":false},
     {"id":"editor.focus.set-main-style","label":"Document style","category":"Focus","icon":"tm_style","help":"Set the main document style","palette":false},
     {"id":"editor.focus.document-font","label":"Document font","category":"Focus","icon":"tm_focus_font","help":"Choose the main document font","palette":false},
     {"id":"editor.focus.page-properties","dock":"athena-page-properties-pane","label":"Page properties","category":"Focus","icon":"tm_portrait","help":"Open page properties","palette":false},
@@ -49,8 +48,6 @@
       {"command":"editor.focus.slide-title","focus_requires":["screens-context"]},
       {"command":"editor.focus.slide-draw","focus_requires":["screens-context"]},
       {"submenu":"editor-focus-screen-preferences","label":"Preferences for tag","icon":"tm_focus_prefs","focus_requires":["screens-context"],"items":[{"provider":"editor-focus-preferences"},{"separator":true},{"provider":"editor-focus-tag-edit"}]},
-      {"command":"editor.focus.help","focus_requires":["screens-context"]},
-      {"command":"editor.focus.help","focus_requires":["buffer"]},
       {"provider":"editor-focus-document-extras","focus_requires":["buffer"]},
       {"separator":true},
       {"command":"editor.focus.metadata-properties","focus_requires_any":["doc-title-context","doc-author-context","abstract-context"]},
@@ -93,8 +90,7 @@
       {"command":"editor.focus.remove-tag","focus_forbids":["buffer","code-context","screens-context"]},
       {"submenu":"editor-focus-preferences","label":"Preferences for tag","icon":"tm_focus_prefs","focus_forbids":["buffer","code-context","screens-context"],"items":[{"provider":"editor-focus-preferences"},{"separator":true},{"provider":"editor-focus-tag-edit"}]},
       {"submenu":"editor-focus-rendering","label":"Rendering options for tag","icon":"tm_theme","focus_forbids":["buffer","code-context","screens-context"],"items":[{"provider":"editor-focus-rendering"}]},
-      {"command":"editor.focus.search","focus_forbids":["buffer","code-context","screens-context"]},
-      {"command":"editor.focus.help","focus_forbids":["buffer","code-context","screens-context"]}
+      {"command":"editor.focus.search","focus_forbids":["buffer","code-context","screens-context"]}
     ]}
   ]
 }

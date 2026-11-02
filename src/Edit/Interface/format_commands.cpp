@@ -375,9 +375,75 @@ void format_prompt (string prompt, object proposal,
 }
 
 void format_environment_prompt (string variable, format_prompt_action action) {
-  object description= call ("logic-ref", eval ("env-var-description%"),
-                            object (variable));
-  string prompt= is_string (description) ? as_string (description) : string ("Input:");
+  static const struct { const char* variable; const char* label; } labels[] = {
+    {"color", "Foreground color"},
+    {"bg-color", "Background color"},
+    {"locus-color", "Color of loci"},
+    {"visited-color", "Color of visited loci"},
+    {"radioactive-link-color", "Color of automatic artifact links"},
+    {"magnification", "Magnification"},
+    {"font-base-size", "Font size"},
+    {"dpi", "Dots per inch"},
+    {"par-width", "Paragraph width"},
+    {"par-mode", "Paragraph mode"},
+    {"par-flexibility", "Paragraph extensibility"},
+    {"par-hyphen", "Paragraph hyphenation algorithm"},
+    {"par-left", "Left margin"},
+    {"par-right", "Right margin"},
+    {"par-first", "First indentation"},
+    {"par-sep", "Separation between lines"},
+    {"par-line-sep", "Space between lines"},
+    {"par-par-sep", "Space between paragraphs"},
+    {"par-columns", "Number of columns"},
+    {"page-odd", "Odd page left margin"},
+    {"page-right", "Odd page right margin"},
+    {"page-even", "Even page left margin"},
+    {"page-top", "Top margin"},
+    {"page-bot", "Bottom margin"},
+    {"page-odd-shift", "Odd page shift"},
+    {"page-even-shift", "Even page shift"},
+    {"page-shrink", "How much shorter may pages become?"},
+    {"page-extend", "How much longer may pages become?"},
+    {"page-flexibility", "Flexibility factor for vertical spacing"},
+    {"page-screen-left", "Left margin"},
+    {"page-screen-right", "Right margin"},
+    {"page-screen-top", "Top margin"},
+    {"page-screen-bot", "Bottom margin"},
+    {"table-width", "Table width"},
+    {"table-height", "Table height"},
+    {"table-lsep", "Left table padding"},
+    {"table-rsep", "Right table padding"},
+    {"table-bsep", "Bottom table padding"},
+    {"table-tsep", "Top table padding"},
+    {"table-lborder", "Left table border"},
+    {"table-rborder", "Right table border"},
+    {"table-bborder", "Bottom table border"},
+    {"table-tborder", "Top table border"},
+    {"table-row-origin", "Origin row"},
+    {"table-col-origin", "Origin column"},
+    {"table-min-rows", "Minimal number of rows"},
+    {"table-max-rows", "Maximal number of rows"},
+    {"table-min-cols", "Minimal number of columns"},
+    {"table-max-cols", "Maximal number of columns"},
+    {"cell-width", "Cell width"},
+    {"cell-height", "Cell height"},
+    {"cell-hpart", "Part in unused horizontal space"},
+    {"cell-vpart", "Part in unused vertical space"},
+    {"cell-lsep", "Left cell padding"},
+    {"cell-rsep", "Right cell padding"},
+    {"cell-bsep", "Bottom cell padding"},
+    {"cell-tsep", "Top cell padding"},
+    {"cell-lborder", "Left cell border"},
+    {"cell-rborder", "Right cell border"},
+    {"cell-bborder", "Bottom cell border"},
+    {"cell-tborder", "Top cell border"}
+  };
+  string prompt= variable;
+  for (const auto& entry: labels)
+    if (variable == entry.variable) {
+      prompt= entry.label;
+      break;
+    }
   format_prompt (prompt, object (get_current_editor ()->get_env_string (variable)),
                  action, variable);
 }

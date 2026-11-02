@@ -136,7 +136,6 @@ struct native_keymap_registry {
     add ("graphics", "graphics-keybindings.json");
     add ("fold", "fold-keybindings.json");
     add ("tmdoc", "tmdoc-keybindings.json");
-    add ("automate", "automate-keybindings.json");
   }
 
   void add (const char* domain, const char* file) {

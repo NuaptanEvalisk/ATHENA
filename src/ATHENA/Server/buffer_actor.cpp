@@ -167,13 +167,6 @@ run_native_editor_command (editor_rep* editor,
     if (!genericFocus || !focus.has (ACTOR_FOCUS_TOOLBAR_CURSOR_INSIDE))
       return false;
     break;
-  case native_editor_command_id::focus_help:
-    if (!genericFocus &&
-        !(focus.valid () &&
-          (focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) ||
-           focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT))))
-      return false;
-    break;
   case native_editor_command_id::revert:
   case native_editor_command_id::close_document:
   case native_editor_command_id::save_as:
@@ -335,9 +328,6 @@ run_native_editor_command (editor_rep* editor,
       break;
     case native_editor_command_id::focus_remove_tag:
       editor->remove_structure_upwards ();
-      break;
-    case native_editor_command_id::focus_help:
-      (void) call ("focus-help");
       break;
     default:
       editor->cancel_menu_action ();

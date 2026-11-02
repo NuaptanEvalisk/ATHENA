@@ -1114,21 +1114,6 @@ set_global_options  (int argc, char** argv)  {
                (s == "-delete-doc-cache") ||
                (s == "-delete-databases") ||
 	       (s == "-headless") || (s == "-H"));
-      else if (s == "-build-manual") {
-        if ((++i)<argc)
-          extra_init_cmd << "(build-manual "
-                         << scm_quote (argv[i]) << " delayed-quit)";
-      }
-      else if (s == "-reference-suite") {
-        if ((++i)<argc)
-          extra_init_cmd << "(build-ref-suite "
-                         << scm_quote (argv[i]) << " delayed-quit)";
-      }
-      else if (s == "-test-suite") {
-        if ((++i)<argc)
-          extra_init_cmd << "(run-test-suite "
-                         << scm_quote (argv[i]) << "delayed-quit)";
-      }
       else if (starts (s, "-psn"));
       else {
         print_command_line_help ();

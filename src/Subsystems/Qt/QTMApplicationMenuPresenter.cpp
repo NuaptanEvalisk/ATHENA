@@ -401,8 +401,6 @@ QTMApplicationMenuPresenter::refresh_root_visibility () {
                snapshot.presentation_mode ();
     else if (menu.root_id == QStringLiteral ("format"))
       visible= !graphicsOnly;
-    else if (menu.root_id == QStringLiteral ("automate"))
-      visible= document_snapshot.ready && document_snapshot.automate_style;
     menu.menu->menuAction ()->setVisible (visible);
   }
 #if ATHENA_PLATFORM_IPADOS

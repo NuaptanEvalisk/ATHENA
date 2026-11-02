@@ -912,8 +912,7 @@ QTMCommandRegistry::registerFocusCommands () {
     "editor.focus.remove-down",
     "editor.focus.exit-left",
     "editor.focus.exit-right",
-    "editor.focus.remove-tag",
-    "editor.focus.help"
+    "editor.focus.remove-tag"
   };
   for (const QString& id: focusCommands)
     registerBehavior (

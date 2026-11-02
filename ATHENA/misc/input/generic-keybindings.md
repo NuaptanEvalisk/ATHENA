@@ -5,7 +5,7 @@ files under this directory. `generic-keybindings.json` contains global editor
 bindings; `text-keybindings.json`, `prog-keybindings.json`,
 `source-keybindings.json`, `table-keybindings.json`,
 `graphics-keybindings.json`, `fold-keybindings.json`,
-`tmdoc-keybindings.json`, and `automate-keybindings.json` preserve the former
+and `tmdoc-keybindings.json` preserve the former
 domain boundaries. `prefix-keybindings.json` contains prefix help/partial
 bindings, while `keyboard-prefixes.json` defines the shared logical-to-physical
 prefix rewrites used by both these files and `math-keybindings.json`.

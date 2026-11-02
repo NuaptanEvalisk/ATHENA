@@ -881,15 +881,6 @@
         "cmd/32/optionstreedialog.svg"
       ]
     },
-    "tm_focus_help": {
-      "theme": [
-        "help-contents",
-        "help-about"
-      ],
-      "libreoffice": [
-        "cmd/32/helpindex.svg"
-      ]
-    },
     "tm_focus_search": {
       "theme": [
         "edit-find",

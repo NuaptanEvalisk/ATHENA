@@ -286,23 +286,6 @@ valid_business_id (const QString& id) {
     "view-toggle-snap-pages",
     "view-heading-unfold-all",
     "go-save-position",
-    "automate-block-if",
-    "automate-block-if-else",
-    "automate-block-for",
-    "automate-block-while",
-    "automate-block-assign",
-    "automate-block-intersperse",
-    "automate-block-tag",
-    "automate-inline-if",
-    "automate-inline-if-else",
-    "automate-inline-for",
-    "automate-inline-while",
-    "automate-inline-assign",
-    "automate-inline-intersperse",
-    "automate-inline-tag",
-    "automate-output-string",
-    "automate-output-inline",
-    "automate-output-block",
     "popup-resolve-artifact",
     "popup-formula-ast",
     "popup-spell-add",
@@ -521,28 +504,6 @@ execute_business_id (editor ed, const QString& id) {
     ed->heading_unfold_all ();
   else if (id == "go-save-position")
     (void) call ("cursor-history-add", object (ed->the_path ()));
-  else if (id == "automate-block-if") (void) call ("make-block-if");
-  else if (id == "automate-block-if-else")
-    (void) call ("make-block-if-else");
-  else if (id == "automate-block-for") (void) call ("make-block-for");
-  else if (id == "automate-block-while") (void) call ("make-block-while");
-  else if (id == "automate-block-assign") (void) call ("make-block-assign");
-  else if (id == "automate-block-intersperse")
-    (void) call ("make-block-intersperse");
-  else if (id == "automate-block-tag") (void) call ("make-block-tag");
-  else if (id == "automate-inline-if") (void) call ("make-inline-if");
-  else if (id == "automate-inline-if-else")
-    (void) call ("make-inline-if-else");
-  else if (id == "automate-inline-for") (void) call ("make-inline-for");
-  else if (id == "automate-inline-while") (void) call ("make-inline-while");
-  else if (id == "automate-inline-assign")
-    (void) call ("make-inline-assign");
-  else if (id == "automate-inline-intersperse")
-    (void) call ("make-inline-intersperse");
-  else if (id == "automate-inline-tag") (void) call ("make-inline-tag");
-  else if (id == "automate-output-string") (void) call ("make-output-string");
-  else if (id == "automate-output-inline") (void) call ("make-inline-output");
-  else if (id == "automate-output-block") (void) call ("make-block-output");
   else if (id == "popup-resolve-artifact") {
     native_resolve_selection_as_artifact_name ();
   }
