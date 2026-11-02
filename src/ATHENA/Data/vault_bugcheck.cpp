@@ -4,6 +4,7 @@
 *******************************************************************************/
 
 #include "ATHENA/Data/vault_bugcheck.hpp"
+#include "application_lifecycle.hpp"
 
 #include "ATHENA/Data/new_buffer.hpp"
 #include "ATHENA/Data/vault.hpp"
@@ -13,7 +14,6 @@
 #include "editor.hpp"
 #include "file.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
 #include "scheme_execution_context.hpp"
 
 #include <QCoreApplication>
@@ -134,7 +134,7 @@ struct VaultBugcheckRun: std::enable_shared_from_this<VaultBugcheckRun> {
     set_progress_message (message);
     clear_debug_messages ();
     try {
-      (void) call ("load-buffer", object (url_system (string (file.c_str ()))));
+      application_open_document_url (url_system (string (file.c_str ())));
     }
     catch (...) {
       add_error (file, "load error", "exception while loading document");

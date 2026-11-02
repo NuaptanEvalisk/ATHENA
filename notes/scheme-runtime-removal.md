@@ -564,8 +564,25 @@ generated native entries and remain on the secure-function list.
   entry point instead of calling the named `load-buffer` bridge.
 - Regenerated all interfaces with `athena_glue -j16` successfully and checked
   for remaining retired symbol references. No new bindings or runtime behavior
-  were introduced. Full compilation/deployment is deferred to the next combined
-  build; the installed binary still corresponds to the preceding bridge batch.
+  were introduced. Full compilation/deployment was subsequently completed in
+  the combined native document entry-point build below.
+
+## Native Document Entry Points
+
+- Quick Switcher, Vault opening, bugcheck, AUDMAP filesystem opening and the
+  application menu call the existing typed document-opening API directly.
+  Their GUI/actor dispatch and exception reporting remain in their existing
+  owners. The native Revert command also calls its application implementation
+  directly, and custom-style activation calls `document_set_main_style`.
+- No fixed C++ calls to `load-buffer`, `load-document`, `revert-buffer` or
+  `set-main-style` remain. Their script interfaces are retained for remaining
+  script consumers; this is not a claim of a Scheme-free document lifecycle.
+- Observer bindings still serve position and tree-pointer interfaces, including
+  structural identity checks. They were audited but not removed as dead code.
+- Built the application with `-j16`, including the preceding widget value and
+  generator cleanup, and deployed with the official runtime helper. Logs:
+  `build_qt6/native-document-entrypoints-{build,deploy}.log`. No extra regression
+  suite was run for these direct substitutions and unconsumed API removals.
 
 ## Known Outstanding Failure
 

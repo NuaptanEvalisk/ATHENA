@@ -11,7 +11,7 @@
 #include "QTMCustomStylesManager.hpp"
 #include "QTMMainTabWindow.hpp"
 #include "boot.hpp"
-#include "scheme.hpp"
+#include "document_style_commands.hpp"
 #include "server.hpp"
 #include "sys_utils.hpp"
 #include "qt_utilities.hpp"
@@ -283,7 +283,7 @@ QTMCustomStylesManager::activateSelectedStyle () {
     return;
   }
 
-  call ("set-main-style", object (from_qstring (name)));
+  document_set_main_style (from_qstring (name));
   get_server ()->style_clear_cache ();
   statusLabel->setText (QString ("Activated style: %1").arg (name));
 }

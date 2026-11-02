@@ -108,7 +108,7 @@ execute_help_action (const help_action& action, const QTMCommandContext& context
   try {
     switch (action.kind) {
     case help_action_kind::license:
-      (void) call ("load-document", object (string ("$ATHENA_PATH/LICENSE")));
+      application_open_document_url (url ("$ATHENA_PATH/LICENSE"));
       return true;
     case help_action_kind::shortcuts:
       native_keyboard_list_shortcuts ();
@@ -429,7 +429,7 @@ QTMCommandRegistry::registerApplicationCommands () {
     [] (const QString& key, const QTMCommandContext&) {
       if (key.isEmpty ()) return false;
       try {
-        (void) call ("load-buffer", object (url (from_qstring (key))));
+        application_open_document_url (url (from_qstring (key)));
         return true;
       }
       catch (...) {

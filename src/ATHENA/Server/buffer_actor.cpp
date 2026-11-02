@@ -224,7 +224,7 @@ run_native_editor_command (editor_rep* editor,
       document_save_manual (null_object ());
       break;
     case native_editor_command_id::revert:
-      (void) call ("revert-buffer");
+      application_revert_buffer (null_object ());
       break;
     case native_editor_command_id::update_all:
       generic_update_document ("all");

@@ -9,10 +9,10 @@
 ******************************************************************************/
 
 #include "QTMQuickSwitcher.hpp"
+#include "application_lifecycle.hpp"
 #include "analyze.hpp"
 #include "actor_transport.hpp"
 #include "buffer_actor.hpp"
-#include "scheme.hpp"
 #include "scheme_execution_context.hpp"
 #include "vault.hpp"
 #include "new_buffer.hpp"
@@ -92,7 +92,7 @@ showQuickSwitcherMessage (string message) {
 
 void
 loadQuickSwitcherTarget (url target) {
-  try { (void) call ("load-buffer", object (target)); }
+  try { application_open_document_url (target); }
   catch (...) { showQuickSwitcherMessage ("Could not open the selected file."); }
 }
 

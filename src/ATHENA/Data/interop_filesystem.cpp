@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "interop_filesystem.hpp"
+#include "application_lifecycle.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include "interop_document_source.hpp"
 #include "interop_document_codec.hpp"
@@ -16,7 +17,6 @@
 #include "document_node_copy.hpp"
 #include "source_document_creation.hpp"
 #include "new_style.hpp"
-#include "scheme.hpp"
 #include <QCoreApplication>
 #include <QMetaObject>
 #include <QThread>
@@ -174,7 +174,7 @@ operation_result filesystem_resource::operate (const std::string& command, const
       QMetaObject::invokeMethod (app, [&] {
         try {
           if (!vault_context_is_current (context)) throw std::runtime_error ("Vault changed before opening");
-          (void) call ("load-buffer", object (url_system (string (filename.c_str ()))));
+          application_open_document_url (url_system (string (filename.c_str ())));
         }
         catch (const std::exception& e) { result= {"ERROR", e.what ()}; }
         catch (const string& e) { result= {"ERROR", text (e)}; }

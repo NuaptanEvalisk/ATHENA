@@ -4,6 +4,7 @@
 *******************************************************************************/
 
 #include "ATHENA/Data/vault_frontend.hpp"
+#include "application_lifecycle.hpp"
 
 #include "ATHENA/Data/new_buffer.hpp"
 #include "ATHENA/Data/recent_files.hpp"
@@ -68,7 +69,7 @@ show_message (string message, string title) {
 
 void
 load_buffer (url target) {
-  try { (void) call ("load-buffer", object (target)); }
+  try { application_open_document_url (target); }
   catch (...) {}
 }
 
