@@ -658,7 +658,7 @@ generated native entries and remain on the secure-function list.
 - Compiled both affected implementation units with `-j16` (including the final
   snapshot cleanup); logs: `build_qt6/native-focus-snapshot-build.log` and
   `build_qt6/native-focus-snapshot-final-build.log`. No new tests were needed.
-  Full linking/deployment is deferred; installed runtime remains `c7b8db073`.
+  Full linking/deployment completed in the combined runtime-dispatch build below.
   Object-valued metadata still needs migration.
 
 ## Native View Actions And Slide Export
@@ -674,7 +674,7 @@ generated native entries and remain on the secure-function list.
   rather than silently changing its meaning during this batch.
 - Compiled the three changed implementation units with `-j16`; log:
   `build_qt6/native-actions-print-build.log`. No new tests were needed. Combined
-  linking/deployment remains pending along with the focus snapshot batch.
+  linking/deployment completed in the combined runtime-dispatch build below.
 
 ## Native Save Request Parameters
 
@@ -689,8 +689,8 @@ generated native entries and remain on the secure-function list.
   of the ongoing removal. This batch does not change their completion behavior.
 - Compiled both affected implementation units with `-j16`; log:
   `build_qt6/native-save-request-build.log`. No new tests were needed for the
-  parameter separation. Full linking/deployment is pending with the preceding
-  focus and view-action batches; installed runtime remains `c7b8db073`.
+  parameter separation. Full linking/deployment completed in the combined
+  runtime-dispatch build below.
 
 ## Native Preferred Font Data
 
@@ -702,11 +702,26 @@ generated native entries and remain on the secure-function list.
   a single preference interpretation. Empty/non-list/non-string-list data yields
   no preferred fonts rather than entering the UI as non-text values.
 - Compiled both implementation units with `-j16`; log:
-  `build_qt6/native-preferred-fonts-build.log`. Full linking/deployment remains
-  pending with the preceding batches; installed runtime remains `c7b8db073`.
-- Fixed literal-name business `call` sites are gone from active source outside
-  the runtime itself. This narrow audit does not cover variable-name/procedure
-  calls, object parsing/printing, startup scripts or Guile lifecycle ownership.
+  `build_qt6/native-preferred-fonts-build.log`. Full linking/deployment completed
+  in the combined runtime-dispatch build below.
+
+## Native Actor And Keyboard Dispatch
+
+- Four actor save/export link-location queries call the native implementation
+  directly. Embedded-source PDF actions likewise invoke the native exporter.
+- Generic keyboard parent traversal and focused commands use typed function
+  pointers rather than procedure names, retaining dispatch order and ownership.
+- Qt preferences read the default printing command directly and retain the
+  existing empty-value fallback. Removed the unused boolean procedure helper.
+- Built the complete application with `-j16` and deployed with the official
+  helper, including the preceding four batches. Logs:
+  `build_qt6/native-runtime-dispatch-combined-{build,deploy}.log`.
+  Deployed ELF build ID: `396780199dd232f8b0fe1e3eb21c335e8e447127`.
+  No new tests were needed for these direct-call substitutions.
+- Remaining runtime calls include keyboard JSON expression dispatch, tree
+  pattern predicates, transformation procedure callbacks and Guile's backtrace
+  preference. Object parsing/printing, scripts, lifecycle, generated bindings
+  and build dependencies also remain; the complete removal goal stays active.
 
 ## Known Outstanding Failure
 

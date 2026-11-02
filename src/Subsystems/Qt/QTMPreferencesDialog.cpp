@@ -36,6 +36,7 @@
 #include "font.hpp"
 #include "page_type.hpp"
 #include "file.hpp"
+#include "sys_utils.hpp"
 #include "language.hpp"
 #include "namespaces.hpp"
 #include "scheme.hpp"
@@ -354,11 +355,6 @@ static QString
 current_vault_root_qstring () {
   if (!vault_active ()) return QString ();
   return to_qstring_pref (concretize (vault_get_root ()));
-}
-
-static bool
-scheme_bool (const char* name) {
-  return as_bool (call (name));
 }
 
 static QStringList
@@ -842,13 +838,6 @@ static bool
 file_converter_exists (const QString& from, const QString& to) {
   return conversion_file_available (url (from_qstring_pref (from)),
                                     url (from_qstring_pref (to)));
-}
-
-static QString
-scheme_string (const char* name, const char* fallback) {
-  string value= as_string (call (name));
-  if (value == "") value= string (fallback);
-  return to_qstring_pref (value);
 }
 
 static void
@@ -2807,8 +2796,8 @@ qtm_page_setup_dialog_show () {
      {"", ""}},
     "default");
 
-  QString printingDefault= scheme_string ("get-default-printing-command",
-                                          "lpr");
+  QString printingDefault= to_qstring_pref (get_printing_default ());
+  if (printingDefault.isEmpty ()) printingDefault= "lpr";
   std::vector<QStringChoice> printingChoices= {
     {printingDefault, printingDefault}, {"lpr", "lpr"}, {"lp", "lp"},
     {"pdq", "pdq"}, {"", ""}};

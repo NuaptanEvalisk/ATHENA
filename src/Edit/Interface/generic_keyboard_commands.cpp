@@ -302,9 +302,9 @@ native_grid_enter (editor ed) {
   return false;
 }
 
-void outward (tree t, const char* command, bool flag) {
+void outward (tree t, void (*command) (tree, bool), bool flag) {
   tree parent;
-  if (parent_tree (t, parent)) call (command, object (parent), object (flag));
+  if (parent_tree (t, parent)) command (parent, flag);
 }
 
 bool completion_context (tree t) {
@@ -327,8 +327,8 @@ bool hybrid_command (path& hybrid_path, string& command, bool& atomic) {
   return true;
 }
 
-void dispatch_focus (const char* command, bool flag) {
-  call (command, object (focus_tree ()), object (flag));
+void dispatch_focus (void (*command) (tree, bool), bool flag) {
+  command (focus_tree (), flag);
 }
 
 bool generic_context_at_cursor () {
@@ -425,7 +425,7 @@ void generic_kbd_horizontal (tree t, bool forwards) {
     return;
   }
   if (!admits_edit_observer (t)) {
-    outward (t, "kbd-horizontal", forwards);
+    outward (t, generic_kbd_horizontal, forwards);
     return;
   }
   generic_move_until_context (MOVE_HORIZONTAL, forwards);
@@ -437,7 +437,7 @@ void generic_kbd_vertical (tree t, bool downwards) {
     return;
   }
   if (!admits_edit_observer (t)) {
-    outward (t, "kbd-vertical", downwards);
+    outward (t, generic_kbd_vertical, downwards);
     return;
   }
   generic_move_until_context (MOVE_VERTICAL, downwards);
@@ -451,7 +451,7 @@ void generic_kbd_extremal (tree t, bool forwards) {
     return;
   }
   if (!admits_edit_observer (t)) {
-    outward (t, "kbd-extremal", forwards);
+    outward (t, generic_kbd_extremal, forwards);
     return;
   }
   generic_move_until_context (MOVE_EXTREMAL, forwards);
@@ -459,20 +459,20 @@ void generic_kbd_extremal (tree t, bool forwards) {
 
 void generic_kbd_incremental (tree t, bool downwards) {
   if (!admits_edit_observer (t)) {
-    outward (t, "kbd-incremental", downwards);
+    outward (t, generic_kbd_incremental, downwards);
     return;
   }
   generic_move_until_context (MOVE_INCREMENTAL, downwards);
 }
 
-void generic_kbd_left_raw () { dispatch_focus ("kbd-horizontal", false); }
-void generic_kbd_right_raw () { dispatch_focus ("kbd-horizontal", true); }
-void generic_kbd_up_raw () { dispatch_focus ("kbd-vertical", false); }
-void generic_kbd_down_raw () { dispatch_focus ("kbd-vertical", true); }
-void generic_kbd_start_line_raw () { dispatch_focus ("kbd-extremal", false); }
-void generic_kbd_end_line_raw () { dispatch_focus ("kbd-extremal", true); }
-void generic_kbd_page_up_raw () { dispatch_focus ("kbd-incremental", false); }
-void generic_kbd_page_down_raw () { dispatch_focus ("kbd-incremental", true); }
+void generic_kbd_left_raw () { dispatch_focus (generic_kbd_horizontal, false); }
+void generic_kbd_right_raw () { dispatch_focus (generic_kbd_horizontal, true); }
+void generic_kbd_up_raw () { dispatch_focus (generic_kbd_vertical, false); }
+void generic_kbd_down_raw () { dispatch_focus (generic_kbd_vertical, true); }
+void generic_kbd_start_line_raw () { dispatch_focus (generic_kbd_extremal, false); }
+void generic_kbd_end_line_raw () { dispatch_focus (generic_kbd_extremal, true); }
+void generic_kbd_page_up_raw () { dispatch_focus (generic_kbd_incremental, false); }
+void generic_kbd_page_down_raw () { dispatch_focus (generic_kbd_incremental, true); }
 
 static void dispatch_keyboard_move (string move) {
   object result;
@@ -543,23 +543,23 @@ void generic_insert_return () {
   editor ed= get_current_editor ();
   if (!program_return (ed.operator-> ())) (void) ed->insert_return ();
 }
-void generic_kbd_space () { dispatch_focus ("kbd-space-bar", false); }
-void generic_kbd_shift_space () { dispatch_focus ("kbd-space-bar", true); }
+void generic_kbd_space () { dispatch_focus (generic_kbd_space_bar, false); }
+void generic_kbd_shift_space () { dispatch_focus (generic_kbd_space_bar, true); }
 void generic_kbd_return () {
   reference_resolve_at_cursor ();
-  dispatch_focus ("kbd-enter", false);
+  dispatch_focus (generic_kbd_enter, false);
 }
-void generic_kbd_shift_return () { dispatch_focus ("kbd-enter", true); }
-void generic_kbd_control_return () { dispatch_focus ("kbd-control-enter", false); }
-void generic_kbd_shift_control_return () { dispatch_focus ("kbd-control-enter", true); }
-void generic_kbd_alternate_return () { dispatch_focus ("kbd-alternate-enter", false); }
-void generic_kbd_shift_alternate_return () { dispatch_focus ("kbd-alternate-enter", true); }
-void generic_kbd_backspace () { dispatch_focus ("kbd-remove", false); }
-void generic_kbd_delete () { dispatch_focus ("kbd-remove", true); }
-void generic_kbd_tab () { dispatch_focus ("kbd-variant", true); }
-void generic_kbd_shift_tab () { dispatch_focus ("kbd-variant", false); }
-void generic_kbd_alternate_tab () { dispatch_focus ("kbd-alternate-variant", true); }
-void generic_kbd_shift_alternate_tab () { dispatch_focus ("kbd-alternate-variant", false); }
+void generic_kbd_shift_return () { dispatch_focus (generic_kbd_enter, true); }
+void generic_kbd_control_return () { dispatch_focus (generic_kbd_control_enter, false); }
+void generic_kbd_shift_control_return () { dispatch_focus (generic_kbd_control_enter, true); }
+void generic_kbd_alternate_return () { dispatch_focus (generic_kbd_alternate_enter, false); }
+void generic_kbd_shift_alternate_return () { dispatch_focus (generic_kbd_alternate_enter, true); }
+void generic_kbd_backspace () { dispatch_focus (generic_kbd_remove, false); }
+void generic_kbd_delete () { dispatch_focus (generic_kbd_remove, true); }
+void generic_kbd_tab () { dispatch_focus (generic_kbd_variant, true); }
+void generic_kbd_shift_tab () { dispatch_focus (generic_kbd_variant, false); }
+void generic_kbd_alternate_tab () { dispatch_focus (generic_kbd_alternate_variant, true); }
+void generic_kbd_shift_alternate_tab () { dispatch_focus (generic_kbd_alternate_variant, false); }
 void generic_kbd_copy () { get_current_editor ()->selection_copy ("primary"); }
 void generic_kbd_cut () {
   editor ed= get_current_editor ();
@@ -573,7 +573,7 @@ void generic_kbd_cancel () { get_current_editor ()->selection_clear ("primary");
 
 void generic_kbd_space_bar (tree t, bool shift) {
   (void) shift;
-  if (!admits_edit_observer (t)) { outward (t, "kbd-space-bar", shift); return; }
+  if (!admits_edit_observer (t)) { outward (t, generic_kbd_space_bar, shift); return; }
   editor ed= get_current_editor ();
   if (ed->get_env_string ("mode") == "text" && ed->get_env_string ("language") != "verbatim")
     text_space_bar ();
@@ -603,16 +603,16 @@ void generic_kbd_enter (tree t, bool shift) {
     return;
   }
   (void) shift;
-  if (!admits_edit_observer (t)) { outward (t, "kbd-enter", shift); return; }
+  if (!admits_edit_observer (t)) { outward (t, generic_kbd_enter, shift); return; }
   (void) get_current_editor ()->insert_return ();
 }
 
 void generic_kbd_control_enter (tree t, bool shift) {
-  if (!admits_edit_observer (t)) outward (t, "kbd-control-enter", shift);
+  if (!admits_edit_observer (t)) outward (t, generic_kbd_control_enter, shift);
 }
 
 void generic_kbd_alternate_enter (tree t, bool shift) {
-  if (!admits_edit_observer (t)) outward (t, "kbd-alternate-enter", shift);
+  if (!admits_edit_observer (t)) outward (t, generic_kbd_alternate_enter, shift);
 }
 
 void generic_kbd_remove (tree t, bool forwards) {
@@ -622,7 +622,7 @@ void generic_kbd_remove (tree t, bool forwards) {
     get_current_editor ()->typeset_invalidate_all ();
     return;
   }
-  if (!admits_edit_observer (t)) { outward (t, "kbd-remove", forwards); return; }
+  if (!admits_edit_observer (t)) { outward (t, generic_kbd_remove, forwards); return; }
   editor ed= get_current_editor ();
   const path title= ed->search_upwards ("doc-data");
   if (ed->selection_active_any ()) {
@@ -645,7 +645,7 @@ void generic_kbd_variant (tree t, bool forwards) {
     (void) ed->complete_try ();
     return;
   }
-  if (!admits_edit_observer (t)) { outward (t, "kbd-variant", forwards); return; }
+  if (!admits_edit_observer (t)) { outward (t, generic_kbd_variant, forwards); return; }
   if (!ed->complete_try () && forwards) {
     string binding= native_keyboard_inverse (list_object (symbol_object ("kbd-alternate-tab")));
     tree shortcut= get_server ()->kbd_system_rewrite (binding);
@@ -657,7 +657,7 @@ void generic_kbd_variant (tree t, bool forwards) {
 void generic_kbd_alternate_variant (tree t, bool forwards) {
   (void) forwards;
   if (!admits_edit_observer (t)) {
-    outward (t, "kbd-alternate-variant", forwards);
+    outward (t, generic_kbd_alternate_variant, forwards);
     return;
   }
   get_current_editor ()->make_htab ("5mm");

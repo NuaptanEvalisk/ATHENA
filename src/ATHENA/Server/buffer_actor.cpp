@@ -41,6 +41,7 @@
 #include "generic_frontend.hpp"
 #include "Edit/Interface/selection_image_export.hpp"
 #include "Edit/Interface/document_print.hpp"
+#include "Edit/Interface/link_markup.hpp"
 #include "structured_commands.hpp"
 #include "new_style.hpp"
 #include "Data/interop_document_source.hpp"
@@ -1806,8 +1807,7 @@ buffer_actor::dispatch (actor_command_record& command) {
       tree document= remove_doc_attr (impl_->state.source_envelope, "view");
       if (!is_headless ()) {
         tree body= subtree (impl_->state.document, impl_->state.root_path);
-        tree links= as_tree (call (
-          "get-link-locations", object (impl_->state.name), object (body)));
+        tree links= native_get_link_locations (impl_->state.name, body);
         document= remove_doc_attr (document, "links");
         if (N(links) != 0) document << compound ("links", links);
       }
@@ -2035,8 +2035,7 @@ buffer_actor::dispatch (actor_command_record& command) {
       document= remove_doc_attr (document, "view");
       if (!is_headless ()) {
         tree body= subtree (impl_->state.document, impl_->state.root_path);
-        tree links= as_tree (call (
-          "get-link-locations", object (impl_->state.name), object (body)));
+        tree links= native_get_link_locations (impl_->state.name, body);
         document= remove_doc_attr (document, "links");
         if (N(links) != 0) document << compound ("links", links);
       }
@@ -2179,8 +2178,7 @@ buffer_actor::dispatch (actor_command_record& command) {
         refresh_interop_document_source (
           impl_->state.source_envelope, body, impl_->state.data);
         tree document= remove_doc_attr (impl_->state.source_envelope, "view");
-        tree links= as_tree (call (
-          "get-link-locations", object (impl_->state.name), object (body)));
+        tree links= native_get_link_locations (impl_->state.name, body);
         document= remove_doc_attr (document, "links");
         if (N(links) != 0) document << compound ("links", links);
         document= athena::document::strip_legacy_document_version (document);
@@ -2205,8 +2203,7 @@ buffer_actor::dispatch (actor_command_record& command) {
       if (format == "latex")
         document= change_doc_attr (
           document, "view", as_string (current_view_url (command.view_id)));
-      tree links= as_tree (call (
-        "get-link-locations", object (impl_->state.name), object (body)));
+      tree links= native_get_link_locations (impl_->state.name, body);
       if (N (links) != 0) document << compound ("links", links);
       failed= export_tree_with_options (document, dest, format, impl_->state.name,
                                        request.options, export_editor);

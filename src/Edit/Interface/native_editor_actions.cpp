@@ -7,6 +7,7 @@
 ******************************************************************************/
 
 #include "insertion_commands.hpp"
+#include "document_print.hpp"
 #include "application_preferences.hpp"
 #include "cursor_history.hpp"
 #include "editing_utilities.hpp"
@@ -1107,9 +1108,8 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
       document_set_main_style (document_custom_style_file_name (source));
   }
   else if (op == "export-pdf-embedded")
-    (void) call (
-      "wrapped-print-to-pdf-embeded-with-tm",
-      object (url_system (native_action_string (action.value ("path")))));
+    document_export_pdf_with_source (
+      url_system (native_action_string (action.value ("path"))));
   else if (op == "document-default-theme") {
     actor_document_menu_snapshot state= ed->document_menu_state_snapshot ();
     if (!state.ready || state.document_theme_kind != "basic") return;
