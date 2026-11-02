@@ -13,6 +13,8 @@ void application_preference_set (string key, string value);
 void application_preference_reset (string key);
 void application_preference_toggle (string key);
 bool application_look_and_feel_matches (object profiles);
+bool application_look_and_feel_matches (string profile);
+bool application_look_and_feel_matches (const array<string>& profiles);
 string application_fold_toc_in_reflow ();
 void application_toc_fold (tree t);
 void application_toc_unfold (tree t);

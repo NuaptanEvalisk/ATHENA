@@ -329,10 +329,10 @@ void register_group (int g) {
   ASSERT (g >= 0 && g < groups.size (), "invalid native keymap group");
   auto group= groups[g].toObject ();
   if (group.contains ("profiles")) {
-    array<object> profiles;
+    array<string> profiles;
     for (QJsonValue profile: group["profiles"].toArray ())
-      profiles << symbol_object (binding_string (profile));
-    if (!application_look_and_feel_matches (as_list_object (profiles))) return;
+      profiles << binding_string (profile);
+    if (!application_look_and_feel_matches (profiles)) return;
   }
   native_keyboard_context context;
   std::function<bool()> mode;

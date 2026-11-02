@@ -786,6 +786,18 @@ generated native entries and remain on the secure-function list.
   Full linking/deployment remains pending with the two keyboard batches;
   installed runtime remains `e5161f143`.
 
+## Native Keyboard Profile Selection
+
+- Keymap groups and prefix rules pass native string arrays to layout matching,
+  without temporary symbol objects or object lists. The script-facing adapter
+  delegates individual names to the same native matcher.
+- Preserved list-any matching, recursive `no-` negation, default look-and-feel
+  resolution and `std` matching of non-Emacs layouts.
+- Compiled all three affected implementation units with `-j16`; log:
+  `build_qt6/native-keyboard-profiles-build.log`. No additional tests were
+  needed. Full linking/deployment remains pending with the preceding metadata,
+  shortcut-query and zoom changes; installed runtime remains `e5161f143`.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

@@ -7,7 +7,6 @@
 #include "native_keyboard_prefixes.hpp"
 #include "file.hpp"
 #include "server.hpp"
-#include "scheme.hpp"
 #include "application_preferences.hpp"
 
 #include <QJsonArray>
@@ -26,10 +25,10 @@ string prefix_string (QJsonValue value) {
 bool profiles_active (QJsonValue value) {
   if (value.isUndefined ()) return true;
   ASSERT (value.isArray (), "keyboard prefix profiles must be an array");
-  array<object> profiles;
+  array<string> profiles;
   for (QJsonValue profile: value.toArray ())
-    profiles << symbol_object (prefix_string (profile));
-  return application_look_and_feel_matches (as_list_object (profiles));
+    profiles << prefix_string (profile);
+  return application_look_and_feel_matches (profiles);
 }
 
 void load_wildcards (QJsonValue value, bool post) {

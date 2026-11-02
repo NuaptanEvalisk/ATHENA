@@ -97,10 +97,16 @@ bool application_look_and_feel_matches (object profiles) {
       if (application_look_and_feel_matches (car (profiles))) return true;
     return false;
   }
-  if (is_symbol (profiles)) profiles= object (as_symbol (profiles));
-  if (!is_string (profiles)) return false;
-  const string profile= as_string (profiles);
-  if (starts (profile, "no-")) return !application_look_and_feel_matches (object (profile(3,N(profile))));
+  if (is_symbol (profiles)) return application_look_and_feel_matches (as_symbol (profiles));
+  return is_string (profiles) && application_look_and_feel_matches (as_string (profiles));
+}
+bool application_look_and_feel_matches (const array<string>& profiles) {
+  for (int i=0; i<N(profiles); ++i)
+    if (application_look_and_feel_matches (profiles[i])) return true;
+  return false;
+}
+bool application_look_and_feel_matches (string profile) {
+  if (starts (profile, "no-")) return !application_look_and_feel_matches (profile(3,N(profile)));
   string actual= get_user_preference ("look and feel", "default");
   if (actual == "default") actual= default_look_and_feel ();
   return profile == actual || (profile == "std" && actual != "emacs");
