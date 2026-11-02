@@ -436,30 +436,12 @@ void application_close_window (std::optional<url> requested) {
 
 void application_quit () { on_gui ([] { request_quit (false); }); }
 
-object application_url_modified (url source) {
-  return is_rooted_tmfs (source) ? object (false) : object (last_modified (source));
-}
-
 bool application_url_newer (url left, url right) {
   return !is_rooted_tmfs (left) && !is_rooted_tmfs (right) && is_newer (left, right);
 }
 
 void application_url_remove (url source) {
   if (!is_rooted_tmfs (source)) remove (source);
-}
-
-object application_url_autosave (url source, string suffix) {
-  if (is_rooted_tmfs (source)) return object (false);
-  return is_scratch (source) || is_of_type (source, "fw") ||
-         (!exists (source) && is_of_type (source, "c")) ? object (glue (source, suffix)) : object (false);
-}
-
-object application_url_wrap (url source) {
-  return object (false);
-}
-
-object application_buffer_last_save (url source) {
-  return object (get_last_save_buffer (source));
 }
 
 string application_propose_filename () {

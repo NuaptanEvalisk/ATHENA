@@ -2318,9 +2318,6 @@
   <binding name="url-size" native="file_size" returns="int">
     <arg type="url" />
   </binding>
-  <binding name="url-last-modified" native="application_url_modified" returns="object" exceptions="scheme">
-    <arg type="url" />
-  </binding>
   <binding name="url-temp" native="url_temp" returns="url" />
   <binding name="url-temp-dir" native="url_temp_dir" returns="url" />
   <binding name="url-scratch" native="url_scratch" returns="url">
@@ -2492,9 +2489,6 @@
     <arg type="string" />
   </binding>
   <binding name="buffer-get-title" native="get_title_buffer" returns="string">
-    <arg type="url" />
-  </binding>
-  <binding name="buffer-last-save" native="application_buffer_last_save" returns="object" exceptions="scheme">
     <arg type="url" />
   </binding>
   <binding name="buffer-last-visited" native="last_visited" returns="double">

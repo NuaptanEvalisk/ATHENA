@@ -902,6 +902,19 @@ generated native entries and remain on the secure-function list.
   and runtime confirmation of binding removal remain pending with the preceding
   save/lifecycle changes; installed runtime remains `5706ed764`.
 
+## Retired Lifecycle Query Adapters
+
+- Removed `url-wrap`, `url-autosave`, `url-last-modified` and `buffer-last-save`
+  bindings and object-returning implementations after confirming no remaining
+  repository consumers. Native file timestamps, save requests and autosave
+  behavior remain in use; only their obsolete script query adapters disappear.
+- Regenerated `athena_glue`; retired native names are absent from source and
+  generated interfaces. Compiled the lifecycle implementation with `-j16`;
+  log: `build_qt6/native-lifecycle-adapter-cleanup-build.log`.
+- Full linking, deployment and runtime binding-removal verification remain
+  pending with the preceding save/lifecycle/link batches. Installed runtime
+  remains `5706ed764`.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

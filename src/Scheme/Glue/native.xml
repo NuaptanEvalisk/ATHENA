@@ -198,8 +198,6 @@
   <binding name="load-buffer-open" native="application_open_loaded_document" returns="void" exceptions="scheme"><arg type="url" /><arg type="object" /></binding>
   <binding name="load-browse-buffer" native="application_browse_document" returns="void" exceptions="scheme"><arg type="url" /></binding>
   <binding name="url-remove" native="application_url_remove" returns="void" exceptions="scheme"><arg type="url" /></binding>
-  <binding name="url-autosave" native="application_url_autosave" returns="object" exceptions="scheme"><arg type="url" /><arg type="string" /></binding>
-  <binding name="url-wrap" native="application_url_wrap" returns="object" exceptions="scheme"><arg type="url" /></binding>
   <binding name="propose-name-buffer" native="application_propose_filename" returns="string" exceptions="scheme" />
   <binding name="buffer-sorted-list" native="application_sorted_buffers" returns="array_url" exceptions="scheme" />
   <binding name="open-auxiliary" native="application_open_auxiliary" returns="void" exceptions="scheme"><arg type="string" /><arg type="tree" /><arg type="object" rest="true" /></binding>

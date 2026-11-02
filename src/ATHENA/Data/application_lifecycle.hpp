@@ -30,12 +30,8 @@ void application_load_document_window (url source, application_document_load_opt
 void application_open_loaded_document (url source, object options);
 void application_browse_document (url source);
 void application_browse_document (url source, std::function<void(url)> completed);
-object application_url_modified (url source);
 bool application_url_newer (url left, url right);
 void application_url_remove (url source);
-object application_url_autosave (url source, string suffix);
-object application_url_wrap (url source);
-object application_buffer_last_save (url source);
 string application_propose_filename ();
 array<url> application_sorted_buffers ();
 void application_open_auxiliary (string name, tree body, object master);
