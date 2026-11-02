@@ -533,7 +533,7 @@ generic_label_insert (tree t) {
     return;
   }
   tree parent;
-  if (parent_tree (t, parent)) call ("label-insert", object (parent));
+  if (parent_tree (t, parent)) generic_label_insert (parent);
 }
 
 void
@@ -545,7 +545,7 @@ generic_recenter_window () {
 
 void
 generic_make_label () {
-  call ("label-insert", object (current_focus_tree ()));
+  generic_label_insert (current_focus_tree ());
 }
 
 void
@@ -641,7 +641,7 @@ generic_focus_label (tree t) {
 
 object
 generic_focus_get_label (tree t) {
-  object label= call ("focus-label", object (t));
+  object label= generic_focus_label (t);
   if (!is_tree (label)) return object (false);
   tree l= as_tree (label);
   if (N (l) != 1 || !is_atomic (l[0])) return object (false);
@@ -650,7 +650,7 @@ generic_focus_get_label (tree t) {
 
 object
 generic_focus_set_label (tree t, string value) {
-  object label= call ("focus-label", object (t));
+  object label= generic_focus_label (t);
   if (!is_tree (label)) return object (false);
   return object (tree_set_diff (as_tree (label)[0], tree (value)));
 }
@@ -993,10 +993,7 @@ void generic_kill_paragraph () {
   ed->selection_set_start ();
   ed->go_end_paragraph ();
   ed->selection_set_end ();
-  // Slideshow range selections have a separate Scheme clipboard contract.
-  if (ed->inside ("slideshow"))
-    call ("clipboard-cut", object ("primary"));
-  else ed->selection_cut ("primary");
+  ed->selection_cut ("primary");
 }
 
 void generic_yank_paragraph () {
@@ -1011,11 +1008,11 @@ void generic_make_balloon () {
   editor ed= get_current_editor ();
   const bool wrap= ed->selection_active_small ();
   if (wrap && ed->inside ("slideshow")) {
-    call ("clipboard-cut", object ("wrapbuf"));
+    ed->selection_cut ("wrapbuf");
     ed->var_insert_tree (
       compound ("inactive", compound ("hover-balloon", "", "", "left", "Bottom")),
       path (0, 0, 0));
-    call ("clipboard-paste", object ("wrapbuf"));
+    ed->selection_paste ("wrapbuf");
     return;
   }
   if (!wrap) ed->selection_cancel ();
@@ -1590,8 +1587,7 @@ generic_parameter_name (string name) {
   if (!context) return "";
   const athena::contracts::editing_query query {context->contract_context ()};
   const string tree_name= query.name (as_tree_label (name));
-  object display= call ("focus-tag-name", symbol_object (tree_name));
-  return is_string (display) ? as_string (display) : string ("");
+  return generic_focus_tag_name (symbol_object (tree_name));
 }
 
 bool
@@ -1712,11 +1708,11 @@ string focus_parameters_cache_key (tree t, object mode) {
 
 object
 generic_focus_parameters_list (tree t, object mode) {
-  object found= call ("search-parameters", symbol_object (as_string (L (t))));
+  object found= generic_search_parameters (symbol_object (as_string (L (t))));
   array<string> parameters= string_list (found);
   array<string> visible;
   for (int i= 0; i < N (parameters); ++i)
-    if (as_bool (call ("parameter-show-in-menu?", object (parameters[i]))))
+    if (generic_parameter_show_in_menu (parameters[i]))
       visible << parameters[i];
 
   bool global= mode == keyword_object ("global");

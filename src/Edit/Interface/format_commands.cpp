@@ -11,6 +11,8 @@
 #include "insertion_commands.hpp"
 #include "editing_utilities.hpp"
 #include "format_commands.hpp"
+#include "generic_editor_commands.hpp"
+#include "generic_keyboard_commands.hpp"
 #include "editor.hpp"
 #include "new_view.hpp"
 #include "native_interfaces.hpp"
@@ -713,7 +715,7 @@ object format_standard_parameters (string tag) {
   if (values.isObject ()) {
     const QJsonObject rule= values.toObject ();
     array<object> result= as_array_object (json_strings (rule.value ("prepend").toArray ()));
-    object inherited= call ("search-parameters", object (native_string (rule.value ("inherit").toString ())));
+    object inherited= generic_search_parameters (object (native_string (rule.value ("inherit").toString ())));
     if (is_list (inherited)) {
       array<object> items= as_array_object (inherited);
       for (int i=0; i<N(items); ++i)
@@ -811,7 +813,7 @@ object format_customizable_parameters (tree t) {
 object format_customizable_parameters_memo (tree t) {
   // Native definitions are already indexed. Resolve extensions without caching
   // mutable Scheme objects across actors or hiding subsequently loaded rules.
-  return call ("customizable-parameters", object (t));
+  return format_customizable_parameters (t);
 }
 
 bool format_customizable_context (tree t) {
@@ -894,7 +896,7 @@ void format_make_line_with (string variable, tree value) {
   editor ed= get_current_editor ();
   if (!ed->selection_active_normal ()) ed->select_line ();
   format_make_with_like (tree (WITH, variable, value, ""));
-  call ("insert-return");
+  generic_insert_return ();
   ed->remove_text (false);
 }
 
@@ -904,7 +906,7 @@ void format_make_multi_line_with (object properties) {
   if (ed->selection_active_table ()) { format_make_multi_with (properties); return; }
   if (!ed->selection_active_normal ()) ed->select_line ();
   format_make_multi_with (properties);
-  call ("insert-return");
+  generic_insert_return ();
   ed->remove_text (false);
   tree t;
   if (innermost_with (t)) {
@@ -918,7 +920,7 @@ void format_make_multi_line_with (object properties) {
 
 static void page_break (const char* tag) {
   insertion_make (as_tree_label (tag));
-  call ("insert-return");
+  generic_insert_return ();
 }
 
 void format_make_page_break () { page_break ("page-break"); }

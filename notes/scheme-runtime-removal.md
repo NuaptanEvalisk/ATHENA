@@ -598,7 +598,7 @@ generated native entries and remain on the secure-function list.
 - Compiled both changed translation units with the generated build rules and
   `-j16`; log: `build_qt6/native-structured-dispatch-build.log`. No tests were
   added or run for this direct dispatch replacement. Full linking/deployment
-  is deferred to the next combined build; installed runtime is `38e61043f`.
+  was subsequently completed in the combined editor-dispatch build below.
 
 ## Native Insertion And Variant Calls
 
@@ -611,8 +611,8 @@ generated native entries and remain on the secure-function list.
   omitted. Removed the obsolete comment claiming wrapping remained in Scheme.
 - Compiled the eight affected translation units with `-j16`; logs:
   `build_qt6/native-insertion-{dispatch,actions}-build.log`. No regression tests
-  were added or run. These changes and structured/geometry dispatch still await
-  the next combined link/deployment; installed runtime remains `38e61043f`.
+  were added or run. These changes and structured/geometry dispatch were then
+  linked and deployed in the combined editor-dispatch build below.
 
 ## Native Link Entry Points
 
@@ -629,8 +629,22 @@ generated native entries and remain on the secure-function list.
 - Compiled the six affected implementation units and the string-entry follow-up
   with `-j16`; logs: `build_qt6/native-link-dispatch-build.log` and
   `build_qt6/native-link-string-entry-build.log`. No new tests were needed for
-  the direct API transition. Full linking/deployment remains pending together
-  with the preceding structured/insertion batches.
+  the direct API transition. Full linking/deployment was subsequently completed
+  together with the preceding structured/insertion batches below.
+
+## Native Format And Focus Calls
+
+- Format and generic editor commands call their native label, parameter,
+  customizable-field and return implementations directly. Neither module has
+  remaining `call` invocations; object-valued interfaces themselves still need
+  migration.
+- Removed the obsolete slideshow clipboard distinction: the existing binding
+  already invokes the same editor selection methods. Cut/paste continues on
+  the owning editor, including balloon wrapping.
+- Built the whole application with `-j16` and deployed with the official helper,
+  including structured/geometry, insertion/variant and link-navigation changes.
+  Logs: `build_qt6/native-editor-dispatch-combined-{build,deploy}.log`.
+  No unrelated tests or extra regression suite were run.
 
 ## Known Outstanding Failure
 
