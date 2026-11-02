@@ -62,30 +62,33 @@ bool inactive_reference () {
   return reference_inactive_at_cursor ();
 }
 
-bool present (object value) { return !(is_bool (value) && !as_bool (value)); }
-
 void update_reference_preview () {
   auto& ed= dynamic_cast<edit_interface_rep&> (*get_current_editor ().operator-> ());
   ed.apply_changes ();
-  object id1 (false), tip1 (false), id2 (false), tip2 (false);
+  string original_id, preview_id;
+  std::optional<tree> tip;
+  bool inferred= false;
   if (inactive_reference ()) {
     tree cursor=get_current_editor ()->the_subtree (path_up (get_current_editor ()->the_path ()));
-    id1=object (cursor->label);
-    tip1= reference_preview (as_string (id1));
-    if (!present (tip1)) {
-      id2= reference_infer_label (cursor);
-      if (present (id2)) tip2= reference_preview (as_string (id2));
+    original_id=preview_id=cursor->label;
+    tip= reference_preview (original_id);
+    if (!tip) {
+      const auto candidate= reference_infer_label (cursor);
+      if (candidate) {
+        preview_id= *candidate;
+        tip= reference_preview (preview_id);
+        inferred= true;
+      }
     }
   }
-  object tip= present (tip1) ? tip1 : tip2;
-  if (present (tip)) {
-    tooltip_show (as_string (present (tip1) ? id1 : id2),
+  if (tip) {
+    tooltip_show (preview_id,
       get_current_editor ()->the_subtree (path_up (get_current_editor ()->the_path ())),
-      stree_to_tree (tip), "auto", "auto", "keyboard", 0.6);
-    if (!present (tip1))
+      *tip, "auto", "auto", "keyboard", 0.6);
+    if (inferred)
       get_current_editor ()->set_message (
-        tree (CONCAT, compound ("verbatim", as_string (id1)), " <rightarrow> ",
-              compound ("verbatim", as_string (id2))), "");
+        tree (CONCAT, compound ("verbatim", original_id), " <rightarrow> ",
+              compound ("verbatim", preview_id)), "");
   }
   else {
     qtm_tooltip_close ();

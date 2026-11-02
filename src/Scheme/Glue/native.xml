@@ -334,12 +334,6 @@
   <binding name="locus-remove-link" native="native_locus_remove_link" returns="void" exceptions="scheme"><arg type="tree" /></binding>
   <binding name="locus-remove-all-links" native="native_locus_remove_all_links" returns="void" exceptions="scheme"><arg type="tree" /><arg type="tree" /></binding>
   <binding name="id-&gt;loci" native="native_id_to_loci" returns="list_tree" exceptions="scheme"><arg type="string" /></binding>
-  <binding name="number-&gt;label" native="reference_infer_label" returns="object" exceptions="scheme">
-    <arg type="tree" />
-  </binding>
-  <binding name="ref-preview" native="reference_preview" returns="object" exceptions="scheme">
-    <arg type="string" />
-  </binding>
   <binding name="preview-reference" native="reference_show_preview" returns="void" exceptions="scheme">
     <arg type="tree" /><arg type="tree" />
   </binding>

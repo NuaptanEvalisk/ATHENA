@@ -1531,6 +1531,28 @@ generated native entries and remain on the secure-function list.
   link, fresh-process binding verification and deployment remain pending; the
   installed binary is still the combined style/focus deployment above.
 
+## Native Reference Preview Values
+
+- Label inference returns optional strings without changing candidate filtering,
+  type matching or first-candidate fallback. Resolution and keyboard previews
+  consume that native result directly.
+- Reference previews return optional detached trees instead of serializing to
+  Scheme lists and reconstructing them in each tooltip caller. copy() keeps
+  source observers out of the preview while preserving node metadata that the
+  previous S-expression round trip discarded. Existing preview context and
+  cleanup rules remain unchanged.
+- Mouse and deferred keyboard previews use native values, preserving direct
+  lookup before inferred lookup, tooltip placement and inferred-label messages.
+  Removed the unconsumed number->label and ref-preview exports; the active
+  preview-reference entry remains.
+- Removed object.hpp from reference_markup.hpp and scheme.hpp from reference
+  implementations and native_input_events.hpp. XML generation and three changed
+  implementation units passed with -j16 before the final input-header include
+  cleanup. Logs: build_qt6/native-reference-values-glue.log and
+  build_qt6/native-reference-values-build.log. No tests added or run. Combined
+  linking, binding verification and deployment remain pending with the generic
+  editor values batch.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

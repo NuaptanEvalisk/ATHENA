@@ -10,7 +10,6 @@
 #include "analyze.hpp"
 #include "dictionary.hpp"
 #include "file.hpp"
-#include "scheme.hpp"
 #include "tree_traverse.hpp"
 #include <algorithm>
 #include <nlohmann/json.hpp>
@@ -102,8 +101,8 @@ bool matches_type (tree t, const std::vector<std::string>& types) {
 }
 }
 
-object reference_infer_label (tree t) {
-  if (!is_atomic (t)) return object (false);
+std::optional<string> reference_infer_label (tree t) {
+  if (!is_atomic (t)) return std::nullopt;
   string value=t->label, type;
   int colon=search_forwards (":", 0, value);
   if (colon>=0) {
@@ -120,8 +119,8 @@ object reference_infer_label (tree t) {
   for (int i=0; i<N(references); ++i)
     if (!starts (references[i], "auto-") && !starts (references[i], "bib-"))
       labels << references[i];
-  if (N(labels)==0) return object (false);
-  if (N(labels)==1) return object (labels[0]);
+  if (N(labels)==0) return std::nullopt;
+  if (N(labels)==1) return labels[0];
   const auto& all_types=reference_types ().at ("types");
   std::vector<std::string> types=all_types.contains (bytes (type)) ?
     all_types.at (bytes (type)).get<std::vector<std::string>>() :
@@ -141,7 +140,7 @@ object reference_infer_label (tree t) {
       }
     } while (parent (ancestor, ancestor));
   });
-  return object (result=="" ? labels[0] : result);
+  return result=="" ? labels[0] : result;
 }
 
 bool reference_inactive_at_cursor () {
@@ -163,8 +162,8 @@ void reference_resolve_at_cursor () {
       exists=exists || (text_node_in_group (node, "label-tag") && child_named (node, ref[i]));
     });
     if (!exists) {
-      object label=reference_infer_label (ref[i]);
-      if (is_string (label)) tree_assign (ref[i], tree (as_string (label)));
+      const auto label=reference_infer_label (ref[i]);
+      if (label) tree_assign (ref[i], tree (*label));
     }
   }
 }

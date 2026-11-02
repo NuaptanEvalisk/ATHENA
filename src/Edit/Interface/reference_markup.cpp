@@ -14,7 +14,6 @@
 #include "editor.hpp"
 #include "native_text_edit.hpp"
 #include "tree_traverse.hpp"
-#include "scheme.hpp"
 #include "vault.hpp"
 #include "QTMVaultChooser.hpp"
 #include "ATHENA/Data/node_reference_export.hpp"
@@ -302,17 +301,17 @@ bool expand_reference_preview (tree t) {
 }
 }
 
-object reference_preview (string id) {
+std::optional<tree> reference_preview (string id) {
   editor ed= get_current_editor ();
   path label= ed->search_label (id);
-  if (is_nil (label)) return object (false);
+  if (is_nil (label)) return std::nullopt;
   label= path_up (label);
   tree target= ed->the_subtree (label);
   const string tag= as_string (L(target));
   if (!text_node_in_group (target, "label-tag") &&
       tag != "glossary" && tag != "glossary-explain" && tag != "glossary-dup" &&
       tag != "index" && tag != "subindex" && tag != "subsubindex" &&
-      tag != "index-complex") return object (false);
+      tag != "index-complex") return std::nullopt;
   const path root= ed->the_buffer_path ();
   path context;
   bool found=false, math=false;
@@ -326,7 +325,7 @@ object reference_preview (string id) {
     }
     if (p == root) break;
   }
-  if (!found) return object (false);
+  if (!found) return std::nullopt;
   tree doc= ed->the_subtree (context);
   if (N(context)>=N(root)+2 &&
       is_func (ed->the_subtree (path_up (context)), DOCUMENT)) {
@@ -345,14 +344,14 @@ object reference_preview (string id) {
   }
   doc=clean_reference_preview (doc);
   if (math) doc=tree (WITH, "math-display", "true", compound ("math", doc));
-  return tree_to_stree (compound ("preview-balloon", doc));
+  return copy (compound ("preview-balloon", doc));
 }
 
 void reference_show_preview (tree body, tree label) {
   const path ip= obtain_ip (body);
   if (!ip_attached (ip) || is_nil (ip) || !is_atomic (label)) return;
   tree ref= get_current_editor ()->the_subtree (reverse (ip->next));
-  object tip= reference_preview (label->label);
-  if (is_bool (tip) && !as_bool (tip)) return;
-  tooltip_show (label->label, ref, stree_to_tree (tip), "auto", "auto", "default", 0.6);
+  const auto tip= reference_preview (label->label);
+  if (!tip) return;
+  tooltip_show (label->label, ref, *tip, "auto", "auto", "default", 0.6);
 }

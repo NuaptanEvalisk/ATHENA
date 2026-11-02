@@ -7,7 +7,8 @@
 #ifndef ATHENA_NATIVE_INPUT_EVENTS_HPP
 #define ATHENA_NATIVE_INPUT_EVENTS_HPP
 
-#include "scheme.hpp"
+#include "array.hpp"
+#include "tree.hpp"
 
 void native_keyboard_press (string key, double time);
 void native_mouse_event (string kind, int x, int y, int modifiers,
