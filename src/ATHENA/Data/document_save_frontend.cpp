@@ -16,8 +16,6 @@
 #include "tm_data.hpp"
 #include "scheme_execution_context.hpp"
 #include "GoogleCloudTodo.hpp"
-#include "guile_tm.hpp"
-#include "object.hpp"
 #include "document_persistence.hpp"
 #include "buffer_export.hpp"
 #include "analyze.hpp"
@@ -34,15 +32,6 @@
 #include <stdexcept>
 
 namespace {
-void saved_callbacks (object options) {
-  for (; !is_null (options); options= cdr (options)) {
-    object option= car (options);
-    if (tmscm_is_pair (object_to_tmscm (option)) &&
-        car (option) == symbol_object ("on-saved"))
-      call (cdr (option));
-  }
-}
-
 void remove_autosave (url name) {
   url saved= glue (name, "~");
   if (!exists (saved)) return;
@@ -81,15 +70,12 @@ void document_save_preserve_viewport (url name) {
     context->editor->notify_change (THE_FREEZE);
 }
 
-void document_save_post (url name, object options) {
+void document_save_post (url name) {
   queue_cloud_sync (name);
   athena_vault_backup_dispatch_realtime (name);
-  // Save/close callers must advance only after a successful save, including
-  // the no-changes case. Failure and cancellation never run these callbacks.
-  saved_callbacks (options);
 }
 
-bool document_save_now (url name, object options) {
+bool document_save_now (url name) {
   document_save_preserve_viewport (name);
   tree filename= compound ("verbatim", utf8_to_cork (as_string (name, URL_SYSTEM)));
   if (buffer_save (name)) {
@@ -104,18 +90,17 @@ bool document_save_now (url name, object options) {
   remove_autosave (name);
   buffer_notify_recent (name);
   get_server ()->set_message (compound ("concat", "Saved ", filename), "Save file");
-  document_save_post (name, options);
+  document_save_post (name);
   return true;
 }
 
-bool document_save_as_now (url destination, url source, object options) {
+bool document_save_as_now (url destination, url source) {
   const bool scratch= is_scratch (source);
   rename_buffer (source, destination);
   pretend_buffer_modified (destination);
   // Complete cleanup before invoking a callback that may close the buffer.
-  if (!document_save_now (destination, null_object ())) return false;
+  if (!document_save_now (destination)) return false;
   if (scratch && source != destination && exists (source)) remove (source);
-  saved_callbacks (options);
   return true;
 }
 
@@ -124,14 +109,9 @@ struct save_request {
   athena_actor_id actor;
   athena_view_id view;
   SchemeCapabilitySet capabilities;
-  athena_scheme_handle_id options= ATHENA_NO_SCHEME_HANDLE;
   std::string source, destination;
   bool overwrite= false;
   std::function<void()> completed;
-  ~save_request () { scheme_command_handle_release (options); }
-  object arguments () const {
-    return tmscm_to_object (scheme_command_handle_value (options));
-  }
 };
 using save_task= std::shared_ptr<save_request>;
 
@@ -167,7 +147,6 @@ save_task make_save_request (object arguments) {
   if (request->actor == ATHENA_NO_ACTOR)
     throw std::runtime_error ("The buffer to save no longer exists");
   request->capabilities= SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_GLOBAL;
-  request->options= scheme_command_handle_acquire (object_to_tmscm (arguments));
   for (object opts= arguments; !is_null (opts); opts= cdr (opts))
     if (car (opts) == keyword_object ("overwrite")) request->overwrite= true;
   return request;
@@ -247,7 +226,7 @@ void save_as_other_buffer (save_task request) {
   url destination (request->destination.c_str ());
   auto save= [request] {
     if (document_save_as_now (url (request->destination.c_str ()),
-                             url (request->source.c_str ()), request->arguments ()) &&
+                             url (request->source.c_str ())) &&
         request->completed) request->completed ();
   };
   if (request->destination != request->source && open_buffer (destination)) {
@@ -271,7 +250,7 @@ void save_faithful (save_task request) {
   url source (request->source.c_str ());
   string ext= suffix (source);
   auto save= [request] {
-    if (document_save_now (url (request->source.c_str ()), request->arguments ()) &&
+    if (document_save_now (url (request->source.c_str ())) &&
         request->completed) request->completed ();
   };
   if (ext == "ath" || ext == "ats" || ext == "tm" || ext == "ts" ||
@@ -289,7 +268,7 @@ void save_permissions (save_task request) {
   }
   if (!athena_buffer_user_modified (source)) {
     get_server ()->set_message ("No changes need to be saved", "Save file");
-    document_save_post (source, request->arguments ());
+    document_save_post (source);
     if (request->completed) request->completed ();
     return;
   }

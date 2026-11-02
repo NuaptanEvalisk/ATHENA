@@ -2191,7 +2191,7 @@ buffer_actor::dispatch (actor_command_record& command) {
             (void) save_editor->publish_ui (
               actor_command_kind::ui_mark_buffer_saved,
               static_cast<std::uint64_t> (impl_->state.last_save));
-            // Realtime saves bypass the Scheme save-buffer-post hook.
+            // Realtime saves bypass the manual save post-processing.
             (void) save_editor->publish_ui_text (
               actor_command_kind::ui_vault_backup_dispatch_realtime,
               copy (native));

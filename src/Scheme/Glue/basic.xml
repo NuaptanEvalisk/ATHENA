@@ -2719,10 +2719,6 @@
     <arg type="string" />
   </binding>
   <binding name="vault-generate-uuid" native="vault_generate_uuid" returns="string" />
-  <binding name="vault-choose-link" native="vault_choose_link" returns="void">
-    <arg type="bool" />
-    <arg type="object" />
-  </binding>
   <binding name="vault-quick-switcher" native="vault_quick_switcher" returns="void">
     <arg type="array_string" />
   </binding>

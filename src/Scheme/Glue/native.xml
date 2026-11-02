@@ -226,9 +226,6 @@
   <binding name="save-buffer-as-dialog" native="document_save_dialog" returns="void" exceptions="scheme" />
   <binding name="cannot-write?" native="document_cannot_write" returns="bool"><arg type="url" /><arg type="string" /></binding>
   <binding name="save-buffer-preserve-current-viewport" native="document_save_preserve_viewport" returns="void"><arg type="url" /></binding>
-  <binding name="save-buffer-post" native="document_save_post" returns="void" exceptions="scheme"><arg type="url" /><arg type="object" /></binding>
-  <binding name="save-buffer-save" native="document_save_now" returns="bool" exceptions="scheme"><arg type="url" /><arg type="object" /></binding>
-  <binding name="save-buffer-as-save" native="document_save_as_now" returns="void" exceptions="scheme"><arg type="url" /><arg type="url" /><arg type="object" /></binding>
   <binding name="recent-file-list" native="recent_file_list" returns="array_url" exceptions="scheme"><arg type="int" /></binding>
   <binding name="buffer-notify-recent" native="buffer_notify_recent" returns="void" exceptions="scheme"><arg type="url" /></binding>
   <binding name="application-preferences-initialize" native="application_preferences_initialize" returns="void" exceptions="scheme" />

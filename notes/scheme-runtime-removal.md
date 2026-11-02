@@ -336,6 +336,19 @@ generated native entries and remain on the secure-function list.
   does not claim interactive editor verification. Logs are in
   `build_qt6/native-object-storage-{build,values-test,runtime,deploy}.log`.
 
+## Retired Save And Vault Chooser Callbacks
+
+- Removed the unused `on-saved` Scheme option and the three unconsumed
+  low-level save bindings. Save requests no longer retain a Scheme handle
+  across dialogs. Native save-before-close completion still runs only after
+  success or an unchanged document, and Save As cleanup precedes completion.
+- Removed the unused `vault-choose-link` Scheme entry and its mutex-protected
+  request/handle registry. Existing native wikilink/transclusion callers retain
+  the Qt chooser and actor-owned result delivery.
+- This batch is source-reviewed without additional tests. Build/deployment is
+  deferred to the next consolidated runtime batch; the installed binary remains
+  the native object payload build from `724562e78`.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
