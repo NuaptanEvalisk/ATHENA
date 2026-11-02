@@ -1182,6 +1182,24 @@ generated native entries and remain on the secure-function list.
   Full binary linking, runtime binding-removal verification and deployment are
   pending the next combined build with the focus/slide formatting changes.
 
+## Native Parameter Choices And Tooltip Identity
+
+- Parameter choices now travel from the existing JSON rules to focus snapshots
+  and selection actions as native label/tree records. Removed their Scheme
+  list binding and obsolete binding assertions. The trailing `other` keyword
+  was already skipped by the UI; native records contain only selectable values,
+  keeping their indices unchanged. Free-form parameter editing is unchanged.
+- Compound choice values use the native tree writer for display and retain the
+  original tree when applied. The parameter setter still has an object/mode
+  adapter; this batch does not claim to remove that remaining boundary.
+- Tooltip identity is serialized directly from its source path and content.
+  Its consumer only compares identity strings, so no Scheme printer contract
+  is needed. Placement, content and lifetime behavior are unchanged.
+- XML generation and all four affected implementation units compiled with
+  `-j16`. Logs: `native-parameter-choices-build.log` and
+  `native-tooltip-identity-build.log` under `build_qt6`. No tests added or run.
+  Combined full linking, runtime verification and deployment remain pending.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

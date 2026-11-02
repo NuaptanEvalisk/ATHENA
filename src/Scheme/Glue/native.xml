@@ -648,9 +648,6 @@
   <binding name="standard-parameters" native="format_standard_parameters" returns="object">
     <arg type="string" />
   </binding>
-  <binding name="parameter-choice-list" native="format_parameter_choices" returns="object">
-    <arg type="string" />
-  </binding>
   <binding name="customizable-parameters" native="format_customizable_parameters" returns="object">
     <arg type="tree" />
   </binding>

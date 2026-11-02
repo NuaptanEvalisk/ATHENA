@@ -321,9 +321,11 @@ void generic_display_balloon (tree body, tree balloon, tree horizontal, tree ver
                  ? horizontal->label
                  : (kind == "mouse" ? string ("right") : string ("left")),
          va= is_atomic (vertical) ? vertical->label : string ("Bottom");
-  object identity=
-      list_object (object (reverse (obtain_ip (body))), tree_to_stree (body));
-  tooltip_show (object_to_string (identity), body, balloon, ha, va, kind, 0.833333);
+  tree address (TUPLE);
+  for (path p= reverse (obtain_ip (body)); !is_nil (p); p= p->next)
+    address << as_string (p->item);
+  tree identity (TUPLE, address, tree_to_scheme_tree (body));
+  tooltip_show (scheme_tree_to_string (identity), body, balloon, ha, va, kind, 0.833333);
 }
 void generic_clear_style_cache () {
   get_server ()->style_clear_cache ();

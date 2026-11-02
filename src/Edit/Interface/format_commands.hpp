@@ -12,6 +12,7 @@
 #define ATHENA_FORMAT_COMMANDS_HPP
 
 #include "scheme.hpp"
+#include <vector>
 
 object format_with_ref (tree t, tree variable);
 tree format_with_set (tree t, tree variable, tree value);
@@ -34,7 +35,11 @@ bool format_parameter_inhibited (string name, bool global);
 object format_standard_options (object tag);
 string format_focus_name (string tag);
 object format_focus_variants (string tag);
-object format_parameter_choices (string variable);
+struct format_parameter_choice {
+  string label;
+  tree value;
+};
+std::vector<format_parameter_choice> format_parameter_choices (string variable);
 object format_customizable_parameters (tree t);
 object format_customizable_parameters_memo (tree t);
 bool format_customizable_context (tree t);

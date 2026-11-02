@@ -1501,33 +1501,13 @@ editor_rep::focus_toolbar_state_snapshot () {
       catch (...) {}
 
       try {
-        object choices= format_parameter_choices (parameter);
-        if (is_list (choices)) {
-          array<object> values= as_array_object (choices);
-          for (int i=0; i<N(values); ++i) {
-            actor_focus_parameter_choice_snapshot choice;
-            if (is_string (values[i])) {
-              string value= as_string (values[i]);
-              choice.value.assign (
-                value.data (), static_cast<std::size_t> (N(value)));
-              choice.label= choice.value;
-            }
-            else if (is_list (values[i])) {
-              array<object> pair= as_array_object (values[i]);
-              if (N(pair) != 2 || !is_string (pair[0]))
-                continue;
-              string labelValue= as_string (pair[0]);
-              string value= is_string (pair[1]) ? as_string (pair[1]) :
-                object_to_string (is_tree (pair[1]) ? tree_to_stree (as_tree (pair[1])) : pair[1]);
-              choice.label.assign (
-                labelValue.data (),
-                static_cast<std::size_t> (N(labelValue)));
-              choice.value.assign (
-                value.data (), static_cast<std::size_t> (N(value)));
-            }
-            else continue;
-            item.choices.push_back (std::move (choice));
-          }
+        for (const auto& entry: format_parameter_choices (parameter)) {
+          actor_focus_parameter_choice_snapshot choice;
+          string value= is_atomic (entry.value) ? entry.value->label :
+            scheme_tree_to_string (tree_to_scheme_tree (entry.value));
+          choice.label.assign (entry.label.data (), N(entry.label));
+          choice.value.assign (value.data (), N(value));
+          item.choices.push_back (std::move (choice));
         }
       }
       catch (...) {}

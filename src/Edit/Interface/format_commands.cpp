@@ -774,7 +774,7 @@ object format_standard_options (object tag) {
     cons (keyword_object ("recurse"), packages) : packages;
 }
 
-object format_parameter_choices (string variable) {
+std::vector<format_parameter_choice> format_parameter_choices (string variable) {
   QString key= json_key (variable);
   for (QJsonValue item: parameter_data ().definitions.value ("choices").toArray ()) {
     QJsonObject rule= item.toObject ();
@@ -782,20 +782,22 @@ object format_parameter_choices (string variable) {
     for (QJsonValue suffix: rule.value ("suffixes").toArray ())
       matches= matches || key.endsWith (suffix.toString ());
     if (matches) {
-      array<object> choices;
+      std::vector<format_parameter_choice> choices;
       for (QJsonValue value: rule.value ("values").toArray ()) {
-        if (value.isString ()) choices << object (native_string (value.toString ()));
+        if (value.isString ()) {
+          string text= native_string (value.toString ());
+          choices.push_back ({text, tree (text)});
+        }
         else {
           const QJsonObject choice= value.toObject ();
-          choices << cons (object (native_string (choice.value ("label").toString ())),
-            cons (object (parameter_tree (choice.value ("tree"))), null_object ()));
+          choices.push_back ({native_string (choice.value ("label").toString ()),
+                              parameter_tree (choice.value ("tree"))});
         }
       }
-      if (rule.value ("other").toBool ()) choices << keyword_object ("other");
-      return as_list_object (choices);
+      return choices;
     }
   }
-  return object (false);
+  return {};
 }
 
 object format_customizable_parameters (tree t) {

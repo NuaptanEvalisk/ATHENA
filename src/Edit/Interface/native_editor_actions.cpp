@@ -1614,17 +1614,10 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     else {
       object value (native_action_string (action.value ("value")));
       if (action.contains ("choice")) {
-        object choices= format_parameter_choices (name);
-        if (!is_list (choices)) return;
-        array<object> entries= as_array_object (choices);
+        const auto entries= format_parameter_choices (name);
         const int index= action.value ("choice").toInt (-1);
-        if (index < 0 || index >= N(entries)) return;
-        value= entries[index];
-        if (is_list (value)) {
-          array<object> pair= as_array_object (value);
-          if (N(pair) != 2) return;
-          value= pair[1];
-        }
+        if (index < 0 || static_cast<std::size_t> (index) >= entries.size ()) return;
+        value= object (entries[index].value);
       }
       generic_parameter_set (name, value, mode);
     }
