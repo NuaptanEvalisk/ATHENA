@@ -29,8 +29,7 @@ bool document_install_custom_style (url source);
 
 array<string> document_get_style_list ();
 array<string> document_get_style_list (editor_rep* ed);
-void document_set_style_list (object styles);
-object document_embedded_style_list (object extra_packages);
+void document_set_style_list (list<string> styles);
 bool document_has_no_style ();
 void document_set_no_style ();
 bool document_has_main_style (string style);

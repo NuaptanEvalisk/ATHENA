@@ -817,10 +817,7 @@
   </binding>
   <binding name="get-style-list" native="document_get_style_list" returns="array_string" />
   <binding name="set-style-list" native="document_set_style_list" returns="void">
-    <arg type="object" />
-  </binding>
-  <binding name="embedded-style-list" native="document_embedded_style_list" returns="object">
-    <arg type="object" rest="true" />
+    <arg type="list_string" />
   </binding>
   <binding name="has-no-style?" native="document_has_no_style" returns="bool" />
   <binding name="set-no-style" native="document_set_no_style" returns="void" />

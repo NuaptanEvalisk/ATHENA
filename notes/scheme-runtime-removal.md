@@ -1398,6 +1398,24 @@ generated native entries and remain on the secure-function list.
   Full linking, runtime binding verification and deployment await the next
   combined build. Installed binary remains the `ff39c969b` recorded deployment.
 
+## Native Style List Writes
+
+- Style writes now take native string lists. Font-package removal and document
+  language changes no longer construct objects to call the setter. Conversion
+  to the existing normalization array is native, with ordering and style-change
+  ownership unchanged. The retained binding uses generated `list_string`
+  validation/marshalling rather than an object-specific decoder.
+- Removed the unconsumed embedded-style-list function and binding, and both
+  obsolete object list conversion helpers.
+- XML generation and both implementation units compiled with `-j16`; log
+  `build_qt6/native-style-writes-build.log`. No tests added or run. Combined
+  linking/runtime binding verification/deployment remains pending with the
+  style-list read change.
+- Remaining object APIs in document_style_commands are three old category
+  bindings. Production classification already uses native catalog operations;
+  the legacy Scheme category-specialization test is not an active extension
+  contract and should be retired with those exports.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

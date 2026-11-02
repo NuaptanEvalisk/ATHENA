@@ -243,7 +243,7 @@ document_remove_font_packages () {
   list<string> filtered;
   for (int i=0; i<N(styles); ++i)
     if (!ends (styles[i], "-font")) filtered << styles[i];
-  document_set_style_list (object (filtered));
+  document_set_style_list (filtered);
 }
 
 void
@@ -337,7 +337,7 @@ void
 document_set_default_language () {
   list<string> old= current_style_list ();
   list<string> next= remove_document_languages (old);
-  if (next != old) document_set_style_list (object (next));
+  if (next != old) document_set_style_list (next);
 }
 
 string
@@ -365,7 +365,7 @@ document_set_language (string value) {
   list<string> old= current_style_list ();
   list<string> next= remove_document_languages (old);
   if (value != "english") next << value;
-  if (next != old) document_set_style_list (object (next));
+  if (next != old) document_set_style_list (next);
 }
 
 namespace {

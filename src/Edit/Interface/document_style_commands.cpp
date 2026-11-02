@@ -160,12 +160,6 @@ array<string> current_style_strings (editor_rep* ed) {
                          style_strings_from_tree (ed->get_style ());
 }
 
-object style_list_object (array<string> styles) {
-  array<object> objects;
-  for (int i= 0; i < N (styles); ++i) objects << object (styles[i]);
-  return as_list_object (objects);
-}
-
 bool contains_style (array<string> styles, string value);
 
 bool style_arrays_equal (array<string> left, array<string> right) {
@@ -257,16 +251,6 @@ array<string> normalize_style_list (array<string> styles) {
   result << unique[0];
   for (int i= 0; i < N (normalized); ++i) result << normalized[i];
   return result;
-}
-
-bool object_to_style_strings (object value, array<string>& styles) {
-  if (!is_list (value)) return false;
-  array<object> items= as_array_object (value);
-  for (int i= 0; i < N (items); ++i) {
-    if (!is_string (items[i])) return false;
-    styles << as_string (items[i]);
-  }
-  return true;
 }
 
 void set_style_strings (array<string> styles) {
@@ -413,24 +397,10 @@ document_get_style_list (editor_rep* ed) {
 }
 
 void
-document_set_style_list (object value) {
+document_set_style_list (list<string> value) {
   array<string> styles;
-  if (!object_to_style_strings (value, styles)) return;
+  for (; !is_nil (value); value= value->next) styles << value->item;
   set_style_strings (styles);
-}
-
-object
-document_embedded_style_list (object extra_packages) {
-  array<string> result= current_style_strings ();
-  if (is_list (extra_packages)) {
-    array<object> extras= as_array_object (extra_packages);
-    for (int i= 0; i < N (extras); ++i) {
-      if (!is_string (extras[i])) continue;
-      string package= as_string (extras[i]);
-      if (!contains_style (result, package)) result << package;
-    }
-  }
-  return style_list_object (result);
 }
 
 bool
