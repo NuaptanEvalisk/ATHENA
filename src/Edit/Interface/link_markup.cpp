@@ -18,10 +18,3 @@ object native_link_flatten_child (tree t) {
   }
   return tree_to_stree (t);
 }
-
-object native_link_flatten (tree link) {
-  object result= null_object ();
-  for (int i= N(link)-1; i >= 0; --i)
-    result= cons (native_link_flatten_child (link[i]), result);
-  return cons (symbol_object (as_string (L(link))), result);
-}

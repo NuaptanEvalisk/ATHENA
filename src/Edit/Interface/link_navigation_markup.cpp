@@ -39,15 +39,6 @@ using navigation_items= std::vector<navigation_item>;
 void follow_navigation (navigation_items candidates);
 void build_navigation_page (const navigation_items& items);
 
-tree read_attributes (object attributes) {
-  tree result (ATTR);
-  for (; !is_null (attributes); attributes= cdr (attributes)) {
-    const object pair= car (attributes);
-    result << content_to_tree (car (pair)) << content_to_tree (cdr (pair));
-  }
-  return result;
-}
-
 object write_attributes (tree attributes) {
   object result= null_object ();
   for (int i= N(attributes)-2; i >= 0; i-= 2)
@@ -58,30 +49,6 @@ object write_attributes (tree attributes) {
 object write_target (tree target) {
   // A script's extra arguments are live trees, not serialized source forms.
   return native_link_flatten_child (target);
-}
-
-navigation_items read_items (object items) {
-  navigation_items result;
-  for (; !is_null (items); items= cdr (items)) {
-    const array<object> item= as_array_object (car (items));
-    if (N(item) != 5) throw std::invalid_argument ("A navigation item must have five fields");
-    result.push_back ({as_string (item[0]), read_attributes (item[1]), as_int (item[2]),
-                       as_string (item[3]), content_to_tree (item[4])});
-  }
-  return result;
-}
-
-object write_item (const navigation_item& item) {
-  array<object> fields;
-  fields << object (item.type) << write_attributes (item.attributes)
-         << object (item.position) << object (item.source) << write_target (item.target);
-  return as_list_object (fields);
-}
-
-object write_items (const navigation_items& items) {
-  array<object> result;
-  for (const auto& item: items) result << write_item (item);
-  return as_list_object (result);
 }
 
 navigation_items simplify (const navigation_items& items) {
@@ -138,89 +105,41 @@ list<string> types (const navigation_items& items, string suffix= "") {
   return reverse (result);
 }
 
-object automatic_link (tree target, object broken, hashmap<string, tree>* previews= nullptr) {
-  object text= object (false);
+tree automatic_link (tree target, string broken, hashmap<string, tree>* previews= nullptr) {
+  tree text (UNINIT);
   if (is_func (target, ID, 1)) {
     const list<tree> nodes= get_trees (target[0]->label);
-    if (!is_nil (nodes)) text= tree_to_stree (nodes->item);
+    if (!is_nil (nodes)) text= copy (nodes->item);
     else if (previews && !is_func ((*previews)[target[0]->label], UNINIT))
-      text= tree_to_stree ((*previews)[target[0]->label]);
+      text= copy ((*previews)[target[0]->label]);
   }
   else if (is_compound (target, "url", 1) ||
            (is_compound (target, "script") && N(target) > 0))
-    text= tree_to_stree (compound ("verbatim", target[0]));
-  if (is_bool (text) && !as_bool (text))
-    return tree_to_stree (tree (WITH, "color", "red", content_to_tree (broken)));
+    text= compound ("verbatim", copy (target[0]));
+  if (is_func (text, UNINIT))
+    return tree (WITH, "color", "red", broken);
   const tree id (ID, native_link_unique_id ());
-  const object relation= cons (symbol_object ("link"),
-    cons (object ("automatic"), list_object (tree_to_stree (id), write_target (target))));
-  return cons (symbol_object ("locus"), list_object (tree_to_stree (id), relation, text));
+  // Script arguments remain live trees; only the displayed preview is copied.
+  return tree (LOCUS, id, tree (LINK, "automatic", id, target), text);
 }
 
-object enumeration (object items) {
-  if (is_null (items) || is_null (cdr (items))) return items;
-  array<object> rows;
-  for (; !is_null (items); items= cdr (items))
-    rows << cons (symbol_object ("surround"),
-                  list_object (list_object (symbol_object ("item")), object (""), car (items)));
-  const object body= cons (symbol_object ("document"), as_list_object (rows));
-  return list_object (list_object (symbol_object ("enumerate"), body));
-}
-
-void append_sections (array<object>& body, const navigation_items& items, string prefix,
+void append_sections (tree& body, const navigation_items& items, string prefix,
                       hashmap<string, tree>* previews= nullptr) {
   for (list<string> names= types (items); !is_nil (names); names= names->next) {
-    body << tree_to_stree (compound ("strong", prefix * names->item));
-    array<object> contents;
+    body << compound ("strong", prefix * names->item);
+    array<tree> contents;
     for (const auto& item: items)
-      if (item.type == names->item) contents << automatic_link (item.target, object ("Broken"), previews);
-    for (object rows= enumeration (as_list_object (contents)); !is_null (rows); rows= cdr (rows))
-      body << car (rows);
-  }
-}
-}
-
-object native_navigation_simplify (object items) {
-  return write_items (simplify (read_items (items)));
-}
-
-object native_link_list_to_navigation (object links) {
-  navigation_items result;
-  for (; !is_null (links); links= cdr (links)) {
-    const object link= car (links);
-    const string source= as_string (car (link));
-    const string type= as_string (cadr (link));
-    const tree attributes= read_attributes (caddr (link));
-    int position= 0;
-    for (object vertices= cdr (cddr (link)); !is_null (vertices); vertices= cdr (vertices), ++position) {
-      const tree vertex= content_to_tree (car (vertices));
-      if (!is_func (vertex, ID, 1) || vertex[0] != source)
-        result.push_back ({type, attributes, position, source, vertex});
+      if (item.type == names->item) contents << automatic_link (item.target, "Broken", previews);
+    if (N(contents) == 1) body << contents[0];
+    else if (N(contents) > 1) {
+      tree rows (DOCUMENT);
+      for (int i= 0; i < N(contents); ++i)
+        rows << tree (SURROUND, compound ("item"), "", contents[i]);
+      body << compound ("enumerate", rows);
     }
   }
-  return write_items (simplify (result));
 }
-
-object native_upward_navigation (object t) {
-  if (is_bool (t) && !as_bool (t)) return null_object ();
-  return write_items (navigation_from_links (native_upward_links (content_to_tree (t), true)));
 }
-
-bool native_link_may_follow (object t) {
-  if (is_bool (t) && !as_bool (t)) return false;
-  return !navigation_from_links (native_upward_links (content_to_tree (t), true)).empty ();
-}
-
-object native_navigation_filter (object items, object type, object position, bool only_jumpable) {
-  const bool any_type= is_bool (type) && as_bool (type);
-  const bool any_position= is_bool (position) && as_bool (position);
-  if ((!any_type && !is_string (type)) || (!any_position && !is_int (position)))
-    return null_object ();
-  return write_items (filter (read_items (items), any_type ? std::nullopt : std::optional<string> (as_string (type)),
-                             any_position ? std::nullopt : std::optional<int> (as_int (position)), only_jumpable));
-}
-
-list<string> native_navigation_types (object items) { return types (read_items (items)); }
 
 namespace {
 list<string> navigation_xtypes (const navigation_items& parsed) {
@@ -237,40 +156,17 @@ list<string> navigation_xtypes (const navigation_items& parsed) {
 }
 }
 
-list<string> native_navigation_xtypes (object items) {
-  return navigation_xtypes (read_items (items));
-}
-
-object native_navigation_first_xtype (object items, string type) {
-  const bool inverse= N(type) > 0 && type[N(type)-1] == '*';
-  if (inverse) type= type (0, N(type)-1);
-  const auto matches= filter (read_items (items), type, inverse ? 0 : 1, true);
-  return matches.empty () ? object (false) : write_item (matches.front ());
-}
-
-object native_automatic_link (object target, object options) {
-  return automatic_link (content_to_tree (target), is_null (options) ? object ("Broken") : car (options));
-}
-
-object native_link_enumeration (object items) { return enumeration (items); }
-
 namespace {
-object navigation_document (tree style, const navigation_items& parsed,
+tree navigation_document (tree style, const navigation_items& parsed,
                             hashmap<string, tree>* previews) {
   if (parsed.empty ()) throw std::invalid_argument ("A link page requires navigation candidates");
-  array<object> body;
-  body << tree_to_stree (compound ("strong", "Source"))
-       << automatic_link (tree (ID, parsed.front ().source), object ("Unaccessible"));
+  tree body (DOCUMENT);
+  body << compound ("strong", "Source")
+       << automatic_link (tree (ID, parsed.front ().source), "Unaccessible");
   append_sections (body, filter (parsed, std::nullopt, 1, true), "Direct ", previews);
   append_sections (body, filter (parsed, std::nullopt, 0, true), "Inverse ", previews);
-  return cons (symbol_object ("document"),
-    list_object (tree_to_stree (compound ("style", style)),
-      list_object (symbol_object ("body"), cons (symbol_object ("document"), as_list_object (body)))));
+  return tree (DOCUMENT, compound ("style", style), compound ("body", body));
 }
-}
-
-object native_navigation_document (tree style, object items) {
-  return navigation_document (style, read_items (items), nullptr);
 }
 
 namespace {
@@ -329,7 +225,7 @@ void continue_navigation_page (std::shared_ptr<navigation_page_request> pending)
     tree preview= actor_tree_registry::instance ().take (id);
     previews (preview[0]->label)= preview[1];
   }
-  tree document= content_to_tree (navigation_document (saved[0], items, &previews));
+  tree document= navigation_document (saved[0], items, &previews);
   athena_open_auxiliary_document ("Link page", document, url (saved[1]->label));
 }
 }
@@ -355,10 +251,6 @@ void build_navigation_page (const navigation_items& items) {
     tree (TUPLE, owner->editor->get_style (), as_string (get_master_buffer (get_current_buffer ())), rows));
   continue_navigation_page (pending);
 }
-}
-
-void native_build_navigation_page (object encoded) {
-  build_navigation_page (read_items (encoded));
 }
 
 namespace {
@@ -488,10 +380,6 @@ void follow_navigation (navigation_items candidates) {
     });
   }
 }
-}
-
-void native_navigation_follow (object items) {
-  follow_navigation (read_items (items));
 }
 
 void native_link_follow_ids (list<string> ids, string event) {

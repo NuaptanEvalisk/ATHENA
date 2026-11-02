@@ -77,13 +77,6 @@ void collect_complete (tree t, bool filter, const query_policy& policy,
     for (int i= 0; i < N(t); ++i) collect_complete (t[i], filter, policy, result);
 }
 
-object to_object (const link_items& items) {
-  object result= null_object ();
-  for (auto i= items.rbegin (); i != items.rend (); ++i)
-    result= cons (cons (object (i->source), cdr (native_link_flatten (i->link))), result);
-  return result;
-}
-
 list<string> distinct_sources (const link_items& items) {
   std::vector<string> seen;
   list<string> result;
@@ -145,11 +138,6 @@ void native_navigation_allow_all () {
   std::lock_guard<std::mutex> lock (blocked_mutex);
   blocked_types.clear ();
 }
-object native_ids_link_list (list<string> ids) {
-  link_items result;
-  collect_ids (ids, result);
-  return to_object (result);
-}
 native_link_records native_matching_links (list<string> ids, string event) {
   query_policy policy;
   link_items items, result;
@@ -158,39 +146,6 @@ native_link_records native_matching_links (list<string> ids, string event) {
     if (policy.accepts (item.source, item.link[0]->label, item.link[2], event))
       result.push_back (item);
   return result;
-}
-object native_filter_link_list (object items, string event) {
-  query_policy policy;
-  array<object> result;
-  for (; !is_null (items); items= cdr (items)) {
-    object item= car (items);
-    const tree first= content_to_tree (cadddr (item));
-    if (policy.accepts (as_string (car (item)), as_string (cadr (item)), first, event))
-      result << item;
-  }
-  return as_list_object (result);
-}
-object native_exact_link_list (tree t, bool filter) {
-  query_policy policy;
-  link_items result;
-  collect_exact (t, filter, policy, result);
-  return to_object (result);
-}
-object native_upward_link_list (object t, bool filter) {
-  if (is_bool (t) && !as_bool (t)) return null_object ();
-  return to_object (native_upward_links (content_to_tree (t), filter));
-}
-native_link_records native_upward_links (tree t, bool filter) {
-  query_policy policy;
-  link_items result;
-  for (tree node: ancestors (t)) collect_exact (node, filter, policy, result);
-  return result;
-}
-object native_complete_link_list (tree t, bool filter) {
-  query_policy policy;
-  link_items result;
-  collect_complete (t, filter, policy, result);
-  return to_object (result);
 }
 array<tree> native_complete_links (tree t) {
   query_policy policy;

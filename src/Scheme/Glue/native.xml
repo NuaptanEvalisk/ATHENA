@@ -302,18 +302,6 @@
   <binding name="picture-gc" native="tools_picture_gc" returns="void" />
   <binding name="heading-fold-toggle-tree" native="text_heading_fold_toggle" returns="bool" exceptions="scheme"><arg type="object" /></binding>
   <binding name="heading-word-count-tree" native="text_heading_word_count" returns="tree" exceptions="scheme"><arg type="object" /></binding>
-  <binding name="navigation-list-simplify" native="native_navigation_simplify" returns="object" exceptions="scheme"><arg type="object" /></binding>
-  <binding name="link-list-&gt;navigation-list" native="native_link_list_to_navigation" returns="object" exceptions="scheme"><arg type="object" /></binding>
-  <binding name="upward-navigation-list" native="native_upward_navigation" returns="object" exceptions="scheme"><arg type="object" /></binding>
-  <binding name="link-may-follow?" native="native_link_may_follow" returns="bool" exceptions="scheme"><arg type="object" /></binding>
-  <binding name="navigation-list-filter" native="native_navigation_filter" returns="object" exceptions="scheme"><arg type="object" /><arg type="object" /><arg type="object" /><arg type="bool" /></binding>
-  <binding name="navigation-list-types" native="native_navigation_types" returns="list_string" exceptions="scheme"><arg type="object" /></binding>
-  <binding name="navigation-list-xtypes" native="native_navigation_xtypes" returns="list_string" exceptions="scheme"><arg type="object" /></binding>
-  <binding name="navigation-list-first-xtype" native="native_navigation_first_xtype" returns="object" exceptions="scheme"><arg type="object" /><arg type="string" /></binding>
-  <binding name="automatic-link" native="native_automatic_link" returns="object" exceptions="scheme"><arg type="object" /><arg type="object" rest="true" /></binding>
-  <binding name="build-enumeration" native="native_link_enumeration" returns="object" exceptions="scheme"><arg type="object" /></binding>
-  <binding name="navigation-list-&gt;document" native="native_navigation_document" returns="object" exceptions="scheme"><arg type="content" /><arg type="object" /></binding>
-  <binding name="build-navigation-page" native="native_build_navigation_page" returns="void" exceptions="scheme"><arg type="object" /></binding>
   <binding name="go-to-url" native="native_link_go_to_url" returns="void" exceptions="scheme"><arg type="url" /><arg type="object" rest="true" /></binding>
   <binding name="go-to-id" native="native_link_go_to_id" returns="void" exceptions="scheme"><arg type="string" /><arg type="object" rest="true" /></binding>
   <binding name="vault-jump-to-source" native="native_vault_jump_to_source" returns="void" exceptions="scheme"><arg type="url" /><arg type="string" /></binding>
@@ -340,14 +328,8 @@
   <binding name="navigation-allow-all-types?" native="native_navigation_all_types" returns="bool" />
   <binding name="navigation-allow-no-types" native="native_navigation_allow_none" returns="void" />
   <binding name="navigation-allow-all-types" native="native_navigation_allow_all" returns="void" />
-  <binding name="ids-&gt;link-list" native="native_ids_link_list" returns="object" exceptions="scheme"><arg type="list_string" /></binding>
-  <binding name="filter-link-list" native="native_filter_link_list" returns="object" exceptions="scheme"><arg type="object" /><arg type="string" /></binding>
-  <binding name="exact-link-list" native="native_exact_link_list" returns="object" exceptions="scheme"><arg type="tree" /><arg type="bool" /></binding>
-  <binding name="upward-link-list" native="native_upward_link_list" returns="object" exceptions="scheme"><arg type="object" /><arg type="bool" /></binding>
-  <binding name="complete-link-list" native="native_complete_link_list" returns="object" exceptions="scheme"><arg type="tree" /><arg type="bool" /></binding>
   <binding name="link-has-cardlink?" native="native_link_has_cardlink" returns="bool"><arg type="list_string" /></binding>
   <binding name="link-active-ids" native="native_link_active_ids" returns="list_string"><arg type="list_string" /></binding>
-  <binding name="navigation-list-follow" native="native_navigation_follow" returns="void" exceptions="scheme"><arg type="object" /></binding>
   <binding name="link-follow-ids" native="native_link_follow_ids" returns="void" exceptions="scheme"><arg type="list_string" /><arg type="string" /></binding>
   <binding name="execute-script" native="native_link_execute_script" returns="void" exceptions="scheme"><arg type="string" /><arg type="bool" /><arg type="object" rest="true" /></binding>
   <binding name="go-to-vertex" native="native_link_go_to_vertex" returns="void" exceptions="scheme"><arg type="object" /><arg type="object" /></binding>
@@ -364,7 +346,6 @@
   <binding name="locus-remove-link" native="native_locus_remove_link" returns="void" exceptions="scheme"><arg type="tree" /></binding>
   <binding name="locus-remove-all-links" native="native_locus_remove_all_links" returns="void" exceptions="scheme"><arg type="tree" /><arg type="tree" /></binding>
   <binding name="id-&gt;loci" native="native_id_to_loci" returns="list_tree" exceptions="scheme"><arg type="string" /></binding>
-  <binding name="link-flatten" native="native_link_flatten" returns="object" exceptions="scheme"><arg type="content" /></binding>
   <binding name="number-&gt;label" native="reference_infer_label" returns="object" exceptions="scheme">
     <arg type="tree" />
   </binding>

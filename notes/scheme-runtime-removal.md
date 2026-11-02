@@ -946,6 +946,27 @@ generated native entries and remain on the secure-function list.
   will be combined with the remaining link adapter cleanup; installed runtime
   is still the combined save/link deployment through `f64c14d92`.
 
+## Native Link Pages And Adapter Retirement
+
+- Removed nineteen unused query/navigation/flattening XML bindings and their
+  implementations after auditing source, resources and tools. The previous
+  deployment's retained `link-flatten` is now unused following native-record
+  migration and is removed too. Native mouse/locus following remains active.
+- Link pages construct document, source, section, enumeration and locus trees
+  directly. Removed object-list readers/writers and intermediate Scheme content
+  construction. Display previews are copied; script targets retain their live
+  argument trees. Async preview resolution and actor snapshots are unchanged.
+- Regenerated `athena_glue`; removed native names are absent from source and
+  generated interfaces. Compiled all three affected implementation units with
+  `-j16`, log `build_qt6/native-link-adapter-retirement-build.log`.
+- Runtime binding verification and full linking/deployment remain pending with
+  the preceding native-record batch. No new tests were needed; conversion
+  behavior was checked against `content_to_tree`, which constructs labels and
+  children directly without special link normalization.
+- Vertex execution still converts target/attributes to objects, and native
+  document command dispatch still carries object arguments. Those remaining
+  boundaries are not removed by this batch.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
