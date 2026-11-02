@@ -332,7 +332,6 @@
   <binding name="link-active-ids" native="native_link_active_ids" returns="list_string"><arg type="list_string" /></binding>
   <binding name="link-follow-ids" native="native_link_follow_ids" returns="void" exceptions="scheme"><arg type="list_string" /><arg type="string" /></binding>
   <binding name="execute-script" native="native_link_execute_script" returns="void" exceptions="scheme"><arg type="string" /><arg type="bool" /><arg type="object" rest="true" /></binding>
-  <binding name="go-to-vertex" native="native_link_go_to_vertex" returns="void" exceptions="scheme"><arg type="object" /><arg type="object" /></binding>
   <binding name="locus-link-follow" native="native_locus_link_follow" returns="void" exceptions="scheme" />
   <binding name="process-url" native="native_link_process_url" returns="object" exceptions="scheme"><arg type="url" /></binding>
   <binding name="default-post-handler" native="native_link_post_load" returns="void" exceptions="scheme"><arg type="url" /></binding>

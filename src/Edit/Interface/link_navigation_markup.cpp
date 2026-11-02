@@ -38,18 +38,8 @@ struct navigation_item {
 using navigation_items= std::vector<navigation_item>;
 void follow_navigation (navigation_items candidates);
 void build_navigation_page (const navigation_items& items);
-
-object write_attributes (tree attributes) {
-  object result= null_object ();
-  for (int i= N(attributes)-2; i >= 0; i-= 2)
-    result= cons (cons (tree_to_stree (attributes[i]), tree_to_stree (attributes[i+1])), result);
-  return result;
-}
-
-object write_target (tree target) {
-  // A script's extra arguments are live trees, not serialized source forms.
-  return native_link_flatten_child (target);
-}
+void go_to_vertex (tree vertex, tree attributes);
+void execute_document_action (string source, bool trusted, array<object> arguments);
 
 navigation_items simplify (const navigation_items& items) {
   hashmap<tree, int> positions (-1);
@@ -282,9 +272,13 @@ void continue_id_navigation (const std::string& key, bool history,
 }
 
 void native_link_go_to_id (string id, object optional_from) {
-  const bool history= !is_null (optional_from);
-  if (history) cursor_history_add (as_path (car (optional_from)));
-  continue_id_navigation (std::string (id.data (), N(id)), history,
+  native_link_go_to_id (id, is_null (optional_from) ? std::nullopt :
+    std::optional<path> (as_path (car (optional_from))));
+}
+
+void native_link_go_to_id (string id, std::optional<path> from) {
+  if (from) cursor_history_add (*from);
+  continue_id_navigation (std::string (id.data (), N(id)), from.has_value (),
     std::make_shared<std::set<std::string>> ());
 }
 
@@ -318,7 +312,7 @@ void follow_item (const navigation_item& item) {
   visit_vertex (tree (ID, item.source));
   if (is_func (item.target, ID, 1) || is_compound (item.target, "url", 1))
     visit_vertex (item.target);
-  native_link_go_to_vertex (write_target (item.target), write_attributes (item.attributes));
+  go_to_vertex (item.target, item.attributes);
 }
 }
 
@@ -387,6 +381,11 @@ void native_link_follow_ids (list<string> ids, string event) {
 }
 
 void native_link_execute_script (string source, bool trusted, object arguments) {
+  execute_document_action (source, trusted, as_array_object (arguments));
+}
+
+namespace {
+void execute_document_action (string source, bool trusted, array<object> arguments) {
   if (starts (source, "(")) {
     get_current_editor ()->set_message (
       "Scheme expressions are not supported in document actions", "Document action");
@@ -404,7 +403,7 @@ void native_link_execute_script (string source, bool trusted, object arguments) 
   }
   const auto callback= owner->actor->retain_native_callback ([source, arguments] {
     object result;
-    if (!native_dispatch_call (source, as_array_object (arguments), result))
+    if (!native_dispatch_call (source, arguments, result))
       throw std::invalid_argument ("Unknown native document action: " +
                                    std::string (source.data (), N(source)));
   });
@@ -427,14 +426,12 @@ void native_link_execute_script (string source, bool trusted, object arguments) 
     });
 }
 
-void native_link_go_to_vertex (object vertex, object attributes) {
-  if (!is_list (vertex) || is_null (vertex) || !is_symbol (car (vertex))) return;
-  const string kind= as_symbol (car (vertex));
-  const auto fields= as_array_object (cdr (vertex));
-  if (kind == "id" && N(fields) == 1)
-    native_link_go_to_id (as_string (fields[0]), list_object (object (get_current_editor ()->the_path ())));
-  else if (kind == "url" && N(fields) == 1) {
-    string target= as_string (fields[0]);
+void go_to_vertex (tree vertex, tree attributes) {
+  if (is_func (vertex, ID, 1))
+    native_link_go_to_id (vertex[0]->label,
+                         std::optional<path> (get_current_editor ()->the_path ()));
+  else if (is_compound (vertex, "url", 1)) {
+    string target= vertex[0]->label;
     for (int i=0; i<N(target); ++i)
       if (target[i] == '#' || target[i] == '?') {
         target= target (0, i) * replace (target (i, N(target)), ":", "%3A");
@@ -442,17 +439,19 @@ void native_link_go_to_vertex (object vertex, object attributes) {
       }
     native_link_go_to_url (target, std::optional<path> (get_current_editor ()->the_path ()));
   }
-  else if (kind == "script" && N(fields) > 0) {
+  else if (is_compound (vertex, "script") && N(vertex) > 0) {
     bool trusted= false;
-    for (; !is_null (attributes); attributes= cdr (attributes)) {
-      object entry= car (attributes);
-      if (is_string (car (entry)) && as_string (car (entry)) == "secure") {
-        trusted= is_string (cdr (entry)) && as_string (cdr (entry)) == "true";
+    for (int i= 0; i+1 < N(attributes); i+= 2) {
+      if (attributes[i] == "secure") {
+        trusted= attributes[i+1] == "true";
         break;
       }
     }
-    native_link_execute_script (as_string (fields[0]), trusted, cddr (vertex));
+    array<object> arguments;
+    for (int i= 1; i < N(vertex); ++i) arguments << object (vertex[i]);
+    execute_document_action (vertex[0]->label, trusted, std::move (arguments));
   }
+}
 }
 
 void native_locus_link_follow () {

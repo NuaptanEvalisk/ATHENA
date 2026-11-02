@@ -15,7 +15,6 @@ struct native_link_record {
 };
 using native_link_records= std::vector<native_link_record>;
 native_link_records native_matching_links (list<string> ids, string event);
-object native_link_flatten_child (tree child);
 
 string native_link_unique_id ();
 void native_make_locus ();
@@ -50,7 +49,6 @@ bool native_resolve_link_id (string id, std::set<std::string>& attempted,
                              std::function<void(url)> completed);
 void native_link_follow_ids (list<string> ids, string event);
 void native_link_execute_script (string source, bool trusted, object arguments);
-void native_link_go_to_vertex (object vertex, object attributes);
 void native_locus_link_follow ();
 object native_link_process_url (url target);
 void native_link_post_load (url target);
@@ -59,5 +57,6 @@ void native_link_go_to_url (url target, std::optional<path> from= std::nullopt);
 void native_link_go_to_url (string target, std::optional<path> from= std::nullopt);
 void native_link_open_label (url target, string label);
 void native_link_go_to_id (string id, object optional_from);
+void native_link_go_to_id (string id, std::optional<path> from= std::nullopt);
 
 #endif

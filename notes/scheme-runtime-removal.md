@@ -967,6 +967,25 @@ generated native entries and remain on the secure-function list.
   document command dispatch still carries object arguments. Those remaining
   boundaries are not removed by this batch.
 
+## Native Link Vertex Execution
+
+- Vertex following reads native ID/URL/script trees and attribute pairs directly.
+  Removed the unused `go-to-vertex` binding and the last flattening implementation
+  file, `link_markup.cpp`. No target/attribute object-list serialization remains
+  in the navigation path.
+- ID navigation takes an optional native history path; the retained script
+  entry only decodes its arguments. Native document actions pass an argument
+  array to dispatch, preserving live tree arguments and existing actor-owned
+  confirmation/callback handling. The command dispatcher still uses object
+  values and is not claimed to be fully migrated.
+- Regenerated interfaces and reconfigured CMake after source removal. Compiled
+  the affected unit with `-j16`; logs: `native-link-vertex-generation.log` and
+  `native-link-vertex-build.log` under `build_qt6`. Retired symbols are absent
+  from source and generated interfaces. No tests were added or run.
+- Full combined link build, runtime verification of the twenty retired bindings
+  and deployment are next. Installed runtime remains the save/link deployment
+  through `f64c14d92`, not these three link migration commits.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
