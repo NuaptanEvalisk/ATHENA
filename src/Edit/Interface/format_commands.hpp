@@ -13,6 +13,7 @@
 
 #include "scheme.hpp"
 #include <vector>
+#include <optional>
 
 object format_with_ref (tree t, tree variable);
 tree format_with_set (tree t, tree variable, tree value);
@@ -20,8 +21,11 @@ void format_with_simplify (tree t);
 void format_with_merge (tree t);
 bool format_test_env (string variable, string value);
 void format_tree_with_set (tree t, object properties);
+void format_tree_with_set (tree t, tree properties);
 object format_tree_with_get (object t, tree variable);
+std::optional<tree> format_tree_with_get (tree t, tree variable);
 void format_tree_with_reset (object t, tree variable);
+void format_tree_with_reset (tree t, tree variable);
 bool format_with_like_check_insert (tree t);
 void format_make_with_like (tree t);
 void format_toggle_with_like (tree t, object back);

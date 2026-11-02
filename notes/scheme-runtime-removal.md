@@ -1278,6 +1278,25 @@ generated native entries and remain on the secure-function list.
   observers through wrapper simplification/merging. Their native migration must
   retain those semantics rather than replace them with direct assignments.
 
+## Native Property Access In Focus Editing
+
+- Added native tree-based formatting property access at the existing operation
+  boundary. Lookup returns `optional<tree>` to distinguish an absent property
+  from an empty value. Focus parameter set/default/reset now call these native
+  operations without constructing object lists or testing Scheme false values.
+- The existing scope traversal, last-duplicate precedence, active-tree checks,
+  observer tracking, simplification and merge operations remain unchanged.
+  Setting accepts a bodyless WITH property tree, matching the wrapper already
+  used by the existing editing implementation.
+- Existing object bindings now only adapt to these native operations. They
+  remain for the retained complex formatting/observer checks and must disappear
+  with the final automation/glue migration; they are not a new compatibility
+  policy or proof that all format commands are Scheme-free.
+- Both implementation units compiled with `-j16`; log
+  `build_qt6/native-format-properties-build.log`. No tests added or run because
+  the editing algorithm is unchanged. Full combined linking and deployment
+  remain pending with the preceding parameter metadata batches.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

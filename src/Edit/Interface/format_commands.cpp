@@ -582,7 +582,12 @@ bool format_test_env (string variable, string value) {
 }
 
 void format_tree_with_set (tree t, object properties) {
-  tree wrapper= property_wrapper (properties);
+  format_tree_with_set (t, property_wrapper (properties));
+}
+
+void format_tree_with_set (tree t, tree wrapper) {
+  ASSERT (is_func (wrapper, WITH) && N(wrapper) % 2 == 0,
+          "format wrapper must contain variable/value pairs without a body");
   t= tree_insert_node (t, N (wrapper), wrapper);
   tracked_tree current (t);
   format_with_simplify (t);
@@ -591,17 +596,24 @@ void format_tree_with_set (tree t, object properties) {
 
 object format_tree_with_get (object value, tree variable) {
   if (!is_tree (value)) return object (false);
-  tree t= as_tree (value);
+  auto found= format_tree_with_get (as_tree (value), variable);
+  return found ? object (*found) : object (false);
+}
+
+std::optional<tree> format_tree_with_get (tree t, tree variable) {
   do {
     int i= property_index (t, variable, true);
-    if (i >= 0) return object (t[i + 1]);
+    if (i >= 0) return t[i + 1];
   } while (enclosing_property_scope (t, t));
-  return object (false);
+  return std::nullopt;
 }
 
 void format_tree_with_reset (object value, tree variable) {
   if (!is_tree (value)) return;
-  tree t= as_tree (value);
+  format_tree_with_reset (as_tree (value), variable);
+}
+
+void format_tree_with_reset (tree t, tree variable) {
   if (!tree_active (t)) return;
   do {
     int i= property_index (t, variable, true);

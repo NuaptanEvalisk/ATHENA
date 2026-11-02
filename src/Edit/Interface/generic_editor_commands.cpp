@@ -1424,7 +1424,7 @@ generic_parameter_set (string name, tree value, generic_parameter_mode mode) {
 
   tree focus;
   if (!parameter_focus_matches (mode, focus)) return;
-  format_tree_with_set (focus, list_object (object (name), object (value)));
+  format_tree_with_set (focus, tree (WITH, name, value));
 }
 
 namespace {
@@ -1461,8 +1461,7 @@ generic_parameter_default (string name, generic_parameter_mode mode) {
 
   tree focus;
   if (!parameter_focus_matches (mode, focus)) return false;
-  object current= format_tree_with_get (object (focus), tree (name));
-  return is_bool (current) && !as_bool (current);
+  return !format_tree_with_get (focus, tree (name)).has_value ();
 }
 
 void
@@ -1474,7 +1473,7 @@ generic_parameter_reset (string name, generic_parameter_mode mode) {
 
   tree focus;
   if (!parameter_focus_matches (mode, focus)) return;
-  format_tree_with_reset (object (focus), tree (name));
+  format_tree_with_reset (focus, tree (name));
 }
 
 namespace {
