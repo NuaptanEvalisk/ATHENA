@@ -55,7 +55,7 @@ object write_attributes (tree attributes) {
 
 object write_target (tree target) {
   // A script's extra arguments are live trees, not serialized source forms.
-  return native_link_target (native_link_flatten (tree (LINK, "", tree (ATTR), "", target)));
+  return native_link_flatten_child (target);
 }
 
 navigation_items read_items (object items) {

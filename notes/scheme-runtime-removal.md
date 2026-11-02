@@ -886,6 +886,22 @@ generated native entries and remain on the secure-function list.
   Full linking/deployment remains pending with timestamp and lifecycle-command
   changes; installed runtime remains `5706ed764`.
 
+## Retired Link Accessor Interfaces
+
+- Removed the unused link type/attribute/vertices/source/target accessors and
+  vertex id/url/script accessors, including all eight XML bindings. Repository
+  consumers were audited; the similarly named embedded-image test variable is
+  not an accessor call.
+- Navigation serializes its target with the shared child conversion directly,
+  instead of constructing and flattening an artificial link and extracting its
+  target. Script arguments retain their attached tree identity. Link flattening
+  itself remains used by link-query adapters and is not removed in this batch.
+- Regenerated `athena_glue`; removed names are absent from source and generated
+  code. Both implementation units compiled with `-j16`; log:
+  `build_qt6/native-link-accessor-cleanup-build.log`. Full linking, deployment
+  and runtime confirmation of binding removal remain pending with the preceding
+  save/lifecycle changes; installed runtime remains `5706ed764`.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
