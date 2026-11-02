@@ -42,7 +42,7 @@
         {"key": "inactive >", "commands": [{"call": "make", "args": [{"symbol": "hlink"}]}]},
         {"key": "inactive C->", "commands": [{"call": "make", "args": [{"symbol": "write"}]}]},
         {"key": "inactive #", "commands": [{"call": "make", "args": [{"symbol": "arg"}]}]},
-        {"key": "inactive $", "commands": [{"call": "noop", "args": []}, {"call": "make", "args": [{"symbol": "symbol"}]}]},
+        {"key": "inactive $", "commands": [true, {"call": "make", "args": [{"symbol": "symbol"}]}]},
         {"key": "inactive '", "commands": [{"call": "make", "args": [{"symbol": "quote"}]}]},
         {"key": "inactive `", "commands": [{"call": "make", "args": [{"symbol": "quasiquote"}]}]},
         {"key": "inactive ,", "commands": [{"call": "make", "args": [{"symbol": "unquote"}]}]},

@@ -723,6 +723,25 @@ generated native entries and remain on the secure-function list.
   preference. Object parsing/printing, scripts, lifecycle, generated bindings
   and build dependencies also remain; the complete removal goal stays active.
 
+## Native Keymap Expression Execution
+
+- Audited the shipped JSON command names against generated native registrations.
+  All 219 remaining command names have native entries. The native table and
+  auto-close handlers retain their existing precedence; unknown commands now
+  report an error instead of evaluating Scheme.
+- Equality and current-focus queries are JSON expression descriptors handled
+  by C++. Replaced `noop` prefixes with literal true, retaining compound-command
+  identity for inverse lookup. Removed the stale `edit-focus-macro` and
+  `edit-previous-macro` shortcuts: those referred to the macro windows removed
+  in `4785ec601`, not the retained native macro-source command.
+- Updated the keymap documentation, including the still-outstanding object
+  printer used only to serialize inverse-lookup/command metadata. This batch
+  removes the execution fallback, not every object dependency in the module.
+- The affected implementation unit compiled with `-j16`. JSON parsing and the
+  generated-registration audit passed. The complete `-j16` build and official
+  helper deployment succeeded; logs:
+  `build_qt6/native-keymap-combined-{build,deploy}.log`.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

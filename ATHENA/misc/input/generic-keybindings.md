@@ -12,9 +12,9 @@ prefix rewrites used by both these files and `math-keybindings.json`.
 `generic_keyboard_bindings.cpp` validates and registers the domain files with
 the existing shared keyboard registry. That registry continues to own partial
 key sequences, inverse lookup, user overrides, and mode/require precedence.
-Existing Scheme editing implementations remain behind ATHENA's ordinary
-`lazy-keyboard` module-loading hooks; only the keymap declarations themselves
-have moved out of Scheme.
+Commands resolve through the generated native dispatcher or the native
+table/auto-close handlers. Unknown commands fail explicitly; there is no Scheme
+evaluation fallback or lazy Scheme module loading.
 
 Groups and bindings are ordered. Later matching declarations retain their
 existing precedence. `profiles` is checked at registration using
@@ -24,11 +24,13 @@ the owning editor context. A group may also contain `unmap` entries.
 Each binding has `key` and either `text` (optionally `help`) or an ordered
 `commands` array. Command/argument descriptors include:
 
-- `{"call":"name","args":[...]}`: call the current public procedure.
+- `{"call":"name","args":[...]}`: invoke a registered native command.
 - Movement wrappers receive a native command name as a string, not a procedure.
 - `{"symbol":"name"}`: pass a literal symbol.
-- `{"keyword":"name"}`: pass a Scheme keyword such as `:next`.
-- `{"list":[...]}`: pass a literal Scheme list.
+- `{"keyword":"name"}`: pass a keyword value such as `:next`.
+- `{"list":[...]}`: pass a literal list.
+- `{"focus":true}`: obtain the current editor's focused tree.
+- `{"equal":[left,right]}`: compare two evaluated values.
 - Strings, booleans and integers: literal arguments.
 - `{"number":1.0}`: an inexact number, distinct from integer `1`.
 - `{"if":condition,"then":action,"else":action}`: conditional execution.
@@ -38,6 +40,8 @@ There is no Scheme source text in the data. Registered callbacks enter the
 native dispatcher without changing thread or actor ownership. Their original
 semantic source is retained as metadata so menu shortcuts and reverse lookup do
 not expose dispatcher indices.
+This metadata still uses the legacy object printer; removing the runtime from
+metadata serialization is separate from native command execution.
 
 All keymap JSON strings are UTF-8. Text actions contain the actual Unicode text
 inserted into documents; legacy Cork bytes and `<#...>` character tokens are

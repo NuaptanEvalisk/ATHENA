@@ -3,7 +3,7 @@
   "string_encoding": "utf-8",
   "groups": [
     {
-      "require": {"all": [{"call": "in-graphics?", "args": []}, {"not": {"call": "in-commutative-diagram?", "args": []}}, {"call": "==", "args": [{"call": "get-env", "args": ["preamble"]}, "false"]}]},
+      "require": {"all": [{"call": "in-graphics?", "args": []}, {"not": {"call": "in-commutative-diagram?", "args": []}}, {"equal": [{"call": "get-env", "args": ["preamble"]}, "false"]}]},
       "bindings": [
         {"key": "#", "commands": [{"call": "native-graphics-grid-command", "args": ["toggle-both", "", true]}]},
         {"key": "return", "commands": [{"call": "graphics-apply-props-at-mouse", "args": []}]},
@@ -26,7 +26,7 @@
       ]
     },
     {
-      "require": {"all": [{"call": "in-graphics?", "args": []}, {"not": {"call": "in-commutative-diagram?", "args": []}}, {"call": "==", "args": [{"call": "get-env", "args": ["preamble"]}, "false"]}, {"call": "in-screens?", "args": []}]},
+      "require": {"all": [{"call": "in-graphics?", "args": []}, {"not": {"call": "in-commutative-diagram?", "args": []}}, {"equal": [{"call": "get-env", "args": ["preamble"]}, "false"]}, {"call": "in-screens?", "args": []}]},
       "bindings": [
         {"key": "pageup", "commands": [{"call": "screens-switch-to", "args": [{"keyword": "previous"}]}]},
         {"key": "pagedown", "commands": [{"call": "screens-switch-to", "args": [{"keyword": "next"}]}]}

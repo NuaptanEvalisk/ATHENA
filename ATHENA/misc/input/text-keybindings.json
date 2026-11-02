@@ -104,7 +104,7 @@
     },
     {
       "mode": "in-text?",
-      "require": {"call": "==", "args": [{"call": "get-env", "args": ["font"]}, "roman"]},
+      "require": {"equal": [{"call": "get-env", "args": ["font"]}, "roman"]},
       "bindings": [
         {"key": "copyright", "commands": [{"call": "make", "args": [{"symbol": "copyright"}]}]},
         {"key": "ordfeminine", "commands": [{"call": "make", "args": [{"symbol": "ordfeminine"}]}]},

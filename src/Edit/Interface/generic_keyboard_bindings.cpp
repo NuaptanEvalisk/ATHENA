@@ -14,6 +14,7 @@
 #include "file.hpp"
 #include "native_keyboard_prefixes.hpp"
 #include "native_keyboard_registry.hpp"
+#include "native_dispatch.hpp"
 #include "application_preferences.hpp"
 #include "editor_modes.hpp"
 #include "new_view.hpp"
@@ -71,7 +72,15 @@ void validate_expression (QJsonValue value) {
     ASSERT (item.size () == 1, "invalid keymap value descriptor");
     QString kind= item.begin ().key ();
     QJsonValue data= item.begin ().value ();
-    if (kind == "symbol" || kind == "keyword") {
+    if (kind == "focus") {
+      ASSERT (data.isBool () && data.toBool (), "invalid focus expression");
+    }
+    else if (kind == "equal") {
+      ASSERT (data.isArray () && data.toArray ().size () == 2,
+              "equality needs two operands");
+      for (QJsonValue arg: data.toArray ()) validate_expression (arg);
+    }
+    else if (kind == "symbol" || kind == "keyword") {
       ASSERT (binding_string (data) != "", "empty keymap identifier");
     }
     else if (kind == "number") {
@@ -190,6 +199,18 @@ object expression (QJsonValue value, bool source) {
   if (value.isBool ()) return object (value.toBool ());
   if (value.isDouble ()) return object (value.toInt ());
   auto item= value.toObject ();
+  if (item.contains ("focus")) {
+    if (source) return list_object (symbol_object ("focus-tree"));
+    editor ed= get_current_editor ();
+    return object (ed->the_subtree (ed->focus_get ()));
+  }
+  if (item.contains ("equal")) {
+    auto operands= item["equal"].toArray ();
+    object left= expression (operands[0], source);
+    object right= expression (operands[1], source);
+    return source ? list_object (symbol_object ("=="), left, right)
+                  : object (left == right);
+  }
   if (item.contains ("prompt")) {
     const string function= binding_string (item["prompt"]);
     array<string> labels;
@@ -227,7 +248,9 @@ object expression (QJsonValue value, bool source) {
       return native_result;
     if (athena::table_commands::keyboard_call (name, args, native_result))
       return native_result;
-    return call (name, args);
+    if (native_dispatch_call (name, args, native_result)) return native_result;
+    throw std::invalid_argument ("Unknown native keymap command: " +
+                                std::string (name.data (), N(name)));
   }
   if (item.contains ("if")) {
     if (!source) return expression (item[truth (expression (item["if"], false))
