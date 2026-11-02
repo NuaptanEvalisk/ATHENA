@@ -1598,22 +1598,10 @@
   <binding name="latex-export-render-image" native="latex_export_render_image" returns="scheme_tree">
     <arg type="scheme_tree" />
   </binding>
-  <binding name="latex-export-preamble-page-type" native="latex_export_preamble_page_type" returns="scheme_tree">
-    <arg type="object" />
-  </binding>
   <binding name="latex-export-html-xcolor" native="latex_export_html_xcolor" returns="string">
     <arg type="string" />
   </binding>
-  <binding name="latex-export-packages-dependencies" native="latex_export_packages_dependencies" returns="object">
-    <arg type="object" />
-  </binding>
-  <binding name="latex-export-packages-simplify" native="latex_export_packages_simplify" returns="object">
-    <arg type="object" />
-  </binding>
   <binding name="latex-export-recompute-dependencies" native="latex_export_recompute_dependencies" returns="void" />
-  <binding name="latex-export-as-use-package" native="latex_export_as_use_package" returns="string">
-    <arg type="object" />
-  </binding>
   <binding name="latex-export-catcode-defs" native="latex_export_catcode_defs" returns="string">
     <arg type="scheme_tree" />
   </binding>

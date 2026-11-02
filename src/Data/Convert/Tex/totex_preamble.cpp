@@ -143,15 +143,13 @@ paper_type_option (string value) {
 }
 
 scheme_tree
-preamble_page_type (object entries) {
-  array<object> items= as_array_object (entries);
+preamble_page_type (scheme_tree entries) {
   array<string> options;
-  for (int i=0; i<N(items); ++i) {
-    if (!is_list (items[i])) continue;
-    array<object> pair= as_array_object (items[i]);
-    if (N(pair) < 2 || !is_string (pair[0]) || !is_string (pair[1])) continue;
-    string source_key= as_string (pair[0]);
-    string value= as_string (pair[1]);
+  for (int i=0; i<N(entries); ++i) {
+    scheme_tree pair= entries[i];
+    if (!string_atom (pair[1])) continue;
+    string source_key= atom_text (pair[0]);
+    string value= atom_text (pair[1]);
     string key= paper_option_key (source_key);
     if (key == "") continue;
     if (key == "page-type") {
@@ -197,25 +195,6 @@ contains_string (const array<string>& values, string value) {
 void
 append_unique (array<string>& values, string value) {
   if (!contains_string (values, value)) values << value;
-}
-
-array<string>
-object_strings (object values) {
-  array<string> out;
-  if (!is_list (values)) return out;
-  array<object> items= as_array_object (values);
-  for (int i=0; i<N(items); ++i) {
-    if (is_string (items[i])) out << as_string (items[i]);
-    else if (is_symbol (items[i])) out << as_symbol (items[i]);
-  }
-  return out;
-}
-
-object
-string_list_object (const array<string>& values) {
-  array<object> out;
-  for (int i=0; i<N(values); ++i) out << object (values[i]);
-  return as_list_object (out);
 }
 
 array<string>
@@ -988,7 +967,7 @@ serialize_preamble_native (scheme_tree value) {
   return serialize_latex (value);
 }
 
-object
+scheme_tree
 init_entries (scheme_tree init) {
   array<string> keys;
   array<scheme_tree> values;
@@ -1008,13 +987,13 @@ init_entries (scheme_tree init) {
     }
   }
 
-  array<object> entries;
+  scheme_tree entries (TUPLE);
   for (int i=0; i<N(keys); ++i) {
-    array<object> pair;
-    pair << object (keys[i]) << stree_object (values[i]);
-    entries << as_list_object (pair);
+    scheme_tree pair (TUPLE);
+    pair << stree_string (keys[i]) << values[i];
+    entries << pair;
   }
-  return as_list_object (entries);
+  return entries;
 }
 
 string
@@ -1105,32 +1084,9 @@ latex_export_mathjax (scheme_tree value) {
   return mathjax_cleanup (value);
 }
 
-scheme_tree
-latex_export_preamble_page_type (object entries) {
-  return preamble_page_type (entries);
-}
-
 string
 latex_export_html_xcolor (string color) {
   return html_xcolor (color);
-}
-
-object
-latex_export_packages_dependencies (object packages) {
-  return string_list_object (package_dependencies (object_strings (packages)));
-}
-
-object
-latex_export_packages_simplify (object packages) {
-  array<string> values= object_strings (packages);
-  array<string> out;
-  for (int i=0; i<N(values); ++i) {
-    array<string> others;
-    for (int j=0; j<N(values); ++j)
-      if (j != i) others << values[j];
-    if (!contains_string (package_dependencies (others), values[i])) out << values[i];
-  }
-  return string_list_object (out);
 }
 
 void
@@ -1156,12 +1112,6 @@ latex_export_use_package_command (scheme_tree document,
                                   const array<string>& colors,
                                   const array<string>& colormaps) {
   return use_package_command (document, colors, colormaps);
-}
-
-string
-latex_export_as_use_package (object packages) {
-  array<string> none;
-  return as_use_package (object_strings (packages), none, false);
 }
 
 string

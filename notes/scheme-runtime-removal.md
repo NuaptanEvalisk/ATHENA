@@ -1950,6 +1950,28 @@ generated native entries and remain on the secure-function list.
 - Export environment stacks and other object APIs remain outstanding; the
   complete runtime-removal goal remains active.
 
+## Native Preamble Parameters And Combined Deployment
+
+- Page initialization entries now remain native serialized trees, preserving
+  source order, last duplicate assignment and string-only geometry options.
+  Removed four unused preamble/package wrappers and their bindings. Preamble
+  implementation no longer constructs or consumes Scheme objects.
+- Completed the combined ATHENA.bin build with -j16, covering the pending
+  tracked options, package/dependency state and language/color migrations.
+  Log: build_qt6/native-latex-state-full-build.log.
+- A focused real document export verified pastel-red color definitions,
+  xcolor inference, A4 geometry and mathematical blackboard-bold output, plus
+  absence of nine retired bindings. The temporary probe initially expected a
+  definition for standard red, then X11 dark red; both correctly use other
+  paths. Selecting the actual TeXmacs-only pastel-red resource exercised the
+  intended definition path and passed. No production workaround was added.
+  Final log: build_qt6/native-latex-state-runtime.log (NATIVE_LATEX_STATE_OK).
+- Deployed with tools/deploy-local-runtime.sh. Installed build ID:
+  12768a33e9c8b98163606fd8af69e96795e4ce3d. Deployment log:
+  build_qt6/native-latex-state-deploy.log. Removed temporary probe/profile.
+- This supersedes the preceding pending-deployment notes, not the outstanding
+  environment-stack, conversion-payload and complete runtime-removal work.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

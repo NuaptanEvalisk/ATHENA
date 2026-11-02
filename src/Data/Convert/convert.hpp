@@ -211,15 +211,11 @@ scheme_tree latex_export_convert_top (scheme_tree value, const conversion_option
 void latex_export_initialize (const conversion_options& options);
 scheme_tree latex_export_mathjax_pre (scheme_tree value);
 scheme_tree latex_export_mathjax (scheme_tree value);
-scheme_tree latex_export_preamble_page_type (object entries);
 string latex_export_html_xcolor (string color);
-object latex_export_packages_dependencies (object packages);
-object latex_export_packages_simplify (object packages);
 void latex_export_recompute_dependencies ();
 string latex_export_use_package_command (scheme_tree document,
                                          const array<string>& colors,
                                          const array<string>& colormaps);
-string latex_export_as_use_package (object packages);
 string latex_export_catcode_defs (scheme_tree document);
 scheme_tree latex_export_expand_macros (scheme_tree value);
 scheme_tree latex_export_macro_defs (scheme_tree document);
