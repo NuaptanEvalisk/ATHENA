@@ -1200,6 +1200,28 @@ generated native entries and remain on the secure-function list.
   `native-tooltip-identity-build.log` under `build_qt6`. No tests added or run.
   Combined full linking, runtime verification and deployment remain pending.
 
+## Native Message Values And Combined UI Deployment
+
+- Removed unused Scheme `replace` and `show-message` wrappers. Native UI text
+  formatting and native information dialogs remain available through their
+  existing implementations. Notifications take strings directly, including the
+  macOS unified-toolbar warning, without object printing or conversion.
+- All explicit business callers of `object_to_string` are now gone. The object
+  runtime stream/printer implementation still depends on Guile; this is not a
+  claim that the complete object/runtime dependency has been removed.
+- Full `ATHENA.bin` build with `-j16` passed, including the pending focus/slide,
+  keyboard-query, parameter-choice and tooltip-identity changes. The headless
+  probe confirmed seven retired bindings are absent and string notifications
+  are callable, printed `NATIVE_UI_VALUES_OK`, and exited normally. This checks
+  runtime registration, not interactive GUI notification appearance.
+- Deployed using `tools/deploy-local-runtime.sh build_qt6` and removed the owned
+  probe/profile. Logs in `build_qt6`: `native-message-values-build.log`,
+  `native-ui-values-build.log`, `native-ui-values-runtime.log`, and
+  `native-ui-values-deploy.log`. No broad tests or permanent tests were added.
+- Next obsolete path identified: `promise-source`/`procedure_source` serves only
+  a historical menu-closure test; no product caller remains. Explicit script
+  startup and transformation callbacks still need their larger migration.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

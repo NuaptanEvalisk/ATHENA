@@ -58,7 +58,6 @@ void athena_dispatch_ui (void (*function) ());
 void athena_open_auxiliary_document (string name, tree document, url master);
 void native_link_disambiguation (object candidates);
 void native_link_disambiguation (array<url> candidates);
-string native_replace_ui_text (string format, object arguments);
 bool athena_node_reference_target (string target);
 bool athena_node_reference_open (string target);
 bool athena_node_reference_position (string identity);
@@ -126,9 +125,8 @@ void
 athena_native_info_dialog (string arg1, string arg2);
 
 object athena_promise_source (object action);
-void athena_show_message (object message, object title);
 void athena_restart_message ();
-void athena_notify_now (object message);
+void athena_notify_now (string message);
 void athena_notify_restart (object ignored);
 
 string

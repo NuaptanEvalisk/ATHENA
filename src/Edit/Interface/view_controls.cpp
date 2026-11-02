@@ -72,7 +72,7 @@ void view_toggle_icon_bar (int which) {
   if (get_nr_windows () == 1) set_preference (keys[which], visible? "on": "off");
   else get_server ()->show_icon_bar (which, visible);
   if (os_macos () && which == 0 && get_preference ("use unified toolbar") == "on")
-    athena_notify_now (object ("Restart ATHENA to avoid potential visual artefacts"));
+    athena_notify_now ("Restart ATHENA to avoid potential visual artefacts");
 }
 void view_toggle_snap () {
   set_preference ("snap to pages", get_preference ("snap to pages") == "on"? "off": "on");

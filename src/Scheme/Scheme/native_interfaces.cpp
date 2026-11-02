@@ -541,21 +541,6 @@ native_link_disambiguation (array<url> candidates) {
     get_master_buffer (get_current_buffer ()));
 }
 
-string
-native_replace_ui_text (string format, object arguments) {
-  tree expression= compound ("replace", format);
-  for (object remaining= arguments; !is_null (remaining); remaining= cdr (remaining)) {
-    const object value= car (remaining);
-    if (is_string (value)) expression << tree (as_string (value));
-    else if (is_tree (value)) expression << as_tree (value);
-    else if (is_url (value)) expression << compound ("verbatim", as_string (as_url (value)));
-    else if (is_list (value) && !is_null (value) && is_symbol (car (value)))
-      expression << content_to_tree (value);
-    else expression << tree (object_to_string (value));
-  }
-  return ui_text (expression);
-}
-
 void
 athena_native_info_dialog (string arg1, string arg2) {
   if (headless_mode) return;
@@ -563,13 +548,6 @@ athena_native_info_dialog (string arg1, string arg2) {
 }
 
 namespace {
-
-string
-native_dialog_text (object value) {
-  if (is_string (value)) return as_string (value);
-  if (is_tree (value)) return coerce_tree_string (as_tree (value));
-  return object_to_string (value);
-}
 
 void
 queue_native_notification (string message) {
@@ -601,20 +579,14 @@ athena_promise_source (object action) {
 }
 
 void
-athena_show_message (object message, object title) {
-  athena_native_info_dialog (native_dialog_text (message),
-                             native_dialog_text (title));
-}
-
-void
 athena_restart_message () {
   athena_native_info_dialog (
     "Restart ATHENA in order to let changes take effect", "Notification");
 }
 
 void
-athena_notify_now (object message) {
-  queue_native_notification (native_dialog_text (message));
+athena_notify_now (string message) {
+  queue_native_notification (message);
 }
 
 void
