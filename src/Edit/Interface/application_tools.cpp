@@ -17,7 +17,7 @@
 namespace {
 std::optional<string> statistics_text (tree document) {
   object result= conversion_dispatch (
-    object (document), "texmacs-tree", "verbatim-snippet", null_object ());
+    object (document), "texmacs-tree", "verbatim-snippet", conversion_options {});
   if (!is_string (result)) return std::nullopt;
   return as_string (result);
 }

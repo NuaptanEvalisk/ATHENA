@@ -1045,7 +1045,7 @@ import_loaded_tree_with_format (
   }
   else {
     object result= conversion_execute (object (s), fm * "-document", "texmacs-tree",
-                                      null_object (), u, url_none ());
+                                      conversion_options {}, u, url_none ());
     t= is_tree (result) ? as_tree (result) : tree (_ERROR, "Unsupported import format");
   }
   tree links= extract (t, "links");
@@ -1238,7 +1238,7 @@ export_tree_with_options (tree doc, url u, string fm, url source,
                           editor_rep* rendering_editor) {
   if (fm == "generic") fm= "verbatim";
   object converted= conversion_execute (object (doc), "texmacs-tree", fm * "-document",
-    conversion_options_to_scheme (options), source, u, rendering_editor);
+    options, source, u, rendering_editor);
   if (!is_string (converted)) return true;
   string serialized= as_string (converted);
   return ends (as_string (u), "~") ?

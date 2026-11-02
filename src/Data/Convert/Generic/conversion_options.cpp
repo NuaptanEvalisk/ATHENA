@@ -76,16 +76,6 @@ object conversion_options_to_scheme (const conversion_options& options) {
   return result;
 }
 
-object conversion_options_snapshot_scheme () {
-  return conversion_options_to_scheme (conversion_options_snapshot ());
-}
-
-object conversion_standard_options (string from, string to) {
-  const auto& routes= registry ().routes;
-  auto it= routes.find ({bytes (from), bytes (to)});
-  return it == routes.end () ? null_object () : conversion_options_to_scheme (current_values (it->second));
-}
-
 string encode_conversion_export_request (const conversion_export_request& request) {
   return text (json {{"format", bytes (request.format)}, {"options", request.options}}.dump ());
 }

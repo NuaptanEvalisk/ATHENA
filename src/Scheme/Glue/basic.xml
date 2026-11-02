@@ -69,11 +69,6 @@
     <arg type="url" />
     <arg type="string" />
   </binding>
-  <binding name="std-converter-options" native="conversion_standard_options" returns="object" exceptions="scheme">
-    <arg type="string" />
-    <arg type="string" />
-  </binding>
-  <binding name="native-conversion-options-snapshot" native="conversion_options_snapshot_scheme" returns="object" exceptions="scheme" />
   <binding name="buffer-export-with-options" native="buffer_export_with_options" returns="bool" exceptions="scheme">
     <arg type="url" />
     <arg type="url" />

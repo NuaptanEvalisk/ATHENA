@@ -70,7 +70,7 @@ format_exists (string format) {
 
 tree
 generic_to_tree (string s, string fm) {
-  object result= conversion_execute (object (s), fm, "texmacs-tree", null_object (),
+  object result= conversion_execute (object (s), fm, "texmacs-tree", conversion_options {},
                                     conversion_source_url (), conversion_target_url ());
   if (!is_tree (result))
     throw std::runtime_error ("Native conversion did not produce a document tree");
@@ -79,7 +79,7 @@ generic_to_tree (string s, string fm) {
 
 string
 tree_to_generic (tree doc, string fm) {
-  object result= conversion_execute (object (doc), "texmacs-tree", fm, null_object (),
+  object result= conversion_execute (object (doc), "texmacs-tree", fm, conversion_options {},
                                     conversion_source_url (), conversion_target_url ());
   if (!is_string (result))
     throw std::runtime_error ("Native conversion did not produce serialized text");

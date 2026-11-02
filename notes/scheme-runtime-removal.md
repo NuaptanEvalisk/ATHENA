@@ -1799,6 +1799,29 @@ generated native entries and remain on the secure-function list.
   linking, runtime binding checks and deployment remain pending with the prior
   Materials adapter removal.
 
+## Native Conversion Request Options
+
+- Conversion execution now has a native options-map entrypoint. Document
+  import/export, generic text/tree conversion and statistics use it directly,
+  eliminating map-to-list-to-map round trips for exports and empty Scheme
+  option lists for these native callers.
+- Legacy callers retain a boundary parser for association-list options and
+  destination URLs. First-entry priority, explicit-option precedence over
+  preference snapshots, effective target, temporary-file retention and editor
+  ownership resolution are unchanged.
+- The per-step executor consumes the map. Legacy option lists are now produced
+  only for HTML/LaTeX backend calls that still require them, not for every route.
+  Retired unused std-converter-options and native-conversion-options-snapshot
+  exports.
+- Interface generation and conversion_executor, conversion_options, generic,
+  new_buffer and application_tools units compiled with -j16. Logs:
+  build_qt6/native-conversion-request-glue.log and
+  build_qt6/native-conversion-request-build.log. No tests added/run. Full
+  linking, runtime verification and deployment await the combined batch.
+- Remaining work includes conversion payload objects and backend option
+  interfaces; this does not claim conversion is object-free. The entire runtime
+  removal goal remains active.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

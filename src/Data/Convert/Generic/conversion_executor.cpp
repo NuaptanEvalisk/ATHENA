@@ -106,6 +106,11 @@ object conversion_dispatch (object input, string from, string to, object options
                              conversion_target_url ());
 }
 
+object conversion_dispatch (object input, string from, string to, conversion_options options) {
+  return conversion_execute (input, from, to, std::move (options), input_source (input, from),
+                             conversion_target_url ());
+}
+
 object conversion_to_file (object input, string from, string to, url target, object options) {
   options= cons (cons (symbol_object ("dest"), object (target)), options);
   return conversion_execute (input, from, to, options, input_source (input, from), target);
@@ -157,7 +162,7 @@ static string convert_verbatim (tree input, bool wrap, string encoding,
 }
 
 static object execute_step (object input, const conversion_edge& edge,
-    object ordered, const conversion_options& values, url source, url target,
+    const conversion_options& values, url source, url target,
     url destination, bool last, temporary_files& temporary,
     editor_rep* rendering_editor) {
   const auto& action= edge.executor;
@@ -231,10 +236,12 @@ static object execute_step (object input, const conversion_edge& edge,
   if (action == "import-html-tree") return object (html_import_document (as_scheme_tree (input)));
   if (action == "import-html-stree") return serial (html_import_document_serial (as_scheme_tree (input)));
   if (action == "export-html" || action == "export-html-document") {
-    tree html= html_export_document (input, ordered, source, target, rendering_editor);
+    tree html= html_export_document (input, conversion_options_to_scheme (values),
+                                      source, target, rendering_editor);
     return action == "export-html" ? serial (html) : object (serialize_html (html));
   }
   if (action == "export-latex" || action == "export-latex-document") {
+    object ordered= conversion_options_to_scheme (values);
     if (is_tree (input)) check_latex_properties (as_tree (input));
     tree prepared= is_tree (input) ? latex_export_prepare_v3_source (as_tree (input)) : as_scheme_tree (input);
     bool structured= v3_math (prepared);
@@ -260,6 +267,25 @@ static object execute_step (object input, const conversion_edge& edge,
 object conversion_execute (object input, string from, string to,
                            object options, url source, url target,
                            editor_rep* rendering_editor) {
+  object settings= null_object ();
+  url destination= url_none ();
+  bool have_destination= false;
+  for (object tail= options; !is_null (tail); tail= cdr (tail)) {
+    object entry= car (tail), key= car (entry), value= cdr (entry);
+    if (is_string (key)) settings= cons (entry, settings);
+    else if (is_symbol (key) && as_symbol (key) == "dest" && !have_destination) {
+      destination= as_url (value); have_destination= true;
+    }
+  }
+  object ordered= null_object ();
+  for (; !is_null (settings); settings= cdr (settings)) ordered= cons (car (settings), ordered);
+  return conversion_execute (input, from, to, conversion_options_from_scheme (ordered),
+                              source, target, rendering_editor, destination);
+}
+
+object conversion_execute (object input, string from, string to,
+                           conversion_options values, url source, url target,
+                           editor_rep* rendering_editor, url destination) {
   // A direct Scheme request may already belong to an editor. Passive actor
   // exports supply their actual rendering editor explicitly instead.
   if (rendering_editor == nullptr) {
@@ -273,21 +299,7 @@ object conversion_execute (object input, string from, string to,
     throw std::runtime_error ("Unsupported native conversion route: " +
                               std::string (from.data (), N(from)) + " -> " +
                               std::string (to.data (), N(to)));
-  object settings= null_object ();
-  url destination= url_none ();
-  bool have_destination= false;
-  for (object tail= options; !is_null (tail); tail= cdr (tail)) {
-    object entry= car (tail), key= car (entry), value= cdr (entry);
-    if (is_string (key)) settings= cons (entry, settings);
-    else if (is_symbol (key) && as_symbol (key) == "dest" && !have_destination) {
-      destination= as_url (value); have_destination= true;
-    }
-  }
-  object ordered= null_object ();
-  for (; !is_null (settings); settings= cdr (settings)) ordered= cons (car (settings), ordered);
-  auto values= conversion_options_from_scheme (ordered);
   for (const auto& entry: conversion_options_snapshot ()) values.emplace (entry);
-  ordered= conversion_options_to_scheme (values);
   // (convert ... '(dest . URL)) has no separate target argument. Its resource
   // writers still need that destination, just as convert-to-file does.
   url effective_target= is_none (target) ? destination : target;
@@ -295,7 +307,7 @@ object conversion_execute (object input, string from, string to,
   temporary_files temporary;
   object result= input;
   for (std::size_t i=0; i<path->size (); ++i)
-    result= execute_step (result, (*path)[i], ordered, values, source, effective_target,
+    result= execute_step (result, (*path)[i], values, source, effective_target,
                           destination, i+1 == path->size (), temporary,
                           rendering_editor);
   if (is_url (result)) {
