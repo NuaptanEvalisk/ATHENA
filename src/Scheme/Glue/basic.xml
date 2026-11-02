@@ -249,18 +249,6 @@
   <binding name="cpp-has-preference?" native="has_user_preference" returns="bool">
     <arg type="string" />
   </binding>
-  <binding name="cpp-register-preference" native="register_user_preference" returns="void">
-    <arg type="string" />
-    <arg type="string" />
-    <arg type="bool" />
-  </binding>
-  <binding name="cpp-register-preference-callback" native="register_user_preference_callback" returns="void">
-    <arg type="string" />
-    <arg type="string" />
-  </binding>
-  <binding name="cpp-preference-default-string?" native="user_preference_default_is_string" returns="bool">
-    <arg type="string" />
-  </binding>
   <binding name="cpp-preference-callback" native="get_user_preference_callback" returns="string">
     <arg type="string" />
   </binding>

@@ -36,7 +36,6 @@
 bool user_prefs_modified= false;
 hashmap<string,string> user_prefs ("");
 hashmap<string,string> user_prefs_default ("");
-hashmap<string,bool> user_prefs_string_default (true);
 hashmap<string,string> user_prefs_callback ("");
 url user_prefs_file= "$ATHENA_HOME_PATH/system/preferences.json";
 void notify_preference (string var);
@@ -142,7 +141,7 @@ ensure_builtin_user_preferences () {
       invalid_preference_catalog ("unsupported format or version");
 
     const QSet<QString> types {
-      "string", "scheme-object", "boolean", "choice", "color"};
+      "string", "boolean", "choice", "color"};
     const QSet<QString> controls {
       "toggle", "text", "password", "choice", "color", "optional-color",
       "native"};
@@ -184,7 +183,6 @@ ensure_builtin_user_preferences () {
 
       const string native_key= from_qstring (key);
       user_prefs_default (native_key)= preference_catalog_default (entry);
-      user_prefs_string_default (native_key)= type != "scheme-object";
       if (callback != "") user_prefs_callback (native_key)= callback;
       keys.insert (key);
 
@@ -273,33 +271,6 @@ has_user_preference (string var) {
   ensure_builtin_user_preferences ();
   std::shared_lock<std::shared_mutex> guard (user_preferences_mutex);
   return user_prefs->contains (var);
-}
-
-void
-register_user_preference (string var, string def, bool string_def) {
-  ensure_builtin_user_preferences ();
-  std::unique_lock<std::shared_mutex> guard (user_preferences_mutex);
-  if (!user_prefs_default->contains (var)) {
-    user_prefs_default (var)= def;
-    user_prefs_string_default (var)= string_def;
-  }
-}
-
-void
-register_user_preference_callback (string var, string callback) {
-  ensure_builtin_user_preferences ();
-  std::unique_lock<std::shared_mutex> guard (user_preferences_mutex);
-  if (callback == "") user_prefs_callback->reset (var);
-  else user_prefs_callback (var)= callback;
-}
-
-bool
-user_preference_default_is_string (string var) {
-  ensure_builtin_user_preferences ();
-  std::shared_lock<std::shared_mutex> guard (user_preferences_mutex);
-  if (user_prefs_string_default->contains (var))
-    return user_prefs_string_default[var];
-  return true;
 }
 
 bool

@@ -71,14 +71,6 @@ void application_preferences_notify_all () {
   const array<string> keys= get_user_preference_callback_names ();
   for (int i=0; i<N(keys); ++i) application_preference_notify (keys[i]);
 }
-object application_preference_get (string key) {
-  const string value= get_user_preference (key, "default");
-  return user_preference_default_is_string (key) ? object (value) : string_to_object (value);
-}
-void application_preference_set (string key, object value) {
-  const string text= is_string (value) ? as_string (value) : object_to_string (value);
-  application_preference_set (key, text);
-}
 void application_preference_set (string key, string value) {
   if (get_user_preference (key, "default") != value) set_preference (key, value);
 }

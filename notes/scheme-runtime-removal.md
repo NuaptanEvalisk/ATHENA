@@ -1017,6 +1017,25 @@ generated native entries and remain on the secure-function list.
   this is not equivalent to native diagnostic flags. Runtime removal must
   remove or explicitly replace that preference with its real semantics.
 
+## Native Preference Value Contract
+
+- Removed the unused object-valued `get-preference` adapter. Retained
+  `set-preference` now binds directly to its native string overload; all
+  repository consumers already pass strings. Preference access no longer
+  invokes the Scheme reader or printer.
+- Removed unused dynamic default/callback registration bindings and the
+  default-string classification map/query. JSON catalog declarations remain
+  the source of truth for defaults and callbacks.
+- The sole former `scheme-object` preference, `editor:verbatim:tabstop`, now
+  uses the native string storage contract, as other numeric preferences do.
+  Its default remains `4`; `native_program_edit.cpp` already interprets it as
+  an integer. No new expression parser or value compatibility layer was added.
+- Regenerated interfaces and compiled both implementation units with `-j16`;
+  log `build_qt6/native-preference-value-cleanup-build.log`. Removed names are
+  absent from source/resources/tools/tests; generated setters accept strings.
+  Full linking, runtime binding verification and deployment will be combined
+  with the next runtime cleanup. No tests were added or run.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

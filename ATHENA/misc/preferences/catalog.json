@@ -3676,7 +3676,7 @@
     },
     {
       "key": "editor:verbatim:tabstop",
-      "type": "scheme-object",
+      "type": "string",
       "scope": "active",
       "default": "4"
     },

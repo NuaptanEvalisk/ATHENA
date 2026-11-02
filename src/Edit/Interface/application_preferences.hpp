@@ -7,8 +7,6 @@ void application_preferences_initialize ();
 bool application_preferences_ready ();
 void application_preference_notify (string key);
 void application_preferences_notify_all ();
-object application_preference_get (string key);
-void application_preference_set (string key, object value);
 void application_preference_set (string key, string value);
 void application_preference_reset (string key);
 void application_preference_toggle (string key);

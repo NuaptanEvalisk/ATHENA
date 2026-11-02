@@ -2,8 +2,7 @@
 <glue version="1" prefix="" initializer="initialize_glue_native">
   <binding name="tm-select" native="native_tree_select" returns="object" exceptions="scheme"><arg type="object" /><arg type="object" /></binding>
   <binding name="native-dialogue-initialize" native="interactive_startup" returns="void" />
-  <binding name="get-preference" native="application_preference_get" returns="object"><arg type="string" /></binding>
-  <binding name="set-preference" native="application_preference_set" returns="void"><arg type="string" /><arg type="object" /></binding>
+  <binding name="set-preference" native="application_preference_set" returns="void"><arg type="string" /><arg type="string" /></binding>
   <binding name="reset-preference" native="application_preference_reset" returns="void"><arg type="string" /></binding>
   <binding name="toggle-preference" native="application_preference_toggle" returns="void"><arg type="string" /></binding>
   <binding name="has-look-and-feel?" native="application_look_and_feel_matches" returns="bool"><arg type="object" /></binding>
