@@ -851,8 +851,8 @@ generated native entries and remain on the secure-function list.
   false. Its unused script binding itself remains for the binding cleanup.
 - Both implementation units compiled with `-j16`; log:
   `build_qt6/native-save-timestamps-build.log`. No tests were needed for these
-  equivalent simplifications. Full linking/deployment is pending; installed
-  runtime remains `5706ed764`.
+  equivalent simplifications. Included in the combined save/link deployment
+  recorded below.
 
 ## Native Lifecycle Command Parameters
 
@@ -867,8 +867,7 @@ generated native entries and remain on the secure-function list.
   identification remain at their existing ownership boundaries.
 - Compiled all four affected units with `-j16`; log:
   `build_qt6/native-lifecycle-command-parameters-build.log`. No new tests were
-  needed. Full linking/deployment remains pending with timestamp cleanup;
-  installed runtime remains `5706ed764`.
+  needed. Included in the combined save/link deployment recorded below.
 
 ## Native Manual Save And Export Requests
 
@@ -883,8 +882,7 @@ generated native entries and remain on the secure-function list.
   confirmation and portable LaTeX conversion settings.
 - Both affected implementation units compiled with `-j16`; log:
   `build_qt6/native-manual-save-export-build.log`. No new tests were needed.
-  Full linking/deployment remains pending with timestamp and lifecycle-command
-  changes; installed runtime remains `5706ed764`.
+  Included in the combined save/link deployment recorded below.
 
 ## Retired Link Accessor Interfaces
 
@@ -899,8 +897,8 @@ generated native entries and remain on the secure-function list.
 - Regenerated `athena_glue`; removed names are absent from source and generated
   code. Both implementation units compiled with `-j16`; log:
   `build_qt6/native-link-accessor-cleanup-build.log`. Full linking, deployment
-  and runtime confirmation of binding removal remain pending with the preceding
-  save/lifecycle changes; installed runtime remains `5706ed764`.
+  and runtime binding-removal verification passed in the combined deployment
+  recorded below.
 
 ## Retired Lifecycle Query Adapters
 
@@ -911,9 +909,24 @@ generated native entries and remain on the secure-function list.
 - Regenerated `athena_glue`; retired native names are absent from source and
   generated interfaces. Compiled the lifecycle implementation with `-j16`;
   log: `build_qt6/native-lifecycle-adapter-cleanup-build.log`.
-- Full linking, deployment and runtime binding-removal verification remain
-  pending with the preceding save/lifecycle/link batches. Installed runtime
-  remains `5706ed764`.
+- Full linking, deployment and runtime binding-removal verification passed in
+  the combined deployment recorded below.
+
+## Combined Save/Link Deployment
+
+- Built the full application through `f64c14d92` with `-j16` and deployed it
+  using `tools/deploy-local-runtime.sh build_qt6`.
+- An isolated runtime probe confirmed all twelve retired link/lifecycle
+  bindings are absent and the retained `link-flatten` binding is present.
+  It printed `NATIVE_SAVE_LINK_BINDINGS_OK` and exited normally. Removed the
+  owned probe profile after completion; no broad regression suite was run.
+- Logs: `build_qt6/native-save-link-combined-build.log`,
+  `build_qt6/native-save-link-runtime.log`, and
+  `build_qt6/native-save-link-deploy.log`.
+- Link query and navigation implementations still round-trip their native
+  records through object lists between collection, filtering and navigation.
+  That active pipeline, runtime values/callbacks and Guile build/packaging
+  remain unfinished parts of the full goal, not completed by this deployment.
 
 ## Known Outstanding Failure
 
