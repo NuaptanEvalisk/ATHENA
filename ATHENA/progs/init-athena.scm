@@ -53,9 +53,7 @@
                  (kernel athena tm-dialogue)
                  (kernel athena tm-preferences) (kernel athena tm-modes)
                  (kernel athena tm-secure)
-                 (kernel athena tm-document)
-                 (kernel athena tm-language) (kernel athena tm-file-system)
-                 (kernel athena tm-states))
+                 (kernel athena tm-file-system))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting utilities\n")

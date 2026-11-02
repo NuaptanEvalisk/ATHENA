@@ -300,11 +300,6 @@ find_packrat_grammar (string s) {
       local.values->contains (s)) return local.values[s];
   std::lock_guard<std::recursive_mutex> guard (shared.mutex);
   synchronize_grammars ();
-  if (!local.values->contains (s)) {
-    if (registering_builtin_languages) return local_grammar (s);
-    eval ("(lazy-language-force " * s * ")");
-    synchronize_grammars ();
-  }
   return local_grammar (s);
 }
 
