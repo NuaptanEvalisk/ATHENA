@@ -118,7 +118,7 @@ public:
   inline kill_window_command_rep (url* id2): id (id2) {}
   inline ~kill_window_command_rep () { tm_delete (id); }
   inline void apply () {
-    application_close_window (list_object (object (as_string (*id)))); }
+    application_close_window (std::optional<url> (*id)); }
   tm_ostream& print (tm_ostream& out) {
     return out << "<command kill_window>"; }
 };

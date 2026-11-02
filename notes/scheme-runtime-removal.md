@@ -854,6 +854,22 @@ generated native entries and remain on the secure-function list.
   equivalent simplifications. Full linking/deployment is pending; installed
   runtime remains `5706ed764`.
 
+## Native Lifecycle Command Parameters
+
+- Window closure accepts an optional native URL. Absence still triggers the
+  embedded-editor close path, while explicit window closure skips it; native
+  actor and window-close callbacks no longer construct object argument lists.
+- Revert requests use a native source URL. Script entry points only decode
+  arguments, retaining system-path interpretation for string arguments and
+  the existing confirmation versus immediate-revert distinction.
+- Link target pages call the existing native auxiliary-document API with
+  their master URL directly. GUI scheduling, closure confirmation and actor
+  identification remain at their existing ownership boundaries.
+- Compiled all four affected units with `-j16`; log:
+  `build_qt6/native-lifecycle-command-parameters-build.log`. No new tests were
+  needed. Full linking/deployment remains pending with timestamp cleanup;
+  installed runtime remains `5706ed764`.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

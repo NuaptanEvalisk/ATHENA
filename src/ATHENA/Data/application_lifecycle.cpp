@@ -266,9 +266,7 @@ void revert_document (const std::string& source) {
   else set_buffer_tree (name, document);
 }
 
-void request_revert (object arguments, bool confirm) {
-  const url name= is_null (arguments) ? get_current_buffer () :
-    (is_string (car (arguments)) ? url_system (as_string (car (arguments))) : as_url (car (arguments)));
+void request_revert (url name, bool confirm) {
   const std::string source= encode (name);
   on_gui ([source, confirm] {
     const url name (source.c_str ());
@@ -412,9 +410,15 @@ void application_close_buffer () {
 }
 
 void application_close_window (object arguments) {
-  const bool explicit_window= !is_null (arguments);
-  url window= explicit_window? (is_url (car (arguments))? as_url (car (arguments)):
-                               url (as_string (car (arguments)))): get_current_window ();
+  std::optional<url> window;
+  if (!is_null (arguments))
+    window= is_url (car (arguments)) ? as_url (car (arguments)) : url (as_string (car (arguments)));
+  application_close_window (window);
+}
+
+void application_close_window (std::optional<url> requested) {
+  const bool explicit_window= requested.has_value ();
+  url window= explicit_window ? *requested : get_current_window ();
   std::string encoded= encode (window);
   auto actor= current_actor ();
   on_gui ([encoded, actor, explicit_window] {
@@ -516,8 +520,15 @@ void application_queue_open_document (url source) {
 void application_open_window_url (url source) {
   if (!is_none (source)) application_load_document_window (source, load_options {});
 }
-void application_revert_buffer (object arguments) { request_revert (arguments, true); }
-void application_revert_buffer_now (object arguments) { request_revert (arguments, false); }
+namespace {
+url revert_source (object arguments) {
+  return is_null (arguments) ? get_current_buffer () :
+    (is_string (car (arguments)) ? url_system (as_string (car (arguments))) : as_url (car (arguments)));
+}
+}
+void application_revert_buffer (object arguments) { request_revert (revert_source (arguments), true); }
+void application_revert_buffer (url source) { request_revert (source, true); }
+void application_revert_buffer_now (object arguments) { request_revert (revert_source (arguments), false); }
 
 void application_load_document (url source, object options) {
   application_load_document (source, options, {});

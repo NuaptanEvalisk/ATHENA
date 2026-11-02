@@ -225,7 +225,7 @@ run_native_editor_command (editor_rep* editor,
       document_save_manual (null_object ());
       break;
     case native_editor_command_id::revert:
-      application_revert_buffer (null_object ());
+      application_revert_buffer (get_current_buffer ());
       break;
     case native_editor_command_id::update_all:
       generic_update_document ("all");
@@ -243,7 +243,7 @@ run_native_editor_command (editor_rep* editor,
       document_print ();
       break;
     case native_editor_command_id::close_window:
-      application_close_window (null_object ());
+      application_close_window ();
       break;
     case native_editor_command_id::history_back:
       cursor_history_backward ();

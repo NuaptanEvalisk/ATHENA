@@ -307,7 +307,7 @@ void continue_navigation_page (std::shared_ptr<navigation_page_request> pending)
     previews (preview[0]->label)= preview[1];
   }
   tree document= content_to_tree (navigation_document (saved[0], write_items (items), &previews));
-  application_open_auxiliary ("Link page", document, list_object (object (url (saved[1]->label))));
+  athena_open_auxiliary_document ("Link page", document, url (saved[1]->label));
 }
 }
 
