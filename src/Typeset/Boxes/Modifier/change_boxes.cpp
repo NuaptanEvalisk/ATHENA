@@ -13,6 +13,7 @@
 #include "Boxes/construct.hpp"
 #include "Boxes/inline_link.hpp"
 #include "scheme.hpp"
+#include "secure_expression.hpp"
 #include "gui.hpp"
 #include "effect.hpp"
 #include "analyze.hpp"
@@ -1084,7 +1085,7 @@ relay_box_rep::message (tree type, SI x, SI y, rectangles& rs) {
   else objs << object ((int) x) << object ((int) y);
   for (int i=callback+1; i<N(args); i++) objs << object (args[i]);
   object cmd= as_list_object (objs);
-  object r= call ("secure-eval", cmd);
+  object r= native_secure_eval (cmd);
   if (!is_bool (r) || as_bool (r))
     rs << rectangle (x3, y3, x4, y4);
   if (is_string (r)) return as_string (r);

@@ -475,7 +475,7 @@ void native_link_execute_script (string source, bool trusted, object arguments) 
   for (; !is_null (arguments); arguments= cdr (arguments))
     quoted << list_object (symbol_object ("quote"), car (arguments));
   object expression= cons (eval ("'" * source), as_list_object (quoted));
-  const bool allowed= trusted || as_bool (call ("secure?", expression));
+  const bool allowed= trusted || native_secure_expression (expression);
   const string policy= get_preference ("security");
   object closure= eval (list_object (symbol_object ("lambda"), null_object (), expression));
   if (allowed || policy == "accept all scripts") exec_delayed (closure);

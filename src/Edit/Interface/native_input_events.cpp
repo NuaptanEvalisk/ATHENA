@@ -138,7 +138,7 @@ void native_keyboard_press (string key, double time) {
   const bool before= inactive_reference ();
   dispatch_keyboard_press (key);
   const bool after= inactive_reference ();
-  if ((before || after) && as_bool (call ("in-preview-ref?"))) {
+  if ((before || after) && get_current_editor ()->defined_at_init ("preview-ref-package")) {
     auto& ed= dynamic_cast<edit_interface_rep&> (*get_current_editor ().operator-> ());
     ed.delay_reference_preview ();
   }

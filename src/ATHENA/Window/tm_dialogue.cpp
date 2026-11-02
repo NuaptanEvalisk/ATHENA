@@ -11,6 +11,7 @@
 
 #include "tm_frame.hpp"
 #include "tm_dialogue.hpp"
+#include "interactive_commands.hpp"
 #include "tm_window.hpp"
 #include "convert.hpp"
 #include "file.hpp"
@@ -220,7 +221,7 @@ tm_frame_rep::interactive (object fun, scheme_tree p) {
       object learned= fields[i].type == "password" ? object ("") : args[i];
       learn= cons (cons (object (as_string (i)), learned), learn);
     }
-    call ("learn-interactive", fun, learn);
+    interactive_learn (fun, learn);
     object cmd_args= as_list_object (args);
     const SchemeExecutionContext* context= current_scheme_execution_context ();
     if (context != nullptr && context->actor_id != ATHENA_NO_ACTOR)

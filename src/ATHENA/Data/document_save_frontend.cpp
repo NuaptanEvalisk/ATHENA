@@ -409,8 +409,7 @@ void document_autosave (url source) {
       get_server ()->set_message (compound ("concat", "Failed to auto-save ", filename), "Auto-save file");
     else {
       pretend_buffer_autosaved (source);
-      call ("set-temporary-message", tree_to_stree (compound ("concat", "Auto-saved ", filename)),
-            object ("Auto-save file"), object (2500));
+      get_server ()->set_message (compound ("concat", "Auto-saved ", filename), "Auto-save file", true);
     }
   });
 }

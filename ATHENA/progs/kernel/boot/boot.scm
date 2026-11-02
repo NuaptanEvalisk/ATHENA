@@ -22,7 +22,6 @@
 (define guile-b-c? modern-guile?)
 (if (or (guile-c?) (guile-d?))
     (use-modules (ice-9 rdelim) (ice-9 pretty-print)))
-(define has-look-and-feel? (lambda (x) (== x "emacs")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Redirect standard output

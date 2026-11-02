@@ -14,6 +14,7 @@
 #include "file.hpp"
 #include "native_keyboard_prefixes.hpp"
 #include "native_keyboard_registry.hpp"
+#include "application_preferences.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -276,7 +277,7 @@ void register_group (int g) {
     array<object> profiles;
     for (QJsonValue profile: group["profiles"].toArray ())
       profiles << symbol_object (binding_string (profile));
-    if (!as_bool (call ("has-look-and-feel?", as_list_object (profiles)))) return;
+    if (!application_look_and_feel_matches (as_list_object (profiles))) return;
   }
   array<object> conditions;
   if (group.contains ("mode"))

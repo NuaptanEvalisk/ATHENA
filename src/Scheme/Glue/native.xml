@@ -1,5 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="interactive" native="interactive_command" returns="void" exceptions="scheme"><arg type="object" /><arg type="object" rest="true" /></binding>
+  <binding name="schedule-idle" native="interactive_schedule_idle" returns="void"><arg type="int" /><arg type="procedure" /></binding>
+  <binding name="native-idle-step" native="interactive_idle_step" returns="object"><arg type="int" /><arg type="double" /><arg type="procedure" /></binding>
+  <binding name="native-dialogue-initialize" native="interactive_startup" returns="void" />
+  <binding name="get-preference" native="application_preference_get" returns="object"><arg type="string" /></binding>
+  <binding name="set-preference" native="application_preference_set" returns="void"><arg type="string" /><arg type="object" /></binding>
+  <binding name="reset-preference" native="application_preference_reset" returns="void"><arg type="string" /></binding>
+  <binding name="toggle-preference" native="application_preference_toggle" returns="void"><arg type="string" /></binding>
+  <binding name="has-look-and-feel?" native="application_look_and_feel_matches" returns="bool"><arg type="object" /></binding>
+  <binding name="ext-fold-toc-in-reflow?" native="application_fold_toc_in_reflow" returns="string" />
+  <binding name="toc-fold-tree" native="application_toc_fold" returns="void"><arg type="tree" /></binding>
+  <binding name="toc-unfold-tree" native="application_toc_unfold" returns="void"><arg type="tree" /></binding>
+  <binding name="view-all-preferences" native="application_view_preferences" returns="void" dispatch="ui" />
+  <binding name="in-source?" native="editor_mode_source" returns="bool" />
+  <binding name="in-text?" native="editor_mode_text" returns="bool" />
+  <binding name="in-math?" native="editor_mode_math" returns="bool" />
+  <binding name="in-prog?" native="editor_mode_program" returns="bool" />
+  <binding name="in-table?" native="editor_mode_table" returns="bool" />
+  <binding name="in-screens?" native="editor_mode_screens" returns="bool" />
+  <binding name="in-std?" native="editor_mode_standard" returns="bool" />
+  <binding name="in-std-text?" native="editor_mode_standard_text" returns="bool" />
+  <binding name="in-smart-ref?" native="editor_mode_smart_reference" returns="bool" />
+  <binding name="in-verbatim?" native="editor_mode_verbatim" returns="bool" />
+  <binding name="in-variants-disabled?" native="editor_mode_variants_disabled" returns="bool" />
+  <binding name="like-emacs?" native="editor_mode_emacs" returns="bool" />
+  <binding name="initialize-secure-symbols" native="native_secure_initialize" returns="void" exceptions="scheme" />
+  <binding name="secure?" native="native_secure_expression" returns="bool"><arg type="object" /></binding>
+  <binding name="secure-eval" native="native_secure_eval" returns="object"><arg type="object" /></binding>
   <binding name="texmacs-version-release*" native="markup_version_release" returns="string"><arg type="tree" /></binding>
   <binding name="ext-language-suffix" native="markup_language_suffix" returns="string" />
   <binding name="ext-map" native="markup_map" returns="tree"><arg type="tree" /><arg type="tree" /></binding>

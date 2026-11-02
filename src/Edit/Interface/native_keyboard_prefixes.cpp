@@ -8,6 +8,7 @@
 #include "file.hpp"
 #include "server.hpp"
 #include "scheme.hpp"
+#include "application_preferences.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -28,7 +29,7 @@ bool profiles_active (QJsonValue value) {
   array<object> profiles;
   for (QJsonValue profile: value.toArray ())
     profiles << symbol_object (prefix_string (profile));
-  return as_bool (call ("has-look-and-feel?", as_list_object (profiles)));
+  return application_look_and_feel_matches (as_list_object (profiles));
 }
 
 void load_wildcards (QJsonValue value, bool post) {

@@ -29,6 +29,7 @@
 #include "guile_tm.hpp"
 #include "scheme_execution_context.hpp"
 #include "new_view.hpp"
+#include "application_preferences.hpp"
 
 /******************************************************************************
 * The object representation class
@@ -661,7 +662,7 @@ notify_preference (string var) {
     notify_viewport_follow ();
     return;
   }
-  (void) call ("notify-preference", var);
+  application_preference_notify (var);
 }
 
 string

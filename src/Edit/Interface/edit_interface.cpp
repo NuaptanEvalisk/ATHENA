@@ -1072,7 +1072,7 @@ editor_rep::focus_toolbar_state_snapshot () {
 
   set (ACTOR_FOCUS_TOOLBAR_BUFFER, query ("tree-is-buffer?"));
   try {
-    set (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT, as_bool (call ("in-code?")));
+    set (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT, defined_at_init ("code-style"));
   }
   catch (...) {}
   set (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT, query ("screens-context?"));

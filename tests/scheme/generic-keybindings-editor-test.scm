@@ -12,20 +12,24 @@
   (update-current-buffer)
   (update-forced))
 
-(define original-profile has-look-and-feel?)
+(define original-profile (get-preference "look and feel"))
 (define captured '())
 (dynamic-wind
-  (lambda () (set! has-look-and-feel? (lambda (profiles) #t)))
+  (lambda () (noop))
   (lambda ()
-    (generic-keyboard-load)
-    (for-each generic-keyboard-load-domain
-      '("text" "prog" "source" "table" "graphics" "fold"))
+    (for-each
+      (lambda (profile)
+        (cpp-set-preference "look and feel" profile)
+        (generic-keyboard-load)
+        (for-each generic-keyboard-load-domain
+          '("text" "prog" "source" "table" "graphics" "fold")))
+      '("emacs" "gnome" "kde" "macos" "windows"))
     (set! captured
       (append-map
         (lambda (entry)
           (map (lambda (context) (cons (car entry) context)) (cdr entry)))
         (native-keyboard-catalog))))
-  (lambda () (set! has-look-and-feel? original-profile)))
+  (lambda () (cpp-set-preference "look and feel" original-profile)))
 
 (define (entry key) (assoc (kbd-pre-rewrite key) captured))
 (define (action key) (caddr (entry key)))

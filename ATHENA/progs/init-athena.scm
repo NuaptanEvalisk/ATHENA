@@ -20,7 +20,6 @@
 
 (define boot-start (texmacs-time))
 
-(define tm-interactive-hook tm-interactive)
 (define base-primitive-load primitive-load)
 (define startup-load-profile? (equal? (getenv "ATHENA_STARTUP_PROFILE") "1"))
 
@@ -49,36 +48,20 @@
 (inherit-modules (kernel regexp regexp-match) (kernel regexp regexp-select))
 (inherit-modules (kernel logic logic-rules) (kernel logic logic-query)
                  (kernel logic logic-data))
-(inherit-modules (kernel athena tm-define)
-                 (kernel athena tm-dialogue)
-                 (kernel athena tm-preferences) (kernel athena tm-modes)
-                 (kernel athena tm-secure))
+(initialize-secure-symbols)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting utilities\n")
 
-(define-secure-symbols texmacs-version-release* ext-language-suffix
-  ext-map ext-concat-tuple ext-select ext-tm-ref ext-tm-arity ext-tm-index
-  ext-tm-last? ext-apply-on-paragraphs ext-numbered ext-listing)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting main TeXmacs functionality\n")
-(define-secure-symbols ext-render-exercises-smaller? ext-number-solutions?)
 (application-preferences-initialize)
-(register-preference-callback-procedures
-  (list notify-header notify-icon-bar notify-toolbar-presentation
-        notify-remote-control notify-status-bar notify-zoom-factor))
-(lazy-define (kernel athena tm-preferences) view-all-preferences)
 (tm-define (notify-set-attachment name key val) (noop))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting generic mode\n")
 (initialize-node-groups)
-(define-secure-symbols doc-data author-data abstract-data ext-edit-macro
-  screens-index screens-arity screens-bar screens-switch-to
-  ext-cardlink-render system-icon-for-link cardlink-native-type cardlink-native-render
-  display-balloon)
-(register-preference-callback-procedures (list notify-autosave))
 (tm-property (choose-file fun text type) (:interactive #t))
 (tm-property (load-buffer name . opts)
   (:argument name smart-file "File name")
@@ -95,24 +78,6 @@
 (tm-property (switch-document u)
   (:argument u smart-file "File name")
   (:default u (propose-name-buffer)))
-;; Registration bridges for the native vault frontend; kernel TMFS and
-;; preference registries retain their existing initialization order.
-(define-secure-symbols
-  wikilink-repair-apply vault-transclude-repair
-  node-reference-jump-to-source vault-jump-to-source
-  artifact-jump-to-position artifact-navigation-failed
-  load-buffer load-vault-dir string->url vault-load-latest-action
-  vault-validate-root-namespace go-to-system-welcome-page
-  go-to-welcome-page go-to-vault-initial-page
-  vault-show-explorer vault-show-explorer-and-track vault-explorer-track-file
-  open-namespace-manager open-namespace-explorer
-  namespace-new-file-within-wizard namespace-info-page open-quick-switcher
-  new-document)
-(register-preference-callback-procedures
-  (list notify-cursor-color notify-document-background-color
-        notify-enunciation-color notify-focus-border-width notify-focus-color
-        notify-labels-mode notify-link-color notify-selection-color
-        notify-vault-explorer-track notify-vault-preferences-mode))
 (generic-keyboard-load)
 (tm-property (open-replace) (:interactive #t))
 (tm-property (make-with var val) (:check-mark "o" test-env?))
@@ -168,7 +133,6 @@
 
 ;(display "Booting text mode\n")
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
-(define-secure-symbols mouse-toggle-todo-item mouse-toggle-cloud-todo-item)
 
 ;(display "Booting math mode\n")
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
@@ -185,8 +149,6 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting graphics mode\n")
-(define-secure-symbols ext-fold-toc-in-reflow? toc-fold-tree toc-unfold-tree
-                       mouse-fold mouse-unfold)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting formal and natural languages\n")
@@ -196,10 +158,6 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting linking facilities\n")
-(define-secure-symbols preview-reference)
-(define-secure-symbols reverse-hierarchy-graph-render global-hierarchy-graph-show
-                       websites-manager-show open-websites-manager
-                       ext-typed-ref* ext-typed-ref ext-smart-ref)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting debugging facilities\n")
@@ -218,7 +176,6 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "------------------------------------------------------\n")
-(delayed (:idle 10000) (autosave-delayed))
+(native-dialogue-initialize)
 (native-keyboard-initialize)
-(texmacs-banner)
 ;(display "Initialization done\n")

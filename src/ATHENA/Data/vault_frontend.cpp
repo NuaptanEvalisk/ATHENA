@@ -46,8 +46,7 @@ bool vault_preferences_reloading= false;
 void reload_preferences (url file) {
   QScopedValueRollback<bool> loading (vault_preferences_reloading, true);
   load_user_preferences (file);
-  // Callback registration remains part of the kernel preference service.
-  call ("notify-all-preferences");
+  application_preferences_notify_all ();
 }
 
 void deactivate_preferences () {

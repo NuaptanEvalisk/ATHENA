@@ -16,6 +16,7 @@
 #include "QTMPagePropertiesPane.hpp"
 #include "QTMSlidePropertiesPane.hpp"
 #include "QTMTablePropertiesPane.hpp"
+#include "font.hpp"
 
 #include <QInputDialog>
 #include <QJsonObject>
@@ -276,13 +277,10 @@ QTMCommandRegistry::registerFocusCommands () {
       };
       for (const char* raw: languages) {
         string language (raw);
-        bool supported= true;
-        try {
-          supported= as_bool (
-            call ("supported-language?", object (language)));
-        }
-        catch (...) {}
-        if (!supported) continue;
+        if ((language == "chinese" || language == "taiwanese") &&
+            default_chinese_font_name () == "roman") continue;
+        if (language == "japanese" && default_japanese_font_name () == "roman") continue;
+        if (language == "korean" && default_korean_font_name () == "roman") continue;
         QString key= QString::fromLatin1 (raw);
         QString label= key;
         if (!label.isEmpty ()) label[0]= label[0].toUpper ();

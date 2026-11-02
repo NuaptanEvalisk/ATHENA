@@ -1294,8 +1294,8 @@ TeXmacs_main (int argc, char** argv) {
     if (needs_startup_buffer_policy) {
       extra_init_cmd << "(native-keyboard-start-warmup)";
     }
-    extra_init_cmd << "(delayed (:idle 300) "
-                      "(exec-global (lambda () (ads-restore-visible-panes))))";
+    extra_init_cmd << "(schedule-idle 300 (lambda () "
+                      "(exec-global (lambda () (ads-restore-visible-panes)))))";
 
     // Compile on the bootstrap thread before opening a window starts actors
     // which may concurrently publish lazily loaded module definitions.
@@ -1322,7 +1322,6 @@ TeXmacs_main (int argc, char** argv) {
 
 #if ATHENA_ENABLE_CLI
     if (!aofm_convert_file.empty ()) {
-      eval ("(lazy-initialize-force)");
       aofm_enable_converter_mode (true);
       aofm_cache_preferences ();
       aofm_debug_dump (aofm_convert_file);
@@ -1330,7 +1329,6 @@ TeXmacs_main (int argc, char** argv) {
     }
     if (aofm_convert_vault_source != "" &&
         aofm_convert_vault_destination != "") {
-      eval ("(lazy-initialize-force)");
       aofm_enable_converter_mode (true);
       aofm_cache_preferences ();
       bool ok= aofm_import_vault (aofm_convert_vault_source,
@@ -1385,7 +1383,6 @@ TeXmacs_main (int argc, char** argv) {
       exit (ok ? 0 : 1);
     }
     if (website_post_command_dir != "" && website_post_command_id != "") {
-      eval ("(lazy-initialize-force)");
       std::string error;
       bool ok= athena_run_website_post_command (
         athena_to_std_string (website_post_command_dir),

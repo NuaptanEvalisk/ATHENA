@@ -1321,7 +1321,7 @@ build_export_document (const ExportContext& cx,
 static void
 schedule_export_finalization (url buffer, bool includeDataArt) {
   string b= as_string (buffer);
-  string cmd= "(delayed (:idle 1) (begin ";
+  string cmd= "(schedule-idle 1 (lambda () ";
   if (includeDataArt) {
     cmd << "(let* ((buf (string->url " << scm_quote (b) << ")) "
         << "(cover (data-art-generate-cover buf))) "
@@ -1330,7 +1330,7 @@ schedule_export_finalization (url buffer, bool includeDataArt) {
   }
   cmd << "(switch-to-buffer (string->url " << scm_quote (b) << ")) "
       << "(update-document \"all\") "
-      << "(delayed (:idle 1000) (system-wait \"\" \"\"))))";
+      << "(schedule-idle 1000 (lambda () (system-wait \"\" \"\")))))";
   exec_delayed (scheme_cmd (cmd));
 }
 

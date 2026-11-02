@@ -11,6 +11,8 @@
 
 #include "QTMCommandRegistry.hpp"
 #include "Edit/Interface/application_tools.hpp"
+#include "Edit/Interface/application_preferences.hpp"
+#include "ATHENA/Window/interactive_commands.hpp"
 #include "Edit/Interface/document_print.hpp"
 #include "global_transformation_frontend.hpp"
 #include "recent_files.hpp"
@@ -276,7 +278,7 @@ QTMCommandRegistry::registerApplicationCommands () {
     "application.view-all-preferences", QTMCommandScope::Application,
     [] (const QTMCommandContext&) {
       try {
-        (void) call ("view-all-preferences");
+        application_view_preferences ();
         return true;
       }
       catch (...) {
@@ -327,7 +329,8 @@ QTMCommandRegistry::registerApplicationCommands () {
     "file.clear-recent-files", QTMCommandScope::Application,
     [] (const QTMCommandContext&) {
       try {
-        (void) call ("forget-interactive", object (string ("recent-buffer")));
+        interactive_forget (object (string ("recent-buffer")));
+        interactive_history_save ();
         return true;
       }
       catch (...) {

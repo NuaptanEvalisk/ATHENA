@@ -22,6 +22,7 @@
 #include "image_files.hpp"
 #include "brush.hpp"
 #include "scheme.hpp"
+#include "secure_expression.hpp"
 #include "scheme_native_context.hpp"
 #include "page_type.hpp"
 #include "typesetter.hpp"
@@ -101,7 +102,7 @@ edit_env_rep::rewrite (tree t) {
 	expr= cons (object (r[i]), expr);
       expr= cons (string_to_object (fun), expr);
       if (!secure && script_status < 2) {
-	if (!as_bool (call ("secure?", expr)))
+	if (!native_secure_expression (expr))
 	  return tree (_ERROR, "insecure script");
       }
       object o= [&] () {

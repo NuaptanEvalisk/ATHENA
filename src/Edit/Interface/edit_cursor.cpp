@@ -872,7 +872,7 @@ edit_cursor_rep::go_to_label (string s) {
       if (i >= 0) part= part (0, i);
       string show= "(show-hidden-part " * scm_quote (part) * ")";
       string jump= "(go-to-label " * scm_quote (s) * ")";
-      exec_delayed (scheme_cmd ("(if " * show * " (delayed " * jump * "))"));
+      exec_delayed (scheme_cmd ("(if " * show * " (exec-delayed (lambda () " * jump * ")))"));
     }
     else {
       url u= relative (buf->name, url (extra));

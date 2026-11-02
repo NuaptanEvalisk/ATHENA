@@ -4,6 +4,8 @@
 #define ATHENA_NATIVE_INTERFACES_HPP
 
 #include "scheme.hpp"
+#include "secure_expression.hpp"
+#include "ATHENA/Window/interactive_commands.hpp"
 #include "modification.hpp"
 #include "patch.hpp"
 #include "ATHENA/Data/data_art.hpp"
@@ -28,6 +30,7 @@
 #include "Edit/Interface/editing_utilities.hpp"
 #include "Edit/Interface/insertion_commands.hpp"
 #include "Edit/Interface/tree_commands.hpp"
+#include "Edit/Interface/editor_modes.hpp"
 #include "Edit/Interface/cursor_history.hpp"
 #include "Edit/Interface/document_commands.hpp"
 #include "Edit/Interface/reference_markup.hpp"

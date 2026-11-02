@@ -13,6 +13,7 @@
 #include "athena_platform.hpp"
 #include "boot.hpp"
 #include "tm_server.hpp"
+#include "ATHENA/Window/interactive_commands.hpp"
 #include "ATHENA/Data/document_persistence.hpp"
 #include "Data/NodeContracts/execution_state.hpp"
 #include "convert.hpp"
@@ -451,6 +452,7 @@ tm_server_rep::quit () {
   qt_audmap_stop ();
 #endif
   close_all_pipes ();
+  interactive_history_save ();
   call ("quit-TeXmacs-scheme");
   clear_pending_commands ();
 #ifdef QTTEXMACS

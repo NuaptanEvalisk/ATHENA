@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "edit_text.hpp"
+#include "editor_modes.hpp"
 #include "file.hpp"
 #include "analyze.hpp"
 #include "scheme.hpp"
@@ -225,7 +226,7 @@ edit_text_rep::prepare_for_insert () {
 
 void
 edit_text_rep::insert_tree (tree t, path p_in_t) {
-  if (!as_bool (call ("like-emacs?"))) selection_cut ("none");
+  if (!editor_mode_emacs ()) selection_cut ("none");
   if (is_atomic (t) && (p_in_t == path (N(t->label))) &&
       !athena::node::get (t) && is_atomic (subtree (et, path_up (tp))))
     insert (tp, t);

@@ -15,6 +15,7 @@
 #include "sys_utils.hpp"
 #include "analyze.hpp"
 #include "scheme.hpp"
+#include "secure_expression.hpp"
 #include "packrat.hpp"
 #include "convert.hpp"
 #include "converter.hpp"
@@ -158,7 +159,7 @@ build_locus (edit_env env, tree t, list<string>& ids, string& col, string &ref,
         string cb= as_string (arg[1]);
         if (accessible) {
           if (env->secure ||
-              as_bool (eval ("(secure? '(" * cb * " #f #f #f))")))
+              native_secure_expression (string_to_object ("(" * cb * " #f #f #f)")))
             env->link_env->insert_locus (id, body, cb);
         }
         ids= list<string> (id, ids);

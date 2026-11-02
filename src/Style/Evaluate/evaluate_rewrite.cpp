@@ -14,6 +14,7 @@
 #include "std_environment.hpp"
 #include "vars.hpp"
 #include "scheme.hpp"
+#include "secure_expression.hpp"
 
 extern int script_status;
 
@@ -92,7 +93,7 @@ rewrite_impl (tree t) {
       expr= cons (string_to_object (fun), expr);
       bool secure= as_bool (std_env ["secure"]);
       if (!secure && script_status < 2) {
-	if (!as_bool (call ("secure?", expr)))
+	if (!native_secure_expression (expr))
 	  return tree (_ERROR, "insecure script");
       }
       environment old_env= reenter_rewrite_env;

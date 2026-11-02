@@ -447,7 +447,6 @@ edit_interface_rep::set_status_hint (tree l, tree r) {
 
 void
 edit_interface_rep::set_message (tree l, tree r, bool temp) {
-  eval ("(set-message-notify)");
 #ifdef QTTEXMACS
   if ((l != "" || r != "") && !is_startup_banner_message (l, r) &&
       ((ui_endpoint != nullptr &&
