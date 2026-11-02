@@ -371,10 +371,6 @@ bool is_modification (object obj) {
 bool is_procedure (object obj) {
   if (native_value (obj)) return false;
   return SCM_NFALSEP (scm_procedure_p (object_to_tmscm (obj))); }
-object procedure_source (object obj) {
-  if (!is_procedure (obj)) return object (false);
-  return tmscm_to_object (scm_procedure_source (object_to_tmscm (obj)));
-}
 
 /******************************************************************************
 * Basic conversions

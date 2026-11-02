@@ -11,12 +11,6 @@
     (check (not (style-get-documentation key))
            "unevaluated menu arguments have no style documentation" key))
   '(theme generic (car styles) #f 42))
-(let ((action (lambda () (add-style-package theme))))
-  (set-procedure-property! action 'source '(lambda () (add-style-package theme)))
-  (let* ((source (promise-source action))
-         (balloon (property (car source) :balloon)))
-    (check (not (apply (car balloon) (cdr source)))
-           "menu balloon property accepts an unevaluated style argument")))
 (let* ((style-name "generic.ats")
        (legacy (url-resolve
                  (url-or (url-relative (current-buffer-url) style-name)

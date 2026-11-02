@@ -104,7 +104,6 @@ bool is_array_double (object obj);
 bool is_modification (object obj);
 bool is_patch (object obj);
 bool is_procedure (object obj);
-object procedure_source (object obj);
 
 bool as_bool (object obj);
 int as_int (object obj);

@@ -1222,6 +1222,24 @@ generated native entries and remain on the secure-function list.
   a historical menu-closure test; no product caller remains. Explicit script
   startup and transformation callbacks still need their larger migration.
 
+## Retired Procedure Reflection
+
+- Removed `promise-source`, its native adapter and the underlying Guile
+  `procedure_source` call. The only remaining consumer was a historical menu
+  closure assertion, which was removed with the interface. Product menus do
+  not inspect Scheme procedure source anymore.
+- Restart notification is a nullary native operation; preference dispatch no
+  longer constructs a discarded object argument. Its preference-readiness
+  check and queued UI notification behavior are unchanged.
+- XML generation and targeted `-j16` compilation passed. Logs under `build_qt6`:
+  `native-procedure-source-removal-build.log` and
+  `native-restart-notification-build.log`. No tests added or run. Full linking,
+  runtime binding verification and deployment await the next combined build;
+  installed runtime remains the deployment recorded at `0063a1106`.
+- Startup file execution is not dead code: `tm_server.cpp` and `new_view.cpp`
+  consume explicit init-file options through `exec_file`. Do not delete the
+  evaluator on the assumption that removing `progs` removed those consumers.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

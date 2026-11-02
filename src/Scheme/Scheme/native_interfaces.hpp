@@ -124,10 +124,9 @@ tree var_apply (tree& t, patch p);
 void
 athena_native_info_dialog (string arg1, string arg2);
 
-object athena_promise_source (object action);
 void athena_restart_message ();
 void athena_notify_now (string message);
-void athena_notify_restart (object ignored);
+void athena_notify_restart ();
 
 string
 athena_native_linked_file_choice (string arg1, array<string> arg2);

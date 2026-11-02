@@ -566,18 +566,6 @@ queue_native_notification (string message) {
 
 } // namespace
 
-object
-athena_promise_source (object action) {
-  if (!is_procedure (action)) return object (false);
-  object source= procedure_source (action);
-  if (!is_list (source)) return object (false);
-  array<object> terms= as_array_object (source);
-  if (N (terms) != 3 || !is_symbol (terms[0]) ||
-      as_symbol (terms[0]) != "lambda" || !is_null (terms[1]))
-    return object (false);
-  return terms[2];
-}
-
 void
 athena_restart_message () {
   athena_native_info_dialog (
@@ -590,8 +578,7 @@ athena_notify_now (string message) {
 }
 
 void
-athena_notify_restart (object ignored) {
-  (void) ignored;
+athena_notify_restart () {
   if (!application_preferences_ready ()) return;
   queue_native_notification (
     "Restart ATHENA in order to let changes take effect");

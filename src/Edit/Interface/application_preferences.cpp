@@ -61,7 +61,7 @@ void application_preference_notify (string key) {
   };
   for (const auto& handler: handlers)
     if (callback == handler.name) { handler.invoke (key, value); return; }
-  if (callback == "notify-restart") athena_notify_restart (null_object ());
+  if (callback == "notify-restart") athena_notify_restart ();
   else if (callback == "notify-viewport-follow") notify_viewport_follow ();
   else if (callback == "notify-fold-table-of-contents") windows_refresh ("");
 }
