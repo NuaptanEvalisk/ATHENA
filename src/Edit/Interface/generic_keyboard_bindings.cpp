@@ -18,6 +18,7 @@
 #include "editor_modes.hpp"
 #include "new_view.hpp"
 #include "editor.hpp"
+#include "ATHENA/Window/interactive_commands.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -49,7 +50,12 @@ void validate_expression (QJsonValue value) {
   }
   ASSERT (value.isObject (), "invalid keymap expression");
   QJsonObject item= value.toObject ();
-  if (item.contains ("call")) {
+  if (item.contains ("prompt")) {
+    ASSERT (item.size () == 2 && binding_string (item["prompt"]) != "" &&
+            item["labels"].isArray (), "invalid interactive keymap action");
+    for (QJsonValue label: item["labels"].toArray ()) (void) binding_string (label);
+  }
+  else if (item.contains ("call")) {
     ASSERT (item.size () == 2 && binding_string (item["call"]) != "" &&
             item["args"].isArray (), "invalid keymap call");
     for (QJsonValue arg: item["args"].toArray ()) validate_expression (arg);
@@ -178,13 +184,26 @@ bool truth (object value) {
 }
 
 // Source reconstruction is only for inverse key lookup and command metadata.
-// At invocation, this evaluator calls the current public procedure so mode
-// overrides and later user redefinitions still apply.
+// Native commands use generated dispatch; remaining procedure-valued operands
+// still require migration away from Scheme.
 object expression (QJsonValue value, bool source) {
   if (value.isString ()) return object (binding_string (value));
   if (value.isBool ()) return object (value.toBool ());
   if (value.isDouble ()) return object (value.toInt ());
   auto item= value.toObject ();
+  if (item.contains ("prompt")) {
+    const string function= binding_string (item["prompt"]);
+    array<string> labels;
+    array<object> source_arguments;
+    if (source) source_arguments << symbol_object (function);
+    for (QJsonValue label: item["labels"].toArray ()) {
+      labels << binding_string (label);
+      if (source) source_arguments << object (labels[N(labels)-1]);
+    }
+    if (source) return cons (symbol_object ("interactive"), as_list_object (source_arguments));
+    interactive_command (function, labels);
+    return object (true);
+  }
   if (item.contains ("number")) return object (item["number"].toDouble ());
   if (item.contains ("procedure")) {
     object name= symbol_object (binding_string (item["procedure"]));

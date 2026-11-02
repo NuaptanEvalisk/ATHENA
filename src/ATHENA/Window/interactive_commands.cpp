@@ -13,6 +13,9 @@
 #include "boot.hpp"
 #include "native_interfaces.hpp"
 #include "document_save_frontend.hpp"
+#include "native_dispatch.hpp"
+#include "QTMNativeDialogs.hpp"
+#include "buffer_actor.hpp"
 #include <QCoreApplication>
 #include <QTimer>
 #include <QJsonDocument>
@@ -26,13 +29,7 @@
 
 namespace {
 bool is_pair (object value) { return tmscm_is_pair (object_to_tmscm (value)); }
-object procedure_name (object function) {
-  if (is_symbol (function)) return function;
-  if (is_string (function)) return symbol_object (as_string (function));
-  if (!is_procedure (function)) return object (false);
-  object name= call ("procedure-name", function);
-  return name != object (false) ? name : call ("%athena-procedure-name", function);
-}
+QJsonObject command_properties;
 std::mutex history_mutex;
 std::once_flag history_loaded;
 std::map<std::string, std::string> history;
@@ -50,49 +47,9 @@ void load_history () {
     }
   });
 }
-object get_history (object name) {
-  const auto found= history.find (bytes (as_symbol (name)));
+object get_history (string name) {
+  const auto found= history.find (bytes (name));
   return found == history.end () ? null_object () : string_to_object (string (found->second.c_str ()));
-}
-object property (object function, object key) { return call ("property", function, key); }
-object field_property (object function, const char* property_name, object field) {
-  return property (function, list_object (keyword_object (property_name), field));
-}
-object field_descriptor (object function, object field) {
-  object annotation= field_property (function, "argument", field);
-  string label= upcase_first (as_symbol (field)), type= "string";
-  if (is_pair (annotation)) {
-    if (is_null (cdr (annotation)) && is_string (car (annotation))) label= as_string (car (annotation));
-    else if (is_pair (cdr (annotation))) {
-      object first= car (annotation), second= car (cdr (annotation));
-      if (is_string (second)) label= as_string (second);
-      if (is_string (first)) type= as_string (first);
-      else if (is_symbol (first)) type= as_symbol (first);
-    }
-  }
-  object initial= field_property (function, "default", field);
-  object proposals= field_property (function, "proposals", field);
-  object choices= is_procedure (initial) ? list_object (call (initial)) :
-    is_procedure (proposals) ? call (proposals) : null_object ();
-  return cons (object (label), cons (object (type), choices));
-}
-object compute_arguments (object function) {
-  object fields= property (function, keyword_object ("arguments"));
-  array<object> result;
-  if (fields == object (false)) {
-    object source= call ("procedure-source", function);
-    if (is_pair (source) && car (source) == symbol_object ("lambda") &&
-        is_pair (cdr (source)) && is_list (car (cdr (source))))
-      for (object names= car (cdr (source)); is_pair (names); names= cdr (names))
-        result << object (upcase_first (as_symbol (car (names))));
-  }
-  else {
-    for (; is_pair (fields); fields= cdr (fields)) result << field_descriptor (function, car (fields));
-    object synopsis= property (function, keyword_object ("synopsis*"));
-    if (N(result)>0 && is_pair (synopsis) && is_null (cdr (synopsis)) && is_string (car (synopsis)))
-      result[0]= cons (car (synopsis), cdr (result[0]));
-  }
-  return as_list_object (result);
 }
 }
 
@@ -104,55 +61,10 @@ void interactive_properties_initialize () {
   QJsonDocument document= QJsonDocument::fromJson (QByteArray (data.data (), N(data)), &error);
   if (error.error != QJsonParseError::NoError || !document.isObject ())
     throw std::runtime_error ("Invalid command-properties.json");
-  const auto text= [] (const QString& value) { return string (value.toUtf8 ().constData ()); };
-  const QJsonObject commands= document.object ();
-  for (auto it= commands.begin (); it != commands.end (); ++it) {
-    const object name= symbol_object (text (it.key ()));
-    const QJsonObject descriptor= it.value ().toObject ();
-    const auto put= [&] (object key, object value) {
-      call ("property-set!", name, key, value, null_object ());
-    };
-    if (descriptor.contains ("interactive"))
-      put (keyword_object ("interactive"), list_object (object (descriptor["interactive"].toBool ())));
-    if (descriptor.contains ("synopsis"))
-      put (keyword_object ("synopsis"), list_object (object (text (descriptor["synopsis"].toString ()))));
-    if (descriptor.contains ("check-mark")) {
-      const QJsonArray mark= descriptor["check-mark"].toArray ();
-      put (keyword_object ("check-mark"), list_object (object (text (mark[0].toString ())),
-        eval (symbol_object (text (mark[1].toString ())))));
-    }
-    if (descriptor.contains ("applicable"))
-      put (keyword_object ("applicable"), list_object (
-        eval (symbol_object (text (descriptor["applicable"].toString ())))));
-    if (!descriptor.contains ("arguments")) continue;
-    const QJsonArray arguments= descriptor["arguments"].toArray ();
-    object formals= descriptor.contains ("rest") ?
-      symbol_object (text (descriptor["rest"].toString ())) : null_object ();
-    for (int i= arguments.size ()-1; i>=0; --i)
-      formals= cons (symbol_object (text (arguments[i].toObject ()["name"].toString ())), formals);
-    put (keyword_object ("arguments"), formals);
-    for (const QJsonValue& entry: arguments) {
-      const QJsonObject argument= entry.toObject ();
-      const object field= symbol_object (text (argument["name"].toString ()));
-      object label= list_object (object (text (argument["label"].toString ())));
-      if (argument.contains ("type"))
-        label= cons (symbol_object (text (argument["type"].toString ())), label);
-      put (list_object (keyword_object ("argument"), field), label);
-      if (argument.contains ("default"))
-        put (list_object (keyword_object ("default"), field),
-             eval (symbol_object (text (argument["default"].toString ()))));
-    }
-  }
+  command_properties= document.object ();
 }
 
-bool interactive_page_format_applicable (object arguments) {
-  (void) arguments;
-  return !get_current_editor ()->selection_active_any ();
-}
-
-void interactive_learn (object function, object values) {
-  const object name= procedure_name (function);
-  if (!is_symbol (name)) return;
+void interactive_learn (string name, object values) {
   array<object> normalized;
   for (; is_pair (values); values= cdr (values)) {
     object entry= car (values), value= cdr (entry);
@@ -167,20 +79,18 @@ void interactive_learn (object function, object values) {
   rows << row;
   for (object old= get_history (name); is_pair (old); old= cdr (old))
     if (car (old) != row) rows << car (old);
-  history[bytes (as_symbol (name))]= bytes (object_to_string (as_list_object (rows)));
+  history[bytes (name)]= bytes (object_to_string (as_list_object (rows)));
   history_modified= true;
 }
-object interactive_learned (object function) {
-  const object name= procedure_name (function);
+object interactive_learned (string name) {
   load_history ();
   std::lock_guard<std::mutex> guard (history_mutex);
   return get_history (name);
 }
-void interactive_forget (object function) {
-  const object name= procedure_name (function);
+void interactive_forget (string name) {
   load_history ();
   std::lock_guard<std::mutex> guard (history_mutex);
-  history.erase (bytes (as_symbol (name)));
+  history.erase (bytes (name));
   history_modified= true;
 }
 void interactive_history_save () {
@@ -194,32 +104,77 @@ void interactive_history_save () {
   text << ")\n";
   if (!save_string ("$ATHENA_HOME_PATH/system/interactive.scm", text)) history_modified= false;
 }
-void interactive_command (object function, object arguments) {
-  call ("lazy-define-force", function);
-  if (is_null (arguments)) arguments= compute_arguments (function);
+void interactive_command (string function, array<string> labels) {
+  const auto* context= current_scheme_execution_context ();
+  ASSERT (context && context->editor, "interactive command requires a BufferActor");
+  const auto actor= context->actor_id;
+  const auto view= context->view_id;
+  const QJsonObject descriptor= command_properties.value (to_qstring (function)).toObject ();
+  const QJsonArray arguments= descriptor.value ("arguments").toArray ();
+  if (N(labels) == 0 && arguments.isEmpty ())
+    throw std::invalid_argument ("Missing interactive argument metadata: " + bytes (function));
+
   const object learned= interactive_learned (function);
-  array<object> descriptors;
-  for (int i=0; is_pair (arguments); ++i, arguments= cdr (arguments)) {
-    object descriptor= car (arguments);
-    if (is_string (descriptor)) descriptor= list_object (descriptor, object ("string"));
-    string label= as_string (car (descriptor));
-    if (!ends (label, ":") && !ends (label, "?")) label << ":";
-    object choices= cdr (cdr (descriptor));
-    array<object> proposals;
-    for (object p= choices; is_pair (p); p= cdr (p)) proposals << car (p);
-    if (N(proposals)<=1) {
-      for (object rows= learned; is_pair (rows); rows= cdr (rows)) {
-        object value (false);
-        for (object row= car (rows); is_pair (row); row= cdr (row))
-          if (car (car (row)) == object (as_string (i))) { value= cdr (car (row)); break; }
-        bool explicit_choice= false;
-        for (object p= choices; is_pair (p); p= cdr (p)) explicit_choice= explicit_choice || car (p) == value;
-        if (!explicit_choice) proposals << value;
+  std::vector<QTMInteractiveField> fields;
+  std::vector<bool> passwords;
+  const int count= N(labels) ? N(labels) : arguments.size ();
+  for (int i=0; i<count; ++i) {
+    const QJsonObject argument= N(labels) ? QJsonObject () : arguments[i].toObject ();
+    QTMInteractiveField field;
+    field.prompt= N(labels) ? labels[i] : from_qstring (argument["label"].toString ());
+    field.type= from_qstring (argument.value ("type").toString ("string"));
+    if (!ends (field.prompt, ":") && !ends (field.prompt, "?")) field.prompt << ":";
+    if (argument.contains ("default")) {
+      object initial;
+      const string provider= from_qstring (argument["default"].toString ());
+      if (!native_dispatch_call (provider, array<object> (), initial))
+        throw std::invalid_argument ("Unknown native argument default: " + bytes (provider));
+      if (is_string (initial)) field.proposals << as_string (initial);
+      else if (is_url (initial)) field.proposals << as_string (as_url (initial));
+    }
+    for (object rows= learned; is_pair (rows); rows= cdr (rows)) {
+      for (object row= car (rows); is_pair (row); row= cdr (row)) {
+        if (car (car (row)) != object (as_string (i))) continue;
+        const object value= cdr (car (row));
+        if (!is_string (value)) break;
+        const string proposal= as_string (value);
+        bool present= false;
+        for (int j=0; j<N(field.proposals); ++j)
+          present= present || field.proposals[j] == proposal;
+        if (!present) field.proposals << proposal;
+        break;
       }
     }
-    descriptors << cons (object (label), cons (car (cdr (descriptor)), as_list_object (proposals)));
+    passwords.push_back (field.type == "password");
+    fields.push_back (std::move (field));
   }
-  get_server ()->interactive (function, as_scheme_tree (as_list_object (descriptors)));
+  const std::string command= bytes (function);
+  const string title= ends (fields.front ().prompt, "?") ? "Question" : "Enter data";
+  qtm_interactive_form_async (title, fields,
+    [actor, view, command, passwords] (std::vector<std::string> answers) {
+      if (answers.size () != passwords.size ()) return;
+      const auto continuation= actor_continuation_registry::instance ().store (
+        [command, passwords, answers= std::move (answers)] {
+          if (current_scheme_execution_context ()->editor == nullptr) return;
+          array<object> arguments;
+          object learned= null_object ();
+          for (const auto& answer: answers)
+            arguments << object (string (answer.data (), answer.size ()));
+          for (int i=N(arguments)-1; i>=0; --i)
+            learned= cons (cons (object (as_string (i)),
+              passwords[i] ? object ("") : arguments[i]), learned);
+          const string function (command.data (), command.size ());
+          interactive_learn (function, learned);
+          object result;
+          if (!native_dispatch_call (function, arguments, result))
+            throw std::invalid_argument ("Unknown native interactive command: " + command);
+        });
+      if (!buffer_actor::submit_to (actor, actor_command_kind::run_native_continuation,
+            view, ATHENA_NO_BLOB, ATHENA_NO_BLOB,
+            SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_UI |
+              SCHEME_CAPABILITY_GLOBAL, continuation))
+        actor_continuation_registry::instance ().discard (continuation);
+    });
 }
 
 void interactive_schedule_idle (int milliseconds, object continuation) {

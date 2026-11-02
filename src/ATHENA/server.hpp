@@ -79,7 +79,6 @@ public:
   virtual void recall_message () = 0;
   virtual void choose_file (object fun, string title, string type,
 			    string prompt, url name) = 0;
-  virtual void interactive (object fun, scheme_tree p) = 0;
 
   /* Miscellaneous routines */
   virtual void   style_clear_cache () = 0;

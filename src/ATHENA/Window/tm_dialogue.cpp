@@ -11,7 +11,6 @@
 
 #include "tm_frame.hpp"
 #include "tm_dialogue.hpp"
-#include "interactive_commands.hpp"
 #include "tm_window.hpp"
 #include "convert.hpp"
 #include "file.hpp"
@@ -22,10 +21,8 @@
 #include "buffer_actor.hpp"
 #include "editor.hpp"
 #include "scheme_execution_context.hpp"
-#include "QTMNativeDialogs.hpp"
 
 #include <memory>
-#include <vector>
 
 /******************************************************************************
 * File chooser completion
@@ -152,81 +149,4 @@ tm_frame_rep::choose_file (object fun, string title, string type,
   (void) plain_window_widget (wid, ui_text (title));
   if (type == "directory") send_keyboard_focus (get_directory (wid));
   else send_keyboard_focus (get_file (wid));
-}
-
-/******************************************************************************
-* Interactive commands
-******************************************************************************/
-
-static string
-get_prompt (scheme_tree p, int i) {
-  if (is_atomic (p[i]) && is_quoted (p[i]->label))
-    return ui_text (scm_unquote (p[i]->label));
-  else if (is_tuple (p[i]) && N(p[i])>0) {
-    if (is_atomic (p[i][0]) && is_quoted (p[i][0]->label))
-      return ui_text (scm_unquote (p[i][0]->label));
-    return ui_text (scheme_tree_to_tree (p[i][0]));
-  }
-  return "Input:";
-}
-
-static string
-get_type (scheme_tree p, int i) {
-  if (is_tuple (p[i]) && N(p[i])>1 &&
-      is_atomic (p[i][1]) && is_quoted (p[i][1]->label))
-    return scm_unquote (p[i][1]->label);
-  return "string";
-}
-
-static array<string>
-get_proposals (scheme_tree p, int i) {
-  array<string> a;
-  if (is_tuple (p[i]) && N(p[i]) >= 2) {
-    int j, n= N(p[i]);
-    for (j=2; j<n; j++)
-      if (is_atomic (p[i][j]) && is_quoted (p[i][j]->label))
-        a << scm_unquote (p[i][j]->label);
-  }
-  return a;
-}
-
-void
-tm_frame_rep::interactive (object fun, scheme_tree p) {
-  ASSERT (is_tuple (p), "tuple expected");
-  if (N(p) == 0) {
-    string ret= object_to_string (call (fun));
-    if (ret != "" && ret != "<unspecified>" && ret != "#<unspecified>")
-      set_message (verbatim (ret), "interactive command");
-  }
-  else {
-    int i, n= N(p);
-    std::vector<QTMInteractiveField> fields;
-    fields.reserve (n);
-    for (i=0; i<n; i++) {
-      QTMInteractiveField field;
-      field.prompt= get_prompt (p, i);
-      field.type= get_type (p, i);
-      field.proposals= get_proposals (p, i);
-      fields.push_back (std::move (field));
-    }
-    string title= "Enter data";
-    if (ends (fields[0].prompt, "?")) title= "Question";
-    array<string> answers= qtm_interactive_dialog (title, fields);
-    if (N(answers) != n) return;
-
-    array<object> args (n);
-    object learn= null_object ();
-    for (i=n-1; i>=0; --i) {
-      args[i]= object (answers[i]);
-      object learned= fields[i].type == "password" ? object ("") : args[i];
-      learn= cons (cons (object (as_string (i)), learned), learn);
-    }
-    interactive_learn (fun, learn);
-    object cmd_args= as_list_object (args);
-    const SchemeExecutionContext* context= current_scheme_execution_context ();
-    if (context != nullptr && context->actor_id != ATHENA_NO_ACTOR)
-      as_actor_command (fun) (cmd_args);
-    else
-      exec_delayed (scheme_cmd (cons (fun, cmd_args)));
-  }
 }

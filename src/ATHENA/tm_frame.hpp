@@ -58,7 +58,6 @@ public:
   void recall_message ();
   void choose_file (object fun, string title, string type,
                     string prompt, url name);
-  void interactive (object fun, scheme_tree p);
 };
 
 widget box_widget (box b, bool trans, SI padding= 5*PIXEL);

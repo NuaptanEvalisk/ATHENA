@@ -16,6 +16,7 @@
 #include "Ispell/ispell.hpp"
 #include "unicode_text.hpp"
 #include "locale.hpp"
+#include "ATHENA/Window/interactive_commands.hpp"
 #include <algorithm>
 
 
@@ -180,8 +181,11 @@ edit_replace_rep::spell_keypress (string s) {
     step_horizontal (forward);
     spell_next ();
   }
-  else if ((s == "r") || (s == "R"))
-    (void) eval ("(interactive spell-replace \"Replace by\")");
+  else if ((s == "r") || (s == "R")) {
+    array<string> labels;
+    labels << "Replace by";
+    interactive_command ("spell-replace", labels);
+  }
   else if ((s == "i") || (s == "I")) {
     ispell_insert (search_lan, spell_s);
     spell_dicmod= true;

@@ -83,6 +83,23 @@ with runtime removal; native automation must use the existing interop API.
   preserved, and the ownership check used headless timed scheduling instead.
   The temporary profile was removed. Logs: `build_qt6/native-idle-tasks-*.log`.
 
+- Interactive command fields now read JSON directly, and default providers use
+  native dispatch. Keymaps use explicit native prompt descriptors; spelling
+  replacement uses the same API. Asynchronous Qt forms return plain strings to
+  the originating actor/view before invoking the native command, without
+  retaining Scheme procedures or blocking the BufferActor on a modal dialog.
+  Removed procedure introspection, lazy-definition forcing, property-table
+  initialization and the old server/frame interactive interface. Defunct
+  command-input shortcuts now open the existing native command palette.
+  Recent-file and argument-history APIs use explicit command names; their
+  persisted value containers still depend on `object` and remain to migrate.
+  The -j16 build and official deployment passed. A temporary headless check
+  loaded all keymaps, checked prompt inverse metadata and removal of both old
+  interactive bindings, and invoked the print-to-file shortcut without errors.
+  This did not fill in or submit the Qt form and does not claim visual or
+  end-to-end answer-submission coverage. The temporary profile was removed;
+  logs are under `build_qt6/native-interactive-commands-*.log`.
+
 ## Known Outstanding Failures
 
 - `gnutls.cpp` still invokes missing certificate-interaction callbacks and

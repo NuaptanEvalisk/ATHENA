@@ -1,12 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
   <binding name="tm-select" native="native_tree_select" returns="object" exceptions="scheme"><arg type="object" /><arg type="object" /></binding>
-  <binding name="interactive" native="interactive_command" returns="void" exceptions="scheme"><arg type="object" /><arg type="object" rest="true" /></binding>
   <binding name="schedule-idle" native="interactive_schedule_idle" returns="void"><arg type="int" /><arg type="procedure" /></binding>
   <binding name="native-dialogue-initialize" native="interactive_startup" returns="void" />
-  <binding name="page-format-applicable?" native="interactive_page_format_applicable" returns="bool">
-    <arg type="object" rest="true" />
-  </binding>
   <binding name="choose-file" native="interactive_choose_file" returns="void" exceptions="scheme"><arg type="procedure" /><arg type="string" /><arg type="string" /><arg type="object" rest="true" /></binding>
   <binding name="get-preference" native="application_preference_get" returns="object"><arg type="string" /></binding>
   <binding name="set-preference" native="application_preference_set" returns="void"><arg type="string" /><arg type="object" /></binding>

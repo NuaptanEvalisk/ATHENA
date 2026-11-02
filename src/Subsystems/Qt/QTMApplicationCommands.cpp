@@ -329,7 +329,7 @@ QTMCommandRegistry::registerApplicationCommands () {
     "file.clear-recent-files", QTMCommandScope::Application,
     [] (const QTMCommandContext&) {
       try {
-        interactive_forget (object (string ("recent-buffer")));
+        interactive_forget ("recent-buffer");
         interactive_history_save ();
         return true;
       }

@@ -64,10 +64,6 @@
     <arg type="string" />
     <arg type="url" />
   </binding>
-  <binding name="tm-interactive" native="interactive" returns="void">
-    <arg type="object" />
-    <arg type="scheme_tree" />
-  </binding>
   <binding name="cpp-style-clear-cache" native="style_clear_cache" returns="void" />
   <binding name="set-script-status" native="set_script_status" returns="void">
     <arg type="int" />
