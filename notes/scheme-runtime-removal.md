@@ -942,9 +942,8 @@ generated native entries and remain on the secure-function list.
   objects and remain to be removed. This is not full link subsystem completion.
 - Compiled both affected implementation units with `-j16`; log:
   `build_qt6/native-link-navigation-records-build.log`. No tests were added or
-  run for this representation-preserving refactoring. Full linking/deployment
-  will be combined with the remaining link adapter cleanup; installed runtime
-  is still the combined save/link deployment through `f64c14d92`.
+  run for this representation-preserving refactoring. Included in the combined
+  native link deployment recorded below.
 
 ## Native Link Pages And Adapter Retirement
 
@@ -959,8 +958,8 @@ generated native entries and remain on the secure-function list.
 - Regenerated `athena_glue`; removed native names are absent from source and
   generated interfaces. Compiled all three affected implementation units with
   `-j16`, log `build_qt6/native-link-adapter-retirement-build.log`.
-- Runtime binding verification and full linking/deployment remain pending with
-  the preceding native-record batch. No new tests were needed; conversion
+- Runtime binding verification and full linking/deployment passed in the
+  combined deployment below. No new tests were needed; conversion
   behavior was checked against `content_to_tree`, which constructs labels and
   children directly without special link normalization.
 - Vertex execution still converts target/attributes to objects, and native
@@ -982,9 +981,41 @@ generated native entries and remain on the secure-function list.
   the affected unit with `-j16`; logs: `native-link-vertex-generation.log` and
   `native-link-vertex-build.log` under `build_qt6`. Retired symbols are absent
   from source and generated interfaces. No tests were added or run.
-- Full combined link build, runtime verification of the twenty retired bindings
-  and deployment are next. Installed runtime remains the save/link deployment
-  through `f64c14d92`, not these three link migration commits.
+- Included in the combined native link deployment recorded below.
+
+## Combined Native Link Deployment
+
+- Full `ATHENA.bin` build with `-j16` passed through `0bc16e632`; deployed with
+  `tools/deploy-local-runtime.sh build_qt6`. Source removal triggered CMake
+  reconfiguration and dependency rebuilding; the original build completed
+  without being restarted.
+- Isolated runtime verification confirmed all twenty retired bindings absent
+  and the five retained link execution entries present (`link-follow-ids`,
+  `locus-link-follow`, `go-to-id`, `go-to-url`, `execute-script`). Printed
+  `NATIVE_LINK_BINDINGS_OK` and exited normally. This is interface-registration
+  verification, not a claim of interactive navigation coverage.
+- Removed the owned temporary profile. Logs:
+  `build_qt6/native-link-combined-build.log`,
+  `build_qt6/native-link-combined-runtime.log`, and
+  `build_qt6/native-link-combined-deploy.log`.
+
+## Remaining Reader And Callback Consumers
+
+- `string_to_object` has two business callers: atomic selectors in
+  `src/Typeset/Env/utility_markup.cpp` and non-string preference retrieval in
+  `src/Edit/Interface/application_preferences.cpp`.
+- The preference catalog has exactly one `scheme-object` entry:
+  `editor:verbatim:tabstop`, default `4`. Its active program editor consumer
+  already reads the native string preference as an integer. Replace the
+  obsolete Scheme-valued preference contract at the catalog/getter boundary,
+  rather than introducing another general expression reader.
+- `tree_pattern.cpp` still invokes named pattern predicates with `call`;
+  `native_interfaces.cpp` invokes the global transformation procedure callback.
+  Native dispatch and native interop transformation ownership must replace
+  those contracts, not silently remove supported operations.
+- The debug-backtrace preference calls Guile's actual debug-enable/disable;
+  this is not equivalent to native diagnostic flags. Runtime removal must
+  remove or explicitly replace that preference with its real semantics.
 
 ## Known Outstanding Failure
 
