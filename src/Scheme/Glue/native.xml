@@ -5,7 +5,6 @@
   <binding name="set-preference" native="application_preference_set" returns="void"><arg type="string" /><arg type="string" /></binding>
   <binding name="reset-preference" native="application_preference_reset" returns="void"><arg type="string" /></binding>
   <binding name="toggle-preference" native="application_preference_toggle" returns="void"><arg type="string" /></binding>
-  <binding name="has-look-and-feel?" native="application_look_and_feel_matches" returns="bool"><arg type="object" /></binding>
   <binding name="ext-fold-toc-in-reflow?" native="application_fold_toc_in_reflow" returns="string" />
   <binding name="toc-fold-tree" native="application_toc_fold" returns="void"><arg type="tree" /></binding>
   <binding name="toc-unfold-tree" native="application_toc_unfold" returns="void"><arg type="tree" /></binding>
@@ -274,9 +273,9 @@
   <binding name="fit-to-screen" native="view_fit_screen" returns="void" exceptions="scheme" />
   <binding name="fit-to-screen-width" native="view_fit_width" returns="void" exceptions="scheme" />
   <binding name="fit-to-screen-height" native="view_fit_height" returns="void" exceptions="scheme" />
-  <binding name="count-characters" native="tools_count_characters" returns="int" exceptions="scheme"><arg type="object" /></binding>
-  <binding name="count-words" native="tools_count_words" returns="int" exceptions="scheme"><arg type="object" /></binding>
-  <binding name="count-lines" native="tools_count_lines" returns="int" exceptions="scheme"><arg type="object" /></binding>
+  <binding name="count-characters" native="tools_count_characters" returns="int" exceptions="scheme"><arg type="content" /></binding>
+  <binding name="count-words" native="tools_count_words" returns="int" exceptions="scheme"><arg type="content" /></binding>
+  <binding name="count-lines" native="tools_count_lines" returns="int" exceptions="scheme"><arg type="content" /></binding>
   <binding name="selection-or-document" native="tools_selection_or_document" returns="tree" exceptions="scheme" />
   <binding name="show-character-count" native="tools_show_character_count" returns="void" exceptions="scheme" />
   <binding name="show-word-count" native="tools_show_word_count" returns="void" exceptions="scheme" />

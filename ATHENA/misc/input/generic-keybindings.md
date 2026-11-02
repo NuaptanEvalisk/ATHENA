@@ -18,7 +18,7 @@ evaluation fallback or lazy Scheme module loading.
 
 Groups and bindings are ordered. Later matching declarations retain their
 existing precedence. `profiles` is checked at registration using
-`has-look-and-feel?`; `mode` and `require` remain live conditions evaluated in
+native `application_look_and_feel_matches`; `mode` and `require` remain live conditions evaluated in
 the owning editor context. A group may also contain `unmap` entries.
 
 Each binding has `key` and either `text` (optionally `help`) or an ordered

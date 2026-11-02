@@ -12,24 +12,28 @@
 #include <QApplication>
 #include <QDir>
 #include <QMessageBox>
+#include <optional>
 
 namespace {
-object statistics_text (object document) {
-  return conversion_dispatch (document, "texmacs-tree", "verbatim-snippet", null_object ());
+std::optional<string> statistics_text (tree document) {
+  object result= conversion_dispatch (
+    object (document), "texmacs-tree", "verbatim-snippet", null_object ());
+  if (!is_string (result)) return std::nullopt;
+  return as_string (result);
 }
 }
 
-int tools_count_characters (object document) {
-  object result= statistics_text (document);
-  if (!is_string (result)) return 0;
-  string text= as_string (result);
+int tools_count_characters (tree document) {
+  const auto result= statistics_text (document);
+  if (!result) return 0;
+  const string& text= *result;
   return utf8_byte_to_character (text, N(text));
 }
 
-int tools_count_words (object document) {
-  object result= statistics_text (document);
-  if (!is_string (result)) return 0;
-  string text= as_string (result);
+int tools_count_words (tree document) {
+  const auto result= statistics_text (document);
+  if (!result) return 0;
+  const string& text= *result;
   int count= 0;
   bool inside= false;
   for (int i=0; i<N(text); ++i) {
@@ -41,10 +45,10 @@ int tools_count_words (object document) {
   return max (1, count);
 }
 
-int tools_count_lines (object document) {
-  object result= statistics_text (document);
-  if (!is_string (result)) return 0;
-  string text= as_string (result);
+int tools_count_lines (tree document) {
+  const auto result= statistics_text (document);
+  if (!result) return 0;
+  const string& text= *result;
   int count= 1;
   for (int i=0; i<N(text); ++i) if (text[i] == '\n') ++count;
   return count;
@@ -57,15 +61,15 @@ tree tools_selection_or_document () {
 
 void tools_show_character_count () {
   athena_native_info_dialog ("Character count: " *
-    as_string (tools_count_characters (object (tools_selection_or_document ()))), "Statistics");
+    as_string (tools_count_characters (tools_selection_or_document ())), "Statistics");
 }
 void tools_show_word_count () {
   athena_native_info_dialog ("Word count: " *
-    as_string (tools_count_words (object (tools_selection_or_document ()))), "Statistics");
+    as_string (tools_count_words (tools_selection_or_document ())), "Statistics");
 }
 void tools_show_line_count () {
   athena_native_info_dialog ("Line count: " *
-    as_string (tools_count_lines (object (tools_selection_or_document ()))), "Statistics");
+    as_string (tools_count_lines (tools_selection_or_document ())), "Statistics");
 }
 
 void tools_toggle_save_aux () {

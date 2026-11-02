@@ -81,15 +81,6 @@ void application_preference_toggle (string key) {
   const string value= get_user_preference (key, "default");
   if (value == "on" || value == "off") set_preference (key, value == "on" ? "off" : "on");
 }
-bool application_look_and_feel_matches (object profiles) {
-  if (is_list (profiles)) {
-    for (; !is_null (profiles); profiles= cdr (profiles))
-      if (application_look_and_feel_matches (car (profiles))) return true;
-    return false;
-  }
-  if (is_symbol (profiles)) return application_look_and_feel_matches (as_symbol (profiles));
-  return is_string (profiles) && application_look_and_feel_matches (as_string (profiles));
-}
 bool application_look_and_feel_matches (const array<string>& profiles) {
   for (int i=0; i<N(profiles); ++i)
     if (application_look_and_feel_matches (profiles[i])) return true;

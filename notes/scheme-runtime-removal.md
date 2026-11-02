@@ -1778,6 +1778,27 @@ generated native entries and remain on the secure-function list.
   pending a combined batch; the installed runtime is still 444f20dcd's build.
   The overall runtime-removal goal remains incomplete.
 
+## Native Application Preference And Statistics Interfaces
+
+- Removed the unconsumed has-look-and-feel? export and its recursive object
+  adapter. Keyboard profile registration already uses native string arrays;
+  string negation/default/std matching behavior is unchanged. The preferences
+  header no longer includes scheme.hpp, and keyboard documentation names the
+  actual native query.
+- Character/word/line count APIs now accept native trees; dialogs pass the
+  selection/document tree directly. Their shared conversion result is an
+  optional string, preserving conversion failure versus empty text and the
+  existing counting semantics.
+- Statistics still calls the object-based conversion_dispatch boundary in one
+  helper. This is not a completed native conversion-value migration: the
+  executor interface must be migrated without duplicating export preferences,
+  rendering context or converter registry behavior in statistics code.
+- Interface generation and application_preferences/application_tools units
+  compiled with -j16. Logs: build_qt6/native-application-values-glue.log and
+  build_qt6/native-application-values-build.log. No tests added/run. Combined
+  linking, runtime binding checks and deployment remain pending with the prior
+  Materials adapter removal.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
