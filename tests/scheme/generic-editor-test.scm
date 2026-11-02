@@ -161,18 +161,8 @@
        "native parameter value predicate accepts labelled pairs")
 (check (not (parameter-value? '(1 "value")))
        "native parameter value predicate rejects nonstring labels")
-(check (equal? (parameter-name "page-screen-margin")
-               (focus-tag-name
-                 (string->symbol
-                   (tree-name (list (string->symbol "page-screen-margin"))))))
-       "native parameter naming preserves focus tag naming policy")
 (check (not (parameter-show-in-menu? "language"))
        "Scheme parameter visibility specialization remains authoritative")
-
-(check (equal? (focus-tag-name 'section)
-               (string-replace
-                 (upcase-first (tree-name (stree->tree '(section)))) "-" " "))
-       "native focus tag naming preserves generic display policy")
 
 (define proposal-tree (stree->tree '(native-proposal-extension "x")))
 (check (not (child-proposals proposal-tree 0))

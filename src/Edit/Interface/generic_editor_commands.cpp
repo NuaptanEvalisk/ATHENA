@@ -1526,7 +1526,7 @@ generic_parameter_name (string name) {
   if (!context) return "";
   const athena::contracts::editing_query query {context->contract_context ()};
   const string tree_name= query.name (as_tree_label (name));
-  return generic_focus_tag_name (symbol_object (tree_name));
+  return generic_focus_tag_name (tree_name);
 }
 
 bool
@@ -1589,9 +1589,8 @@ string focus_tag_name (string name) {
 } // namespace
 
 string
-generic_focus_tag_name (object label) {
-  if (!is_symbol (label)) throw std::invalid_argument ("Focus tag name expects a symbol");
-  return focus_tag_name (as_symbol (label));
+generic_focus_tag_name (string label) {
+  return focus_tag_name (label);
 }
 
 object

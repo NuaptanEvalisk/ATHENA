@@ -1433,7 +1433,7 @@ editor_rep::focus_toolbar_state_snapshot () {
     catch (...) {}
   }
   try {
-    string value= generic_focus_tag_name (symbol_object (tag));
+    string value= generic_focus_tag_name (tag);
     snapshot.tag_name.assign (
       value.data (), static_cast<std::size_t> (N(value)));
   }
@@ -1448,7 +1448,7 @@ editor_rep::focus_toolbar_state_snapshot () {
         value.data (), static_cast<std::size_t> (N(value)));
       string display= value;
       try {
-        display= generic_focus_tag_name (symbol_object (value));
+        display= generic_focus_tag_name (value);
       }
       catch (...) {}
       snapshot.variant_names.emplace_back (

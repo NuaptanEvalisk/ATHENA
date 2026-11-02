@@ -1465,6 +1465,16 @@ generated native entries and remain on the secure-function list.
   combined linking/runtime verification/deployment remains pending with the
   style-list and node-variant batches.
 
+## Native Focus Display Names
+
+- Focus snapshots and parameter naming now pass native strings directly to the
+  existing display-name implementation, without constructing Scheme symbols.
+- Removed the unused focus-tag-name binding and its Scheme-facing assertions.
+  JSON overrides, algorithm groups, theme prefixes and contract names retain
+  their existing resolution order.
+- This straightforward signature change has not been built or tested separately;
+  include it in the pending combined style/focus build and deployment.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

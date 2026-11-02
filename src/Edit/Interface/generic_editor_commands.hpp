@@ -151,7 +151,7 @@ string generic_parameter_name (string name);
 bool generic_parameter_show_in_menu (string name);
 bool generic_parameter_value (object value);
 array<string> generic_focus_variants_of (tree t);
-string generic_focus_tag_name (object label);
+string generic_focus_tag_name (string label);
 object generic_child_proposals (tree t, int i);
 array<string> generic_focus_parameters_list (tree t, generic_parameter_mode mode);
 array<string> generic_focus_parameters_list_memo (tree t, generic_parameter_mode mode);
