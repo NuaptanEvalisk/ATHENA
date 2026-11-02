@@ -3,7 +3,6 @@
   <binding name="tm-select" native="native_tree_select" returns="object" exceptions="scheme"><arg type="object" /><arg type="object" /></binding>
   <binding name="interactive" native="interactive_command" returns="void" exceptions="scheme"><arg type="object" /><arg type="object" rest="true" /></binding>
   <binding name="schedule-idle" native="interactive_schedule_idle" returns="void"><arg type="int" /><arg type="procedure" /></binding>
-  <binding name="native-idle-step" native="interactive_idle_step" returns="object"><arg type="int" /><arg type="double" /><arg type="procedure" /></binding>
   <binding name="native-dialogue-initialize" native="interactive_startup" returns="void" />
   <binding name="page-format-applicable?" native="interactive_page_format_applicable" returns="bool">
     <arg type="object" rest="true" />
@@ -504,8 +503,6 @@
   <binding name="native-keyboard-force" native="native_keyboard_force" returns="void" exceptions="scheme">
     <arg type="bool" />
   </binding>
-  <binding name="native-keyboard-start-warmup" native="native_keyboard_start_warmup" returns="void" />
-  <binding name="native-keyboard-warmup-step" native="native_keyboard_warmup_step" returns="object" exceptions="scheme" />
   <binding name="generic-keyboard-load-domain" native="generic_keyboard_load_domain" returns="void">
     <arg type="string" />
   </binding>

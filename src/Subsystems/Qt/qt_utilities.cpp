@@ -14,6 +14,7 @@
 #include "qt_utilities.hpp"
 #include "scheme_execution_context.hpp"
 #include "unicode_text.hpp"
+#include "boot.hpp"
 #include <stdexcept>
 #include <time.h>
 #include <cmath>
@@ -31,6 +32,7 @@
 #include <QKeySequence>
 #include <QMetaObject>
 #include <QThread>
+#include <QTimer>
 
 #include <QPrinter>
 #include <QPrintDialog>
@@ -148,6 +150,56 @@ qt_post_to_main_thread (std::function<void()> action) {
         if (continuation) continuation ();
       }, Qt::QueuedConnection))
     (void) actor_continuation_registry::instance ().discard (id);
+}
+
+namespace {
+void queue_editor_task (athena_actor_id actor, athena_view_id view,
+                        int delay, std::function<int()> action) {
+  QTimer::singleShot (delay, QCoreApplication::instance (),
+    [actor, view, action= std::move (action)] () mutable {
+      if (actor == ATHENA_NO_ACTOR) {
+        tm_view current= has_current_view () ?
+          concrete_view (get_current_view_safe ()) : nullptr;
+        if (current == nullptr) {
+          queue_editor_task (actor, view, 25, std::move (action));
+          return;
+        }
+        actor= current->buf->actor->id ();
+        view= current->runtime_id;
+      }
+      const auto continuation= actor_continuation_registry::instance ().store (
+        [actor, view, action= std::move (action)] {
+          const auto* context= current_scheme_execution_context ();
+          if (context->editor == nullptr) return;
+          const int next= action ();
+          if (next >= 0) queue_editor_task (actor, view, next, action);
+        });
+      if (!buffer_actor::submit_to (actor,
+            actor_command_kind::run_native_continuation, view,
+            ATHENA_NO_BLOB, ATHENA_NO_BLOB,
+            SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_UI |
+              SCHEME_CAPABILITY_GLOBAL, continuation))
+        actor_continuation_registry::instance ().discard (continuation);
+    });
+}
+}
+
+void qt_schedule_editor_task (int delay, std::function<int()> action) {
+  const auto* context= current_scheme_execution_context ();
+  queue_editor_task (context ? context->actor_id : ATHENA_NO_ACTOR,
+                     context ? context->view_id : ATHENA_NO_VIEW,
+                     delay, std::move (action));
+}
+
+void qt_schedule_editor_idle (int idle, std::function<void()> action) {
+  const time_t start= texmacs_time ();
+  qt_schedule_editor_task (0, [idle, start, action= std::move (action)] {
+    const int remaining= headless_mode ? idle - int (texmacs_time () - start) :
+      idle - get_current_editor ()->idle_time ();
+    if (remaining > 0) return remaining;
+    action ();
+    return -1;
+  });
 }
 
 bool

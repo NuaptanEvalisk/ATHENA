@@ -3,6 +3,7 @@
 #include "editor_modes.hpp"
 #include "editor.hpp"
 #include "file.hpp"
+#include <stdexcept>
 
 namespace {
 bool content_mode (string name) {
@@ -38,4 +39,21 @@ bool editor_mode_emacs () {
   string profile= get_preference ("look and feel");
   if (profile == "default") profile= default_look_and_feel ();
   return profile == "emacs";
+}
+
+editor_mode_predicate editor_mode_resolve (const std::string& name) {
+  if (name == "in-text?") return editor_mode_text;
+  if (name == "in-math?") return editor_mode_math;
+  if (name == "in-prog?") return editor_mode_program;
+  if (name == "in-source?") return editor_mode_source;
+  if (name == "in-table?") return editor_mode_table;
+  if (name == "in-screens?") return editor_mode_screens;
+  if (name == "in-std?") return editor_mode_standard;
+  if (name == "in-std-text?") return editor_mode_standard_text;
+  if (name == "in-smart-ref?") return editor_mode_smart_reference;
+  if (name == "in-verbatim?") return editor_mode_verbatim;
+  if (name == "in-variants-disabled?") return editor_mode_variants_disabled;
+  if (name == "in-hybrid?") return [] { return get_current_editor ()->hybrid_name_context (); };
+  if (name == "in-graphics?") return [] { return get_current_editor ()->inside_graphics (); };
+  throw std::runtime_error ("Unknown native editor mode: " + name);
 }

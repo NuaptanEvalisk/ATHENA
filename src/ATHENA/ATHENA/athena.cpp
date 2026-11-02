@@ -69,6 +69,8 @@
 #include "ATHENA/Data/websites.hpp"
 #include "MCP/mcp_rag_server.hpp"
 #include "rag_delegation_crypto.hpp"
+#include "native_keyboard_loader.hpp"
+#include "native_interfaces.hpp"
 
 #ifdef QTTEXMACS
 #include "Qt/QTMApplication.hpp"
@@ -1122,11 +1124,6 @@ TeXmacs_main (int argc, char** argv) {
 
 #endif
     bool needs_startup_buffer_policy= number_buffers () == 0;
-    if (needs_startup_buffer_policy) {
-      extra_init_cmd << "(native-keyboard-start-warmup)";
-    }
-    extra_init_cmd << "(schedule-idle 300 (lambda () "
-                      "(exec-global (lambda () (ads-restore-visible-panes)))))";
 
     // Compile on the bootstrap thread before opening a window starts actors
     // which may concurrently publish lazily loaded module definitions.
@@ -1241,9 +1238,13 @@ TeXmacs_main (int argc, char** argv) {
     // ordinary ownerless delayed queue: that queue intentionally waits for a
     // concrete BufferActor view, while this policy is responsible for creating
     // the initial vault/welcome buffer in a zero-buffer shell.
-    if (needs_startup_buffer_policy)
-      exec_delayed_global (
-        scheme_cmd ("(vault-startup-open-initial-buffer)"));
+    if (needs_startup_buffer_policy) {
+      qt_post_to_main_thread (vault_startup_open_initial_buffer_native);
+      native_keyboard_start_warmup ();
+    }
+    qt_schedule_editor_idle (300, [] {
+      qt_post_to_main_thread (ads_restore_visible_panes);
+    });
 
     // inject scheme commands
     if (N(extra_init_cmd) > 0) exec_delayed (startup_commands);

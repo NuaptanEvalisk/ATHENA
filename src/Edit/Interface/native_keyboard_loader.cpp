@@ -6,8 +6,10 @@
 
 #include "native_keyboard_loader.hpp"
 #include "generic_keyboard_commands.hpp"
+#include "editor_modes.hpp"
+#include "editor.hpp"
+#include "qt_utilities.hpp"
 #include "file.hpp"
-#include "tm_timer.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -28,22 +30,16 @@ string native_text (const QString& value) {
 
 struct keyboard_module {
   const QJsonObject descriptor;
+  const editor_mode_predicate mode;
   std::once_flag once;
   std::atomic<bool> loaded {false};
-  explicit keyboard_module (QJsonObject value): descriptor (std::move (value)) {}
+  explicit keyboard_module (QJsonObject value): descriptor (std::move (value)),
+    mode (descriptor.contains ("mode") ?
+      editor_mode_resolve (descriptor["mode"].toString ().toStdString ()) : nullptr) {}
 
   void load () {
     std::call_once (once, [this] {
-      if (descriptor.contains ("domain"))
-        generic_keyboard_load_domain (native_text (descriptor["domain"].toString ()));
-      else {
-        array<object> parts;
-        for (const auto value: descriptor["module"].toArray ())
-          parts << symbol_object (native_text (value.toString ()));
-        object module= call ("module-provide", as_list_object (parts));
-        if (!as_bool (call ("module?", module)))
-          throw std::runtime_error ("Could not load keyboard editing module");
-      }
+      generic_keyboard_load_domain (native_text (descriptor["domain"].toString ()));
       loaded.store (true, std::memory_order_release);
     });
   }
@@ -52,7 +48,6 @@ struct keyboard_module {
 struct keyboard_loader {
   std::vector<std::unique_ptr<keyboard_module>> modules;
   std::atomic<bool> ready {false}, warming {false};
-  std::atomic<time_t> warmup_after {0};
 
   keyboard_loader () {
     string source;
@@ -68,13 +63,8 @@ struct keyboard_loader {
     for (const auto value: root["modules"].toArray ()) {
       const auto descriptor= value.toObject ();
       ASSERT ((!descriptor.contains ("mode") || descriptor["mode"].isString ()) &&
-              (descriptor["domain"].isString () != descriptor["module"].isArray ()),
-              "keyboard module requires one domain or module and an optional mode");
-      if (descriptor.contains ("module")) {
-        ASSERT (!descriptor["module"].toArray ().isEmpty (), "empty keyboard module");
-        for (const auto part: descriptor["module"].toArray ())
-          ASSERT (part.isString (), "keyboard module component must be a string");
-      }
+              descriptor["domain"].isString () && !descriptor.contains ("module"),
+              "keyboard module requires a native domain and an optional mode");
       modules.push_back (std::make_unique<keyboard_module> (descriptor));
     }
   }
@@ -105,8 +95,7 @@ void native_keyboard_force (bool all) {
   loading_scope scope;
   for (const auto& entry: state.modules) {
     if (entry->loaded.load (std::memory_order_acquire)) continue;
-    if (all || !entry->descriptor.contains ("mode") ||
-        as_bool (call (native_text (entry->descriptor["mode"].toString ()))))
+    if (all || !entry->mode || entry->mode ())
       entry->load ();
   }
 }
@@ -114,24 +103,17 @@ void native_keyboard_force (bool all) {
 void native_keyboard_start_warmup () {
   auto& state= loader ();
   if (state.warming.exchange (true)) return;
-  state.warmup_after.store (texmacs_time () + 500);
-  // The existing delayed queue retains the execution domain and owns the
-  // callback lifetime; all scheduling policy and progress live here.
-  exec_delayed_pause (eval ("(lambda () (native-keyboard-warmup-step))"));
-}
-
-object native_keyboard_warmup_step () {
-  auto& state= loader ();
-  const time_t remaining= state.warmup_after.load () - texmacs_time ();
-  if (remaining > 0) return object ((int) remaining);
-  if (loading) return object (10);
-  loading_scope scope;
-  for (const auto& entry: state.modules) {
-    if (entry->loaded.load (std::memory_order_acquire)) continue;
-    entry->load ();
-    return object (1);
-  }
-  state.warming.store (false);
-  call ("update-menus");
-  return object (true);
+  qt_schedule_editor_task (500, [] {
+    auto& state= loader ();
+    if (loading) return 10;
+    loading_scope scope;
+    for (const auto& entry: state.modules) {
+      if (entry->loaded.load (std::memory_order_acquire)) continue;
+      entry->load ();
+      return 1;
+    }
+    state.warming.store (false);
+    get_current_editor ()->update_menus ();
+    return -1;
+  });
 }

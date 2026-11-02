@@ -238,22 +238,6 @@ object expression (QJsonValue value, bool source) {
   return source ? cons (symbol_object (all ? "and" : "or"), as_list_object (terms)) : result;
 }
 
-std::function<bool()> mode_predicate (const QString& mode) {
-  if (mode == "in-text?") return editor_mode_text;
-  if (mode == "in-math?") return editor_mode_math;
-  if (mode == "in-prog?") return editor_mode_program;
-  if (mode == "in-source?") return editor_mode_source;
-  if (mode == "in-table?") return editor_mode_table;
-  if (mode == "in-screens?") return editor_mode_screens;
-  if (mode == "in-std?") return editor_mode_standard;
-  if (mode == "in-std-text?") return editor_mode_standard_text;
-  if (mode == "in-smart-ref?") return editor_mode_smart_reference;
-  if (mode == "in-verbatim?") return editor_mode_verbatim;
-  if (mode == "in-variants-disabled?") return editor_mode_variants_disabled;
-  if (mode == "in-hybrid?") return [] { return get_current_editor ()->hybrid_name_context (); };
-  throw std::runtime_error ("Unknown native keyboard mode: " + mode.toStdString ());
-}
-
 QJsonObject keymap_group (int group) {
   const auto& groups= keymap_groups ();
   ASSERT (group >= 0 && group < groups.size (), "invalid generic keymap group");
@@ -292,7 +276,7 @@ void register_group (int g) {
   std::function<bool()> mode;
   if (group.contains ("mode")) {
     context.identity= group["mode"].toString ().toStdString ();
-    mode= mode_predicate (group["mode"].toString ());
+    mode= editor_mode_resolve (group["mode"].toString ().toStdString ());
   }
   const bool required= group.contains ("require");
   if (required) context.identity += "/require:" + std::to_string (g);

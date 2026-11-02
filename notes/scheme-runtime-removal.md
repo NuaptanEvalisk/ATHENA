@@ -66,6 +66,22 @@ with runtime removal; native automation must use the existing interop API.
   still returned the native version. Structured tuple arguments and explicit
   rejection of style module loading also passed. The temporary profile was
   removed; logs are under `build_qt6/native-style-extern-*.log`.
+- Keyboard demand loading accepts native domains only and shares native mode
+  predicates with keymap registration. Startup vault opening, pane restoration,
+  keyboard prewarming and autosave scheduling no longer construct Scheme
+  commands. Delayed editor tasks retain actor/view identity and use native
+  continuation mailboxes; ownerless startup work adopts a concrete view before
+  executing. The transitional `schedule-idle` binding still retains an existing
+  Scheme callback for namespace export, but no longer creates a second lambda
+  or uses a Scheme idle-step procedure. That consumer and the general delayed
+  Scheme queue still need removal.
+  The -j16 build and deployment passed. A headless runtime check opened another
+  buffer before the delayed callback and confirmed the callback still mutated
+  its original buffer. The first offscreen-GUI probe waited indefinitely because
+  GUI `idle_time()` deliberately returns zero for an unfocused view; thread
+  inspection showed idle actors, not a deadlock. Production idle semantics were
+  preserved, and the ownership check used headless timed scheduling instead.
+  The temporary profile was removed. Logs: `build_qt6/native-idle-tasks-*.log`.
 
 ## Known Outstanding Failures
 

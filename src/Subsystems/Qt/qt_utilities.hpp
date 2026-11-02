@@ -33,6 +33,10 @@ using qt_main_thread_action= void (*) ();
 bool qt_defer_to_main_thread (qt_main_thread_action action);
 bool qt_defer_to_main_thread (void (*action) (string), string argument);
 void qt_post_to_main_thread (std::function<void()> action);
+// Run on the source BufferActor, or adopt the first current view for startup
+// work. Return a delay in milliseconds to repeat, or a negative value to stop.
+void qt_schedule_editor_task (int delay, std::function<int()> action);
+void qt_schedule_editor_idle (int idle, std::function<void()> action);
 class object;
 object qt_call_in_buffer (url buffer, const char* function, array<object> args);
 object qt_call_in_buffer (url buffer, const char* function);

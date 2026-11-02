@@ -12,6 +12,7 @@
 #include "sys_utils.hpp"
 #include "boot.hpp"
 #include "native_interfaces.hpp"
+#include "document_save_frontend.hpp"
 #include <QCoreApplication>
 #include <QTimer>
 #include <QJsonDocument>
@@ -19,6 +20,7 @@
 #include <QJsonArray>
 #include <stdexcept>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <vector>
 
@@ -221,19 +223,19 @@ void interactive_command (object function, object arguments) {
 }
 
 void interactive_schedule_idle (int milliseconds, object continuation) {
-  object body= cons (symbol_object ("native-idle-step"), list_object (object (milliseconds),
-    object (double (texmacs_time ())), list_object (symbol_object ("quote"), continuation)));
-  exec_delayed_pause (eval (list_object (symbol_object ("lambda"), null_object (), body)));
-}
-object interactive_idle_step (int milliseconds, double start, object continuation) {
-  int remaining= headless_mode ? milliseconds-int (texmacs_time ()-start) :
-    milliseconds-get_current_editor ()->idle_time ();
-  if (remaining>0) return object (remaining);
-  call (continuation);
-  return object (true);
+  struct retained_callback {
+    athena_scheme_handle_id handle;
+    explicit retained_callback (object value):
+      handle (scheme_command_handle_acquire (object_to_tmscm (value))) {}
+    ~retained_callback () { scheme_command_handle_release (handle); }
+  };
+  auto callback= std::make_shared<retained_callback> (continuation);
+  qt_schedule_editor_idle (milliseconds, [callback] {
+    call (tmscm_to_object (scheme_command_handle_value (callback->handle)));
+  });
 }
 void interactive_startup () {
-  interactive_schedule_idle (10000, eval (symbol_object ("autosave-delayed")));
+  qt_schedule_editor_idle (10000, document_autosave_schedule);
   if (headless_mode) return;
   const char* messages[]= {"Welcome to ATHENA", "ATHENA is a fork of GNU TeXmacs",
     "ATHENA falls under the GNU general public license", "ATHENA comes without any form of legal warranty",
