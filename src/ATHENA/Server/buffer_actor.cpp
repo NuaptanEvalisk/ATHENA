@@ -8,6 +8,8 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
+#include "cursor_history.hpp"
+#include "ATHENA/Data/tmfs.hpp"
 #include "buffer_actor.hpp"
 #include "native_math_edit.hpp"
 #include "view_zoom.hpp"
@@ -243,10 +245,10 @@ run_native_editor_command (editor_rep* editor,
       application_close_window (null_object ());
       break;
     case native_editor_command_id::history_back:
-      (void) call ("cursor-history-backward");
+      cursor_history_backward ();
       break;
     case native_editor_command_id::history_forward:
-      (void) call ("cursor-history-forward");
+      cursor_history_forward ();
       break;
     case native_editor_command_id::math_correct_all:
       math_correct_all ();
@@ -499,9 +501,7 @@ buffer_actor::publish_tmfs_title (editor_rep* preferred_editor) {
   }
   if (target == nullptr) return;
 
-  tree& body= subtree (impl_->state.document, impl_->state.root_path);
-  string title= as_string (
-    call ("tmfs-title", as_string (impl_->state.name), object (body)));
+  string title= tmfs_title (impl_->state.name);
   (void) target->publish_ui_text (
     actor_command_kind::ui_set_buffer_title, std::move (title));
 }

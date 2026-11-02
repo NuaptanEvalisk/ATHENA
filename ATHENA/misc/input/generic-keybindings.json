@@ -263,7 +263,7 @@
         {"key": "emacs:meta x", "commands": [{"call": "interactive", "args": [{"procedure": "exec-interactive-command"}]}]},
         {"key": "emacs:meta <", "commands": [{"call": "go-start", "args": []}]},
         {"key": "emacs:meta >", "commands": [{"call": "go-end", "args": []}]},
-        {"key": "emacs:prefix b", "commands": [{"call": "interactive", "args": [{"procedure": "go-to-buffer"}]}]},
+        {"key": "emacs:prefix b", "commands": [{"call": "visual-buffer-switcher-show", "args": []}]},
         {"key": "emacs:prefix h", "commands": [{"call": "select-all", "args": []}]},
         {"key": "emacs:prefix k", "commands": [{"call": "close-document", "args": []}]},
         {"key": "emacs:prefix K", "commands": [{"call": "close-document*", "args": []}]},

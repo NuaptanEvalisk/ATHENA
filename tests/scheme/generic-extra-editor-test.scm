@@ -29,26 +29,6 @@
 (undo 0)
 (check (equal? (body) '(document "abcdef" "next")) "kill is undoable")
 
-(define (legacy-balloon)
-  (wrap-selection-small
-    (insert-go-to '(inactive (hover-balloon "" "" "left" "Bottom")) '(0 0 0))))
-
-(define (compare-edit legacy native selected?)
-  (define (prepare)
-    (reset '(document "abcd") '(0 0 2))
-    (when selected? (selection-set '(0 0 1) '(0 0 3))))
-  (prepare)
-  (legacy)
-  (let ((expected-body (body)) (expected-cursor (cursor-path)))
-    (prepare)
-    (native)
-    (check (equal? (body) expected-body) "native edit produces the same tree")
-    (check (equal? (cursor-path) expected-cursor) "native edit leaves the same cursor")))
-(for-each
-  (lambda (selected?)
-    (compare-edit legacy-balloon make-balloon selected?))
-  '(#f #t))
-
 (reset '(document "helo world") '(0 0 2))
 (set-alt-selection "spell-live" '((0 0 0) (0 0 4)))
 (spell-live-replace-current-word "hello")

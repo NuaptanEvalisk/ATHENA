@@ -1,5 +1,6 @@
 // Copyright (C) 2001 Joris van der Hoeven, 2026 ATHENA contributors.
 // GPL-3.0-or-later.
+#include "editing_utilities.hpp"
 #include "native_text_edit.hpp"
 #include "native_interfaces.hpp"
 #include "editor.hpp"
@@ -481,7 +482,7 @@ void text_numbered_toggle (tree t) {
     if (is_tree (parent)) call ("numbered-toggle", parent);
     return;
   }
-  call ("variant-set", object (t), symbol_object (tag));
+  editing_variant_set (t, as_tree_label (tag));
 }
 
 void text_note_toggle_custom (tree t) {
@@ -538,7 +539,7 @@ void text_algorithm_toggle_number (tree t) {
   string tag= text_algorithm_root (as_string (L(t)));
   if (text_algorithm_specified (t)) tag= "specified-" * tag;
   if (text_algorithm_numbered (t)) tag << "*";
-  call ("variant-set", object (t), symbol_object (tag));
+  editing_variant_set (t, as_tree_label (tag));
 }
 
 void text_algorithm_toggle_name (tree t) {

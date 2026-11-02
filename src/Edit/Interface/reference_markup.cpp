@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "reference_markup.hpp"
+#include "tooltip_commands.hpp"
 #include "analyze.hpp"
 #include "editor.hpp"
 #include "native_text_edit.hpp"
@@ -353,8 +354,5 @@ void reference_show_preview (tree body, tree label) {
   tree ref= get_current_editor ()->the_subtree (reverse (ip->next));
   object tip= reference_preview (label->label);
   if (is_bool (tip) && !as_bool (tip)) return;
-  array<object> args;
-  args << object (label->label) << object (ref) << tip << object ("auto")
-       << object ("auto") << object ("default") << object (0.6);
-  call ("show-tooltip", args);
+  tooltip_show (label->label, ref, stree_to_tree (tip), "auto", "auto", "default", 0.6);
 }

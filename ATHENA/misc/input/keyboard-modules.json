@@ -2,7 +2,6 @@
   "version": 1,
   "modules": [
     {"mode": "in-text?", "domain": "text"},
-    {"mode": "in-prog?", "module": ["utils", "edit", "selections"]},
     {"mode": "in-prog?", "domain": "prog"},
     {"mode": "always?", "domain": "source"},
     {"mode": "in-table?", "domain": "table"},

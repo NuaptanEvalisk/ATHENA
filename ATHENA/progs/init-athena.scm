@@ -52,13 +52,11 @@
 (inherit-modules (kernel athena tm-define)
                  (kernel athena tm-dialogue)
                  (kernel athena tm-preferences) (kernel athena tm-modes)
-                 (kernel athena tm-secure)
-                 (kernel athena tm-file-system))
+                 (kernel athena tm-secure))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting utilities\n")
 (import-from (utils library cpp-wrap))
-(lazy-define (utils library cursor) notify-cursor-moved cursor-history-add)
 
 (import-from (utils misc markup-funcs))
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
@@ -75,10 +73,6 @@
 
 ;(display "Booting generic mode\n")
 (initialize-node-groups)
-(import-from (utils edit variants))
-(import-from (utils library cursor))
-(import-from (utils edit selections))
-(import-from (utils misc tooltip))
 (define-secure-symbols doc-data author-data abstract-data ext-edit-macro
   screens-index screens-arity screens-bar screens-switch-to
   ext-cardlink-render system-icon-for-link cardlink-native-type cardlink-native-render
@@ -113,27 +107,12 @@
   open-namespace-manager open-namespace-explorer
   namespace-new-file-within-wizard namespace-info-page open-quick-switcher
   new-document)
-(tmfs-handler "wikilink-repair" 'load wikilink-repair-page)
-(tmfs-handler "ns" 'load namespace-info-page)
-(tmfs-load-handler (welcome name) (vault-welcome-page))
-(tmfs-handler "artifact" 'load artifact-open-page)
-(tmfs-title-handler (artifact name doc) "Artifact")
-(tmfs-permission-handler (artifact name kind) (== kind "read"))
-(tmfs-handler "artifact-disambiguation" 'load artifact-disambiguation-page)
-(tmfs-title-handler (artifact-disambiguation name doc) "Artifact disambiguation")
-(tmfs-permission-handler (artifact-disambiguation name kind) (== kind "read"))
-(tmfs-handler "artifact-name-query" 'load artifact-name-query-page)
-(tmfs-title-handler (artifact-name-query name doc) "Artifact disambiguation")
-(tmfs-permission-handler (artifact-name-query name kind) (== kind "read"))
 (register-preference-callback-procedures
   (list notify-cursor-color notify-document-background-color
         notify-enunciation-color notify-focus-border-width notify-focus-color
         notify-labels-mode notify-link-color notify-selection-color
         notify-vault-explorer-track notify-vault-preferences-mode))
 (generic-keyboard-load)
-(tmfs-handler "material" 'load material-info-page)
-(tmfs-handler "material" 'title materials-page-title)
-(tmfs-handler "material" 'permission? materials-page-permission?)
 (tm-property (open-replace) (:interactive #t))
 (tm-property (make-with var val) (:check-mark "o" test-env?))
 (tm-property (make-line-with var val)
@@ -205,7 +184,8 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting graphics mode\n")
-(define-secure-symbols ext-fold-toc-in-reflow? toc-fold-tree toc-unfold-tree)
+(define-secure-symbols ext-fold-toc-in-reflow? toc-fold-tree toc-unfold-tree
+                       mouse-fold mouse-unfold)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting formal and natural languages\n")

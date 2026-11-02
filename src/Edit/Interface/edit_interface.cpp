@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "Interface/edit_interface.hpp"
+#include "QTMNativeDialogs.hpp"
 #include "native_math_edit.hpp"
 #include "native_text_edit.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
@@ -1130,30 +1131,17 @@ editor_rep::focus_toolbar_state_snapshot () {
     if (snapshot.numbered_available)
       snapshot.numbered_checked= query ("numbered-numbered?");
   }
-  const bool alternateFirst= query ("alternate-first?");
-  const bool alternateSecond= query ("alternate-second?");
+  const bool alternateFirst= text_node_in_group (t, "alternate-first-tag");
+  const bool alternateSecond= text_node_in_group (t, "alternate-second-tag");
   snapshot.alternate_available= alternateFirst || alternateSecond;
   snapshot.alternate_checked= alternateSecond;
-  snapshot.pure_alternate_context= query ("pure-alternate-context?");
+  snapshot.pure_alternate_context= text_node_in_group (t, "alternate-tag");
   if (snapshot.alternate_available) {
-    try {
-      const bool fold= text_node_in_group (t, "folded-tag") || text_node_in_group (t, "unfolded-tag");
-      object label= fold ? object (string ("Unfold")) : call ("alternate-second-name", object (t));
-      if (is_string (label)) {
-        string value= as_string (label);
-        snapshot.alternate_label.assign (
-          value.data (), static_cast<std::size_t> (N(value)));
-      }
-      object icon= fold && alternateSecond ? object (string ("tm_alternate_both")) : call (
-        alternateSecond ? "alternate-second-icon" : "alternate-first-icon",
-        object (t));
-      if (is_string (icon)) {
-        string value= as_string (icon);
-        snapshot.alternate_icon.assign (
-          value.data (), static_cast<std::size_t> (N(value)));
-      }
-    }
-    catch (...) {}
+    const bool fold= text_node_in_group (t, "folded-tag") ||
+                     text_node_in_group (t, "unfolded-tag");
+    snapshot.alternate_label= fold ? "Unfold" : "Expand";
+    snapshot.alternate_icon= fold && alternateSecond ? "tm_alternate_both" :
+      alternateSecond ? "tm_alternate_second" : "tm_alternate_first";
     const string focusTag= as_string (L(t));
     if (focusTag == "wide" || focusTag == "wide*") {
       snapshot.alternate_label= "Accent below";
@@ -2317,7 +2305,7 @@ edit_interface_rep::apply_changes () {
   }
   else if (env_change & THE_SELECTION) {
     update_focus_loci ();
-    call ("close-tooltip");
+    if (!headless_mode) qtm_tooltip_close ();
     if (!is_nil (focus_ids) && got_focus)
       call ("link-follow-ids", object (focus_ids), object ("focus"));
   }

@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
+#include "editing_utilities.hpp"
 #include "format_commands.hpp"
 #include "editor.hpp"
 #include "new_view.hpp"
@@ -579,7 +580,6 @@ bool format_test_env (string variable, string value) {
 
 void format_tree_with_set (tree t, object properties) {
   tree wrapper= property_wrapper (properties);
-  call ("focus-tree-modified", object (t));
   t= tree_insert_node (t, N (wrapper), wrapper);
   tracked_tree current (t);
   format_with_simplify (t);
@@ -600,7 +600,6 @@ void format_tree_with_reset (object value, tree variable) {
   if (!is_tree (value)) return;
   tree t= as_tree (value);
   if (!tree_active (t)) return;
-  call ("focus-tree-modified", value);
   do {
     int i= property_index (t, variable, true);
     if (i >= 0) {
@@ -844,7 +843,7 @@ void format_set_effect_pen (object value, string pen) {
   const format_parameter_data& data= parameter_data ();
   QJsonValue family= data.effect_families.value (json_key (as_string (L (t))));
   if (!family.isString () || !data.definitions.value ("pens").toArray ().contains (json_key (pen))) return;
-  call ("variant-set", object (t), symbol_object (pen * "-" * native_string (family.toString ())));
+  editing_variant_set (t, as_tree_label (pen * "-" * native_string (family.toString ())));
 }
 
 bool format_test_effect_pen (object value, string pen) {

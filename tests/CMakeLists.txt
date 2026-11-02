@@ -724,14 +724,6 @@ set(_athena_application_runtime_tests
 set_tests_properties(${_athena_application_runtime_tests}
   PROPERTIES RESOURCE_LOCK athena_application_runtime)
 
-find_program (ATHENA_TEST_GUILE guile)
-if (ATHENA_TEST_GUILE)
-  add_test (NAME aux_buffer_permissions_scheme_test
-    COMMAND ${ATHENA_TEST_GUILE} --no-auto-compile
-      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/aux-buffer-permissions-test.scm
-      ${ATHENA_SOURCE_DIR})
-endif ()
-
 # from list of files we'll create tests test_name.cpp -> test_name
 foreach (_test_file ${TEST_SRC_FILES})
   get_filename_component (_test_name ${_test_file} NAME_WE)

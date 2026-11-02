@@ -5,6 +5,7 @@
 ******************************************************************************/
 
 #include "native_input_events.hpp"
+#include "tooltip_commands.hpp"
 #include "generic_keyboard_commands.hpp"
 #include "reference_markup.hpp"
 #include "edit_interface.hpp"
@@ -76,10 +77,9 @@ void update_reference_preview () {
   }
   object tip= present (tip1) ? tip1 : tip2;
   if (present (tip)) {
-    array<object> args;
-    args << (present (tip1) ? id1 : id2) << call ("cursor-tree") << tip
-         << object ("auto") << object ("auto") << object ("keyboard") << object (0.6);
-    call ("show-tooltip", args);
+    tooltip_show (as_string (present (tip1) ? id1 : id2),
+      get_current_editor ()->the_subtree (path_up (get_current_editor ()->the_path ())),
+      stree_to_tree (tip), "auto", "auto", "keyboard", 0.6);
     if (!present (tip1))
       get_current_editor ()->set_message (
         tree (CONCAT, compound ("verbatim", as_string (id1)), " <rightarrow> ",

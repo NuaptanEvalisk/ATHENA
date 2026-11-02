@@ -183,7 +183,7 @@ static void run_tests (int argc, char** argv) {
   gui_open (argc, argv);
   server sv;
   test_server= sv->get_server ();
-  eval ("(begin (tm-define (notify-cursor-moved status) #f) "
+  eval ("(begin "
         "(tm-define (like-emacs?) #f))");
   TableResizeTest test;
   test_status= QTest::qExec (&test, argc, argv);

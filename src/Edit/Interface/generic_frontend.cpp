@@ -1,5 +1,6 @@
 // Copyright (C) 2001-2026 ATHENA contributors. GPL-3.0-or-later.
 #include "generic_frontend.hpp"
+#include "tooltip_commands.hpp"
 #include "generic_editor_commands.hpp"
 #include "document_style_commands.hpp"
 #include "document_commands.hpp"
@@ -303,10 +304,7 @@ void generic_display_balloon (tree body, tree balloon, tree horizontal, tree ver
          va= is_atomic (vertical) ? vertical->label : string ("Bottom");
   object identity=
       list_object (object (reverse (obtain_ip (body))), tree_to_stree (body));
-  array<object> args;
-  args << identity << object (body) << object (balloon) << object (ha) << object (va)
-       << object (kind) << object (0.833333);
-  call ("show-tooltip", args);
+  tooltip_show (object_to_string (identity), body, balloon, ha, va, kind, 0.833333);
 }
 void generic_clear_style_cache () {
   get_server ()->style_clear_cache ();

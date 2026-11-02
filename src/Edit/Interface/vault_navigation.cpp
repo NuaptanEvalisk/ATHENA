@@ -1,4 +1,5 @@
 // Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later.
+#include "cursor_history.hpp"
 #include "vault_navigation.hpp"
 #include "ATHENA/Data/application_lifecycle.hpp"
 #include "ATHENA/Data/compound_edit_batch.hpp"
@@ -229,7 +230,7 @@ void native_artifact_jump_to_position (url source, path position, object history
       // Expanding a folded ancestor may move the cursor to its variant entry.
       locate ();
     }
-    if (record_history) call ("cursor-history-add", object (ed.the_path ()));
+    if (record_history) cursor_history_add (ed.the_path ());
   });
 }
 
@@ -330,6 +331,6 @@ void native_resolve_selection_as_artifact_name () {
     ed->set_message ("Select an artifact name of at most 8192 bytes", "Artifact");
     return;
   }
-  call ("cursor-history-add", object (ed->the_path ()));
+  cursor_history_add (ed->the_path ());
   application_browse_document (url_system (target), null_object ());
 }

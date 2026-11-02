@@ -1344,7 +1344,7 @@ static void run_tests (int argc, char** argv) {
   {
     server sv;
     test_server= sv->get_server ();
-    eval ("(begin (tm-define (notify-cursor-moved status) #f) "
+    eval ("(begin "
           "(tm-define (like-emacs?) #f))");
     NativeV3MathEditorTest test;
     status= QTest::qExec (&test, argc, argv);

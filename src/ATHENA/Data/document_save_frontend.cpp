@@ -45,8 +45,7 @@ void saved_callbacks (object options) {
 void remove_autosave (url name) {
   url saved= glue (name, "~");
   if (!exists (saved)) return;
-  if (is_rooted_tmfs (saved)) call ("tmfs-remove", object (saved));
-  else remove (saved);
+  if (!is_rooted_tmfs (saved)) remove (saved);
 }
 
 void queue_cloud_sync (url name) {
@@ -294,8 +293,7 @@ void save_permissions (save_task request) {
     return;
   }
   if (document_cannot_write (source, "Save file")) return;
-  // Virtual file providers retain their own wrapping/date protocol.
-  object modified= is_rooted_tmfs (source)? call ("tmfs-date", object (source)):
+  object modified= is_rooted_tmfs (source)? object (false):
     object (last_modified (source));
   object saved= is_rooted_tmfs (source)? call ("buffer-last-save", object (source)):
     object (get_last_save_buffer (source));

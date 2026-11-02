@@ -629,7 +629,6 @@ TestBufferActor::bufferResolutionWithoutVault () {
       compound ("style", tree (TUPLE, "generic")), compound ("body", tree (DOCUMENT, text)));
   };
   // The minimal Scheme test runtime does not load tmfs handlers.
-  eval ("(define (tmfs-permission? name permission) #t)");
   set_buffer_tree (name, source ("first"));
   set_buffer_tree (other, source ("other"));
   auto* actor= concrete_buffer (name)->actor;

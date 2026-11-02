@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="cursor-history-add" native="cursor_history_add" returns="void"><arg type="path" /></binding>
+  <binding name="cursor-history-backward" native="cursor_history_backward" returns="void" />
+  <binding name="cursor-history-forward" native="cursor_history_forward" returns="void" />
+  <binding name="variant-set" native="editing_variant_set" returns="void"><arg type="tree" /><arg type="tree_label" /></binding>
+  <binding name="alternate-toggle" native="editing_alternate_toggle" returns="void"><arg type="tree" /></binding>
+  <binding name="mouse-fold" native="editing_mouse_fold" returns="void"><arg type="tree" /></binding>
+  <binding name="mouse-unfold" native="editing_mouse_unfold" returns="void"><arg type="tree" /></binding>
+  <binding name="kbd-select-enlarge" native="editing_select_enlarge" returns="void" />
   <binding name="doc-data" native="native_doc_data" returns="tree"><arg type="tree" /><arg type="tree" /></binding>
   <binding name="author-data" native="native_author_data" returns="tree"><arg type="tree" /></binding>
   <binding name="abstract-data" native="native_abstract_data" returns="tree"><arg type="tree" /></binding>

@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "file.hpp"
+#include "ATHENA/Data/tmfs.hpp"
 #include "sys_utils.hpp"
 #include "analyze.hpp"
 #include "hashmap.hpp"
@@ -294,11 +295,11 @@ is_of_type (url name, string filter) {
       case 'd': return false;
       case 'l': return false;
       case 'r':
-        if (!as_bool (call ("tmfs-permission?", name, "read")))
+        if (!tmfs_permission (name, "read"))
           return false;
         break;
       case 'w':
-        if (!as_bool (call ("tmfs-permission?", name, "write")))
+        if (!tmfs_permission (name, "write"))
           return false;
         break;
       case 'x': return false;
@@ -439,7 +440,7 @@ is_scratch (url u) {
 string
 file_format (url u) {
   if (is_rooted_tmfs (u))
-    return as_string (call ("tmfs-format", object (u)));
+    return "stm";
   string ext= suffix (u);
   if (ext == "ath" || ext == "tm" || ext == "ats" || ext == "ts" || ext == "tp")
     return "texmacs";

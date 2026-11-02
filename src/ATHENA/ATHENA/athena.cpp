@@ -164,7 +164,6 @@ athena_compile_scheme_file (const std::filesystem::path& source,
   }
 
   eval ("(use-modules (system base compile))");
-  eval ("(use-modules (utils edit variants))");
   eval ("(when (and (not (defined? 'athena-time)) "
         "                 (defined? 'texmacs-time)) "
         "  (module-define! (current-module) 'athena-time texmacs-time))");

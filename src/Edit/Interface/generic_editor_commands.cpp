@@ -8,6 +8,8 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 *******************************************************************************/
 
+#include "cursor_history.hpp"
+#include "editing_utilities.hpp"
 #include "generic_editor_commands.hpp"
 #include "source_commands.hpp"
 #include "link_markup.hpp"
@@ -60,7 +62,7 @@ bool innermost_document (tree root, path cursor, path& document_path) {
 void add_history (object optional_from) {
   if (is_null (optional_from)) return;
   array<object> args= as_array_object (optional_from);
-  if (N (args) > 0) call ("cursor-history-add", args[0]);
+  if (N (args) > 0) cursor_history_add (as_path (args[0]));
 }
 
 bool first_relative_index (path prefix, path cursor, int& index) {
@@ -1445,8 +1447,6 @@ generic_focus_set_hidden_child (tree t, int i, string value,
   if (!generic_inputter_active (t[i], type)) return false;
   tree encoded= scheme_tree_to_tree (generic_inputter_encode (value, type));
   (void) tree_set (t, i, encoded);
-  try { (void) call ("focus-tree-modified", object (t)); }
-  catch (...) {}
   return true;
 }
 
@@ -1648,7 +1648,7 @@ generic_focus_tag_name (object label) {
     return is_string (nested) ? as_string (nested) : string ("");
   }
 
-  if (as_bool (call ("symbol-unnumbered?", label))) {
+  if (editing_unnumbered_symbol (as_tree_label (name))) {
     object nested= call ("focus-tag-name",
                          call ("symbol-drop-right", label, object (1)));
     return is_string (nested) ? as_string (nested) : string ("");

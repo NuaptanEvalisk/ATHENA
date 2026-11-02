@@ -24,6 +24,8 @@
 #include "Edit/Interface/native_keyboard_loader.hpp"
 #include "Edit/Interface/native_input_events.hpp"
 #include "Edit/Interface/generic_editor_commands.hpp"
+#include "Edit/Interface/editing_utilities.hpp"
+#include "Edit/Interface/cursor_history.hpp"
 #include "Edit/Interface/document_commands.hpp"
 #include "Edit/Interface/reference_markup.hpp"
 #include "Edit/Interface/link_markup.hpp"

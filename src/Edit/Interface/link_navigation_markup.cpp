@@ -1,5 +1,6 @@
 // Copyright (C) 2006 Joris van der Hoeven, 2026 ATHENA contributors.
 // SPDX-License-Identifier: GPL-3.0-or-later
+#include "cursor_history.hpp"
 #include "link_markup.hpp"
 #include "link.hpp"
 #include "hashmap.hpp"
@@ -341,7 +342,7 @@ void continue_id_navigation (const std::string& key, bool history,
     if (!ip_attached (ip)) return;
     editor ed= get_current_editor ();
     ed->go_to (ed->command_tree_end (ed->the_root (), reverse (ip)));
-    if (history) call ("cursor-history-add", object (ed->the_path ()));
+    if (history) cursor_history_add (ed->the_path ());
     return;
   }
   native_resolve_link_id (id, *attempted, [key, history, attempted] (url target) {
@@ -361,7 +362,7 @@ void continue_id_navigation (const std::string& key, bool history,
 
 void native_link_go_to_id (string id, object optional_from) {
   const bool history= !is_null (optional_from);
-  if (history) call ("cursor-history-add", car (optional_from));
+  if (history) cursor_history_add (as_path (car (optional_from)));
   continue_id_navigation (std::string (id.data (), N(id)), history,
     std::make_shared<std::set<std::string>> ());
 }
@@ -566,7 +567,7 @@ void browse_navigation_target (url target, const std::string& original,
     athena::avd::submit_source_task (owner.first, owner.second,
       [original, post, history] (editor_rep& ed) {
         if (post) native_link_post_load (url_system (string (original.c_str ())));
-        if (history) call ("cursor-history-add", object (ed.the_path ()));
+        if (history) cursor_history_add (ed.the_path ());
       }, [] (std::string error) {
         if (!error.empty ()) std_warning << "URL navigation: " << string (error.c_str ()) << LF;
       });
@@ -576,7 +577,7 @@ void browse_navigation_target (url target, const std::string& original,
 
 void native_link_go_to_url (url target, object optional_from) {
   const bool history= !is_null (optional_from);
-  if (history) call ("cursor-history-add", car (optional_from));
+  if (history) cursor_history_add (as_path (car (optional_from)));
   if (native_vault_navigate_url (target, history)) return;
   const string text= as_string (target, URL_SYSTEM);
   const std::string original (text.data (), N(text));

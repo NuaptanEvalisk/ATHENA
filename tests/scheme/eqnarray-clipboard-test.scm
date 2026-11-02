@@ -1,4 +1,3 @@
-(import-from (utils edit selections))
 (init-style "generic")
 
 (define fixture

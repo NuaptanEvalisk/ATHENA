@@ -18,6 +18,7 @@
 #include "modification.hpp"
 #include "patch.hpp"
 #include "new_document.hpp"
+#include "ATHENA/Data/application_lifecycle.hpp"
 #include "actor_ui_bridge.hpp"
 #include "buffer_actor.hpp"
 #include "scheme_execution_context.hpp"
@@ -646,9 +647,10 @@ athena_open_auxiliary_document (string name, tree document, url master) {
       (void) actor_tree_registry::instance ().discard (payload);
     return;
   }
-  (void) call ("aux-set-document", object (name), object (document));
-  (void) call ("aux-set-master", object (name), object (master));
-  (void) call ("switch-document", call ("aux-name", object (name)));
+  const url target ("tmfs://aux/" * name);
+  set_buffer_tree (target, document);
+  set_master_buffer (target, master);
+  application_open_document_url (target);
 }
 
 

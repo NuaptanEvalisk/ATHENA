@@ -11,6 +11,7 @@
 
 #include "file.hpp"
 #include "web_files.hpp"
+#include "ATHENA/Data/tmfs.hpp"
 #include "sys_utils.hpp"
 #include "analyze.hpp"
 #include "hashmap.hpp"
@@ -130,20 +131,15 @@ get_from_server (url u) {
   if (!is_none (res)) return res;
 
   string name= as_string (u);
-  if (ends (name, "~")) {
-    if (!is_rooted_tmfs (name)) return url_none ();
-    if (!as_bool (call ("tmfs-can-autosave?", unglue (u, 1))))
-      return url_none ();
-  }
-  object response= call ("tmfs-load", object (name));
+  if (ends (name, "~") || ends (name, "#")) return url_none ();
+  tree response= tmfs_load (u);
   string r;
-  if (is_tree (response)) {
+  {
     // TMFS transports generated trees, including metadata and arbitrary markup,
     // rather than canonical persisted v3 source documents.
-    const auto xml= athena::document::write_xml_v2 (as_tree (response));
+    const auto xml= athena::document::write_xml_v2 (response);
     r= string (xml.data (), (int) xml.size ());
   }
-  else r= as_string (response);
   if (r == "") return url_none ();
   url tmp= url_temp (string (".") * suffix (name));
   (void) save_string (tmp, r, true);
@@ -158,8 +154,7 @@ get_from_server (url u) {
 bool
 save_to_server (url u, string s) {
   if (!is_rooted_tmfs (u)) return true;
-  string name= as_string (u);
-  (void) call ("tmfs-save", object (name), object (s));
+  // Generated pages have no persistent storage provider.
   return false;
 }
 

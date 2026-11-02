@@ -6,6 +6,8 @@
 * This software falls under the GNU general public license version 3 or later.
 ******************************************************************************/
 
+#include "cursor_history.hpp"
+#include "editing_utilities.hpp"
 #include "native_graphics_commands.hpp"
 #include "native_editor_actions.hpp"
 #include "native_math_edit.hpp"
@@ -500,7 +502,7 @@ execute_business_id (editor ed, const QString& id) {
   else if (id == "view-heading-unfold-all")
     ed->heading_unfold_all ();
   else if (id == "go-save-position")
-    (void) call ("cursor-history-add", object (ed->the_path ()));
+    cursor_history_add (ed->the_path ());
   else if (id == "popup-resolve-artifact") {
     native_resolve_selection_as_artifact_name ();
   }
@@ -1251,7 +1253,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
         }
       }
     }
-    if (allowed) (void) call ("variant-set", object (target), symbol_object (tag));
+    if (allowed) editing_variant_set (target, as_tree_label (tag));
   }
   else if (op == "focus-action") {
     actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
@@ -1265,7 +1267,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
         (void) call ("numbered-toggle", object (target));
     }
     else if (id == "alternate-toggle" && state.alternate_available)
-      (void) call ("alternate-toggle", object (target));
+      editing_alternate_toggle (target);
     else if (id == "inactive-toggle" && state.hidden_toggle_available)
       source_inactive_toggle (target);
     else if (id == "algorithm-toggle-number" &&

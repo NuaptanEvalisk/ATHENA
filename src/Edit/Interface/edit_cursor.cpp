@@ -366,7 +366,6 @@ edit_cursor_rep::notify_cursor_moved (int status) {
   notify_change (THE_CURSOR);
   if (cu->valid && cursor_context_at (tp, cursor_source_boundary ())) {
     program_cursor_moved (this);
-    call ("notify-cursor-moved", object (status));
   }
 }
 
@@ -671,7 +670,6 @@ edit_cursor_rep::go_to_here () {
   notify_change (THE_CURSOR);
   if (cu->valid && cursor_context_at (tp, cursor_source_boundary ())) {
     program_cursor_moved (this);
-    call ("notify-cursor-moved", object (DIRECT));
   }
 }
 
@@ -703,7 +701,6 @@ edit_cursor_rep::go_to (path p) {
     // apply_changes() sends the hook through go_to_here() after layout.
     if (cu->valid && cursor_context_at (tp, cursor_source_boundary ())) {
       program_cursor_moved (this);
-      call ("notify-cursor-moved", object (DIRECT));
     }
   }
 }

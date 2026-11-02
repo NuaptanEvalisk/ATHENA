@@ -366,7 +366,7 @@ static void run_tests (int argc, char** argv) {
   int status;
   {
     server runtime;
-    eval ("(begin (tm-define (notify-cursor-moved status) #f) (tm-define (like-emacs?) #f))");
+    eval ("(begin (tm-define (like-emacs?) #f))");
     NativeV3PropertiesDiffTest test;
     status= QTest::qExec (&test, argc, argv);
   }

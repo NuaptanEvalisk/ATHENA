@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 *******************************************************************************/
 
+#include "editing_utilities.hpp"
 #include "structured_commands.hpp"
 #include "native_math_edit.hpp"
 #include "native_text_edit.hpp"
@@ -339,13 +340,25 @@ void refocus_similar (object labels) {
 }
 
 void move_to_similar_tag (object labels, bool forwards) {
-  call (forwards ? "go-to-next-tag" : "go-to-previous-tag", labels);
+  editor ed= get_current_editor ();
+  path p= forwards ? ed->tree_next_tag (ed->the_root (), ed->the_path (), as_scheme_tree (labels)) :
+                     ed->tree_previous_tag (ed->the_root (), ed->the_path (), as_scheme_tree (labels));
+  if (ed->the_buffer_path () <= path_up (p)) {
+    ed->go_to (p);
+    ed->select_from_cursor ();
+  }
 }
 
 } // namespace
 
 void generic_traverse_horizontal (tree, bool forwards) {
-  call (forwards ? "go-to-next-word" : "go-to-previous-word");
+  editor ed= get_current_editor ();
+  path p= forwards ? ed->tree_next_word (ed->the_root (), ed->the_path ()) :
+                     ed->tree_previous_word (ed->the_root (), ed->the_path ());
+  if (ed->the_buffer_path () <= path_up (p)) {
+    ed->go_to (p);
+    ed->select_from_cursor ();
+  }
 }
 
 void generic_traverse_vertical (tree t, bool downwards) {
@@ -353,8 +366,7 @@ void generic_traverse_vertical (tree t, bool downwards) {
       table_move (get_current_editor (), downwards ? 1 : -1, 0))
     return;
   if (is_func (t, DOCUMENT)) {
-    call (downwards ? "go-to-next-tag" : "go-to-previous-tag",
-          symbol_object ("document"));
+    move_to_similar_tag (symbol_object ("document"), downwards);
     return;
   }
   outward (t, "traverse-vertical", downwards);
@@ -389,7 +401,7 @@ void generic_traverse_down () { dispatch_focus ("traverse-vertical", true); }
 
 void generic_traverse_previous_section_title () {
   object labels= native_node_similar (symbol_object ("section"));
-  call ("go-to-previous-tag", labels);
+  move_to_similar_tag (labels, false);
 }
 
 void generic_swipe_horizontal (tree t, bool forwards) {
@@ -436,7 +448,7 @@ bool generic_focus_has_variants (tree t) {
 
 bool generic_focus_has_toggles (tree t) {
   return as_bool (call ("numbered-context?", object (t))) ||
-         as_bool (call ("alternate-context?", object (t)));
+         text_node_in_group (t, "alternate-tag");
 }
 
 bool generic_focus_can_move (tree t) {

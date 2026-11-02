@@ -4,6 +4,7 @@
 #include "document_persistence.hpp"
 #include "buffer_name_catalog.hpp"
 #include "new_buffer.hpp"
+#include "tmfs.hpp"
 #include "new_window.hpp"
 #include "new_view.hpp"
 #include "tm_window.hpp"
@@ -127,11 +128,8 @@ void open_loaded_document (url name, load_options options) {
   const auto source= published_buffer_source (encode (name));
   schedule_loaded_cloud_sync (source.first, source.second);
   if (is_rooted_tmfs (name)) {
-    object master= call ("tmfs-master", object (name));
-    if (master != object (false)) {
-      const url target= is_string (master) ? url (as_string (master)) : as_url (master);
-      if (target != name) set_master_buffer (name, target);
-    }
+    const url target= tmfs_master (name);
+    if (target != name) set_master_buffer (name, target);
   }
 }
 
@@ -174,7 +172,7 @@ void load_document_permissions (url name, load_options options,
 
 url recovery_source (url name) {
   if (is_rooted_web (name)) return url_none ();
-  if (is_rooted_tmfs (name) && call ("tmfs-autosave", object (name), object ("~")) == object (false))
+  if (is_rooted_tmfs (name))
     return url_none ();
   url autosave= glue (name, "~");
   if (exists (name) && exists (autosave) && as_bool (call ("url-newer?", object (autosave), object (name))))
@@ -248,7 +246,7 @@ void browse_document_gui (url name, std::function<void(url)> completed) {
   const string answer= qtm_linked_file_choice_dialog (as_string (name, URL_SYSTEM), choices);
   if (answer == "system") application_open_external (name);
   else if (answer == "convert") {
-    const url target ("tmfs://import/" * format * "/" * as_string (call ("url->tmfs-string", object (name))));
+    const url target ("tmfs://import/" * format * "/" * tmfs_encode_url (name));
     load_document_gui (target, load_options (null_object ()), completed);
   }
   else if (answer == "plain") {
@@ -443,7 +441,7 @@ void application_close_window (object arguments) {
 void application_quit () { on_gui ([] { request_quit (false); }); }
 
 object application_url_modified (url source) {
-  return is_rooted_tmfs (source) ? call ("tmfs-date", object (source)) : object (last_modified (source));
+  return is_rooted_tmfs (source) ? object (false) : object (last_modified (source));
 }
 
 bool application_url_newer (url left, url right) {
@@ -453,18 +451,17 @@ bool application_url_newer (url left, url right) {
 }
 
 void application_url_remove (url source) {
-  if (is_rooted_tmfs (source)) call ("tmfs-remove", object (source));
-  else remove (source);
+  if (!is_rooted_tmfs (source)) remove (source);
 }
 
 object application_url_autosave (url source, string suffix) {
-  if (is_rooted_tmfs (source)) return call ("tmfs-autosave", object (source), object (suffix));
+  if (is_rooted_tmfs (source)) return object (false);
   return is_scratch (source) || is_of_type (source, "fw") ||
          (!exists (source) && is_of_type (source, "c")) ? object (glue (source, suffix)) : object (false);
 }
 
 object application_url_wrap (url source) {
-  return is_rooted_tmfs (source) ? call ("tmfs-wrap", object (source)) : object (false);
+  return object (false);
 }
 
 object application_buffer_last_save (url source) {
@@ -598,7 +595,7 @@ void application_import_document (url source, string format, object options) {
     const string format (selected.c_str ());
     url target= source;
     if (format != file_format (source))
-      target= url ("tmfs://import/" * format * "/" * as_string (call ("url->tmfs-string", object (source))));
+      target= url ("tmfs://import/" * format * "/" * tmfs_encode_url (source));
     load_options settings (tmscm_to_object (scheme_command_handle_value (retained->handle)));
     const bool latex= format == "latex" || format == "tex" || format == "latex-document";
     if (latex) system_wait ("Importing LaTeX", "please wait");

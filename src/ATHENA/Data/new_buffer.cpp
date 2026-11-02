@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "tm_data.hpp"
+#include "tmfs.hpp"
 #include "tm_server.hpp"
 #include "buffer_actor.hpp"
 #include "buffer_export.hpp"
@@ -634,7 +635,7 @@ try_set_buffer_tree (
   buf->buf->title= std::move (proposed_title);
   if (is_rooted_tmfs (name)) {
     buf->buf->read_only=
-      !as_bool (call ("tmfs-permission?", object (name), object ("write")));
+      !tmfs_permission (name, "write");
     (void) invoke_buffer_actor (
       buf, actor_command_kind::set_buffer_read_only, ATHENA_NO_VIEW,
       ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,

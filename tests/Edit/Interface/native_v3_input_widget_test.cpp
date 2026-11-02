@@ -399,7 +399,7 @@ static void run_tests (int argc, char** argv) {
   int status;
   {
     server runtime;
-    eval ("(begin (tm-define (notify-cursor-moved status) #f) "
+    eval ("(begin "
           "(tm-define (like-emacs?) #f))");
     TestNativeV3InputWidget test;
     status= QTest::qExec (&test, argc, argv);

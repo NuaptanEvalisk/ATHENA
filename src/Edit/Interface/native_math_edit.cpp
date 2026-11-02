@@ -1,5 +1,6 @@
 // Copyright (C) 1999 Joris van der Hoeven, 2026 ATHENA contributors.
 // GPL-3.0-or-later.
+#include "editing_utilities.hpp"
 #include "native_math_edit.hpp"
 #include "presentation_commands.hpp"
 #include "editor.hpp"
@@ -105,7 +106,7 @@ void native_variant_circulate (tree t, bool forward) {
     if (math_script_only (t)) {
       tree_label label= is_func (t, LSUB) ? LSUP : is_func (t, LSUP) ? LSUB :
                         is_func (t, RSUB) ? RSUP : RSUB;
-      call ("variant-set", object (t), symbol_object (as_string (label)));
+      editing_variant_set (t, label);
     }
     return;
   }
@@ -125,11 +126,11 @@ void native_variant_circulate (tree t, bool forward) {
     cycle_variant (t[0], t[0], math_variants ().value ("big").toArray (), forward);
     return;
   }
-  if (as_bool (call ("variant-standard-context?", object (t)))) {
+  if (editing_variant_context (t)) {
     array<object> choices= as_array_object (native_node_variants (symbol_object (as_string (L(t)))));
     for (int i=0; i<N(choices); ++i)
       if (as_symbol (choices[i]) == as_string (L(t))) {
-        call ("variant-set", object (t), choices[(i + (forward ? 1 : N(choices)-1)) % N(choices)]);
+        editing_variant_set (t, as_tree_label (as_symbol (choices[(i + (forward ? 1 : N(choices)-1)) % N(choices)])));
         return;
       }
     return;
