@@ -2279,9 +2279,6 @@ QTMPreferencesDialog::buildOtherPage () {
   finish_page (ai);
 
   QWidget* debugging= make_page ();
-  QFormLayout* debugGeneral= add_section (debugging, "General");
-  add_toggle (debugGeneral, "debug scheme backtraces");
-
   QFormLayout* console= add_section (debugging, "Error Messages");
   add_toggle (console, "open console on errors");
   add_toggle (console, "open console on warnings");

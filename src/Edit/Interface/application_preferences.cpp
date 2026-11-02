@@ -64,8 +64,6 @@ void application_preference_notify (string key) {
   if (callback == "notify-restart") athena_notify_restart (null_object ());
   else if (callback == "notify-viewport-follow") notify_viewport_follow ();
   else if (callback == "notify-fold-table-of-contents") windows_refresh ("");
-  else if (callback == "notify-debug-backtrace")
-    call (value == "on" ? "debug-enable" : "debug-disable", symbol_object ("backtrace"));
 }
 void application_preferences_notify_all () {
   const array<string> keys= get_user_preference_callback_names ();

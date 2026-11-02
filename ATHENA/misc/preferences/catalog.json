@@ -479,24 +479,6 @@
       }
     },
     {
-      "key": "debug scheme backtraces",
-      "type": "boolean",
-      "scope": "active",
-      "default": "off",
-      "callback": "debug-backtrace",
-      "ui": {
-        "category": "Other",
-        "tab": "Debugging",
-        "section": "General",
-        "order": 0,
-        "label": "Include Guile backtraces in Scheme errors",
-        "control": "toggle",
-        "category_order": 9,
-        "tab_order": 3,
-        "section_order": 0
-      }
-    },
-    {
       "key": "gui:line-input:autocommit",
       "type": "string",
       "scope": "active",

@@ -1078,6 +1078,24 @@ generated native entries and remain on the secure-function list.
   `native-selector-exact-index-runtime.log` (complete passing check), and
   `native-selector-preference-deploy.log`.
 
+## Native Predicate Dispatch And Retired Guile Preference
+
+- Structural pattern predicates call the existing generated native dispatcher
+  directly. Unknown names raise `Unknown native pattern predicate`; there is
+  no Scheme lookup/evaluation fallback or second procedure registry. Registered
+  native predicates retain argument conversion, return values and exceptions.
+  Arbitrary Scheme predicates are no longer an extension mechanism.
+- Removed the Guile-only `debug scheme backtraces` catalog entry, callback map,
+  notification branch and native Preferences toggle/empty General section.
+  Native error reporting, performance controls and crash backtraces are
+  unchanged; this was specifically Guile debug-enable/disable, not a native
+  diagnostic setting.
+- All four affected implementation units compiled with `-j16`. Logs:
+  `build_qt6/native-debug-preference-removal-build.log` and
+  `build_qt6/native-pattern-predicate-build.log`. No new tests were added.
+  Full build/deployment and targeted native-predicate dispatch/unknown-name
+  rejection verification remain pending with the next batch.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

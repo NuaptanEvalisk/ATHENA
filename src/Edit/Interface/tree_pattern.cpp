@@ -4,7 +4,9 @@
 #include "tree_pattern.hpp"
 #include "editor.hpp"
 #include "analyze.hpp"
+#include "native_dispatch.hpp"
 #include <algorithm>
+#include <stdexcept>
 #include <vector>
 #include <utility>
 
@@ -74,7 +76,14 @@ matches match_sequence (object values, object patterns, const bindings& env) {
       }
       return match_sequence (values, rest, env);
     }
-    if (!is_pair (values) || call (name, car (values)) == object (false)) return {};
+    if (!is_pair (values)) return {};
+    array<object> arguments;
+    arguments << car (values);
+    object accepted;
+    if (!native_dispatch_call (name, arguments, accepted))
+      throw std::invalid_argument ("Unknown native pattern predicate: " +
+                                   std::string (name.data (), N(name)));
+    if (accepted == object (false)) return {};
     return match_sequence (cdr (values), rest, env);
   }
   if (is_pair (pattern)) {
