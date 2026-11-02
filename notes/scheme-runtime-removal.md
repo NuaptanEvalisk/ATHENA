@@ -1640,6 +1640,24 @@ generated native entries and remain on the secure-function list.
   handles, remaining object interfaces and Guile build/package dependencies
   still require migration.
 
+## Native Formatting Prompt And Toggle Values
+
+- Formatting prompts take optional strings, preserving absent suggestions
+  versus explicit empty strings. Opacity, spacing, environment, hyphenation and
+  alternate-list prompts no longer construct object values. Async form delivery,
+  actor/view ownership and cancellation handling are unchanged.
+- Style toggles take optional reverse-wrapper trees. Bold, italic and small caps
+  pass their native reverse styles directly; underline uses no reverse wrapper.
+  Existing selection matching, border movement, empty-body unwrapping and tree
+  correction stay unchanged.
+- The native make-alternate editor action now passes its JSON default as a
+  string. Removed unused Scheme make-alternate/toggle-with-like exports and the
+  trivial availability assertion; native UI entries remain.
+- Generation and format_commands/native_editor_actions compilation passed with
+  -j16. Logs: build_qt6/native-format-prompt-values-glue.log and
+  build_qt6/native-format-prompt-values-build.log. No tests added or run. Full
+  linking and deployment are pending after the previous combined deployment.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

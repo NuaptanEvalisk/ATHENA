@@ -1764,7 +1764,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
   else if (op == "make-alternate")
     format_make_alternate (
       native_action_string (action.value ("prompt")),
-      object (native_action_string (action.value ("default"))),
+      native_action_string (action.value ("default")),
       as_tree_label (native_action_string (action.value ("tag"))));
   else if (op == "make-cd") athena_make_commutative_diagram ();
   else if (op == "insert-reverse-hierarchy-graph")

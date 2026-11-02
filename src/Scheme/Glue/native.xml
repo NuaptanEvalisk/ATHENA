@@ -604,9 +604,6 @@
     <arg type="string" />
   </binding>
   <binding name="make-interactive-with-opacity" native="format_make_interactive_with_opacity" returns="void" />
-  <binding name="make-alternate" native="format_make_alternate" returns="void">
-    <arg type="string" /><arg type="object" /><arg type="tree_label" />
-  </binding>
   <binding name="make-multi-with" native="format_make_multi_with" returns="void">
     <arg type="object" />
   </binding>
@@ -654,9 +651,6 @@
   </binding>
   <binding name="make-with-like" native="format_make_with_like" returns="void" exceptions="scheme">
     <arg type="content" />
-  </binding>
-  <binding name="toggle-with-like" native="format_toggle_with_like" returns="void" exceptions="scheme">
-    <arg type="content" /><arg type="object" />
   </binding>
   <binding name="toggle-bold" native="format_toggle_bold" returns="void" exceptions="scheme" />
   <binding name="toggle-italic" native="format_toggle_italic" returns="void" exceptions="scheme" />

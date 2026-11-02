@@ -309,7 +309,7 @@ enum class format_prompt_action {
   vspace_before, vspace_after, hyphenate
 };
 
-void format_prompt (string prompt, object proposal,
+void format_prompt (string prompt, std::optional<string> proposal,
                     format_prompt_action action, string variable,
                     tree_label tag= WITH) {
   const SchemeExecutionContext* context= current_scheme_execution_context ();
@@ -323,7 +323,7 @@ void format_prompt (string prompt, object proposal,
   QTMInteractiveField field;
   field.prompt= ui_text (prompt);
   field.type= "string";
-  if (is_string (proposal)) field.proposals << as_string (proposal);
+  if (proposal) field.proposals << *proposal;
   qtm_interactive_form_async (ends (field.prompt, "?") ? "Question" : "Enter data", {field},
     [actor, view, capabilities, action, target, tag]
     (std::vector<std::string> answers) {
@@ -449,7 +449,7 @@ void format_environment_prompt (string variable, format_prompt_action action) {
       prompt= entry.label;
       break;
     }
-  format_prompt (prompt, object (get_current_editor ()->get_env_string (variable)),
+  format_prompt (prompt, get_current_editor ()->get_env_string (variable),
                  action, variable);
 }
 
@@ -464,7 +464,7 @@ void format_make_interactive_line_with (string variable) {
 }
 
 void format_make_interactive_with_opacity () {
-  format_prompt ("opacity", null_object (), format_prompt_action::wrapper,
+  format_prompt ("opacity", std::nullopt, format_prompt_action::wrapper,
                  "", as_tree_label ("with-opacity"));
 }
 
@@ -483,7 +483,7 @@ void format_make_interactive_space (string kind) {
     proposal= "1fn";
   }
   else FAILED ("invalid interactive spacing kind");
-  format_prompt ("Length", object (proposal), action, "");
+  format_prompt ("Length", proposal, action, "");
 }
 
 void format_make_interactive_box () {
@@ -527,11 +527,11 @@ void format_hyphenate_selection () {
   if (!ed->selection_active_small ()) return;
   tree selected= ed->selection_get ();
   if (!is_atomic (selected)) return;
-  format_prompt ("Hyphenate as", object (selected->label),
+  format_prompt ("Hyphenate as", selected->label,
                  format_prompt_action::hyphenate, "");
 }
 
-void format_make_alternate (string prompt, object proposal, tree_label tag) {
+void format_make_alternate (string prompt, string proposal, tree_label tag) {
   format_prompt (prompt, proposal, format_prompt_action::wrapper, "", tag);
 }
 
@@ -671,7 +671,7 @@ void format_make_with_like (tree t) {
   }
 }
 
-void format_toggle_with_like (tree wrapper, object back) {
+void format_toggle_with_like (tree wrapper, std::optional<tree> back) {
   editor ed= get_current_editor ();
   tree t, root= ed->the_root ();
   bool found= false;
@@ -685,7 +685,7 @@ void format_toggle_with_like (tree wrapper, object back) {
   }
   if (!found || !ed->command_tree_with_same_type (t, wrapper))
     format_make_with_like (wrapper);
-  else if ((is_bool (back) && !as_bool (back)) || is_empty (t[N (t) - 1])) {
+  else if (!back || is_empty (t[N (t) - 1])) {
     t= tree_remove_node (t, N (t) - 1);
     tree parent;
     if (parent_tree (t, parent)) ed->correct_tree_node (parent);
@@ -694,26 +694,26 @@ void format_toggle_with_like (tree wrapper, object back) {
     ed->go_to (reverse (obtain_ip (t)) * 0);
   else if (at_body_border (t[N (t) - 1], true))
     ed->go_to (reverse (obtain_ip (t)) * 1);
-  else format_make_with_like (content_to_tree (back));
+  else format_make_with_like (*back);
 }
 
 void format_toggle_bold () {
   format_toggle_with_like (tree (WITH, "font-series", "bold", ""),
-    object (tree (WITH, "font-series", "medium", "")));
+    tree (WITH, "font-series", "medium", ""));
 }
 
 void format_toggle_italic () {
   format_toggle_with_like (tree (WITH, "font-shape", "italic", ""),
-    object (tree (WITH, "font-shape", "right", "")));
+    tree (WITH, "font-shape", "right", ""));
 }
 
 void format_toggle_small_caps () {
   format_toggle_with_like (tree (WITH, "font-shape", "small-caps", ""),
-    object (tree (WITH, "font-shape", "right", "")));
+    tree (WITH, "font-shape", "right", ""));
 }
 
 void format_toggle_underlined () {
-  format_toggle_with_like (tree (as_tree_label ("underline"), ""), object (false));
+  format_toggle_with_like (tree (as_tree_label ("underline"), ""), std::nullopt);
 }
 
 bool format_focus_has_preferences (tree t) {

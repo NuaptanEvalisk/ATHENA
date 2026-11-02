@@ -15,8 +15,7 @@
 ;; JSON metadata is native, while non-generic domain extensions still compose.
 (check (and (procedure? make-interactive-with)
             (procedure? make-interactive-line-with)
-            (procedure? make-interactive-with-opacity)
-            (procedure? make-alternate))
+            (procedure? make-interactive-with-opacity))
        "native interactive formatting bindings available without format-edit")
 (check (equal? (logic-ref env-var-description% "par-left") "Left margin")
        "interactive formatting prompt descriptions available at startup")
