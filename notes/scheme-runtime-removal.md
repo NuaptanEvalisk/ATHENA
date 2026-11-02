@@ -387,8 +387,8 @@ generated native entries and remain on the secure-function list.
   Process-owned request data continues to retain temporary files until process
   completion, even if its editor has closed.
 - No new tests were added: this reuses the previously checked callback
-  execution/cancellation/view/shutdown ownership mechanism. This batch has not
-  yet been rebuilt or interactively exercised; include it in the next build.
+  execution/cancellation/view/shutdown ownership mechanism. Included in the
+  consolidated native owner/value build below, but not interactively exercised.
 
 ## Native Character Values And Pattern Access
 
@@ -400,8 +400,22 @@ generated native entries and remain on the secure-function list.
 - Conversion association-list validation also uses the value API, removing its
   direct SCM dependency. Pair/list storage is still legacy and must be replaced;
   this does not claim a Scheme-free selector or conversion value model.
-- Source-reviewed, with no added tests. Build/deployment is pending together
-  with the preceding actor-owned Materials/AI completion changes.
+- Included with the actor-owned Materials/AI completion changes in the build
+  and focused runtime check below; no permanent tests were added.
+
+## Native Empty Values
+
+- Default `object` and `null_object` now store a native empty-list value instead
+  of acquiring Guile roots. Empty-list, empty-path and empty-number-array
+  predicates retain their existing semantics. Explicit SCM access returns the
+  immutable empty-list immediate without rooting it. Nonempty lists still need
+  their storage migration.
+- Built with `-j16`, including the preceding owner and character changes, and
+  deployed with the runtime helper. Isolated startup verified empty selection
+  paths and supplementary Unicode scalar matching through `tm-select`, printed
+  `NATIVE_OWNER_VALUES_OK` and exited normally. Removed its profile. Logs:
+  `build_qt6/native-owner-values-{build,runtime,deploy}.log`. No interactive
+  Materials chooser or external AI completion request was exercised.
 
 ## Known Outstanding Failure
 

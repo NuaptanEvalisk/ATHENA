@@ -51,14 +51,14 @@ tmscm_object_rep::~tmscm_object_rep () {
 }
 
 enum class native_object_kind {
-  boolean, integer, real, text, symbol, keyword, character, source_tree, location,
+  empty_list, boolean, integer, real, text, symbol, keyword, character, source_tree, location,
   change, patch_value
 };
 
 class native_object_rep: public object_rep {
 public:
   native_object_kind kind;
-  std::variant<bool,int,double,string,tree,url,modification,patch> value;
+  std::variant<std::monostate,bool,int,double,string,tree,url,modification,patch> value;
   tmscm_root_handle* bridge= nullptr;
 
   template<class T> native_object_rep (native_object_kind kind, const T& value):
@@ -69,6 +69,7 @@ public:
     if (bridge) return tmscm_root_value (bridge);
     tmscm result= TMSCM_UNSPECIFIED;
     switch (kind) {
+    case native_object_kind::empty_list: return tmscm_null ();
     case native_object_kind::boolean: result= bool_to_tmscm (std::get<bool> (value)); break;
     case native_object_kind::integer: result= int_to_tmscm (std::get<int> (value)); break;
     case native_object_kind::real: result= double_to_tmscm (std::get<double> (value)); break;
@@ -143,7 +144,7 @@ hash (object obj) {
 ******************************************************************************/
 
 object null_object () {
-  return tmscm_to_object (tmscm_null ()); }
+  return object (); }
 object cons (object obj1, object obj2) {
   return tmscm_to_object (tmscm_cons (object_to_tmscm (obj1), object_to_tmscm (obj2))); }
 object list_object (object obj1) {
@@ -204,13 +205,19 @@ object cadddr (object obj) {
 * Predicates
 ******************************************************************************/
 
-bool is_null (object obj) { return !native_value (obj) && tmscm_is_null (object_to_tmscm (obj)); }
+bool is_null (object obj) {
+  if (auto* n= native_value (obj)) return n->kind == native_object_kind::empty_list;
+  return tmscm_is_null (object_to_tmscm (obj));
+}
 bool is_pair (object obj) { return !native_value (obj) && tmscm_is_pair (object_to_tmscm (obj)); }
 bool is_keyword (object obj) {
   if (auto* n= native_value (obj)) return n->kind == native_object_kind::keyword;
   return scm_is_true (scm_keyword_p (object_to_tmscm (obj)));
 }
-bool is_list (object obj) { return !native_value (obj) && tmscm_is_list (object_to_tmscm (obj)); }
+bool is_list (object obj) {
+  if (native_value (obj)) return is_null (obj);
+  return tmscm_is_list (object_to_tmscm (obj));
+}
 bool is_bool (object obj) {
   if (auto* n= native_value (obj)) return n->kind == native_object_kind::boolean;
   return tmscm_is_bool (object_to_tmscm (obj));
@@ -241,14 +248,18 @@ bool is_tree (object obj) {
   if (auto* n= native_value (obj)) return n->kind == native_object_kind::source_tree;
   return tmscm_is_tree (object_to_tmscm (obj));
 }
-bool is_path (object obj) { return !native_value (obj) && tmscm_is_path (object_to_tmscm (obj)); }
+bool is_path (object obj) {
+  if (native_value (obj)) return is_null (obj);
+  return tmscm_is_path (object_to_tmscm (obj));
+}
 bool is_url (object obj) {
   if (auto* n= native_value (obj))
     return n->kind == native_object_kind::location || n->kind == native_object_kind::text;
   return tmscm_is_url (object_to_tmscm (obj));
 }
 bool is_array_double (object obj) {
-  return !native_value (obj) && tmscm_is_array_double (object_to_tmscm (obj)); }
+  if (native_value (obj)) return is_null (obj);
+  return tmscm_is_array_double (object_to_tmscm (obj)); }
 bool is_widget (object obj) { return !native_value (obj) && tmscm_is_widget (object_to_tmscm (obj)); }
 bool is_patch (object obj) {
   if (auto* n= native_value (obj)) return n->kind == native_object_kind::patch_value;
@@ -271,7 +282,8 @@ object procedure_source (object obj) {
 
 object::object (tmscm_object_rep* o): rep (static_cast<object_rep*>(o)) {}
 object::object (native_object_rep* o): rep (static_cast<object_rep*>(o)) {}
-object::object (): rep (tm_new<tmscm_object_rep> (tmscm_null ())) {}
+object::object ():
+  rep (tm_new<native_object_rep> (native_object_kind::empty_list, std::monostate ())) {}
 object::object (bool b): rep (tm_new<native_object_rep> (native_object_kind::boolean, b)) {}
 object::object (int i): rep (tm_new<native_object_rep> (native_object_kind::integer, i)) {}
 object::object (double x):
@@ -418,6 +430,7 @@ as_url (object obj) {
 array<double>
 as_array_double (object obj) {
   ASSERT (is_array_double (obj), "array<double> expected");
+  if (is_null (obj)) return array<double> ();
   tmscm t= object_to_tmscm (obj);
   return tmscm_to_array_double (t);
 }
