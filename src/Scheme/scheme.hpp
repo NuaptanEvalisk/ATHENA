@@ -61,7 +61,6 @@ CONCRETE_CODE(object);
 tm_ostream& operator << (tm_ostream& out, object obj);
 bool operator == (object obj1, object obj2);
 bool operator != (object obj1, object obj2);
-int hash (object obj);
 
 
 object null_object ();
@@ -140,7 +139,6 @@ void aofm_cache_preferences ();
 
 object eval (const char* expr);
 object eval (string expr);
-object eval (object expr);
 object eval_file (string name);
 bool   exec_file (url u);
 void   exec_global (object cmd);

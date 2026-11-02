@@ -205,11 +205,6 @@ operator != (object obj1, object obj2) {
   return !(obj1 == obj2);
 }
 
-int
-hash (object obj) {
-  return as_int (call ("hash", obj, object (1234567)));
-}
-
 
 /******************************************************************************
 * Utilities
@@ -686,8 +681,6 @@ object eval (const char* expr) {
   return tmscm_to_object (eval_scheme (expr)); }
 object eval (string expr) {
   return tmscm_to_object (eval_scheme (expr)); }
-object eval (object expr) {
-  return call ("primitive-eval", expr); }
 object eval_file (string name) {
   return tmscm_to_object (eval_scheme_file (name)); }
 bool exec_file (url u) {
@@ -718,8 +711,9 @@ object call (string fun, object a1, object a2, object a3, object a4) { return na
 object call (string fun, array<object> a) {
   object result;
   if (native_dispatch_call (fun, a, result)) return result;
-  // Runtime builtins and remaining closures are removed by subsequent stages.
-  return tmscm_to_object (call_scheme (eval_scheme(fun), array_lookup(a))); }
+  throw std::invalid_argument ("Unknown native procedure: " +
+                               std::string (fun.data (), N(fun)));
+}
 
 object call (object fun) {
   return tmscm_to_object (call_scheme (object_to_tmscm (fun))); }

@@ -1096,6 +1096,23 @@ generated native entries and remain on the secure-function list.
   Full build/deployment and targeted native-predicate dispatch/unknown-name
   rejection verification remain pending with the next batch.
 
+## Retired Named Scheme Call Fallback
+
+- Name-based `call` now resolves only generated native entries and throws
+  `Unknown native procedure` for missing names. Removed its `eval_scheme` plus
+  `call_scheme` fallback. Production business callers already use typed/native
+  dispatch; remaining named-call uses are in legacy C++ test code.
+- Deleted unused `hash(object)` (which called Scheme hash) and `eval(object)`
+  (which invoked primitive-eval), including their declarations. No replacement
+  hash or expression-evaluation compatibility layer was introduced.
+- Explicit startup string evaluation and actual procedure-object callbacks
+  still exist and remain part of the full goal. Legacy tests that call removed
+  Scheme APIs need migration/removal, not a restored production fallback.
+- Compiled `object.cpp` with `-j16`; log
+  `build_qt6/native-named-call-cleanup-build.log`. No tests were added or run.
+  Combined full build/deployment remains pending with native predicate dispatch
+  and Guile debug-preference removal.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
