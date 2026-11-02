@@ -1561,12 +1561,8 @@ editor_rep::focus_toolbar_state_snapshot () {
       string label= document_style_get_menu_name (option);
       item.label.assign (
         label.data (), static_cast<std::size_t> (N(label)));
-      object help= document_style_get_documentation (object (option));
-      if (is_string (help)) {
-        string text= as_string (help);
-        item.help.assign (
-          text.data (), static_cast<std::size_t> (N(text)));
-      }
+      string help= document_style_get_documentation (option);
+      item.help.assign (help.data (), static_cast<std::size_t> (N(help)));
       item.checked= document_has_style_package (this, option);
       snapshot.style_options.push_back (std::move (item));
     }

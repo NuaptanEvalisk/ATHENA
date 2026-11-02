@@ -40,12 +40,6 @@ string name_of (object x) {
 bool tag (tree t, const char* name) {
   return is_compound (t, name);
 }
-object name_list (const names& values) {
-  array<object> out;
-  for (auto s : values)
-    out << object (s);
-  return as_list_object (out);
-}
 tree definition (string name) {
   return get_current_editor ()->get_init_value (name);
 }
@@ -319,17 +313,6 @@ array<string> source_search_parameters (string name) {
   array<string> result;
   for (const auto& value: values) result << value;
   return result;
-}
-object source_search_tag_parameters (tree t) {
-  array<object> result;
-  const auto values= source_search_parameters (as_string (L (t)));
-  for (int i=0; i<N(values); ++i) result << object (values[i]);
-  return as_list_object (result);
-}
-object source_assigned_parameters (object label) {
-  names values, visited;
-  assigned (name_of (label), values, visited);
-  return name_list (values);
 }
 std::optional<array<string>> source_theme_members (string theme) {
   tree def= definition ("with-" * theme);

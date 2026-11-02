@@ -6,11 +6,6 @@
   (unless condition
     (apply error (cons message details))))
 
-(for-each
-  (lambda (key)
-    (check (not (style-get-documentation key))
-           "unevaluated menu arguments have no style documentation" key))
-  '(theme generic (car styles) #f 42))
 (let* ((style-name "generic.ats")
        (legacy (url-resolve
                  (url-or (url-relative (current-buffer-url) style-name)

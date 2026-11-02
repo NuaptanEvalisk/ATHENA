@@ -12,8 +12,6 @@ bool source_variant (tree, bool);
 void source_extract_style (bool);
 std::vector<string> source_search_options (string);
 array<string> source_search_parameters (string);
-object source_search_tag_parameters (tree);
-object source_assigned_parameters (object);
 std::optional<array<string>> source_theme_members (string);
 std::optional<string> source_member_theme (string);
 array<string> source_search_themes (string);

@@ -356,13 +356,9 @@ document_style_precedes (string left, string right) {
   return owner_style_precedes (current_style_editor (), left, right);
 }
 
-object
-document_style_get_documentation (object style) {
-  // Menu help receives unevaluated command arguments, not just style strings.
-  if (!is_string (style)) return object (false);
-  string synopsis= style_catalog ().lookup (style_catalog ().synopses,
-                                            as_string (style));
-  return synopsis == "" ? object (false) : object (synopsis);
+string
+document_style_get_documentation (string style) {
+  return style_catalog ().lookup (style_catalog ().synopses, style);
 }
 
 string

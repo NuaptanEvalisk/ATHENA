@@ -1344,6 +1344,22 @@ generated native entries and remain on the secure-function list.
   runtime remains `0063a1106`. Style help lookup is a remaining object adapter
   in the same UI snapshot path.
 
+## Native Style Help And Retired Parameter Exports
+
+- Style synopsis lookup accepts and returns native strings. Focus style-option
+  help no longer constructs an object or interprets Scheme false; an absent
+  synopsis naturally leaves the existing help string empty. Removed the old
+  unevaluated-menu-argument binding contract and its obsolete assertion.
+- Removed unconsumed tag-parameter/assigned-parameter bindings and their object
+  wrappers, including the now-unused name-list serializer. Internal assignment
+  analysis remains part of macro parameter discovery.
+- XML generation and three implementation units compiled with `-j16`; logs:
+  `build_qt6/native-style-help-build.log` and
+  `build_qt6/native-source-parameter-adapters-build.log`. No tests added or run.
+  These complete another bounded set of UI metadata changes; the next step is
+  combined full build, runtime verification and deployment. Installed runtime
+  remains the `0063a1106` deployment until that succeeds.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
