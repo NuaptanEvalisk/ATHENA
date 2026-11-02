@@ -36,6 +36,8 @@
 #include <cstring>
 #include <stdexcept>
 #include <unicode/utf8.h>
+#include <memory>
+#include <vector>
 
 /******************************************************************************
 * The object representation class
@@ -52,18 +54,25 @@ tmscm_object_rep::~tmscm_object_rep () {
 
 enum class native_object_kind {
   empty_list, boolean, integer, real, text, symbol, keyword, character, source_tree, location,
-  change, patch_value
+  change, patch_value, pair
 };
+
+struct native_pair {
+  object first, rest;
+  native_pair (object first, object rest): first (first), rest (rest) {}
+};
+using native_pair_ptr= std::shared_ptr<native_pair>;
 
 class native_object_rep: public object_rep {
 public:
   native_object_kind kind;
-  std::variant<std::monostate,bool,int,double,string,tree,url,modification,patch> value;
+  std::variant<std::monostate,bool,int,double,string,tree,url,modification,patch,native_pair_ptr> value;
   tmscm_root_handle* bridge= nullptr;
 
   template<class T> native_object_rep (native_object_kind kind, const T& value):
     kind (kind), value (value) {}
-  ~native_object_rep () { if (bridge) tmscm_root_release (bridge); }
+  ~native_object_rep ();
+  tmscm legacy_pair ();
 
   tmscm legacy_value () {
     if (bridge) return tmscm_root_value (bridge);
@@ -81,6 +90,7 @@ public:
     case native_object_kind::location: result= url_to_tmscm (std::get<url> (value)); break;
     case native_object_kind::change: result= modification_to_tmscm (std::get<modification> (value)); break;
     case native_object_kind::patch_value: result= patch_to_tmscm (std::get<patch> (value)); break;
+    case native_object_kind::pair: return legacy_pair ();
     }
     bridge= tmscm_root_acquire (result);
     return result;
@@ -89,6 +99,49 @@ public:
 
 static native_object_rep* native_value (object value) {
   return dynamic_cast<native_object_rep*> (value.operator->());
+}
+
+native_object_rep::~native_object_rep () {
+  if (bridge) tmscm_root_release (bridge);
+  if (kind != native_object_kind::pair) return;
+  auto& pair= *std::get<native_pair_ptr> (value);
+  auto* tail= native_value (pair.rest);
+  if (!tail || tail->kind != native_object_kind::pair || tail->ref_count != 1) return;
+  // Detach uniquely owned tails before releasing them, so long lists do not
+  // turn reference-count cleanup into recursive stack growth.
+  object empty;
+  object rest= pair.rest;
+  pair.rest= empty;
+  while ((tail= native_value (rest)) && tail->kind == native_object_kind::pair &&
+         tail->ref_count == 1) {
+    auto& next= *std::get<native_pair_ptr> (tail->value);
+    object saved= next.rest;
+    next.rest= empty;
+    rest= saved;
+  }
+}
+
+tmscm native_object_rep::legacy_pair () {
+  std::vector<native_object_rep*> pending;
+  native_object_rep* node= this;
+  tmscm tail;
+  for (;;) {
+    pending.push_back (node);
+    const auto& pair= *std::get<native_pair_ptr> (node->value);
+    auto* next= native_value (pair.rest);
+    if (!next || next->kind != native_object_kind::pair || next->bridge) {
+      tail= object_to_tmscm (pair.rest);
+      break;
+    }
+    node= next;
+  }
+  for (auto it= pending.rbegin (); it != pending.rend (); ++it) {
+    node= *it;
+    const auto& pair= *std::get<native_pair_ptr> (node->value);
+    tail= tmscm_cons (object_to_tmscm (pair.first), tail);
+    node->bridge= tmscm_root_acquire (tail);
+  }
+  return tail;
 }
 
 tmscm object_to_tmscm (object value) {
@@ -116,6 +169,21 @@ operator == (object obj1, object obj2) {
   auto* second= native_value (obj2);
   if (first && second) {
     if (first->kind != second->kind) return false;
+    if (first->kind == native_object_kind::pair) {
+      if (first->bridge || second->bridge)
+        return tmscm_is_equal (object_to_tmscm (obj1), object_to_tmscm (obj2));
+      do {
+        const auto& a= *std::get<native_pair_ptr> (first->value);
+        const auto& b= *std::get<native_pair_ptr> (second->value);
+        if (a.first != b.first) return false;
+        obj1= a.rest;
+        obj2= b.rest;
+        first= native_value (obj1);
+        second= native_value (obj2);
+      } while (first && second && first->kind == native_object_kind::pair &&
+               second->kind == native_object_kind::pair && !first->bridge && !second->bridge);
+      return obj1 == obj2;
+    }
     if (first->kind == native_object_kind::text)
       return as_string (obj1) == as_string (obj2);
     if (first->kind == native_object_kind::real) {
@@ -146,7 +214,8 @@ hash (object obj) {
 object null_object () {
   return object (); }
 object cons (object obj1, object obj2) {
-  return tmscm_to_object (tmscm_cons (object_to_tmscm (obj1), object_to_tmscm (obj2))); }
+  return tm_new<native_object_rep> (native_object_kind::pair,
+                                  std::make_shared<native_pair> (obj1, obj2)); }
 object list_object (object obj1) {
   return cons (obj1, null_object ()); }
 object list_object (object obj1, object obj2) {
@@ -184,21 +253,29 @@ string keyword_name (object keyword) {
   }
   return tmscm_to_symbol (scm_keyword_to_symbol (object_to_tmscm (keyword))); }
 object car (object obj) {
+  if (auto* n= native_value (obj)) {
+    if (n->kind != native_object_kind::pair) throw std::invalid_argument ("car: pair expected");
+    if (!n->bridge) return std::get<native_pair_ptr> (n->value)->first;
+  }
   return tmscm_to_object (tmscm_car (object_to_tmscm (obj))); }
 object cdr (object obj) {
+  if (auto* n= native_value (obj)) {
+    if (n->kind != native_object_kind::pair) throw std::invalid_argument ("cdr: pair expected");
+    if (!n->bridge) return std::get<native_pair_ptr> (n->value)->rest;
+  }
   return tmscm_to_object (tmscm_cdr (object_to_tmscm (obj))); }
 object caar (object obj) {
-  return tmscm_to_object (tmscm_caar (object_to_tmscm (obj))); }
+  return car (car (obj)); }
 object cdar (object obj) {
-  return tmscm_to_object (tmscm_cdar (object_to_tmscm (obj))); }
+  return cdr (car (obj)); }
 object cadr (object obj) {
-  return tmscm_to_object (tmscm_cadr (object_to_tmscm (obj))); }
+  return car (cdr (obj)); }
 object cddr (object obj) {
-  return tmscm_to_object (tmscm_cddr (object_to_tmscm (obj))); }
+  return cdr (cdr (obj)); }
 object caddr (object obj) {
-  return tmscm_to_object (tmscm_caddr (object_to_tmscm (obj))); }
+  return car (cddr (obj)); }
 object cadddr (object obj) {
-  return tmscm_to_object (tmscm_cadddr (object_to_tmscm (obj))); }
+  return cadr (cddr (obj)); }
 
 
 /******************************************************************************
@@ -209,13 +286,21 @@ bool is_null (object obj) {
   if (auto* n= native_value (obj)) return n->kind == native_object_kind::empty_list;
   return tmscm_is_null (object_to_tmscm (obj));
 }
-bool is_pair (object obj) { return !native_value (obj) && tmscm_is_pair (object_to_tmscm (obj)); }
+bool is_pair (object obj) {
+  if (auto* n= native_value (obj)) return n->kind == native_object_kind::pair;
+  return tmscm_is_pair (object_to_tmscm (obj));
+}
 bool is_keyword (object obj) {
   if (auto* n= native_value (obj)) return n->kind == native_object_kind::keyword;
   return scm_is_true (scm_keyword_p (object_to_tmscm (obj)));
 }
 bool is_list (object obj) {
-  if (native_value (obj)) return is_null (obj);
+  while (auto* n= native_value (obj)) {
+    if (n->kind == native_object_kind::empty_list) return true;
+    if (n->kind != native_object_kind::pair) return false;
+    if (n->bridge) break;
+    obj= std::get<native_pair_ptr> (n->value)->rest;
+  }
   return tmscm_is_list (object_to_tmscm (obj));
 }
 bool is_bool (object obj) {
@@ -249,8 +334,9 @@ bool is_tree (object obj) {
   return tmscm_is_tree (object_to_tmscm (obj));
 }
 bool is_path (object obj) {
-  if (native_value (obj)) return is_null (obj);
-  return tmscm_is_path (object_to_tmscm (obj));
+  if (!is_list (obj)) return false;
+  for (; !is_null (obj); obj= cdr (obj)) if (!is_int (car (obj))) return false;
+  return true;
 }
 bool is_url (object obj) {
   if (auto* n= native_value (obj))
@@ -258,8 +344,10 @@ bool is_url (object obj) {
   return tmscm_is_url (object_to_tmscm (obj));
 }
 bool is_array_double (object obj) {
-  if (native_value (obj)) return is_null (obj);
-  return tmscm_is_array_double (object_to_tmscm (obj)); }
+  if (!is_list (obj)) return false;
+  for (; !is_null (obj); obj= cdr (obj)) if (!is_double (car (obj))) return false;
+  return true;
+}
 bool is_widget (object obj) { return !native_value (obj) && tmscm_is_widget (object_to_tmscm (obj)); }
 bool is_patch (object obj) {
   if (auto* n= native_value (obj)) return n->kind == native_object_kind::patch_value;
@@ -294,14 +382,25 @@ object::object (string s):
   rep (tm_new<native_object_rep> (native_object_kind::text, s)) {}
 object::object (tree t):
   rep (tm_new<native_object_rep> (native_object_kind::source_tree, t)) {}
-object::object (list<string> l):
-  rep (tm_new<tmscm_object_rep> (list_string_to_tmscm (l))) {}
-object::object (list<tree> l):
-  rep (tm_new<tmscm_object_rep> (list_tree_to_tmscm (l))) {}
-object::object (path p): rep (tm_new<tmscm_object_rep> (path_to_tmscm (p))) {}
+object::object (list<string> l): object () {
+  array<object> values;
+  for (; !is_nil (l); l= l->next) values << object (l->item);
+  *this= as_list_object (values);
+}
+object::object (list<tree> l): object () {
+  array<object> values;
+  for (; !is_nil (l); l= l->next) values << object (l->item);
+  *this= as_list_object (values);
+}
+object::object (path p): object () {
+  array<object> values;
+  for (; !is_nil (p); p= p->next) values << object (p->item);
+  *this= as_list_object (values);
+}
 object::object (url u): rep (tm_new<native_object_rep> (native_object_kind::location, u)) {}
-object::object (array<double> a):
-  rep (tm_new<tmscm_object_rep> (array_double_to_tmscm (a))) {}
+object::object (array<double> a): object () {
+  for (int i=N(a)-1; i>=0; --i) *this= cons (object (a[i]), *this);
+}
 object::object (patch m):
   rep (tm_new<native_object_rep> (native_object_kind::patch_value, m)) {}
 object::object (modification m):
@@ -378,26 +477,34 @@ as_scheme_tree (object obj) {
 
 list<string>
 as_list_string (object obj) {
-  if (native_value (obj)) return list<string> ();
-  tmscm l= object_to_tmscm (obj);
-  if (!tmscm_is_list_string (l)) return list<string> ();
-  return tmscm_to_list_string (l);
+  if (!is_list (obj)) return list<string> ();
+  list<string> result;
+  for (; !is_null (obj); obj= cdr (obj)) {
+    object item= car (obj);
+    if (!is_string (item)) return list<string> ();
+    result= list<string> (as_string (item), result);
+  }
+  return reverse (result);
 }
 
 list<tree>
 as_list_tree (object obj) {
-  if (native_value (obj)) return list<tree> ();
-  tmscm l= object_to_tmscm (obj);
-  if (!tmscm_is_list_tree (l)) return list<tree> ();
-  return tmscm_to_list_tree (l);
+  if (!is_list (obj)) return list<tree> ();
+  list<tree> result;
+  for (; !is_null (obj); obj= cdr (obj)) {
+    object item= car (obj);
+    if (!is_tree (item)) return list<tree> ();
+    result= list<tree> (as_tree (item), result);
+  }
+  return reverse (result);
 }
 
 path
 as_path (object obj) {
-  if (native_value (obj)) return path ();
-  tmscm t= object_to_tmscm (obj);
-  if (!tmscm_is_path (t)) return path ();
-  return tmscm_to_path (t);
+  if (!is_path (obj)) return path ();
+  path result;
+  for (; !is_null (obj); obj= cdr (obj)) result= path (as_int (car (obj)), result);
+  return reverse (result);
 }
 
 array<object>
@@ -430,9 +537,9 @@ as_url (object obj) {
 array<double>
 as_array_double (object obj) {
   ASSERT (is_array_double (obj), "array<double> expected");
-  if (is_null (obj)) return array<double> ();
-  tmscm t= object_to_tmscm (obj);
-  return tmscm_to_array_double (t);
+  array<double> result;
+  for (; !is_null (obj); obj= cdr (obj)) result << as_double (car (obj));
+  return result;
 }
 
 modification
@@ -488,7 +595,7 @@ tree
 content_to_tree (object obj) {
   if (is_tree (obj)) return as_tree (obj);
   if (is_string (obj)) return tree (as_string (obj));
-  if (native_value (obj)) return "?";
+  if (native_value (obj) && !is_pair (obj)) return "?";
   return tmscm_to_content (object_to_tmscm (obj));
     // return as_tree (call ("content->tree", obj));
 }

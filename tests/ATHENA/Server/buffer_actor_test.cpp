@@ -1087,6 +1087,24 @@ TestBufferActor::nativeCallbacksRemainOwnedUntilResolution () {
 }
 
 void TestBufferActor::nativeValuesPreserveBridgeSemantics () {
+  object tail= list_object (object (2));
+  object head= cons (object (1), tail);
+  tmscm pair_bridge= object_to_tmscm (head);
+  QVERIFY (scm_is_eq (scm_cdr (pair_bridge), object_to_tmscm (tail)));
+  scm_set_car_x (scm_cdr (pair_bridge), scm_from_int (3));
+  QCOMPARE (as_int (car (tail)), 3);
+  QVERIFY (head == list_object (object (1), object (3)));
+  scm_set_cdr_x (pair_bridge, scm_from_utf8_string ("end"));
+  QVERIFY (!is_list (head));
+  QCOMPARE (as_string (cdr (head)), string ("end"));
+  object mixed= cons (object (0), tmscm_to_object (object_to_tmscm (tail)));
+  QVERIFY (is_list (mixed));
+  QCOMPARE (as_int (cadr (mixed)), 3);
+  object cycle= list_object (object (1));
+  tmscm cycle_bridge= object_to_tmscm (cycle);
+  scm_set_cdr_x (cycle_bridge, cycle_bridge);
+  QVERIFY (!is_list (cycle));
+
   object text ("alpha");
   tmscm bridge= object_to_tmscm (text);
   QVERIFY (scm_is_eq (bridge, object_to_tmscm (text)));
@@ -1150,6 +1168,19 @@ static void run_tests (int argc, char** argv) {
 int main (int argc, char** argv) {
   // Construction, access and destruction must work before Guile is booted.
   {
+    object first, second;
+    for (int i=0; i<50000; ++i) {
+      first= cons (object (i), first);
+      second= cons (object (i), second);
+    }
+    if (!is_list (first) || first != second || as_int (car (first)) != 49999)
+      return 2;
+    const path route (1, 2, 3);
+    if (as_path (object (route)) != route) return 2;
+    array<double> numbers;
+    numbers << 1.25 << -2.5;
+    const auto restored= as_array_double (object (numbers));
+    if (N(restored) != 2 || restored[0] != 1.25 || restored[1] != -2.5) return 2;
     object number (42), text ("native"), boolean (true), symbol= symbol_object ("name");
     tree source (TUPLE, "payload");
     object value (source);

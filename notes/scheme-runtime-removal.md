@@ -321,8 +321,9 @@ generated native entries and remain on the secure-function list.
   repeated bridge access preserves identity. Native numeric equality retains
   signed-zero distinction and NaN equality, and integer-to-double access remains
   accepted. This is a temporary boundary, not a replacement interpreter.
-- Lists, paths, arrays, procedures, parsing/printing and mixed native/legacy
-  equality still use the old representation. The native payload does not make
+- Procedures, parsing/printing and mixed native/legacy equality still use the
+  old representation; sequence storage was subsequently migrated below. The
+  native payload does not make
   object/tree reference counts thread-safe; actor ownership remains mandatory.
 - Startup exposed a URL comparison recursion: the non-const URL equality
   member was unavailable to variant comparison, which implicitly constructed
@@ -398,7 +399,8 @@ generated native entries and remain on the secure-function list.
   values have native payloads and only materialize SCM at an explicit bridge;
   characters remain distinct from integers. Invalid UTF-8 is rejected.
 - Conversion association-list validation also uses the value API, removing its
-  direct SCM dependency. Pair/list storage is still legacy and must be replaced;
+  direct SCM dependency. The later native pair storage change below removes
+  eager list conversion, but legacy values and predicates still need migration;
   this does not claim a Scheme-free selector or conversion value model.
 - Included with the actor-owned Materials/AI completion changes in the build
   and focused runtime check below; no permanent tests were added.
@@ -408,14 +410,36 @@ generated native entries and remain on the secure-function list.
 - Default `object` and `null_object` now store a native empty-list value instead
   of acquiring Guile roots. Empty-list, empty-path and empty-number-array
   predicates retain their existing semantics. Explicit SCM access returns the
-  immutable empty-list immediate without rooting it. Nonempty lists still need
-  their storage migration.
+  immutable empty-list immediate without rooting it. Nonempty lists are covered
+  by the subsequent storage migration below.
 - Built with `-j16`, including the preceding owner and character changes, and
   deployed with the runtime helper. Isolated startup verified empty selection
   paths and supplementary Unicode scalar matching through `tm-select`, printed
   `NATIVE_OWNER_VALUES_OK` and exited normally. Removed its profile. Logs:
   `build_qt6/native-owner-values-{build,runtime,deploy}.log`. No interactive
   Materials chooser or external AI completion request was exercised.
+
+## Native Pairs And Sequence Storage
+
+- `cons`, list construction, `car`/`cdr` and derived accessors now retain native
+  pairs and shared tails. Paths, string/tree lists and numeric arrays construct
+  and extract native sequences rather than eagerly converting through SCM.
+- Explicit bridge creation walks the tail iteratively and caches each pair's
+  identity. Once exposed, reads use that bridge so Scheme pair mutations remain
+  visible through native aliases. Legacy lists may still form a native pair's
+  tail. Proper-list checks reject improper/cyclic bridged lists.
+- Native list equality and uniquely owned tail release are iterative. The
+  pair implementation alone has reference-count access for tail ownership;
+  callbacks still require actor confinement.
+- This does not remove legacy input values, procedure/widget handles, the
+  Scheme reader/printer or runtime execution. Those remain separate work.
+- Built application and focused value check with `-j16`. Before Guile startup,
+  the check constructs, compares and releases two 50,000-item lists and converts
+  paths/numeric arrays. The runtime check passed shared-tail identity, pair
+  mutation visibility, mixed tails and cyclic-list rejection. Application
+  startup and Unicode selection passed with `NATIVE_PAIR_STORAGE_OK`. Deployed
+  using the runtime helper; removed the startup profile. Logs are under
+  `build_qt6/native-pair-storage-{build,values-test,runtime,deploy}.log`.
 
 ## Known Outstanding Failure
 

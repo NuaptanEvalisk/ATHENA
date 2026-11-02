@@ -29,6 +29,7 @@ void finalize_scheme_bootstrap ();
 
 class object_rep : concrete_struct {
   friend class object;
+  friend class native_object_rep;
 };
 
 class tmscm_object_rep;
