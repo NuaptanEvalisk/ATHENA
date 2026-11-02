@@ -33,8 +33,9 @@ object source_path (object source) {
   return ip_attached (ip) ? object (reverse (ip)) : object (false);
 }
 bool matches (tree t, object predicate) {
-  if (is_procedure (predicate)) return call (predicate, object (t)) != object (false);
   if (is_symbol (predicate)) return as_string (L(t)) == as_symbol (predicate);
+  if (!is_list (predicate))
+    throw std::invalid_argument ("Tree selector must be a tag or a list of tags");
   for (; !is_null (predicate); predicate= cdr (predicate))
     if (matches (t, car (predicate))) return true;
   return false;

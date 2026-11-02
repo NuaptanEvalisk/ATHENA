@@ -73,6 +73,7 @@ void native_locus_link_follow ();
 object native_link_process_url (url target);
 void native_link_post_load (url target);
 void native_link_go_to_url (url target, object optional_from);
+void native_link_open_label (url target, string label);
 void native_link_go_to_id (string id, object optional_from);
 
 #endif

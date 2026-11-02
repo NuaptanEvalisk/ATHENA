@@ -627,6 +627,20 @@ void native_link_go_to_url (url target, object optional_from) {
   if (as_string (base, URL_SYSTEM) != "") browse_navigation_target (base, original, post, history);
 }
 
+void native_link_open_label (url target, string label) {
+  const std::string destination (label.data (), N(label));
+  application_load_document (target, null_object (), [destination] (url loaded) {
+    const string name= as_string (loaded);
+    const auto owner= published_buffer_source (std::string (name.data (), N(name)));
+    athena::avd::submit_source_task (owner.first, owner.second,
+      [destination] (editor_rep& ed) {
+        ed.go_to_label (string (destination.c_str ()));
+      }, [] (std::string error) {
+        if (!error.empty ()) std_warning << "Label navigation: " << string (error.c_str ()) << LF;
+      });
+  });
+}
+
 void native_link_post_load (url target) {
   const auto parts= split_link_url (target);
   const string query= parts.second;

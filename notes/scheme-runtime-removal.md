@@ -180,7 +180,7 @@ with runtime removal; native automation must use the existing interop API.
   the native secure-function set directly instead of parsing a fabricated
   expression. Callback arguments still use the transitional object container.
 - Removed the unused exec-delayed-pause binding, API and queue wrapper. The
-  general delayed Scheme queue remains for startup scripts and old label jumps;
+  general delayed Scheme queue remains for startup scripts;
   removing this unused entry is not removal of that infrastructure.
   Built with -j16 and deployed through the official helper. No tests were
   added or run; queue shutdown/drain, owner-thread release and nonblocking
@@ -216,6 +216,24 @@ generated native entries and remain on the secure-function list.
   view destruction and actor shutdown passed, including owner-thread destruction
   of callback payloads. The approval dialog was not exercised interactively.
   Logs: `build_qt6/native-document-actions-{build,deploy,owner-test}.log`.
+
+## Native Label Navigation And Tag Selection
+
+- Cross-document label jumps use the native document loader completion and
+  submit navigation to the loaded document's published actor/view. The label
+  crosses threads as a std::string; no evaluated load-buffer/go-to-label string
+  or implicit current-window continuation remains.
+- Removed the dangling show-hidden-part call. Its implementation and document
+  part-selection controls were deliberately removed in commit 26fd4296e; this
+  was not a surviving folding implementation to port. Existing source label
+  searches and show_cursor_if_hidden remain unchanged.
+- Tree command selectors accept tags and lists of tags, not Scheme procedure
+  predicates. No product caller of the procedure form remains. Unsupported
+  selector values report an explicit argument error.
+- Built ATHENA.bin with -j16 and deployed through the official helper. No new
+  tests were added or run for these direct dispatch changes; interactive
+  cross-document navigation was not exercised. Build and deployment logs are
+  `build_qt6/native-label-navigation-{build,deploy}.log`.
 
 ## Known Outstanding Failure
 

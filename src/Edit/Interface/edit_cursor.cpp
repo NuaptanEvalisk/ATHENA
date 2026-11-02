@@ -11,6 +11,7 @@
 
 #include "edit_cursor.hpp"
 #include "native_program_edit.hpp"
+#include "link_markup.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
 #include "iterator.hpp"
 #include "tm_buffer.hpp"
@@ -866,22 +867,9 @@ edit_cursor_rep::go_to_label (string s) {
   tree val= buf->data->ref[s];
   if (is_func (val, TUPLE, 3) && is_atomic (val[2])) {
     string extra= val[2]->label;
-    if (starts (extra, "#")) {
-      string part= extra (1, N (extra));
-      int i= search_forwards (".", part);
-      if (i >= 0) part= part (0, i);
-      string show= "(show-hidden-part " * scm_quote (part) * ")";
-      string jump= "(go-to-label " * scm_quote (s) * ")";
-      exec_delayed (scheme_cmd ("(if " * show * " (exec-delayed (lambda () " * jump * ")))"));
-    }
-    else {
+    if (!starts (extra, "#")) {
       url u= relative (buf->name, url (extra));
-      if (u != buf->name) {
-        string new_buf = scm_quote (as_string (u));
-        string load_buf= "(load-buffer (system->url " * new_buf * "))";
-        string jump_to = "(go-to-label " * scm_quote (s) * ")";
-        exec_delayed (scheme_cmd ("(begin " * load_buf * " " * jump_to * ")"));
-      }
+      if (u != buf->name) native_link_open_label (u, s);
     }
   }
 }
