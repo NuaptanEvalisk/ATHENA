@@ -1739,6 +1739,27 @@ generated native entries and remain on the secure-function list.
 - Runtime removal is still incomplete; script execution, callback handles and
   remaining object/build/package dependencies remain in scope.
 
+## Native Insertion Command Parameters
+
+- Insertion command declarations no longer include scheme.hpp or expose object
+  values. Removed unused path-in/selector parsing and variadic insert dispatch;
+  all shipped insert consumers pass content only. Native command boundary
+  preparation used by actual selection/wrapper insertion is unchanged.
+- The default make binding uses the native default arity. Three source keyboard
+  commands with explicit arities now use make-with-arity with an integer.
+  make-with takes a native tree, preserving cell formatting priority, text
+  formatting behavior and compound-value insertion.
+- Full build passed with -j16. A fresh headless BufferActor prepared keyboard
+  context and executed insert, make-with, make and make-with-arity on its empty
+  document. It reported NATIVE_INSERTION_VALUES_OK and exited normally without
+  logged warnings/errors. This is an interface/mutation smoke check, not broad
+  editing coverage; no permanent tests were added.
+- Deployed with tools/deploy-local-runtime.sh, build ID:
+  0e105bcc72baa09fa9941c86012c464566e1cb57. Logs under build_qt6:
+  native-insertion-values-build.log, native-insertion-values-runtime.log and
+  native-insertion-values-deploy.log. Temporary probe/profile removed.
+- The full runtime-removal goal remains active and incomplete.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

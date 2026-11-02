@@ -50,10 +50,10 @@
   <binding name="tree-select" native="tree_command_select" returns="void" exceptions="scheme"><arg type="object" /><arg type="object" rest="true" /></binding>
   <binding name="tree-focus" native="tree_command_focus" returns="void" exceptions="scheme"><arg type="object" /><arg type="object" rest="true" /></binding>
   <binding name="tree-innermost" native="tree_command_innermost" returns="object" exceptions="scheme"><arg type="object" /><arg type="object" rest="true" /></binding>
-  <binding name="path-in" native="insertion_path" returns="path" exceptions="scheme"><arg type="content" /><arg type="object" /></binding>
-  <binding name="insert" native="insertion_insert" returns="void" exceptions="scheme"><arg type="content" /><arg type="object" rest="true" /></binding>
-  <binding name="make" native="insertion_make" returns="void" exceptions="scheme"><arg type="tree_label" /><arg type="object" rest="true" /></binding>
-  <binding name="make-with" native="insertion_make_with" returns="void" exceptions="scheme"><arg type="string" /><arg type="object" /></binding>
+  <binding name="insert" native="insertion_insert" returns="void" exceptions="scheme"><arg type="content" /></binding>
+  <binding name="make" native="insertion_make" returns="void" exceptions="scheme"><arg type="tree_label" /></binding>
+  <binding name="make-with-arity" native="insertion_make" returns="void" exceptions="scheme"><arg type="tree_label" /><arg type="int" /></binding>
+  <binding name="make-with" native="insertion_make_with" returns="void" exceptions="scheme"><arg type="string" /><arg type="content" /></binding>
   <binding name="cursor-history-add" native="cursor_history_add" returns="void"><arg type="path" /></binding>
   <binding name="cursor-history-backward" native="cursor_history_backward" returns="void" />
   <binding name="cursor-history-forward" native="cursor_history_forward" returns="void" />
