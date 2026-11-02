@@ -12,7 +12,7 @@
   (unless condition (error "Native v3 persistence regression" phase label)))
 (define (contains? value text)
   (if (tree-atomic? value)
-      (string-contains? (tree->string value) text)
+      (string-contains (tree->string value) text)
       (any (lambda (child) (contains? child text)) (tree-children value))))
 (define (has-tag? value tag)
   (and (not (tree-atomic? value))
@@ -73,7 +73,7 @@
     (when (equal? phase "candidate")
       (let ((answer (vault-load-with-ns (string->url root) "Unpublished fixture"
                                        "map.sqlite" "ns.sqlite")))
-        (check (string-contains? answer "Unpublished XML v3 migration candidates cannot be opened")
+        (check (string-contains answer "Unpublished XML v3 migration candidates cannot be opened")
                "unpublished candidate entered normal runtime")
         (finish #t)))
     (when (equal? phase "audit")

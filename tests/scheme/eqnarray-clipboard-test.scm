@@ -9,7 +9,7 @@
     (error "Eqnarray clipboard regression" label expected actual)))
 (define (reset content)
   (selection-cancel)
-  (buffer-set-body (current-buffer) (stree->tree `(document ,content)))
+  (buffer-set-body (current-buffer-url) (stree->tree `(document ,content)))
   (update-current-buffer)
   (update-forced)
   (tree-go-to (buffer-tree) 0 :start))

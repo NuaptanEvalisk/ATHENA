@@ -1,3 +1,4 @@
+(use-modules (srfi srfi-1))
 
 (init-style "generic")
 
@@ -15,12 +16,12 @@
     (lambda (alias)
       (reset-font-init)
       (init-font alias)
-      (check (== (get-init "font") expected-profile)
+      (check (equal? (get-init "font") expected-profile)
              "font alias did not select its smart-font profile"
              alias (get-init "font") expected-profile)
       (check (not (init-has? "math-font"))
              "font alias left a standalone math-font override" alias)
-      (check (not (list-any (lambda (p) (string-ends? p "-font"))
+      (check (not (any (lambda (p) (string-suffix? "-font" p))
                             (get-style-list)))
              "font alias left a legacy font package" alias))
     aliases))
@@ -31,10 +32,10 @@
   (lambda (alias)
     (reset-font-init)
     (init-font alias)
-    (check (== (get-init "font") "roman")
+    (check (equal? (get-init "font") "roman")
            "Computer Modern alias should retain the roman profile"
            alias (get-init "font"))
-    (check (== (get-init "math-font") "roman")
+    (check (equal? (get-init "math-font") "roman")
            "Computer Modern alias should retain roman mathematics"
            alias (get-init "math-font")))
   '("roman" "TeXmacs Computer Modern"))
@@ -44,7 +45,7 @@
 ;; reinstalling pagella-font.ats.
 (reset-font-init)
 (init-font "pagella" "math-pagella")
-(check (== (get-init "font") "TeX Gyre Pagella")
+(check (equal? (get-init "font") "TeX Gyre Pagella")
        "built-in Pagella menu did not use the smart-font profile")
 (check (not (init-has? "math-font"))
        "built-in Pagella menu left the legacy math-font override")
@@ -53,9 +54,9 @@
 
 (reset-font-init)
 (init-font "Stix")
-(check (== (get-init "font") "stix")
+(check (equal? (get-init "font") "stix")
        "Stix alias should redirect to the stix document font")
-(check (== (get-init "math-font") "math-stix")
+(check (equal? (get-init "math-font") "math-stix")
        "Stix alias should redirect to math-stix")
 
 (set-style-list '("generic" "alpha-font" "compact" "beta-font"))

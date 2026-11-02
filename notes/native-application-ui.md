@@ -111,11 +111,10 @@ marshalling remains a bridge to the deferred Scheme kernel.
   reused. A local fake bridge verified both destinations, cursor preservation,
   deleted placeholders and request-file cleanup without model requests.
 
-`init-athena.scm` retains only the required vault registration bridges: secure
-command names, TMFS page callbacks and title/read-only metadata, and preference
-callbacks. TMFS loads receive native trees directly. Page construction,
-navigation, repair and editing are C++; the kernel TMFS and preference registries
-are deliberately not rewritten by this migration.
+The later native-kernel migration completed the TMFS and preference registries.
+`init-athena.scm` now orchestrates native startup and declares interactive command
+metadata; secure command names are JSON. Page construction, navigation, repair,
+editing and preference callbacks are C++. `progs/kernel` has been removed.
 
 Final registration checks exercise TMFS loads, titles and permissions after
 normal startup with no former application module loaded. Batches were built

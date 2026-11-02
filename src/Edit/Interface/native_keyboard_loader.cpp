@@ -67,9 +67,9 @@ struct keyboard_loader {
             "unsupported keyboard module schema");
     for (const auto value: root["modules"].toArray ()) {
       const auto descriptor= value.toObject ();
-      ASSERT (descriptor["mode"].isString () &&
+      ASSERT ((!descriptor.contains ("mode") || descriptor["mode"].isString ()) &&
               (descriptor["domain"].isString () != descriptor["module"].isArray ()),
-              "keyboard module requires mode and one domain or module");
+              "keyboard module requires one domain or module and an optional mode");
       if (descriptor.contains ("module")) {
         ASSERT (!descriptor["module"].toArray ().isEmpty (), "empty keyboard module");
         for (const auto part: descriptor["module"].toArray ())
@@ -105,7 +105,8 @@ void native_keyboard_force (bool all) {
   loading_scope scope;
   for (const auto& entry: state.modules) {
     if (entry->loaded.load (std::memory_order_acquire)) continue;
-    if (all || as_bool (call (native_text (entry->descriptor["mode"].toString ()))))
+    if (all || !entry->descriptor.contains ("mode") ||
+        as_bool (call (native_text (entry->descriptor["mode"].toString ()))))
       entry->load ();
   }
 }

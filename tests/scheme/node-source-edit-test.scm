@@ -14,7 +14,7 @@
        (equal? (tree-node-properties a) (tree-node-properties b))))
 (define (install body)
   (selection-cancel)
-  (buffer-set-body (current-buffer) body)
+  (buffer-set-body (current-buffer-url) body)
   (update-current-buffer)
   (commit-changes)
   (clear-undo-history))
@@ -28,14 +28,14 @@
 (check (same-header (buffer-tree) saved-preamble) "show preserves root header")
 (check (same-header (tree-ref (buffer-tree) 0) (tree-ref saved-preamble 0))
        "show preserves preamble header")
-(check (== (tree-ref (buffer-tree) 1 0 0) (tree-ref saved-preamble 1))
+(check (equal? (tree-ref (buffer-tree) 1 0 0) (tree-ref saved-preamble 1))
        "show preserves atomic paragraph")
 (commit-changes)
 (undo 0)
-(check (== (buffer-tree) saved-preamble) "show undo restores exact identities")
+(check (equal? (buffer-tree) saved-preamble) "show undo restores exact identities")
 (redo 0)
 (buffer-hide-preamble)
-(check (== (buffer-tree) saved-preamble) "show/hide preserves complete source")
+(check (equal? (buffer-tree) saved-preamble) "show/hide preserves complete source")
 
 ;; Even optional metadata explicitly attached to a temporary grouping node
 ;; must not disappear when switching back to the visible body.
@@ -44,9 +44,10 @@
 (annotate (tree-ref (buffer-tree) 1 0))
 (define ignored (tree-copy (tree-ref (buffer-tree) 1)))
 (buffer-hide-preamble)
-(check (tree-func? (tree-ref (buffer-tree) 1) 'document 1) "annotated group becomes visible")
+(check (and (tree-is? (tree-ref (buffer-tree) 1) 'document)
+            (= (tree-arity (tree-ref (buffer-tree) 1)) 1)) "annotated group becomes visible")
 (check (same-header (tree-ref (buffer-tree) 1) ignored) "group identity is retained")
-(check (== (tree-ref (buffer-tree) 1 0) (tree-ref ignored 0)) "nested group remains intact")
+(check (equal? (tree-ref (buffer-tree) 1 0) (tree-ref ignored 0)) "nested group remains intact")
 
 (define plain (stree->tree '(document "Plain")))
 (for-each annotate (list plain (tree-ref plain 0)))
@@ -54,7 +55,7 @@
 (install plain)
 (buffer-make-preamble)
 (check (same-header (buffer-tree) saved-plain) "create preserves body root")
-(check (== (tree-ref (buffer-tree) 1 0 0) (tree-ref saved-plain 0))
+(check (equal? (tree-ref (buffer-tree) 1 0 0) (tree-ref saved-plain 0))
        "create preserves existing paragraph")
 
 (define nested (stree->tree '(document (with "color" "red" (with "font-series" "bold" "Text")))))
@@ -62,9 +63,10 @@
 (define saved-nested (tree-copy nested))
 (install nested)
 (with-merge (tree-ref (buffer-tree) 0 2))
-(check (== (buffer-tree) saved-nested) "merge preserves independently identified wrapper")
+(check (equal? (buffer-tree) saved-nested) "merge preserves independently identified wrapper")
 (tree-with-reset (tree-ref (buffer-tree) 0 2 2) "font-series")
-(check (tree-func? (tree-ref (buffer-tree) 0 2) 'with 1) "empty annotated wrapper remains")
+(check (and (tree-is? (tree-ref (buffer-tree) 0 2) 'with)
+            (= (tree-arity (tree-ref (buffer-tree) 0 2)) 1)) "empty annotated wrapper remains")
 (check (same-header (tree-ref (buffer-tree) 0 2) (tree-ref saved-nested 0 2))
        "reset retains wrapper metadata")
 
@@ -75,7 +77,7 @@
 (define saved-properties (tree-copy properties-only))
 (install properties-only)
 (with-merge (tree-ref (buffer-tree) 0 2))
-(check (== (buffer-tree) saved-properties) "merge preserves properties without a UUID")
+(check (equal? (buffer-tree) saved-properties) "merge preserves properties without a UUID")
 
 
 ;; Anonymous wrappers retain the established compact representation.  The

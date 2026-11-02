@@ -34,7 +34,7 @@
 (define proposal-source
   (stree->tree '(image (tuple (raw-data "abc") "named.png") "1cm" "" "" "")))
 (check (equal? (embedded-propose proposal-source 3)
-               (url->string (url-relative (current-buffer) "named.png")))
+               (url->string (url-relative (current-buffer-url) "named.png")))
        "native embedded proposal preserves named file with suffix")
 
 (define save-target (string->url "/tmp/athena-embedded-save-test.bin"))
@@ -43,13 +43,13 @@
        "native save-embedded-image writes raw payload")
 
 (buffer-set-body
-  (current-buffer)
+  (current-buffer-url)
   (stree->tree '(document
                   (image (tuple (raw-data "linked-payload") "linked.bin")
                          "1cm" "" "" ""))))
 (update-current-buffer)
 (define link-target (string->url "/tmp/athena-embedded-link-test.bin"))
-(define expected-link (url->string (url-delta (current-buffer) link-target)))
+(define expected-link (url->string (url-delta (current-buffer-url) link-target)))
 (link-embedded-image (tree-ref (buffer-tree) 0) link-target)
 (check (equal? (string-load link-target) "linked-payload")
        "native link-embedded-image saves raw payload")
@@ -59,7 +59,7 @@
        "native linked image mutation updates context classification")
 
 (buffer-set-body
-  (current-buffer)
+  (current-buffer-url)
   (stree->tree
     '(document
        (concat
@@ -69,7 +69,7 @@
 (update-current-buffer)
 (define copies-target (string->url "/tmp/athena-embedded-copies-test.bin"))
 (define expected-copies-link
-  (url->string (url-delta (current-buffer) copies-target)))
+  (url->string (url-delta (current-buffer-url) copies-target)))
 (link-embedded-image-copies (tree-ref (buffer-tree) 0 0) copies-target)
 (check (equal? (string-load copies-target) "same")
        "native link copies saves selected embedded payload")
@@ -84,7 +84,7 @@
 
 ;; The chooser callbacks re-find the embedded image from the cursor.
 (buffer-set-body
-  (current-buffer)
+  (current-buffer-url)
   (stree->tree '(document
                   (image (tuple (raw-data "callback") "callback.bin")
                          "1cm" "" "" ""))))
@@ -111,7 +111,7 @@
 (define bulk-save-second (numbered-temp bulk-save-base 2))
 (define bulk-save-name (url->string bulk-save-base))
 (buffer-set-body
-  (current-buffer)
+  (current-buffer-url)
   (stree->tree
     `(document
        (image (tuple (raw-data "bulk-one") ,bulk-save-name) "1cm" "" "" "")
@@ -127,11 +127,11 @@
 (define bulk-link-second (numbered-temp bulk-link-base 2))
 (define bulk-link-name (url->string bulk-link-base))
 (define bulk-link-first-rel
-  (url->string (url-delta (current-buffer) bulk-link-base)))
+  (url->string (url-delta (current-buffer-url) bulk-link-base)))
 (define bulk-link-second-rel
-  (url->string (url-delta (current-buffer) bulk-link-second)))
+  (url->string (url-delta (current-buffer-url) bulk-link-second)))
 (buffer-set-body
-  (current-buffer)
+  (current-buffer-url)
   (stree->tree
     `(document
        (image (tuple (raw-data "link-one") ,bulk-link-name) "1cm" "" "" "")
@@ -149,7 +149,7 @@
 
 (define fixture "$ATHENA_PATH/misc/images/windows/SmallTile.png")
 (buffer-set-body
-  (current-buffer)
+  (current-buffer-url)
   (stree->tree `(document (image ,fixture "1cm" "" "" ""))))
 (update-current-buffer)
 (define active-image (tree-ref (buffer-tree) 0))
@@ -166,7 +166,7 @@
 
 ;; Cursor-local embedding reproduces tree-innermost ... #t semantics.
 (buffer-set-body
-  (current-buffer)
+  (current-buffer-url)
   (stree->tree `(document "before" (image ,fixture "2cm" "" "" "") "after")))
 (update-current-buffer)
 (tree-go-to (tree-ref (buffer-tree) 1) 0 :end)
@@ -177,7 +177,7 @@
 ;; Recursive embedding converts linked images while leaving an already
 ;; embedded image unchanged.
 (buffer-set-body
-  (current-buffer)
+  (current-buffer-url)
   (stree->tree
     `(document
        (concat

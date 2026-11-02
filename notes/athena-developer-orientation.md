@@ -240,15 +240,20 @@ See `notes/ipados-build-handoff.md` for the existing platform workflow.
 
 ## Current development context
 
-Updated: 2026-11-01.
+Updated: 2026-11-02.
 
 - Real-window IME validation is **complete, confirmed by the user**. The
   outstanding-validation sentence in historical commit `abdd53b8e` describes
   that earlier checkpoint, not current work. Do not reopen it as a pending task.
 - Native conversion and the bounded DRD replacement are complete. `progs/convert`,
-  `progs/kernel/gui` and `progs/prog` have been removed. Program rendering stays
+  `progs/kernel` and `progs/prog` have been removed. Program rendering stays
   in ATHENA; generic editing is C++, with KSyntaxHighlighting lexical context
   and no language-specific smart indentation.
+- `progs` now contains only `init-athena.scm` and `init-buffer.scm`. Structural
+  pattern selection, editor utilities, preferences, interactive dialogs and
+  output ports are native. Unconsumed Scheme list/hash/logic/patch infrastructure
+  was removed rather than reproduced in C++. Guile and its native `(athena
+  runtime)` module still exist; this is not yet removal of the Scheme runtime.
 
 The production Vault is already XML v3 and the Hodarium NAS replica has
 converged and is in use. Do not treat the previous cutover as pending.

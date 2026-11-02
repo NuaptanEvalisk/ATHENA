@@ -1,3 +1,4 @@
+(use-modules (srfi srfi-1))
 ;; Exercise registration and native JSON dispatch on a real BufferActor.
 (native-keyboard-force #t)
 (init-style "generic")
@@ -6,7 +7,7 @@
   (unless condition (error "Native keymap regression" message)))
 (define (reset text position)
   (selection-cancel)
-  (buffer-set-body (current-buffer) (stree->tree `(document ,text)))
+  (buffer-set-body (current-buffer-url) (stree->tree `(document ,text)))
   (update-current-buffer)
   (tree-go-to (tree-ref (buffer-tree) 0) position)
   (update-current-buffer)

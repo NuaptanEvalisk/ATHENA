@@ -8,20 +8,20 @@
 
 ;; Startup opens a disposable shell before loading the configured home page.
 ;; The home page must replace that shell, not leave an extra No name tab.
-(define startup-buffer (current-buffer))
+(define startup-buffer (current-buffer-url))
 (define startup-window (current-window))
 (define startup-count (length (window-list)))
 (define home (fixture "home"))
 (load-browse-buffer home)
 (check (= (length (window-list)) startup-count) "home left a startup scratch tab")
 (check (equal? (current-window) startup-window) "home did not reuse startup shell")
-(check (not (buffer-exists? startup-buffer)) "startup scratch buffer was retained")
+(check (not (member (url->url startup-buffer) (buffer-list))) "startup scratch buffer was retained")
 
 ;; An explicitly opened blank document is not a startup placeholder.
 (open-window)
 (define (tab-count) (length (window-list)))
 (define initial-count (tab-count))
-(define a (current-buffer))
+(define a (current-buffer-url))
 (define a-window (current-window))
 (define a-view (current-view-url))
 (define b (fixture "target"))
@@ -34,7 +34,7 @@
 (define b-view (current-view-url))
 (check (= (tab-count) (+ initial-count 1)) "link replaced source tab")
 (check (equal? (window-to-buffer a-window) a) "source tab lost its buffer")
-(check (equal? (current-buffer) b) "link did not select target")
+(check (equal? (current-buffer-url) b) "link did not select target")
 (check (not (equal? a-window b-window)) "documents share a tab")
 
 ;; Same-document navigation and repeated cross-document navigation retain views.
@@ -59,13 +59,13 @@
 
 ;; New document and Workspace New tab both allocate a distinct visible buffer.
 (new-document)
-(define scratch (current-buffer))
+(define scratch (current-buffer-url))
 (define scratch-window (current-window))
 (check (= (tab-count) (+ initial-count 2)) "new document did not get a tab")
 (check (not (equal? scratch b)) "new document reused target buffer")
 (buffer-close scratch)
 (check (= (tab-count) (+ initial-count 1)) "closing buffer left its tab")
-(check (not (buffer-exists? scratch)) "closed buffer remains registered")
+(check (not (member (url->url scratch) (buffer-list))) "closed buffer remains registered")
 (check (equal? (window-to-buffer a-window) a) "close replaced source tab")
 (check (equal? (window-to-buffer b-window) b) "close replaced target tab")
 
@@ -92,7 +92,7 @@
 
 ;; Leave another live tab for the actor-owned publication checks.
 (new-document)
-(buffer-set-body (current-buffer) (stree->tree '(document "Tab regression")))
+(buffer-set-body (current-buffer-url) (stree->tree '(document "Tab regression")))
 
 ;; New views must expose their actual zoom through the widget virtual method,
 ;; not the base widget's default (also used to initialize preview snapshots).

@@ -13,7 +13,7 @@
   (exec-buffer old-name
     (lambda ()
       (save-buffer-as-main new-name old-name (list :overwrite))
-      (unless (equal? (url->system (current-buffer)) (url->system new-name))
+      (unless (equal? (url->system (current-buffer-url)) (url->system new-name))
         (error "Save As did not synchronously rename actor state"))
       (exec-global
         (lambda ()
@@ -23,11 +23,11 @@
             (call-with-output-file result-file
               (lambda (port)
                 (write
-                  (list 'old-exists (buffer-exists? old-name)
-                        'new-exists (buffer-exists? new-name)
+                  (list 'old-exists (member (url->url old-name) (buffer-list))
+                        'new-exists (member (url->url new-name) (buffer-list))
                         'saved
                         (and (url-exists? new-name)
-                             (string-contains? (string-load new-name)
+                             (string-contains (string-load new-name)
                                                "SAVE-AS-OWNERSHIP"))
                         'title (buffer-get-title new-name))
                   port))))))))

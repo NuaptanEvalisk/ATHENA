@@ -3,9 +3,9 @@
   "modules": [
     {"mode": "in-text?", "domain": "text"},
     {"mode": "in-prog?", "domain": "prog"},
-    {"mode": "always?", "domain": "source"},
+    {"domain": "source"},
     {"mode": "in-table?", "domain": "table"},
     {"mode": "in-graphics?", "domain": "graphics"},
-    {"mode": "always?", "domain": "fold"}
+    {"domain": "fold"}
   ]
 }

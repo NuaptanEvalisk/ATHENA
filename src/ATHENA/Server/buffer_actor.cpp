@@ -1008,6 +1008,7 @@ buffer_actor::thread_entry (buffer_actor* actor) {
 
 void*
 buffer_actor::guile_entry (void* raw_actor) {
+  initialize_scheme_ports ();
   static_cast<buffer_actor*> (raw_actor)->run_in_guile ();
   return nullptr;
 }

@@ -1,7 +1,7 @@
 ;; Run with QApplication and an actual actor-owned view. A headless test skips
 ;; system icon queries entirely and cannot detect GUI/actor wait cycles.
 (init-style "generic")
-(buffer-set-body (current-buffer)
+(buffer-set-body (current-buffer-url)
   (stree->tree '(document
     (cardlink "Web" "https://example.invalid")
     (cardlink "Folder" "/tmp/")

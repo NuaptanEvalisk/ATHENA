@@ -6,7 +6,7 @@
 
 (define (reset-proof following?)
   (selection-cancel)
-  (buffer-set-body (current-buffer)
+  (buffer-set-body (current-buffer-url)
     (stree->tree
       `(document (proof (document "something" "" ,@(if following? '("following") '())))
                  "outside")))

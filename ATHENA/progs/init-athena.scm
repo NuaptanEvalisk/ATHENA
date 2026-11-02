@@ -11,53 +11,11 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(cond ((os-mingw?)
-       (debug-set! stack 0))
-      ((os-macos?)
-       (debug-set! stack 2000000))
-      (else
-       (debug-set! stack 1000000)))
-
-(define boot-start (texmacs-time))
-
-(define base-primitive-load primitive-load)
-(define startup-load-profile? (equal? (getenv "ATHENA_STARTUP_PROFILE") "1"))
-
-(define (startup-profiled-primitive-load filename)
-  (let* ((start (texmacs-time))
-         (result (base-primitive-load filename))
-         (elapsed (- (texmacs-time) start)))
-    (display "ATHENA-STARTUP-LOAD\t")
-    (display elapsed)
-    (display "\t")
-    (display filename)
-    (newline)
-    result))
-
-(if startup-load-profile?
-    (set! primitive-load startup-profiled-primitive-load))
-
-;(display "Booting TeXmacs kernel functionality\n")
-(primitive-load (url-concretize "$ATHENA_PATH/progs/kernel/boot/boot.scm"))
-(inherit-modules (kernel boot compat) (kernel boot abbrevs)
-                 (kernel boot debug) (kernel boot srfi)
-                 (kernel boot ahash-table))
-(inherit-modules (kernel library base) (kernel library list)
-                 (kernel library tree) (kernel library content)
-                 (kernel library patch))
+(use-modules (athena runtime))
 (initialize-secure-symbols)
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
-;(display "Booting utilities\n")
-
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
-
-;(display "Booting main TeXmacs functionality\n")
 (application-preferences-initialize)
-(tm-define (notify-set-attachment name key val) (noop))
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
-;(display "Booting generic mode\n")
 (initialize-node-groups)
 (tm-property (choose-file fun text type) (:interactive #t))
 (tm-property (load-buffer name . opts)
@@ -122,57 +80,17 @@
 (tm-property (make-reduce-by by) (:argument by "Reduce by"))
 (tm-property (open-paragraph-format) (:interactive #t))
 (tm-property (open-page-format) (:interactive #t)
-                                (:applicable (not (selection-active?))))
+                                (:applicable (not (selection-active-any?))))
 (tm-property (open-pattern-selector cmd w) (:interactive #t))
 (tm-property (open-gradient-selector cmd) (:interactive #t))
 (tm-property (open-background-picture-selector cmd) (:interactive #t))
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
-;(display "Booting text mode\n")
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
-
-;(display "Booting math mode\n")
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
-
-;(display "Booting programming modes\n")
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
-
-;(display "Booting source mode\n")
 (tm-property (open-shortcuts-editor . opt) (:interactive #t))
 (init-user-shortcuts)
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
-;(display "Booting table mode\n")
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
-
-;(display "Booting graphics mode\n")
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
-
-;(display "Booting formal and natural languages\n")
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
-
-;(display "Booting dynamic features\n")
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
-
-;(display "Booting linking facilities\n")
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
-
-;(display "Booting debugging facilities\n")
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
-
-;(display "Booting editing modes for various special styles\n")
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
-
-
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
-
-;(display "Booting fonts\n")
 (tm-property (open-font-selector) (:interactive #t))
 (tm-property (open-document-font-selector) (:interactive #t))
 (tm-property (open-document-other-font-selector prefix) (:interactive #t))
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
-;(display "------------------------------------------------------\n")
 (native-dialogue-initialize)
 (native-keyboard-initialize)
-;(display "Initialization done\n")

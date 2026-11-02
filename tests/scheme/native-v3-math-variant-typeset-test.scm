@@ -11,7 +11,7 @@
      (math (concat (math-variant "bb" "R") " + "
                    (math-variant "cal" "F") " + "
                    (math-variant "bf" "T")))))
-(buffer-set-body (current-buffer) (stree->tree sample))
+(buffer-set-body (current-buffer-url) (stree->tree sample))
 (unless (equal? (tree->stree (buffer-tree)) sample)
   (error "native math variant body changed before typesetting"))
 (init-env "font" "TeX Gyre Pagella")

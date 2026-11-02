@@ -6,7 +6,7 @@
   (unless condition (error message (body) (cursor-path))))
 (define (reset content position)
   (selection-cancel)
-  (buffer-set-body (current-buffer) (stree->tree `(document ,content)))
+  (buffer-set-body (current-buffer-url) (stree->tree `(document ,content)))
   (update-current-buffer)
   (tree-go-to (tree-ref (buffer-tree) 0) position)
   (commit-changes)
@@ -70,14 +70,14 @@
 (define (reset-graphics-selection)
   (selection-cancel)
   (buffer-set-body
-    (current-buffer)
+    (current-buffer-url)
     (stree->tree
       '(document
          (with "gr-mode" (tuple "hand-edit" "penscript")
                (graphics ""))
          "tail")))
   (update-current-buffer)
-  (with g (tree-ref (tree-ref (buffer-tree) 0) 1)
+  (let ((g (tree-ref (tree-ref (buffer-tree) 0) 1)))
     (tree-go-to g :start)
     (selection-set (tree->path g :start) (tree->path g :end)))
   (commit-changes)
@@ -85,12 +85,12 @@
 
 (reset-graphics-selection)
 (key-press "delete")
-(check (null? (select (buffer-tree) '(graphics)))
+(check (null? (tm-select (buffer-tree) '(graphics)))
        "delete removes selected whole graphics")
 
 (reset-graphics-selection)
 (key-press "backspace")
-(check (null? (select (buffer-tree) '(graphics)))
+(check (null? (tm-select (buffer-tree) '(graphics)))
        "backspace removes selected whole graphics")
 
 (reset "ab" 1)
@@ -114,17 +114,17 @@
   (if (tree-is-buffer? t)
       (let ((move (lambda () (if forwards? (go-right) (go-left)))))
         (go-to-next-such-that move generic-context?))
-      (and-with p (tree-outer t)
-        (legacy-kbd-horizontal p forwards?))))
+      (legacy-kbd-horizontal
+        (cpp-path->tree (reverse (cdr (tree-ip t)))) forwards?)))
 (define (legacy-kbd-extremal t forwards?)
   (if (tree-is-buffer? t)
       (let ((move (lambda () (if forwards? (go-end-line) (go-start-line)))))
         (go-to-next-such-that move generic-context?))
-      (and-with p (tree-outer t)
-        (legacy-kbd-extremal p forwards?))))
+      (legacy-kbd-extremal
+        (cpp-path->tree (reverse (cdr (tree-ip t)))) forwards?)))
 
 (reset "abcd" 2)
-(legacy-kbd-horizontal (focus-tree) #f)
+(legacy-kbd-horizontal (cpp-path->tree (get-focus-path)) #f)
 (define legacy-left-path (cursor-path))
 (reset "abcd" 2)
 (kbd-left)
@@ -132,7 +132,7 @@
        "native generic left matches legacy movement")
 
 (reset "abcd" 2)
-(legacy-kbd-extremal (focus-tree) #f)
+(legacy-kbd-extremal (cpp-path->tree (get-focus-path)) #f)
 (define legacy-start-path (cursor-path))
 (reset "abcd" 2)
 (kbd-start-line)
@@ -146,7 +146,7 @@
 
 (define (reset-hybrid command)
   (selection-cancel)
-  (buffer-set-body (current-buffer)
+  (buffer-set-body (current-buffer-url)
                    (stree->tree `(document (inactive (hybrid ,command)))))
   (update-current-buffer)
   (tree-go-to (tree-ref (buffer-tree) 0 0 0) :end)

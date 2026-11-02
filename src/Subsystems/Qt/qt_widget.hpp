@@ -34,9 +34,8 @@ class qt_widget;
  We must distinguish between three stages of widget creation:
  
   1) Scheme widgets: these are scheme trees describing the widgets. These trees
-     are the result of several macro expansions on the code given by the user in
-     scheme (see under progs/kernel/gui) and are wholly handled by the TeXmacs
-     core. The Qt side plays no role here.
+     belong to the remaining Scheme widget interface. Native application UI
+     does not depend on this representation. The Qt side plays no role here.
   2) Parsed widgets: the C++ interpretation of the scheme widget. Merely a
      collection of qt_widget instances, without any (visible) QWidgets
      instantiated.

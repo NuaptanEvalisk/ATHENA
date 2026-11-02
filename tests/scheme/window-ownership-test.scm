@@ -1,3 +1,4 @@
+(use-modules (srfi srfi-1))
 (define (check ok message)
   (unless ok (error "Window ownership regression" message)))
 
@@ -5,9 +6,9 @@
 ;; other buffer.  They verify that window/buffer ownership and reverse mappings
 ;; remain actor-safe without relying on any Scheme menu expansion.
 (define windows
-  (list-filter (window-list)
-    (lambda (win)
-      (string-starts? (buffer-get-title (window-to-buffer win)) "Window "))))
+  (filter (lambda (win)
+            (string-prefix? "Window " (buffer-get-title (window-to-buffer win))))
+          (window-list)))
 (unless (= (length windows) 2)
   (error "two fixture windows were not found"
     (map (lambda (win)
@@ -15,14 +16,14 @@
              (list (url->string win) (url->string buf) (buffer-get-title buf))))
          (window-list))))
 (define buffers (map window-to-buffer windows))
-(check (= (length (list-remove-duplicates buffers)) 2)
+(check (= (length (delete-duplicates buffers)) 2)
        "window mappings did not retain distinct buffers")
 (for-each
   (lambda (win name)
     (check (not (url-none? name)) "window lost its buffer")
     (check (member win (buffer->windows name)) "reverse window mapping failed")
     (check (number? (buffer-last-visited name)) "visit metadata unavailable")
-    (check (string-starts? (buffer-get-title name) "Window ") "title unavailable")
+    (check (string-prefix? "Window " (buffer-get-title name)) "title unavailable")
     (check (boolean? (buffer-menu-modified? name)) "unsaved marker unavailable"))
   windows buffers)
 (init-env "page-medium" "paper")

@@ -5,7 +5,7 @@
 (define initial-mode (get-input-mode))
 (define (body) (tree->stree (buffer-tree)))
 (define (reset words)
-  (buffer-set-body (current-buffer) (stree->tree (cons 'document words)))
+  (buffer-set-body (current-buffer-url) (stree->tree (cons 'document words)))
   (update-current-buffer)
   (update-forced)
   (tree-go-to (tree-ref (buffer-tree) (- (tree-arity (buffer-tree)) 1)) :end))
@@ -27,7 +27,7 @@
 (key-press-complete "escape")
 
 ;; Macro entry has its own command candidates, not document-word completion.
-(buffer-set-body (current-buffer)
+(buffer-set-body (current-buffer-url)
                  (stree->tree
                    '(document "alpha" "alpine" (inactive (hybrid "a")))))
 (update-current-buffer)

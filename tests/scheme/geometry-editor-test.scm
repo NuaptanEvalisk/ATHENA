@@ -5,7 +5,7 @@
 (define (body) (tree->stree (buffer-tree)))
 (define (node) (tree-ref (buffer-tree) 0))
 (define (reset content)
-  (buffer-set-body (current-buffer) (stree->tree `(document ,content)))
+  (buffer-set-body (current-buffer-url) (stree->tree `(document ,content)))
   (update-current-buffer)
   (tree-go-to (node) :end)
   (commit-changes)

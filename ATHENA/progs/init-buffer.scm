@@ -11,8 +11,8 @@
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(let ((buf (current-buffer)))
-  (when (and buf (not (buffer-has-name? buf)))
+(let ((buf (current-buffer-url)))
+  (when (and (not (url-none? buf)) (not (buffer-has-name? buf)))
     (when (buffer-missing-style?)
       (buffer-set-default-style))
     (vault-apply-preferred-font-to-current-buffer)))

@@ -62,14 +62,6 @@ bool secure (object expression, const environment& locals) {
     environment scope= locals;
     return bind (car (tail), scope) && arguments (cdr (tail), scope);
   }
-  if (head == symbol_object ("with")) {
-    if (!is_pair (tail) || !is_symbol (car (tail)) || !is_pair (cdr (tail)) ||
-        !is_pair (cdr (cdr (tail)))) return false;
-    if (!secure (car (cdr (tail)), locals)) return false;
-    environment scope= locals;
-    scope.push_back (car (tail));
-    return arguments (cdr (cdr (tail)), scope);
-  }
   if (std::find (locals.begin (), locals.end (), head) != locals.end ()) return arguments (tail, locals);
   if (head == symbol_object ("quote")) return true;
   if (head == symbol_object ("quasiquote")) return quasiquote (tail, locals);

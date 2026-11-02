@@ -8,7 +8,7 @@
   (unless value (error "Native v3 export regression" message)))
 (define (expect-error thunk reason)
   (let ((caught (catch #t (lambda () (thunk) #f) (lambda args args))))
-    (check (and caught (string-contains? (object->string caught) reason))
+    (check (and caught (string-contains (object->string caught) reason))
            (string-append "missing explicit failure: " reason "; got "
                           (object->string caught)))))
 (define (property! tree key value)
@@ -17,8 +17,8 @@
          "could not construct typed native fixture"))
 (define (clean? text)
   (and (string? text)
-       (not (string-contains? text "nonconverted"))
-       (not (string-contains? text "athena-data"))))
+       (not (string-contains text "nonconverted"))
+       (not (string-contains text "athena-data"))))
 
 (define scripts (stree->tree '(scripts "x" "" "" "i" "n")))
 (property! scripts "math:scripts-policy" '(string "o"))
@@ -99,13 +99,13 @@
 (define numbered
   (export-html
     `(document (style "generic") (body (document ,block-source))) options))
-(check (string-contains? numbered "\\begin{equation}")
+(check (string-contains numbered "\\begin{equation}")
        "numbered MathBlock lost its equation environment")
 (let ((config (string-contains numbered "window.MathJax.tex.tags = 'ams'"))
       (loader (string-contains numbered "npm/mathjax@3/")))
   (check (and config loader (< config loader))
          "AMS numbering configuration must precede the loader"))
-(check (not (string-contains? numbered "\\[\\begin{equation}"))
+(check (not (string-contains numbered "\\[\\begin{equation}"))
        "MathBlock acquired nested MathJax display delimiters")
 
 ;; Preservation output nested under a supported native node must fail too.
@@ -126,7 +126,7 @@
 (define (expect-native-error thunk reason)
   (let ((caught (catch 'misc-error (lambda () (thunk) #f)
                   (lambda args args))))
-    (check (and caught (string-contains? (object->string caught) reason))
+    (check (and caught (string-contains (object->string caught) reason))
            "native exception lost its Scheme error or diagnostic")))
 
 ;; Entering at depth zero clears placeholders; entering within an active

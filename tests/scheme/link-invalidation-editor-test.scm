@@ -7,7 +7,7 @@
        (link "hyperlink" (id "visited-link-regression")
          (url "tmfs://wikilink/test-target"))
        "Wikilink")))
-(buffer-set-body (current-buffer) (stree->tree fixture))
+(buffer-set-body (current-buffer-url) (stree->tree fixture))
 (update-current-buffer)
 (update-forced)
 (define loci (id->trees "visited-link-regression"))

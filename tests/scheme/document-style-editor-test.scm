@@ -19,7 +19,7 @@
            "menu balloon property accepts an unevaluated style argument")))
 (let* ((style-name "generic.ats")
        (legacy (url-resolve
-                 (url-or (url-relative (current-buffer) style-name)
+                 (url-or (url-relative (current-buffer-url) style-name)
                          (url-append "$ATHENA_STYLE_PATH" style-name))
                  "r")))
   (check (equal? (url-resolve-package "generic") legacy)
@@ -28,17 +28,17 @@
 ;; Later category specializations remain authoritative for the native
 ;; style-overrides? and style-precedes? wrappers.
 (tm-define (style-category p)
-  (:require (in? p '("native-cat-a" "native-cat-b")))
+  (:require (member p '("native-cat-a" "native-cat-b")))
   :native-test-category)
 (check (style-overrides? "native-cat-a" "native-cat-b")
        "native style-overrides dispatches through Scheme style-category")
 
 (tm-define (style-category-precedes? p q)
-  (:require (and (== p :native-test-category)
-                 (== q :native-later-category)))
+  (:require (and (equal? p :native-test-category)
+                 (equal? q :native-later-category)))
   #t)
 (tm-define (style-category p)
-  (:require (== p "native-later"))
+  (:require (equal? p "native-later"))
   :native-later-category)
 (check (style-precedes? "native-cat-a" "native-later")
        "native style-precedes dispatches through Scheme category policy")
@@ -53,7 +53,7 @@
 ;; Included-package detection remains extensible and is evaluated by the
 ;; native has-style-package? command against the current normalized list.
 (tm-define (style-includes? p q)
-  (:require (and (== p "native-bundle") (== q "native-included")))
+  (:require (and (equal? p "native-bundle") (equal? q "native-included")))
   #t)
 (set-style-list '("generic" "native-bundle" "native-included"))
 (check (equal? (get-style-list) '("generic" "native-bundle"))

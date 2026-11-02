@@ -19,7 +19,7 @@
        "native detached preamble getter returns empty fallback")
 
 (buffer-set-body
-  (current-buffer)
+  (current-buffer-url)
   (stree->tree '(document "body")))
 (update-current-buffer)
 (check (not (buffer-has-preamble?))
@@ -69,7 +69,7 @@
 
 ;; Existing hidden preamble with multiple body children round-trips exactly.
 (buffer-set-body
-  (current-buffer)
+  (current-buffer-url)
   (stree->tree
     '(document
        (hide-preamble (document "defs"))

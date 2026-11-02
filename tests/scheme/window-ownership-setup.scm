@@ -4,6 +4,6 @@
   (let ((name (string->url
                  (string-append (getenv "HOME") "/window-"
                                 (number->string i) ".ath"))))
-    (buffer-rename (current-buffer) name)
+    (buffer-rename (current-buffer-url) name)
     (buffer-set-body name (stree->tree '(document "Window fixture")))
     (buffer-set-title name (string-append "Window " (number->string i)))))

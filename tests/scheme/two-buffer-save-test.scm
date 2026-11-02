@@ -19,7 +19,7 @@
 (define (save-round name tag round)
   (catch #t
     (lambda ()
-      (unless (equal? (url->system (current-buffer)) (url->system name))
+      (unless (equal? (url->system (current-buffer-url)) (url->system name))
         (error "Save ran on the wrong buffer" tag))
       (if (= round 3) (finished tag #t)
           (begin

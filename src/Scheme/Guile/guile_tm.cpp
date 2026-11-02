@@ -543,15 +543,6 @@ TeXmacs_call_scm (arg_list* args) {
 
 SCM
 call_scheme (SCM fun) {
-// uncomment block to display scheme call
-/*
-  SCM ENDLscm= scm_from_locale_string ("\n");
-  SCM source=scm_procedure_source(fun);
-  scm_call_2(scm_c_eval_string("display*"), source, ENDLscm);
-  scm_call_2(scm_c_eval_string("display*"),  scm_procedure_environment(fun), ENDLscm);
-  scm_call_2(scm_c_eval_string("display*"),  scm_procedure_properties(fun), ENDLscm);
-  //DBGFMT1(debug_tmwidgets, source);
-*/
   SCM a[]= { fun }; arg_list args= { 0, a };
   return TeXmacs_call_scm (&args);
 }
@@ -818,6 +809,25 @@ initialize_smobs () {
 
 #endif
 
+static size_t
+write_application_port (SCM port, SCM source, size_t start, size_t count) {
+  tm_ostream& output= SCM_STREAM (port) ? cerr : cout;
+  output << string (reinterpret_cast<const char*> (SCM_BYTEVECTOR_CONTENTS (source)) + start,
+                    static_cast<int> (count));
+  return count;
+}
+
+void
+initialize_scheme_ports () {
+  static char name[]= "athena-log";
+  static scm_t_port_type* type= scm_make_port_type (name, nullptr, write_application_port);
+  SCM encoding= scm_from_utf8_symbol ("UTF-8");
+  SCM strategy= scm_from_utf8_symbol ("error");
+  const unsigned long mode= SCM_OPN | SCM_WRTNG | SCM_BUFLINE;
+  scm_set_current_output_port (scm_c_make_port_with_encoding (type, mode, encoding, strategy, 0));
+  scm_set_current_error_port (scm_c_make_port_with_encoding (type, mode, encoding, strategy, 1));
+}
+
 void
 initialize_scheme () {
   const char* init_prg =
@@ -851,6 +861,7 @@ initialize_scheme () {
   scm_c_eval_string (init_prg);
   initialize_smobs ();
   initialize_glue ();
+  initialize_scheme_ports ();
   scheme_runtime_initialized.store (true, std::memory_order_release);
 }
 

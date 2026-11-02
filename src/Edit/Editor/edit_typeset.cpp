@@ -112,12 +112,6 @@ edit_typeset_rep::set_data (new_data data) {
   notify_change (THE_DECORATIONS);
   typeset_invalidate_env ();
   init_update ();
-  iterator<string> it = iterate (data->att);
-  while (it->busy()) {
-    string key= it->next ();
-    (void) call (string ("notify-set-attachment"),
-                 buf->name, key, data->att [key]);
-  }
   fold_view_has_toc= toc_fold_contains (subtree (et, rp));
   if (fold_view_has_toc) fold_view_rebuild= true;
 }

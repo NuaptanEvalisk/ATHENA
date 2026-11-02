@@ -1,6 +1,6 @@
 ;; Run with evaluation-bar-test.py: -x executes in the owning BufferActor.
 (init-style "generic")
-(buffer-set-body (current-buffer) (stree->tree '(document "Refresh regression")))
+(buffer-set-body (current-buffer-url) (stree->tree '(document "Refresh regression")))
 (update-current-buffer)
 (update-forced)
 

@@ -26,7 +26,7 @@
 
 ;; Persistent AST only: rendering is entirely native C++ and no diagram Scheme
 ;; implementation is imported or invoked here.
-(buffer-set-body (current-buffer)
+(buffer-set-body (current-buffer-url)
   (stree->tree
     `(document
        "Left label, diagonal arrow" ,(sample "left" "0" "0" "1")

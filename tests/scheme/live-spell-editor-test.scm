@@ -9,7 +9,7 @@
     (apply error (cons message details))))
 
 (buffer-set-body
-  (current-buffer)
+  (current-buffer-url)
   (stree->tree '(document "hello wurld bye")))
 (update-current-buffer)
 

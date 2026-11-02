@@ -8,16 +8,15 @@
 (define (reset content cursor)
   (selection-cancel)
   (cancel-alt-selection "spell-live")
-  (buffer-set-body (current-buffer) (stree->tree content))
+  (buffer-set-body (current-buffer-url) (stree->tree content))
   (update-current-buffer)
   ;; Clipboard copying inspects layout boxes even in a headless editor.
   (update-forced)
-  (go-to cursor)
+  (go-to-path cursor)
   (commit-changes)
   (clear-undo-history))
 
 (reset '(document "abcdef" "next") '(0 0 2))
-(check (not (path->tree #f)) "false path is harmless")
 (yank-paragraph)
 (check (equal? (body) '(document "abcdef" "next")) "yank keeps paragraph")
 (check (equal? (tree->stree (selection-tree)) "cdef") "yank selects paragraph suffix")

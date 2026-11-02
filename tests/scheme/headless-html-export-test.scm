@@ -105,29 +105,29 @@
 (check (equal? (format-determine "<?xml version='1.0'?><!--header--><html><body>x</body></html>" "unknown")
                "html")
        "HTML format detection failed after an inline XML declaration/comment")
-(check (not (current-buffer)) "fixture unexpectedly selected a buffer")
+(check (not (current-buffer-url)) "fixture unexpectedly selected a buffer")
 (check (not (buffer-load source))
        (string-append "load explicit export buffer: " (string-load source)))
 (check (not (buffer-export source target "html")) "export without UI focus")
-(check (string-contains? (string-load target) "followed by several words")
+(check (string-contains (string-load target) "followed by several words")
        "HTML export lost text after Unicode")
-(check (string-contains? (string-load target) "&amp; &lt; followed")
+(check (string-contains (string-load target) "&amp; &lt; followed")
        "semantic HTML export escaped text more than once")
 (for-each
   (lambda (expected)
-    (check (string-contains? (string-load target) expected)
+    (check (string-contains (string-load target) expected)
            (string-append "native semantic HTML export lost: " expected)))
   '("Native semantic title" "1827" "Semantic body remains visible."
     "athena-math-block" "\\begin{gather" "mathjax@3"))
-(check (not (current-buffer)) "export selected a UI buffer")
+(check (not (current-buffer-url)) "export selected a UI buffer")
 (check (not (buffer-export-with-options source target "html"
                '(("texmacs->html:css-stylesheet" . "request-only.css"))))
        "explicit export options failed across BufferActor")
-(check (string-contains? (string-load target) "request-only.css")
+(check (string-contains (string-load target) "request-only.css")
        "HTML resources ignored the request option snapshot")
 (check (not (buffer-export source target "html"))
        "reusing a passive view required an active view")
-(check (not (string-contains? (string-load target) "request-only.css"))
+(check (not (string-contains (string-load target) "request-only.css"))
        "export options leaked into a subsequent request")
 (define image-output-dir (url-relative source "export"))
 (system-mkdir image-output-dir)
@@ -136,7 +136,7 @@
 (check (not (buffer-export source image-target "html")) "passive image export failed")
 (check (equal? (string-load (url-append image-output-dir "site-1.svg")) image-bytes)
        "image export used the destination collision instead of its source document")
-(check (string-contains? (string-load image-target) "width: 20px; height: 30px")
+(check (string-contains (string-load image-target) "width: 20px; height: 30px")
        "native image export lost CSS dimensions")
 (cpp-buffer-close source)
 
@@ -210,7 +210,7 @@
                                     "20px" "30px" "" "")
                             "texmacs-tree" "html-stree" '() source
                             (url-relative source "embedded.html")))))
-            (check (string-contains? output "embedded-1.svg")
+            (check (string-contains output "embedded-1.svg")
                    "embedded web image was rasterized or lost its suffix")
             (check (equal? data (bytes-load (url-relative source "embedded-1.svg")))
                    "embedded image bytes changed across native conversion")))
@@ -226,9 +226,9 @@
                             (lambda () (latex-export-prepare-v3-source restored))
                             (lambda args (error "invalid before HTML export" args))))
                (html (convert restored "texmacs-tree" "html-snippet")))
-          (check (or (string-contains? html "\\(")
-                     (string-contains? html "\\[")
-                     (string-contains? html "athena-math-block"))
+          (check (or (string-contains html "\\(")
+                     (string-contains html "\\[")
+                     (string-contains html "athena-math-block"))
                  (string-append "HTML import/reexport lost mathematics: " html))))
       (lambda args (error "HTML mathematical roundtrip failed" source args))))
   '("<p>x<sub>i<sup>2</sup></sub></p>"
@@ -293,7 +293,7 @@
       '(("texmacs->html:css" . "on")))))
 (for-each
   (lambda (expected)
-    (check (string-contains? native-markup-html expected)
+    (check (string-contains native-markup-html expected)
            (string-append "native markup dispatch lost: " expected)))
   '("<h2>Native heading</h2>" "class=\"first second\""
     "A &amp; B" "<aside><em>Side content</em></aside>" "Standalone cell"
@@ -313,12 +313,12 @@
            (export-html-tree '(specific "image" (math "x")) '())
            #f)
          (lambda args
-           (string-contains? (object->string args) "raster fallback")))
+           (string-contains (object->string args) "raster fallback")))
        "plain inline mathematics bypassed the MathJax-only export boundary")
 (define serialized (serialize-html `(*TOP* (html (body (p ,payload))))))
-(check (string-contains? serialized (string #\x03c0 #\x2208 #\x2124))
+(check (string-contains serialized (string #\x03c0 #\x2208 #\x2124))
        "HTML serialization changed Unicode characters")
-(check (string-contains? serialized "followed by several words")
+(check (string-contains serialized "followed by several words")
        "HTML serialization lost text after Unicode")
 
 ;; These boundaries changed ownership from Scheme to the native HTML5 DOM.
@@ -386,7 +386,7 @@
 (define planned-html
   (serialize-html (native-html-document-output page-plan '("A & B") '((p "body")))))
 (for-each
-  (lambda (value) (check (string-contains? planned-html value)
+  (lambda (value) (check (string-contains planned-html value)
                          (string-append "native document plan lost: " value)))
   '("A &amp; B" "one.css" "two.css" "if (a < b) run();" "mathjax@3"))
 (define fresh-plan

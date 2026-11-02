@@ -154,9 +154,8 @@ mv -f "$manifest.tmp" "$manifest"
 
 banner "Validating representative target Guile bytecode"
 for relative in \
-    convert/latex/latex-drd.go \
-    kernel/athena/tm-define.go \
-    athena/athena/tm-websites.go; do
+    init-athena.go \
+    init-buffer.go; do
   test -f "$output/$relative" || {
     echo "Missing representative target bytecode: $relative" >&2
     exit 1

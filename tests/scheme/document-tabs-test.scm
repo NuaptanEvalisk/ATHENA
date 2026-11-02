@@ -1,11 +1,12 @@
+(use-modules (srfi srfi-1))
 ;; Tab ownership is visible to actors through the published window catalog.
 (unless (< (abs (- (get-window-zoom-factor) tab-expected-zoom)) 0.001)
   (error "Document tab regression" "actor zoom differs from its window"
-         (get-window-zoom-factor) tab-expected-zoom (current-buffer)
+         (get-window-zoom-factor) tab-expected-zoom (current-buffer-url)
          (current-view-url)))
 (define windows (window-list))
 (define buffers (map window-to-buffer windows))
-(unless (= (length windows) (length (list-remove-duplicates buffers)))
+(unless (= (length windows) (length (delete-duplicates buffers)))
   (error "Document tab regression" "duplicate buffer tabs"))
 (for-each
   (lambda (win buf)

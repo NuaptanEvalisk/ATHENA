@@ -9,9 +9,9 @@
                (list (selection-get-start) (selection-get-end)) '()))))
 (define (reset content cursor)
   (selection-cancel)
-  (buffer-set-body (current-buffer) (stree->tree content))
+  (buffer-set-body (current-buffer-url) (stree->tree content))
   (update-current-buffer)
-  (go-to cursor)
+  (go-to-path cursor)
   (commit-changes)
   (clear-undo-history))
 (reset '(document "abc" "def") '(0 0 1))
@@ -135,9 +135,6 @@
 (check (equal? (inputter-decode rich-length "length")
                (tm->rich-length rich-length))
        "native inputter decode matches rich-length formatter")
-(check (equal? (tm->stree (inputter-encode "1cm+2pt" "length"))
-               (tm->stree (rich-length->tm "1cm+2pt")))
-       "native inputter encode matches rich-length parser")
 (check (equal? (inputter-encode "plain" "string") "plain")
        "native inputter encode preserves ordinary strings")
 
@@ -202,7 +199,7 @@
        "native focus variant baseline preserves variants-of policy")
 (check (equal? (focus-tag-name 'section)
                (string-replace
-                 (upcase-first (tree-name (tree 'section))) "-" " "))
+                 (upcase-first (tree-name (stree->tree '(section)))) "-" " "))
        "native focus tag naming preserves generic display policy")
 
 (tm-define (focus-variants-of t)
@@ -214,10 +211,10 @@
        "native focus variant baseline remains a Scheme extension point")
 
 (tm-define (member->theme name)
-  (:require (== name "native-theme-special"))
+  (:require (equal? name "native-theme-special"))
   "native-theme")
 (tm-define (focus-tag-name label)
-  (:require (== label 'special))
+  (:require (equal? label 'special))
   "Specialized tag")
 (check (equal? (focus-tag-name 'native-theme-special) "Specialized tag")
        "native focus tag recursion redispatches through Scheme specialization")
@@ -261,7 +258,7 @@
        "native focus label list search returns the first matching label")
 
 (buffer-set-body
-  (current-buffer)
+  (current-buffer-url)
   (stree->tree '(document (hover-balloon "body" "tip" "left" "Bottom"))))
 (update-current-buffer)
 (tree-go-to (tree-ref (buffer-tree) 0 0) :end)
@@ -308,7 +305,7 @@
 (check (equal? (tree->stree detached-link-again) '(hlink "Body" "notes.txt"))
        "native detached card conversion returns link with nonempty body")
 
-(buffer-set-body (current-buffer)
+(buffer-set-body (current-buffer-url)
                  (stree->tree '(document (hlink "" "report.pdf"))))
 (update-current-buffer)
 (display-link-as-card (tree-ref (buffer-tree) 0))
@@ -329,7 +326,7 @@
 (reset '(document "plain") '(0 0 1))
 (check (in-main-flow?) "cursor in ordinary document text is in main flow")
 (buffer-set-body
-  (current-buffer)
+  (current-buffer-url)
   (stree->tree '(document (table (row (cell "x"))))))
 (update-current-buffer)
 (tree-go-to (tree-ref (buffer-tree) 0 0 0 0) :end)
@@ -353,7 +350,7 @@
 (reset '(document "abc") '(0 0 1))
 (search-next)
 (search-previous)
-(focus-open-search-tool (focus-tree))
+(focus-open-search-tool (cpp-path->tree (get-focus-path)))
 
 (reset '(document "ab") '(0 0 1))
 (make-specific "html")

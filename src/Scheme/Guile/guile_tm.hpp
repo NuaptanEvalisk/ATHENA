@@ -97,6 +97,7 @@ void scheme_command_handle_release (athena_scheme_handle_id id) noexcept;
 void scheme_runtime_safe_point ();
 void scheme_runtime_drain_all ();
 bool scheme_runtime_is_initialized () noexcept;
+void initialize_scheme_ports ();
 tmscm scheme_with_execution_context (
   const SchemeExecutionContext& context,
   scheme_execution_callback callback, void* data);

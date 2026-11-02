@@ -5,6 +5,7 @@
 #include "file.hpp"
 #include "editor.hpp"
 #include "server.hpp"
+#include "new_buffer.hpp"
 #include "analyze.hpp"
 #include "qt_utilities.hpp"
 #include "tm_configure.hpp"
@@ -186,4 +187,16 @@ void interactive_startup () {
       get_server ()->set_message (string (message.c_str ()), message.empty () ? string ("") : "ATHENA " * texmacs_version (""));
     });
   }
+}
+
+void interactive_choose_file (object action, string title, string type, object options) {
+  string prompt= starts (title, "Save") ? "Save as:" :
+    starts (title, "Export") ? "Export as:" :
+    title == "Select database" ? "Selected database:" : "";
+  url base= is_pair (options) && is_pair (cdr (options)) ?
+    as_url (cadr (options)) : get_master_buffer (get_current_buffer ());
+  if (is_pair (options)) {
+    prompt= as_string (car (options));
+  }
+  get_server ()->choose_file (action, title, type, prompt, base);
 }

@@ -97,6 +97,8 @@ deploy_scheme_tree () {
   done < "$list_tmp"
   rm -f -- "$list_tmp"
   list_tmp=
+
+  find "$dst_root" -depth -type d -empty -delete
 }
 
 if [ "$(uname -s)" = Linux ]; then
@@ -134,6 +136,11 @@ for src_root in "$build_dir"/athena-scheme/*; do
   deploy_scheme_tree "$src_root" \
     "$runtime_dir/lib/athena-scheme/$(basename -- "$src_root")"
 done
+
+if [ -f "$build_dir/athena-guile-runtime/lib/libathena-guile.so.1" ]; then
+  python3 "$repo_root/tools/release/copy-private-guile-runtime.py" \
+    "$build_dir/athena-guile-runtime" "$runtime_dir"
+fi
 
 for src in "$@"; do
   deploy_library "$src"

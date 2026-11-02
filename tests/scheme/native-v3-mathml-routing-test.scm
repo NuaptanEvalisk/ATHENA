@@ -1,3 +1,4 @@
+(use-modules (srfi srfi-1))
 ;; Load in an initialized ATHENA runtime. This exercises the same
 ;; generic->texmacs / <format>-snippet dispatch used by selection_paste.
 ;; No editor, source files, system clipboard or vault are modified.
@@ -6,14 +7,14 @@
 (define (expect-error thunk reason)
   (let ((caught (catch 'misc-error (lambda () (thunk) #f)
                   (lambda args args))))
-    (check (and caught (string-contains? (object->string caught) reason))
+    (check (and caught (string-contains (object->string caught) reason))
            "unsupported MathML did not propagate its native diagnostic")))
 (define (mathml-node-property tree key)
   (cadr (assoc key (tree-node-properties tree))))
 (define (contains-tag? tree tag)
   (and (pair? tree)
        (or (eq? (car tree) tag)
-           (list-any (lambda (child) (contains-tag? child tag)) (cdr tree)))))
+           (any (lambda (child) (contains-tag? child tag)) (cdr tree)))))
 
 ;; Do not import init-mathml here: the public conversion registry must load it.
 (for-each
@@ -22,7 +23,7 @@
                    (list source "texmacs-tree"))
            "native MathML route is missing or uses an intermediate format"))
   '("mathml-v3-snippet" "mathml-v3-document" "mathml-v3-stree"))
-(check (in? "mathml-v3"
+(check (member "mathml-v3"
             (converters-to-special "texmacs-tree" "-snippet" #t))
        "native MathML format is absent from paste-as converters")
 
