@@ -255,22 +255,22 @@ run_native_editor_command (editor_rep* editor,
       math_correct_all ();
       break;
     case native_editor_command_id::presentation_first:
-      presentation_operate_buffer (keyword_object ("first"));
+      presentation_operate_buffer ("first");
       break;
     case native_editor_command_id::presentation_previous_screen:
-      presentation_switch_to (keyword_object ("previous"));
+      presentation_navigate ("previous");
       break;
     case native_editor_command_id::presentation_previous:
-      presentation_traverse_buffer (keyword_object ("previous"));
+      presentation_traverse_buffer ("previous");
       break;
     case native_editor_command_id::presentation_next:
-      presentation_traverse_buffer (keyword_object ("next"));
+      presentation_traverse_buffer ("next");
       break;
     case native_editor_command_id::presentation_next_screen:
-      presentation_switch_to (keyword_object ("next"));
+      presentation_navigate ("next");
       break;
     case native_editor_command_id::presentation_last:
-      presentation_operate_buffer (keyword_object ("last"));
+      presentation_operate_buffer ("last");
       break;
     case native_editor_command_id::print_to_file:
       document_print_file_dialog ();

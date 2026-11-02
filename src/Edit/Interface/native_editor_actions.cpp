@@ -1705,7 +1705,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     if (index < 0 ||
         index >= static_cast<int> (state.slide_names.size ()))
       return;
-    presentation_switch_to (object (index));
+    presentation_switch_to (index);
   }
   else if (op == "make-section")
     text_make_section (as_tree_label (native_action_string (action.value ("tag"))));

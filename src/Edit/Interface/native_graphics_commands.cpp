@@ -97,14 +97,6 @@ void graphics_insert (tree properties) {
   get_current_editor ()->insert_tree (source, path (N(properties), 1));
 }
 
-void graphics_make (object options) {
-  array<object> values= as_array_object (options);
-  ASSERT (N(values) % 2 == 0, "graphics properties require name/value pairs");
-  tree properties (TUPLE);
-  for (int i=0; i<N(values); ++i) properties << content_to_tree (values[i]);
-  graphics_insert (properties);
-}
-
 void graphics_update_proviso (tree source, string value) {
   if (is_atomic (source)) return;
   if (is_func (source, WITH))

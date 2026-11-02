@@ -1,6 +1,6 @@
 // Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later.
 #pragma once
-#include "scheme.hpp"
+#include "tree.hpp"
 
 bool presentation_context (tree);
 bool presentation_screens (tree);
@@ -17,16 +17,17 @@ void presentation_slide_title (tree);
 void presentation_slide_graphics (tree);
 tree presentation_slide_background ();
 void presentation_set_slide_background (tree);
-void presentation_switch_to (object);
+void presentation_switch_to (int);
+void presentation_navigate (string direction);
 void presentation_make (tree_label);
 void presentation_make_unroll (tree_label);
 void presentation_make_list (tree_label, tree_label);
 void presentation_make_screens ();
 void presentation_style_changed ();
 void presentation_operate (tree, string mode, string environment= "");
-void presentation_operate_buffer (object mode);
+void presentation_operate_buffer (string mode, string environment= "");
 bool presentation_traverse (tree, string);
-void presentation_traverse_buffer (object);
+void presentation_traverse_buffer (string);
 void presentation_move (bool forwards, bool extremal);
 void presentation_first ();
 void presentation_last ();

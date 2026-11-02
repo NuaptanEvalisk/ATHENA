@@ -73,10 +73,11 @@
   <binding name="dynamic-last" native="presentation_last" returns="void" />
   <binding name="dynamic-next" native="presentation_next" returns="void" />
   <binding name="dynamic-previous" native="presentation_previous" returns="void" />
-  <binding name="dynamic-operate-on-buffer" native="presentation_operate_buffer" returns="void"><arg type="object" /></binding>
-  <binding name="dynamic-traverse-buffer" native="presentation_traverse_buffer" returns="void"><arg type="object" /></binding>
+  <binding name="dynamic-operate-on-buffer" native="presentation_operate_buffer" returns="void"><arg type="string" /></binding>
+  <binding name="dynamic-traverse-buffer" native="presentation_traverse_buffer" returns="void"><arg type="string" /></binding>
   <binding name="dynamic-make-slides" native="presentation_make_slides" returns="void" />
-  <binding name="screens-switch-to" native="presentation_switch_to" returns="void"><arg type="object" /></binding>
+  <binding name="screens-switch-to" native="presentation_switch_to" returns="void"><arg type="int" /></binding>
+  <binding name="screens-navigate" native="presentation_navigate" returns="void"><arg type="string" /></binding>
   <binding name="screens-context?" native="presentation_screens" returns="bool"><arg type="tree" /></binding>
   <binding name="overlays-context?" native="presentation_overlays" returns="bool"><arg type="tree" /></binding>
   <binding name="overlay-context?" native="presentation_overlay" returns="bool"><arg type="tree" /></binding>
@@ -366,9 +367,6 @@
   </binding>
   <binding name="make-unnamed-section" native="text_make_unnamed_section" returns="void">
     <arg type="tree_label" />
-  </binding>
-  <binding name="make-graphics" native="graphics_make" returns="void">
-    <arg type="object" rest="true" />
   </binding>
   <binding name="graphics-update-proviso" native="graphics_update_proviso" returns="void">
     <arg type="tree" /><arg type="string" />

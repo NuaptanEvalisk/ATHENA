@@ -17,6 +17,7 @@
 #include "ATHENA/Data/heading_word_count.hpp"
 #include "node_metadata.hpp"
 #include <algorithm>
+#include <optional>
 
 namespace {
 bool tag (tree t, const char* name) {
@@ -371,17 +372,17 @@ void presentation_set_slide_background (tree color) {
   } else if (!(is_atomic (color) && color->label == ""))
     tree_insert_node (t, 1, compound ("with-screen-color", color));
 }
-void presentation_switch_to (object which) {
+static void switch_slide (std::optional<int> index, string direction) {
   tree t= ancestor (cursor_tree (), presentation_screens);
   if (!presentation_screens (t))
     return;
   bool expanded_view= slideshow (t);
   t= presentation_slide_switch (t);
   int c= down (t), n= N (t), i= c;
-  if (is_int (which))
-    i= as_int (which);
+  if (index)
+    i= *index;
   else {
-    string key= keyword_name (which);
+    string key= direction;
     if (key == "first")
       i= 0;
     else if (key == "last")
@@ -398,6 +399,10 @@ void presentation_switch_to (object which) {
       switch_to (t, i);
   }
   go_graphics ();
+}
+void presentation_switch_to (int index) { switch_slide (index, ""); }
+void presentation_navigate (string direction) {
+  switch_slide (std::nullopt, direction);
 }
 void presentation_make (tree_label label) {
   tree probe (label);
@@ -550,13 +555,13 @@ bool presentation_structured (tree t, string operation, bool forward) {
   if (operation == "swipe-horizontal") {
     if (!presentation_context (t))
       return false;
-    presentation_switch_to (keyword_object (forward ? "next" : "previous"));
+    presentation_navigate (forward ? "next" : "previous");
     return true;
   }
   if (operation == "swipe-vertical") {
     if (!presentation_context (t))
       return false;
-    presentation_traverse_buffer (keyword_object (forward ? "next" : "previous"));
+    presentation_traverse_buffer (forward ? "next" : "previous");
     return true;
   }
   bool insert= operation == "insert";
@@ -774,10 +779,6 @@ bool presentation_traverse (tree t, string mode) {
   return false;
 }
 namespace {
-string mode_name (object mode) {
-  return is_string (mode) ? as_string (mode)
-                          : keyword_name (mode);
-}
 tree operation_root (string mode) {
   tree slide= ancestor (cursor_tree (), [] (tree t) { return tag (t, "slide"); });
   if (tag (slide, "slide") &&
@@ -786,14 +787,7 @@ tree operation_root (string mode) {
   return get_current_editor ()->the_buffer ();
 }
 } // namespace
-void presentation_operate_buffer (object mode) {
-  string environment;
-  if (is_list (mode)) {
-    auto parts= as_array_object (mode);
-    environment= is_symbol (parts[1]) ? as_symbol (parts[1]) : as_string (parts[1]);
-    mode= parts[0];
-  }
-  string name= mode_name (mode);
+void presentation_operate_buffer (string name, string environment) {
   tree t= operation_root (name);
   presentation_operate (t, name, environment);
   if (name == "first" || name == "var-first")
@@ -802,8 +796,7 @@ void presentation_operate_buffer (object mode) {
     go (t, true);
   go_graphics ();
 }
-void presentation_traverse_buffer (object mode) {
-  string name= mode_name (mode);
+void presentation_traverse_buffer (string name) {
   presentation_traverse (operation_root (name), name);
   go_graphics ();
 }

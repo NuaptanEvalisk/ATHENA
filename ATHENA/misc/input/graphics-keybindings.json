@@ -28,8 +28,8 @@
     {
       "require": {"all": [{"call": "in-graphics?", "args": []}, {"not": {"call": "in-commutative-diagram?", "args": []}}, {"equal": [{"call": "get-env", "args": ["preamble"]}, "false"]}, {"call": "in-screens?", "args": []}]},
       "bindings": [
-        {"key": "pageup", "commands": [{"call": "screens-switch-to", "args": [{"keyword": "previous"}]}]},
-        {"key": "pagedown", "commands": [{"call": "screens-switch-to", "args": [{"keyword": "next"}]}]}
+        {"key": "pageup", "commands": [{"call": "screens-navigate", "args": ["previous"]}]},
+        {"key": "pagedown", "commands": [{"call": "screens-navigate", "args": ["next"]}]}
       ]
     }
   ]

@@ -4,18 +4,18 @@
   "groups": [
     {
       "bindings": [
-        {"key": "ir-up", "commands": [{"call": "screens-switch-to", "args": [{"keyword": "previous"}]}]},
-        {"key": "ir-down", "commands": [{"call": "screens-switch-to", "args": [{"keyword": "next"}]}]},
-        {"key": "ir-left", "commands": [{"call": "dynamic-traverse-buffer", "args": [{"keyword": "previous"}]}]},
-        {"key": "ir-right", "commands": [{"call": "dynamic-traverse-buffer", "args": [{"keyword": "next"}]}]},
-        {"key": "ir-center", "commands": [{"call": "dynamic-traverse-buffer", "args": [{"keyword": "next"}]}]},
-        {"key": "ir-play", "commands": [{"call": "dynamic-traverse-buffer", "args": [{"keyword": "next"}]}]},
-        {"key": "ir-pause", "commands": [{"call": "dynamic-traverse-buffer", "args": [{"keyword": "next"}]}]},
+        {"key": "ir-up", "commands": [{"call": "screens-navigate", "args": ["previous"]}]},
+        {"key": "ir-down", "commands": [{"call": "screens-navigate", "args": ["next"]}]},
+        {"key": "ir-left", "commands": [{"call": "dynamic-traverse-buffer", "args": ["previous"]}]},
+        {"key": "ir-right", "commands": [{"call": "dynamic-traverse-buffer", "args": ["next"]}]},
+        {"key": "ir-center", "commands": [{"call": "dynamic-traverse-buffer", "args": ["next"]}]},
+        {"key": "ir-play", "commands": [{"call": "dynamic-traverse-buffer", "args": ["next"]}]},
+        {"key": "ir-pause", "commands": [{"call": "dynamic-traverse-buffer", "args": ["next"]}]},
         {"key": "ir-menu", "commands": [{"call": "toggle-full-screen-mode", "args": []}]},
-        {"key": "F9", "commands": [{"call": "dynamic-operate-on-buffer", "args": [{"keyword": "first"}]}]},
-        {"key": "F10", "commands": [{"call": "dynamic-traverse-buffer", "args": [{"keyword": "previous"}]}]},
-        {"key": "F11", "commands": [{"call": "dynamic-traverse-buffer", "args": [{"keyword": "next"}]}]},
-        {"key": "F12", "commands": [{"call": "dynamic-operate-on-buffer", "args": [{"keyword": "last"}]}]},
+        {"key": "F9", "commands": [{"call": "dynamic-operate-on-buffer", "args": ["first"]}]},
+        {"key": "F10", "commands": [{"call": "dynamic-traverse-buffer", "args": ["previous"]}]},
+        {"key": "F11", "commands": [{"call": "dynamic-traverse-buffer", "args": ["next"]}]},
+        {"key": "F12", "commands": [{"call": "dynamic-operate-on-buffer", "args": ["last"]}]},
         {"key": "S-F9", "commands": [{"call": "dynamic-first", "args": []}]},
         {"key": "S-F10", "commands": [{"call": "dynamic-previous", "args": []}]},
         {"key": "S-F11", "commands": [{"call": "dynamic-next", "args": []}]},
@@ -29,8 +29,8 @@
     {
       "mode": "in-screens?",
       "bindings": [
-        {"key": "pageup", "commands": [{"call": "screens-switch-to", "args": [{"keyword": "previous"}]}]},
-        {"key": "pagedown", "commands": [{"call": "screens-switch-to", "args": [{"keyword": "next"}]}]}
+        {"key": "pageup", "commands": [{"call": "screens-navigate", "args": ["previous"]}]},
+        {"key": "pagedown", "commands": [{"call": "screens-navigate", "args": ["next"]}]}
       ]
     }
   ]

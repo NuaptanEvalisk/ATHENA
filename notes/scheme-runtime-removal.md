@@ -1714,6 +1714,31 @@ generated native entries and remain on the secure-function list.
 - Explicit script execution, callback handles, other object interfaces and
   Guile build/packaging dependencies remain. The overall goal is not complete.
 
+## Native Presentation And Graphics Command Parameters
+
+- Presentation commands no longer expose object parameters or include
+  scheme.hpp. Slide index selection takes an integer; direction navigation has
+  a separate screens-navigate string binding. Generated numeric slide-button
+  actions retain screens-switch-to, and the focus toolbar passes its index
+  directly. Folding/traversal use strings; scoped operation environments are
+  a native string parameter rather than a Scheme list.
+- Updated fold/graphics keyboard JSON and direct actor dispatch together.
+  The underlying slide, overlay and fold traversal algorithms are unchanged.
+- Removed the unused make-graphics binding/object adapter. Draw image and slide
+  graphics already call graphics_insert with native property trees; their
+  default property behavior remains unchanged.
+- Full ATHENA.bin build passed with -j16. A fresh headless BufferActor executed
+  all four typed bindings on its empty document and reported
+  NATIVE_PRESENTATION_VALUES_OK, with normal exit and no logged warnings/errors.
+  This validates binding marshalling and actor dispatch, not slideshow GUI
+  behavior. No permanent tests or broad suite were added/run.
+- Deployed through tools/deploy-local-runtime.sh, build ID:
+  54f1f76270dbc372753dd04cf63bf916a60c20af. Logs under build_qt6:
+  native-presentation-values-full-build.log, native-presentation-values-runtime.log
+  and native-presentation-values-deploy.log. Temporary probe/profile removed.
+- Runtime removal is still incomplete; script execution, callback handles and
+  remaining object/build/package dependencies remain in scope.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
