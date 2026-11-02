@@ -1526,11 +1526,6 @@
         "cmd/32/insertobject.svg"
       ]
     },
-    "tm_explain": {
-      "libreoffice": [
-        "cmd/32/helpindex.svg"
-      ]
-    },
     "tm_filter": {
       "libreoffice": [
         "cmd/32/datafilterstandardfilter.svg"
@@ -1615,11 +1610,6 @@
       "libreoffice": [
         "cmd/32/zoomobjects.svg",
         "cmd/32/zoomin.svg"
-      ]
-    },
-    "tm_gui": {
-      "libreoffice": [
-        "cmd/32/displaymode.svg"
       ]
     },
     "tm_hat": {
@@ -2233,16 +2223,6 @@
     "tm_title": {
       "libreoffice": [
         "cmd/32/titleparastyle.svg"
-      ]
-    },
-    "tm_tmdoc_annotate": {
-      "libreoffice": [
-        "cmd/32/editannotation.svg"
-      ]
-    },
-    "tm_traverse": {
-      "libreoffice": [
-        "cmd/32/forward.svg"
       ]
     },
     "tm_tuple": {

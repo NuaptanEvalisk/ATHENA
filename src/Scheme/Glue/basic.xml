@@ -2403,10 +2403,6 @@
     <arg type="string" />
     <arg type="string" />
   </binding>
-  <binding name="system-search-score" native="search_score" returns="int">
-    <arg type="url" />
-    <arg type="array_string" />
-  </binding>
   <binding name="system-1" native="system" returns="void">
     <arg type="string" />
     <arg type="url" />

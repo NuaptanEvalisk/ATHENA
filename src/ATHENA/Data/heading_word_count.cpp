@@ -41,8 +41,7 @@ athena_heading_level (tree t) {
 bool
 athena_heading_title_tree (tree t) {
   string tag= athena_tree_tag (t);
-  return tag == "title" || tag == "doc-title" ||
-         tag == "tmdoc-title";
+  return tag == "title" || tag == "doc-title";
 }
 
 bool

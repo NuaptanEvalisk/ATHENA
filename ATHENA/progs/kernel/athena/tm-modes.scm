@@ -116,8 +116,6 @@
   (in-multicol-style% (!= (get-init "par-columns") "1"))
   (in-std% (style-has? "std-dtd"))
   (in-std-text% #t in-text% in-std%)
-  (in-tmdoc% (style-has? "tmdoc-style"))
-  (in-manual% (not (url-rooted-tmfs? (current-buffer))) in-tmdoc%)
   (in-preview-ref% (style-has? "preview-ref-package"))
   (in-smart-ref% (style-has? "smart-ref-package"))
 

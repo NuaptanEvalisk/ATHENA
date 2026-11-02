@@ -333,8 +333,7 @@ std::string
 document_title (tree t, const std::string& fallback) {
   if (is_atomic (t)) return fallback;
   if ((is_compound (t, "doc-title", 1) ||
-       is_compound (t, "title", 1) ||
-       is_compound (t, "tmdoc-title", 1)) && N(t) >= 1) {
+       is_compound (t, "title", 1)) && N(t) >= 1) {
     std::string title = document_title_text (t[0]);
     if (!title.empty ()) return title;
   }

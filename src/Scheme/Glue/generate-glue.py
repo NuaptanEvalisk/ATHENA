@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate ATHENA's C++ bindings and API documentation directly from XML.
+"""Generate ATHENA's C++ bindings directly from XML.
 
 Copyright (C) 2026 ATHENA contributors
 SPDX-License-Identifier: GPL-3.0-or-later
@@ -216,29 +216,6 @@ def cpp_bindings(interface):
     return "\n".join([*lines, "}", ""])
 
 
-def api_document(interfaces):
-    def escape(text):
-        return text.translate(str.maketrans({"<": "\\<less\\>", ">": "\\<gtr\\>"}))
-
-    lines = ["<TeXmacs|1.99.4>", "", "<style|<tuple|tmdoc|english>>", "",
-             "<\\body>", "<tmdoc-title|All glue functions>", "",
-             "Generated from the XML interfaces in <verbatim|src/Scheme/Glue>.", ""]
-    for interface in interfaces:
-        for binding in interface.bindings:
-            arguments = "".join(f"{' . ' if arg.rest else ' '}<scm-arg|{arg.type}>"
-                                for arg in binding.arguments)
-            lines.extend(["  <\\explain>", f"    <scm|({escape(binding.name)}{arguments})>",
-                          "    <explain-synopsis|no synopsis>", "  <|explain>",
-                          f"    Calls the <c++> function <cpp|{escape(binding.native)}> "
-                          f"which returns <scm|{binding.returns}>.", "  </explain>", ""])
-    lines.extend(["  <tmdoc-copyright|2016|the TeXmacs team>",
-                  "  <tmdoc-license|Permission is granted to copy, distribute and/or modify this",
-                  "  document under the terms of the GNU Free Documentation License, Version 1.1",
-                  "  or any later version published by the Free Software Foundation; with no",
-                  "  Invariant Sections, with no Front-Cover Texts, and with no Back-Cover Texts.",
-                  '  A copy of the license is included in the section entitled "GNU Free',
-                  '  Documentation License".>', "</body>", ""])
-    return "\n".join(lines)
 
 
 def replace_if_changed(path, content):
@@ -262,7 +239,6 @@ def generate(paths, output_dir):
     # Validate and finish every group before publishing any build output.
     for interface in interfaces:
         outputs[f"glue_{interface.name}.cpp"] = cpp_bindings(interface)
-    outputs["glue-auto-doc.en.tm"] = api_document(interfaces)
     for name, content in outputs.items():
         replace_if_changed(output_dir / name, content)
 

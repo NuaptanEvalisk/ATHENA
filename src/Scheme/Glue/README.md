@@ -8,7 +8,7 @@ second source of truth. Native implementations remain ordinary C++ functions.
 
 `generate-glue.py` parses XML with Python's standard ElementTree parser and
 directly emits C++ type checks, argument conversion, native calls, result
-conversion and registration. The same XML produces an API reference document.
+conversion and registration.
 There is no intermediate Scheme generator; the old `build-glue.scm` has been
 removed.
 
@@ -112,5 +112,4 @@ References: [ElementTree](https://docs.python.org/3/library/xml.etree.elementtre
 [SWIG language support](https://www.swig.org/compat.html),
 [Shiboken type system](https://doc.qt.io/qtforpython-6/shiboken6/typesystem.html).
 
-The basic, editor, server and native groups share this pipeline. API documentation
-can be generated with `src/Scheme/Glue/build-auto-doc /tmp/athena-glue-docs`.
+The basic, editor, server and native groups share this pipeline.

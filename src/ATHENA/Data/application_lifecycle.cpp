@@ -491,7 +491,7 @@ array<url> application_sorted_buffers () {
   for (int i=0; i<N(buffers); ++i) {
     const url name= buffers[i];
     const string text= as_string (name, URL_UNIX);
-    if (!is_rooted_tmfs (name) || starts (text, "tmfs://part/") || starts (text, "tmfs://help/"))
+    if (!is_rooted_tmfs (name) || starts (text, "tmfs://part/"))
       candidates.emplace_back (last_visited (name), name);
   }
   std::stable_sort (candidates.begin (), candidates.end (),

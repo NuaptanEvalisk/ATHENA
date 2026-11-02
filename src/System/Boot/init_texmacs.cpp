@@ -393,9 +393,6 @@ init_athena_resource_paths () {
 
   // Get other data paths
   (void) get_env_path ("ATHENA_FILE_PATH",text_path | style_path);
-  (void) set_env_path ("ATHENA_DOC_PATH",
-                       get_env_path ("ATHENA_DOC_PATH") |
-                       "$ATHENA_HOME_PATH/doc:$ATHENA_PATH/doc");
   (void) set_env_path ("ATHENA_SECURE_PATH",
                        get_env_path ("ATHENA_SECURE_PATH") |
                        "$ATHENA_PATH:$ATHENA_HOME_PATH");

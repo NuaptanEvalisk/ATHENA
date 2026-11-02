@@ -7,8 +7,6 @@ foreach(group basic editor server native)
   list(APPEND ATHENA_GLUE_OUTPUTS
     "${ATHENA_GLUE_OUTPUT_DIR}/glue_${group}.cpp")
 endforeach()
-list(APPEND ATHENA_GLUE_OUTPUTS
-  "${ATHENA_GLUE_OUTPUT_DIR}/glue-auto-doc.en.tm")
 
 set(ATHENA_GLUE_COMMAND
   "${Python3_EXECUTABLE}" "${ATHENA_GLUE_SOURCE_DIR}/generate-glue.py"
@@ -28,7 +26,7 @@ add_custom_command(
   COMMAND "${CMAKE_COMMAND}" -E touch ${ATHENA_GLUE_OUTPUTS}
   DEPENDS ${ATHENA_GLUE_INPUTS}
           "${ATHENA_GLUE_SOURCE_DIR}/generate-glue.py"
-  COMMENT "Generating C++ bindings and API documentation from ATHENA XML interfaces"
+  COMMENT "Generating C++ bindings from ATHENA XML interfaces"
   VERBATIM)
 add_custom_target(athena_glue DEPENDS ${ATHENA_GLUE_OUTPUTS})
 set_property(TARGET athena_glue PROPERTY ATHENA_GLUE_INTERFACES "${ATHENA_GLUE_INPUTS}")

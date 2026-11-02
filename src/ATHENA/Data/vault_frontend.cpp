@@ -255,13 +255,6 @@ welcome_body () {
   centered << compound (
     "with", "font-size", "1.15", "color", "#555555",
     tree ("Advanced typesetting and hypertext for mathematical notes and archives."));
-  centered << compound ("vspace", "0.6fn");
-  centered << compound (
-    "concat",
-    action_node ("Welcome", "(load-help-article \"about/welcome/new-welcome\")"),
-    "    ",
-    action_node ("Get Started", "(load-help-article \"about/welcome/start\")"),
-    "    ", action_node ("Manual", "(load-help-buffer \"main/man-manual\")"));
   body << compound ("with", "par-mode", "center", centered);
   body << compound ("vspace", "1.5fn");
 
@@ -276,18 +269,6 @@ welcome_body () {
   }
   body << enumerate_nodes (start);
 
-  body << compound ("vspace", "1fn") << compound ("section*", "Learn ATHENA");
-  array<tree> learn;
-  learn << item_node (compound (
-    "concat", action_node ("Welcome", "(load-help-article \"about/welcome/new-welcome\")"),
-    " explains the project and its interface."));
-  learn << item_node (compound (
-    "concat", action_node ("Get Started", "(load-help-article \"about/welcome/start\")"),
-    " introduces the basic editing workflow."));
-  learn << item_node (compound (
-    "concat", action_node ("Manual", "(load-help-buffer \"main/man-manual\")"),
-    " opens the complete help manual."));
-  body << enumerate_nodes (learn);
 
   body << compound ("vspace", "1fn") << compound ("section*", "Recent Vaults");
   array<tree> vault_lines;

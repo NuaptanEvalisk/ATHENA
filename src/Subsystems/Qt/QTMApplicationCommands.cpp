@@ -78,9 +78,6 @@ using namespace qtm_command_registry_detail;
 namespace {
 
 enum class help_action_kind {
-  article,
-  buffer,
-  book,
   license,
   shortcuts
 };
@@ -90,84 +87,11 @@ struct help_action {
   const char* label;
   const char* group;
   help_action_kind kind;
-  const char* target;
 };
 
 const help_action help_actions[]= {
-  {"welcome", "Welcome", "Getting started", help_action_kind::article,
-   "about/welcome/new-welcome"},
-  {"start", "Getting started", "Getting started", help_action_kind::article,
-   "about/welcome/start"},
-  {"config-browse", "Browse", "Configuration", help_action_kind::buffer,
-   "main/config/man-configuration"},
-  {"config-preferences", "Preferences", "Configuration",
-   help_action_kind::article, "main/config/man-preferences"},
-  {"config-keyboard", "Keyboard configuration", "Configuration",
-   help_action_kind::article, "main/config/man-config-keyboard"},
-  {"config-russian", "Users of Cyrillic languages", "Configuration",
-   help_action_kind::article, "main/config/man-russian"},
-  {"config-oriental", "Users of oriental languages", "Configuration",
-   help_action_kind::article, "main/config/man-oriental"},
-  {"manual-browse", "Browse", "Manual", help_action_kind::buffer,
-   "main/man-manual"},
-  {"manual-preferences", "Preferences", "Manual", help_action_kind::article,
-   "main/config/man-preferences"},
-  {"manual-getting-started", "Getting started", "Manual",
-   help_action_kind::article, "main/start/man-getting-started"},
-  {"manual-workflows", "ATHENA knowledge workflows", "Manual",
-   help_action_kind::article, "main/start/man-athena-workflows"},
-  {"manual-text", "Typing simple texts", "Manual", help_action_kind::article,
-   "main/text/man-text"},
-  {"manual-math", "Mathematical formulas", "Manual", help_action_kind::article,
-   "main/math/man-math"},
-  {"manual-table", "Tabular material", "Manual", help_action_kind::article,
-   "main/table/man-table"},
-  {"manual-links", "Automatic content generation", "Manual",
-   help_action_kind::article, "main/links/man-links"},
-  {"manual-namespaces", "Namespaces in ATHENA", "Manual",
-   help_action_kind::article, "main/links/man-namespaces"},
-  {"manual-graphics", "Creating technical pictures", "Manual",
-   help_action_kind::article, "main/graphics/man-graphics"},
-  {"manual-layout", "Advanced layout features", "Manual",
-   help_action_kind::article, "main/layout/man-layout"},
-  {"manual-editing", "Editing tools", "Manual", help_action_kind::article,
-   "main/editing/man-editing-tools"},
-  {"manual-beamer", "Laptop presentations", "Manual",
-   help_action_kind::article, "main/beamer/man-beamer"},
-  {"manual-interface", "ATHENA as an interface", "Manual",
-   help_action_kind::article, "main/interface/man-itf"},
-  {"manual-style", "Writing your own style files", "Manual",
-   help_action_kind::article, "devel/style/style"},
-  {"manual-scheme", "Customizing ATHENA", "Manual", help_action_kind::article,
-   "main/scheme/man-scheme"},
-  {"reference-browse", "Browse", "Reference guide", help_action_kind::buffer,
-   "main/man-reference"},
-  {"reference-format", "The ATHENA format", "Reference guide",
-   help_action_kind::article, "devel/format/basics/basics"},
-  {"reference-env", "Standard environment variables", "Reference guide",
-   help_action_kind::article, "devel/format/environment/environment"},
-  {"reference-primitives", "ATHENA primitives", "Reference guide",
-   help_action_kind::article, "devel/format/regular/regular"},
-  {"reference-stylesheet", "Stylesheet language", "Reference guide",
-   help_action_kind::article, "devel/format/stylesheet/stylesheet"},
-  {"reference-styles", "Standard ATHENA styles", "Reference guide",
-   help_action_kind::article, "main/styles/styles"},
-  {"reference-convert", "Compatibility with other formats", "Reference guide",
-   help_action_kind::article, "main/convert/man-convert"},
-  {"apropos-browse", "Browse", "Apropos", help_action_kind::buffer,
-   "about/about"},
-  {"apropos-summary", "Summary", "Apropos", help_action_kind::article,
-   "about/about-summary"},
-  {"apropos-license", "License", "Apropos", help_action_kind::license, ""},
-  {"apropos-philosophy", "Philosophy", "Apropos", help_action_kind::article,
-   "about/philosophy/philosophy"},
-  {"apropos-authors", "The ATHENA authors", "Apropos",
-   help_action_kind::article, "about/authors/authors"},
-  {"apropos-first", "Original welcome message", "Apropos",
-   help_action_kind::article, "about/welcome/first"},
-  {"full-user-manual", "User manual", "Full manuals", help_action_kind::book,
-   "main/man-user-manual"},
-  {"shortcuts", "Shortcuts listing", "Tools", help_action_kind::shortcuts, ""}
+  {"license", "License", "About", help_action_kind::license},
+  {"shortcuts", "Shortcuts listing", "Tools", help_action_kind::shortcuts}
 };
 
 const help_action*
@@ -181,15 +105,6 @@ bool
 execute_help_action (const help_action& action, const QTMCommandContext& context) {
   try {
     switch (action.kind) {
-    case help_action_kind::article:
-      (void) call ("load-help-article", object (string (action.target)));
-      return true;
-    case help_action_kind::buffer:
-      (void) call ("load-help-buffer", object (string (action.target)));
-      return true;
-    case help_action_kind::book:
-      (void) call ("load-help-book", object (string (action.target)));
-      return true;
     case help_action_kind::license:
       (void) call ("load-document", object (string ("$ATHENA_PATH/LICENSE")));
       return true;

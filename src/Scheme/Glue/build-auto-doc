@@ -1,9 +1,0 @@
-#!/bin/sh
-set -eu
-
-if [ "$#" -ne 1 ]; then
-  echo "Usage: build-auto-doc <output-directory>" >&2
-  exit 2
-fi
-source_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-"$source_dir/build-glue" "$1"

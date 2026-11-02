@@ -76,7 +76,6 @@ enum actor_editor_command_state_flag: std::uint32_t {
   ACTOR_EDITOR_COMMAND_STATE_PROG_MODE= 1U << 9,
   ACTOR_EDITOR_COMMAND_STATE_SOURCE_MODE= 1U << 10,
   ACTOR_EDITOR_COMMAND_STATE_GRAPHICS_MODE= 1U << 11,
-  ACTOR_EDITOR_COMMAND_STATE_MANUAL_STYLE= 1U << 13,
   ACTOR_EDITOR_COMMAND_STATE_HEADER_LETTER= 1U << 14,
   ACTOR_EDITOR_COMMAND_STATE_BOOK_STYLE= 1U << 15,
   ACTOR_EDITOR_COMMAND_STATE_SECTION_BASE= 1U << 16,
@@ -91,8 +90,6 @@ enum actor_editor_command_state_flag: std::uint32_t {
   ACTOR_EDITOR_COMMAND_STATE_INSIDE_FLOAT_OR_FOOTNOTE= 1U << 25,
   ACTOR_EDITOR_COMMAND_STATE_MAIN_FLOW= 1U << 26,
   ACTOR_EDITOR_COMMAND_STATE_ENV_MATH= 1U << 27,
-  ACTOR_EDITOR_COMMAND_STATE_TMDOC_TRAVERSE= 1U << 28,
-  ACTOR_EDITOR_COMMAND_STATE_TMDOC_EXPLAIN= 1U << 29,
   ACTOR_EDITOR_COMMAND_STATE_OVERLAYS_CONTEXT= 1U << 30,
   ACTOR_EDITOR_COMMAND_STATE_SCREENS_BUFFER= 1U << 31
 };
@@ -331,8 +328,6 @@ struct actor_focus_toolbar_snapshot {
   bool document_insert_title_available= false;
   bool document_insert_abstract_available= false;
   bool document_insert_screens_available= false;
-  bool tmdoc_insert_title_available= false;
-  bool tmdoc_insert_copyright_available= false;
   bool title_hidden_available= false;
   bool title_hidden_checked= false;
   std::string title_clustering;

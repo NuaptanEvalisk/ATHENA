@@ -70,9 +70,6 @@ menu_reference_visible (
   const bool graphicsOnly=
     editor.has (ACTOR_EDITOR_COMMAND_STATE_GRAPHICS_MODE) &&
     !document.commutative_diagram;
-  if (id == QStringLiteral ("manual"))
-    return !graphicsOnly &&
-           editor.has (ACTOR_EDITOR_COMMAND_STATE_MANUAL_STYLE);
   if (id == QStringLiteral ("source"))
     return !graphicsOnly &&
       (editor.has (ACTOR_EDITOR_COMMAND_STATE_SOURCE_MODE) ||

@@ -1185,11 +1185,11 @@ transform_style_native (scheme_tree style) {
   if (!string_atom (style))
     return latex_export_context.replace_style ? tree ("#f") : style;
   string name= atom_text (style);
-  if (name == "tmdoc")
+  if (name == "tmdoc" || name == "tmmanual")
     throw std::runtime_error ("LaTeX export does not support the tmdoc document style");
   if (name == "generic" || name == "tmarticle")
     return stree_string ("article");
-  if (name == "book" || name == "tmbook" || name == "tmmanual")
+  if (name == "book" || name == "tmbook")
     return stree_string ("book");
   if (name == "letter") return stree_string ("letter");
   if (name == "beamer") return stree_string ("beamer");

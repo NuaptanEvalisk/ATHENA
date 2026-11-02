@@ -799,9 +799,7 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
         item.state.enabled= enabled;
         out.append (std::move (item));
       };
-      if (focus.tmdoc_insert_title_available)
-        append (QStringLiteral ("tmdoc-insert-title"), QObject::tr ("Title"));
-      else if (focus.document_insert_title_available)
+      if (focus.document_insert_title_available)
         append (QStringLiteral ("document-insert-title"), QObject::tr ("Title"));
       if (focus.document_insert_abstract_available)
         append (
@@ -811,19 +809,13 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
         append (
           QStringLiteral ("document-insert-screens"),
           QObject::tr ("Screens"));
-      if (focus.tmdoc_insert_copyright_available)
-        append (
-          QStringLiteral ("tmdoc-insert-copyright"),
-          QObject::tr ("Copyright"));
       return out;
     },
     [] (const QString& key, const QTMCommandContext& context) {
       static const QSet<QString> allowed {
         QStringLiteral ("document-insert-title"),
         QStringLiteral ("document-insert-abstract"),
-        QStringLiteral ("document-insert-screens"),
-        QStringLiteral ("tmdoc-insert-title"),
-        QStringLiteral ("tmdoc-insert-copyright")
+        QStringLiteral ("document-insert-screens")
       };
       return allowed.contains (key) ?
         submit_focus_action (context, key) : false;
@@ -836,9 +828,7 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
         focus.valid () && focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
         (focus.document_insert_title_available ||
          focus.document_insert_abstract_available ||
-         focus.document_insert_screens_available ||
-         focus.tmdoc_insert_title_available ||
-         focus.tmdoc_insert_copyright_available);
+         focus.document_insert_screens_available);
       return state_if (context, available);
     });
 }

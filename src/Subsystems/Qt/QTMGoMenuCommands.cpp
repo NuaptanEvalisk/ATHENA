@@ -34,8 +34,7 @@ bool
 buffer_in_go_menu (url value) {
   if (!is_rooted_tmfs (value)) return true;
   string identity= as_string (value);
-  return starts (identity, "tmfs://part/") ||
-         starts (identity, "tmfs://help/");
+  return starts (identity, "tmfs://part/");
 }
 
 QString

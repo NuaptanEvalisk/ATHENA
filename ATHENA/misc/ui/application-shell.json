@@ -1421,13 +1421,6 @@
       ]
     },
     {
-      "id": "manual",
-      "label": "Manual",
-      "items": [
-        { "provider": "menubar-manual-commands" }
-      ]
-    },
-    {
       "id": "source",
       "label": "Source",
       "items": [
@@ -2348,7 +2341,6 @@
         { "menu": "file" },
         { "menu": "edit" },
         { "menu": "insert" },
-        { "menu": "manual" },
         { "menu": "source" },
         { "menu": "dynamic" },
         { "menu": "focus" },

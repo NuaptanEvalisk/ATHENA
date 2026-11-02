@@ -110,7 +110,7 @@
   artifact-jump-to-position artifact-navigation-failed
   load-buffer load-vault-dir string->url vault-load-latest-action
   vault-validate-root-namespace go-to-system-welcome-page
-  go-to-welcome-page go-to-vault-initial-page load-help-article load-help-buffer
+  go-to-welcome-page go-to-vault-initial-page
   vault-show-explorer vault-show-explorer-and-track vault-explorer-track-file
   open-namespace-manager open-namespace-explorer
   namespace-new-file-within-wizard namespace-info-page open-quick-switcher
@@ -132,7 +132,6 @@
         notify-enunciation-color notify-focus-border-width notify-focus-color
         notify-labels-mode notify-link-color notify-selection-color
         notify-vault-explorer-track notify-vault-preferences-mode))
-(import-from (doc help-funcs))
 (generic-keyboard-load)
 (tmfs-handler "material" 'load material-info-page)
 (tmfs-handler "material" 'title materials-page-title)
@@ -215,20 +214,6 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting dynamic features\n")
-;(display* "time: " (- (texmacs-time) boot-start) "\n")
-
-;(display "Booting documentation\n")
-(lazy-initialize (doc tmdoc-edit) (in-manual?))
-(lazy-define (doc tmdoc-edit)
-             tmdoc-make-branch tmdoc-insert-explain-synopsis
-             tmdoc-propose-title? tmdoc-propose-copyright-and-license?
-             tmdoc-insert-title tmdoc-insert-copyright-and-license)
-(lazy-define (doc tmdoc) tmdoc-expand-help tmdoc-expand-help-manual
-             tmdoc-expand-this tmdoc-include)
-(lazy-define (doc tmdoc-search) tmdoc-search-style tmdoc-search-tag
-             tmdoc-search-parameter tmdoc-search-scheme)
-(lazy-tmfs-handler (doc tmdoc) help)
-(define-secure-symbols tmdoc-include)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting linking facilities\n")

@@ -3455,26 +3455,6 @@
       "default": "on"
     },
     {
-      "key": "manual style",
-      "type": "string",
-      "scope": "active",
-      "default": "tmmanual"
-    },
-    {
-      "key": "doc:collect-timestamp",
-      "type": "scheme-object",
-      "scope": "active",
-      "default": "0",
-      "callback": "doc-collect-preference"
-    },
-    {
-      "key": "doc:collect-languages",
-      "type": "scheme-object",
-      "scope": "active",
-      "default": "()",
-      "callback": "doc-collect-preference"
-    },
-    {
       "key": "text spacebar",
       "type": "choice",
       "scope": "active",

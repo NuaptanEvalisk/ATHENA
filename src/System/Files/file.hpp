@@ -66,7 +66,6 @@ void mkdir (url dir);
 void rmdir (url what);
 void change_mode (url u, int mode);
 
-int search_score (url u, array<string> a);
 
 url search_sub_dirs (url root);
 array<string> file_completions (url search, url dir);

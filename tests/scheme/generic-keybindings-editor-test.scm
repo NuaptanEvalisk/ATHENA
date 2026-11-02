@@ -19,7 +19,7 @@
   (lambda ()
     (generic-keyboard-load)
     (for-each generic-keyboard-load-domain
-      '("text" "prog" "source" "table" "graphics" "fold" "tmdoc"))
+      '("text" "prog" "source" "table" "graphics" "fold"))
     (set! captured
       (append-map
         (lambda (entry)

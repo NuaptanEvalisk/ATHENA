@@ -813,10 +813,6 @@ editor_rep::editor_command_state_snapshot () {
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_INSIDE_FLOAT_OR_FOOTNOTE;
   if (generic_in_main_flow (this))
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_MAIN_FLOW;
-  if (inside ("traverse"))
-    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_TMDOC_TRAVERSE;
-  if (inside ("explain"))
-    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_TMDOC_EXPLAIN;
   if (inside ("overlays") || inside ("overlays-compressed") ||
       inside ("overlays-phantoms") || inside ("overlays-greyed") ||
       inside ("gr-overlays"))
@@ -1286,23 +1282,6 @@ editor_rep::focus_toolbar_state_snapshot () {
       defined_at_init ("beamer-style") &&
       !(is_document (buffer) && N(buffer) > 0 &&
         is_compound (buffer[N(buffer)-1], "screens"));
-    const bool manualStyle=
-      defined_at_init ("tmdoc-style") && !is_rooted_tmfs (buf->name);
-    const path cursor= the_path ();
-    const bool hasPreviousSection=
-      previous_section (the_root (), cursor) != cursor;
-    const bool firstIsTmdocTitle=
-      is_document (buffer) && N(buffer) > 0 &&
-      is_compound (buffer[0], "tmdoc-title");
-    const bool lastIsTmdocLicense=
-      is_document (buffer) && N(buffer) > 0 &&
-      is_compound (buffer[N(buffer)-1], "tmdoc-license");
-    snapshot.tmdoc_insert_title_available=
-      manualStyle && is_document (buffer) && !hasPreviousSection &&
-      !firstIsTmdocTitle;
-    snapshot.tmdoc_insert_copyright_available=
-      manualStyle && is_document (buffer) && !hasPreviousSection &&
-      firstIsTmdocTitle && !lastIsTmdocLicense;
   }
 
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_ALGORITHM_CONTEXT)) {
@@ -1834,8 +1813,6 @@ editor_rep::refresh_editor_style_command_flags () {
   auto style_has= [this] (const char* capability) {
     return defined_at_init (string (capability));
   };
-  if (style_has ("tmdoc-style") && !is_rooted_tmfs (buf->name))
-    editor_style_command_flags |= ACTOR_EDITOR_COMMAND_STATE_MANUAL_STYLE;
   if (style_has ("header-letter-dtd"))
     editor_style_command_flags |= ACTOR_EDITOR_COMMAND_STATE_HEADER_LETTER;
   if (style_has ("book-style"))

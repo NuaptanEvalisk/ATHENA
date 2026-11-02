@@ -60,7 +60,6 @@ editor_capability_bit (const QString& name, std::uint32_t& bit) {
     {"prog-mode", ACTOR_EDITOR_COMMAND_STATE_PROG_MODE},
     {"source-mode", ACTOR_EDITOR_COMMAND_STATE_SOURCE_MODE},
     {"graphics-mode", ACTOR_EDITOR_COMMAND_STATE_GRAPHICS_MODE},
-    {"manual-style", ACTOR_EDITOR_COMMAND_STATE_MANUAL_STYLE},
     {"header-letter", ACTOR_EDITOR_COMMAND_STATE_HEADER_LETTER},
     {"book-style", ACTOR_EDITOR_COMMAND_STATE_BOOK_STYLE},
     {"section-base", ACTOR_EDITOR_COMMAND_STATE_SECTION_BASE},
@@ -76,8 +75,6 @@ editor_capability_bit (const QString& name, std::uint32_t& bit) {
      ACTOR_EDITOR_COMMAND_STATE_INSIDE_FLOAT_OR_FOOTNOTE},
     {"main-flow", ACTOR_EDITOR_COMMAND_STATE_MAIN_FLOW},
     {"env-math", ACTOR_EDITOR_COMMAND_STATE_ENV_MATH},
-    {"tmdoc-traverse", ACTOR_EDITOR_COMMAND_STATE_TMDOC_TRAVERSE},
-    {"tmdoc-explain", ACTOR_EDITOR_COMMAND_STATE_TMDOC_EXPLAIN},
     {"overlays-context", ACTOR_EDITOR_COMMAND_STATE_OVERLAYS_CONTEXT},
     {"screens-buffer", ACTOR_EDITOR_COMMAND_STATE_SCREENS_BUFFER}
   };
@@ -337,8 +334,7 @@ QTMCommandRegistry::loadPresentation () {
              actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
              state.available= focus.valid () &&
                (nativeOp == "make-doc-data" ?
-                  focus.document_insert_title_available &&
-                  !focus.tmdoc_insert_title_available :
+                  focus.document_insert_title_available :
                   focus.document_insert_abstract_available);
            }
           state.enabled= state.available;

@@ -1111,7 +1111,6 @@ set_global_options  (int argc, char** argv)  {
       else if ((s == "-S") || (s == "-setup") ||
                (s == "-delete-cache") || (s == "-delete-font-cache") ||
                (s == "-delete-style-cache") || (s == "-delete-file-cache") ||
-               (s == "-delete-doc-cache") ||
                (s == "-delete-databases") ||
 	       (s == "-headless") || (s == "-H"));
       else if (starts (s, "-psn"));
@@ -1214,13 +1213,6 @@ TeXmacs_main (int argc, char** argv) {
     bench_cumul ("start server");
     startup_progress (92, "Server ready");
 
-    // append commands to open standard welcome messages if needed
-    if (!headless_mode && install_status == 1) {
-      if (DEBUG_STD) debug_boot << "Loading welcome message...\n";
-      string cmd= "(load-help-article \"about/welcome/new-welcome\")";
-      // FIXME: force to load welcome message into new window
-      extra_init_cmd << cmd;
-    }
 
 #if ATHENA_ENABLE_CLI
     if (rag_server_dir != "") {
@@ -1523,13 +1515,7 @@ immediate_options (int argc, char** argv) {
       remove (url ("$ATHENA_HOME_PATH/system/cache/font-characteristics.json"));
       remove (url ("$ATHENA_HOME_PATH/fonts/error") * url_wildcard ("*"));
     }
-    else if (s == "-delete-doc-cache") {
-      remove (url ("$ATHENA_HOME_PATH/system/cache/doc_cache"));
-      remove (url ("$ATHENA_HOME_PATH/system/cache/dir_cache.scm"));
-      remove (url ("$ATHENA_HOME_PATH/system/cache/stat_cache.scm"));
-    }
     else if (s == "-delete-file-cache") {
-      remove (url ("$ATHENA_HOME_PATH/system/cache/doc_cache"));
       remove (url ("$ATHENA_HOME_PATH/system/cache/file_cache"));
       remove (url ("$ATHENA_HOME_PATH/system/cache/dir_cache.scm"));
       remove (url ("$ATHENA_HOME_PATH/system/cache/stat_cache.scm"));

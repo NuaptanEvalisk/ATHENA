@@ -71,7 +71,6 @@ preference_callback_name (const QString& id) {
     {"cpp-pref", "notify-cpp-pref"},
     {"cursor-color", "notify-cursor-color"},
     {"debug-backtrace", "notify-debug-backtrace"},
-    {"doc-collect-preference", "notify-doc-collect-preference"},
     {"document-background-color", "notify-document-background-color"},
     {"enunciation-color", "notify-enunciation-color"},
     {"enunciation-rendering", "notify-enunciation-rendering"},

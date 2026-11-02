@@ -445,7 +445,7 @@ tree insert_cover (tree body, url cover) {
   if (N(body) > 0 && is_compound (body[0])) {
     string tag= as_string (L(body[0]));
     if (tag == "doc-data" || tag == "title" || tag == "doc-title" ||
-        tag == "tmdoc-title" || tag == "tmdoc-title*" || tag == "doc-title-block")
+        tag == "doc-title-block")
       position= 1;
   }
   tree result (DOCUMENT);

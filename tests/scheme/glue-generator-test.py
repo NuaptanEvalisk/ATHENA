@@ -369,7 +369,7 @@ int main() {
         glue.generate([path], out)
         self.interface('<binding name="after" native="native" returns="void"/>')
         glue.generate([path], out)
-        for name in ["glue_fixture.cpp", "glue-auto-doc.en.tm"]:
+        for name in ["glue_fixture.cpp"]:
             content = (out / name).read_text()
             self.assertIn("after", content)
             self.assertNotIn("before", content)
@@ -426,7 +426,6 @@ int main() {
         tree.write(xml)
         rebuild()
         self.assertIn("changed-by-cmake-test", basic.read_text())
-        self.assertIn("changed-by-cmake-test", (outputs / "glue-auto-doc.en.tm").read_text())
         rebuild()
         self.assertNotIn("Generating C++", rebuild().stdout)
 

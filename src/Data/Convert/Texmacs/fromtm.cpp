@@ -642,10 +642,5 @@ search_metadata (tree doc, string kind,
       return {};
     return result;
   }
-  if (kind == "title") {
-    const auto title= search_tag_quick (doc, "tmdoc-title");
-    if (title) return source_to_verbatim (subtree (doc, *title)[0], false, "utf-8",
-                                        contexts, *title * 0);
-  }
   return string ("");
 }

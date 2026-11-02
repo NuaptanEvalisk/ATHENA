@@ -244,30 +244,6 @@
         "group": "assign-tag"
       },
       {
-        "group": "tmdoc-traversal-tag"
-      },
-      {
-        "group": "tmdoc-menu-tag"
-      },
-      {
-        "group": "tmdoc-annotation-tag"
-      },
-      {
-        "group": "tmdoc-style-annotation-tag"
-      },
-      {
-        "group": "tmdoc-small-box-tag"
-      },
-      {
-        "group": "tmdoc-big-box-tag"
-      },
-      {
-        "group": "tmdoc-if-ref-tag"
-      },
-      {
-        "group": "tmdoc-link-tag"
-      },
-      {
         "group": "implied-tag"
       }
     ],
@@ -409,30 +385,6 @@
       },
       {
         "group": "assign-tag"
-      },
-      {
-        "group": "tmdoc-traversal-tag"
-      },
-      {
-        "group": "tmdoc-menu-tag"
-      },
-      {
-        "group": "tmdoc-annotation-tag"
-      },
-      {
-        "group": "tmdoc-style-annotation-tag"
-      },
-      {
-        "group": "tmdoc-small-box-tag"
-      },
-      {
-        "group": "tmdoc-big-box-tag"
-      },
-      {
-        "group": "tmdoc-if-ref-tag"
-      },
-      {
-        "group": "tmdoc-link-tag"
       },
       {
         "group": "implied-tag"
@@ -1363,51 +1315,6 @@
     "assign-tag": [
       "assign",
       "provide"
-    ],
-    "tmdoc-traversal-tag": [
-      "branch",
-      "extra-branch",
-      "continue",
-      "optional-branch"
-    ],
-    "tmdoc-menu-tag": [
-      "menu",
-      "submenu",
-      "subsubmenu",
-      "subsubsubmenu",
-      "subsubsubsubmenu"
-    ],
-    "tmdoc-annotation-tag": [
-      "markup",
-      "src-arg",
-      "src-var",
-      "src-length",
-      "src-tt",
-      "src-numeric",
-      "src-textual"
-    ],
-    "tmdoc-style-annotation-tag": [
-      "tmstyle",
-      "tmpackage",
-      "tmdtd"
-    ],
-    "tmdoc-small-box-tag": [
-      "small-focus",
-      "small-envbox"
-    ],
-    "tmdoc-big-box-tag": [
-      "big-focus",
-      "big-envbox"
-    ],
-    "tmdoc-if-ref-tag": [
-      "tmdoc-if-ref",
-      "tmdoc-if-ref*",
-      "tmdoc-if-nref",
-      "tmdoc-if-nref*"
-    ],
-    "tmdoc-link-tag": [
-      "tmdoc-link",
-      "tmdoc-link*"
     ],
     "implied-tag": [
       "implied-generic",

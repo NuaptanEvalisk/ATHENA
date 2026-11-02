@@ -1055,8 +1055,7 @@ extract_title_rec (tree t, tree& title, bool dropped= false) {
   if (is_atomic (t)) return false;
   dropped= dropped || is_compound (t, "doc-data");
   if ((is_compound (t, "doc-title", 1) ||
-       is_compound (t, "title", 1) ||
-       is_compound (t, "tmdoc-title", 1)) && N(t) >= 1) {
+       is_compound (t, "title", 1)) && N(t) >= 1) {
     QString text= plain_tree_text (t[0]);
     if (text.isEmpty ()) return false;
     // Removed title markup keeps its targets on the rendered heading text.

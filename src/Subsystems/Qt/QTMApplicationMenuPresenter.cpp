@@ -389,10 +389,7 @@ QTMApplicationMenuPresenter::refresh_root_visibility () {
       snapshot.valid () &&
       snapshot.has (ACTOR_EDITOR_COMMAND_STATE_GRAPHICS_MODE) &&
       !document_snapshot.commutative_diagram;
-    if (menu.root_id == QStringLiteral ("manual"))
-      visible= !graphicsOnly && snapshot.valid () &&
-               snapshot.has (ACTOR_EDITOR_COMMAND_STATE_MANUAL_STYLE);
-    else if (menu.root_id == QStringLiteral ("source"))
+    if (menu.root_id == QStringLiteral ("source"))
       visible= !graphicsOnly && snapshot.valid () &&
         (snapshot.has (ACTOR_EDITOR_COMMAND_STATE_SOURCE_MODE) ||
          get_user_preference ("source tool", "off") == "on");

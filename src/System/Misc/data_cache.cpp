@@ -118,11 +118,9 @@ declare_out_of_date (url dir) {
 ******************************************************************************/
 
 static thread_local url texmacs_path (url_none ());
-static thread_local url texmacs_doc_path (url_none ());
 static thread_local url texmacs_home_path (url_none ());
 
 static thread_local string texmacs_path_string;
-static thread_local string texmacs_doc_path_string;
 static thread_local string texmacs_home_path_string;
 static thread_local string texmacs_font_path_string;
 static thread_local bool cache_paths_initialized= false;
@@ -135,17 +133,11 @@ cache_initialize_paths () {
   if (get_env ("ATHENA_HOME_PATH") == "")
     texmacs_home_path= url_system ("$HOME/.ATHENA");
   else texmacs_home_path= url_system ("$ATHENA_HOME_PATH");
-  if (get_env ("ATHENA_DOC_PATH") == "")
-    texmacs_doc_path= url_system ("$ATHENA_PATH/doc");
-  else texmacs_doc_path= url_system ("$ATHENA_DOC_PATH");
-
-  if (is_none (texmacs_path) || is_none (texmacs_home_path) ||
-      is_none (texmacs_doc_path))
+  if (is_none (texmacs_path) || is_none (texmacs_home_path))
     return false;
 
   texmacs_path_string= concretize (texmacs_path);
   texmacs_home_path_string= concretize (texmacs_home_path);
-  texmacs_doc_path_string= concretize (texmacs_doc_path);
   texmacs_font_path_string= concretize (texmacs_home_path * "fonts/");
   cache_paths_initialized= true;
   return true;
@@ -155,8 +147,7 @@ bool
 do_cache_dir (string name) {
   if (!cache_initialize_paths ()) return false;
   return
-    starts (name, texmacs_path_string) ||
-    starts (name, texmacs_doc_path_string);
+    starts (name, texmacs_path_string);
 }
 
 bool
@@ -164,8 +155,7 @@ do_cache_stat (string name) {
   if (!cache_initialize_paths ()) return false;
   return
     starts (name, texmacs_path_string) ||
-    starts (name, texmacs_font_path_string) ||
-    starts (name, texmacs_doc_path_string);
+    starts (name, texmacs_font_path_string);
 }
 
 bool
@@ -173,8 +163,7 @@ do_cache_stat_fail (string name) {
   if (!cache_initialize_paths ()) return false;
   return
     !ends (name, ".ats") && !ends (name, ".ts") &&
-    (starts (name, texmacs_path_string) ||
-     starts (name, texmacs_doc_path_string));
+    starts (name, texmacs_path_string);
 }
 
 bool
@@ -188,12 +177,6 @@ do_cache_file (string name) {
     !ends (name, ".json") &&
     (starts (name, texmacs_path_string) ||
      starts (name, texmacs_font_path_string));
-}
-
-bool
-do_cache_doc (string name) {
-  if (!cache_initialize_paths ()) return false;
-  return starts (name, texmacs_doc_path_string);
 }
 
 /******************************************************************************
@@ -211,7 +194,7 @@ cache_save (string buffer) {
     url cache_file= cache_dir * url (buffer);
     string cached;
     iterator<tree> it= iterate (cache_data);
-    if (buffer == "file_cache" || buffer == "doc_cache") {
+    if (buffer == "file_cache") {
       while (it->busy ()) {
         tree ckey= it->next ();
         if (ckey[0] == buffer) {
@@ -248,7 +231,7 @@ cache_load (string buffer) {
     //cout << "cache_file "<< cache_file << LF;
     string cached;
     if (!load_string (cache_file, cached, false)) {
-      if (buffer == "file_cache" || buffer == "doc_cache") {
+      if (buffer == "file_cache") {
         int i=0, n= N(cached);
         while (i<n) {
           int start= i;
@@ -280,7 +263,6 @@ cache_load (string buffer) {
 void
 cache_memorize () {
   cache_save ("file_cache");
-  cache_save ("doc_cache");
   cache_save ("dir_cache.scm");
   cache_save ("stat_cache.scm");
   cache_save ("font_cache.scm");

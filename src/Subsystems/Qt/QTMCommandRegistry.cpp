@@ -126,20 +126,6 @@ QTMCommandRegistry::registerBuiltins () {
       return family;
     });
 
-  registerCommandListProvider (
-    QStringLiteral ("menubar-manual-commands"),
-    [] (const QTMCommandDefinition& definition) {
-      return definition.id.startsWith (QStringLiteral ("editor.tmdoc."));
-    },
-    [] (const QTMCommandDefinition& definition) {
-      if (definition.id.contains (QStringLiteral (".gui")))
-        return QObject::tr ("GUI markup");
-      if (definition.id.contains (QStringLiteral (".annotate")))
-        return QObject::tr ("Annotations");
-      if (definition.id.contains (QStringLiteral (".explain")))
-        return QObject::tr ("Explanations");
-      return QObject::tr ("Manual");
-    });
 
   registerProvider (
     "runtime-plugin-menu", QTMCommandScope::Application,

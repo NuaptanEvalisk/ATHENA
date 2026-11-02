@@ -302,7 +302,6 @@ valid_business_id (const QString& id) {
     "focus-materials-append",
     "focus-materials-update",
     "letter-today",
-    "tmdoc-explain-synopsis",
     "make-alter-colors"
   };
   return ids.contains (id);
@@ -337,8 +336,6 @@ valid_focus_action_id (const QString& id) {
     "sqrt-toggle",
     "document-insert-title",
     "document-insert-abstract",
-    "tmdoc-insert-title",
-    "tmdoc-insert-copyright",
     "script-insert-up",
     "script-insert-down",
     "document-insert-screens",
@@ -546,8 +543,6 @@ execute_business_id (editor ed, const QString& id) {
     text_make_header ("letter-date");
     (void) call ("make", symbol_object ("date"), object (0));
   }
-  else if (id == "tmdoc-explain-synopsis")
-    (void) call ("tmdoc-insert-explain-synopsis");
   else if (id == "make-alter-colors") presentation_make (as_tree_label ("alter-colors"));
   else FAILED ("unknown native editor business id");
 }
@@ -907,7 +902,7 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
              true : fail_validation (
                error, "focus-slide-switch requires nonnegative index");
   if (op == "make-section" || op == "make-unnamed-section" ||
-      op == "make-header" || op == "tmdoc-branch" ||
+      op == "make-header" ||
       op == "make-tmlist" || op == "make-toggle" ||
       op == "make-switch" || op == "make-unroll" ||
       op == "make-overlays" || op == "make-overlay" ||
@@ -1357,21 +1352,12 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
       math_sqrt_toggle (target);
     else if (id == "document-insert-title" &&
              state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
-             state.document_insert_title_available &&
-             !state.tmdoc_insert_title_available)
+             state.document_insert_title_available)
       text_make_doc_data ();
     else if (id == "document-insert-abstract" &&
              state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
              state.document_insert_abstract_available)
       text_make_abstract_data ();
-    else if (id == "tmdoc-insert-title" &&
-             state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
-             state.tmdoc_insert_title_available)
-      (void) call ("tmdoc-insert-title");
-    else if (id == "tmdoc-insert-copyright" &&
-             state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
-             state.tmdoc_insert_copyright_available)
-      (void) call ("tmdoc-insert-copyright-and-license");
     else if (id == "script-insert-up" && state.script_insert_up)
       generic_structured_insert_up ();
     else if (id == "script-insert-down" && state.script_insert_down)
@@ -1747,10 +1733,6 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     generic_make_with_package (
       as_tree_label (native_action_string (action.value ("tag"))),
       native_action_string (action.value ("style")));
-  else if (op == "tmdoc-branch")
-    (void) call (
-      "tmdoc-make-branch",
-      symbol_object (native_action_string (action.value ("tag"))));
   else if (op == "insert-native-math-block") ed->make_native_math_block (false);
   else if (op == "insert-native-math-grid") ed->make_native_math_block (true);
   else if (op == "make-tmlist")
@@ -1775,8 +1757,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
   else if (op == "make-note-footnote") generic_make_note_footnote ();
   else if (op == "make-doc-data") {
     actor_focus_toolbar_snapshot focus= ed->focus_toolbar_state_snapshot ();
-    if (!focus.valid () || !focus.document_insert_title_available ||
-        focus.tmdoc_insert_title_available) return;
+    if (!focus.valid () || !focus.document_insert_title_available) return;
     tree value (
       as_tree_label ("doc-data"),
       tree (as_tree_label ("doc-title"), tree ("")));

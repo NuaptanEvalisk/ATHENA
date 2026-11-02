@@ -773,7 +773,7 @@ tree html_export_environment_patch () {
 scheme_tree html_export_document_plan (scheme_tree source, scheme_tree styles,
     string css, string stylesheet, string generator, bool mathjax) {
   check_export_source (source, "body");
-  if (has_style (styles, "tmdoc"))
+  if (has_style (styles, "tmdoc") || has_style (styles, "tmmanual"))
     throw std::runtime_error ("HTML export does not support the tmdoc document style");
   tree title= find_title (source);
   tree explicit_title= setting (source, "html-title");

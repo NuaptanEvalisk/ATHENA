@@ -59,10 +59,8 @@ load_string (url u, string& s, bool fatal) {
     // cout << "Concrete :" << name << LF;
     // File contents in cache?
     bool file_flag= do_cache_file (name);
-    bool doc_flag= do_cache_doc (name);
-    string cache_type= doc_flag? string ("doc_cache"): string ("file_cache");
-    if (doc_flag) cache_load ("doc_cache");
-    bool currently_cached= (file_flag || doc_flag) &&
+    string cache_type= "file_cache";
+    bool currently_cached= file_flag &&
                            is_cached (cache_type, name);
     if (currently_cached && is_up_to_date (url_parent (r))) {
       s= cache_get (cache_type, name) -> label;
@@ -102,7 +100,7 @@ load_string (url u, string& s, bool fatal) {
 
     // Cache file contents
     if (!err && (N(s) <= 10000 || currently_cached))
-      if (file_flag || doc_flag)
+      if (file_flag)
         cache_set (cache_type, name, s);
     // End caching
   }
@@ -153,10 +151,9 @@ save_string (url u, string s, bool fatal) {
     }
     // Cache file contents
     bool file_flag= do_cache_file (name);
-    bool doc_flag= do_cache_doc (name);
-    string cache_type= doc_flag? string ("doc_cache"): string ("file_cache");
+    string cache_type= "file_cache";
     if (!err && N(s) <= 10000)
-      if (file_flag || doc_flag)
+      if (file_flag)
         cache_set (cache_type, name, s);
     declare_out_of_date (url_parent (r));
     // End caching
@@ -685,117 +682,6 @@ grep (string what, url u) {
   return as_url (grep_cache [key]);
 }
 
-/******************************************************************************
-* Searching text in the documentation
-******************************************************************************/
-
-static array<int>
-search (string what, string in) {
-  int i= 0, n= N(what);
-  array<int> matches;
-  if (n == 0) return matches;
-  while (true) {
-    int pos= search_forwards (what, i, in);
-    if (pos == -1) return matches;
-    matches << pos;
-    i= pos+1;
-  }
-}
-
-static bool
-precedes (string in, int pos, string what) {
-  return pos >= N(what) && in (pos-N(what), pos) == what;
-}
-
-static int
-compute_score (string what, string in, int pos, string suf) {
-  int score= 1;
-  if (pos > 0 && !is_iso_alpha (in [pos-1]))
-    if (pos + N(what) + 1 < N(in) && !is_iso_alpha (in [pos+N(what)]))
-      score *= 10;
-  if (suf == "tm") {
-    if (precedes (in, pos, "<")) score= 0;
-    else if (precedes (in, pos, "<\\")) score= 0;
-    else if (precedes (in, pos, "<|")) score= 0;
-    else if (precedes (in, pos, "</")) score= 0;
-    else if (precedes (in, pos, "compound|")) score= 0;
-    else if (precedes (in, pos, "<name|")) score *= 10;
-    else if (precedes (in, pos, "<tmstyle|")) score *= 10;
-    else if (precedes (in, pos, "<tmdtd|")) score *= 10;
-    else if (precedes (in, pos, "<explain-macro|")) score *= 10;
-    else if (precedes (in, pos, "<var-val|")) score *= 10;
-  }
-  else if (suf == "scm") {
-    if (precedes (in, pos, "define ")) score *= 10;
-    else if (precedes (in, pos, "define-public ")) score *= 10;
-    else if (precedes (in, pos, "define (")) score *= 10;
-    else if (precedes (in, pos, "define-public (")) score *= 10;
-    else if (precedes (in, pos, "define-macro ")) score *= 10;
-    else if (precedes (in, pos, "define-public-macro ")) score *= 10;
-    else if (precedes (in, pos, "define-macro (")) score *= 10;
-    else if (precedes (in, pos, "define-public-macro (")) score *= 10;
-  }
-  return score;
-}
-
-static int
-compute_score (string what, string in, array<int> pos, string suf) {
-  int score= 0, i= 0, n= N(pos);
-  for (i=0; i<n; i++)
-    score += compute_score (what, in, pos[i], suf);
-  return score;
-}
-
-string
-escape_cork_words (string s) {
-  int i;
-  string r;
-  for (i=0; i<N(s); i++) {
-    if (s[i]=='<') {
-      int j;
-      for (j=i+1; j<N(s); j++)
-        if (s[j]=='>') break;
-      if (j<N(s)) j++;
-      if (i+7==j && s[i+1]=='#' && s[j-1]=='>') {
-        r << "\\<";
-        r << s(i+1, j-1);
-        r << "\\>";
-        i=j-1;
-      }
-    } else {
-      r << s[i];
-    }
-  }
-  return r;
-}
-
-int
-search_score (url u, array<string> a) {
-  int n= N(a);
-  string in= grep_load (u);
-  if (N(in) == 0) return 0;
-
-  string suf= suffix (u);
-  if (suf == "tm") {
-    in= locase_all (in);
-    for (int i=0; i<n; i++)
-      a[i]= locase_all (escape_cork_words (a[i]));
-  } else {
-    in= locase_all (in);
-    for (int i=0; i<n; i++)
-      a[i]= locase_all (a[i]);
-  }
-
-  int score= 1;
-  for (int i=0; i<n; i++) {
-    string what= a[i];
-    array<int> pos= search (what, in);
-    score *= compute_score (what, in, pos, suf);
-    if (score == 0) return 0;
-    if (score > 1000000) score= 1000000;
-  }
-  return score;
-}
 
 /******************************************************************************
 * Finding recursive non hidden subdirectories of a given directory
