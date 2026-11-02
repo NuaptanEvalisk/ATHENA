@@ -9,7 +9,6 @@
     {"mode": "always?", "domain": "source"},
     {"mode": "in-table?", "domain": "table"},
     {"mode": "in-graphics?", "domain": "graphics"},
-    {"mode": "always?", "module": ["dynamic", "fold-edit"]},
     {"mode": "always?", "domain": "fold"},
     {"mode": "in-manual?", "domain": "tmdoc"}
   ]
