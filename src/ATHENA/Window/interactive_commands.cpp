@@ -14,6 +14,10 @@
 #include "native_interfaces.hpp"
 #include <QCoreApplication>
 #include <QTimer>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <stdexcept>
 #include <map>
 #include <mutex>
 #include <vector>
@@ -88,6 +92,60 @@ object compute_arguments (object function) {
   }
   return as_list_object (result);
 }
+}
+
+void interactive_properties_initialize () {
+  string data;
+  if (load_string ("$ATHENA_PATH/misc/command-properties.json", data, true))
+    throw std::runtime_error ("Could not load command properties");
+  QJsonParseError error;
+  QJsonDocument document= QJsonDocument::fromJson (QByteArray (data.data (), N(data)), &error);
+  if (error.error != QJsonParseError::NoError || !document.isObject ())
+    throw std::runtime_error ("Invalid command-properties.json");
+  const auto text= [] (const QString& value) { return string (value.toUtf8 ().constData ()); };
+  const QJsonObject commands= document.object ();
+  for (auto it= commands.begin (); it != commands.end (); ++it) {
+    const object name= symbol_object (text (it.key ()));
+    const QJsonObject descriptor= it.value ().toObject ();
+    const auto put= [&] (object key, object value) {
+      call ("property-set!", name, key, value, null_object ());
+    };
+    if (descriptor.contains ("interactive"))
+      put (keyword_object ("interactive"), list_object (object (descriptor["interactive"].toBool ())));
+    if (descriptor.contains ("synopsis"))
+      put (keyword_object ("synopsis"), list_object (object (text (descriptor["synopsis"].toString ()))));
+    if (descriptor.contains ("check-mark")) {
+      const QJsonArray mark= descriptor["check-mark"].toArray ();
+      put (keyword_object ("check-mark"), list_object (object (text (mark[0].toString ())),
+        eval (symbol_object (text (mark[1].toString ())))));
+    }
+    if (descriptor.contains ("applicable"))
+      put (keyword_object ("applicable"), list_object (
+        eval (symbol_object (text (descriptor["applicable"].toString ())))));
+    if (!descriptor.contains ("arguments")) continue;
+    const QJsonArray arguments= descriptor["arguments"].toArray ();
+    object formals= descriptor.contains ("rest") ?
+      symbol_object (text (descriptor["rest"].toString ())) : null_object ();
+    for (int i= arguments.size ()-1; i>=0; --i)
+      formals= cons (symbol_object (text (arguments[i].toObject ()["name"].toString ())), formals);
+    put (keyword_object ("arguments"), formals);
+    for (const QJsonValue& entry: arguments) {
+      const QJsonObject argument= entry.toObject ();
+      const object field= symbol_object (text (argument["name"].toString ()));
+      object label= list_object (object (text (argument["label"].toString ())));
+      if (argument.contains ("type"))
+        label= cons (symbol_object (text (argument["type"].toString ())), label);
+      put (list_object (keyword_object ("argument"), field), label);
+      if (argument.contains ("default"))
+        put (list_object (keyword_object ("default"), field),
+             eval (symbol_object (text (argument["default"].toString ()))));
+    }
+  }
+}
+
+bool interactive_page_format_applicable (object arguments) {
+  (void) arguments;
+  return !get_current_editor ()->selection_active_any ();
 }
 
 void interactive_learn (object function, object values) {

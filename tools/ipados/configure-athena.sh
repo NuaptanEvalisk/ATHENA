@@ -23,7 +23,6 @@ export PATH="/Users/felix/.cargo/bin:/opt/local/bin:/opt/local/sbin:$PATH"
 export LC_ALL=en_US.UTF-8
 export LANG=en_US.UTF-8
 
-runtime_id=athena-guile-3.0.10-ipados-arm64-nojit
 build_dir="$developer_root/athena-build/ipados"
 runtime_prefix="$developer_root/athena-deps/ipados/prefix/runtime"
 deps_prefix="$developer_root/athena-deps/ipados/prefix/deps"
@@ -32,7 +31,6 @@ qt_toolchain="$qt_build/qtbase/lib/cmake/Qt6/qt.toolchain.cmake"
 chainload_toolchain="$source_root/tools/ipados/iphoneos.toolchain.cmake"
 guile_build="$developer_root/athena-deps/ipados/build/athena-guile-3.0.10"
 guile_config="$guile_build/config.h"
-scheme_dir="$developer_root/athena-deps/ipados/prefix/athena-scheme/$runtime_id"
 
 banner () {
   printf '\n\n======================================================================\n'
@@ -55,8 +53,7 @@ for required in \
     "$runtime_prefix/lib/libgmp.a" \
     "$runtime_prefix/lib/libffi.a" \
     "$runtime_prefix/lib/libunistring.a" \
-    "$guile_config" \
-    "$scheme_dir/.complete"; do
+    "$guile_config"; do
   test -e "$required" || {
     echo "Missing required iPadOS build input: $required" >&2
     exit 1
@@ -72,11 +69,6 @@ if grep -Eq '^#define ENABLE_JIT 1$' "$guile_config"; then
   exit 1
 fi
 
-scheme_runtime_id=$(sed -n '1p' "$scheme_dir/.complete")
-[ "$scheme_runtime_id" = "$runtime_id" ] || {
-  echo "Packaged Scheme runtime mismatch: $scheme_runtime_id" >&2
-  exit 1
-}
 
 mkdir -p "$build_dir" "$deps_prefix"
 
@@ -104,7 +96,6 @@ printf 'Qt toolchain:    %s\n' "$qt_toolchain"
 printf 'chainload:       %s\n' "$chainload_toolchain"
 printf 'Guile prefix:    %s\n' "$runtime_prefix"
 printf 'target deps:     %s\n' "$deps_prefix"
-printf 'Scheme bytecode: %s\n' "$scheme_dir"
 
 cmake -S "$source_root" -B "$build_dir" -G Xcode \
   --log-level=VERBOSE \
@@ -117,7 +108,6 @@ cmake -S "$source_root" -B "$build_dir" -G Xcode \
   -DKF6SyntaxHighlighting_DIR="$deps_prefix/lib/cmake/KF6SyntaxHighlighting" \
   -DATHENA_GUILE_PREBUILT_PREFIX="$runtime_prefix" \
   -DATHENA_GUILE_PREBUILT_CONFIG_HEADER="$guile_config" \
-  -DATHENA_PACKAGED_SCHEME_DIR="$scheme_dir" \
   -DOPENGL_GLES3_INCLUDE_DIR="$opengles/Headers" \
   -DOPENGL_gles3_LIBRARY="$opengles/OpenGLES.tbd" \
   -DOPENGL_INCLUDE_DIR="$opengles/Headers" \

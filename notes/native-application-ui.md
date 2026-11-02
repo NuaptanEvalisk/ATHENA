@@ -93,7 +93,7 @@ contract; raw legacy-locus persistence compatibility was not added.
 The `progs/athena` business migration is complete. Its former modules and the
 empty directory are removed, rather than moved to another Scheme directory.
 The native entrypoints are declared in `src/Scheme/Glue/native.xml`; generated
-marshalling remains a bridge to the deferred Scheme kernel.
+marshalling remains a bridge to the retained Guile runtime.
 
 - `application_lifecycle.cpp` and `document_save_frontend.cpp` own document
   loading, recovery, import/export, revert, save, close and application exit.
@@ -138,7 +138,7 @@ now live in native code:
   including note deduplication and author clustering.
 
 Bindings in `src/Scheme/Glue/native.xml` retain the entrypoints needed by the
-remaining kernel, keymap dispatcher and style `extern` calls. The removed
+keymap dispatcher and style `extern` calls. The removed
 modules are not imported or relocated into another Scheme directory.
 
 ### Custom shortcuts
@@ -170,3 +170,27 @@ multi-key prefixes, folding/unfolding, and macro parameter discovery. These
 checks ran in a temporary profile and did not exercise every presentation or
 clipboard workflow. The temporary scripts and runtime data were removed after
 use. The three retired source directories are removed as well as their files.
+
+## Native Startup (2026-11-02)
+
+`progs` is removed. The server directly initializes preferences, node groups,
+keyboard domains, user shortcuts and dialogs. BufferActor view initialization
+sets the default style and vault font for unnamed documents. Command argument
+labels, dynamic default providers, menu predicates and interactive flags are
+declared in `misc/command-properties.json` and published by the native loader.
+There is no application Scheme bytecode build, refresh or packaging step.
+Explicit command-line scripts and the private Guile runtime remain supported.
+
+The deployed -j16 build passed startup, metadata/provider lookup, new-document
+style initialization and the generated page-format applicability binding with
+no application Scheme sources or bytecode. Temporary probe files were removed.
+
+The probe also exposed a separate exception-boundary issue: invoking `insert`
+directly on a newly created BufferActor before cursor-environment preparation
+throws `Cursor environment is awaiting preparation for mode`. The C++ exception
+escapes the Scheme VM call and is caught by actor dispatch, but the subsequent
+`scm_c_with_fluid` cleanup asserts in `scm_dynstack_unwind_fluid`. Core PID
+1226975 identifies `run_scheme_handle`, command 8, not `initialize_view`;
+`actor_dispatch_request.failure` holds that runtime_error. Evidence is in
+`build_qt6/native-startup-core-{context,message}.log`. This exception cleanup
+issue was not changed by the bounded startup migration and remains unresolved.

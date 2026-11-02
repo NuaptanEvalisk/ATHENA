@@ -10,5 +10,7 @@ void interactive_command (object function, object arguments);
 void interactive_schedule_idle (int milliseconds, object continuation);
 object interactive_idle_step (int milliseconds, double start, object continuation);
 void interactive_startup ();
+void interactive_properties_initialize ();
+bool interactive_page_format_applicable (object arguments);
 void interactive_choose_file (object action, string title, string type, object options);
 #endif

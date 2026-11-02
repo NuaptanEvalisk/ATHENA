@@ -23,6 +23,7 @@
 #include "buffer_actor.hpp"
 #include "editor.hpp"
 #include "actor_ui_bridge.hpp"
+#include "Edit/Interface/document_commands.hpp"
 
 #ifdef QTTEXMACS
 #include <QCoreApplication>
@@ -389,18 +390,17 @@ defer_next_view_initialization () {
 }
 
 void
-initialize_current_view_scheme () {
-  ASSERT (!is_none (tm_init_buffer_file),
-          "view initialization path was not prepared by the Server");
-  bench_start ("load init buffer");
-  if (exists (tm_init_buffer_file)) exec_file (tm_init_buffer_file);
-  bench_cumul ("load init buffer");
+initialize_current_view () {
+  url buffer= get_current_buffer ();
+  if (!is_none (buffer) && !buffer_has_name (buffer)) {
+    if (document_missing_style ()) document_set_default_style ();
+    document_apply_vault_font ();
+  }
+  if (!is_none (tm_init_buffer_file)) exec_file (tm_init_buffer_file);
 }
 
 static void
 initialize_view (tm_view vw) {
-  if (is_none (tm_init_buffer_file))
-    tm_init_buffer_file= "$ATHENA_PATH/progs/init-buffer.scm";
   if (!vw->buf->actor->submit (
         actor_command_kind::initialize_view, vw->runtime_id))
     FAILED ("BufferActor rejected view initialization");

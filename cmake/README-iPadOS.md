@@ -30,10 +30,9 @@ Implemented boundaries:
   from the shared source list.
 - Exclude Codex subprocess completion; ordinary LaTeX import uses the shared
   deterministic parser.
-- Exclude startup source-fingerprint refresh/re-execution and ATHENA's
-  Scheme bytecode compilation entry points.
-- Force Guile auto-compilation off, require packaged application bytecode,
-  and do not create a writable fallback bytecode cache.
+- Exclude startup source-fingerprint refresh/re-execution.
+- Force Guile auto-compilation off; no application Scheme sources or bytecode
+  are shipped. The private Guile standard library remains packaged.
 
 Linux behavior is preserved, including its private Guile runtime identity.
 
@@ -47,28 +46,20 @@ iPad binary to generate bytecode. The future packaging build supplies:
   produced with `--disable-jit`.  Autoconf may represent that as either
   `#define ENABLE_JIT 0` or `/* #undef ENABLE_JIT */`; both mean JIT is disabled
   because the runtime guards JIT code with `#if ENABLE_JIT`.
-- `ATHENA_PACKAGED_SCHEME_DIR`: the precompiled application `.go` tree,
-  preserving paths relative to `ATHENA/progs`.
 
-The application bytecode directory must contain `.complete`, whose first
-line is `athena-guile-3.0.10-ipados-arm64-nojit`. Configuration checks this
-identity and the presence of each application's compiled module and adds
-those files to the bundle resources. This check is not a bytecode ABI or
-source-freshness validator: the packaging job must produce matching target
-bytecode. Never relabel Linux bytecode by editing its stamp.
+Application startup is native; there is no application bytecode input.
 
 The target Guile is built with `ATHENA_GUILE_BUNDLED_ONLY=1`. Its immutable
 bundle ignores source/bytecode mtimes, which Xcode copying and IPA installation
 do not preserve as compilation ordering. Missing or invalid bytecode is an
 error, not a request to interpret or compile source. This also applies to
 `primitive-load` startup entries: bundled source paths map to the corresponding
-application or standard-library `.go` files. ELF/VM compatibility validation
+standard-library `.go` files. ELF/VM compatibility validation
 remains enabled. Linux retains its existing freshness and development behavior.
 
-Application resources, precompiled application bytecode and Guile's standard
-library are collected into the bundle by `AthenaIOS.cmake` and
-`AthenaPackagedScheme.cmake`. Guile runtime library/framework packaging and
-signing are still separate work; the prebuilt runtime loader expects shared
+Application resources and Guile\'s standard library are collected into the
+bundle by `AthenaIOS.cmake`. Guile runtime library/framework packaging and
+signing remain separate work; the prebuilt runtime loader expects shared
 libraries.
 
 ## Application storage

@@ -140,148 +140,12 @@ string website_generate_dir;
 string website_generate_id;
 string website_post_command_dir;
 string website_post_command_id;
-string scheme_bytecode_output_dir;
-string scheme_bytecode_source_file;
-string scheme_bytecode_compiled_file;
-string scheme_bytecode_manifest_file;
 bool   aofm_ignore_nonempty_dest = false;
 int    aofm_convert_vault_parallelism = 0;
 string extra_init_cmd;
 bool exec_exit= true;
 static std::string athena_to_std_string (const string& s);
 
-#if ATHENA_ENABLE_CLI
-static bool
-athena_compile_scheme_file (const std::filesystem::path& source,
-                            const std::filesystem::path& output) {
-  namespace fs= std::filesystem;
-  std::error_code ec;
-  fs::create_directories (output.parent_path (), ec);
-  if (ec) {
-    std::cerr << "ATHENA Scheme bytecode: could not create "
-              << output.parent_path () << ": " << ec.message () << '\n';
-    return false;
-  }
-
-  eval ("(use-modules (system base compile))");
-  eval ("(when (and (not (defined? 'athena-time)) "
-        "                 (defined? 'texmacs-time)) "
-        "  (module-define! (current-module) 'athena-time texmacs-time))");
-  string optimization= get_env ("ATHENA_SCHEME_OPTIMIZATION_LEVEL");
-  if (optimization != "0" && optimization != "1" &&
-      optimization != "2" && optimization != "3")
-    optimization= "1";
-  string command= "(compile-file " *
-    scm_quote (string (source.generic_string ().c_str ())) *
-    " #:output-file " *
-    scm_quote (string (output.generic_string ().c_str ())) *
-    " #:env (current-module) #:optimization-level " * optimization *
-    " #:warning-level 0)";
-  string target= get_env ("ATHENA_SCHEME_TARGET");
-  if (target != "") {
-    eval ("(use-modules (system base target))");
-    command= "(with-target " * scm_quote (target) *
-      " (lambda () " * command * "))";
-  }
-  object result= eval (command);
-  if (is_list (result) || !fs::exists (output)) {
-    std::cerr << "ATHENA Scheme bytecode: compilation failed for "
-              << source << '\n';
-    if (is_list (result))
-      std::cerr << "ATHENA Scheme bytecode: Guile exception: "
-                << athena_to_std_string (object_to_string (result)) << '\n';
-    return false;
-  }
-  return true;
-}
-
-static void
-athena_enable_scheme_dependency_cache () {
-  string cache= get_env ("ATHENA_SCHEME_DEPENDENCY_CACHE_PATH");
-  if (cache == "") cache= scheme_bytecode_output_dir;
-  eval ("(let ((cache " * scm_quote (cache) * ")) "
-        "  (unless (member cache %load-compiled-path) "
-        "    (set! %load-compiled-path "
-        "          (cons cache %load-compiled-path))))");
-}
-
-static bool
-athena_compile_scheme_bytecode () {
-  namespace fs= std::filesystem;
-  const fs::path source_root (athena_to_std_string (get_env ("ATHENA_PATH")) +
-                              "/progs");
-  const fs::path output_root (athena_to_std_string (
-    scheme_bytecode_output_dir));
-  std::vector<fs::path> sources;
-  std::error_code ec;
-
-  for (fs::recursive_directory_iterator it (source_root, ec), end;
-       !ec && it != end; it.increment (ec))
-    if (it->is_regular_file (ec) && it->path ().extension () == ".scm")
-      sources.push_back (it->path ());
-  if (ec) {
-    std::cerr << "ATHENA Scheme bytecode: could not enumerate "
-              << source_root << ": " << ec.message () << '\n';
-    return false;
-  }
-  std::sort (sources.begin (), sources.end ());
-  fs::create_directories (output_root, ec);
-  if (ec) {
-    std::cerr << "ATHENA Scheme bytecode: could not create " << output_root
-              << ": " << ec.message () << '\n';
-    return false;
-  }
-
-  size_t completed= 0;
-  for (const fs::path& source: sources) {
-    fs::path relative= fs::relative (source, source_root, ec);
-    if (ec) return false;
-    fs::path output= output_root / relative;
-    output.replace_extension (".go");
-    if (!athena_compile_scheme_file (source, output)) return false;
-    completed++;
-    std::cout << "ATHENA Scheme bytecode: " << completed << "/"
-              << sources.size () << " " << relative.generic_string () << '\n';
-  }
-
-  std::ofstream stamp (output_root / ".complete", std::ios::binary);
-  stamp << ATHENA_GUILE_RUNTIME_ID << '\n' << completed << '\n';
-  return stamp.good ();
-}
-
-static bool
-athena_compile_scheme_manifest () {
-  namespace fs= std::filesystem;
-  std::ifstream input (athena_to_std_string (scheme_bytecode_manifest_file),
-                       std::ios::binary);
-  if (!input) {
-    std::cerr << "ATHENA Scheme bytecode: could not open worker manifest "
-              << athena_to_std_string (scheme_bytecode_manifest_file) << '\n';
-    return false;
-  }
-
-  std::string source;
-  std::string output;
-  size_t completed= 0;
-  while (std::getline (input, source, '\0')) {
-    if (!std::getline (input, output, '\0')) {
-      std::cerr << "ATHENA Scheme bytecode: truncated worker manifest "
-                << athena_to_std_string (scheme_bytecode_manifest_file) << '\n';
-      return false;
-    }
-    if (source.empty () || output.empty ()) {
-      std::cerr << "ATHENA Scheme bytecode: empty path in worker manifest "
-                << athena_to_std_string (scheme_bytecode_manifest_file) << '\n';
-      return false;
-    }
-    if (!athena_compile_scheme_file (fs::path (source), fs::path (output)))
-      return false;
-    completed++;
-    std::cout << "ATHENA Scheme bytecode: " << source << '\n';
-  }
-  return completed != 0;
-}
-#endif
 
 #ifdef OS_MINGW
 #ifndef CP_UTF8
@@ -601,8 +465,6 @@ static int startup_scheme_compile_depth= 0;
 static string
 startup_scheme_module_name (string source) {
   string install_root= get_env ("ATHENA_PATH") * "/";
-  string source_root= install_root * "progs/";
-  if (starts (source, source_root)) return source (N(source_root), N(source));
   if (starts (source, install_root))
     return source (N(install_root), N(source));
   return source;
@@ -1002,15 +864,6 @@ set_global_options  (int argc, char** argv)  {
       else if (s == "-run-website-post-command") {
         i += 2;
       }
-      else if (s == "-compile-scheme-bytecode") {
-        i++;
-      }
-      else if (s == "-compile-scheme-bytecode-worker") {
-        i += 3;
-      }
-      else if (s == "-compile-scheme-bytecode-worker-list") {
-        i += 2;
-      }
       else if (s == "-check-only") {
         // Handled in texmacs_entrypoint
       }
@@ -1169,28 +1022,6 @@ TeXmacs_main (int argc, char** argv) {
   startup_progress (82, "Configuring session");
   set_global_options (argc, argv);
 
-#if ATHENA_ENABLE_CLI
-  if (scheme_bytecode_output_dir != "") {
-    init_system_state ();
-    gui_open (argc, argv);
-    server sv;
-    // Bootstrap against source so legacy shared-root bindings are installed
-    // in their historical order. Only then expose completed dependency
-    // levels to compile-file's module resolver.
-    athena_enable_scheme_dependency_cache ();
-    bool ok= scheme_bytecode_manifest_file != ""
-      ? athena_compile_scheme_manifest ()
-      : (scheme_bytecode_source_file == ""
-           ? athena_compile_scheme_bytecode ()
-           : athena_compile_scheme_file (
-               std::filesystem::path (athena_to_std_string (
-                 scheme_bytecode_source_file)),
-               std::filesystem::path (athena_to_std_string (
-                 scheme_bytecode_compiled_file))));
-    release_boot_lock ();
-    exit (ok ? 0 : 1);
-  }
-#endif
 
   if (DEBUG_STD) debug_boot << "Initializing system state...\n";
   startup_progress (84, "Initializing system state");
@@ -1702,7 +1533,6 @@ athena_source_fingerprint_for_root (const char* label, const string& root_s) {
   athena_fingerprint_feed (hash, "athena-source-fingerprint-v2");
   athena_fingerprint_feed (hash, label);
   athena_fingerprint_feed (hash, root);
-  athena_source_fingerprint_for_subdir (hash, entries, root, "progs");
   athena_source_fingerprint_for_subdir (hash, entries, root, "packages");
   if (entries == 0) return "";
 
@@ -1768,8 +1598,6 @@ static void
 athena_refresh_cache_if_sources_changed (int argc, char** argv) {
   url home_dir= url_system (get_env ("ATHENA_HOME_PATH"));
   if (!is_directory (home_dir)) mkdir (home_dir);
-  if (!is_directory (home_dir * url ("progs")))
-    mkdir (home_dir * url ("progs"));
 
   url cache_dir= home_dir * url ("system/cache");
   if (!is_directory (cache_dir)) mkdir (cache_dir);
@@ -1801,220 +1629,6 @@ athena_refresh_cache_if_sources_changed (int argc, char** argv) {
     return;
   }
   athena_restart_after_startup_refresh (argc, argv, "cache cleanup");
-}
-
-static bool
-athena_refresh_stale_scheme_bytecode (int argc, char** argv) {
-#ifdef OS_MINGW
-  (void) argc; (void) argv;
-  return false;
-#else
-  namespace fs= std::filesystem;
-  std::string athena_root= athena_to_std_string (get_env ("ATHENA_PATH"));
-  std::string home_root= athena_to_std_string (get_env ("ATHENA_HOME_PATH"));
-  if (athena_root.empty () || home_root.empty ()) return false;
-
-  fs::path source_root= fs::path (athena_root) / "progs";
-  fs::path output_root;
-  std::string configured_cache= athena_to_std_string (
-    get_env ("ATHENA_GUILE_CACHE_PATH"));
-  if (!configured_cache.empty ()) output_root= configured_cache;
-  else output_root= fs::path (athena_root) / "lib" / "athena-scheme" /
-                    ATHENA_GUILE_RUNTIME_ID;
-
-  std::ifstream stamp (output_root / ".complete", std::ios::binary);
-  std::string runtime_id;
-  if (!std::getline (stamp, runtime_id) ||
-      runtime_id != ATHENA_GUILE_RUNTIME_ID)
-    return false;
-
-  std::error_code ec;
-  size_t stale_count= 0;
-  for (fs::recursive_directory_iterator it (source_root, ec), end;
-       !ec && it != end; it.increment (ec)) {
-    if (!it->is_regular_file (ec) || it->path ().extension () != ".scm")
-      continue;
-    fs::path relative= fs::relative (it->path (), source_root, ec);
-    if (ec) break;
-    fs::path compiled= output_root / relative;
-    compiled.replace_extension (".go");
-    if (!fs::exists (compiled, ec) ||
-        fs::last_write_time (it->path (), ec) >
-          fs::last_write_time (compiled, ec))
-      stale_count++;
-    if (ec) break;
-  }
-  if (ec || stale_count == 0) return false;
-
-  if (access (output_root.c_str (), W_OK) != 0) {
-    cerr << "ATHENA Scheme bytecode: stale compiled modules detected, but "
-         << output_root.string ().c_str () << " is not writable" << LF;
-    return false;
-  }
-
-  fs::path script= fs::path (athena_root).parent_path () / "tools" /
-                   "compile-athena-scheme-bytecode.sh";
-  if (!fs::is_regular_file (script, ec)) {
-    cerr << "ATHENA Scheme bytecode: runtime compiler not found: "
-         << script.string ().c_str () << LF;
-    return false;
-  }
-
-  fs::path binary= fs::read_symlink ("/proc/self/exe", ec);
-  if (ec) {
-    ec.clear ();
-    binary= fs::absolute (argv[0], ec);
-  }
-  if (ec) return false;
-
-  fs::path compile_home= fs::path (home_root) / "system" /
-                         "scheme-bytecode-runtime-refresh";
-  fs::path runtime_root= fs::path (athena_root) / "lib" / "athena-guile";
-  fs::path library_root= fs::path (athena_root) / "lib";
-  std::string jobs= athena_to_std_string (
-    get_env ("ATHENA_SCHEME_COMPILE_JOBS"));
-  if (jobs.empty ()) jobs= "20";
-
-  std::vector<std::string> arguments= {
-    "/bin/bash", script.string (), binary.string (), output_root.string (),
-    athena_root, compile_home.string (), runtime_root.string (),
-    source_root.string (), library_root.string (), library_root.string (),
-    library_root.string (), jobs, ATHENA_GUILE_RUNTIME_ID};
-  std::vector<char*> exec_arguments;
-  exec_arguments.reserve (arguments.size () + 1);
-  for (std::string& argument: arguments)
-    exec_arguments.push_back (argument.data ());
-  exec_arguments.push_back (nullptr);
-
-  cout << "ATHENA Scheme bytecode: detected " << stale_count
-       << " stale module" << (stale_count == 1 ? "" : "s") << LF;
-  startup_progress (0, "Compiling Scheme bytecode: preparing module plan");
-  const char* previous_refresh= getenv ("ATHENA_SCHEME_RUNTIME_REFRESH");
-  std::string previous_refresh_value=
-    previous_refresh == nullptr ? "" : previous_refresh;
-  setenv ("ATHENA_SCHEME_RUNTIME_REFRESH", "1", 1);
-  int compiler_output[2]= {-1, -1};
-  bool capture_output= pipe (compiler_output) == 0;
-  if (capture_output) {
-    (void) fcntl (compiler_output[0], F_SETFD, FD_CLOEXEC);
-    (void) fcntl (compiler_output[1], F_SETFD, FD_CLOEXEC);
-  }
-
-  pid_t child= fork ();
-  if (child == 0) {
-    if (capture_output) {
-      close (compiler_output[0]);
-      if (dup2 (compiler_output[1], STDOUT_FILENO) < 0) _exit (127);
-      close (compiler_output[1]);
-    }
-    execv ("/bin/bash", exec_arguments.data ());
-    _exit (127);
-  }
-  if (previous_refresh == nullptr)
-    unsetenv ("ATHENA_SCHEME_RUNTIME_REFRESH");
-  else
-    setenv ("ATHENA_SCHEME_RUNTIME_REFRESH",
-            previous_refresh_value.c_str (), 1);
-  if (child < 0) {
-    if (capture_output) {
-      close (compiler_output[0]);
-      close (compiler_output[1]);
-    }
-    cerr << "ATHENA Scheme bytecode: could not start runtime compiler" << LF;
-    return false;
-  }
-
-  if (capture_output) {
-    close (compiler_output[1]);
-    int flags= fcntl (compiler_output[0], F_GETFL, 0);
-    if (flags >= 0)
-      (void) fcntl (compiler_output[0], F_SETFL, flags | O_NONBLOCK);
-  }
-
-  size_t compile_total= 0;
-  size_t compile_completed= 0;
-  std::string pending_output;
-  auto consume_line= [&] (const std::string& line) {
-    static const std::string plan_prefix=
-      "ATHENA Scheme bytecode: recompiling ";
-    static const std::string module_prefix= "ATHENA Scheme bytecode: /";
-    if (line.compare (0, plan_prefix.size (), plan_prefix) == 0) {
-      size_t affected= 0;
-      size_t available= 0;
-      if (std::sscanf (
-            line.c_str (),
-            "ATHENA Scheme bytecode: recompiling %zu of %zu modules",
-            &affected, &available) == 2) {
-        compile_total= affected;
-        startup_progress (
-          0, "Compiling Scheme bytecode: 0/" *
-               as_string (static_cast<long int> (compile_total)) * " modules");
-      }
-      return;
-    }
-    if (compile_total == 0 ||
-        line.compare (0, module_prefix.size (), module_prefix) != 0 ||
-        line.size () < 4 || line.substr (line.size () - 4) != ".scm")
-      return;
-
-    compile_completed= std::min (compile_completed + 1, compile_total);
-    std::string source= line.substr (
-      std::string ("ATHENA Scheme bytecode: ").size ());
-    std::string source_prefix= source_root.string () + "/";
-    if (source.compare (0, source_prefix.size (), source_prefix) == 0)
-      source.erase (0, source_prefix.size ());
-    int progress= static_cast<int> (
-      (100 * compile_completed) / std::max<size_t> (compile_total, 1));
-    startup_progress (
-      progress,
-      "Compiling Scheme bytecode: " *
-        as_string (static_cast<long int> (compile_completed)) * "/" *
-        as_string (static_cast<long int> (compile_total)) * "\n" *
-        string (source.c_str ()));
-  };
-
-  int status= 0;
-  pid_t waited= 0;
-  bool output_open= capture_output;
-  while (waited == 0 || output_open) {
-    if (output_open) {
-      char buffer[4096];
-      ssize_t count;
-      do {
-        count= read (compiler_output[0], buffer, sizeof (buffer));
-        if (count > 0) {
-          std::cout.write (buffer, count);
-          std::cout.flush ();
-          pending_output.append (buffer, static_cast<size_t> (count));
-          size_t newline;
-          while ((newline= pending_output.find ('\n')) != std::string::npos) {
-            consume_line (pending_output.substr (0, newline));
-            pending_output.erase (0, newline + 1);
-          }
-        }
-        else if (count == 0) {
-          close (compiler_output[0]);
-          output_open= false;
-        }
-      } while (count > 0);
-    }
-
-    if (waited == 0) {
-      do waited= waitpid (child, &status, WNOHANG);
-      while (waited < 0 && errno == EINTR);
-    }
-    startup_process_events ();
-    if (waited == 0 || output_open) usleep (20000);
-  }
-  if (!pending_output.empty ()) consume_line (pending_output);
-  if (waited == child && WIFEXITED (status) && WEXITSTATUS (status) == 0)
-    startup_progress (100, "Scheme bytecode compiled; restarting ATHENA");
-  if (waited != child || !WIFEXITED (status) || WEXITSTATUS (status) != 0) {
-    cerr << "ATHENA Scheme bytecode: runtime refresh failed" << LF;
-    return false;
-  }
-  return true;
-#endif
 }
 
 #endif // ATHENA_ENABLE_RUNTIME_SCHEME_REFRESH
@@ -2267,37 +1881,6 @@ texmacs_entrypoint (int argc, char** argv) {
         headless_mode= true;
       }
     }
-    if (s == "-compile-scheme-bytecode") {
-      i++;
-      if (i < argc) {
-        scheme_bytecode_output_dir= argv[i];
-        headless_mode= true;
-        no_splash_screen= true;
-        skip_fonts_cache= true;
-        exec_exit= false;
-      }
-    }
-    if (s == "-compile-scheme-bytecode-worker") {
-      if (i + 3 < argc) {
-        scheme_bytecode_output_dir= argv[++i];
-        scheme_bytecode_source_file= argv[++i];
-        scheme_bytecode_compiled_file= argv[++i];
-        headless_mode= true;
-        no_splash_screen= true;
-        skip_fonts_cache= true;
-        exec_exit= false;
-      }
-    }
-    if (s == "-compile-scheme-bytecode-worker-list") {
-      if (i + 2 < argc) {
-        scheme_bytecode_output_dir= argv[++i];
-        scheme_bytecode_manifest_file= argv[++i];
-        headless_mode= true;
-        no_splash_screen= true;
-        skip_fonts_cache= true;
-        exec_exit= false;
-      }
-    }
     if (s == "-check-only") {
       vault_maintenance_check_only= true;
     }
@@ -2404,10 +1987,6 @@ texmacs_entrypoint (int argc, char** argv) {
     std::cerr << e.what () << '\n';
     return 1;
   }
-  if (scheme_bytecode_output_dir != "") {
-    set_env ("ATHENA_GUILE_SOURCE_ROOT", "$ATHENA_PATH/progs");
-    set_env ("GUILE_AUTO_COMPILE", "0");
-  }
   if (artifact_extract_worker_manifest != "" &&
       artifact_extract_worker_output != "") {
     std::string error;
@@ -2456,15 +2035,7 @@ texmacs_entrypoint (int argc, char** argv) {
   startup_progress (12, "Checking caches");
   bench_start ("check startup caches");
 #if ATHENA_ENABLE_RUNTIME_SCHEME_REFRESH
-  bool refreshed_scheme_bytecode= false;
-  if (scheme_bytecode_output_dir == "") {
-    refreshed_scheme_bytecode=
-      athena_refresh_stale_scheme_bytecode (argc, argv);
-    athena_refresh_cache_if_sources_changed (argc, argv);
-    if (refreshed_scheme_bytecode)
-      athena_restart_after_startup_refresh (
-        argc, argv, "Scheme bytecode compilation");
-  }
+  athena_refresh_cache_if_sources_changed (argc, argv);
 #endif
   bench_cumul ("check startup caches");
   startup_progress (20, "Caches ready");
@@ -2525,13 +2096,11 @@ texmacs_entrypoint (int argc, char** argv) {
   cache_initialize ();
   bench_cumul ("initialize data caches");
   startup_progress (60, "Caches initialized");
-  if (scheme_bytecode_output_dir == "") {
-    startup_progress (65, "Loading fonts");
-    bench_start ("initialize fonts");
-    ATHENA_init_font ();
-    bench_cumul ("initialize fonts");
-    startup_progress (70, "Fonts ready");
-  }
+  startup_progress (65, "Loading fonts");
+  bench_start ("initialize fonts");
+  ATHENA_init_font ();
+  bench_cumul ("initialize fonts");
+  startup_progress (70, "Fonts ready");
 #ifdef QTTEXMACS
   if (!headless_mode) qt_start_font_fallback_warmup ();
 #endif

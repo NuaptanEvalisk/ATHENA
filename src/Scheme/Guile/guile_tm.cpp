@@ -861,6 +861,7 @@ initialize_scheme () {
   scm_c_eval_string (init_prg);
   initialize_smobs ();
   initialize_glue ();
+  scm_c_use_module ("athena runtime");
   initialize_scheme_ports ();
   scheme_runtime_initialized.store (true, std::memory_order_release);
 }

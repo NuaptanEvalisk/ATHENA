@@ -53,7 +53,7 @@ url     abstract_view (tm_view vw);
 url     make_abstract_view_url (url buffer_name, int view_number);
 void    attach_view (url win_u, url u);
 void    detach_view (url u);
-void    initialize_current_view_scheme ();
+void    initialize_current_view ();
 url     get_recent_view (url name, bool s, bool o, bool a, bool p);
 
 #endif // defined NEW_VIEW_H

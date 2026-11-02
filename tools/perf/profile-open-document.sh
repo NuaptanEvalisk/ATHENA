@@ -253,7 +253,7 @@ output="$(realpath -- "$output")"
 
 athena_home="$output/athena-home"
 if ((isolated_home)); then
-  mkdir -p -- "$athena_home/fonts/error" "$athena_home/progs" \
+  mkdir -p -- "$athena_home/fonts/error" \
     "$athena_home/system/cache" "$athena_home/system/tmp"
 else
   source_athena_home="$(realpath -- "$source_athena_home")"
@@ -316,10 +316,8 @@ startup_scheme="(begin
   (set-preference \"check for updates\" \"off\")
   (set-preference \"google oauth client id\" \"\")
   $scheme_command)"
-init_athena_scheme="$(scheme_quote "$repo_root/ATHENA/progs/init-athena.scm")"
 profile_init="$output/athena-profile-init.scm"
-printf '(primitive-load %s)\n%s\n' \
-  "$init_athena_scheme" "$startup_scheme" > "$profile_init"
+printf '%s\n' "$startup_scheme" > "$profile_init"
 
 # Match the normal ATHENA launcher when the local build uses the SYCL llama.cpp
 # backend.  Without the oneAPI runtime path, profiling would fail before main.

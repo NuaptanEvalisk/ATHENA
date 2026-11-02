@@ -222,7 +222,6 @@ init_user_dirs () {
   make_dir ("$ATHENA_HOME_PATH/misc/pixmaps");
   make_dir ("$ATHENA_HOME_PATH/misc/themes");
   make_dir ("$ATHENA_HOME_PATH/packages");
-  make_dir ("$ATHENA_HOME_PATH/progs");
   make_dir ("$ATHENA_HOME_PATH/styles");
   make_dir ("$ATHENA_HOME_PATH/system");
   make_dir ("$ATHENA_HOME_PATH/system/bib");
@@ -289,64 +288,7 @@ init_guile () {
   set_env_path ("GUILE_SYSTEM_PATH", standard_path);
   set_env_path ("GUILE_SYSTEM_COMPILED_PATH", compiled_path);
 
-  url scheme_source= "$ATHENA_PATH/progs";
-  url bundled_bytecode= url ("$ATHENA_PATH/lib/athena-scheme") *
-                         url (ATHENA_GUILE_RUNTIME_ID);
-  url bundled_stamp= bundled_bytecode * ".complete";
-#if ATHENA_ENABLE_RUNTIME_SCHEME_REFRESH
-  bool compiling_bytecode= get_env ("ATHENA_SCHEME_COMPILE") == "1";
-#else
-  const bool compiling_bytecode= false;
-  if (!exists (bundled_stamp))
-    FAILED ("ATHENA requires its packaged Scheme bytecode on this platform");
-#endif
-  set_env_path ("ATHENA_GUILE_SOURCE_ROOT", scheme_source);
-
-  // Build workers write into the bundled bytecode directory concurrently.
-  // They must bootstrap from immutable sources instead of consuming outputs
-  // from the same build, which would make module initialization order-dependent.
-  if (!compiling_bytecode && exists (bundled_bytecode)) {
-    url existing= get_env_path ("GUILE_LOAD_COMPILED_PATH");
-    set_env_path ("GUILE_LOAD_COMPILED_PATH",
-                  is_none (existing) ? bundled_bytecode :
-                  (bundled_bytecode | existing));
-  }
-
-#if ATHENA_ENABLE_RUNTIME_SCHEME_REFRESH
-  if (get_env ("ATHENA_GUILE_CACHE_PATH") == "") {
-    if (exists (bundled_stamp))
-      set_env_path ("ATHENA_GUILE_CACHE_PATH", bundled_bytecode);
-    else {
-      url guile_cache= url ("$ATHENA_HOME_PATH/system/cache/guile") *
-                       url (ATHENA_GUILE_RUNTIME_ID);
-      make_dir (guile_cache);
-      set_env_path ("ATHENA_GUILE_CACHE_PATH", guile_cache);
-    }
-  }
-  if (get_env ("GUILE_AUTO_COMPILE") == "")
-    set_env ("GUILE_AUTO_COMPILE", exists (bundled_stamp) ? "0" : "1");
-#else
-  set_env_path ("ATHENA_GUILE_CACHE_PATH", bundled_bytecode);
   set_env ("GUILE_AUTO_COMPILE", "0");
-#endif
-
-  url guile_path= "$ATHENA_PATH/progs:$GUILE_LOAD_PATH";
-  if (!exists (guile_path * "init-athena.scm")) {
-    boot_error << "\n";
-    boot_error << "Installation problem: please send a bug report.\n";
-    boot_error << "The initialization file init-athena.scm"
-               << " could not be found.\n";
-    boot_error << "Please check the values of the environment variables\n";
-    boot_error << "ATHENA_PATH and GUILE_LOAD_PATH."
-               << " init-athena.scm should\n";
-    boot_error << "be readable and in the directory $ATHENA_PATH/progs\n";
-    boot_error << "or in the directory $GUILE_LOAD_PATH\n";
-    boot_error << "\n";
-    FAILED ("guile could not be found");
-  }
-
-  guile_path= guile_path | "$ATHENA_HOME_PATH/progs";
-  set_env_path ("GUILE_LOAD_PATH", guile_path);
 }
 
 /******************************************************************************
@@ -575,7 +517,7 @@ test_athena_path (url path, bool set_environment) {
   if (!exists (path)) return false;
   if (!exists (path * "doc")) return false;
   if (!exists (path * "fonts")) return false;
-  if (!exists (path * "progs")) return false;
+  if (!exists (path * "misc/command-properties.json")) return false;
   if (!exists (path * "styles")) return false;
   if (set_environment) set_env_path ("ATHENA_PATH", path);
   return true;

@@ -69,38 +69,6 @@ deploy_library () {
   fi
 }
 
-deploy_scheme_tree () {
-  src_root=$1
-  dst_root=$2
-  [ -d "$src_root" ] || return
-
-  mkdir -p "$dst_root"
-  list_tmp=$(mktemp)
-  find "$src_root" -type f -print > "$list_tmp"
-  while IFS= read -r src; do
-    rel=${src#"$src_root"/}
-    dst=$dst_root/$rel
-    mkdir -p "$(dirname -- "$dst")"
-    atomic_install "$src" "$dst" 644
-  done < "$list_tmp"
-  rm -f -- "$list_tmp"
-  list_tmp=
-
-  list_tmp=$(mktemp)
-  find "$dst_root" -type f -print > "$list_tmp"
-  while IFS= read -r dst; do
-    rel=${dst#"$dst_root"/}
-    if [ ! -f "$src_root/$rel" ]; then
-      rm -f -- "$dst"
-      printf 'removed   %s\n' "$dst"
-    fi
-  done < "$list_tmp"
-  rm -f -- "$list_tmp"
-  list_tmp=
-
-  find "$dst_root" -depth -type d -empty -delete
-}
-
 if [ "$(uname -s)" = Linux ]; then
   python3 "$repo_root/tools/install-local-executable.py" \
     "$build_dir/src/ATHENA.bin" "$runtime_dir/bin/ATHENA.bin"
@@ -129,12 +97,6 @@ done
 
 for src in "$build_dir"/x64/lib/libqt6advanceddocking*.so; do
   deploy_library "$src"
-done
-
-for src_root in "$build_dir"/athena-scheme/*; do
-  [ -d "$src_root" ] || continue
-  deploy_scheme_tree "$src_root" \
-    "$runtime_dir/lib/athena-scheme/$(basename -- "$src_root")"
 done
 
 if [ -f "$build_dir/athena-guile-runtime/lib/libathena-guile.so.1" ]; then

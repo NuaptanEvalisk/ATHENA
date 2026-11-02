@@ -1219,10 +1219,7 @@ TestArtifacts::keepsRadioactiveRangeMacroLociAlive () {
   const QString initPath= temporary.filePath ("artifact-range-init.scm");
   QFile init (initPath);
   QVERIFY (init.open (QIODevice::WriteOnly | QIODevice::Text));
-  const QString initScript=
-    "(primitive-load " +
-    scheme_quote (QDir (resources).filePath ("progs/init-athena.scm")) +
-    ")\n" + script;
+  const QString initScript= script;
   const QByteArray initBytes= initScript.toUtf8 ();
   QCOMPARE (init.write (initBytes), (qint64) initBytes.size ());
   init.close ();

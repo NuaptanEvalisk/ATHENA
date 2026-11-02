@@ -39,7 +39,7 @@ function (athena_ios_resources root destination)
   target_sources (${ATHENA_binary_name} PRIVATE ${resources})
 endfunction ()
 
-foreach (directory progs styles packages langs misc doc fonts)
+foreach (directory styles packages langs misc doc fonts)
   athena_ios_resources ("${ATHENA_SOURCE_DIR}/ATHENA/${directory}" "ATHENA/${directory}")
 endforeach ()
 athena_ios_resources ("${ATHENA_GUILE_PREFIX}/share/guile/3.0"

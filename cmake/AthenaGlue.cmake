@@ -17,7 +17,6 @@ if(NOT ATHENA_GLUE_RESULT EQUAL 0)
   message(FATAL_ERROR "ATHENA glue generation failed: ${ATHENA_GLUE_ERROR}")
 endif()
 # Remove the obsolete generated Scheme completion inventory from older builds.
-file(REMOVE "${ATHENA_SOURCE_DIR}/ATHENA/progs/prog/glue-symbols.scm")
 file(REMOVE "${ATHENA_GLUE_OUTPUT_DIR}/glue-symbols.scm")
 
 add_custom_command(

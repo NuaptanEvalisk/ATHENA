@@ -26,14 +26,6 @@ for flavor in "${flavors[@]}"; do
   dpkg-deb --info "$deb" >/dev/null
   dpkg-deb --contents "$deb" >"$work/$flavor.deb.list"
   rpm -qpl "$rpm_package" >"$work/$flavor.rpm.list"
-  rm -rf "$work/$flavor.deb-control"
-  dpkg-deb --control "$deb" "$work/$flavor.deb-control"
-  grep -q 'compile-installed-scheme-bytecode.sh' \
-    "$work/$flavor.deb-control/postinst"
-  rpm -qp --scripts "$rpm_package" >"$work/$flavor.rpm.scripts"
-  grep -q 'compile-installed-scheme-bytecode.sh' \
-    "$work/$flavor.rpm.scripts"
-
   for listing in "$work/$flavor.deb.list" \
                  "$work/$flavor.rpm.list"; do
     grep -q '/opt/ATHENA/AppRun' "$listing"
@@ -42,10 +34,8 @@ for flavor in "${flavors[@]}"; do
     grep -q '/opt/ATHENA/usr/share/ATHENA/bin/athena-web-server' "$listing"
     grep -q '/opt/ATHENA/usr/share/ATHENA/share/ATHENA/web/index.html' "$listing"
     grep -q '/opt/ATHENA/usr/share/ATHENA/share/ATHENA/web/app.js' "$listing"
-    grep -q '/opt/ATHENA/usr/share/tools/compile-installed-scheme-bytecode.sh' \
-      "$listing"
     if grep -q '/opt/ATHENA/usr/share/ATHENA/lib/athena-scheme/' "$listing"; then
-      echo "native package unexpectedly contains pre-install Scheme bytecode: $listing" >&2
+      echo "native package unexpectedly contains retired application Scheme bytecode: $listing" >&2
       exit 1
     fi
     if grep -E 'ATHENA\.bin\.before-|/\.venv/|/\.uv-cache/|/__pycache__/|\.(gguf|safetensors|onnx|ckpt|pth|pt)$' \

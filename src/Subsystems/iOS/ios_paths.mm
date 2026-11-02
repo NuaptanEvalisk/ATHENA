@@ -17,7 +17,7 @@ bool athena_ios_initialize_paths (std::string& error) {
     NSFileManager* files= NSFileManager.defaultManager;
     NSError* failure= nil;
     NSURL* resources= [NSBundle.mainBundle.resourceURL URLByAppendingPathComponent:@"ATHENA" isDirectory:YES];
-    if (![files fileExistsAtPath:[[resources URLByAppendingPathComponent:@"progs/init-athena.scm"] path]]) {
+    if (![files fileExistsAtPath:[[resources URLByAppendingPathComponent:@"misc/command-properties.json"] path]]) {
       error= "ATHENA resources are missing from the application bundle";
       return false;
     }

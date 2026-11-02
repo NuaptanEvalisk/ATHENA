@@ -65,30 +65,6 @@ podman run --rm \
         cat "$ldd_log" >&2
         exit 1
       fi
-      scheme_root="$appdir/usr/share/ATHENA/lib/athena-scheme"
-      generation="$scheme_root/athena-guile-3.0.10-native"
-      marker="$generation/.complete"
-      generations="$(find "$scheme_root" -mindepth 1 -maxdepth 1 -type d | wc -l)"
-      [ "$generations" -eq 1 ] || {
-        echo "expected exactly one AppImage Scheme bytecode generation, found $generations" >&2
-        exit 1
-      }
-      [ -s "$marker" ] || {
-        echo "missing AppImage Scheme bytecode completion marker: $marker" >&2
-        exit 1
-      }
-      expected_go="$(sed -n "2p" "$marker")"
-      actual_go="$(find "$generation" -type f -name "*.go" | wc -l)"
-      case "$expected_go" in
-        ""|*[!0-9]*)
-          echo "invalid AppImage Scheme bytecode count in $marker" >&2
-          exit 1
-          ;;
-      esac
-      [ "$expected_go" -gt 0 ] && [ "$actual_go" -eq "$expected_go" ] || {
-        echo "AppImage Scheme bytecode mismatch: marker=$expected_go actual=$actual_go" >&2
-        exit 1
-      }
       ATHENA_QT_PLATFORM=offscreen \
         QT_QPA_PLATFORM=offscreen \
         "$appdir/AppRun" -H -v >/tmp/athena-version.txt

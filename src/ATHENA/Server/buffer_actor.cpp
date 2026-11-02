@@ -1183,7 +1183,7 @@ buffer_actor::dispatch (actor_command_record& command) {
     break;
   case actor_command_kind::initialize_view:
     if (editor != nullptr) {
-      initialize_current_view_scheme ();
+      initialize_current_view ();
       publish_tmfs_title (editor);
       editor->publish_editor_command_state ();
     }

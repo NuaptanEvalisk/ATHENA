@@ -14,6 +14,8 @@
 #include "boot.hpp"
 #include "tm_server.hpp"
 #include "ATHENA/Window/interactive_commands.hpp"
+#include "native_interfaces.hpp"
+#include "native_node_groups.hpp"
 #include "ATHENA/Data/document_persistence.hpp"
 #include "Data/NodeContracts/execution_state.hpp"
 #include "convert.hpp"
@@ -118,12 +120,18 @@ tm_server_rep::tm_server_rep (): def_zoomf (1.0), center_message ("") {
   gui_interpose (texmacs_interpose_handler);
   gui_post_repaint (texmacs_post_repaint_handler);
   set_wait_handler (texmacs_wait_handler);
-  if (is_none (tm_init_file))
-    tm_init_file= "$ATHENA_PATH/progs/init-athena.scm";
-  bench_start ("load scheme boot");
-  if (exists (tm_init_file)) exec_file (tm_init_file);
+  bench_start ("initialize application");
+  native_secure_initialize ();
+  application_preferences_initialize ();
+  initialize_node_groups ();
+  interactive_properties_initialize ();
+  generic_keyboard_load ();
+  user_shortcuts_initialize ();
+  interactive_startup ();
+  native_keyboard_initialize ();
+  if (!is_none (tm_init_file)) exec_file (tm_init_file);
   finalize_scheme_bootstrap ();
-  bench_cumul ("load scheme boot");
+  bench_cumul ("initialize application");
   if (my_init_cmds != "") {
     my_init_cmds= "(begin" * my_init_cmds * ")";
     // The top-level command-line initialization owns process-global state.

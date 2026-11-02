@@ -90,7 +90,7 @@ Paths in this note are relative to the repository unless absolute.
 | Native UI and render service | `src/Subsystems/Qt/` |
 | Native document codec and legacy import | `src/Data/Convert/Xml/` |
 | Scheme runtime and generated bindings | `src/Scheme/` |
-| Remaining Scheme, styles and declarations | `ATHENA/progs/`, `ATHENA/packages/`, `ATHENA/misc/` |
+| Styles and declarative resources | `ATHENA/packages/`, `ATHENA/misc/` |
 | AUDM resolution and resource adapters | `src/ATHENA/Interop/`, `src/ATHENA/Data/interop_*.cpp` |
 | AUDMAP transport and new plugins | `src/Subsystems/AUDMAP/`, `src/Subsystems/Plugins/`, `clients/` |
 | Tests | `tests/`, organized by subsystem |
@@ -193,8 +193,8 @@ that does not justify deleting unrelated user data or artifact indexes.
 ## Native Interfaces And Plugins
 
 The project is moving behavior from Scheme to native C++ plus declarative data.
-It still uses vendored Guile and many Scheme/style definitions. Do not assume
-either that Scheme has disappeared or that new functionality belongs there.
+Application Scheme sources have been removed. Vendored Guile, embedded Scheme
+expressions and style definitions remain; new business logic belongs in C++.
 
 Native Scheme interfaces are declared in XML under `src/Scheme/Glue/`. CMake's
 `athena_glue` preprocessor generates C++ and Scheme in the build directory.
@@ -225,10 +225,9 @@ Use an explicit application target, not the default ALL target. Do not deploy
 after a failed or unfinished build. The installer retains retired executables
 by ELF build ID; do not substitute a manual install/copy/rename sequence.
 
-When Scheme modules or generated interfaces change, build the corresponding
-glue/bytecode targets as needed and synchronize the runtime with
-`tools/deploy-local-runtime.sh build_qt6`. Building only ATHENA.bin does not
-refresh the independent packaged bytecode target.
+Generated interfaces are built by `athena_glue` as an application dependency.
+Use `tools/deploy-local-runtime.sh build_qt6` when the private Guile runtime also
+changes. There is no longer an application Scheme bytecode target or payload.
 
 Tests are not a default deliverable. Clear, straightforward changes do not need
 tests; use focused evidence only for concrete uncertainty. Do not run broad
@@ -249,7 +248,9 @@ Updated: 2026-11-02.
   `progs/kernel` and `progs/prog` have been removed. Program rendering stays
   in ATHENA; generic editing is C++, with KSyntaxHighlighting lexical context
   and no language-specific smart indentation.
-- `progs` now contains only `init-athena.scm` and `init-buffer.scm`. Structural
+- `progs` has been removed entirely. Application and new-buffer initialization
+  are native; command UI metadata lives in `misc/command-properties.json`.
+  Application Scheme bytecode compilation and packaging are removed. Structural
   pattern selection, editor utilities, preferences, interactive dialogs and
   output ports are native. Unconsumed Scheme list/hash/logic/patch infrastructure
   was removed rather than reproduced in C++. Guile and its native `(athena

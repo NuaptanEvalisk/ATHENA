@@ -54,43 +54,18 @@ def runtime_is_current(destination: Path, signature: str) -> bool:
     return data.get("signature") == signature
 
 
-def validate_bytecode(athena: Path, runtime_id: str) -> None:
-    bytecode_root = athena / "lib/athena-scheme"
-    bytecode = bytecode_root / runtime_id
-    marker = bytecode / ".complete"
-    try:
-        marker_lines = marker.read_text(encoding="utf-8").splitlines()
-    except OSError as error:
-        raise SystemExit(f"missing ATHENA Scheme bytecode marker: {marker}: {error}")
-    if len(marker_lines) != 2 or marker_lines[0] != runtime_id:
-        raise SystemExit(f"invalid ATHENA Scheme bytecode marker: {marker}")
-    try:
-        expected = int(marker_lines[1])
-    except ValueError as error:
-        raise SystemExit(f"invalid ATHENA Scheme bytecode count: {marker}") from error
-    actual = sum(1 for path in bytecode.rglob("*.go") if path.is_file())
-    if actual != expected:
-        raise SystemExit(
-            f"incomplete ATHENA Scheme bytecode: expected {expected}, got {actual}")
-
-    for candidate in bytecode_root.iterdir():
-        if candidate.is_dir() and candidate.name != runtime_id:
-            shutil.rmtree(candidate)
-
-
 def main() -> int:
-    if len(sys.argv) not in (3, 4):
-        print("usage: copy-private-guile-runtime.py BUILD_RUNTIME ATHENA_DIR "
-              "[RUNTIME_ID]",
+    if len(sys.argv) != 3:
+        print("usage: copy-private-guile-runtime.py BUILD_RUNTIME ATHENA_DIR",
               file=sys.stderr)
         return 2
 
     source = Path(sys.argv[1]).resolve()
     athena = Path(sys.argv[2]).resolve()
     destination = athena / "lib/athena-guile"
-    runtime_id = sys.argv[3] if len(sys.argv) == 4 else None
-    if runtime_id is not None:
-        validate_bytecode(athena, runtime_id)
+    retired_bytecode = athena / "lib/athena-scheme"
+    if retired_bytecode.exists():
+        shutil.rmtree(retired_bytecode)
 
     signature = runtime_signature(source)
     if runtime_is_current(destination, signature):
