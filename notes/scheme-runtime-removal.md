@@ -1658,6 +1658,22 @@ generated native entries and remain on the secure-function list.
   build_qt6/native-format-prompt-values-build.log. No tests added or run. Full
   linking and deployment are pending after the previous combined deployment.
 
+## Native Source Boundary Queries
+
+- Source start/end queries return optional native paths. Formatting border
+  checks, bounding rectangles and AUDMAP paragraph context no longer round-trip
+  these values through object. The remaining tree-path adapter converts only
+  at its own legacy interface boundary.
+- Read-only admission semantics remain unchanged: unavailable, detached, stale
+  or foreign sources have no result. These queries do not invoke command
+  preparation or invent a cursor position.
+- Removed the unused path-start/path-end exports and dead formatting JSON-list
+  adapter. Command-boundary preparation is unchanged.
+- Interface generation and all five affected implementation units compiled
+  successfully with -j16. Logs: build_qt6/native-source-boundary-glue.log and
+  build_qt6/native-source-boundary-build.log. No tests added or run; full linking
+  and deployment remain pending with the formatting prompt changes.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

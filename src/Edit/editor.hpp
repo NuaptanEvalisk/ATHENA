@@ -362,8 +362,8 @@ public:
   virtual void handle_center_message_state (bool active) = 0;
 
   /* public routines from edit_cursor */
-  object source_tree_start (tree, path);
-  object source_tree_end (tree, path);
+  std::optional<path> source_tree_start (tree, path);
+  std::optional<path> source_tree_end (tree, path);
   path command_tree_start (tree, path);
   path command_tree_end (tree, path);
   path tree_next_valid (tree, path);

@@ -146,13 +146,6 @@ const format_parameter_data& parameter_data () {
   return data;
 }
 
-object json_strings (const QJsonArray& values, bool other= false) {
-  object result= other ? list_object (keyword_object ("other")) : null_object ();
-  for (int i= values.size () - 1; i >= 0; --i)
-    result= cons (object (native_string (values[i].toString ())), result);
-  return result;
-}
-
 bool parent_tree (tree t, tree& parent) {
   path ip= obtain_ip (t);
   if (!ip_attached (ip) || is_nil (ip)) return false;
@@ -228,9 +221,9 @@ bool at_body_border (tree t, bool at_end) {
   path cursor= ed->the_path ();
   const path source= reverse (obtain_ip (t));
   const auto at_boundary= [&] (path p) {
-    object result= at_end ? ed->source_tree_end (ed->the_root (), p) :
+    const auto result= at_end ? ed->source_tree_end (ed->the_root (), p) :
                            ed->source_tree_start (ed->the_root (), p);
-    return is_path (result) && cursor == as_path (result);
+    return result && cursor == *result;
   };
   if (at_boundary (source)) return true;
   int i= at_end ? 1 : 0;

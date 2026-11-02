@@ -64,13 +64,11 @@ editor_rep::resolve_tree_boundary (tree t, path target, bool at_start, bool comm
   return result ? std::optional<path> (*result / base) : std::nullopt;
 }
 
-object editor_rep::source_tree_start (tree t, path p) {
-  const auto result= resolve_tree_boundary (t, p, true, false);
-  return result ? object (*result) : object (false);
+std::optional<path> editor_rep::source_tree_start (tree t, path p) {
+  return resolve_tree_boundary (t, p, true, false);
 }
-object editor_rep::source_tree_end (tree t, path p) {
-  const auto result= resolve_tree_boundary (t, p, false, false);
-  return result ? object (*result) : object (false);
+std::optional<path> editor_rep::source_tree_end (tree t, path p) {
+  return resolve_tree_boundary (t, p, false, false);
 }
 path editor_rep::command_tree_start (tree t, path p) {
   return *resolve_tree_boundary (t, p, true, true);

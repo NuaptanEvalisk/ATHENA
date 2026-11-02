@@ -5142,6 +5142,11 @@ evaluated. The separate XML-generated `command-path-start/end` bindings may
 prepare a source position or a prospective tree under the insertion checkpoint.
 Scheme errors retain command-preparation failures rather than inventing paths.
 
+The runtime-removal migration has since retired the unused `path-start/end`
+bindings. Native `source_tree_start/end` queries return `std::optional<path>`;
+the admission and coordinate rules above remain unchanged. Formatting, geometry
+and AUDMAP context queries consume these optional paths directly.
+
 `path-in` now retains the full template while descending through field indices.
 The old recursion discarded outer macro scopes before calculating a child's
 boundary. Selection wrappers, animation/locus/format commands, native big

@@ -86,8 +86,9 @@ object tree_command_path (object source, object selectors) {
   path p= as_path (position);
   if (is_int (last)) return object (p * as_int (last));
   editor ed= get_current_editor ();
-  return start ? ed->source_tree_start (ed->the_root (), p) :
-                 ed->source_tree_end (ed->the_root (), p);
+  const auto boundary= start ? ed->source_tree_start (ed->the_root (), p) :
+                              ed->source_tree_end (ed->the_root (), p);
+  return boundary ? object (*boundary) : object (false);
 }
 
 tree tree_command_set (tree source, object arguments) {

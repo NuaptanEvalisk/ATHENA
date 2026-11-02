@@ -53,14 +53,6 @@
     <arg type="string" />
     <arg type="int" />
   </binding>
-  <binding name="path-start" native="source_tree_start" returns="object">
-    <arg type="content" />
-    <arg type="path" />
-  </binding>
-  <binding name="path-end" native="source_tree_end" returns="object">
-    <arg type="content" />
-    <arg type="path" />
-  </binding>
   <binding name="command-path-start" native="command_tree_start" returns="path" exceptions="scheme">
     <arg type="content" />
     <arg type="path" />
