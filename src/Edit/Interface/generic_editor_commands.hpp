@@ -108,11 +108,6 @@ void generic_yank_paragraph ();
 void generic_make_balloon ();
 void generic_spell_live_replace_current_word (string replacement);
 void generic_spell_live_insert_current_word ();
-array<string> generic_background_initial (string mode, object old, string width);
-object generic_background_result (string mode, array<string> values);
-void generic_open_pattern_selector (object callback, string width);
-void generic_open_gradient_selector (object callback, object options);
-void generic_open_background_picture_selector (object callback, object options);
 // Background selector for native editor commands: no Scheme procedure callback.
 void generic_document_background_select (string mode);
 void generic_make_note_ref ();

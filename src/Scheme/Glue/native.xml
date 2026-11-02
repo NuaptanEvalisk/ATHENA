@@ -1316,21 +1316,6 @@
     <arg type="string" />
   </binding>
   <binding name="spell-live-insert-current-word" native="generic_spell_live_insert_current_word" returns="void" />
-  <binding name="background-selector-initial" native="generic_background_initial" returns="array_string">
-    <arg type="string" /><arg type="object" /><arg type="string" />
-  </binding>
-  <binding name="background-selector-result" native="generic_background_result" returns="object">
-    <arg type="string" /><arg type="array_string" />
-  </binding>
-  <binding name="open-pattern-selector" native="generic_open_pattern_selector" returns="void">
-    <arg type="procedure" /><arg type="string" />
-  </binding>
-  <binding name="open-gradient-selector" native="generic_open_gradient_selector" returns="void">
-    <arg type="procedure" /><arg type="object" rest="true" />
-  </binding>
-  <binding name="open-background-picture-selector" native="generic_open_background_picture_selector" returns="void">
-    <arg type="procedure" /><arg type="object" rest="true" />
-  </binding>
   <binding name="spell-live-current-selection" native="generic_spell_live_current_selection" returns="object" />
   <binding name="spell-live-current-word" native="generic_spell_live_current_word" returns="object" />
   <binding name="spell-live-current-language" native="generic_spell_live_current_language" returns="object" />

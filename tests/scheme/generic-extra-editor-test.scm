@@ -40,43 +40,6 @@
 (spell-live-insert-current-word)
 (check (equal? (body) '(document "helo world")) "missing spelling selection is harmless")
 
-(define image-pattern
-  '(pattern "image.png" "3cm" "4cm" (eff-skin (eff-recolor "0" "red") "blue")))
-(for-each
-  (lambda (old)
-    (check (equal? (background-selector-initial "picture" old "100%")
-                   '("image.png" "3cm" "4cm" "red" "blue"))
-           "nested image effects accept trees and strees"))
-  (list image-pattern (stree->tree image-pattern)))
-(check (equal? (background-selector-result
-                "picture" (background-selector-initial "picture" image-pattern "100%"))
-               image-pattern)
-       "image effect roundtrip")
-(check (equal? (background-selector-result "picture" '("x.png" "1cm" "2cm"))
-               '(pattern "x.png" "1cm" "2cm"))
-       "image without effects omits extra child")
-(check (equal? (background-selector-result "picture" '("x.png" "1cm" "2cm" "" "green"))
-               '(pattern "x.png" "1cm" "2cm" (eff-skin "0" "green")))
-       "skin without recoloring")
-(define gradient
-  '(pattern "athena-gradient-vertical" "9cm" "8cm" (eff-gradient "45" "red" "blue")))
-(check (equal? (background-selector-result
-                "gradient" (background-selector-initial "gradient" gradient "100%"))
-               gradient)
-       "gradient roundtrip")
-(check (equal? (background-selector-initial "gradient" '(not-a-pattern "x") "100%")
-               (background-selector-initial "gradient" #f "100%"))
-       "invalid old pattern falls back")
-(check (not (background-selector-result "pattern" '())) "cancelled selector")
-(check (not (background-selector-result "gradient" '("x" "w" "h")))
-       "incomplete gradient result")
-;; Headless cancellation exercises public bindings without opening real dialogs.
-(define (unexpected-callback value) (error "Headless selector invoked callback" value))
-(open-pattern-selector unexpected-callback "25pt")
-(open-gradient-selector unexpected-callback)
-(open-gradient-selector unexpected-callback (stree->tree gradient))
-(open-background-picture-selector unexpected-callback image-pattern)
-
 (reset '(document "Generic native commands passed") '(0 0 0))
 (init-env "page-medium" "paper")
 (update-current-buffer)

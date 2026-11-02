@@ -260,6 +260,23 @@ generated native entries and remain on the secure-function list.
   zero. No permanent test was added. The temporary profile and documents were
   removed; logs remain under `build_qt6/native-startup-tasks-*.log`.
 
+## Native Background Values
+
+- Removed the unconsumed pattern/gradient/picture selector procedure APIs and
+  their old Scheme initial/result conversion bindings. The document-background
+  command and the separate native slide-properties selector remain supported.
+- Document background selection now constructs native trees directly from Qt
+  value strings and uses an optional result for cancellation. Its existing
+  default dimensions, gradient colors, effect nesting and relative-path policy
+  are unchanged; there is no Scheme list round trip or procedure invocation.
+- Deleted only the obsolete selector assertions from generic-extra-editor-test;
+  its paragraph editing and spelling checks remain. No replacement test is
+  needed for these direct value conversions.
+- Built with -j16, deployed and checked the resulting binary: all five retired
+  bindings are absent. No editing regression suite or interactive background
+  selection was run. The temporary profile was removed; logs remain under
+  `build_qt6/native-background-values-{build,runtime,deploy}.log`.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
