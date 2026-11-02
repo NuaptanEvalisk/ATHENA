@@ -30,7 +30,6 @@ public:
   bool kbd_get_command (string which, string& help, command& cmd);
 
   void insert_kbd_wildcard (string key, string im, bool post, bool l, bool r);
-  object find_key_binding (string key);
   string kbd_pre_rewrite (string l);
   string kbd_post_rewrite (string l, bool var_flag);
   tree kbd_system_rewrite (string l);

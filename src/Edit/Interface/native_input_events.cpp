@@ -5,6 +5,7 @@
 ******************************************************************************/
 
 #include "native_input_events.hpp"
+#include "native_keyboard_registry.hpp"
 #include "tooltip_commands.hpp"
 #include "generic_keyboard_commands.hpp"
 #include "reference_markup.hpp"
@@ -120,9 +121,9 @@ static void dispatch_keyboard_press (string key) {
                        mode == INPUT_SPELL ? "spell " :
                        mode == INPUT_COMPLETE ? "complete " : "";
   if (prefix != "") {
-    object action= generic_key_press_command (prefix * key);
-    if (!(is_bool (action) && !as_bool (action))) {
-      call (action);
+    auto binding= native_keyboard_find (prefix * key);
+    if (binding && binding->action) {
+      binding->action ();
       return;
     }
     if ((mode == INPUT_SEARCH && ed->search_keypress (key)) ||

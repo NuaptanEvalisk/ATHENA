@@ -5,9 +5,9 @@
 ******************************************************************************/
 
 #include "native_keyboard_registry.hpp"
+#include "analyze.hpp"
 #include "native_keyboard_loader.hpp"
 #include "user_shortcuts.hpp"
-#include "object.hpp"
 #include "server.hpp"
 #include "new_buffer.hpp"
 #include "new_window.hpp"
@@ -28,21 +28,12 @@ string text (const std::string& value) {
   return string (value.data (), value.size ());
 }
 
-// Share roots, not object wrappers: object uses a non-atomic reference count.
-struct rooted_value {
-  tmscm_root_handle* root;
-  explicit rooted_value (object value):
-    root (tmscm_root_acquire (object_to_tmscm (value))) {}
-  ~rooted_value () { tmscm_root_release (root); }
-  rooted_value (const rooted_value&)= delete;
-  object get () const { return tmscm_to_object (tmscm_root_value (root)); }
-};
-
 struct binding {
-  rooted_value conditions, action;
-  std::string key, source, help;
-  binding (object c, object a, string k, string s, string h):
-    conditions (c), action (a), key (bytes (k)), source (bytes (s)), help (bytes (h)) {}
+  native_keyboard_context context;
+  native_key_binding value;
+  std::string key, source;
+  binding (native_keyboard_context c, native_key_binding a, string k, string s):
+    context (std::move (c)), value (std::move (a)), key (bytes (k)), source (bytes (s)) {}
 };
 
 using binding_ptr= std::shared_ptr<const binding>;
@@ -53,12 +44,12 @@ struct registry {
   std::mutex mutex;
   binding_index forward, inverse;
 
-  void erase (object conditions, const std::string& key) {
+  void erase (const std::string& context, const std::string& key) {
     auto found= forward.find (key);
     if (found == forward.end ()) return;
     auto& entries= found->second;
     for (auto it= entries.begin (); it != entries.end ();) {
-      if ((*it)->conditions.get () != conditions) { ++it; continue; }
+      if ((*it)->context.identity != context) { ++it; continue; }
       const auto old= *it;
       auto inv= inverse.find (old->source);
       auto& reverse= inv->second;
@@ -69,12 +60,11 @@ struct registry {
     if (entries.empty ()) forward.erase (found);
   }
 
-  void insert (object conditions, string key, object action, string help) {
-    object source= is_procedure (action) ? call ("promise-source", action) : action;
-    auto entry= std::make_shared<binding> (conditions, action, key,
-                                         object_to_string (source), help);
+  void insert (native_keyboard_context context, string key,
+               native_key_binding action, string source) {
+    auto entry= std::make_shared<binding> (std::move (context), std::move (action), key, source);
     std::lock_guard<std::mutex> lock (mutex);
-    erase (conditions, entry->key);
+    erase (entry->context.identity, entry->key);
     auto& f= forward[entry->key];
     f.insert (f.begin (), entry);
     auto& r= inverse[entry->source];
@@ -93,25 +83,19 @@ registry& keyboard () {
   return value;
 }
 
-binding_ptr exact (object conditions, string key) {
+binding_ptr exact (const std::string& context, string key) {
   auto& r= keyboard ();
   const auto entries= r.snapshot (r.forward, key);
   for (const auto& entry: entries)
-    if (entry->conditions.get () == conditions) return entry;
+    if (entry->context.identity == context) return entry;
   for (const auto& entry: entries)
-    if (is_null (entry->conditions.get ())) return entry;
+    if (entry->context.identity.empty ()) return entry;
   return {};
 }
 
 binding_ptr resolve (const bindings& entries) {
-  for (const auto& entry: entries) {
-    bool matches= true;
-    for (object c= entry->conditions.get (); !is_null (c); c= cdr (c)) {
-      object result= call (car (c));
-      if (is_bool (result) && !as_bool (result)) { matches= false; break; }
-    }
-    if (matches) return entry;
-  }
+  for (const auto& entry: entries)
+    if (!entry->context.matches || entry->context.matches ()) return entry;
   return {};
 }
 
@@ -126,45 +110,43 @@ string partial_text (string previous, string suffix) {
 
 } // namespace
 
-void native_keyboard_bind (object conditions, string key, object action, string help) {
+void native_keyboard_bind (native_keyboard_context context, string key,
+                           native_key_binding action, string source) {
   key= get_server ()->kbd_pre_rewrite (key);
   int previous= 0;
   for (int end= 0; end < N(key); ++end) {
     if (key[end] != ' ') continue;
     const string prefix= key (0, end);
-    if (!exact (conditions, prefix)) {
+    if (!exact (context.identity, prefix)) {
       const string before= key (0, previous);
-      const auto prior= exact (conditions, before);
-      object value= prior ? prior->action.get () : object (false);
-      string expansion= partial_text (is_string (value) ? as_string (value) : before,
+      const auto prior= exact (context.identity, before);
+      string expansion= partial_text (prior && !prior->value.action ? text (prior->value.text) : before,
                                       key (previous, end));
-      keyboard ().insert (conditions, prefix, object (expansion), "");
+      keyboard ().insert (context, prefix, {{}, bytes (expansion), ""}, scm_quote (expansion));
     }
     previous= end;
   }
-  keyboard ().insert (conditions, key, action, help);
+  keyboard ().insert (std::move (context), key, std::move (action), source);
 }
 
-void native_keyboard_unbind (object conditions, string key) {
+void native_keyboard_unbind (const std::string& context, string key) {
   key= get_server ()->kbd_pre_rewrite (key);
   auto& r= keyboard ();
   std::lock_guard<std::mutex> lock (r.mutex);
-  r.erase (conditions, bytes (key));
+  r.erase (context, bytes (key));
 }
 
-void native_keyboard_bind_source (string key, object source) {
-  object action= is_string (source) ? source :
-    eval (list_object (symbol_object ("lambda"), null_object (), source));
-  native_keyboard_bind (null_object (), key, action, "");
-}
-
-object native_keyboard_find (string key) {
-  object user= user_shortcuts_find (key);
-  if (!(is_bool (user) && !as_bool (user))) return user;
+std::optional<native_key_binding> native_keyboard_find (string key) {
+  auto user= user_shortcuts_find (key);
+  if (user) return user;
   native_keyboard_force (false);
   auto& r= keyboard ();
   const auto entry= resolve (r.snapshot (r.forward, key));
-  return entry ? list_object (entry->action.get (), object (text (entry->help))) : object (false);
+  return entry ? std::optional<native_key_binding> (entry->value) : std::nullopt;
+}
+
+bool native_keyboard_has_binding (string key) {
+  return native_keyboard_find (key).has_value ();
 }
 
 string native_keyboard_cached_inverse (object source) {
@@ -196,26 +178,6 @@ object native_keyboard_reverse (object source) {
   return entries.empty () ? object (false) : object (text (entries.front ()->key));
 }
 
-object native_keyboard_catalog () {
-  auto& r= keyboard ();
-  binding_index snapshot;
-  {
-    std::lock_guard<std::mutex> lock (r.mutex);
-    snapshot= r.forward;
-  }
-  object result= null_object ();
-  for (const auto& item: snapshot) {
-    object entries= null_object ();
-    for (auto it= item.second.rbegin (); it != item.second.rend (); ++it) {
-      const auto& entry= *it;
-      entries= cons (cons (entry->conditions.get (),
-                          list_object (entry->action.get (), object (text (entry->help)))), entries);
-    }
-    result= cons (cons (object (text (item.first)), entries), result);
-  }
-  return result;
-}
-
 void native_keyboard_list_shortcuts () {
   auto& r= keyboard ();
   std::vector<std::pair<std::string, bindings>> entries;
@@ -232,11 +194,10 @@ void native_keyboard_list_shortcuts () {
   for (const auto& entry: entries) {
     tree key= get_server ()->kbd_system_rewrite (text (entry.first));
     for (const auto& binding: entry.second) {
-      object conditions= binding->conditions.get ();
       rows << tree (ROW, tree (CELL, key),
-        tree (CELL, compound ("verbatim", object_to_string (binding->action.get ()))),
-        tree (CELL, is_null (conditions) ? tree ("Global") :
-          compound ("verbatim", object_to_string (conditions))));
+        tree (CELL, compound ("verbatim", text (binding->source))),
+        tree (CELL, binding->context.identity.empty () ? tree ("Global") :
+          compound ("verbatim", text (binding->context.identity))));
     }
   }
   tree table (TFORMAT,

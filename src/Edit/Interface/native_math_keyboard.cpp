@@ -428,7 +428,7 @@ bool native_math_keyboard_get_keycomb (
     // Legacy kbd-map only synthesized a partial binding when no exact shared
     // binding already existed.  Preserve that precedence here: e.g. the
     // native "space var" family must not shadow generic "space" -> kbd-space.
-    if (native_keyboard_find (combination) != object (false))
+    if (native_keyboard_has_binding (combination))
       return false;
     for (auto it= prefix->second.rbegin (); it != prefix->second.rend (); ++it)
       if (active_ref (r, *it)) {

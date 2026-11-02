@@ -156,7 +156,7 @@ void user_shortcuts_open (object options) {
   user_shortcuts_open_native (N (args) > 0 ? as_string (args[0]) : string (""),
                               N (args) > 1 ? as_string (args[1]) : string (""));
 }
-object user_shortcuts_find (string key) {
+std::optional<native_key_binding> user_shortcuts_find (string key) {
   bool matched= false, prefix= false;
   {
     std::lock_guard<std::mutex> lock (mutex);
@@ -171,14 +171,13 @@ object user_shortcuts_find (string key) {
     }
   }
   if (matched) {
-    // Only a callable bridge for the existing keyboard dispatcher. The action
-    // itself is validated JSON executed by native_editor_action_execute.
-    object body= list_object (symbol_object ("user-shortcut-run"), object (key));
-    return list_object (
-        eval (list_object (symbol_object ("lambda"), null_object (), body)),
-        object (""));
+    const std::string stable (key.data (), N(key));
+    return native_key_binding {[stable] {
+      user_shortcuts_run (string (stable.data (), stable.size ()));
+    }, "", ""};
   }
-  return prefix ? list_object (object (key), object ("")) : object (false);
+  if (prefix) return native_key_binding {{}, std::string (key.data (), N(key)), ""};
+  return std::nullopt;
 }
 void user_shortcuts_run (string key) {
   QJsonObject action;

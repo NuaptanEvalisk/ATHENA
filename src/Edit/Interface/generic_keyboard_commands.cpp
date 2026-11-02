@@ -786,13 +786,6 @@ generic_open_escape_symbol_picker () {
   if (action != "") generic_escape_symbol_insert (action);
 }
 
-object
-generic_key_press_command (string key) {
-  object binding= native_keyboard_find (key);
-  if (is_bool (binding) && !as_bool (binding)) return object (false);
-  return car (binding);
-}
-
 namespace {
 
 string handwriting_symbol_command_key (string command) {

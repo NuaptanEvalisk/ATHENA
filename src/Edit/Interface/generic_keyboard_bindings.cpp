@@ -15,6 +15,9 @@
 #include "native_keyboard_prefixes.hpp"
 #include "native_keyboard_registry.hpp"
 #include "application_preferences.hpp"
+#include "editor_modes.hpp"
+#include "new_view.hpp"
+#include "editor.hpp"
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -22,6 +25,7 @@
 #include <QJsonParseError>
 #include <climits>
 #include <cmath>
+#include <stdexcept>
 #include <unordered_map>
 
 namespace {
@@ -234,15 +238,20 @@ object expression (QJsonValue value, bool source) {
   return source ? cons (symbol_object (all ? "and" : "or"), as_list_object (terms)) : result;
 }
 
-object native_callback (const char* command, array<object> arguments,
-                        array<object> source_body) {
-  object body= cons (symbol_object (command), as_list_object (arguments));
-  object lambda= list_object (symbol_object ("lambda"), null_object (), body);
-  object callback= eval (lambda);
-  object original= cons (symbol_object ("lambda"),
-                        cons (null_object (), as_list_object (source_body)));
-  call ("set-procedure-property!", callback, symbol_object ("source"), original);
-  return callback;
+std::function<bool()> mode_predicate (const QString& mode) {
+  if (mode == "in-text?") return editor_mode_text;
+  if (mode == "in-math?") return editor_mode_math;
+  if (mode == "in-prog?") return editor_mode_program;
+  if (mode == "in-source?") return editor_mode_source;
+  if (mode == "in-table?") return editor_mode_table;
+  if (mode == "in-screens?") return editor_mode_screens;
+  if (mode == "in-std?") return editor_mode_standard;
+  if (mode == "in-std-text?") return editor_mode_standard_text;
+  if (mode == "in-smart-ref?") return editor_mode_smart_reference;
+  if (mode == "in-verbatim?") return editor_mode_verbatim;
+  if (mode == "in-variants-disabled?") return editor_mode_variants_disabled;
+  if (mode == "in-hybrid?") return [] { return get_current_editor ()->hybrid_name_context (); };
+  throw std::runtime_error ("Unknown native keyboard mode: " + mode.toStdString ());
 }
 
 QJsonObject keymap_group (int group) {
@@ -279,36 +288,43 @@ void register_group (int g) {
       profiles << symbol_object (binding_string (profile));
     if (!application_look_and_feel_matches (as_list_object (profiles))) return;
   }
-  array<object> conditions;
-  if (group.contains ("mode"))
-    conditions << eval (symbol_object (binding_string (group["mode"])));
-  if (group.contains ("require")) {
-    array<object> args, source;
-    args << object (g);
-    source << expression (group["require"], true);
-    conditions << native_callback ("generic-keyboard-condition?", args, source);
+  native_keyboard_context context;
+  std::function<bool()> mode;
+  if (group.contains ("mode")) {
+    context.identity= group["mode"].toString ().toStdString ();
+    mode= mode_predicate (group["mode"].toString ());
   }
+  const bool required= group.contains ("require");
+  if (required) context.identity += "/require:" + std::to_string (g);
+  if (mode || required)
+    context.matches= [mode, required, g] {
+      return (!mode || mode ()) && (!required || generic_keyboard_condition (g));
+    };
   auto entries= group.contains ("bindings") ? group["bindings"].toArray () : QJsonArray ();
   for (int b= 0; b < entries.size (); ++b) {
     auto binding= entries[b].toObject ();
-    object action;
-    if (binding.contains ("text")) action= object (binding_string (binding["text"]));
-    else {
-      array<object> args, source;
-      args << object (g) << object (b);
-      for (QJsonValue command: binding["commands"].toArray ())
-        source << expression (command, true);
-      action= native_callback ("generic-keyboard-run", args, source);
+    native_key_binding action;
+    string source;
+    if (binding.contains ("text")) {
+      action.text= binding["text"].toString ().toStdString ();
+      source= object_to_string (object (binding_string (binding["text"])));
     }
-    string help= binding.contains ("help") ? binding_string (binding["help"]) : string ("");
+    else {
+      array<object> terms;
+      for (QJsonValue command: binding["commands"].toArray ())
+        terms << expression (command, true);
+      source= object_to_string (N(terms) == 1 ? terms[0] :
+        cons (symbol_object ("begin"), as_list_object (terms)));
+      action.action= [g, b] { (void) generic_keyboard_run (g, b); };
+    }
+    action.help= binding["help"].toString ().toStdString ();
     // Use the shared registry: it owns prefix rewriting, partial sequences,
     // inverse lookup and interaction with domain-specific/user bindings.
-    native_keyboard_bind (as_list_object (conditions),
-                          binding_string (binding["key"]), action, help);
+    native_keyboard_bind (context, binding_string (binding["key"]), std::move (action), source);
   }
   if (group.contains ("unmap"))
     for (QJsonValue key: group["unmap"].toArray ())
-      native_keyboard_unbind (as_list_object (conditions), binding_string (key));
+      native_keyboard_unbind (context.identity, binding_string (key));
 }
 
 void generic_keyboard_load_domain (string domain) {

@@ -1,10 +1,10 @@
-(use-modules (srfi srfi-1))
-;; Exercise registration and native JSON dispatch on a real BufferActor.
+;; Check real dispatch, not Scheme closure identity or procedure redefinition.
 (native-keyboard-force #t)
 (init-style "generic")
 
 (define (check condition message)
-  (unless condition (error "Native keymap regression" message)))
+  (unless condition (error "Native keymap regression" message
+                           (cursor-path) (tree->stree (buffer-tree)))))
 (define (reset text position)
   (selection-cancel)
   (buffer-set-body (current-buffer-url) (stree->tree `(document ,text)))
@@ -13,128 +13,21 @@
   (update-current-buffer)
   (update-forced))
 
-(define original-profile (get-preference "look and feel"))
-(define captured '())
-(dynamic-wind
-  (lambda () (noop))
-  (lambda ()
-    (for-each
-      (lambda (profile)
-        (cpp-set-preference "look and feel" profile)
-        (generic-keyboard-load)
-        (for-each generic-keyboard-load-domain
-          '("text" "prog" "source" "table" "graphics" "fold")))
-      '("emacs" "gnome" "kde" "macos" "windows"))
-    (set! captured
-      (append-map
-        (lambda (entry)
-          (map (lambda (context) (cons (car entry) context)) (cdr entry)))
-        (native-keyboard-catalog))))
-  (lambda () (cpp-set-preference "look and feel" original-profile)))
+(reset "" 0)
+(key-press "<")
+(check (equal? (tree->stree (buffer-tree)) '(document "<"))
+       "literal text binding remains distinct from a command")
+(check (not (equal? (kbd-find-inv-binding '(kbd-left)) ""))
+       "semantic inverse lookup remains available")
 
-(define (entry key) (assoc (kbd-pre-rewrite key) captured))
-(define (action key) (caddr (entry key)))
-(define (base-action key)
-  (caddr (car (filter (lambda (entry)
-                        (and (equal? (car entry) (kbd-pre-rewrite key)) (null? (cadr entry))))
-                      captured))))
-(define (condition-entry key predicate)
-  (car (filter (lambda (candidate)
-                 (and (equal? (car candidate) (kbd-pre-rewrite key))
-                      (memq predicate (cadr candidate))))
-               captured)))
-(check (equal? (promise-source (action "left")) '(kbd-left))
-       "semantic command source retained for inverse lookup")
-(check (equal? (promise-source (base-action "C-0")) '(change-zoom-factor 1.0))
-       "inexact numeric source retained")
-(check (not (promise-source (action "undo")))
-       "multiple-command source is not misrepresented as a single command")
-(check (equal? (action "<") "<") "literal text action")
-(let ((replacement (string (integer->char #xfffd))))
-  (check (equal? (action (string-append "symbol " replacement)) replacement)
-         "Unicode key and text preserved through the UTF-8 Scheme bridge"))
-(check (condition-entry "_" in-hybrid?) "mode predicate identity")
-
-;; Public command lookup must happen at invocation, not JSON load time.
-(let ((saved kbd-left) (invoked #f))
-  (dynamic-wind
-    (lambda () (set! kbd-left (lambda () (set! invoked #t))))
-    (lambda () ((action "left")))
-    (lambda () (set! kbd-left saved)))
-  (check invoked "later command override is observed"))
-
-;; Multiple actions keep their execution order and literal arguments.
-(let ((saved-noop noop) (saved-undo undo) (seen '()))
-  (dynamic-wind
-    (lambda ()
-      (set! noop (lambda () (set! seen (cons 'noop seen))))
-      (set! undo (lambda (n) (set! seen (cons n seen)))))
-    (lambda () ((action "undo")))
-    (lambda () (set! noop saved-noop) (set! undo saved-undo)))
-  (check (equal? (reverse seen) '(noop 0)) "ordered native command sequence"))
-
-;; A procedure-valued argument must remain callable on the current editor.
-(reset "abcd" 2)
-(let ((saved-left kbd-left-raw))
-  (dynamic-wind
-    (lambda ()
-      (set! kbd-left-raw (lambda () (tree-go-to (tree-ref (buffer-tree) 0) 1))))
-    (lambda () ((action "S-left")))
-    (lambda () (set! kbd-left-raw saved-left))))
-(check (selection-active-any?) "selection command receives a procedure argument")
-(check (equal? (cursor-path) '(0 0 1)) "native selection moved left")
-
-;; Requirements are live predicates and short-circuit, not load-time filters.
-(let ((saved-prog in-prog?) (saved-verbatim in-verbatim?)
-      (prog? #f) (verbatim? #f) (calls 0)
-      (predicate
-        (car (cadr
-          (car (filter (lambda (candidate)
-                         (and (equal? (car candidate) (kbd-pre-rewrite "A-tab"))
-                              (equal? (promise-source (caddr candidate))
-                                      '(kbd-alternate-tab))))
-                       captured))))))
-  (dynamic-wind
-    (lambda ()
-      (set! in-prog? (lambda () prog?))
-      (set! in-verbatim? (lambda () (set! calls (+ calls 1)) verbatim?)))
-    (lambda ()
-      (check (predicate) "alternate tab enabled in text")
-      (set! prog? #t)
-      (set! calls 0)
-      (check (not (predicate)) "alternate tab disabled in prog")
-      (check (= calls 0) "requirement short-circuits")
-      (set! prog? #f)
-      (set! verbatim? #t)
-      (check (not (predicate)) "alternate tab disabled in verbatim"))
-    (lambda () (set! in-prog? saved-prog) (set! in-verbatim? saved-verbatim))))
-
-;; The one conditional action has the same lazy branch and symbol argument.
-(let ((saved-inside inside?) (saved-prog in-prog?)
-      (saved-insert insert) (saved-hybrid make-hybrid) (hybrid? #t) (seen #f))
-  (dynamic-wind
-    (lambda ()
-      (set! inside? (lambda (tag) (check (eq? tag 'hybrid) "literal symbol argument") hybrid?))
-      (set! in-prog? (lambda () #f))
-      (set! insert (lambda (s) (set! seen s)))
-      (set! make-hybrid (lambda () (set! seen 'hybrid))))
-    (lambda ()
-      ((base-action "\\"))
-      (check (equal? seen "\\") "conditional insertion branch")
-      (set! hybrid? #f)
-      ((base-action "\\"))
-      (check (eq? seen 'hybrid) "conditional hybrid branch"))
-    (lambda ()
-      (set! inside? saved-inside) (set! in-prog? saved-prog)
-      (set! insert saved-insert) (set! make-hybrid saved-hybrid))))
-
-;; Shared registration still provides prefix bindings and semantic inverse lookup.
-(check (kbd-find-key-binding (kbd-pre-rewrite "table N")) "partial key sequence")
-(check (not (equal? (kbd-find-inv-binding '(kbd-left)) "")) "inverse shortcut lookup")
-(native-keyboard-bind-source "C-F12" '(insert "user"))
+;; A user prefix overrides the shipped registry without creating a closure.
+(set-user-shortcut "C-F12 x" "{\"op\":\"make\",\"tag\":\"strong\"}")
 (reset "" 0)
 (key-press "C-F12")
-(check (equal? (tree->stree (buffer-tree)) '(document "user")) "user keymap coexistence")
+(key-press "x")
+(check (equal? (tree->stree (buffer-tree)) '(document (strong "")))
+       "native user shortcut resolves its multi-key prefix")
+(remove-user-shortcut "C-F12 x")
 
 (init-env "page-medium" "paper")
 (update-current-buffer)

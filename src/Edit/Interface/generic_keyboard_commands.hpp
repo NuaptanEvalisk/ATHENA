@@ -80,7 +80,6 @@ void generic_hybrid_kbd_backslash ();
 void generic_hybrid_kbd_sub ();
 void generic_hybrid_kbd_sup ();
 object generic_escape_symbol_dispatch (string action);
-object generic_key_press_command (string key);
 string generic_handwriting_symbol_input_description (string command);
 void generic_handwriting_symbol_insert (string command);
 

@@ -467,18 +467,6 @@
     <arg type="tree" />
   </binding>
   <binding name="generic-keyboard-load" native="generic_keyboard_load" returns="void" />
-  <binding name="native-keyboard-bind" native="native_keyboard_bind" returns="void">
-    <arg type="object" /><arg type="string" /><arg type="object" /><arg type="string" />
-  </binding>
-  <binding name="native-keyboard-unbind" native="native_keyboard_unbind" returns="void">
-    <arg type="object" /><arg type="string" />
-  </binding>
-  <binding name="native-keyboard-bind-source" native="native_keyboard_bind_source" returns="void">
-    <arg type="string" /><arg type="object" />
-  </binding>
-  <binding name="kbd-find-key-binding" native="native_keyboard_find" returns="object">
-    <arg type="string" />
-  </binding>
   <binding name="kbd-find-inv-binding" native="native_keyboard_inverse" returns="string">
     <arg type="object" />
   </binding>
@@ -491,7 +479,6 @@
   <binding name="kbd-find-rev-binding" native="native_keyboard_reverse" returns="object">
     <arg type="object" />
   </binding>
-  <binding name="native-keyboard-catalog" native="native_keyboard_catalog" returns="object" />
   <binding name="list-all-shortcuts" native="native_keyboard_list_shortcuts" returns="void" exceptions="scheme" />
   <binding name="native-keyboard-initialize" native="native_keyboard_initialize" returns="void" />
   <binding name="keyboard-press" native="native_keyboard_press" returns="void" exceptions="scheme">
@@ -1228,9 +1215,6 @@
   <binding name="hybrid-kbd-sub" native="generic_hybrid_kbd_sub" returns="void" />
   <binding name="hybrid-kbd-sup" native="generic_hybrid_kbd_sup" returns="void" />
   <binding name="escape-symbol-native-dispatch" native="generic_escape_symbol_dispatch" returns="object">
-    <arg type="string" />
-  </binding>
-  <binding name="key-press-command" native="generic_key_press_command" returns="object">
     <arg type="string" />
   </binding>
   <binding name="handwriting-symbol-input-description" native="generic_handwriting_symbol_input_description" returns="string">

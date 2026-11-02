@@ -97,14 +97,13 @@ tm_config_rep::set_variant_keys (string var, string unvar) {
 }
 
 #define rewrite_find_key_binding(s) \
-  find_key_binding (apply_wildcards (s, post_kbd_wildcards))
+  native_keyboard_find (apply_wildcards (s, post_kbd_wildcards))
 
 void
 tm_config_rep::variant_simplification (string& which) {
   if (ends (which, var_suffix)) {
-    object obj= rewrite_find_key_binding (which);
-    // cout << which << " => " << obj << LF;
-    if (obj == object (false))
+    const auto binding= rewrite_find_key_binding (which);
+    if (!binding)
       while (ends (which, var_suffix))
         which= which (0, N(which) - N(var_suffix));
   }
@@ -114,7 +113,7 @@ tm_config_rep::variant_simplification (string& which) {
     else {
       which= which (0, N(which) - N(unvar_suffix));
       while (true) {
-        if (rewrite_find_key_binding (which * var_suffix) == object (false))
+        if (!rewrite_find_key_binding (which * var_suffix))
           break;
         which= which * var_suffix;
       }
@@ -126,9 +125,13 @@ tm_config_rep::variant_simplification (string& which) {
 * Server keyboard mappings and shorthands
 ******************************************************************************/
 
-object
-tm_config_rep::find_key_binding (string key) {
-  return native_keyboard_find (key);
+namespace {
+class keyboard_command_rep: public command_rep {
+  std::function<void()> action;
+public:
+  explicit keyboard_command_rep (std::function<void()> action): action (std::move (action)) {}
+  void apply () override { action (); }
+};
 }
 
 string
@@ -179,26 +182,24 @@ tm_config_rep::get_keycomb (
     rew= unvar_suffix (1, N(unvar_suffix));
   }
   if (DEBUG_KEYBOARD) debug_keyboard << " -> " << rew << LF;
-  object obj= find_key_binding (rew);
-  //cout << rew << " => " << obj << LF;
-  //if (obj == object (false) || (orig != which && !is_string (car (obj)))) {
-  if (obj == object (false)) {
+  const auto binding= native_keyboard_find (rew);
+  if (!binding) {
     status= 0;
     cmd   = command ();
     shorth= copy (rew);
     help  = "";
   }
-  else if (!is_string (car (obj))) {
+  else if (binding->action) {
     status= 1;
-    cmd   = as_command (car (obj));
+    cmd   = tm_new<keyboard_command_rep> (binding->action);
     shorth= copy (rew);
-    help  = as_string (cadr (obj));
+    help  = string (binding->help.data (), binding->help.size ());
   }
   else {
     status= 2;
     cmd   = command ();
-    shorth= as_string (car (obj));
-    help  = as_string (cadr (obj));
+    shorth= string (binding->text.data (), binding->text.size ());
+    help  = string (binding->help.data (), binding->help.size ());
   }
   if (no_var) status += 3;
 }

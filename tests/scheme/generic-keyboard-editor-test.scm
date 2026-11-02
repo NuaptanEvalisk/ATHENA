@@ -230,12 +230,6 @@
 (check (equal? (body) legacy-math-ss)
        "JSON call descriptor matches public make command")
 
-(let ((binding (kbd-find-key-binding "C-S-p")))
-  (check (equal? (key-press-command "C-S-p") (and binding (car binding)))
-         "native key-press-command mirrors public keyboard binding lookup"))
-(check (not (key-press-command "definitely-not-a-real-athena-key-binding"))
-       "native key-press-command returns false for missing binding")
-
 (check (equal? (handwriting-symbol-input-description "\\---") "--")
        "native handwriting description preserves direct-text mapping")
 (reset "" 0)
