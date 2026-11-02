@@ -362,7 +362,6 @@ bool is_array_double (object obj) {
   for (; !is_null (obj); obj= cdr (obj)) if (!is_double (car (obj))) return false;
   return true;
 }
-bool is_widget (object obj) { return !native_value (obj) && tmscm_is_widget (object_to_tmscm (obj)); }
 bool is_patch (object obj) {
   if (auto* n= native_value (obj)) return n->kind == native_object_kind::patch_value;
   return tmscm_is_patch (object_to_tmscm (obj));
@@ -600,21 +599,6 @@ as_patch (object obj) {
   return tmscm_to_patch (p);
 }
 
-widget
-as_widget (object obj) {
-  if (native_value (obj)) return widget ();
-  tmscm w= object_to_tmscm (obj);
-  if (!tmscm_is_widget (w)) return widget ();
-  return tmscm_to_widget (w);
-}
-
-widget
-take_widget (object obj) {
-  if (native_value (obj)) return widget ();
-  tmscm w= object_to_tmscm (obj);
-  if (!tmscm_is_widget (w)) return widget ();
-  return tmscm_take_widget (w);
-}
 
 object
 tree_to_stree (scheme_tree t) {
@@ -680,23 +664,6 @@ object_to_string (object obj) {
   return tmscm_to_string (scm_object_to_string (object_to_tmscm (obj), SCM_UNDEFINED));
 }
 
-object
-scheme_cmd (const char* s) {
-  return eval ("(lambda () " * string (s) * ")");
-}
-
-object
-scheme_cmd (string s) {
-  return eval ("(lambda () " * s * ")");
-}
-
-object
-scheme_cmd (object cmd) {
-  cmd= cons (cmd, null_object ());
-  cmd= cons (null_object (), cmd);
-  cmd= cons (eval ("'lambda"), cmd);
-  return eval (cmd);
-}
 
 /******************************************************************************
 * Conversions to functional objects

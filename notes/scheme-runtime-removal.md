@@ -545,12 +545,27 @@ generated native entries and remain on the secure-function list.
   script boundary remain separate.
 - Removed the obsolete widget-promise test and assertions for retired glue
   declarations. No replacement tests are needed for APIs with no consumers.
-- The remaining widget/command smob marshalling and generator types still need
-  cleanup; this batch does not claim that the value/runtime bridge is gone.
+- The initial deletion retained widget/command smob marshalling and generator
+  types; the subsequent cleanup below removes them.
 - Built with `-j16`; headless startup confirmed all five retired bindings were
   absent, printed `RETIRED_WIDGET_BRIDGE_OK`, and exited zero. Deployed with the
   runtime helper and removed the temporary profile. Logs are under
   `build_qt6/native-retire-widget-bridge-{build,runtime,deploy}.log`.
+
+## Retired Widget Values And Closure Constructors
+
+- Removed unused widget, widget-array, command and widget-promise marshalling,
+  blackbox printing branches, object accessors and generator types. The XML
+  registry has no signatures using those types. Qt's native widget promises
+  are separate and remain supported.
+- Deleted all unused `scheme_cmd` overloads, which constructed and evaluated
+  Scheme lambdas. Explicit runtime evaluation remains a separate removal task.
+- Namespace creation now opens the document through the existing typed native
+  entry point instead of calling the named `load-buffer` bridge.
+- Regenerated all interfaces with `athena_glue -j16` successfully and checked
+  for remaining retired symbol references. No new bindings or runtime behavior
+  were introduced. Full compilation/deployment is deferred to the next combined
+  build; the installed binary still corresponds to the preceding bridge batch.
 
 ## Known Outstanding Failure
 

@@ -16,10 +16,9 @@ import xml.etree.ElementTree as ET
 
 TYPES = frozenset("""
     array_SI array_double array_int array_patch
-    array_path array_string array_tree array_url array_widget bool bytes command
+    array_path array_string array_tree array_url bool bytes
     content double int list_string list_tree modification object observer
-    patch path procedure promise_widget scheme_tree string tmscm tree tree_label uint url
-    widget
+    patch path procedure scheme_tree string tmscm tree tree_label uint url
 """.split())
 IDENTIFIER = re.compile(r"[a-zA-Z_][a-zA-Z_0-9]*")
 SCHEME_NAME = re.compile(r"[a-zA-Z_][a-zA-Z_0-9?!<>*=:+/.-]*")
@@ -147,11 +146,11 @@ def read_interfaces(paths):
     return interfaces
 
 
-NATIVE_SCALARS = frozenset("bool int double string bytes tree url path modification patch widget".split())
+NATIVE_SCALARS = frozenset("bool int double string bytes tree url path modification patch".split())
 NATIVE_SEQUENCES = {
     "array_int": "int", "array_SI": "int", "array_double": "double",
     "array_string": "string", "array_tree": "tree", "array_url": "url",
-    "array_patch": "patch", "array_path": "path", "array_widget": "widget",
+    "array_patch": "patch", "array_path": "path",
     "list_string": "string", "list_tree": "tree",
 }
 
@@ -222,13 +221,13 @@ def native_result(kind):
         return ["  return bytes_object (out);"]
     if kind == "scheme_tree":
         return ["  return scheme_tree_to_object (out);"]
-    if kind in (NATIVE_SCALARS - {"widget"}) | {"content", "list_string", "list_tree", "array_double"}:
+    if kind in NATIVE_SCALARS | {"content", "list_string", "list_tree", "array_double"}:
         return ["  return object (out);"]
     if kind in ("object", "procedure"):
         return ["  return out;"]
     if kind == "tree_label":
         return ["  return symbol_object (as_string (out));"]
-    if kind in NATIVE_SEQUENCES and kind != "array_widget":
+    if kind in NATIVE_SEQUENCES:
         return ["  array<object> values;",
                 "  for (int i=0; i<N(out); ++i) values << object (out[i]);",
                 "  return as_list_object (values);"]

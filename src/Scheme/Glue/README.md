@@ -107,7 +107,7 @@ the distinction between text and arbitrary bytes. Content arguments validate
 and convert through the native value interface. Void commands return a native
 unspecified marker, distinct from false and the empty list, without rooting a
 Guile value. The explicit transitional bridge remains for raw tmscm,
-unsigned integers, observer/command/promise handles and
+unsigned integers, observer handles and
 unsupported result containers. These types must be replaced at their owning
 value or callback boundary, not with per-binding exceptions in this generator.
 
@@ -121,7 +121,7 @@ exceptions or handwritten native registrations.
 
 ```sh
 python3 tests/scheme/glue-generator-test.py -v
-cmake --build build_qt6 --target athena_glue -j20
+cmake --build build_qt6 --target athena_glue -j16
 ```
 
 After adding a binding, also build the binary and exercise its runtime call.

@@ -103,7 +103,6 @@ bool is_url (object obj);
 bool is_array_double (object obj);
 bool is_modification (object obj);
 bool is_patch (object obj);
-bool is_widget (object obj);
 bool is_procedure (object obj);
 object procedure_source (object obj);
 
@@ -123,10 +122,6 @@ url as_url (object obj);
 array<double> as_array_double (object obj);
 modification as_modification (object obj);
 patch as_patch (object obj);
-#ifdef WIDGET_H // FIXME: dirty hack
-widget as_widget (object obj);
-widget take_widget (object obj);
-#endif
 
 object tree_to_stree (tree t);
 object scheme_tree_to_object (scheme_tree t);
@@ -134,9 +129,6 @@ tree   stree_to_tree (object obj);
 tree   content_to_tree (object obj);
 object string_to_object (string s);
 string object_to_string (object obj);
-object scheme_cmd (const char* s);
-object scheme_cmd (string s);
-object scheme_cmd (object cmd);
 
 void notify_preferences_booted ();
 void set_preference (string var, string val);

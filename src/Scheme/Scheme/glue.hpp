@@ -31,7 +31,6 @@ bool tmscm_is_url (tmscm obj);
 bool tmscm_is_array_double (tmscm obj);
 bool tmscm_is_modification (tmscm obj);
 bool tmscm_is_patch (tmscm obj);
-bool tmscm_is_widget (tmscm obj);
 
 tmscm  bool_to_tmscm (bool b);
 tmscm  int_to_tmscm (int i);
@@ -64,8 +63,5 @@ array<double> tmscm_to_array_double (tmscm obj);
 modification tmscm_to_modification (tmscm obj);
 patch tmscm_to_patch (tmscm obj);
 scheme_tree tmscm_to_scheme_tree (tmscm obj);
-widget tmscm_to_widget (tmscm widget_smob);
-widget tmscm_take_widget (tmscm widget_smob);
-command tmscm_to_command (tmscm obj);
 
 #endif // defined GLUE_H

@@ -323,82 +323,6 @@ tmscm_to_observer (tmscm obj) {
 }
 
 
-/******************************************************************************
-* Widgets
-******************************************************************************/
-
-#define TMSCM_ASSERT_WIDGET(o,arg,rout) \
-TMSCM_ASSERT (tmscm_is_widget (o), o, arg, rout)
-
-bool
-tmscm_is_widget (tmscm u) {
-  return (tmscm_is_blackbox (u) &&
-         (type_box (tmscm_to_blackbox(u)) == type_helper<widget>::id));
-}
-
-
-static tmscm 
-widget_to_tmscm (widget o) {
-  return blackbox_to_tmscm (close_box<widget> (o));
-}
-
-widget
-tmscm_to_widget (tmscm o) {
-  return open_box<widget> (tmscm_to_blackbox (o));
-}
-
-widget
-tmscm_take_widget (tmscm o) {
-  return take_box<widget> (tmscm_to_blackbox (o));
-}
-
-/******************************************************************************
-* Commands
-******************************************************************************/
-
-#define TMSCM_ASSERT_COMMAND(o,arg,rout) \
-TMSCM_ASSERT (tmscm_is_command (o), o, arg, rout)
-
-bool
-tmscm_is_command (tmscm u) {
-  return (tmscm_is_blackbox (u) && 
-      (type_box (tmscm_to_blackbox(u)) == type_helper<command>::id));
-}
-
-static tmscm 
-command_to_tmscm (command o) {
-  return blackbox_to_tmscm (close_box<command> (o));
-}
-
-command
-tmscm_to_command (tmscm o) {
-  return open_box<command> (tmscm_to_blackbox (o));
-}
-
-/******************************************************************************
-*  Widget Factory
-******************************************************************************/
-
-typedef promise<widget> promise_widget;
-
-#define TMSCM_ASSERT_PROMISE_WIDGET(o,arg,rout) \
-TMSCM_ASSERT (tmscm_is_promise_widget (o), o, arg, rout)
-
-bool
-tmscm_is_promise_widget (tmscm u) {
-  return (tmscm_is_blackbox (u) && 
-         (type_box (tmscm_to_blackbox(u)) == type_helper<promise_widget>::id));
-}
-
-static tmscm 
-promise_widget_to_tmscm (promise_widget o) {
-  return blackbox_to_tmscm (close_box<promise_widget> (o));
-}
-
-static promise_widget
-tmscm_to_promise_widget (tmscm o) {
-  return open_box<promise_widget> (tmscm_to_blackbox (o));
-}
 
 /******************************************************************************
 * Urls
@@ -531,7 +455,6 @@ typedef array<tree> array_tree;
 typedef array<url> array_url;
 typedef array<patch> array_patch;
 typedef array<path> array_path;
-typedef array<widget> array_widget;
 typedef array<double> array_double;
 
 static bool
@@ -687,34 +610,6 @@ tmscm_to_array_tree (tmscm p) {
   return a;
 }
 
-static bool
-tmscm_is_array_widget (tmscm p) {
-  if (tmscm_is_null (p)) return true;
-  else return tmscm_is_pair (p) &&
-    tmscm_is_widget (tmscm_car (p)) &&
-    tmscm_is_array_widget (tmscm_cdr (p));
-}
-
-#define TMSCM_ASSERT_ARRAY_WIDGET(p,arg,rout) \
-TMSCM_ASSERT (tmscm_is_array_widget (p), p, arg, rout)
-
-/* static */ tmscm 
-array_widget_to_tmscm (array<widget> a) {
-  int i, n= N(a);
-  tmscm p= tmscm_null ();
-  for (i=n-1; i>=0; i--) p= tmscm_cons (widget_to_tmscm (a[i]), p);
-  return p;
-}
-
-/* static */ array<widget>
-tmscm_to_array_widget (tmscm p) {
-  array<widget> a;
-  while (!tmscm_is_null (p)) {
-    a << tmscm_to_widget (tmscm_car (p));
-    p= tmscm_cdr (p);
-  }
-  return a;
-}
 
 static bool
 tmscm_is_array_url (tmscm p) {

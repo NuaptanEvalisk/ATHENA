@@ -1537,7 +1537,7 @@ athena_namespace_new_file_within_wizard () {
           actor_continuation_registry::instance ().store (
             [path= std::move (path)] () mutable {
               try {
-                (void) call ("load-buffer", object (url_system (path)));
+                application_open_document_url (url_system (path));
               }
               catch (...) {}
             });
@@ -1551,7 +1551,7 @@ athena_namespace_new_file_within_wizard () {
 
   string path= athena_namespace_new_file_wizard ();
   if (path == "") return;
-  try { (void) call ("load-buffer", object (url_system (path))); }
+  try { application_open_document_url (url_system (path)); }
   catch (...) {}
 }
 
