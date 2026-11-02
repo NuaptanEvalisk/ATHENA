@@ -239,12 +239,10 @@ document_test_init_font (string value, object) {
 
 void
 document_remove_font_packages () {
-  object styles= document_get_style_list ();
-  if (!is_list (styles)) return;
-  list<string> current= as_list_string (styles);
+  const auto styles= document_get_style_list ();
   list<string> filtered;
-  for (list<string> it= current; !is_nil (it); it= it->next)
-    if (!ends (it->item, "-font")) filtered << it->item;
+  for (int i=0; i<N(styles); ++i)
+    if (!ends (styles[i], "-font")) filtered << styles[i];
   document_set_style_list (object (filtered));
 }
 
@@ -306,13 +304,17 @@ bool document_style_language (string value) {
 }
 
 list<string> current_style_list () {
-  object styles= document_get_style_list ();
-  return is_list (styles) ? as_list_string (styles) : list<string> ();
+  const auto styles= document_get_style_list ();
+  list<string> result;
+  for (int i=N(styles)-1; i>=0; --i) result= list<string> (styles[i], result);
+  return result;
 }
 
 list<string> current_style_list (editor_rep* ed) {
-  object styles= document_get_style_list (ed);
-  return is_list (styles) ? as_list_string (styles) : list<string> ();
+  const auto styles= document_get_style_list (ed);
+  list<string> result;
+  for (int i=N(styles)-1; i>=0; --i) result= list<string> (styles[i], result);
+  return result;
 }
 
 list<string> remove_document_languages (list<string> styles) {

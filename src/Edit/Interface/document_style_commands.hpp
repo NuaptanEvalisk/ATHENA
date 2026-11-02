@@ -27,8 +27,8 @@ string document_custom_style_file_name (url name);
 url document_url_resolve_package (string name);
 bool document_install_custom_style (url source);
 
-object document_get_style_list ();
-object document_get_style_list (editor_rep* ed);
+array<string> document_get_style_list ();
+array<string> document_get_style_list (editor_rep* ed);
 void document_set_style_list (object styles);
 object document_embedded_style_list (object extra_packages);
 bool document_has_no_style ();

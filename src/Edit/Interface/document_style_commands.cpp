@@ -402,14 +402,14 @@ document_install_custom_style (url source) {
   return true;
 }
 
-object
+array<string>
 document_get_style_list () {
-  return style_list_object (current_style_strings ());
+  return current_style_strings ();
 }
 
-object
+array<string>
 document_get_style_list (editor_rep* ed) {
-  return style_list_object (current_style_strings (ed));
+  return current_style_strings (ed);
 }
 
 void

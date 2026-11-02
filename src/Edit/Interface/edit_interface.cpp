@@ -872,8 +872,8 @@ editor_rep::document_menu_state_snapshot () {
     };
 
   try {
-    list<string> styles= as_list_string (document_get_style_list (this));
-    if (!is_nil (styles)) assign (snapshot.document_style, styles->item);
+    const auto styles= document_get_style_list (this);
+    if (N(styles)) assign (snapshot.document_style, styles[0]);
   }
   catch (...) {}
   assign (snapshot.page_type, get_init_string ("page-type"));
@@ -899,13 +899,10 @@ editor_rep::document_menu_state_snapshot () {
       snapshot.document_packages, packageNames[i],
       document_has_style_package (this, packageNames[i]));
   try {
-    list<string> styles= as_list_string (document_get_style_list (this));
-    if (!is_nil (styles)) {
-      styles= styles->next;
-      for (; !is_nil (styles); styles= styles->next)
-        if (!hidden_package (styles->item))
-          append_choice (snapshot.current_packages, styles->item, true);
-    }
+    const auto styles= document_get_style_list (this);
+    for (int i=1; i<N(styles); ++i)
+      if (!hidden_package (styles[i]))
+        append_choice (snapshot.current_packages, styles[i], true);
   }
   catch (...) {}
 
@@ -1583,9 +1580,9 @@ editor_rep::focus_toolbar_state_snapshot () {
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_BUFFER) ||
       snapshot.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT)) {
     try {
-      list<string> styles= as_list_string (document_get_style_list (this));
-      if (!is_nil (styles)) {
-        const string style= styles->item;
+      const auto styles= document_get_style_list (this);
+      if (N(styles)) {
+        const string style= styles[0];
         snapshot.document_style.assign (
           style.data (), static_cast<std::size_t> (N(style)));
       }
@@ -1631,14 +1628,10 @@ editor_rep::focus_toolbar_state_snapshot () {
         snapshot.document_packages, packageNames[i],
         document_has_style_package (this, packageNames[i]));
     try {
-      list<string> styles= as_list_string (document_get_style_list (this));
-      if (!is_nil (styles)) {
-        styles= styles->next;
-        for (; !is_nil (styles); styles= styles->next)
-          if (!hidden_package (styles->item))
-            append_choice (
-              snapshot.current_packages, styles->item, true);
-      }
+      const auto styles= document_get_style_list (this);
+      for (int i=1; i<N(styles); ++i)
+        if (!hidden_package (styles[i]))
+          append_choice (snapshot.current_packages, styles[i], true);
     }
     catch (...) {}
 

@@ -1381,6 +1381,23 @@ generated native entries and remain on the secure-function list.
   that immediately convert it back. Native list access should replace that path
   without changing style normalization or actor ownership.
 
+## Native Style List Reads
+
+- Both style-list getters now return the existing native string arrays directly.
+  Source package discovery/editing/extraction, document settings and both UI
+  snapshot paths no longer create and immediately decode object lists.
+- First-style selection, package-tail filtering and list order are unchanged.
+  Document language helpers retain native linked lists where their existing
+  algorithms need them, converting directly from native arrays.
+- The retained get-style-list binding declares `array_string` and uses normal
+  generated marshalling. No handwritten wrapper or new registry was added.
+  Style writes and embedded style-list assembly remain separate object APIs to
+  migrate next; normalization and actor ownership were not changed here.
+- XML generation and all four affected implementation units compiled with
+  `-j16`; log `build_qt6/native-style-list-build.log`. No tests added or run.
+  Full linking, runtime binding verification and deployment await the next
+  combined build. Installed binary remains the `ff39c969b` recorded deployment.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

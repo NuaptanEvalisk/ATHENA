@@ -815,7 +815,7 @@
   <binding name="install-custom-style-file" native="document_install_custom_style" returns="bool">
     <arg type="url" />
   </binding>
-  <binding name="get-style-list" native="document_get_style_list" returns="object" />
+  <binding name="get-style-list" native="document_get_style_list" returns="array_string" />
   <binding name="set-style-list" native="document_set_style_list" returns="void">
     <arg type="object" />
   </binding>

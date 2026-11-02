@@ -206,10 +206,10 @@ string style_definition (tree t, string name, string current, names& visited) {
   return "";
 }
 string macro_package (string name) {
-  auto styles= as_array_object (document_get_style_list ());
+  auto styles= document_get_style_list ();
   names visited;
   for (int i= N (styles) - 1; i >= 0; --i) {
-    string pack= as_string (styles[i]);
+    string pack= styles[i];
     if (!visited.insert (pack).second)
       continue;
     string found= style_definition (style_body (pack), name, pack, visited);
@@ -366,9 +366,9 @@ void source_edit_package (string name) {
                                std::function<void (url)> ());
 }
 void source_edit_style () {
-  auto styles= as_array_object (document_get_style_list ());
+  auto styles= document_get_style_list ();
   if (N (styles))
-    source_edit_package (as_string (styles[0]));
+    source_edit_package (styles[0]);
 }
 void source_edit_macro (object label) {
   string name= name_of (label);
@@ -420,9 +420,9 @@ array<string> source_personal_macros () {
       break;
     result << string ("") << name << name;
   }
-  auto styles= as_array_object (document_get_style_list ());
+  auto styles= document_get_style_list ();
   for (int i= 0; i < N (styles); ++i) {
-    string pack= as_string (styles[i]);
+    string pack= styles[i];
     if (i == 0) {
       url builtin= complete (
           url ("$ATHENA_PATH/styles") * url_wildcard () * url (pack * ".ats"), "fr");
@@ -477,9 +477,9 @@ void source_extract_style (bool style) {
                                 style ? "Automatically generated style file."
                                       : "Automatically generated style package.")))));
   tree body (DOCUMENT, title), packages (USE_PACKAGE);
-  auto styles= as_array_object (document_get_style_list ());
+  auto styles= document_get_style_list ();
   for (int i= style ? 0 : 1; i < N (styles); ++i)
-    packages << tree (as_string (styles[i]));
+    packages << tree (styles[i]);
   if (N (packages))
     body << packages;
   tree initial= ed->get_init_all ();
