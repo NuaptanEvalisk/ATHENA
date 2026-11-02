@@ -188,6 +188,9 @@ def native_argument(lines, kind, value, target, diagnostic, indent="  "):
         expression = value
     elif kind == "scheme_tree":
         expression = f"as_scheme_tree ({value})"
+    elif kind == "content":
+        require(f"is_content ({value})")
+        expression = f"content_to_tree ({value})"
     elif kind in NATIVE_SEQUENCES:
         require(f"is_list ({value})")
         element = NATIVE_SEQUENCES[kind]
@@ -213,11 +216,13 @@ def native_argument(lines, kind, value, target, diagnostic, indent="  "):
 
 
 def native_result(kind):
+    if kind == "void":
+        return ["  return unspecified_object ();"]
     if kind == "bytes":
         return ["  return bytes_object (out);"]
     if kind == "scheme_tree":
         return ["  return scheme_tree_to_object (out);"]
-    if kind in (NATIVE_SCALARS - {"widget"}) | {"list_string", "list_tree", "array_double"}:
+    if kind in (NATIVE_SCALARS - {"widget"}) | {"content", "list_string", "list_tree", "array_double"}:
         return ["  return object (out);"]
     if kind in ("object", "procedure"):
         return ["  return out;"]
@@ -227,8 +232,7 @@ def native_result(kind):
         return ["  array<object> values;",
                 "  for (int i=0; i<N(out); ++i) values << object (out[i]);",
                 "  return as_list_object (values);"]
-    result = "TMSCM_UNSPECIFIED" if kind == "void" else f"{kind}_to_tmscm (out)"
-    return [f"  return tmscm_to_object ({result});"]
+    return [f"  return tmscm_to_object ({kind}_to_tmscm (out));"]
 
 
 def cpp_native_binding(interface, binding):

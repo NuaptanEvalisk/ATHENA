@@ -32,6 +32,7 @@ template<class T> int N(const array<T>& values) { return values.size(); }
 inline int object_conversions= 0;
 inline int object_to_tmscm(object value) { ++object_conversions; return value; }
 inline object tmscm_to_object(int value) { return value; }
+inline object unspecified_object() { return TMSCM_UNSPECIFIED; }
 inline bool tmscm_is_int(int value) { return value >= 0; }
 inline bool tmscm_is_string(int) { return true; }
 inline bool is_int(object value) { return tmscm_is_int(value); }

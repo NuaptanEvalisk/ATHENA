@@ -21,6 +21,7 @@
 #include "buffer_state.hpp"
 #include "node_metadata.hpp"
 #include "file.hpp"
+#include "scheme.hpp"
 
 #include <QByteArray>
 #include <QCoreApplication>
@@ -463,10 +464,6 @@ bool athena_data_art_enabled () {
   return get_preference ("texmacs->pdf:data-art cover", "off") == "on";
 }
 
-bool athena_data_art_pdf_target (object target) {
-  return is_url (target) && athena_data_art_pdf_target (as_url (target));
-}
-
 bool athena_data_art_pdf_target (url target) { return suffix (target) == "pdf"; }
 
 bool athena_data_art_cover_present (url source) {
@@ -509,12 +506,6 @@ tree athena_data_art_doc_data_with_cover (tree body, url cover) {
 tree athena_data_art_export_payload (tree document, tree body, url cover, int version) {
   if (version < 1 || version > 3) throw std::runtime_error ("Invalid DataArt source version");
   return tree (TUPLE, copy (document), copy (body), as_string (cover), as_string (version));
-}
-
-object athena_data_art_prepare_export (url source, object target) {
-  if (!is_url (target)) return object (false);
-  auto prepared= athena_data_art_prepare_export (source, as_url (target));
-  return prepared ? object (*prepared) : object (false);
 }
 
 std::optional<tree> athena_data_art_prepare_export (url source, url target) {

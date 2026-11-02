@@ -103,8 +103,11 @@ arguments through the object value API, pass object/procedure values directly,
 and validate sequence elements without first extracting SCM values. Ordinary
 results are constructed directly as objects; object results retain their
 identity. Byte payloads and structure trees also use native values, preserving
-the distinction between text and arbitrary bytes. The explicit transitional bridge remains for raw tmscm,
-unsigned integers, content descriptors, observer/command/promise handles and
+the distinction between text and arbitrary bytes. Content arguments validate
+and convert through the native value interface. Void commands return a native
+unspecified marker, distinct from false and the empty list, without rooting a
+Guile value. The explicit transitional bridge remains for raw tmscm,
+unsigned integers, observer/command/promise handles and
 unsupported result containers. These types must be replaced at their owning
 value or callback boundary, not with per-binding exceptions in this generator.
 

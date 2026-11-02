@@ -54,7 +54,7 @@ tmscm_object_rep::~tmscm_object_rep () {
 
 enum class native_object_kind {
   empty_list, boolean, integer, real, text, symbol, keyword, character, source_tree, location,
-  change, patch_value, pair, bytes
+  change, patch_value, pair, bytes, unspecified
 };
 
 struct native_pair {
@@ -79,6 +79,7 @@ public:
     tmscm result= TMSCM_UNSPECIFIED;
     switch (kind) {
     case native_object_kind::empty_list: return tmscm_null ();
+    case native_object_kind::unspecified: return TMSCM_UNSPECIFIED;
     case native_object_kind::boolean: result= bool_to_tmscm (std::get<bool> (value)); break;
     case native_object_kind::integer: result= int_to_tmscm (std::get<int> (value)); break;
     case native_object_kind::real: result= double_to_tmscm (std::get<double> (value)); break;
@@ -235,6 +236,9 @@ object keyword_object (string s) {
   return tm_new<native_object_rep> (native_object_kind::keyword, s); }
 object bytes_object (string bytes) {
   return tm_new<native_object_rep> (native_object_kind::bytes, bytes);
+}
+object unspecified_object () {
+  return tm_new<native_object_rep> (native_object_kind::unspecified, std::monostate {});
 }
 object character_object (int codepoint) {
   if (codepoint < 0 || codepoint > 0x10ffff ||
@@ -638,6 +642,18 @@ scheme_tree_to_object (scheme_tree t) {
 tree
 stree_to_tree (object obj) {
   return scheme_tree_to_tree (as_scheme_tree (obj));
+}
+
+bool
+is_content (object obj) {
+  if (is_tree (obj) || is_string (obj)) return true;
+  if (!is_pair (obj) || !is_symbol (car (obj)) || !is_list (obj)) return false;
+  object rest= cdr (obj);
+  if (as_symbol (car (obj)) == "raw-data")
+    return is_pair (rest) && is_bytes (car (rest)) && is_null (cdr (rest));
+  for (; !is_null (rest); rest= cdr (rest))
+    if (!is_content (car (rest))) return false;
+  return true;
 }
 
 tree

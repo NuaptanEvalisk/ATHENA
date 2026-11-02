@@ -1601,23 +1601,23 @@
   <binding name="circulate-unit" native="geometry_circulate_unit" returns="void">
     <arg type="int" />
   </binding>
-  <binding name="tree?" native="tmscm_is_tree" returns="bool">
-    <arg type="tmscm" />
+  <binding name="tree?" native="is_tree" returns="bool">
+    <arg type="object" />
   </binding>
-  <binding name="tm?" native="tmscm_is_content" returns="bool">
-    <arg type="tmscm" />
+  <binding name="tm?" native="is_content" returns="bool">
+    <arg type="object" />
   </binding>
   <binding name="observer?" native="tmscm_is_observer" returns="bool">
     <arg type="tmscm" />
   </binding>
-  <binding name="url?" native="tmscm_is_url" returns="bool">
-    <arg type="tmscm" />
+  <binding name="url?" native="is_url" returns="bool">
+    <arg type="object" />
   </binding>
-  <binding name="modification?" native="tmscm_is_modification" returns="bool">
-    <arg type="tmscm" />
+  <binding name="modification?" native="is_modification" returns="bool">
+    <arg type="object" />
   </binding>
-  <binding name="patch?" native="tmscm_is_patch" returns="bool">
-    <arg type="tmscm" />
+  <binding name="patch?" native="is_patch" returns="bool">
+    <arg type="object" />
   </binding>
   <binding name="blackbox?" native="tmscm_is_blackbox" returns="bool">
     <arg type="tmscm" />
@@ -1910,12 +1910,10 @@
   </binding>
   <binding name="data-art-source-version" native="athena_data_art_source_version" returns="int" exceptions="scheme" />
   <binding name="data-art-enabled?" native="athena_data_art_enabled" returns="bool" />
-  <binding name="data-art-pdf-target?" native="athena_data_art_pdf_target" returns="bool"><arg type="object" /></binding>
   <binding name="data-art-cover-present-in-buffer?" native="athena_data_art_cover_present" returns="bool" exceptions="scheme"><arg type="url" /></binding>
   <binding name="data-art-body-with-cover" native="athena_data_art_body_with_cover" returns="tree" exceptions="scheme"><arg type="tree" /><arg type="url" /></binding>
   <binding name="data-art-doc-data-with-cover" native="athena_data_art_doc_data_with_cover" returns="tree" exceptions="scheme"><arg type="tree" /><arg type="url" /></binding>
   <binding name="data-art-export-payload" native="athena_data_art_export_payload" returns="tree" exceptions="scheme"><arg type="tree" /><arg type="tree" /><arg type="url" /><arg type="int" /></binding>
-  <binding name="data-art-prepare-export" native="athena_data_art_prepare_export" returns="object" exceptions="scheme"><arg type="url" /><arg type="object" /></binding>
   <binding name="data-art-insert-cover-in-buffer" native="athena_data_art_insert_cover" returns="void" exceptions="scheme"><arg type="url" /><arg type="url" /></binding>
   <binding name="data-art-insert-cover-in-doc-data-buffer" native="athena_data_art_insert_doc_data_cover" returns="void" exceptions="scheme"><arg type="url" /><arg type="url" /></binding>
   <binding name="data-art-export-snapshot" native="athena_data_art_export_snapshot" returns="string">

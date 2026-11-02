@@ -479,8 +479,8 @@ generated native entries and remain on the secure-function list.
 - Website PDF export, ToC maintenance and vault bugcheck use the same native
   action path. DataArt preparation has a typed optional-tree result, shared by
   website export and interactive printing. Its payload already detaches source
-  and body trees. Existing Scheme-facing DataArt declarations are still pending
-  removal; they no longer have production consumers.
+  and body trees. The subsequent content/value cleanup removes the unused
+  Scheme-facing DataArt target predicate and preparation declarations.
 - Added typed native initialization-text and insertion-arity entry points so
   these UI calls do not construct temporary Scheme command arguments.
 - Built with `-j16` and deployed with the runtime helper. Ran the actual headless
@@ -489,6 +489,30 @@ generated native entries and remain on the secure-function list.
   document/profile directory. Logs are
   `build_qt6/native-buffer-ui-{build,fixture,runtime,deploy}.log`.
   No interactive pane sweep or unrelated test suite was run.
+
+## Native Content And Void Results
+
+- Generated native void actions return a native unspecified marker rather than
+  acquiring a Guile root. It remains distinct from false and the empty list;
+  explicit legacy conversion returns Guile's immutable unspecified immediate.
+- Content arguments use native structural validation and conversion, including
+  symbol-headed lists and the distinct `raw-data` byte payload. Tree, content,
+  URL, modification and patch predicates use the corresponding value interfaces
+  rather than forcing their arguments through raw SCM marshalling.
+- Removed unused `data-art-pdf-target?` and `data-art-prepare-export` bindings
+  and their object adapters. Supported printing uses the typed URL/optional-tree
+  APIs; the public DataArt header no longer depends on Scheme values.
+- The two focused generated-wrapper checks passed (native/UI invocation and
+  exception unwinding). Built with `-j16`; runtime predicates accepted nested
+  binary content, rejected invalid raw-data and improper lists, and verified
+  the retired DataArt bindings were absent. Startup printed
+  `NATIVE_CONTENT_VALUES_OK` and exited zero. Deployed with the runtime helper,
+  removed the profile, and retained logs under
+  `build_qt6/native-content-values-{build,runtime,deploy}.log`.
+- The Qt Scheme delayed-command queue is the next confirmed unused path:
+  `exec-delayed` has no production consumers and `exec_delayed_global` has no
+  callers. Its handle queue and UI scheduling messages can be removed together;
+  native editor scheduling is separate and must remain.
 
 ## Known Outstanding Failure
 
