@@ -161,10 +161,6 @@ bool native_keyboard_has_binding (string key) {
   return native_keyboard_find (key).has_value ();
 }
 
-string native_keyboard_cached_inverse (object source) {
-  return native_keyboard_cached_inverse (object_to_string (source));
-}
-
 string native_keyboard_cached_inverse (string source) {
   tree data= expand_quote (string_to_scheme_tree (source));
   string user= user_shortcuts_inverse (data);
@@ -174,18 +170,9 @@ string native_keyboard_cached_inverse (string source) {
   return entry ? text (entry->key) : string ("");
 }
 
-string native_keyboard_inverse (object source) {
-  return native_keyboard_inverse (object_to_string (source));
-}
-
 string native_keyboard_inverse (string source) {
   native_keyboard_force (false);
   return native_keyboard_cached_inverse (source);
-}
-
-object native_keyboard_system_inverse (object source) {
-  auto result= native_keyboard_system_inverse (object_to_string (source));
-  return result ? object (*result) : object (false);
 }
 
 std::optional<string> native_keyboard_system_inverse (string source) {
@@ -193,15 +180,6 @@ std::optional<string> native_keyboard_system_inverse (string source) {
   if (is_compound (label, "render-key", 1)) label= label[0];
   if (is_func (label, WITH) && N(label) > 0) label= label[N(label)-1];
   return is_atomic (label) ? std::optional<string> (label->label) : std::nullopt;
-}
-
-object native_keyboard_reverse (object source) {
-  native_keyboard_force (false);
-  if (is_tree (source)) source= tree_to_stree (as_tree (source));
-  if (!is_string (source)) return object (false);
-  auto& r= keyboard ();
-  const auto entries= r.snapshot (r.inverse, source_key (as_string (source)));
-  return entries.empty () ? object (false) : object (text (entries.front ()->key));
 }
 
 void native_keyboard_list_shortcuts () {

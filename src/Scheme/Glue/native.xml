@@ -425,18 +425,6 @@
     <arg type="tree" />
   </binding>
   <binding name="generic-keyboard-load" native="generic_keyboard_load" returns="void" />
-  <binding name="kbd-find-inv-binding" native="native_keyboard_inverse" returns="string">
-    <arg type="object" />
-  </binding>
-  <binding name="kbd-find-cached-inv-binding" native="native_keyboard_cached_inverse" returns="string">
-    <arg type="object" />
-  </binding>
-  <binding name="kbd-find-inv-system-binding" native="native_keyboard_system_inverse" returns="object">
-    <arg type="object" />
-  </binding>
-  <binding name="kbd-find-rev-binding" native="native_keyboard_reverse" returns="object">
-    <arg type="object" />
-  </binding>
   <binding name="list-all-shortcuts" native="native_keyboard_list_shortcuts" returns="void" exceptions="scheme" />
   <binding name="native-keyboard-initialize" native="native_keyboard_initialize" returns="void" />
   <binding name="keyboard-press" native="native_keyboard_press" returns="void" exceptions="scheme">

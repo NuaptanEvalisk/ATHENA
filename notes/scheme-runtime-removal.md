@@ -1167,6 +1167,21 @@ generated native entries and remain on the secure-function list.
   Full linking/deployment will be combined with subsequent printer cleanup;
   installed runtime remains the combined deployment recorded at `90c8e9d78`.
 
+## Retired Keyboard Object Query Adapters
+
+- Removed the four unused `kbd-find-*` Scheme query bindings and their object
+  adapters. Production shortcut hints and geometry commands already use native
+  string queries; their contextual lookup and user-shortcut precedence remain
+  unchanged. Removed the obsolete assertion for the retired binding, retaining
+  the editor-dispatch checks.
+- The keyboard registry public header now depends on native strings instead of
+  Scheme objects. Its implementation no longer prints objects to derive query
+  keys or constructs object-valued reverse lookup results.
+- Regenerated XML interfaces and compiled the registry with `-j16`; log:
+  `build_qt6/native-keyboard-value-cleanup-build.log`. No tests added or run.
+  Full binary linking, runtime binding-removal verification and deployment are
+  pending the next combined build with the focus/slide formatting changes.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

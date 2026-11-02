@@ -17,8 +17,6 @@
 (key-press "<")
 (check (equal? (tree->stree (buffer-tree)) '(document "<"))
        "literal text binding remains distinct from a command")
-(check (not (equal? (kbd-find-inv-binding '(kbd-left)) ""))
-       "semantic inverse lookup remains available")
 
 ;; XML-native commands are no longer looked up through Scheme variables.
 (reset "" 0)
