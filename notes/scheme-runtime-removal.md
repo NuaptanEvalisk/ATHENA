@@ -1692,6 +1692,28 @@ generated native entries and remain on the secure-function list.
   build_qt6/native-format-property-build.log. No tests run. Combined binary
   linking, runtime binding checks and deployment are still pending.
 
+## Combined Formatting And Boundary Deployment
+
+- Full ATHENA.bin build passed with -j16, covering the formatting prompt,
+  property-tree and optional source-boundary changes through 2b31c7e43.
+  This supersedes the pending link/deployment notes in the preceding sections.
+- A fresh headless process confirmed that make-alternate, toggle-with-like,
+  path-start, path-end, with-ref and tree-with-get are absent, while
+  make-multi-with, make-multi-line-with, tree-with-set and tree-with-reset remain
+  registered. It printed NATIVE_FORMAT_BOUNDARY_BINDINGS_OK and exited normally
+  with no warning/error/exception in the log. This checks startup and bindings,
+  not GUI editing behavior; no broad test suite was run.
+- Deployed with tools/deploy-local-runtime.sh. Installed build ID:
+  caed1763a400e0477477fbcdea0554a2b9002fae. Logs under build_qt6:
+  native-format-boundary-build.log, native-format-boundary-runtime.log and
+  native-format-boundary-deploy.log. Temporary probe and profile were removed.
+- Next inspected consumers: graphics_make is a binding-only object adapter;
+  the toolbar already calls graphics_insert directly. Presentation switching
+  and traversal still have live keyboard JSON consumers, so their object
+  parameters require coordinated native API/configuration changes, not removal.
+- Explicit script execution, callback handles, other object interfaces and
+  Guile build/packaging dependencies remain. The overall goal is not complete.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
