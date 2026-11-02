@@ -566,7 +566,7 @@ generic_focus_open_search_tool (tree) {
 
 bool
 generic_mini_flow_context (tree t) {
-  return native_node_group_contains ("mini-flow-tag", symbol_object (as_string (L (t))));
+  return native_node_group_contains ("mini-flow-tag", as_string (L (t)));
 }
 
 bool
@@ -595,7 +595,7 @@ generic_in_main_flow () {
 
 bool
 generic_balloon_context (tree t) {
-  return native_node_group_contains ("balloon-tag", symbol_object (as_string (L (t))));
+  return native_node_group_contains ("balloon-tag", as_string (L (t)));
 }
 
 bool

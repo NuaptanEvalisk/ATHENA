@@ -636,7 +636,7 @@ void generic_kbd_remove (tree t, bool forwards) {
 
 void generic_kbd_variant (tree t, bool forwards) {
   if (source_variant (t, forwards)) return;
-  if (native_node_group_contains ("combinatorial-number-tag", symbol_object (as_string (L(t))))) {
+  if (native_node_group_contains ("combinatorial-number-tag", as_string (L(t)))) {
     native_variant_circulate (t, forwards);
     return;
   }

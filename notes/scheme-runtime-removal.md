@@ -1553,6 +1553,27 @@ generated native entries and remain on the secure-function list.
   linking, binding verification and deployment remain pending with the generic
   editor values batch.
 
+## Native Node Group Consumers
+
+- Node-group membership and similar-node discovery now accept native strings
+  and return native arrays. Kept current evaluation-scope membership and dynamic
+  variant-group fallback, including numbered similar-node catalog behavior.
+- Structured traversal, section navigation, switch editing, combinatorial
+  number input and mini-flow/balloon predicates no longer wrap tag symbols in
+  object values. Traversal constructs its native label tuple directly for the
+  existing cursor-navigation engine; document traversal still selects the same
+  single label.
+- Removed all seven Scheme node-group exports and unused members/find/alternate
+  wrappers. Native startup initialization and variant cycling remain. The
+  node-group interface header no longer includes scheme.hpp.
+- Preserved structured traversal comparison checks, replacing their removed
+  similar-to lookup with the fixture's explicit traverse-node label list. No new
+  tests added or run.
+- Generation and four affected implementation units passed with -j16. Logs:
+  build_qt6/native-node-group-consumers-glue.log and
+  build_qt6/native-node-group-consumers-build.log. Combined linking, runtime
+  verification and deployment remain pending with generic/reference batches.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

@@ -1,14 +1,11 @@
 #ifndef ATHENA_NATIVE_NODE_GROUPS_HPP
 #define ATHENA_NATIVE_NODE_GROUPS_HPP
-#include "scheme.hpp"
+#include "array.hpp"
+#include "string.hpp"
 
 void initialize_node_groups ();
-object native_node_group_members (string group);
-bool native_node_group_contains (string group, object tag);
-object native_node_group_find (object tag, string group);
-object native_node_variants (object tag);
+bool native_node_group_contains (string group, string tag);
 array<string> native_node_variants (string tag);
-object native_node_similar (object tag);
-object native_node_alternate (object tag);
+array<string> native_node_similar (string tag);
 
 #endif

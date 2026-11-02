@@ -304,20 +304,18 @@ void generic_vertical_once (tree t, bool downwards) {
   outward (t, generic_structured_vertical, downwards);
 }
 
-object similar_labels (tree t) {
-  return native_node_similar (symbol_object (as_string (L (t))));
+array<string> similar_labels (tree t) {
+  return native_node_similar (as_string (L (t)));
 }
 
-bool label_in_list (tree t, object labels) {
-  if (!is_list (labels)) return false;
+bool label_in_list (tree t, array<string> labels) {
   string label= as_string (L (t));
-  array<object> items= as_array_object (labels);
-  for (int i= 0; i < N (items); ++i)
-    if (is_symbol (items[i]) && as_symbol (items[i]) == label) return true;
+  for (int i= 0; i < N (labels); ++i)
+    if (labels[i] == label) return true;
   return false;
 }
 
-tree find_similar_upwards (tree t, object labels) {
+tree find_similar_upwards (tree t, array<string> labels) {
   tree current= t;
   while (!is_nil (current)) {
     if (label_in_list (current, labels)) return current;
@@ -328,7 +326,7 @@ tree find_similar_upwards (tree t, object labels) {
   return tree ();
 }
 
-void refocus_similar (object labels) {
+void refocus_similar (array<string> labels) {
   editor ed= get_current_editor ();
   ed->selection_cancel ();
   tree target= find_similar_upwards (focus_tree (), labels);
@@ -336,10 +334,12 @@ void refocus_similar (object labels) {
   if (!is_nil (target) && attached_path (target, p)) ed->manual_focus_set (p);
 }
 
-void move_to_similar_tag (object labels, bool forwards) {
+void move_to_similar_tag (array<string> labels, bool forwards) {
   editor ed= get_current_editor ();
-  path p= forwards ? ed->tree_next_tag (ed->the_root (), ed->the_path (), as_scheme_tree (labels)) :
-                     ed->tree_previous_tag (ed->the_root (), ed->the_path (), as_scheme_tree (labels));
+  tree tags (TUPLE);
+  for (int i= 0; i < N (labels); ++i) tags << labels[i];
+  path p= forwards ? ed->tree_next_tag (ed->the_root (), ed->the_path (), tags) :
+                     ed->tree_previous_tag (ed->the_root (), ed->the_path (), tags);
   if (ed->the_buffer_path () <= path_up (p)) {
     ed->go_to (p);
     ed->select_from_cursor ();
@@ -363,20 +363,22 @@ void generic_traverse_vertical (tree t, bool downwards) {
       table_move (get_current_editor (), downwards ? 1 : -1, 0))
     return;
   if (is_func (t, DOCUMENT)) {
-    move_to_similar_tag (symbol_object ("document"), downwards);
+    array<string> labels;
+    labels << string ("document");
+    move_to_similar_tag (labels, downwards);
     return;
   }
   outward (t, generic_traverse_vertical, downwards);
 }
 
 void generic_traverse_incremental (tree t, bool forwards) {
-  object labels= similar_labels (t);
+  array<string> labels= similar_labels (t);
   move_to_similar_tag (labels, forwards);
   refocus_similar (labels);
 }
 
 void generic_traverse_extremal (tree t, bool forwards) {
-  object labels= similar_labels (t);
+  array<string> labels= similar_labels (t);
   editor ed= get_current_editor ();
   while (true) {
     path before= copy (ed->the_path ());
@@ -397,7 +399,7 @@ void generic_traverse_up () { dispatch_focus (generic_traverse_vertical, false);
 void generic_traverse_down () { dispatch_focus (generic_traverse_vertical, true); }
 
 void generic_traverse_previous_section_title () {
-  object labels= native_node_similar (symbol_object ("section"));
+  array<string> labels= native_node_similar (string ("section"));
   move_to_similar_tag (labels, false);
 }
 
@@ -577,7 +579,7 @@ void generic_structured_insert_horizontal (tree t, bool forwards) {
 }
 
 void generic_structured_insert_vertical (tree t, bool downwards) {
-  if (native_node_group_contains ("switch-tag", symbol_object (as_string (L(t)))) &&
+  if (native_node_group_contains ("switch-tag", as_string (L(t))) &&
       presentation_structured (t, "insert", downwards)) return;
   if (math_script_context (t)) {
     const bool sub= is_func (t, LSUB) || is_func (t, RSUB);
@@ -614,7 +616,7 @@ void generic_structured_remove_horizontal (tree t, bool forwards) {
 }
 
 void generic_structured_remove_vertical (tree t, bool downwards) {
-  if (native_node_group_contains ("switch-tag", symbol_object (as_string (L(t)))) &&
+  if (native_node_group_contains ("switch-tag", as_string (L(t))) &&
       presentation_structured (t, "remove", downwards)) return;
   if (generic_table_markup_context (t)) {
     get_current_editor ()->table_remove_row (downwards);
