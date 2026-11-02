@@ -29,7 +29,7 @@
       (check (= (tree-arity body) 3) "one trailing paragraph inside proof")
       (check (equal? (tree->stree (tree-ref body 2)) "") "trailing paragraph is empty"))
     (let ((array (tree-innermost '(eqnarray eqnarray*))))
-      (tree-set! array 0
+      (tree-set array 0
         '(document (tformat (table
            (row (cell "1") (cell "2") (cell "3"))
            (row (cell "4") (cell "5") (cell "6"))))))

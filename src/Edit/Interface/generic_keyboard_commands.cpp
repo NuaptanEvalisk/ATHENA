@@ -440,8 +440,7 @@ void generic_kbd_extremal (tree t, bool forwards) {
   if (graphical_text_context (t)) {
     object child= call ("tree-down", object (t));
     if (!(is_bool (child) && !as_bool (child)))
-      (void) call ("tree-go-to", child,
-                  keyword_object (forwards ? "end" : "start"));
+      tree_command_go_to (child, list_object (keyword_object (forwards ? "end" : "start")));
     return;
   }
   if (!admits_edit_observer (t)) {

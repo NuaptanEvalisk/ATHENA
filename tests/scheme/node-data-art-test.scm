@@ -23,7 +23,7 @@
 (check (== (tree-ref result 2) (tree-ref body 1)) "atomic paragraph metadata")
 (check (equal? (tree-node-id (tree-ref result 1)) "") "generated cover has no source identity")
 (check (== (data-art-body-with-cover result cover) result) "cover insertion is idempotent")
-(tree-set! result 2 "Changed export copy")
+(tree-set result 2 "Changed export copy")
 (check (== body before) "cover output is detached from source")
 
 (define insert-doc-data data-art-doc-data-with-cover)
@@ -51,7 +51,7 @@
 (check (equal? (tree->string (tree-ref snapshot 3)) "3") "explicit source version")
 (check (== (tree-ref snapshot 0) envelope) "complete envelope metadata retained")
 (check (== (tree-ref snapshot 1) inside) "prepared body metadata retained")
-(tree-set! (tree-ref snapshot 0) 1 0 1 "Changed snapshot")
+(tree-set (tree-ref snapshot 0) 1 0 1 "Changed snapshot")
 (check (== body before) "export envelope does not share mutable source children")
 (check (== (tree-ref snapshot 1) inside) "export body is independent of envelope")
 (check (equal? (tree->string (tree-ref snapshot 2)) (url->system cover)) "cover URL")

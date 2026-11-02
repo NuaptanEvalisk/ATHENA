@@ -1,5 +1,31 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="texmacs-version-release*" native="markup_version_release" returns="string"><arg type="tree" /></binding>
+  <binding name="ext-language-suffix" native="markup_language_suffix" returns="string" />
+  <binding name="ext-map" native="markup_map" returns="tree"><arg type="tree" /><arg type="tree" /></binding>
+  <binding name="ext-concat-tuple" native="markup_concat_tuple" returns="tree"><arg type="tree" /><arg type="tree" /><arg type="tree" /></binding>
+  <binding name="ext-select" native="markup_select" returns="tree"><arg type="tree" /><arg type="tree" /></binding>
+  <binding name="ext-tm-ref" native="markup_reference" returns="tree"><arg type="tree" /><arg type="tree" /></binding>
+  <binding name="ext-tm-arity" native="markup_reference_arity" returns="string"><arg type="tree" /><arg type="tree" /></binding>
+  <binding name="ext-tm-index" native="markup_reference_index" returns="string"><arg type="tree" /><arg type="tree" /></binding>
+  <binding name="ext-tm-last?" native="markup_reference_last" returns="string"><arg type="tree" /><arg type="tree" /></binding>
+  <binding name="ext-apply-on-paragraphs" native="markup_apply_paragraphs" returns="tree"><arg type="tree" /><arg type="tree" /></binding>
+  <binding name="ext-numbered" native="markup_numbered" returns="tree"><arg type="tree" /></binding>
+  <binding name="ext-listing" native="markup_listing" returns="tree"><arg type="tree" /></binding>
+  <binding name="tree-ref" native="tree_command_ref" returns="object" exceptions="scheme"><arg type="object" /><arg type="object" rest="true" /></binding>
+  <binding name="tree-&gt;path" native="tree_command_path" returns="object" exceptions="scheme"><arg type="object" /><arg type="object" rest="true" /></binding>
+  <binding name="tree-set" native="tree_command_set" returns="tree" exceptions="scheme"><arg type="tree" /><arg type="object" rest="true" /></binding>
+  <binding name="tree-insert" native="tree_command_insert" returns="tree" exceptions="scheme"><arg type="tree" /><arg type="int" /><arg type="object" /></binding>
+  <binding name="tree-is?" native="tree_command_is" returns="bool" exceptions="scheme"><arg type="object" /><arg type="object" rest="true" /></binding>
+  <binding name="tree-in?" native="tree_command_in" returns="bool" exceptions="scheme"><arg type="object" /><arg type="object" rest="true" /></binding>
+  <binding name="tree-go-to" native="tree_command_go_to" returns="void" exceptions="scheme"><arg type="object" /><arg type="object" rest="true" /></binding>
+  <binding name="tree-select" native="tree_command_select" returns="void" exceptions="scheme"><arg type="object" /><arg type="object" rest="true" /></binding>
+  <binding name="tree-focus" native="tree_command_focus" returns="void" exceptions="scheme"><arg type="object" /><arg type="object" rest="true" /></binding>
+  <binding name="tree-innermost" native="tree_command_innermost" returns="object" exceptions="scheme"><arg type="object" /><arg type="object" rest="true" /></binding>
+  <binding name="path-in" native="insertion_path" returns="path" exceptions="scheme"><arg type="content" /><arg type="object" /></binding>
+  <binding name="insert" native="insertion_insert" returns="void" exceptions="scheme"><arg type="content" /><arg type="object" rest="true" /></binding>
+  <binding name="make" native="insertion_make" returns="void" exceptions="scheme"><arg type="tree_label" /><arg type="object" rest="true" /></binding>
+  <binding name="make-with" native="insertion_make_with" returns="void" exceptions="scheme"><arg type="string" /><arg type="object" /></binding>
   <binding name="cursor-history-add" native="cursor_history_add" returns="void"><arg type="path" /></binding>
   <binding name="cursor-history-backward" native="cursor_history_backward" returns="void" />
   <binding name="cursor-history-forward" native="cursor_history_forward" returns="void" />

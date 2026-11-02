@@ -56,9 +56,10 @@
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting utilities\n")
-(import-from (utils library cpp-wrap))
 
-(import-from (utils misc markup-funcs))
+(define-secure-symbols texmacs-version-release* ext-language-suffix
+  ext-map ext-concat-tuple ext-select ext-tm-ref ext-tm-arity ext-tm-index
+  ext-tm-last? ext-apply-on-paragraphs ext-numbered ext-listing)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
 ;(display "Booting main TeXmacs functionality\n")

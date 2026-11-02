@@ -19,7 +19,7 @@ struct saved_position {
   bool attached () {
     tree t;
     int offset;
-    return position->get_position (t, offset) && ip_attached (obtain_ip (t));
+    return position->get_position (t, offset) && ip_attached (obtain_ip (t)) && !is_func (t, UNINIT);
   }
 };
 struct history {

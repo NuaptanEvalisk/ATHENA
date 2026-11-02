@@ -97,7 +97,7 @@
           (start-editing)
           (tree-assign (tree-ref (buffer-tree) 0) "")
           (tree-go-to (tree-ref (buffer-tree) 0) :start)
-          (cpp-make-hybrid)
+          (make-hybrid)
           (insert (car entry))
           (activate-hybrid #f)
           (commit-changes)

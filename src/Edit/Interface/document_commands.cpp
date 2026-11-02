@@ -484,9 +484,7 @@ string document_get_init_page_rendering () {
   editor ed= get_current_editor ();
   if (ed->get_init_string ("page-border") == "attached") return "book";
   if (ed->get_init_string ("page-packet") != "1") return "panorama";
-  object slideshow= call ("tree-innermost", symbol_object ("slideshow"));
-  bool inside_slideshow= !(is_bool (slideshow) && !as_bool (slideshow));
-  if (ed->get_init_string ("page-medium") == "paper" && !inside_slideshow)
+  if (ed->get_init_string ("page-medium") == "paper" && !ed->inside ("slideshow"))
     return "slideshow";
   return ed->get_init_string ("page-medium");
 }

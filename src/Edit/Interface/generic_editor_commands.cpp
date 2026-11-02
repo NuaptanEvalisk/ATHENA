@@ -653,7 +653,7 @@ object
 generic_focus_set_label (tree t, string value) {
   object label= call ("focus-label", object (t));
   if (!is_tree (label)) return object (false);
-  return call ("tree-set", label, object (0), object (value));
+  return object (tree_set_diff (as_tree (label)[0], tree (value)));
 }
 
 object
@@ -911,7 +911,7 @@ void
 generic_set_balloon_halign (string value) {
   tree balloon;
   if (innermost_balloon (balloon))
-    (void) call ("tree-set", object (balloon), object (2), object (value));
+    tree_set_diff (balloon[2], tree (value));
 }
 
 bool
@@ -925,7 +925,7 @@ void
 generic_set_balloon_valign (string value) {
   tree balloon;
   if (innermost_balloon (balloon))
-    (void) call ("tree-set", object (balloon), object (3), object (value));
+    tree_set_diff (balloon[3], tree (value));
 }
 
 string

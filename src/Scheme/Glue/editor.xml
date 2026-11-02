@@ -155,7 +155,7 @@
   <binding name="cpp-insert" native="insert_tree" returns="void">
     <arg type="content" />
   </binding>
-  <binding name="cpp-insert-go-to" native="var_insert_tree" returns="void">
+  <binding name="insert-go-to" native="var_insert_tree" returns="void">
     <arg type="content" />
     <arg type="path" />
   </binding>
@@ -204,7 +204,7 @@
     <arg type="string" />
     <arg type="string" />
   </binding>
-  <binding name="cpp-make-hybrid" native="make_hybrid" returns="void" />
+  <binding name="make-hybrid" native="make_hybrid" returns="void" />
   <binding name="hybrid-name-context?" native="hybrid_name_context" returns="bool" />
   <binding name="activate-latex" native="activate_latex" returns="void" />
   <binding name="activate-hybrid" native="activate_hybrid" returns="void">
@@ -390,29 +390,29 @@
     <arg type="string" />
     <arg type="string" />
   </binding>
-  <binding name="cpp-make-rigid" native="make_rigid" returns="void" />
-  <binding name="cpp-make-lprime" native="make_lprime" returns="void">
+  <binding name="make-rigid" native="make_rigid" returns="void" />
+  <binding name="make-lprime" native="make_lprime" returns="void">
     <arg type="string" />
   </binding>
-  <binding name="cpp-make-rprime" native="make_rprime" returns="void">
+  <binding name="make-rprime" native="make_rprime" returns="void">
     <arg type="string" />
   </binding>
-  <binding name="cpp-make-below" native="make_below" returns="void" />
-  <binding name="cpp-make-above" native="make_above" returns="void" />
-  <binding name="cpp-make-script" native="make_script" returns="void">
+  <binding name="make-below" native="make_below" returns="void" />
+  <binding name="make-above" native="make_above" returns="void" />
+  <binding name="make-script" native="make_script" returns="void">
     <arg type="bool" />
     <arg type="bool" />
   </binding>
-  <binding name="cpp-make-fraction" native="make_fraction" returns="void" />
-  <binding name="cpp-make-sqrt" native="make_sqrt" returns="void" />
-  <binding name="cpp-make-wide" native="make_wide" returns="void">
+  <binding name="make-fraction" native="make_fraction" returns="void" />
+  <binding name="make-sqrt" native="make_sqrt" returns="void" />
+  <binding name="make-wide" native="make_wide" returns="void">
     <arg type="string" />
   </binding>
   <binding name="cpp-make-wide-stretched" native="make_wide" returns="void">
     <arg type="string" />
     <arg type="bool" />
   </binding>
-  <binding name="cpp-make-wide-under" native="make_wide_under" returns="void">
+  <binding name="make-wide-under" native="make_wide_under" returns="void">
     <arg type="string" />
   </binding>
   <binding name="cpp-make-wide-under-stretched" native="make_wide_under" returns="void">
@@ -420,8 +420,8 @@
     <arg type="bool" />
   </binding>
   <binding name="cpp-make-var-sqrt" native="make_var_sqrt" returns="void" />
-  <binding name="cpp-make-neg" native="make_neg" returns="void" />
-  <binding name="cpp-make-tree" native="make_tree" returns="void" />
+  <binding name="make-neg" native="make_neg" returns="void" />
+  <binding name="make-tree" native="make_tree" returns="void" />
   <binding name="make-subtable" native="make_subtable" returns="void" />
   <binding name="table-deactivate" native="table_deactivate" returns="void" />
   <binding name="table-extract-format" native="table_extract_format" returns="void" />
@@ -595,10 +595,10 @@
   <binding name="clipboard-get" native="selection_get" returns="tree">
     <arg type="string" />
   </binding>
-  <binding name="cpp-clipboard-copy" native="selection_copy" returns="void">
+  <binding name="clipboard-copy" native="selection_copy" returns="void">
     <arg type="string" />
   </binding>
-  <binding name="cpp-clipboard-cut" native="selection_cut" returns="void">
+  <binding name="clipboard-cut" native="selection_cut" returns="void">
     <arg type="string" />
   </binding>
   <binding name="clipboard-cut-at" native="cut" returns="void">
@@ -608,7 +608,7 @@
     <arg type="path" />
     <arg type="path" />
   </binding>
-  <binding name="cpp-clipboard-paste" native="selection_paste" returns="void">
+  <binding name="clipboard-paste" native="selection_paste" returns="void">
     <arg type="string" />
   </binding>
   <binding name="selection-move" native="selection_move" returns="void" />
