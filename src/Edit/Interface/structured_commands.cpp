@@ -464,7 +464,7 @@ bool generic_focus_can_insert_remove (tree t) {
   bool structured=
     as_bool (call ("structured-horizontal?", object (t))) ||
     generic_structured_vertical_context (t);
-  return structured && as_bool (call ("cursor-inside?", object (t)));
+  return structured && tree_command_cursor_inside (t);
 }
 
 bool generic_focus_can_insert (tree t) {

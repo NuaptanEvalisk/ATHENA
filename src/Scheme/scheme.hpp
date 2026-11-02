@@ -68,6 +68,7 @@ object list_object (object obj1, object obj2, object obj3);
 object as_list_object (array<object> objs);
 object symbol_object (string s);
 object keyword_object (string s);
+string keyword_name (object keyword);
 object cons (object obj1, object obj2);
 object car (object obj);
 object cdr (object obj);

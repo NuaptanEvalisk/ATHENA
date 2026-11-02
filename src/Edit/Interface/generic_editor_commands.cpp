@@ -455,7 +455,6 @@ tree cardlink_icon_from_string (string icon, string type) {
 }
 
 bool cardlink_empty_body (tree body) {
-  if (as_bool (call ("tm-equal?", object (body), object ("")))) return true;
   return is_atomic (body) && as_string (body) == "";
 }
 
@@ -1650,7 +1649,7 @@ generic_focus_tag_name (object label) {
 
   if (editing_unnumbered_symbol (as_tree_label (name))) {
     object nested= call ("focus-tag-name",
-                         call ("symbol-drop-right", label, object (1)));
+                         symbol_object (name (0, N(name)-1)));
     return is_string (nested) ? as_string (nested) : string ("");
   }
 

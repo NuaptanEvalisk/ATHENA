@@ -52,13 +52,8 @@ tmscm_object_rep::~tmscm_object_rep () {
 tm_ostream&
 operator << (tm_ostream& out, object obj) {
   out.flush ();
-  if (out == cout) call ("write", obj);
-  else if (out == cerr) call ("write-err", obj);
-  else {
-    object ret= call ("object->string", obj);
-    return out << as_string (ret);
-  }
-  call ("force-output");
+  out << object_to_string (obj);
+  out.flush ();
   return out;
 }
 
@@ -101,6 +96,8 @@ object symbol_object (string s) {
   return tmscm_to_object ( symbol_to_tmscm (s) ); }
 object keyword_object (string s) {
   return tmscm_to_object (keyword_to_tmscm (s)); }
+string keyword_name (object keyword) {
+  return tmscm_to_symbol (scm_keyword_to_symbol (object_to_tmscm (keyword))); }
 object car (object obj) {
   return tmscm_to_object (tmscm_car (object_to_tmscm (obj))); }
 object cdr (object obj) {
@@ -318,12 +315,12 @@ content_to_tree (object obj) {
 
 object
 string_to_object (string s) {
-  return call ("string->object", s);
+  return tmscm_to_object (scm_read (scm_open_input_string (string_to_tmscm (s))));
 }
 
 string
 object_to_string (object obj) {
-  return as_string (call ("object->string", obj));
+  return tmscm_to_string (scm_object_to_string (object_to_tmscm (obj), SCM_UNDEFINED));
 }
 
 object
@@ -395,7 +392,8 @@ public:
   tm_ostream& print (tm_ostream& out) override {
     if (actor_id != ATHENA_NO_ACTOR)
       return out << "<local-actor-command " << actor_id << ":" << view_id << ">";
-    object bis= call ("sourcify", obj);
+    object source= procedure_source (obj);
+    object bis= source == object (false) ? obj : source;
     return out << "<command " << bis << ">"; }
 };
 
@@ -462,7 +460,8 @@ public:
   tm_ostream& print (tm_ostream& out) override {
     if (handle != ATHENA_NO_SCHEME_HANDLE)
       return out << "<actor-command " << actor_id << ":" << view_id << ">";
-    object bis= call ("sourcify", obj);
+    object source= procedure_source (obj);
+    object bis= source == object (false) ? obj : source;
     return out << "<command " << bis << ">"; }
 };
 
@@ -536,7 +535,7 @@ object eval (const char* expr) {
 object eval (string expr) {
   return tmscm_to_object (eval_scheme (expr)); }
 object eval (object expr) {
-  return call ("eval", expr); }
+  return call ("primitive-eval", expr); }
 object eval_secure (string expr) {
   return eval ("(wrap-eval-secure " * expr * ")"); }
 object eval_file (string name) {

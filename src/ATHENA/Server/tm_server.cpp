@@ -143,7 +143,6 @@ server::server (): rep (tm_new<tm_server_rep> ()) {}
 server_rep* tm_server_rep::get_server () { return this; }
 
 // defined in src/Edit/Interface/edit_footer.cpp
-tree as_footer_tree (object obj);
 
 void
 tm_server_rep::set_center_message (tree m) {
@@ -161,7 +160,7 @@ tm_server_rep::set_center_message (tree m) {
         buf->vws[j]->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB,
         SCHEME_CAPABILITY_BUFFER, active ? 1 : 0);
   }
-  tree c = as_footer_tree (call ("center-footer-hook", object (as_string (m))));
+  tree c (as_string (m));
   set_center_footer (ui_text (c));
 }
 
@@ -453,7 +452,6 @@ tm_server_rep::quit () {
 #endif
   close_all_pipes ();
   interactive_history_save ();
-  call ("quit-TeXmacs-scheme");
   clear_pending_commands ();
 #ifdef QTTEXMACS
   del_obj_qt_renderer ();

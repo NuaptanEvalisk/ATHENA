@@ -4,6 +4,7 @@
 #define ATHENA_NATIVE_INTERFACES_HPP
 
 #include "scheme.hpp"
+#include "Edit/Interface/tree_pattern.hpp"
 #include "secure_expression.hpp"
 #include "ATHENA/Window/interactive_commands.hpp"
 #include "modification.hpp"

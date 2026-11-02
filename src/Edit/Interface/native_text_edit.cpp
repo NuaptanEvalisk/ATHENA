@@ -478,7 +478,7 @@ void text_numbered_toggle (tree t) {
   else if (text_node_in_group (t, "numbered-tag", true))
     tag= ends (tag, "*") ? tag (0, N(tag)-1) : tag * "*";
   else {
-    object parent= call ("tree-outer", object (t));
+    object parent= tree_command_outer (t);
     if (is_tree (parent)) call ("numbered-toggle", parent);
     return;
   }

@@ -11,3 +11,6 @@ void tree_command_go_to (object source, object selectors);
 void tree_command_select (object source, object selectors);
 void tree_command_focus (object source, object selectors);
 object tree_command_innermost (object predicate, object options);
+object tree_command_outer (tree source);
+object tree_command_down (tree source);
+bool tree_command_cursor_inside (tree source);

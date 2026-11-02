@@ -305,7 +305,7 @@ bool completion_context (tree t) {
         is_compound (t, "pageref") || is_compound (t, "eqref") ||
         is_compound (t, "smart-ref")))
     return false;
-  return as_bool (call ("cursor-inside?", object (t)));
+  return tree_command_cursor_inside (t);
 }
 
 bool hybrid_command (path& hybrid_path, string& command, bool& atomic) {
@@ -438,7 +438,7 @@ void generic_kbd_vertical (tree t, bool downwards) {
 
 void generic_kbd_extremal (tree t, bool forwards) {
   if (graphical_text_context (t)) {
-    object child= call ("tree-down", object (t));
+    object child= tree_command_down (t);
     if (!(is_bool (child) && !as_bool (child)))
       tree_command_go_to (child, list_object (keyword_object (forwards ? "end" : "start")));
     return;

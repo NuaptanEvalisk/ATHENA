@@ -381,7 +381,7 @@ void presentation_switch_to (object which) {
   if (is_int (which))
     i= as_int (which);
   else {
-    string key= as_string (call ("keyword->string", which));
+    string key= keyword_name (which);
     if (key == "first")
       i= 0;
     else if (key == "last")
@@ -776,7 +776,7 @@ bool presentation_traverse (tree t, string mode) {
 namespace {
 string mode_name (object mode) {
   return is_string (mode) ? as_string (mode)
-                          : as_string (call ("keyword->string", mode));
+                          : keyword_name (mode);
 }
 tree operation_root (string mode) {
   tree slide= ancestor (cursor_tree (), [] (tree t) { return tag (t, "slide"); });

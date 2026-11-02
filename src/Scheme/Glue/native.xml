@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <glue version="1" prefix="" initializer="initialize_glue_native">
+  <binding name="tm-select" native="native_tree_select" returns="object" exceptions="scheme"><arg type="object" /><arg type="object" /></binding>
   <binding name="interactive" native="interactive_command" returns="void" exceptions="scheme"><arg type="object" /><arg type="object" rest="true" /></binding>
   <binding name="schedule-idle" native="interactive_schedule_idle" returns="void"><arg type="int" /><arg type="procedure" /></binding>
   <binding name="native-idle-step" native="interactive_idle_step" returns="object"><arg type="int" /><arg type="double" /><arg type="procedure" /></binding>

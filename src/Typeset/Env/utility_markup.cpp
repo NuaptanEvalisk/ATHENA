@@ -3,6 +3,7 @@
 #include "utility_markup.hpp"
 #include "native_interfaces.hpp"
 #include "editor.hpp"
+#include "Edit/Interface/tree_pattern.hpp"
 #include "analyze.hpp"
 
 namespace {
@@ -33,8 +34,7 @@ object reference (tree body, tree arguments) {
     }
     selectors= cons (decoded, selectors);
   }
-  // Selection semantics remain owned by kernel/regexp until that kernel moves.
-  object result= call ("select", object (body), selectors);
+  object result= native_tree_select (object (body), selectors);
   return is_null (result) ? object (false) : car (result);
 }
 tree mark (tree root, tree source, tree rewritten) {
@@ -94,7 +94,7 @@ tree markup_select (tree body, tree arguments) {
   object selectors= null_object ();
   for (int i=N(arguments)-1; i>=1; --i) selectors= cons (selector (arguments[i]), selectors);
   tree result (TUPLE);
-  for (object selected= call ("select", object (body), selectors); !is_null (selected); selected= cdr (selected))
+  for (object selected= native_tree_select (object (body), selectors); !is_null (selected); selected= cdr (selected))
     result << content_to_tree (car (selected));
   return tree (QUOTE, result);
 }

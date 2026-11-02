@@ -1,6 +1,7 @@
 // Copyright (C) 2002 Joris van der Hoeven, 2026 ATHENA contributors.
 // GPL-3.0-or-later.
 #include "tree_commands.hpp"
+#include "tree_pattern.hpp"
 #include "editor.hpp"
 #include "native_interfaces.hpp"
 #include <stdexcept>
@@ -63,8 +64,7 @@ object tree_command_ref (object source, object selectors) {
   for (; !is_null (selectors); selectors= cdr (selectors)) {
     object s= car (selectors);
     if (!is_int (s) && !is_symbol (s) && s != keyword_object ("first") && s != keyword_object ("last")) {
-      // Compound selectors still belong to the remaining kernel regexp engine.
-      object selected= call ("select", object (t), selectors);
+      object selected= native_tree_select (object (t), selectors);
       return is_null (selected) ? object (false) : car (selected);
     }
     int index= child_index (t, s);
@@ -149,4 +149,31 @@ object tree_command_innermost (object predicate, object options) {
     p= path_up (p);
   }
   return object (false);
+}
+
+object tree_command_outer (tree source) {
+  object position= source_path (object (source));
+  if (position == object (false)) return position;
+  const path p= as_path (position);
+  editor ed= get_current_editor ();
+  if (p == ed->the_buffer_path () || is_nil (p)) return object (false);
+  return object (ed->the_subtree (path_up (p)));
+}
+
+object tree_command_down (tree source) {
+  object position= source_path (object (source));
+  if (position == object (false)) return position;
+  const path p= as_path (position);
+  editor ed= get_current_editor ();
+  const path q= path_up (ed->the_path ());
+  if (is_nil (q) || !(p <= path_up (q))) return object (false);
+  return object (ed->the_subtree (head (q, N(p)+1)));
+}
+
+bool tree_command_cursor_inside (tree source) {
+  object position= source_path (object (source));
+  if (position == object (false)) return false;
+  editor ed= get_current_editor ();
+  const path p= path_up (ed->the_path ()), q= as_path (position);
+  return q <= p && (is_atomic (ed->the_subtree (p)) || N(p)>N(q));
 }

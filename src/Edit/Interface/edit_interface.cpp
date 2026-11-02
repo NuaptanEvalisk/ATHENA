@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "Interface/edit_interface.hpp"
+#include "tree_commands.hpp"
 #include "QTMNativeDialogs.hpp"
 #include "native_math_edit.hpp"
 #include "native_text_edit.hpp"
@@ -1101,7 +1102,7 @@ editor_rep::focus_toolbar_state_snapshot () {
   set (ACTOR_FOCUS_TOOLBAR_VERTICAL, query ("structured-vertical?"));
   set (ACTOR_FOCUS_TOOLBAR_CAN_INSERT, query ("focus-can-insert?"));
   set (ACTOR_FOCUS_TOOLBAR_CAN_REMOVE, query ("focus-can-remove?"));
-  set (ACTOR_FOCUS_TOOLBAR_CURSOR_INSIDE, query ("cursor-inside?"));
+  set (ACTOR_FOCUS_TOOLBAR_CURSOR_INSIDE, tree_command_cursor_inside (t));
   set (ACTOR_FOCUS_TOOLBAR_HAS_PREFERENCES,
        query ("focus-has-preferences?"));
   set (ACTOR_FOCUS_TOOLBAR_HAS_PARAMETERS, query ("focus-has-parameters?"));

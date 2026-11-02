@@ -135,7 +135,7 @@ void native_variant_circulate (tree t, bool forward) {
       }
     return;
   }
-  object parent= call ("tree-outer", object (t));
+  object parent= tree_command_outer (t);
   if (is_tree (parent)) call ("variant-circulate", parent, object (forward));
 }
 

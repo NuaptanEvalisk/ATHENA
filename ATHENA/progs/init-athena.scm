@@ -45,7 +45,6 @@
 (inherit-modules (kernel library base) (kernel library list)
                  (kernel library tree) (kernel library content)
                  (kernel library patch))
-(inherit-modules (kernel regexp regexp-match) (kernel regexp regexp-select))
 (initialize-secure-symbols)
 ;(display* "time: " (- (texmacs-time) boot-start) "\n")
 
