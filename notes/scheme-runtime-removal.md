@@ -277,6 +277,21 @@ generated native entries and remain on the secure-function list.
   selection was run. The temporary profile was removed; logs remain under
   `build_qt6/native-background-values-{build,runtime,deploy}.log`.
 
+## Direct Editor Value Operations
+
+- Thumbnail widths use the existing native numeric formatter rather than
+  invoking Guile number->string. Focus-tag naming extracts its symbol through
+  the value API, calls native theme lookup directly and recurses on native
+  strings rather than through the command dispatcher.
+- These changes are source-reviewed only, pending the next consolidated build
+  and deployment. No tests were added or run for the direct substitutions.
+- The central remaining data boundary is object.cpp/object.hpp: even native
+  scalar, tree and list constructors allocate Guile-rooted objects, and object
+  hashing still invokes the Scheme hash procedure. Removing named editor calls
+  is not removal of this data/runtime dependency. The next substantive step
+  must address the value representation and its marshalling, not just rename
+  call sites or add more Scheme helpers.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

@@ -40,6 +40,7 @@
 #include "Data/NodeContracts/editing_query.hpp"
 #include "Data/NodeContracts/descriptor_values.hpp"
 #include <optional>
+#include <stdexcept>
 
 namespace {
 
@@ -567,9 +568,7 @@ generic_make_thumbnails_sub (object files, int columns) {
   if (!is_list (files) || columns <= 0) return;
   array<object> items= as_array_object (files);
   double ratio= (1.0 / ((double) columns)) - 0.02;
-  object width_obj= call ("number->string", object (ratio));
-  if (!is_string (width_obj)) return;
-  string width= as_string (width_obj) * "par";
+  string width= as_string (ratio) * "par";
 
   array<tree> rows;
   int row_count= (N (items) + columns - 1) / columns;
@@ -1624,33 +1623,25 @@ generic_focus_variants_of (tree t) {
   return native_node_variants (symbol_object (as_string (L (t))));
 }
 
-string
-generic_focus_tag_name (object label) {
-  object raw= call ("symbol->string", label);
-  if (!is_string (raw)) return "";
-  string name= as_string (raw);
+namespace {
+string focus_tag_name (string name) {
   string configured= format_focus_name (name);
   if (configured != "") return configured;
 
   if (athena::contracts::standard_node_groups ().contains (
         "algorithm-tag", std::string (name.data (), N(name)))) {
     name= text_algorithm_root (name);
-    label= symbol_object (name);
   }
 
-  object theme= call ("member->theme", object (name));
-  if (!(is_bool (theme) && !as_bool (theme)) && is_string (theme)) {
+  object theme= source_member_theme (name);
+  if (is_string (theme)) {
     string prefix= as_string (theme);
     int start= min (N (name), N (prefix) + 1);
-    object nested= call ("focus-tag-name",
-                         symbol_object (name (start, N (name))));
-    return is_string (nested) ? as_string (nested) : string ("");
+    return focus_tag_name (name (start, N (name)));
   }
 
   if (editing_unnumbered_symbol (as_tree_label (name))) {
-    object nested= call ("focus-tag-name",
-                         symbol_object (name (0, N(name)-1)));
-    return is_string (nested) ? as_string (nested) : string ("");
+    return focus_tag_name (name (0, N(name)-1));
   }
 
   editor ed= get_current_editor ();
@@ -1659,6 +1650,13 @@ generic_focus_tag_name (object label) {
   const athena::contracts::editing_query query {context->contract_context ()};
   string tree_name= query.name (as_tree_label (name));
   return replace (upcase_first (tree_name), "-", " ");
+}
+} // namespace
+
+string
+generic_focus_tag_name (object label) {
+  if (!is_symbol (label)) throw std::invalid_argument ("Focus tag name expects a symbol");
+  return focus_tag_name (as_symbol (label));
 }
 
 object
