@@ -92,6 +92,7 @@ bool is_keyword (object obj);
 bool is_list (object obj);
 bool is_bool (object obj);
 bool is_int (object obj);
+bool is_exact_integer (object obj);
 bool is_double (object obj);
 bool is_string (object obj);
 bool is_bytes (object obj);

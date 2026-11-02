@@ -754,8 +754,8 @@ generated native entries and remain on the secure-function list.
   Object-valued inverse queries still use the old object printer before native
   normalization; that adapter and user-shortcut objects remain to be migrated.
 - Both affected implementation units compiled with `-j16`; log:
-  `build_qt6/native-keymap-metadata-build.log`. No full link/deployment in this
-  batch; installed runtime remains `e5161f143`. No resource schema changed.
+  `build_qt6/native-keymap-metadata-build.log`. Subsequently linked and deployed
+  in the combined keyboard/lifecycle build below. No resource schema changed.
 
 ## Native Shortcut Query Parameters
 
@@ -770,8 +770,8 @@ generated native entries and remain on the secure-function list.
   are still pending removal.
 - Compiled all five affected implementation units with `-j16`; log:
   `build_qt6/native-keyboard-query-build.log`. No new tests were needed for
-  this parameter transition. Full linking/deployment remains pending together
-  with metadata serialization; installed runtime remains `e5161f143`.
+  this parameter transition. Subsequently linked and deployed in the combined
+  keyboard/lifecycle build below.
 
 ## Native Zoom Number Parsing
 
@@ -783,8 +783,7 @@ generated native entries and remain on the secure-function list.
   editor notifications stay in their existing native implementations.
 - Both implementation units compiled with `-j16`; log:
   `build_qt6/native-zoom-parser-build.log`. No additional tests were needed.
-  Full linking/deployment remains pending with the two keyboard batches;
-  installed runtime remains `e5161f143`.
+  Subsequently linked and deployed in the combined keyboard/lifecycle build below.
 
 ## Native Keyboard Profile Selection
 
@@ -795,8 +794,8 @@ generated native entries and remain on the secure-function list.
   resolution and `std` matching of non-Emacs layouts.
 - Compiled all three affected implementation units with `-j16`; log:
   `build_qt6/native-keyboard-profiles-build.log`. No additional tests were
-  needed. Full linking/deployment remains pending with the preceding metadata,
-  shortcut-query and zoom changes; installed runtime remains `e5161f143`.
+  needed. Subsequently linked and deployed in the combined keyboard/lifecycle
+  build below.
 
 ## Native Document Load Options
 
@@ -815,8 +814,31 @@ generated native entries and remain on the secure-function list.
   units with `-j16`; logs: `build_qt6/native-startup-load-options-build.log`
   and `build_qt6/native-document-load-options-final-build.log`. The first
   compile attempt used the wrong make target for the startup translation unit;
-  corrected to the executable target. Full link/deployment remains pending
-  with the preceding four batches; installed runtime remains `e5161f143`.
+  corrected to the executable target. Subsequently linked and deployed with
+  the preceding four batches in the combined build below.
+
+## Combined Keyboard/Lifecycle Deployment
+
+- Built the full application with `-j16`. Boundary inspection found that
+  `is_int` intentionally accepts integral real values, so using it in the new
+  metadata writer incorrectly serialized `1.0` as `1`. Added an exact-integer
+  value predicate and used it in metadata serialization; existing numeric
+  coercion predicates keep their behavior.
+- Rebuilt the corrected application and verified quote-abbreviated versus
+  explicit-quote lookup, successful `1.0` lookup and rejection of an integer
+  `1` match. Runtime printed `NATIVE_KEYBOARD_METADATA_OK` and exited normally.
+  The probe must execute on a BufferActor after `native-keyboard-force #t`:
+  initial harness attempts failed on ownership/unprepared cursor-environment
+  checks and did not verify metadata. Those checks were not bypassed in code.
+- Deployed using the official helper and removed the owned probe profile.
+  Logs: `build_qt6/native-keyboard-lifecycle-combined-build.log`,
+  `build_qt6/native-keyboard-exact-number-build.log`,
+  `build_qt6/native-keyboard-metadata-runtime.log`, and
+  `build_qt6/native-keyboard-lifecycle-combined-deploy.log`.
+- Next automation boundary: AUDMAP currently exposes only already-loaded vault
+  resources, not vault activation. The migration launchers need that operation
+  before their Scheme bootstrap can disappear. Load auditing also needs its
+  actor-owned typesetting/diagnostic operation, not just remote file opening.
 
 ## Known Outstanding Failure
 

@@ -317,6 +317,10 @@ bool is_bool (object obj) {
   if (auto* n= native_value (obj)) return n->kind == native_object_kind::boolean;
   return tmscm_is_bool (object_to_tmscm (obj));
 }
+bool is_exact_integer (object obj) {
+  if (auto* n= native_value (obj)) return n->kind == native_object_kind::integer;
+  return scm_is_exact_integer (object_to_tmscm (obj));
+}
 bool is_int (object obj) {
   if (auto* n= native_value (obj)) {
     if (n->kind == native_object_kind::integer) return true;

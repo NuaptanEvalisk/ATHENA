@@ -205,7 +205,7 @@ tree command_data (object value) {
   if (is_symbol (value)) return as_symbol (value);
   if (is_keyword (value)) return "#:" * keyword_name (value);
   if (is_bool (value)) return as_bool (value) ? "#t" : "#f";
-  if (is_int (value)) return as_string (as_int (value));
+  if (is_exact_integer (value)) return as_string (as_int (value));
   if (is_double (value)) {
     char buffer[64];
     auto encoded= std::to_chars (buffer, buffer + sizeof (buffer), as_double (value));
