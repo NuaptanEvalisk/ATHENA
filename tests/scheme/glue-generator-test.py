@@ -179,8 +179,7 @@ template<class F> void native_dispatch_register(const char*, F) {}
     def test_native_conversion_bindings_translate_exceptions(self):
         interface = glue.read_interfaces([GLUE / "basic.xml"])[0]
         bindings = {binding.name: binding for binding in interface.bindings}
-        for name in ('latex-export-prepare-v3-source', 'latex-export-convert-top',
-                     'latex-export-convert-tree', 'latex-export-convert-node',
+        for name in ('latex-export-prepare-v3-source', 'latex-export-convert-node',
                      'latex-export-core-dispatch', 'tmtex', 'serialize-latex',
                      'native-mathml->tree-v3'):
             with self.subTest(name=name):

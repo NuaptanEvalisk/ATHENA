@@ -13,6 +13,7 @@
 #define CONVERT_H
 #include "analyze.hpp"
 #include "hashmap.hpp"
+#include "Generic/conversion_options.hpp"
 typedef tree scheme_tree;
 class url;
 class object;
@@ -214,10 +215,10 @@ string latex_export_tt (scheme_tree value);
 scheme_tree latex_export_transform_style (scheme_tree style);
 scheme_tree latex_export_filter_styles (scheme_tree styles);
 scheme_tree latex_export_convert_charset (scheme_tree value);
-scheme_tree latex_export_convert_tree (scheme_tree value, object options);
-scheme_tree latex_export_convert_top (scheme_tree value, object options,
+scheme_tree latex_export_convert_tree (scheme_tree value, const conversion_options& options);
+scheme_tree latex_export_convert_top (scheme_tree value, const conversion_options& options,
                                       url source, url target);
-void latex_export_initialize (object options);
+void latex_export_initialize (const conversion_options& options);
 scheme_tree latex_export_mathjax_pre (scheme_tree value);
 scheme_tree latex_export_mathjax (scheme_tree value);
 scheme_tree latex_export_preamble_page_type (object entries);

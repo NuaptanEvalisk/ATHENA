@@ -13,9 +13,6 @@
 #include "file.hpp"
 #include "analyze.hpp"
 #include "named_symbol.hpp"
-#include "scheme.hpp"
-#include "Scheme/Scheme/glue.hpp"
-#include "Scheme/Scheme/object.hpp"
 #include "ATHENA/Data/enunciation_model.hpp"
 #include "Data/Convert/Generic/conversion_options.hpp"
 #include "Data/Convert/Generic/conversion_registry.hpp"
@@ -1390,8 +1387,8 @@ class html_exporter {
     string op (operation);
     url source_url= url (atom (env.at ("source-url")));
     if (op == "math")
-      return latex_export_convert_top (source[0], conversion_options_to_scheme (
-        {{"texmacs->latex:mathjax", "on"}}), source_url, target);
+      return latex_export_convert_top (source[0],
+        {{"texmacs->latex:mathjax", "on"}}, source_url, target);
     if (op == "picture") return picture (source);
     if (op == "image") return image (source, source_url);
     if (op == "include") {

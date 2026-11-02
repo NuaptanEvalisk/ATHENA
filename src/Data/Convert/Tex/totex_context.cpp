@@ -1433,7 +1433,7 @@ file_output_native (scheme_tree args) {
 }
 
 scheme_tree
-convert_nonfile_native (scheme_tree value, object options) {
+convert_nonfile_native (scheme_tree value, const conversion_options& options) {
   scheme_tree filtered= discard_experimental_warning (value);
   tree normalized= eqnumber_to_nonumber (scheme_tree_to_tree (filtered));
   scheme_tree rewritten= tree_to_scheme_tree (latex_preprocess_source (normalized));
@@ -4189,7 +4189,7 @@ latex_export_convert_charset (scheme_tree value) {
 }
 
 scheme_tree
-latex_export_convert_tree (scheme_tree value, object options) {
+latex_export_convert_tree (scheme_tree value, const conversion_options& options) {
   return convert_nonfile_native (value, options);
 }
 

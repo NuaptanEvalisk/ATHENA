@@ -2359,10 +2359,9 @@ private slots:
       compound ("body", tree (DOCUMENT,
         "Control paragraph.",
         compound ("math", tree (CONCAT, "x", tree (RSUP, "2"))))));
-    object old_style_stree= call ("tree->stree", object (baseline));
-    object old_style_tex_tree= call ("latex-export-convert-top", old_style_stree,
-      options, object (url_none ()), object (url_none ()));
-    const string expected= as_string (call ("serialize-latex", old_style_tex_tree));
+    const tree old_style_tex_tree= latex_export_convert_top (
+      tree_to_scheme_tree (baseline), {}, url_none (), url_none ());
+    const string expected= serialize_latex (old_style_tex_tree);
     const string actual= as_string (
       latex_document_for_test (object (baseline), options));
     QCOMPARE (actual, expected);

@@ -38,28 +38,14 @@ struct export_scope {
 };
 
 string
-option_string (object options, string key) {
-  while (is_pair (options)) {
-    object entry= car (options);
-    if (is_pair (entry)) {
-      object k= car (entry);
-      if (is_string (k) && as_string (k) == key) {
-        object rest= cdr (entry);
-        if (is_string (rest)) return as_string (rest);
-        if (is_pair (rest)) {
-          object first= car (rest);
-          if (is_string (first)) return as_string (first);
-        }
-        return "";
-      }
-    }
-    options= cdr (options);
-  }
-  return "";
+option_string (const conversion_options& options, string key) {
+  const auto found= options.find (std::string (key.data (), N(key)));
+  return found == options.end () ? string ("") :
+    string (found->second.data (), found->second.size ());
 }
 
 void
-initialize_native (object options) {
+initialize_native (const conversion_options& options) {
   latex_export_context_reset ();
   latex_export_set_mathjax (false);
   latex_export_set_portable (
@@ -207,7 +193,7 @@ transformed_style_class (scheme_tree transformed) {
 }
 
 scheme_tree
-convert_tmfile_native (scheme_tree value, object options) {
+convert_tmfile_native (scheme_tree value, const conversion_options& options) {
   scheme_tree body= latex_export_discard_experimental_warning (
     tmfile_extract_native (value, "body"));
   scheme_tree style_meta= tmfile_extract_native (value, "style");
@@ -244,7 +230,7 @@ convert_tmfile_native (scheme_tree value, object options) {
 } // namespace
 
 scheme_tree
-latex_export_convert_top (scheme_tree value, object options,
+latex_export_convert_top (scheme_tree value, const conversion_options& options,
                           url source, url target) {
   latex_export_set_save_urls (source, target);
   export_scope scope;
@@ -255,6 +241,6 @@ latex_export_convert_top (scheme_tree value, object options,
 }
 
 void
-latex_export_initialize (object options) {
+latex_export_initialize (const conversion_options& options) {
   initialize_native (options);
 }

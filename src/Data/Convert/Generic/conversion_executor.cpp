@@ -134,7 +134,7 @@ object conversion_file (url source, url target, object options) {
 string conversion_latex_document (tree input, object options, url source, url target) {
   check_latex_properties (input);
   tree prepared= latex_export_prepare_v3_source (input);
-  tree output= latex_export_convert_top (prepared, options, source, target);
+  tree output= latex_export_convert_top (prepared, conversion_options_from_scheme (options), source, target);
   if (v3_math (prepared)) check_latex (output);
   return serialize_latex (output);
 }
@@ -242,13 +242,13 @@ static object execute_step (object input, const conversion_edge& edge,
     return action == "export-html" ? serial (html) : object (serialize_html (html));
   }
   if (action == "export-latex" || action == "export-latex-document") {
-    object ordered= conversion_options_to_scheme (values);
     if (is_tree (input)) check_latex_properties (as_tree (input));
     tree prepared= is_tree (input) ? latex_export_prepare_v3_source (as_tree (input)) : as_scheme_tree (input);
     bool structured= v3_math (prepared);
     if (action == "export-latex-document" && !structured)
-      return object (conservative_texmacs_to_latex (scheme_tree_to_tree (prepared), ordered));
-    tree output= latex_export_convert_top (prepared, ordered, source, target);
+      return object (conservative_texmacs_to_latex (
+        scheme_tree_to_tree (prepared), conversion_options_to_scheme (values)));
+    tree output= latex_export_convert_top (prepared, values, source, target);
     if (structured) check_latex (output);
     return action == "export-latex" ? serial (output) : object (serialize_latex (output));
   }

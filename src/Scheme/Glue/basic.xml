@@ -1838,16 +1838,6 @@
   <binding name="latex-export-convert-charset" native="latex_export_convert_charset" returns="scheme_tree">
     <arg type="scheme_tree" />
   </binding>
-  <binding name="latex-export-convert-tree" native="latex_export_convert_tree" returns="scheme_tree" exceptions="scheme">
-    <arg type="scheme_tree" />
-    <arg type="object" />
-  </binding>
-  <binding name="latex-export-convert-top" native="latex_export_convert_top" returns="scheme_tree" exceptions="scheme">
-    <arg type="scheme_tree" />
-    <arg type="object" />
-    <arg type="url" />
-    <arg type="url" />
-  </binding>
   <binding name="latex-export-preprocess-preamble-list" native="latex_export_preprocess_preamble_list" returns="scheme_tree">
     <arg type="scheme_tree" />
   </binding>

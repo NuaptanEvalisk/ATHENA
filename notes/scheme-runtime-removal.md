@@ -1840,6 +1840,26 @@ generated native entries and remain on the secure-function list.
   LaTeX driver/state and conversion payload objects remain explicit next work,
   alongside the rest of the overall runtime-removal goal.
 
+## Native LaTeX Driver Options
+
+- LaTeX top/tree conversion, document driver and initialization now receive
+  native conversion_options maps. Initialization reads option strings directly;
+  export state lifetime and conversion algorithms are unchanged.
+- HTML MathJax passes its option map directly and html_semantics.cpp no longer
+  includes Scheme/glue/object headers. The conversion executor passes native
+  options to structured LaTeX conversion. Association lists remain only at the
+  conservative/tracked export boundary and other legacy consumers.
+- Removed latex-export-convert-top/tree exports with no product consumers.
+  Updated the existing C++ serialization comparison to call the native driver,
+  retaining its assertions; removed retired names from the generator assertion.
+- Interface generation and tottex driver/context, HTML semantics and executor
+  compilation passed with -j16 (totex_driver.cpp and totex_context.cpp). Logs:
+  build_qt6/native-latex-options-glue.log and
+  build_qt6/native-latex-options-build.log. No tests added/run; accumulated full
+  linking, export checks and deployment remain pending.
+- Conversion payload objects, LaTeX state and conservative/tracked APIs still
+  need migration. Overall runtime removal remains incomplete.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
