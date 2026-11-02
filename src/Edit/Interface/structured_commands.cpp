@@ -10,6 +10,7 @@
 
 #include "editing_utilities.hpp"
 #include "structured_commands.hpp"
+#include "format_commands.hpp"
 #include "native_math_edit.hpp"
 #include "native_text_edit.hpp"
 #include "reference_markup.hpp"
@@ -146,22 +147,18 @@ struct focus_pointer {
   }
 };
 
-bool scheme_predicate (const char* name, tree t) {
-  return as_bool (call (name, object (t)));
-}
-
 tree focus_tree () {
   editor ed= get_current_editor ();
   path p= ed->focus_get ();
   return ed->test_subtree (p) ? ed->the_subtree (p) : tree ();
 }
 
-void dispatch_focus (const char* command, bool flag) {
-  call (command, object (focus_tree ()), object (flag));
+void dispatch_focus (void (*command) (tree, bool), bool flag) {
+  command (focus_tree (), flag);
 }
 
-void dispatch_focus (const char* command, object direction) {
-  call (command, object (focus_tree ()), direction);
+void dispatch_focus (void (*command) (tree, object), object direction) {
+  command (focus_tree (), direction);
 }
 
 bool simple_tag (tree t) {
@@ -171,20 +168,20 @@ bool simple_tag (tree t) {
     is_compound (t, "hidden");
 }
 
-void outward (tree t, const char* command, bool direction) {
+void outward (tree t, void (*command) (tree, bool), bool direction) {
   tree parent;
   if (parent_tree (t, parent))
-    call (command, object (parent), object (direction));
+    command (parent, direction);
 }
 
-void outward (tree t, const char* command, object argument) {
+void outward (tree t, void (*command) (tree, object), object argument) {
   tree parent;
-  if (parent_tree (t, parent)) call (command, object (parent), argument);
+  if (parent_tree (t, parent)) command (parent, argument);
 }
 
-void outward (tree t, const char* command) {
+void outward (tree t, void (*command) (tree)) {
   tree parent;
-  if (parent_tree (t, parent)) call (command, object (parent));
+  if (parent_tree (t, parent)) command (parent);
 }
 
 void tree_insert_horizontal (tree t, bool forwards) {
@@ -276,8 +273,8 @@ void tree_extremal (tree t, bool forwards) {
 
 void generic_horizontal_once (tree t, bool forwards) {
   if (is_tree_branch (t)) { tree_horizontal (t, forwards); return; }
-  if (!scheme_predicate ("structured-horizontal?", t)) {
-    outward (t, "structured-horizontal", forwards);
+  if (!generic_structured_horizontal_context (t)) {
+    outward (t, generic_structured_horizontal, forwards);
     return;
   }
   tree child;
@@ -304,7 +301,7 @@ void generic_horizontal_once (tree t, bool forwards) {
 
 void generic_vertical_once (tree t, bool downwards) {
   if (is_tree_branch (t)) { tree_vertical (t, downwards); return; }
-  outward (t, "structured-vertical", downwards);
+  outward (t, generic_structured_vertical, downwards);
 }
 
 object similar_labels (tree t) {
@@ -369,7 +366,7 @@ void generic_traverse_vertical (tree t, bool downwards) {
     move_to_similar_tag (symbol_object ("document"), downwards);
     return;
   }
-  outward (t, "traverse-vertical", downwards);
+  outward (t, generic_traverse_vertical, downwards);
 }
 
 void generic_traverse_incremental (tree t, bool forwards) {
@@ -390,14 +387,14 @@ void generic_traverse_extremal (tree t, bool forwards) {
   refocus_similar (labels);
 }
 
-void generic_traverse_previous () { dispatch_focus ("traverse-incremental", false); }
-void generic_traverse_next () { dispatch_focus ("traverse-incremental", true); }
-void generic_traverse_first () { dispatch_focus ("traverse-extremal", false); }
-void generic_traverse_last () { dispatch_focus ("traverse-extremal", true); }
-void generic_traverse_left () { dispatch_focus ("traverse-horizontal", false); }
-void generic_traverse_right () { dispatch_focus ("traverse-horizontal", true); }
-void generic_traverse_up () { dispatch_focus ("traverse-vertical", false); }
-void generic_traverse_down () { dispatch_focus ("traverse-vertical", true); }
+void generic_traverse_previous () { dispatch_focus (generic_traverse_incremental, false); }
+void generic_traverse_next () { dispatch_focus (generic_traverse_incremental, true); }
+void generic_traverse_first () { dispatch_focus (generic_traverse_extremal, false); }
+void generic_traverse_last () { dispatch_focus (generic_traverse_extremal, true); }
+void generic_traverse_left () { dispatch_focus (generic_traverse_horizontal, false); }
+void generic_traverse_right () { dispatch_focus (generic_traverse_horizontal, true); }
+void generic_traverse_up () { dispatch_focus (generic_traverse_vertical, false); }
+void generic_traverse_down () { dispatch_focus (generic_traverse_vertical, true); }
 
 void generic_traverse_previous_section_title () {
   object labels= native_node_similar (symbol_object ("section"));
@@ -414,7 +411,7 @@ void generic_swipe_horizontal (tree t, bool forwards) {
     }
     return;
   }
-  outward (t, "swipe-horizontal", forwards);
+  outward (t, generic_swipe_horizontal, forwards);
 }
 
 void generic_swipe_vertical (tree t, bool downwards) {
@@ -427,26 +424,26 @@ void generic_swipe_vertical (tree t, bool downwards) {
     }
     return;
   }
-  outward (t, "swipe-vertical", downwards);
+  outward (t, generic_swipe_vertical, downwards);
 }
 
-void generic_swipe_left () { dispatch_focus ("swipe-horizontal", false); }
-void generic_swipe_right () { dispatch_focus ("swipe-horizontal", true); }
-void generic_swipe_up () { dispatch_focus ("swipe-vertical", false); }
-void generic_swipe_down () { dispatch_focus ("swipe-vertical", true); }
+void generic_swipe_left () { dispatch_focus (generic_swipe_horizontal, false); }
+void generic_swipe_right () { dispatch_focus (generic_swipe_horizontal, true); }
+void generic_swipe_up () { dispatch_focus (generic_swipe_vertical, false); }
+void generic_swipe_down () { dispatch_focus (generic_swipe_vertical, true); }
 
-void generic_structured_maximize (tree t) { if (!presentation_structured (t, "maximize", true)) outward (t, "structured-maximize"); }
-void generic_structured_minimize (tree t) { if (!presentation_structured (t, "minimize", false)) outward (t, "structured-minimize"); }
+void generic_structured_maximize (tree t) { if (!presentation_structured (t, "maximize", true)) outward (t, generic_structured_maximize); }
+void generic_structured_minimize (tree t) { if (!presentation_structured (t, "minimize", false)) outward (t, generic_structured_minimize); }
 
 bool generic_wheel_capture () { return false; }
 
 bool generic_focus_has_variants (tree t) {
-  object variants= call ("focus-variants-of", object (t));
+  object variants= generic_focus_variants_of (t);
   return is_list (variants) && N (as_array_object (variants)) > 1;
 }
 
 bool generic_focus_has_toggles (tree t) {
-  return as_bool (call ("numbered-context?", object (t))) ||
+  return text_numbered_context (t) ||
          text_node_in_group (t, "alternate-tag");
 }
 
@@ -461,7 +458,7 @@ bool generic_focus_can_insert_remove (tree t) {
   if (math_script_context (t)) return true;
   if (is_func (t, SQRT)) return false;
   bool structured=
-    as_bool (call ("structured-horizontal?", object (t))) ||
+    generic_structured_horizontal_context (t) ||
     generic_structured_vertical_context (t);
   return structured && tree_command_cursor_inside (t);
 }
@@ -483,46 +480,46 @@ bool generic_focus_can_remove (tree t) {
 bool generic_focus_has_geometry (tree) { return false; }
 
 bool generic_focus_has_parameters (tree t) {
-  return as_bool (call ("focus-has-preferences?", object (t)));
+  return format_focus_has_preferences (t);
 }
 
 bool generic_focus_can_search (tree) { return false; }
 bool generic_focus_has_search_menu (tree) { return false; }
 
-void generic_structured_insert_left () { dispatch_focus ("structured-insert-horizontal", false); }
-void generic_structured_insert_right () { dispatch_focus ("structured-insert-horizontal", true); }
-void generic_structured_remove_left () { dispatch_focus ("structured-remove-horizontal", false); }
-void generic_structured_remove_right () { dispatch_focus ("structured-remove-horizontal", true); }
-void generic_structured_insert_up () { dispatch_focus ("structured-insert-vertical", false); }
-void generic_structured_insert_down () { dispatch_focus ("structured-insert-vertical", true); }
-void generic_structured_remove_up () { dispatch_focus ("structured-remove-vertical", false); }
-void generic_structured_remove_down () { dispatch_focus ("structured-remove-vertical", true); }
-void generic_structured_insert_start () { dispatch_focus ("structured-insert-extremal", false); }
-void generic_structured_insert_end () { dispatch_focus ("structured-insert-extremal", true); }
-void generic_structured_insert_top () { dispatch_focus ("structured-insert-incremental", false); }
-void generic_structured_insert_bottom () { dispatch_focus ("structured-insert-incremental", true); }
-void generic_structured_left () { dispatch_focus ("structured-horizontal", false); }
-void generic_structured_right () { dispatch_focus ("structured-horizontal", true); }
-void generic_structured_up () { dispatch_focus ("structured-vertical", false); }
-void generic_structured_down () { dispatch_focus ("structured-vertical", true); }
-void generic_structured_start () { dispatch_focus ("structured-extremal", false); }
-void generic_structured_end () { dispatch_focus ("structured-extremal", true); }
-void generic_structured_top () { dispatch_focus ("structured-incremental", false); }
-void generic_structured_bottom () { dispatch_focus ("structured-incremental", true); }
-void generic_structured_exit_left () { dispatch_focus ("structured-exit", false); }
-void generic_structured_exit_right () { dispatch_focus ("structured-exit", true); }
-void generic_special_back () { dispatch_focus ("special-navigate", keyword_object ("previous")); }
-void generic_special_forward () { dispatch_focus ("special-navigate", keyword_object ("next")); }
-void generic_special_return () { dispatch_focus ("special-navigate", keyword_object ("first")); }
-void generic_special_shift_return () { dispatch_focus ("special-navigate", keyword_object ("last")); }
-void generic_special_left () { dispatch_focus ("special-horizontal", false); }
-void generic_special_right () { dispatch_focus ("special-horizontal", true); }
-void generic_special_up () { dispatch_focus ("special-vertical", false); }
-void generic_special_down () { dispatch_focus ("special-vertical", true); }
-void generic_special_first () { dispatch_focus ("special-extremal", false); }
-void generic_special_last () { dispatch_focus ("special-extremal", true); }
-void generic_special_previous () { dispatch_focus ("special-incremental", false); }
-void generic_special_next () { dispatch_focus ("special-incremental", true); }
+void generic_structured_insert_left () { dispatch_focus (generic_structured_insert_horizontal, false); }
+void generic_structured_insert_right () { dispatch_focus (generic_structured_insert_horizontal, true); }
+void generic_structured_remove_left () { dispatch_focus (generic_structured_remove_horizontal, false); }
+void generic_structured_remove_right () { dispatch_focus (generic_structured_remove_horizontal, true); }
+void generic_structured_insert_up () { dispatch_focus (generic_structured_insert_vertical, false); }
+void generic_structured_insert_down () { dispatch_focus (generic_structured_insert_vertical, true); }
+void generic_structured_remove_up () { dispatch_focus (generic_structured_remove_vertical, false); }
+void generic_structured_remove_down () { dispatch_focus (generic_structured_remove_vertical, true); }
+void generic_structured_insert_start () { dispatch_focus (generic_structured_insert_extremal, false); }
+void generic_structured_insert_end () { dispatch_focus (generic_structured_insert_extremal, true); }
+void generic_structured_insert_top () { dispatch_focus (generic_structured_insert_incremental, false); }
+void generic_structured_insert_bottom () { dispatch_focus (generic_structured_insert_incremental, true); }
+void generic_structured_left () { dispatch_focus (generic_structured_horizontal, false); }
+void generic_structured_right () { dispatch_focus (generic_structured_horizontal, true); }
+void generic_structured_up () { dispatch_focus (generic_structured_vertical, false); }
+void generic_structured_down () { dispatch_focus (generic_structured_vertical, true); }
+void generic_structured_start () { dispatch_focus (generic_structured_extremal, false); }
+void generic_structured_end () { dispatch_focus (generic_structured_extremal, true); }
+void generic_structured_top () { dispatch_focus (generic_structured_incremental, false); }
+void generic_structured_bottom () { dispatch_focus (generic_structured_incremental, true); }
+void generic_structured_exit_left () { dispatch_focus (generic_structured_exit, false); }
+void generic_structured_exit_right () { dispatch_focus (generic_structured_exit, true); }
+void generic_special_back () { dispatch_focus (generic_special_navigate, keyword_object ("previous")); }
+void generic_special_forward () { dispatch_focus (generic_special_navigate, keyword_object ("next")); }
+void generic_special_return () { dispatch_focus (generic_special_navigate, keyword_object ("first")); }
+void generic_special_shift_return () { dispatch_focus (generic_special_navigate, keyword_object ("last")); }
+void generic_special_left () { dispatch_focus (generic_special_horizontal, false); }
+void generic_special_right () { dispatch_focus (generic_special_horizontal, true); }
+void generic_special_up () { dispatch_focus (generic_special_vertical, false); }
+void generic_special_down () { dispatch_focus (generic_special_vertical, true); }
+void generic_special_first () { dispatch_focus (generic_special_extremal, false); }
+void generic_special_last () { dispatch_focus (generic_special_extremal, true); }
+void generic_special_previous () { dispatch_focus (generic_special_incremental, false); }
+void generic_special_next () { dispatch_focus (generic_special_incremental, true); }
 
 bool generic_context (tree) { return true; }
 
@@ -571,13 +568,13 @@ void generic_structured_insert_horizontal (tree t, bool forwards) {
     return;
   }
   if (is_tree_branch (t)) { tree_insert_horizontal (t, forwards); return; }
-  if (scheme_predicate ("structured-horizontal?", t)) {
+  if (generic_structured_horizontal_context (t)) {
     tree child;
     path p;
     if (down_tree (t, child, p)) get_current_editor ()->insert_argument (p, forwards);
     return;
   }
-  outward (t, "structured-insert-horizontal", forwards);
+  outward (t, generic_structured_insert_horizontal, forwards);
 }
 
 void generic_structured_insert_vertical (tree t, bool downwards) {
@@ -598,7 +595,7 @@ void generic_structured_insert_vertical (tree t, bool downwards) {
     return;
   }
   if (is_tree_branch (t)) { tree_insert_vertical (t, downwards); return; }
-  outward (t, "structured-insert-vertical", downwards);
+  outward (t, generic_structured_insert_vertical, downwards);
 }
 
 void generic_structured_remove_horizontal (tree t, bool forwards) {
@@ -608,13 +605,13 @@ void generic_structured_remove_horizontal (tree t, bool forwards) {
     return;
   }
   if (is_tree_branch (t)) { tree_remove_horizontal (t, forwards); return; }
-  if (scheme_predicate ("structured-horizontal?", t)) {
+  if (generic_structured_horizontal_context (t)) {
     tree child;
     path p;
     if (down_tree (t, child, p)) get_current_editor ()->remove_argument (p, forwards);
     return;
   }
-  outward (t, "structured-remove-horizontal", forwards);
+  outward (t, generic_structured_remove_horizontal, forwards);
 }
 
 void generic_structured_remove_vertical (tree t, bool downwards) {
@@ -624,17 +621,17 @@ void generic_structured_remove_vertical (tree t, bool downwards) {
     get_current_editor ()->table_remove_row (downwards);
     return;
   }
-  outward (t, "structured-remove-vertical", downwards);
+  outward (t, generic_structured_remove_vertical, downwards);
 }
 
 void generic_structured_insert_extremal (tree t, bool forwards) {
-  call ("structured-extremal", object (t), object (forwards));
-  call ("structured-insert-horizontal", object (t), object (forwards));
+  generic_structured_extremal (t, forwards);
+  generic_structured_insert_horizontal (t, forwards);
 }
 
 void generic_structured_insert_incremental (tree t, bool downwards) {
-  call ("structured-incremental", object (t), object (downwards));
-  call ("structured-insert-vertical", object (t), object (downwards));
+  generic_structured_incremental (t, downwards);
+  generic_structured_insert_vertical (t, downwards);
 }
 
 void generic_structured_horizontal (tree t, bool forwards) {
@@ -660,8 +657,8 @@ void generic_structured_inner_extremal (tree t, bool forwards) {
     (void) table_cell_extremal (get_current_editor (), forwards);
     return;
   }
-  if (!scheme_predicate ("structured-horizontal?", t)) {
-    outward (t, "structured-inner-extremal", forwards);
+  if (!generic_structured_horizontal_context (t)) {
+    outward (t, generic_structured_inner_extremal, forwards);
     return;
   }
   tree child;
@@ -680,7 +677,7 @@ void generic_structured_extremal (tree t, bool forwards) {
   editor ed= get_current_editor ();
   while (true) {
     path before= copy (ed->the_path ());
-    call ("structured-horizontal", object (t), object (forwards));
+    generic_structured_horizontal (t, forwards);
     if (ed->the_path () == before) break;
   }
   generic_structured_inner_extremal (t, forwards);
@@ -692,7 +689,8 @@ void generic_structured_incremental (tree t, bool downwards) {
     editor ed= get_current_editor ();
     while (true) {
       path before= copy (ed->the_path ());
-      call (downwards ? "structured-down" : "structured-up");
+      if (downwards) generic_structured_down ();
+      else generic_structured_up ();
       if (ed->the_path () == before) break;
     }
     return;
@@ -700,7 +698,7 @@ void generic_structured_incremental (tree t, bool downwards) {
   editor ed= get_current_editor ();
   while (true) {
     path before= copy (ed->the_path ());
-    call ("structured-vertical", object (t), object (downwards));
+    generic_structured_vertical (t, downwards);
     if (ed->the_path () == before) break;
   }
   generic_structured_inner_extremal (t, downwards);
@@ -716,23 +714,23 @@ void generic_structured_exit (tree t, bool forwards) {
 }
 
 void generic_special_navigate (tree t, object direction) {
-  outward (t, "special-navigate", direction);
+  outward (t, generic_special_navigate, direction);
 }
 
 void generic_special_horizontal (tree t, bool forwards) {
-  outward (t, "special-horizontal", forwards);
+  outward (t, generic_special_horizontal, forwards);
 }
 
 void generic_special_vertical (tree t, bool downwards) {
-  outward (t, "special-vertical", downwards);
+  outward (t, generic_special_vertical, downwards);
 }
 
 void generic_special_extremal (tree t, bool forwards) {
   if (reference_navigate (t, forwards, true)) return;
-  outward (t, "special-extremal", forwards);
+  outward (t, generic_special_extremal, forwards);
 }
 
 void generic_special_incremental (tree t, bool downwards) {
   if (reference_navigate (t, downwards, false)) return;
-  outward (t, "special-incremental", downwards);
+  outward (t, generic_special_incremental, downwards);
 }

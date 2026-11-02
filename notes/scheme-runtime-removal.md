@@ -584,6 +584,22 @@ generated native entries and remain on the secure-function list.
   `build_qt6/native-document-entrypoints-{build,deploy}.log`. No extra regression
   suite was run for these direct substitutions and unconsumed API removals.
 
+## Native Structured And Geometry Dispatch
+
+- Structured navigation, insertion/removal, swipe and geometry recursion now
+  pass native function pointers through their focus/parent helpers rather than
+  invoking names and constructing temporary argument lists at each node.
+- Predicates, extremal movement loops, geometry reset and pinch completion call
+  their existing native implementations directly. The ordering of node-specific
+  handlers, parent traversal and focus restoration is unchanged.
+- Both modules have no remaining `call` invocation. Some APIs still use object
+  values (variant lists, node groups and special navigation direction); these
+  remain part of the value-system removal, not hidden behind a new dispatcher.
+- Compiled both changed translation units with the generated build rules and
+  `-j16`; log: `build_qt6/native-structured-dispatch-build.log`. No tests were
+  added or run for this direct dispatch replacement. Full linking/deployment
+  is deferred to the next combined build; installed runtime is `38e61043f`.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

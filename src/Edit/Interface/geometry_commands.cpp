@@ -60,9 +60,9 @@ bool parent_tree (tree t, tree& parent) {
 }
 
 // Keep extension dispatch at each enclosing node (math, tables and graphics).
-void outward (tree t, const char* command, object argument) {
+void outward (tree t, void (*command) (tree, bool), bool argument) {
   tree parent;
-  if (parent_tree (t, parent)) call (command, object (parent), argument);
+  if (parent_tree (t, parent)) command (parent, argument);
 }
 
 struct focus_pointer {
@@ -117,8 +117,9 @@ bool handles (tree t, adjustment action) {
   return false;
 }
 
-void adjust (tree t, adjustment action, bool forward, const char* command) {
-  if (!handles (t, action)) { outward (t, command, object (forward)); return; }
+void adjust (tree t, adjustment action, bool forward,
+             void (*command) (tree, bool)) {
+  if (!handles (t, action)) { outward (t, command, forward); return; }
   const int direction= forward ? 1 : -1;
   if (action == adjustment::variant) { geometry_circulate_unit (direction); return; }
   if (geometry_vadjust_context (t)) {
@@ -181,8 +182,8 @@ void adjust (tree t, adjustment action, bool forward, const char* command) {
   focus.restore ();
 }
 
-void focused (const char* command, bool argument) {
-  call (command, object (focus_tree ()), object (argument));
+void focused (void (*command) (tree, bool), bool argument) {
+  command (focus_tree (), argument);
 }
 
 bool graphical_text_context (tree t) {
@@ -245,8 +246,8 @@ void insert_wrapper (tree t, string message, string context) {
 
 } // namespace
 
-void geometry_speed (tree t, bool forward) { adjust (t, adjustment::speed, forward, "geometry-speed"); }
-void geometry_variant (tree t, bool forward) { adjust (t, adjustment::variant, forward, "geometry-variant"); }
+void geometry_speed (tree t, bool forward) { adjust (t, adjustment::speed, forward, geometry_speed); }
+void geometry_variant (tree t, bool forward) { adjust (t, adjustment::variant, forward, geometry_variant); }
 void geometry_horizontal (tree t, bool forward) {
   if (generic_table_markup_context (t)) {
     editor ed= get_current_editor ();
@@ -257,7 +258,7 @@ void geometry_horizontal (tree t, bool forward) {
     return;
   }
   if (graphical_text_context (t)) { graphical_text_horizontal (t, forward); return; }
-  adjust (t, adjustment::horizontal, forward, "geometry-horizontal");
+  adjust (t, adjustment::horizontal, forward, geometry_horizontal);
 }
 void geometry_vertical (tree t, bool down) {
   if (math_bracket_geometry (t, down, false)) return;
@@ -274,14 +275,14 @@ void geometry_vertical (tree t, bool down) {
     athena_graphics_change_geo_valign (down);
     return;
   }
-  adjust (t, adjustment::vertical, down, "geometry-vertical");
+  adjust (t, adjustment::vertical, down, geometry_vertical);
 }
 void geometry_extremal (tree t, bool forward) {
   if (graphical_text_context (t)) {
     set_graphical_attribute (t, "text-at-halign", forward ? "left" : "right");
     return;
   }
-  adjust (t, adjustment::extremal, forward, "geometry-extremal");
+  adjust (t, adjustment::extremal, forward, geometry_extremal);
 }
 void geometry_incremental (tree t, bool down) {
   if (graphical_text_context (t)) {
@@ -289,7 +290,7 @@ void geometry_incremental (tree t, bool down) {
     set_graphical_attribute (t, var, down ? "top" : "bottom");
     return;
   }
-  adjust (t, adjustment::incremental, down, "geometry-incremental");
+  adjust (t, adjustment::incremental, down, geometry_incremental);
 }
 void geometry_default (tree t) {
   if (math_bracket_geometry (t, false, true)) return;
@@ -299,7 +300,7 @@ void geometry_default (tree t) {
     return;
   }
   tree parent;
-  if (parent_tree (t, parent)) call ("geometry-default", object (parent));
+  if (parent_tree (t, parent)) geometry_default (parent);
 }
 
 void geometry_scale (tree t, double factor) {
@@ -342,18 +343,18 @@ void geometry_rotate (tree t, double angle) {
   else get_current_editor ()->geometry_pinch_angle= angle;
 }
 
-void geometry_slower () { focused ("geometry-speed", false); }
-void geometry_faster () { focused ("geometry-speed", true); }
-void geometry_circulate (bool forward) { focused ("geometry-variant", forward); }
-void geometry_reset () { call ("geometry-default", object (focus_tree ())); }
-void geometry_left () { focused ("geometry-horizontal", false); }
-void geometry_right () { focused ("geometry-horizontal", true); }
-void geometry_up () { focused ("geometry-vertical", false); }
-void geometry_down () { focused ("geometry-vertical", true); }
-void geometry_start () { focused ("geometry-extremal", false); }
-void geometry_end () { focused ("geometry-extremal", true); }
-void geometry_top () { focused ("geometry-incremental", false); }
-void geometry_bottom () { focused ("geometry-incremental", true); }
+void geometry_slower () { focused (geometry_speed, false); }
+void geometry_faster () { focused (geometry_speed, true); }
+void geometry_circulate (bool forward) { focused (geometry_variant, forward); }
+void geometry_reset () { geometry_default (focus_tree ()); }
+void geometry_left () { focused (geometry_horizontal, false); }
+void geometry_right () { focused (geometry_horizontal, true); }
+void geometry_up () { focused (geometry_vertical, false); }
+void geometry_down () { focused (geometry_vertical, true); }
+void geometry_start () { focused (geometry_extremal, false); }
+void geometry_end () { focused (geometry_extremal, true); }
+void geometry_top () { focused (geometry_incremental, false); }
+void geometry_bottom () { focused (geometry_incremental, true); }
 
 void geometry_pinch_clear () {
   editor ed= get_current_editor ();
@@ -364,8 +365,8 @@ void geometry_pinch_clear () {
 void geometry_pinch_start () { geometry_pinch_clear (); }
 void geometry_pinch_end () {
   double scale= get_current_editor ()->geometry_pinch_scale;
-  if (scale > 1.05) call ("structured-maximize", object (focus_tree ()));
-  else if (scale < 0.95) call ("structured-minimize", object (focus_tree ()));
+  if (scale > 1.05) generic_structured_maximize (focus_tree ());
+  else if (scale < 0.95) generic_structured_minimize (focus_tree ());
   geometry_pinch_clear ();
 }
 void geometry_pinch_scale (double factor) { geometry_scale (focus_tree (), factor); }
