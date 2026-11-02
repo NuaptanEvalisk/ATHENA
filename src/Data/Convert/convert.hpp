@@ -142,11 +142,9 @@ scheme_tree latex_export_athena_data_wrap_records (scheme_tree st,
                                                    scheme_tree fallback);
 scheme_tree latex_export_athena_data_wrap (scheme_tree st,
                                            scheme_tree fallback);
-object latex_export_languages ();
+array<string> latex_export_languages ();
 void   latex_export_add_language (string language);
-object latex_export_colors ();
 void   latex_export_add_color (string color);
-object latex_export_colormaps ();
 void   latex_export_add_colormap (string colormap);
 bool   latex_export_mathjax ();
 void   latex_export_set_mathjax (bool value);
@@ -215,12 +213,12 @@ scheme_tree latex_export_mathjax_pre (scheme_tree value);
 scheme_tree latex_export_mathjax (scheme_tree value);
 scheme_tree latex_export_preamble_page_type (object entries);
 string latex_export_html_xcolor (string color);
-string latex_export_colors_defs (object colors);
 object latex_export_packages_dependencies (object packages);
 object latex_export_packages_simplify (object packages);
 void latex_export_recompute_dependencies ();
-string latex_export_use_package_command (scheme_tree document, object colors,
-                                         object colormaps);
+string latex_export_use_package_command (scheme_tree document,
+                                         const array<string>& colors,
+                                         const array<string>& colormaps);
 string latex_export_as_use_package (object packages);
 string latex_export_catcode_defs (scheme_tree document);
 scheme_tree latex_export_expand_macros (scheme_tree value);

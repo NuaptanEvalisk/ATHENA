@@ -476,7 +476,7 @@ class LatexSerializer {
           contains_text (pre[1], "amssymb")) out.verbatim ("\\let\\Bbbk\\relax\n");
       out.verbatim (pre[1]);
       string packages= latex_export_use_package_command (
-        body, null_object (), null_object ());
+        body, array<string> (), array<string> ());
       if (contains_text (packages, "makeidx")) out.verbatim ("\\makeindex\n");
       out.verbatim (pre[2]);
       if (pre[3] != "") {

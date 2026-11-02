@@ -36,9 +36,9 @@ struct LatexExportContext {
   hashmap<string,string> dynamic;
   hashmap<string,int> command_text_uses;
   hashmap<string,int> command_math_uses;
-  array<object> languages;
-  array<object> colors;
-  array<object> colormaps;
+  array<string> languages;
+  array<string> colors;
+  array<string> colormaps;
   hashmap<string,string> portable_image_copies;
   hashmap<string,bool> portable_image_used;
   hashmap<string,scheme_tree> placeholders;
@@ -126,11 +126,11 @@ optional_object (const array<object>& values, int index) {
 }
 
 void
-prepend_unique_string (array<object>& values, string value) {
+prepend_unique_string (array<string>& values, string value) {
   for (int i=0; i<N(values); ++i)
-    if (is_string (values[i]) && as_string (values[i]) == value) return;
-  array<object> next;
-  next << object (value);
+    if (values[i] == value) return;
+  array<string> next;
+  next << value;
   for (int i=0; i<N(values); ++i) next << values[i];
   values= next;
 }
@@ -1338,8 +1338,10 @@ preprocess_preamble_list_native (scheme_tree values) {
 }
 
 scheme_tree
-context_object_list (array<object> values) {
-  return as_scheme_tree (as_list_object (values));
+context_string_list (const array<string>& values) {
+  scheme_tree out (TUPLE);
+  for (int i=0; i<N(values); ++i) out << stree_string (values[i]);
+  return out;
 }
 
 bool
@@ -1416,9 +1418,9 @@ file_output_native (scheme_tree args) {
   body= latex_export_clean_body (body);
 
   scheme_tree needs (TUPLE);
-  needs << context_object_list (latex_export_context.languages)
-        << context_object_list (latex_export_context.colors)
-        << context_object_list (latex_export_context.colormaps);
+  needs << context_string_list (latex_export_context.languages)
+        << context_string_list (latex_export_context.colors)
+        << context_string_list (latex_export_context.colormaps);
 
   scheme_tree metadata= stree_apply ("!athena-file-metadata");
   metadata << style_meta << init_meta;
@@ -3735,10 +3737,10 @@ latex_export_context_reset () {
 
 void
 latex_export_document_reset (string language) {
-  latex_export_context.languages= array<object> ();
-  latex_export_context.colors= array<object> ();
-  latex_export_context.colormaps= array<object> ();
-  latex_export_context.languages << object (language);
+  latex_export_context.languages= array<string> ();
+  latex_export_context.colors= array<string> ();
+  latex_export_context.colormaps= array<string> ();
+  latex_export_context.languages << language;
   latex_export_context.cjk_document=
     language == "chinese" || language == "chineset" ||
     language == "japanese" || language == "korean";
@@ -3947,9 +3949,9 @@ latex_export_athena_data_wrap (scheme_tree st, scheme_tree fallback) {
   return athena_data_wrap_with_records (st, scheme_tree (TUPLE), fallback);
 }
 
-object
+array<string>
 latex_export_languages () {
-  return as_list_object (latex_export_context.languages);
+  return copy (latex_export_context.languages);
 }
 
 void
@@ -3957,19 +3959,9 @@ latex_export_add_language (string language) {
   prepend_unique_string (latex_export_context.languages, language);
 }
 
-object
-latex_export_colors () {
-  return as_list_object (latex_export_context.colors);
-}
-
 void
 latex_export_add_color (string color) {
   prepend_unique_string (latex_export_context.colors, color);
-}
-
-object
-latex_export_colormaps () {
-  return as_list_object (latex_export_context.colormaps);
 }
 
 void

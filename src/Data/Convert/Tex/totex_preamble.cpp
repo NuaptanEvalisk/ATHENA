@@ -177,12 +177,10 @@ preamble_page_type (object entries) {
 }
 
 string
-colors_defs (object colors) {
-  array<object> items= as_array_object (colors);
+colors_defs (const array<string>& colors) {
   string out;
-  for (int i=0; i<N(items); ++i) {
-    if (!is_string (items[i])) continue;
-    string name= as_string (items[i]);
+  for (int i=0; i<N(colors); ++i) {
+    string name= colors[i];
     out << "\\definecolor{" << replace (name, " ", "") << "}{HTML}{"
         << html_xcolor (get_hex_color (name)) << "}\n";
   }
@@ -357,13 +355,14 @@ as_use_package (array<string> packages, const array<string>& xcolor_options,
 }
 
 string
-use_package_command (scheme_tree document, object colors, object colormaps) {
+use_package_command (scheme_tree document, const array<string>& colors,
+                     const array<string>& colormaps) {
   array<string> used;
   scan_package_uses (document, used);
 
-  array<string> xcolor_options= object_strings (colormaps);
+  array<string> xcolor_options= copy (colormaps);
   bool has_xcolor_options= N(xcolor_options) > 0;
-  if (!has_xcolor_options && is_list (colors) && N(as_array_object (colors)) > 0) {
+  if (!has_xcolor_options && N(colors) > 0) {
     xcolor_options << string ("");
     has_xcolor_options= true;
   }
@@ -1057,19 +1056,17 @@ preamble_data_native (scheme_tree text, scheme_tree style, scheme_tree,
   scheme_tree page= preamble_page_type (init_entries (init));
   scheme_tree macros= macro_definitions (text);
 
-  array<object> color_objects;
+  array<string> color_list;
   if (stree_list (colors))
     for (int i=0; i<N(colors); ++i)
-      if (string_atom (colors[i])) color_objects << object (atom_text (colors[i]));
-  object color_list= as_list_object (color_objects);
+      if (string_atom (colors[i])) color_list << atom_text (colors[i]);
   string color_text= colors_defs (color_list);
 
-  array<object> colormap_objects;
+  array<string> colormap_list;
   if (stree_list (colormaps))
     for (int i=0; i<N(colormaps); ++i)
       if (string_atom (colormaps[i]))
-        colormap_objects << object (atom_text (colormaps[i]));
-  object colormap_list= as_list_object (colormap_objects);
+        colormap_list << atom_text (colormaps[i]);
 
   scheme_tree bundle= preamble_text_bundle (page, macros, color_text, text);
   string pre_page= serialize_preamble_native (page);
@@ -1118,11 +1115,6 @@ latex_export_html_xcolor (string color) {
   return html_xcolor (color);
 }
 
-string
-latex_export_colors_defs (object colors) {
-  return colors_defs (colors);
-}
-
 object
 latex_export_packages_dependencies (object packages) {
   return string_list_object (package_dependencies (object_strings (packages)));
@@ -1160,8 +1152,9 @@ latex_export_recompute_dependencies () {
 }
 
 string
-latex_export_use_package_command (scheme_tree document, object colors,
-                                  object colormaps) {
+latex_export_use_package_command (scheme_tree document,
+                                  const array<string>& colors,
+                                  const array<string>& colormaps) {
   return use_package_command (document, colors, colormaps);
 }
 

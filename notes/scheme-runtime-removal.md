@@ -1934,6 +1934,22 @@ generated native entries and remain on the secure-function list.
 - Other export object containers, conversion payloads and runtime/build removal
   remain outstanding. This batch does not complete the overall goal.
 
+## Native LaTeX Language And Color Resources
+
+- Export language, color and colormap state now uses string arrays. Resource
+  requirements construct serialized trees directly; localization reads the
+  native language list, retaining prepend ordering and the original language.
+- Color definitions and xcolor package inference consume native arrays through
+  preamble generation and serialization, without object-list round trips.
+- Removed five unused resource-query/helper bindings and unused color getters.
+- Interface generation and four affected implementation units compiled with
+  -j16. Logs: build_qt6/native-latex-resources-glue.log,
+  build_qt6/native-latex-resources-build.log and
+  build_qt6/native-latex-resources-preamble-build.log. No tests added/run;
+  combined linking and deployment remain pending.
+- Export environment stacks and other object APIs remain outstanding; the
+  complete runtime-removal goal remains active.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

@@ -1547,15 +1547,12 @@
     <arg type="scheme_tree" />
     <arg type="scheme_tree" />
   </binding>
-  <binding name="latex-export-languages" native="latex_export_languages" returns="object" />
   <binding name="latex-export-add-language" native="latex_export_add_language" returns="void">
     <arg type="string" />
   </binding>
-  <binding name="latex-export-colors" native="latex_export_colors" returns="object" />
   <binding name="latex-export-add-color" native="latex_export_add_color" returns="void">
     <arg type="string" />
   </binding>
-  <binding name="latex-export-colormaps" native="latex_export_colormaps" returns="object" />
   <binding name="latex-export-add-colormap" native="latex_export_add_colormap" returns="void">
     <arg type="string" />
   </binding>
@@ -1607,9 +1604,6 @@
   <binding name="latex-export-html-xcolor" native="latex_export_html_xcolor" returns="string">
     <arg type="string" />
   </binding>
-  <binding name="latex-export-colors-defs" native="latex_export_colors_defs" returns="string">
-    <arg type="object" />
-  </binding>
   <binding name="latex-export-packages-dependencies" native="latex_export_packages_dependencies" returns="object">
     <arg type="object" />
   </binding>
@@ -1617,11 +1611,6 @@
     <arg type="object" />
   </binding>
   <binding name="latex-export-recompute-dependencies" native="latex_export_recompute_dependencies" returns="void" />
-  <binding name="latex-export-use-package-command" native="latex_export_use_package_command" returns="string">
-    <arg type="scheme_tree" />
-    <arg type="object" />
-    <arg type="object" />
-  </binding>
   <binding name="latex-export-as-use-package" native="latex_export_as_use_package" returns="string">
     <arg type="object" />
   </binding>

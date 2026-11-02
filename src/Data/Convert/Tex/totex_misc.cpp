@@ -75,12 +75,8 @@ scheme_tree
 localize_output (scheme_tree args) {
   if (!stree_list (args) || N(args) == 0) return stree_string ("");
   string language= "english";
-  object languages= latex_export_languages ();
-  if (is_list (languages)) {
-    array<object> values= as_array_object (languages);
-    if (N(values) > 0 && is_string (values[N(values)-1]))
-      language= as_string (values[N(values)-1]);
-  }
+  array<string> languages= latex_export_languages ();
+  if (N(languages) > 0) language= languages[N(languages)-1];
   string rendered= translate (scheme_tree_to_tree (args[0]), "english", language);
   return tmtex_convert (stree_string (rendered));
 }
