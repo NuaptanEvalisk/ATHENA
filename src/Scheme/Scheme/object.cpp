@@ -35,6 +35,7 @@
 #include <cmath>
 #include <cstring>
 #include <stdexcept>
+#include <unicode/utf8.h>
 
 /******************************************************************************
 * The object representation class
@@ -50,7 +51,7 @@ tmscm_object_rep::~tmscm_object_rep () {
 }
 
 enum class native_object_kind {
-  boolean, integer, real, text, symbol, keyword, source_tree, location,
+  boolean, integer, real, text, symbol, keyword, character, source_tree, location,
   change, patch_value
 };
 
@@ -74,6 +75,7 @@ public:
     case native_object_kind::text: result= string_to_tmscm (std::get<string> (value)); break;
     case native_object_kind::symbol: result= symbol_to_tmscm (std::get<string> (value)); break;
     case native_object_kind::keyword: result= keyword_to_tmscm (std::get<string> (value)); break;
+    case native_object_kind::character: result= SCM_MAKE_CHAR (std::get<int> (value)); break;
     case native_object_kind::source_tree: result= tree_to_tmscm (std::get<tree> (value)); break;
     case native_object_kind::location: result= url_to_tmscm (std::get<url> (value)); break;
     case native_object_kind::change: result= modification_to_tmscm (std::get<modification> (value)); break;
@@ -158,6 +160,22 @@ object symbol_object (string s) {
   return tm_new<native_object_rep> (native_object_kind::symbol, s); }
 object keyword_object (string s) {
   return tm_new<native_object_rep> (native_object_kind::keyword, s); }
+object character_object (int codepoint) {
+  if (codepoint < 0 || codepoint > 0x10ffff ||
+      (codepoint >= 0xd800 && codepoint <= 0xdfff))
+    throw std::invalid_argument ("Expected a Unicode scalar value");
+  return tm_new<native_object_rep> (native_object_kind::character, codepoint);
+}
+object character_list_object (string text) {
+  array<object> characters;
+  for (int i=0; i<N(text); ) {
+    UChar32 codepoint;
+    U8_NEXT (text.data (), i, N(text), codepoint);
+    if (codepoint < 0) throw std::invalid_argument ("Invalid UTF-8 character sequence");
+    characters << character_object (codepoint);
+  }
+  return as_list_object (characters);
+}
 string keyword_name (object keyword) {
   if (auto* value= native_value (keyword)) {
     ASSERT (value->kind == native_object_kind::keyword, "keyword expected");
@@ -187,6 +205,11 @@ object cadddr (object obj) {
 ******************************************************************************/
 
 bool is_null (object obj) { return !native_value (obj) && tmscm_is_null (object_to_tmscm (obj)); }
+bool is_pair (object obj) { return !native_value (obj) && tmscm_is_pair (object_to_tmscm (obj)); }
+bool is_keyword (object obj) {
+  if (auto* n= native_value (obj)) return n->kind == native_object_kind::keyword;
+  return scm_is_true (scm_keyword_p (object_to_tmscm (obj)));
+}
 bool is_list (object obj) { return !native_value (obj) && tmscm_is_list (object_to_tmscm (obj)); }
 bool is_bool (object obj) {
   if (auto* n= native_value (obj)) return n->kind == native_object_kind::boolean;

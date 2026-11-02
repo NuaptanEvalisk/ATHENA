@@ -7,7 +7,6 @@
 #include "conversion_options.hpp"
 #include "file.hpp"
 #include "scheme.hpp"
-#include "Scheme/Scheme/object.hpp"
 #include "System/Boot/boot.hpp"
 #include <nlohmann/json.hpp>
 #include <stdexcept>
@@ -60,8 +59,7 @@ conversion_options conversion_options_snapshot () {
 conversion_options conversion_options_from_scheme (object source) {
   conversion_options result;
   while (!is_null (source)) {
-    if (!tmscm_is_pair (object_to_tmscm (source)) ||
-        !tmscm_is_pair (object_to_tmscm (car (source))) ||
+    if (!is_pair (source) || !is_pair (car (source)) ||
         !is_string (car (car (source))) || !is_string (cdr (car (source))))
       throw std::runtime_error ("Conversion options must be a string association list");
     // Preserve the first-value-wins association-list contract.

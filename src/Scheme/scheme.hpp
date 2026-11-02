@@ -70,6 +70,8 @@ object list_object (object obj1, object obj2, object obj3);
 object as_list_object (array<object> objs);
 object symbol_object (string s);
 object keyword_object (string s);
+object character_object (int codepoint);
+object character_list_object (string text);
 string keyword_name (object keyword);
 object cons (object obj1, object obj2);
 object car (object obj);
@@ -82,6 +84,8 @@ object caddr (object obj);
 object cadddr (object obj);
 
 bool is_null (object obj);
+bool is_pair (object obj);
+bool is_keyword (object obj);
 bool is_list (object obj);
 bool is_bool (object obj);
 bool is_int (object obj);

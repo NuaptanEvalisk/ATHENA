@@ -3,8 +3,6 @@
 // GPL-3.0-or-later.
 #include "tree_pattern.hpp"
 #include "editor.hpp"
-#include "object.hpp"
-#include "guile_tm.hpp"
 #include "analyze.hpp"
 #include <algorithm>
 #include <vector>
@@ -13,9 +11,7 @@
 namespace {
 using bindings= std::vector<std::pair<object, object>>;
 using matches= std::vector<bindings>;
-bool is_pair (object x) { return tmscm_is_pair (object_to_tmscm (x)); }
-bool keyword (object x) { return scm_is_true (scm_keyword_p (object_to_tmscm (x))); }
-bool named (object x, const char* name) { return keyword (x) && keyword_name (x) == name; }
+bool named (object x, const char* name) { return is_keyword (x) && keyword_name (x) == name; }
 object append (object a, object b) {
   std::vector<object> prefix;
   for (; is_pair (a); a= cdr (a)) prefix.push_back (car (a));
@@ -66,7 +62,7 @@ matches match_each (object values, object patterns, const matches& alternatives)
 matches match_sequence (object values, object patterns, const bindings& env) {
   if (is_null (patterns)) return is_null (values) ? matches {env} : matches {};
   object pattern= car (patterns), rest= cdr (patterns);
-  if (keyword (pattern)) {
+  if (is_keyword (pattern)) {
     string name= keyword_name (pattern);
     if (name == "*") return {env};
     if (starts (name, "%") && is_int (name (1,N(name)))) {
@@ -123,7 +119,7 @@ matches match_sequence (object values, object patterns, const bindings& env) {
       return is_pair (args) && bind (bound, car (args), car (values)) ? match_sequence (cdr (values), rest, bound) : matches {};
     }
     object nested= components (car (values));
-    if (is_string (nested)) nested= tmscm_to_object (scm_string_to_list (object_to_tmscm (nested)));
+    if (is_string (nested)) nested= character_list_object (as_string (nested));
     if (!is_list (nested)) return {};
     return match_each (cdr (values), rest, match_sequence (nested, pattern, env));
   }
@@ -218,7 +214,7 @@ selections select_one (object value, object pattern, const bindings& env) {
     }
     return result;
   }
-  if (keyword (pattern) && !named (pattern, "%1")) return select_list (value, list_object (pattern), env);
+  if (is_keyword (pattern) && !named (pattern, "%1")) return select_list (value, list_object (pattern), env);
   if (!compound_value (value)) return {};
   selections result;
   object children= cdr (components (value));
@@ -234,7 +230,7 @@ selections select_list (object value, object patterns, const bindings& env) {
   if (is_null (patterns)) return {{null_object (), value, env}};
   if (!is_pair (patterns)) return {};
   object pattern= car (patterns), rest= cdr (patterns);
-  if (keyword (pattern)) {
+  if (is_keyword (pattern)) {
     const string name= keyword_name (pattern);
     if (name == "%0") return select_list (value, rest, env);
     if (name == "*") {

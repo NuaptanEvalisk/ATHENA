@@ -390,6 +390,19 @@ generated native entries and remain on the secure-function list.
   execution/cancellation/view/shutdown ownership mechanism. This batch has not
   yet been rebuilt or interactively exercised; include it in the next build.
 
+## Native Character Values And Pattern Access
+
+- Tree pattern selection remains used by utility markup and tree editing. It
+  now uses value-interface pair/keyword queries and ICU UTF-8 scalar decoding
+  instead of directly invoking Guile's string-to-list operation. Character
+  values have native payloads and only materialize SCM at an explicit bridge;
+  characters remain distinct from integers. Invalid UTF-8 is rejected.
+- Conversion association-list validation also uses the value API, removing its
+  direct SCM dependency. Pair/list storage is still legacy and must be replaced;
+  this does not claim a Scheme-free selector or conversion value model.
+- Source-reviewed, with no added tests. Build/deployment is pending together
+  with the preceding actor-owned Materials/AI completion changes.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
