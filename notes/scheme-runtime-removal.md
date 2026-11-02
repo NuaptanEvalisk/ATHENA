@@ -283,14 +283,34 @@ generated native entries and remain on the secure-function list.
   invoking Guile number->string. Focus-tag naming extracts its symbol through
   the value API, calls native theme lookup directly and recurses on native
   strings rather than through the command dispatcher.
-- These changes are source-reviewed only, pending the next consolidated build
-  and deployment. No tests were added or run for the direct substitutions.
+- These changes were included in the subsequent native-dispatch-marshalling
+  build and deployment. No tests were added or run for the direct substitutions.
 - The central remaining data boundary is object.cpp/object.hpp: even native
   scalar, tree and list constructors allocate Guile-rooted objects, and object
   hashing still invokes the Scheme hash procedure. Removing named editor calls
   is not removal of this data/runtime dependency. The next substantive step
   must address the value representation and its marshalling, not just rename
   call sites or add more Scheme helpers.
+
+## Native Dispatch Marshalling
+
+- The native generated entry no longer unconditionally extracts SCM arguments
+  and reconstructs rooted objects. Scalars and native tree/URL/path/patch values
+  use value accessors; object and procedure payloads pass directly; arrays and
+  lists validate their elements and preserve their order. Ordinary results use
+  object constructors and object results return unchanged.
+- Scheme-facing wrappers remain separate. The explicit residual bridge handles
+  types without native value APIs, including bytes, uint and callback handles,
+  as well as unspecified/structured Scheme results. The object implementation
+  itself is still Guile-rooted: this removes the generated round trip, not the
+  entire runtime dependency.
+- Two targeted generator compilation/execution checks cover native arity/type
+  checking and C++ exception unwinding versus Scheme nonlocal exits. Both pass;
+  their native entry checks assert no object-to-SCM argument conversion occurs.
+- The production binary builds with -j16 and is deployed. A headless startup
+  confirms representative generated bindings are registered; this is not an
+  interactive editing check. Temporary profiles are removed. Logs are under
+  `build_qt6/native-value-marshalling-{build,runtime,deploy}.log`.
 
 ## Known Outstanding Failure
 

@@ -29,10 +29,14 @@ class GlueGeneratorTest(unittest.TestCase):
 using object= int;
 template<class T> using array= std::vector<T>;
 template<class T> int N(const array<T>& values) { return values.size(); }
-inline int object_to_tmscm(object value) { return value; }
+inline int object_conversions= 0;
+inline int object_to_tmscm(object value) { ++object_conversions; return value; }
 inline object tmscm_to_object(int value) { return value; }
 inline bool tmscm_is_int(int value) { return value >= 0; }
 inline bool tmscm_is_string(int) { return true; }
+inline bool is_int(object value) { return tmscm_is_int(value); }
+inline bool is_string(object value) { return tmscm_is_string(value); }
+inline int as_int(object value) { return tmscm_to_int(value); }
 template<class F> void native_dispatch_register(const char*, F) {}
 ''')
 
@@ -216,6 +220,7 @@ struct string {
   explicit string(int v): value(v) { ++live; }
   string(const string& s): value(s.value) { ++live; }
   string(string&& s): value(s.value) { ++live; }
+  operator int() const;
   ~string() { --live; }
 };
 struct native_error: std::exception {
@@ -233,6 +238,8 @@ tmscm string_to_tmscm(const string& value) {
   if (value.value == 3) throw native_error();
   return value.value;
 }
+string::operator int() const { return string_to_tmscm(*this); }
+string as_string(int value) { return string(value); }
 string checked(string value, int mode) {
   if (mode == 1) throw native_error();
   if (mode == 2) throw 42;
@@ -299,6 +306,7 @@ int main() {
   assert(!active && live == 0 && exceptions == 0);
   // Direct native callers never enter Scheme's nonlocal-exit machinery.
   assert(tmn_checked_action({21, 0}) == 42);
+  assert(object_conversions == 0);
   for (int mode= 1; mode <= 4; ++mode) {
     bool caught= false;
     try { tmn_checked_action({21, mode}); }
@@ -350,6 +358,7 @@ int main() {
   pending();
   assert(called == 1);
   assert(tmn_double_value({21}) == 42);
+  assert(object_conversions == 0);
   for (auto args: {array<object>{}, array<object>{21, 22}, array<object>{-1}}) {
     rejected= false;
     try { tmn_double_value(args); }

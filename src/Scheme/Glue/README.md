@@ -98,6 +98,15 @@ dispatch. Invalid arity/types raise `std::invalid_argument`; native exceptions
 remain C++ exceptions instead of invoking Guile's nonlocal error handling.
 The Scheme-facing `tmg_` entry retains its declared exception policy.
 
+Native entries read ordinary scalar, tree, URL, path, patch and modification
+arguments through the object value API, pass object/procedure values directly,
+and validate sequence elements without first extracting SCM values. Ordinary
+results are constructed directly as objects; object results retain their
+identity. The explicit transitional bridge remains for raw tmscm, bytes,
+unsigned integers, content descriptors, observer/command/promise handles and
+unsupported result containers. These types must be replaced at their owning
+value or callback boundary, not with per-binding exceptions in this generator.
+
 This is an intermediate migration boundary, not a Scheme-free value system:
 arguments/results still use `object` and the existing data marshalling. Runtime
 builtins absent from XML still take the legacy path. Remove those consumers and

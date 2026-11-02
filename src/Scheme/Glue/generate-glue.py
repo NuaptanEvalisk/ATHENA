@@ -147,7 +147,16 @@ def read_interfaces(paths):
     return interfaces
 
 
-def native_argument_check(kind, value):
+NATIVE_SCALARS = frozenset("bool int double string tree url path modification patch widget".split())
+NATIVE_SEQUENCES = {
+    "array_int": "int", "array_SI": "int", "array_double": "double",
+    "array_string": "string", "array_tree": "tree", "array_url": "url",
+    "array_patch": "patch", "array_path": "path", "array_widget": "widget",
+    "list_string": "string", "list_tree": "tree",
+}
+
+
+def bridge_argument_check(kind, value):
     if kind in ("object", "tmscm", "scheme_tree"):
         return None
     if kind == "tree_label":
@@ -159,6 +168,63 @@ def native_argument_check(kind, value):
     if kind == "uint":
         return f"scm_is_unsigned_integer ({value}, 0, std::numeric_limits<unsigned int>::max ())"
     return f"tmscm_is_{kind} ({value})"
+
+
+def native_argument(lines, kind, value, target, diagnostic, indent="  "):
+    def require(check):
+        lines.extend([f"{indent}if (!({check}))",
+                      f'{indent}  throw std::invalid_argument ("{diagnostic}");'])
+
+    if kind == "object":
+        expression = value
+    elif kind in NATIVE_SCALARS:
+        require(f"is_{kind} ({value})")
+        expression = f"as_{kind} ({value})"
+    elif kind == "tree_label":
+        require(f"is_symbol ({value})")
+        expression = f"as_tree_label (as_symbol ({value}))"
+    elif kind == "procedure":
+        require(f"is_procedure ({value})")
+        expression = value
+    elif kind == "scheme_tree":
+        expression = f"as_scheme_tree ({value})"
+    elif kind in NATIVE_SEQUENCES:
+        require(f"is_list ({value})")
+        element = NATIVE_SEQUENCES[kind]
+        lines.extend([f"{indent}auto {target}_items= as_array_object ({value});",
+                      f"{indent}{kind} {target};"])
+        if kind.startswith("list_"):
+            loop = f"int i=N({target}_items)-1; i>=0; --i"
+            append = f"{target}= {kind} (item, {target});"
+        else:
+            loop = f"int i=0; i<N({target}_items); ++i"
+            append = f"{target} << item;"
+        lines.append(f"{indent}for ({loop}) {{")
+        native_argument(lines, element, f"{target}_items[i]", "item", diagnostic, indent + "  ")
+        lines.extend([f"{indent}  {append}", f"{indent}}}"])
+        return
+    else:
+        lines.append(f"{indent}tmscm {target}_scm= object_to_tmscm ({value});")
+        check = bridge_argument_check(kind, f"{target}_scm")
+        if check:
+            require(check)
+        expression = f"tmscm_to_{kind} ({target}_scm)"
+    lines.append(f"{indent}{kind} {target}= {expression};")
+
+
+def native_result(kind):
+    if kind in (NATIVE_SCALARS - {"widget"}) | {"list_string", "list_tree", "array_double"}:
+        return ["  return object (out);"]
+    if kind in ("object", "procedure"):
+        return ["  return out;"]
+    if kind == "tree_label":
+        return ["  return symbol_object (as_string (out));"]
+    if kind in NATIVE_SEQUENCES and kind != "array_widget":
+        return ["  array<object> values;",
+                "  for (int i=0; i<N(out); ++i) values << object (out[i]);",
+                "  return as_list_object (values);"]
+    result = "TMSCM_UNSPECIFIED" if kind == "void" else f"{kind}_to_tmscm (out)"
+    return [f"  return tmscm_to_object ({result});"]
 
 
 def cpp_native_binding(interface, binding):
@@ -175,13 +241,8 @@ def cpp_native_binding(interface, binding):
                           f"  for (int i= {required}; i<N(arguments); ++i) remaining << arguments[i];",
                           f"  object in{i}= as_list_object (remaining);"])
             continue
-        lines.append(f"  tmscm arg{i}= object_to_tmscm (arguments[{i-1}]);")
-        check = native_argument_check(arg.type, f"arg{i}")
-        if check:
-            lines.extend([f"  if (!({check}))",
-                          f'    throw std::invalid_argument ("{binding.name}: argument {i} '
-                          f'must be {arg.type}");'])
-        lines.append(f"  {arg.type} in{i}= tmscm_to_{arg.type} (arg{i});")
+        native_argument(lines, arg.type, f"arguments[{i-1}]", f"in{i}",
+                        f"{binding.name}: argument {i} must be {arg.type}")
     native = interface.prefix + binding.native
     if binding.dispatch == "ui":
         lines.append(f"  athena_dispatch_ui ({native});")
@@ -190,9 +251,8 @@ def cpp_native_binding(interface, binding):
                               for i, arg in enumerate(binding.arguments, 1))
         result = "" if binding.returns == "void" else f"{binding.returns} out= "
         lines.append(f"  {result}{native} ({arguments});")
-    result = ("TMSCM_UNSPECIFIED" if binding.returns == "void"
-              else f"{binding.returns}_to_tmscm (out)")
-    lines.extend([f"  return tmscm_to_object ({result});", "}", ""])
+    lines.extend(native_result(binding.returns))
+    lines.extend(["}", ""])
     return lines
 
 
