@@ -928,6 +928,24 @@ generated native entries and remain on the secure-function list.
   That active pipeline, runtime values/callbacks and Guile build/packaging
   remain unfinished parts of the full goal, not completed by this deployment.
 
+## Native Link Navigation Records
+
+- Link collection now exposes native source/link records. Event filtering and
+  upward queries retain trees directly rather than flattening them into object
+  lists and reconstructing them before navigation.
+- Mouse/locus following builds native navigation records directly, preserving
+  source exclusion, vertex positions, ordering and duplicate replacement.
+  Navigation type selection and link-page scheduling consume those records
+  without object-list round trips. Existing actor snapshot ownership remains.
+- Link-page rendering consumes the reconstructed native records directly;
+  its document construction and the explicit script-facing adapters still use
+  objects and remain to be removed. This is not full link subsystem completion.
+- Compiled both affected implementation units with `-j16`; log:
+  `build_qt6/native-link-navigation-records-build.log`. No tests were added or
+  run for this representation-preserving refactoring. Full linking/deployment
+  will be combined with the remaining link adapter cleanup; installed runtime
+  is still the combined save/link deployment through `f64c14d92`.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

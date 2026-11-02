@@ -33,11 +33,7 @@ struct query_policy {
   }
 };
 
-struct link_item {
-  string source;
-  tree link;
-};
-using link_items= std::vector<link_item>;
+using link_items= native_link_records;
 
 void collect_ids (list<string> ids, link_items& result) {
   for (; !is_nil (ids); ids= ids->next)
@@ -154,6 +150,15 @@ object native_ids_link_list (list<string> ids) {
   collect_ids (ids, result);
   return to_object (result);
 }
+native_link_records native_matching_links (list<string> ids, string event) {
+  query_policy policy;
+  link_items items, result;
+  collect_ids (ids, items);
+  for (const auto& item: items)
+    if (policy.accepts (item.source, item.link[0]->label, item.link[2], event))
+      result.push_back (item);
+  return result;
+}
 object native_filter_link_list (object items, string event) {
   query_policy policy;
   array<object> result;
@@ -173,10 +178,13 @@ object native_exact_link_list (tree t, bool filter) {
 }
 object native_upward_link_list (object t, bool filter) {
   if (is_bool (t) && !as_bool (t)) return null_object ();
+  return to_object (native_upward_links (content_to_tree (t), filter));
+}
+native_link_records native_upward_links (tree t, bool filter) {
   query_policy policy;
   link_items result;
-  for (tree node: ancestors (content_to_tree (t))) collect_exact (node, filter, policy, result);
-  return to_object (result);
+  for (tree node: ancestors (t)) collect_exact (node, filter, policy, result);
+  return result;
 }
 object native_complete_link_list (tree t, bool filter) {
   query_policy policy;

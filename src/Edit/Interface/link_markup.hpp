@@ -7,6 +7,15 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <vector>
+
+struct native_link_record {
+  string source;
+  tree link;
+};
+using native_link_records= std::vector<native_link_record>;
+native_link_records native_matching_links (list<string> ids, string event);
+native_link_records native_upward_links (tree t, bool filter);
 
 object native_link_flatten (tree link);
 object native_link_flatten_child (tree child);

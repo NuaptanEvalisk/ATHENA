@@ -36,6 +36,8 @@ struct navigation_item {
   tree target;
 };
 using navigation_items= std::vector<navigation_item>;
+void follow_navigation (navigation_items candidates);
+void build_navigation_page (const navigation_items& items);
 
 tree read_attributes (object attributes) {
   tree result (ATTR);
@@ -95,6 +97,18 @@ navigation_items simplify (const navigation_items& items) {
     else result[found]= item;
   }
   return result;
+}
+
+navigation_items navigation_from_links (const native_link_records& links) {
+  navigation_items result;
+  for (const auto& item: links)
+    for (int i= 2; i < N(item.link); ++i) {
+      const tree vertex= item.link[i];
+      if (!is_func (vertex, ID, 1) || vertex[0] != item.source)
+        result.push_back ({item.link[0]->label, item.link[1], i-2,
+                           item.source, vertex});
+    }
+  return simplify (result);
 }
 
 bool jumpable (tree target) {
@@ -188,10 +202,14 @@ object native_link_list_to_navigation (object links) {
 }
 
 object native_upward_navigation (object t) {
-  return native_link_list_to_navigation (native_upward_link_list (t, true));
+  if (is_bool (t) && !as_bool (t)) return null_object ();
+  return write_items (navigation_from_links (native_upward_links (content_to_tree (t), true)));
 }
 
-bool native_link_may_follow (object t) { return !is_null (native_upward_navigation (t)); }
+bool native_link_may_follow (object t) {
+  if (is_bool (t) && !as_bool (t)) return false;
+  return !navigation_from_links (native_upward_links (content_to_tree (t), true)).empty ();
+}
 
 object native_navigation_filter (object items, object type, object position, bool only_jumpable) {
   const bool any_type= is_bool (type) && as_bool (type);
@@ -204,8 +222,8 @@ object native_navigation_filter (object items, object type, object position, boo
 
 list<string> native_navigation_types (object items) { return types (read_items (items)); }
 
-list<string> native_navigation_xtypes (object items) {
-  const auto parsed= read_items (items);
+namespace {
+list<string> navigation_xtypes (const navigation_items& parsed) {
   const auto direct= types (filter (parsed, std::nullopt, 1, true));
   const auto inverse= types (filter (parsed, std::nullopt, 0, true), "*");
   list<string> result;
@@ -216,6 +234,11 @@ list<string> native_navigation_xtypes (object items) {
       result= list<string> (names->item, result);
     }
   return reverse (result);
+}
+}
+
+list<string> native_navigation_xtypes (object items) {
+  return navigation_xtypes (read_items (items));
 }
 
 object native_navigation_first_xtype (object items, string type) {
@@ -232,8 +255,8 @@ object native_automatic_link (object target, object options) {
 object native_link_enumeration (object items) { return enumeration (items); }
 
 namespace {
-object navigation_document (tree style, object items, hashmap<string, tree>* previews) {
-  const auto parsed= read_items (items);
+object navigation_document (tree style, const navigation_items& parsed,
+                            hashmap<string, tree>* previews) {
   if (parsed.empty ()) throw std::invalid_argument ("A link page requires navigation candidates");
   array<object> body;
   body << tree_to_stree (compound ("strong", "Source"))
@@ -247,7 +270,7 @@ object navigation_document (tree style, object items, hashmap<string, tree>* pre
 }
 
 object native_navigation_document (tree style, object items) {
-  return navigation_document (style, items, nullptr);
+  return navigation_document (style, read_items (items), nullptr);
 }
 
 namespace {
@@ -306,13 +329,13 @@ void continue_navigation_page (std::shared_ptr<navigation_page_request> pending)
     tree preview= actor_tree_registry::instance ().take (id);
     previews (preview[0]->label)= preview[1];
   }
-  tree document= content_to_tree (navigation_document (saved[0], write_items (items), &previews));
+  tree document= content_to_tree (navigation_document (saved[0], items, &previews));
   athena_open_auxiliary_document ("Link page", document, url (saved[1]->label));
 }
 }
 
-void native_build_navigation_page (object encoded) {
-  const auto items= read_items (encoded);
+namespace {
+void build_navigation_page (const navigation_items& items) {
   if (items.empty ()) throw std::invalid_argument ("A link page requires navigation candidates");
   const auto* owner= current_scheme_execution_context ();
   if (!owner || !owner->editor)
@@ -331,6 +354,11 @@ void native_build_navigation_page (object encoded) {
   pending->snapshot= actor_tree_registry::instance ().store (
     tree (TUPLE, owner->editor->get_style (), as_string (get_master_buffer (get_current_buffer ())), rows));
   continue_navigation_page (pending);
+}
+}
+
+void native_build_navigation_page (object encoded) {
+  build_navigation_page (read_items (encoded));
 }
 
 namespace {
@@ -402,20 +430,19 @@ void follow_item (const navigation_item& item) {
 }
 }
 
-void native_navigation_follow (object items) {
-  auto candidates= read_items (items);
+namespace {
+void follow_navigation (navigation_items candidates) {
   if (N(types (candidates)) >= 2) {
     navigation_items explicit_items;
     for (const auto& item: candidates)
       if (item.type != "automatic") explicit_items.push_back (item);
     candidates= std::move (explicit_items);
   }
-  const object encoded= write_items (candidates);
-  const list<string> choices= native_navigation_xtypes (encoded);
+  const list<string> choices= navigation_xtypes (candidates);
   if (is_nil (choices)) return;
   if (native_navigation_link_pages () && candidates.size () >= 2) {
     visit_vertex (tree (ID, candidates.front ().source));
-    native_build_navigation_page (encoded);
+    build_navigation_page (candidates);
   }
   else if (is_nil (choices->next)) follow_item (candidates.front ());
   else if (!headless_mode) {
@@ -461,10 +488,14 @@ void native_navigation_follow (object items) {
     });
   }
 }
+}
+
+void native_navigation_follow (object items) {
+  follow_navigation (read_items (items));
+}
 
 void native_link_follow_ids (list<string> ids, string event) {
-  native_navigation_follow (native_link_list_to_navigation (
-    native_filter_link_list (native_ids_link_list (ids), event)));
+  follow_navigation (navigation_from_links (native_matching_links (ids, event)));
 }
 
 void native_link_execute_script (string source, bool trusted, object arguments) {
