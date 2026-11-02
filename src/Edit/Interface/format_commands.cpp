@@ -766,9 +766,7 @@ object format_focus_variants (string tag) {
   return as_list_object (result);
 }
 
-object format_standard_options (object tag) {
-  if (!is_symbol (tag)) return object (false);
-  const string name= as_symbol (tag);
+format_style_options format_standard_options (string name) {
   QJsonValue rule= parameter_data ().definitions.value ("standard_options")
     .toObject ().value (json_key (name));
   if (!rule.isObject ()) {
@@ -784,10 +782,12 @@ object format_standard_options (object tag) {
       if (matches) { rule= entry; break; }
     }
   }
-  if (!rule.isObject ()) return object (false);
-  object packages= json_strings (rule.toObject ().value ("packages").toArray ());
-  return rule.toObject ().value ("recurse").toBool () ?
-    cons (keyword_object ("recurse"), packages) : packages;
+  if (!rule.isObject ()) return {};
+  format_style_options result;
+  result.recurse= rule.toObject ().value ("recurse").toBool ();
+  for (const auto& package: rule.toObject ().value ("packages").toArray ())
+    result.packages.push_back (native_string (package.toString ()));
+  return result;
 }
 
 std::vector<format_parameter_choice> format_parameter_choices (string variable) {

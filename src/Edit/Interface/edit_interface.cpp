@@ -1554,29 +1554,21 @@ editor_rep::focus_toolbar_state_snapshot () {
   catch (...) {}
 
   try {
-    object options= source_search_tag_options (t);
-    if (is_list (options)) {
-      array<object> values= as_array_object (options);
-      for (int i=0; i<N(values); ++i) {
-        string option;
-        if (is_string (values[i])) option= as_string (values[i]);
-        else if (is_symbol (values[i])) option= as_symbol (values[i]);
-        else continue;
-        actor_focus_style_option_snapshot item;
-        item.name.assign (
-          option.data (), static_cast<std::size_t> (N(option)));
-        string label= document_style_get_menu_name (option);
-        item.label.assign (
-          label.data (), static_cast<std::size_t> (N(label)));
-        object help= document_style_get_documentation (object (option));
-        if (is_string (help)) {
-          string text= as_string (help);
-          item.help.assign (
-            text.data (), static_cast<std::size_t> (N(text)));
-        }
-        item.checked= document_has_style_package (this, option);
-        snapshot.style_options.push_back (std::move (item));
+    for (const auto& option: source_search_options (as_string (L (t)))) {
+      actor_focus_style_option_snapshot item;
+      item.name.assign (
+        option.data (), static_cast<std::size_t> (N(option)));
+      string label= document_style_get_menu_name (option);
+      item.label.assign (
+        label.data (), static_cast<std::size_t> (N(label)));
+      object help= document_style_get_documentation (object (option));
+      if (is_string (help)) {
+        string text= as_string (help);
+        item.help.assign (
+          text.data (), static_cast<std::size_t> (N(text)));
       }
+      item.checked= document_has_style_package (this, option);
+      snapshot.style_options.push_back (std::move (item));
     }
   }
   catch (...) {}

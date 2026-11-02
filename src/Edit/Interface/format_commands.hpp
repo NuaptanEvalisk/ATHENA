@@ -36,7 +36,11 @@ void format_toggle_underlined ();
 bool format_focus_has_preferences (tree t);
 std::optional<array<string>> format_standard_parameters (string tag);
 bool format_parameter_inhibited (string name, bool global);
-object format_standard_options (object tag);
+struct format_style_options {
+  std::vector<string> packages;
+  bool recurse= true;
+};
+format_style_options format_standard_options (string tag);
 string format_focus_name (string tag);
 object format_focus_variants (string tag);
 struct format_parameter_choice {

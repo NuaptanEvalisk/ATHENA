@@ -2,6 +2,7 @@
 #pragma once
 #include "scheme.hpp"
 #include <optional>
+#include <vector>
 void source_make_latex ();
 void source_activate_compound ();
 void source_inactive_toggle (tree);
@@ -9,8 +10,7 @@ void source_remove_unary_document ();
 bool source_enter (tree);
 bool source_variant (tree, bool);
 void source_extract_style (bool);
-object source_search_options (object);
-object source_search_tag_options (tree);
+std::vector<string> source_search_options (string);
 array<string> source_search_parameters (string);
 object source_search_tag_parameters (tree);
 object source_assigned_parameters (object);

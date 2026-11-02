@@ -164,20 +164,10 @@ std::vector<string> collect_options (string name, option_map& cache) {
   if (found != cache.end ())
     return found->second;
   cache[name]= {};
-  std::vector<string> out;
-  object std= format_standard_options (symbol_object (name));
-  bool recurse= true;
-  if (is_list (std)) {
-    auto items= as_array_object (std);
-    int begin= 0;
-    recurse= N (items) > 0 && items[0] == keyword_object ("recurse");
-    if (recurse)
-      begin= 1;
-    for (int i= begin; i < N (items); ++i)
-      out.push_back (as_string (items[i]));
-  }
+  auto options= format_standard_options (name);
+  auto out= std::move (options.packages);
   tree def= definition (name);
-  if (recurse && macro (def))
+  if (options.recurse && macro (def))
     append_unique (out, options_sub (def, cache));
   cache[name]= out;
   return out;
@@ -316,16 +306,9 @@ void source_remove_unary_document () {
   if (N (p) > 1 && is_func (ed->the_subtree (p), DOCUMENT, 1))
     tree_remove_node (ed->the_subtree (p), 0);
 }
-object source_search_options (object label) {
+std::vector<string> source_search_options (string label) {
   option_map cache;
-  auto values= collect_options (name_of (label), cache);
-  array<object> out;
-  for (auto s : values)
-    out << object (s);
-  return as_list_object (out);
-}
-object source_search_tag_options (tree t) {
-  return source_search_options (symbol_object (as_string (L (t))));
+  return collect_options (label, cache);
 }
 array<string> source_search_parameters (string name) {
   if (name == "reference" || name == "pageref" || name == "eqref" ||

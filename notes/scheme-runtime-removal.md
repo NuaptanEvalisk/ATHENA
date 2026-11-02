@@ -1329,6 +1329,21 @@ generated native entries and remain on the secure-function list.
   combined linking/runtime verification/deployment remains pending with the
   preceding focus-parameter batches; installed runtime remains `0063a1106`.
 
+## Native Style Option Discovery
+
+- Standard option rules return native package names and an explicit recursion
+  flag instead of embedding a `recurse` keyword in an object list. Unknown rules
+  still recurse into macro definitions; configured empty/nonrecursive rules
+  still stop discovery. Existing cycle prevention and ordered merging remain.
+- Source option discovery and focus style-option snapshots consume native
+  vectors. Removed three unused Scheme bindings and the tag forwarding wrapper.
+  Catalog rule matching and numbered/group handling are unchanged.
+- XML generation and all three affected units compiled with `-j16`; log
+  `build_qt6/native-style-options-build.log`. No tests added or run. Combined
+  full linking/runtime verification/deployment is still pending; installed
+  runtime remains `0063a1106`. Style help lookup is a remaining object adapter
+  in the same UI snapshot path.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
