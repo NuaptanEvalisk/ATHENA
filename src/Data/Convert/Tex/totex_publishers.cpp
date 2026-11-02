@@ -578,7 +578,7 @@ ams_make_doc_data (scheme_tree args) {
         title_bodies << titles[i][1];
   scheme_tree joined_titles= latex_tmtex_concat_Sep (title_bodies);
 
-  scheme_tree title_command;
+  scheme_tree title_command (TUPLE);
   if (N(joined_titles) > 0) {
     title_command= stree_apply ("title");
     if (stree_list (running_title) && N(running_title) > 0) {
@@ -591,7 +591,7 @@ ams_make_doc_data (scheme_tree args) {
   }
 
   scheme_tree title_data (TUPLE);
-  if (!is_nil (title_command)) title_data << title_command;
+  if (N(title_command) > 0) title_data << title_command;
   append_items (title_data, subtitles);
   append_items (title_data, notes);
   append_items (title_data, miscs);
@@ -2249,7 +2249,7 @@ publisher_dispatch (string key, scheme_tree args, scheme_tree& result) {
          key == "author-homepage") &&
         (ieee_conf_style () || publisher_state.ieee_conference)) {
       result= ieee_author_field (key, source);
-      if (!is_nil (result) && (!stree_list (result) || N(result) > 0)) return true;
+      if (!stree_list (result) || N(result) > 0) return true;
     }
     if (ieee_tran_style () && publisher_state.ieee_clustered &&
         (key == "author-affiliation-ref" || key == "author-email-ref")) {

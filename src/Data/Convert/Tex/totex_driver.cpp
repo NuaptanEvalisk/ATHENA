@@ -39,23 +39,21 @@ struct export_scope {
 
 string
 option_string (object options, string key) {
-  tmscm cur= object_to_tmscm (options);
-  while (tmscm_is_pair (cur)) {
-    tmscm entry= tmscm_car (cur);
-    if (tmscm_is_pair (entry)) {
-      object k= tmscm_to_object (tmscm_car (entry));
+  while (is_pair (options)) {
+    object entry= car (options);
+    if (is_pair (entry)) {
+      object k= car (entry);
       if (is_string (k) && as_string (k) == key) {
-        tmscm rest= tmscm_cdr (entry);
-        object direct= tmscm_to_object (rest);
-        if (is_string (direct)) return as_string (direct);
-        if (tmscm_is_pair (rest)) {
-          object first= tmscm_to_object (tmscm_car (rest));
+        object rest= cdr (entry);
+        if (is_string (rest)) return as_string (rest);
+        if (is_pair (rest)) {
+          object first= car (rest);
           if (is_string (first)) return as_string (first);
         }
         return "";
       }
     }
-    cur= tmscm_cdr (cur);
+    options= cdr (options);
   }
   return "";
 }

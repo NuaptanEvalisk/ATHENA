@@ -54,7 +54,7 @@ tmscm_object_rep::~tmscm_object_rep () {
 
 enum class native_object_kind {
   empty_list, boolean, integer, real, text, symbol, keyword, character, source_tree, location,
-  change, patch_value, pair
+  change, patch_value, pair, bytes
 };
 
 struct native_pair {
@@ -83,6 +83,7 @@ public:
     case native_object_kind::integer: result= int_to_tmscm (std::get<int> (value)); break;
     case native_object_kind::real: result= double_to_tmscm (std::get<double> (value)); break;
     case native_object_kind::text: result= string_to_tmscm (std::get<string> (value)); break;
+    case native_object_kind::bytes: result= bytes_to_tmscm (std::get<string> (value)); break;
     case native_object_kind::symbol: result= symbol_to_tmscm (std::get<string> (value)); break;
     case native_object_kind::keyword: result= keyword_to_tmscm (std::get<string> (value)); break;
     case native_object_kind::character: result= SCM_MAKE_CHAR (std::get<int> (value)); break;
@@ -184,6 +185,8 @@ operator == (object obj1, object obj2) {
                second->kind == native_object_kind::pair && !first->bridge && !second->bridge);
       return obj1 == obj2;
     }
+    if (first->kind == native_object_kind::bytes)
+      return as_bytes (obj1) == as_bytes (obj2);
     if (first->kind == native_object_kind::text)
       return as_string (obj1) == as_string (obj2);
     if (first->kind == native_object_kind::real) {
@@ -230,6 +233,9 @@ object symbol_object (string s) {
   return tm_new<native_object_rep> (native_object_kind::symbol, s); }
 object keyword_object (string s) {
   return tm_new<native_object_rep> (native_object_kind::keyword, s); }
+object bytes_object (string bytes) {
+  return tm_new<native_object_rep> (native_object_kind::bytes, bytes);
+}
 object character_object (int codepoint) {
   if (codepoint < 0 || codepoint > 0x10ffff ||
       (codepoint >= 0xd800 && codepoint <= 0xdfff))
@@ -324,6 +330,10 @@ bool is_double (object obj) {
 bool is_string (object obj) {
   if (auto* n= native_value (obj)) return n->kind == native_object_kind::text;
   return tmscm_is_string (object_to_tmscm (obj));
+}
+bool is_bytes (object obj) {
+  if (auto* n= native_value (obj)) return n->kind == native_object_kind::bytes;
+  return tmscm_is_bytes (object_to_tmscm (obj));
 }
 bool is_symbol (object obj) {
   if (auto* n= native_value (obj)) return n->kind == native_object_kind::symbol;
@@ -460,6 +470,16 @@ as_symbol (object obj) {
   return tmscm_to_symbol (s);
 }
 
+string
+as_bytes (object obj) {
+  if (auto* n= native_value (obj)) {
+    if (n->kind != native_object_kind::bytes) return "";
+    return n->bridge ? tmscm_to_bytes (tmscm_root_value (n->bridge)) : std::get<string> (n->value);
+  }
+  tmscm value= object_to_tmscm (obj);
+  return tmscm_is_bytes (value) ? tmscm_to_bytes (value) : string ();
+}
+
 tree
 as_tree (object obj) {
   if (auto* n= native_value (obj))
@@ -471,8 +491,20 @@ as_tree (object obj) {
 
 scheme_tree
 as_scheme_tree (object obj) {
-  tmscm t= object_to_tmscm (obj);
-  return tmscm_to_scheme_tree (t);
+  if (is_list (obj)) {
+    if (is_pair (obj) && car (obj) == symbol_object ("raw-data") &&
+        is_pair (cdr (obj)) && is_bytes (cadr (obj)) && is_null (cddr (obj)))
+      return tuple ("raw-data", scm_quote (as_bytes (cadr (obj))));
+    tree result (TUPLE);
+    for (; !is_null (obj); obj= cdr (obj)) result << as_scheme_tree (car (obj));
+    return result;
+  }
+  if (is_symbol (obj)) return as_symbol (obj);
+  if (is_string (obj)) return scm_quote (as_string (obj));
+  if (is_int (obj)) return as_string (as_int (obj));
+  if (is_bool (obj)) return as_bool (obj) ? tree ("#t") : tree ("#f");
+  if (is_tree (obj)) return tree_to_scheme_tree (as_tree (obj));
+  return "?";
 }
 
 list<string>
@@ -582,8 +614,25 @@ take_widget (object obj) {
 
 object
 tree_to_stree (scheme_tree t) {
-  return tmscm_to_object (
-    scheme_tree_to_tmscm (tree_to_scheme_tree (t)));
+  return scheme_tree_to_object (tree_to_scheme_tree (t));
+}
+
+object
+scheme_tree_to_object (scheme_tree t) {
+  if (is_tuple (t, "raw-data", 1) && is_atomic (t[1]) && is_quoted (t[1]->label))
+    return list_object (symbol_object ("raw-data"), bytes_object (scm_unquote (t[1]->label)));
+  if (is_atomic (t)) {
+    string text= t->label;
+    if (text == "#t") return object (true);
+    if (text == "#f") return object (false);
+    if (is_int (text)) return object (as_int (text));
+    if (is_quoted (text)) return object (scm_unquote (text));
+    if (N(text) >= 1 && text[0] == '\'') return symbol_object (text (1, N(text)));
+    return symbol_object (text);
+  }
+  object result;
+  for (int i=N(t)-1; i>=0; --i) result= cons (scheme_tree_to_object (t[i]), result);
+  return result;
 }
 
 tree
@@ -595,9 +644,14 @@ tree
 content_to_tree (object obj) {
   if (is_tree (obj)) return as_tree (obj);
   if (is_string (obj)) return tree (as_string (obj));
-  if (native_value (obj) && !is_pair (obj)) return "?";
-  return tmscm_to_content (object_to_tmscm (obj));
-    // return as_tree (call ("content->tree", obj));
+  if (!is_pair (obj) || !is_symbol (car (obj))) return "?";
+  const string label= as_symbol (car (obj));
+  object rest= cdr (obj);
+  if (label == "raw-data" && is_pair (rest) && is_bytes (car (rest)) && is_null (cdr (rest)))
+    return tree (RAW_DATA, as_bytes (car (rest)));
+  tree result (make_tree_label (label));
+  for (; !is_null (rest); rest= cdr (rest)) result << content_to_tree (car (rest));
+  return result;
 }
 
 object

@@ -24,8 +24,6 @@
 #include "unicode_text.hpp"
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
-#include "Scheme/Scheme/glue.hpp"
-#include "Scheme/Scheme/object.hpp"
 #include <stdexcept>
 
 namespace {
@@ -191,7 +189,7 @@ stree_apply (string head) {
 
 object
 stree_object (scheme_tree t) {
-  return tmscm_to_object (scheme_tree_to_tmscm (t));
+  return scheme_tree_to_object (t);
 }
 
 scheme_tree

@@ -13,8 +13,6 @@
 #include "new_style.hpp"
 #include "file.hpp"
 #include "scheme.hpp"
-#include "Scheme/Scheme/glue.hpp"
-#include "Scheme/Scheme/object.hpp"
 #include "System/Language/locale.hpp"
 #include "editor.hpp"
 #include "new_view.hpp"
@@ -44,7 +42,7 @@ struct temporary_files {
     for (const auto& file: files) if (file != retained) remove (file);
   }
 };
-object serial (tree value) { return tmscm_to_object (scheme_tree_to_tmscm (value)); }
+object serial (tree value) { return scheme_tree_to_object (value); }
 tree native (object value) {
   return is_tree (value) ? as_tree (value) : scheme_tree_to_tree (as_scheme_tree (value));
 }
@@ -171,13 +169,13 @@ static object execute_step (object input, const conversion_edge& edge,
   if (action == "load-file") {
     string data;
     if (load_string (as_url (input), data, false)) throw std::runtime_error ("Cannot read conversion source");
-    if (conversion_format_image (from (0, N(from)-5))) return tmscm_to_object (bytes_to_tmscm (data));
+    if (conversion_format_image (from (0, N(from)-5))) return bytes_object (data);
     return object (data);
   }
   if (action == "save-file") {
     url output= last && !is_none (destination) ? destination : url_temp ();
     if (!last || is_none (destination)) temporary.files.push_back (output);
-    string data= is_string (input) ? as_string (input) : tmscm_to_bytes (object_to_tmscm (input));
+    string data= is_string (input) ? as_string (input) : as_bytes (input);
     if (save_string (output, data, false)) throw std::runtime_error ("Cannot write conversion output");
     return object (output);
   }

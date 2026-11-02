@@ -13,8 +13,6 @@
 
 #include "convert.hpp"
 #include "scheme.hpp"
-#include "Scheme/Scheme/glue.hpp"
-#include "Scheme/Scheme/object.hpp"
 
 namespace latex_export_internal {
 
@@ -137,7 +135,7 @@ stree_apply (string head) {
 
 inline object
 stree_object (scheme_tree t) {
-  return tmscm_to_object (scheme_tree_to_tmscm (t));
+  return scheme_tree_to_object (t);
 }
 
 inline scheme_tree

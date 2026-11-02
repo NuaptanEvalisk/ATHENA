@@ -1087,6 +1087,12 @@ TestBufferActor::nativeCallbacksRemainOwnedUntilResolution () {
 }
 
 void TestBufferActor::nativeValuesPreserveBridgeSemantics () {
+  object bytes= bytes_object (string ("\0\xff", 2));
+  QVERIFY (!is_string (bytes));
+  tmscm byte_bridge= object_to_tmscm (bytes);
+  scm_c_bytevector_set_x (byte_bridge, 0, 42);
+  QCOMPARE (as_bytes (bytes), string ("*\xff", 2));
+  QVERIFY (bytes == tmscm_to_object (byte_bridge));
   object tail= list_object (object (2));
   object head= cons (object (1), tail);
   tmscm pair_bridge= object_to_tmscm (head);
@@ -1148,6 +1154,15 @@ void TestBufferActor::nativeValuesPreserveBridgeSemantics () {
   arguments << object ("native");
   QVERIFY (native_dispatch_call ("utf8-byte-length", arguments, result));
   QCOMPARE (as_int (result), 6);
+  QVERIFY (native_dispatch_call ("utf8-text->bytes", arguments, result));
+  QVERIFY (is_bytes (result));
+  QCOMPARE (as_bytes (result), string ("native"));
+  arguments[0]= result;
+  QVERIFY (native_dispatch_call ("utf8-bytes->text", arguments, result));
+  QCOMPARE (as_string (result), string ("native"));
+  arguments[0]= object (tree (RAW_DATA, string ("\0\xff", 2)));
+  QVERIFY (native_dispatch_call ("tree->stree", arguments, result));
+  QCOMPARE (stree_to_tree (result), as_tree (arguments[0]));
 }
 
 static void run_tests (int argc, char** argv) {
@@ -1166,8 +1181,13 @@ static void run_tests (int argc, char** argv) {
 }
 
 int main (int argc, char** argv) {
+  init_standard_tree_labels ();
   // Construction, access and destruction must work before Guile is booted.
   {
+    const tree binary (RAW_DATA, string ("\0\xff", 2));
+    const object structured= tree_to_stree (binary);
+    if (!is_bytes (cadr (structured)) || content_to_tree (structured) != binary ||
+        stree_to_tree (structured) != binary) return 2;
     object first, second;
     for (int i=0; i<50000; ++i) {
       first= cons (object (i), first);

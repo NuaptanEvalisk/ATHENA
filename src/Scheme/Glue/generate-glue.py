@@ -147,7 +147,7 @@ def read_interfaces(paths):
     return interfaces
 
 
-NATIVE_SCALARS = frozenset("bool int double string tree url path modification patch widget".split())
+NATIVE_SCALARS = frozenset("bool int double string bytes tree url path modification patch widget".split())
 NATIVE_SEQUENCES = {
     "array_int": "int", "array_SI": "int", "array_double": "double",
     "array_string": "string", "array_tree": "tree", "array_url": "url",
@@ -213,6 +213,10 @@ def native_argument(lines, kind, value, target, diagnostic, indent="  "):
 
 
 def native_result(kind):
+    if kind == "bytes":
+        return ["  return bytes_object (out);"]
+    if kind == "scheme_tree":
+        return ["  return scheme_tree_to_object (out);"]
     if kind in (NATIVE_SCALARS - {"widget"}) | {"list_string", "list_tree", "array_double"}:
         return ["  return object (out);"]
     if kind in ("object", "procedure"):

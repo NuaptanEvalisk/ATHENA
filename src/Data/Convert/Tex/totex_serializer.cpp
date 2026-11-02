@@ -10,8 +10,6 @@
 #include "convert.hpp"
 #include "converter.hpp"
 #include "scheme.hpp"
-#include "Scheme/Scheme/glue.hpp"
-#include "Scheme/Scheme/object.hpp"
 #include "base64.hpp"
 #include "config.h"
 
@@ -46,7 +44,7 @@ scheme_tree make_list (string head) {
 scheme_tree quoted (string value) { return tree (scm_quote (value)); }
 
 object stree_object (scheme_tree t) {
-  return tmscm_to_object (scheme_tree_to_tmscm (t));
+  return scheme_tree_to_object (t);
 }
 
 string strip_dashes (string s) {
