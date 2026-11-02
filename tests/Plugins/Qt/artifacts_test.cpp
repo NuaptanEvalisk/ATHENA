@@ -1202,7 +1202,10 @@ TestArtifacts::keepsRadioactiveRangeMacroLociAlive () {
   (exec-global
     (lambda ()
       (load-vault-dir (system->url %1))
-      (load-browse-buffer (system->url %2)
+      (load-browse-buffer (system->url %2))
+      (if (not (equal? (current-buffer-url) (system->url %2)))
+          (error "Range fixture was not opened"))
+      (exec-buffer (system->url %2)
         (lambda ()
           (string-save "range-locus-alive=1\n" (system->url %3))
           (exec-global (lambda () (quit-TeXmacs))))))))

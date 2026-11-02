@@ -294,7 +294,7 @@ bool native_vault_navigate_url (url target, bool history) {
             }
           }
           application_browse_document (
-            url_system ("tmfs://wikilink-repair/" * string (name.c_str ())), null_object ());
+            url_system ("tmfs://wikilink-repair/" * string (name.c_str ())));
           return;
         }
         if (!is_func (node, TUPLE)) {
@@ -332,5 +332,5 @@ void native_resolve_selection_as_artifact_name () {
     return;
   }
   cursor_history_add (ed->the_path ());
-  application_browse_document (url_system (target), null_object ());
+  application_browse_document (url_system (target));
 }

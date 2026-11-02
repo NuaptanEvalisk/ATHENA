@@ -16,7 +16,6 @@
 #include "editor.hpp"
 #include "QTMNativeDialogs.hpp"
 #include "convert.hpp"
-#include "guile_tm.hpp"
 #include "object.hpp"
 #include "native_interfaces.hpp"
 #include "analyze.hpp"
@@ -42,13 +41,6 @@
 #include <algorithm>
 
 namespace {
-struct conversion_continuation {
-  athena_scheme_handle_id handle;
-  explicit conversion_continuation (object next):
-    handle (scheme_command_handle_acquire (object_to_tmscm (next))) {}
-  ~conversion_continuation () { scheme_command_handle_release (handle); }
-};
-
 std::string encode (url name) {
   string text= as_string (name);
   return std::string (text.data (), N(text));
@@ -562,15 +554,8 @@ void application_open_loaded_document (url source, object options) {
   on_document_gui ([name, settings] { open_loaded_document (url (name.c_str ()), settings); });
 }
 
-void application_browse_document (url source, object after_open) {
-  std::function<void(url)> completed;
-  if (!is_null (after_open) && car (after_open) != object (false)) {
-    auto retained= std::make_shared<conversion_continuation> (car (after_open));
-    completed= [retained] (url target) {
-      exec_buffer (target, tmscm_to_object (scheme_command_handle_value (retained->handle)));
-    };
-  }
-  application_browse_document (source, std::move (completed));
+void application_browse_document (url source) {
+  application_browse_document (source, std::function<void(url)> ());
 }
 
 void application_browse_document (url source, std::function<void(url)> completed) {

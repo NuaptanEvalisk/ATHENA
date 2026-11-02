@@ -18,7 +18,7 @@ void application_load_document (url source, object options);
 void application_load_document (url source, object options, std::function<void(url)> completed);
 void application_load_document_window (url source, object options);
 void application_open_loaded_document (url source, object options);
-void application_browse_document (url source, object after_open);
+void application_browse_document (url source);
 void application_browse_document (url source, std::function<void(url)> completed);
 object application_url_modified (url source);
 bool application_url_newer (url left, url right);

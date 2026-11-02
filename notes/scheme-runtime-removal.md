@@ -345,9 +345,8 @@ generated native entries and remain on the secure-function list.
 - Removed the unused `vault-choose-link` Scheme entry and its mutex-protected
   request/handle registry. Existing native wikilink/transclusion callers retain
   the Qt chooser and actor-owned result delivery.
-- This batch is source-reviewed without additional tests. Build/deployment is
-  deferred to the next consolidated runtime batch; the installed binary remains
-  the native object payload build from `724562e78`.
+- This batch is source-reviewed without additional tests. It is included in
+  the consolidated callback cleanup build recorded below.
 
 ## Native-Only Reference Export Continuations
 
@@ -359,8 +358,22 @@ generated native entries and remain on the secure-function list.
   `invoke_scheme_handle_tree`. Removed that actor command and its handler as
   well. Removed only the legacy Scheme export-entry assertion from the bridge
   test; the other node-reference assertions remain.
-- This removal batch has not yet been built/deployed. Include it together with
-  the preceding save/chooser cleanup in the next consolidated build.
+- Included with the save/chooser cleanup in the consolidated build below.
+
+## Native Document Browse Completion
+
+- Removed the Scheme closure overload and rooted conversion continuation from
+  document browsing. Product completion callbacks remain `std::function<void(url)>`;
+  callback-free callers and the generated browse binding take only the URL.
+- The artifact range check now opens from its global context, checks the target
+  buffer and explicitly enters its actor before reporting success. It no longer
+  requires the removed browse callback. No additional test cases were added.
+- Consolidated build with `-j16` succeeded, including the save/chooser and
+  reference-export removals. Isolated startup verified that the five retired
+  bindings are absent and `load-browse-buffer` remains registered, printed
+  `NATIVE_CALLBACK_CLEANUP_OK` and exited normally. Deployed through the runtime
+  helper and removed the check profile. No interactive editing or full export
+  check was run. Logs: `build_qt6/native-callback-cleanup-{build,runtime,deploy}.log`.
 
 ## Known Outstanding Failure
 
