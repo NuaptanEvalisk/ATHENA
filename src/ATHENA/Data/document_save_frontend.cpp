@@ -279,12 +279,8 @@ void save_permissions (save_task request) {
     return;
   }
   if (document_cannot_write (source, "Save file")) return;
-  object modified= is_rooted_tmfs (source)? object (false):
-    object (last_modified (source));
-  object saved= is_rooted_tmfs (source)? application_buffer_last_save (source):
-    object (get_last_save_buffer (source));
-  if (is_of_type (source, "fr") && is_int (modified) && is_int (saved) &&
-      as_int (modified) > as_int (saved))
+  if (!is_rooted_tmfs (source) && is_of_type (source, "fr") &&
+      last_modified (source) > get_last_save_buffer (source))
     confirm_save (request, QObject::tr ("The file has changed on disk. Really save?"),
                   [request] { save_faithful (request); });
   else save_faithful (request);

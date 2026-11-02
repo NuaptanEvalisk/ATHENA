@@ -840,6 +840,20 @@ generated native entries and remain on the secure-function list.
   before their Scheme bootstrap can disappear. Load auditing also needs its
   actor-owned typesetting/diagnostic operation, not just remote file opening.
 
+## Native Save Timestamp Comparisons
+
+- Save conflict checks compare native integer modification/save timestamps
+  directly, preserving the existing exclusion of tmfs sources and readable
+  file requirement. No object allocation or numeric type conversion remains
+  in that check.
+- Newer-file comparison directly excludes tmfs sources. Removed unreachable
+  wrapped-file recursion from the last-save adapter: `url-wrap` always returns
+  false. Its unused script binding itself remains for the binding cleanup.
+- Both implementation units compiled with `-j16`; log:
+  `build_qt6/native-save-timestamps-build.log`. No tests were needed for these
+  equivalent simplifications. Full linking/deployment is pending; installed
+  runtime remains `5706ed764`.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

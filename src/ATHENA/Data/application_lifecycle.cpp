@@ -437,9 +437,7 @@ object application_url_modified (url source) {
 }
 
 bool application_url_newer (url left, url right) {
-  if (!is_rooted_tmfs (left) && !is_rooted_tmfs (right)) return is_newer (left, right);
-  object a= application_url_modified (left), b= application_url_modified (right);
-  return a != object (false) && b != object (false) && as_double (a) > as_double (b);
+  return !is_rooted_tmfs (left) && !is_rooted_tmfs (right) && is_newer (left, right);
 }
 
 void application_url_remove (url source) {
@@ -457,11 +455,7 @@ object application_url_wrap (url source) {
 }
 
 object application_buffer_last_save (url source) {
-  object wrapped= application_url_wrap (source);
-  if (wrapped == object (false)) return object (get_last_save_buffer (source));
-  const url base= is_string (wrapped) ? url (as_string (wrapped)) : as_url (wrapped);
-  return published_buffer_actor_id (encode (base)) != ATHENA_NO_ACTOR ?
-    application_buffer_last_save (base) : application_url_modified (base);
+  return object (get_last_save_buffer (source));
 }
 
 string application_propose_filename () {
