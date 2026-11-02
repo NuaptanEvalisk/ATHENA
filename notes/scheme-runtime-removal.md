@@ -870,6 +870,22 @@ generated native entries and remain on the secure-function list.
   needed. Full linking/deployment remains pending with timestamp cleanup;
   installed runtime remains `5706ed764`.
 
+## Native Manual Save And Export Requests
+
+- Manual-save actor commands pass their native buffer URL. Both native and
+  script entry points share the same manual-history notification and realtime
+  save decision after owner scheduling.
+- Export request execution accepts native destination text, relative-path
+  status, format and portable/overwrite flags. Script destination/options are
+  decoded once; neither export entry point constructs object lists to feed
+  back into the save-request decoder.
+- Preserved master-relative resolution, text filename sanitization, overwrite
+  confirmation and portable LaTeX conversion settings.
+- Both affected implementation units compiled with `-j16`; log:
+  `build_qt6/native-manual-save-export-build.log`. No new tests were needed.
+  Full linking/deployment remains pending with timestamp and lifecycle-command
+  changes; installed runtime remains `5706ed764`.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

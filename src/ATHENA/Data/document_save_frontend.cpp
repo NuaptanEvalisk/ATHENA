@@ -310,12 +310,21 @@ void document_save (url source, bool overwrite) {
   start_save (request, [request] { save_permissions (request); });
 }
 
-void document_save_manual (object arguments) {
-  auto request= make_save_request (arguments);
+namespace {
+void start_manual_save (save_task request) {
   start_save (request, [request] {
     qtm_document_history_manual_save_requested ();
     if (!athena_current_buffer_realtime_save_active ()) save_permissions (request);
   });
+}
+}
+
+void document_save_manual (object arguments) {
+  start_manual_save (make_save_request (arguments));
+}
+
+void document_save_manual (url source) {
+  start_manual_save (make_save_request (source));
 }
 
 void document_save_as (object destination, object arguments) {
@@ -330,19 +339,11 @@ void document_save_dialog () {
   start_save (request, [request] { choose_save_destination (request); });
 }
 
-void document_export_main (url source, object destination, string format, object options) {
-  bool portable= false;
-  if (is_list (destination) && !is_null (destination) && is_url (car (destination))) {
-    object rest= cdr (destination);
-    portable= !is_null (rest) && is_string (car (rest)) && as_string (car (rest)) == "on";
-    destination= car (destination);
-  }
-  for (object opts= options; !is_null (opts); opts= cdr (opts))
-    if (car (opts) == keyword_object ("latex-portable")) portable= true;
-  const bool relative_text= is_string (destination);
-  string target= relative_text ? replace (replace (as_string (destination), ":", "-"), ";", "-") :
-                               as_string (as_url (destination));
-  auto request= make_save_request (cons (object (source), options));
+namespace {
+void start_export (url source, string target, bool relative_text, string format,
+                   bool portable, bool overwrite) {
+  if (relative_text) target= replace (replace (target, ":", "-"), ";", "-");
+  auto request= make_save_request (source, overwrite);
   request->destination= std::string (target.data (), N(target));
   const std::string fmt (format.data (), N(format));
   start_save (request, [request, relative_text, portable, fmt] {
@@ -366,12 +367,31 @@ void document_export_main (url source, object destination, string format, object
     else export_document ();
   });
 }
+}
+
+void document_export_main (url source, object destination, string format, object options) {
+  bool portable= false, overwrite= false;
+  if (is_list (destination) && !is_null (destination) && is_url (car (destination))) {
+    object rest= cdr (destination);
+    portable= !is_null (rest) && is_string (car (rest)) && as_string (car (rest)) == "on";
+    destination= car (destination);
+  }
+  for (object opts= options; !is_null (opts); opts= cdr (opts)) {
+    if (car (opts) == keyword_object ("latex-portable")) portable= true;
+    if (car (opts) == keyword_object ("overwrite")) overwrite= true;
+  }
+  const bool relative_text= is_string (destination);
+  start_export (source, relative_text ? as_string (destination) : as_string (as_url (destination)),
+                relative_text, format, portable, overwrite);
+}
 
 void document_export (object destination) {
   const url target= is_url (destination) ? as_url (destination) : url_system (as_string (destination));
   string format= file_format (target);
   if (format == "generic") format= "verbatim";
-  document_export_main (get_current_buffer (), destination, format, list_object (keyword_object ("overwrite")));
+  const bool relative_text= is_string (destination);
+  start_export (get_current_buffer (), relative_text ? as_string (destination) : as_string (target),
+                relative_text, format, false, true);
 }
 
 bool document_autosave_enabled (url source) {

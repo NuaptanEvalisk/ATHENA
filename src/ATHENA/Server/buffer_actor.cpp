@@ -222,7 +222,7 @@ run_native_editor_command (editor_rep* editor,
       break;
     }
     case native_editor_command_id::save:
-      document_save_manual (null_object ());
+      document_save_manual (get_current_buffer ());
       break;
     case native_editor_command_id::revert:
       application_revert_buffer (get_current_buffer ());
