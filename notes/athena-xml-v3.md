@@ -123,7 +123,7 @@ same structural and identity contracts.
 - Tests: `tests/Data/Convert/Xml/xml_v3_test.cpp`,
   `tests/Edit/Modify/native_v3_math_editor_test.cpp`,
   `tests/Edit/Interface/native_v3_grid_commands_test.cpp`, and
-  focused runtime tests under `tests/scheme/`.
+  focused native tests under `tests/ATHENA/` and `tests/Data/Convert/`.
 
 Remaining source cleanup of legacy readers/migration entry points and
 regression work should be scoped to a current user task, not the old

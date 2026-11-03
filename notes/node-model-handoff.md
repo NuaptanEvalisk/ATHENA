@@ -359,7 +359,7 @@ child 增删/label 变化、匿名目标、嵌套 wrap/unwrap、undo/redo 与 Ma
 | 源角色/增量身份 | `src/ATHENA/Data/document_node_model.*`、`src/Edit/Modify/edit_modify.cpp`、`src/ATHENA/buffer_state.hpp` |
 | 源快照/校正/加载 | `src/ATHENA/Data/interop_document_source.*`、`src/ATHENA/Server/buffer_actor.cpp`、`src/Data/Tree/tree_correct.cpp`、`tree_brackets.cpp`、`tree_analyze.cpp` |
 | 复制/剪贴板 | `src/ATHENA/Data/document_node_copy.*`，以及 `tree_duplicate_source` / `duplicate_source` callers |
-| 源树 Scheme 接口 | `src/Scheme/Scheme/native_node_properties.cpp`、`native_tree_diff.cpp`、`src/Scheme/Glue/basic.xml` |
+| 原生源树接口 | `src/ATHENA/Commands/native_tree_diff.cpp`、`src/ATHENA/Data/document_node_model.*`、`src/ATHENA/Commands/Interfaces/native.xml` |
 | enunciation | `src/ATHENA/Data/enunciation_model.*`、`ATHENA/misc/enunciations.json` |
 | 呈现 | `src/Typeset/Env/env_enunciation.cpp`、`src/Typeset/enunciation_presentation.hpp`、`enunciation_surround.hpp` |
 | 属性 UI | `src/Subsystems/Qt/QTMNodePropertiesDialog.*` |
@@ -381,10 +381,10 @@ cmake --build build_qt6 --target ATHENA.bin -j16
 
 binary 位于 `build_qt6/src/ATHENA.bin`。
 
-Scheme native binding 先读 `src/Scheme/Glue/README.md`：binding 在 XML 声明，由 CMake 生成 glue，
-实现放 native C++。不要手写 per-procedure generated wrapper/registration。
+原生命令接口先读 `src/ATHENA/Commands/Interfaces/README.md`：签名在 XML 声明，
+由 CMake 生成 C++ 调度器，实现留在独立 native C++ 文件中。不要手写逐命令的生成适配器或注册代码。
 
-跨线程继续遵守 BufferActor ownership。生成 glue 只解决 marshalling/dispatch，不授予任意线程
+跨线程继续遵守 BufferActor ownership。生成接口只解决 marshalling/dispatch，不授予任意线程
 GUI/editor/source-tree 访问权。
 
 `.codex/`、GGUF、模型目录、perf artifacts 等无关 untracked 内容不应因 node-model 工作被顺手

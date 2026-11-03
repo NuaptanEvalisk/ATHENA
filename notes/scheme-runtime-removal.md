@@ -2323,3 +2323,20 @@ closure follows removal of the complete runtime boundary, not just `progs`.
   test-only signature correction, that separate suite still aborted at
   `nativeGridEnterAddsRow` with an unprepared cursor mode. Those exploratory
   edits were reverted; the failure is outside the now-green UTF-8 suite.
+
+### Retired directory and cache cleanup (2026-11-03)
+
+- Removed the remaining `tests/Scheme`, `tests/scheme`, and `src/Scheme`
+  directory skeletons. They contained **no Git-tracked source files**:
+  `tests/scheme` held 17 obsolete `.pyc` cache files and `src/Scheme` held
+  one generated-glue `.pyc`; the uppercase test directory was already empty.
+- Removed other empty source-tree/tooling directories including
+  `src/ATHENA/Features`, `tools/person-names`, `tools/stress/ATHENA`, and
+  empty Node.js/Python cache subdirectories. A follow-up scan of the source,
+  tests, tools, runtime resources, clients, and CMake source directories found
+  no remaining empty directories.
+- Updated active development references to use
+  `src/ATHENA/Commands/Interfaces/native.xml`, the owner-local native tree
+  diff, and native C++ test locations, rather than deleted Scheme paths.
+  Generated `build*` trees and their nested VCS/CMake metadata were intentionally
+  preserved: those are build outputs, not source directories.

@@ -24,7 +24,7 @@ because it changes program semantics, not merely cache behavior.
 
 ## Correctness counterexample
 
-`src/Scheme/Scheme/native_tree_diff.cpp` uses full tree equality for its early
+`src/ATHENA/Commands/native_tree_diff.cpp` uses full tree equality for its early
 exit and for child prefix/suffix scans.  If global equality ignores metadata, a
 target that changes only a node property can compare equal to the source and be
 skipped before the diff applies the new header.

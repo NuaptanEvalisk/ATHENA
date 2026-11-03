@@ -99,8 +99,9 @@ contract; raw legacy-locus persistence compatibility was not added.
 
 The `progs/athena` business migration is complete. Its former modules and the
 empty directory are removed, rather than moved to another Scheme directory.
-The native entrypoints are declared in `src/Scheme/Glue/native.xml`; generated
-marshalling remains a bridge to the retained Guile runtime.
+The native entrypoints are declared in
+`src/ATHENA/Commands/Interfaces/native.xml` and generated as direct C++
+dispatch. The Guile marshalling bridge was retired.
 
 - `application_lifecycle.cpp` and `document_save_frontend.cpp` own document
   loading, recovery, import/export, revert, save, close and application exit.
@@ -144,8 +145,8 @@ now live in native code:
 - `Typeset/Env/title_markup.cpp` owns title, author and abstract rendering,
   including note deduplication and author clustering.
 
-Bindings in `src/Scheme/Glue/native.xml` retain the entrypoints needed by the
-keymap dispatcher and style `extern` calls. The removed
+Bindings in `src/ATHENA/Commands/Interfaces/native.xml` retain the native
+entrypoints needed by the keymap dispatcher and style `extern` calls. The removed
 modules are not imported or relocated into another Scheme directory.
 
 ### Custom shortcuts
