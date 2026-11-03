@@ -55,9 +55,10 @@ passes import, native-v3 validation and HTML reexport with annotated MathML.
 - Import compatibility: old HTML tables, fonts, whitespace and lists remain
   supported. MathML, Wikipedia TeX images and MathJax import produce canonical
   v3 mathematics and pass reexport. Scilab-specific dispatch is absent.
-- Integration: generated native bindings are exercised by
-  `tests/scheme/headless-html-export-test.scm`, including the standard converter
-  graph and actual buffer export. The final run passed; builds use `-j16`.
+- Integration: `tests/Data/Convert/Generic/native_conversion_test.cpp` exercises
+  the native conversion graph, metadata, exception recovery and passive buffer
+  export directly, replacing the retired Scheme converter entrypoints.
+  Builds use `-j16`.
   No real Notes files are loaded or modified by these checks.
 
 Converter registration, dispatch, HTML and LaTeX conversion are native.

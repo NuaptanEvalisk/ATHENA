@@ -2083,6 +2083,36 @@ generated native entries and remain on the secure-function list.
   the preceding completed batches only; the full runtime-removal goal remains
   active.
 
+## Native Conversion Payload Boundary
+
+- Replaced converter `object` parameters/results with a bounded native variant:
+  text, bytes, URL, metadata-bearing source tree, and serialized syntax tree.
+  Options remain a native map. Serialized inputs retain their detached snapshot
+  boundary; native trees never pass through pairs or serialized tree conversion.
+- Migrated buffer import/export, artifact snippets, clipboard, completion and
+  statistics callers. File destinations are explicit; request scopes preserve
+  actor rendering context, option isolation and temporary-file ownership.
+- Removed unused converter/concat Scheme bindings and association-list option
+  adapters. Moved substantive export, MathML, HTML, resource and image checks
+  from four Scheme scripts into `native_conversion_test.cpp`.
+- The focused suite passed all 11 checks with zero failures or skips, including
+  repeated exception recovery, passive-buffer export, metadata rejection,
+  binary bytes, temporary-file retention and paths containing spaces/quotes.
+  Log: build_qt6/native-conversion-payload-runtime.log. Its bootstrap still uses
+  the existing VM until the final startup boundary is removed; its checks do not.
+- Regenerated interfaces and compiled all nine changed production units with
+  -j16, then completed ATHENA.bin with -j16. The migrated UTF-8 test unit also
+  compiled; obsolete tests of removed runtime scripts and cursor helper calls
+  were retired, and metadata queries use the current contract context API.
+  Logs: build_qt6/native-conversion-payload-build.log,
+  build_qt6/native-conversion-utf8-test-compile.log and
+  build_qt6/native-conversion-payload-app-build.log.
+- Deployed through tools/deploy-local-runtime.sh build_qt6. Installed build ID:
+  53b24febae62e17f220fbd8b1050ca4884264172. The previous ELF was retained and user
+  processes were left running. Log: build_qt6/native-conversion-payload-deploy.log.
+  Complete runtime removal remains active; command values, callbacks and startup
+  still require migration.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

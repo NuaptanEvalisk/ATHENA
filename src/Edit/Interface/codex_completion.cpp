@@ -75,8 +75,8 @@ struct selection_figures {
 static tree native_codex_prepare_selection (tree selection) {
   selection_figures figures (get_current_editor ());
   const tree source= figures.visit (selection);
-  const object options= list_object (cons (object ("texmacs->latex:encoding"), object ("utf-8")));
-  string latex= as_string (conversion_dispatch (object (source), "texmacs-tree", "latex-snippet", options));
+  const conversion_options options {{"texmacs->latex:encoding", "utf-8"}};
+  string latex= std::get<string> (conversion_dispatch (source, "texmacs-tree", "latex-snippet", options));
   for (const auto& marker: figures.markers) latex= replace (latex, marker.first, marker.second);
   string prompt= "Continue the following ATHENA document selection. It was exported as "
     "a LaTeX snippet. Return only the LaTeX snippet that should be inserted "
@@ -137,8 +137,8 @@ struct completion_request: std::enable_shared_from_this<completion_request> {
     else if (answer == "") failure= "Codex returned no completion";
     else {
       try {
-        replacement= as_tree (conversion_dispatch (
-          object (answer), "latex-snippet", "texmacs-tree", null_object ()));
+        replacement= std::get<tree> (conversion_dispatch (
+          answer, "latex-snippet", "texmacs-tree"));
       }
       catch (const std::exception& error) {
         failure= "Codex completion could not be imported: " * string (error.what ());

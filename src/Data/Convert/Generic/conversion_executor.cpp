@@ -12,7 +12,6 @@
 #include "Data/Convert/Verbatim/verbatim.hpp"
 #include "new_style.hpp"
 #include "file.hpp"
-#include "scheme.hpp"
 #include "System/Language/locale.hpp"
 #include "editor.hpp"
 #include "new_view.hpp"
@@ -42,9 +41,15 @@ struct temporary_files {
     for (const auto& file: files) if (file != retained) remove (file);
   }
 };
-object serial (tree value) { return scheme_tree_to_object (value); }
-tree native (object value) {
-  return is_tree (value) ? as_tree (value) : scheme_tree_to_tree (as_scheme_tree (value));
+// Serialized values previously crossed a reconstructing marshalling boundary.
+// Keep that detached snapshot contract without allocating runtime pairs.
+conversion_payload serial (tree value) { return conversion_stree {copy (value)}; }
+tree serialized (const conversion_payload& value) {
+  return copy (std::get<conversion_stree> (value).data);
+}
+tree native (const conversion_payload& value) {
+  if (const auto* source= std::get_if<tree> (&value)) return *source;
+  return scheme_tree_to_tree (serialized (value));
 }
 bool v3_math (tree value) {
   if (!is_tuple (value)) return false;
@@ -92,8 +97,8 @@ editor_rep* conversion_rendering_editor () {
 }
 
 namespace {
-url input_source (object input, string from) {
-  if (ends (from, "-file")) return as_url (input);
+url input_source (const conversion_payload& input, string from) {
+  if (ends (from, "-file")) return std::get<url> (input);
   if (active_request) return active_request->source;
   const auto* owner= current_scheme_execution_context ();
   if (owner && owner->actor) return owner->actor->current_state ()->master;
@@ -101,19 +106,17 @@ url input_source (object input, string from) {
 }
 }
 
-object conversion_dispatch (object input, string from, string to, object options) {
-  return conversion_execute (input, from, to, options, input_source (input, from),
-                             conversion_target_url ());
-}
-
-object conversion_dispatch (object input, string from, string to, conversion_options options) {
+conversion_payload conversion_dispatch (conversion_payload input, string from,
+                                         string to, conversion_options options) {
   return conversion_execute (input, from, to, std::move (options), input_source (input, from),
                              conversion_target_url ());
 }
 
-object conversion_to_file (object input, string from, string to, url target, object options) {
-  options= cons (cons (symbol_object ("dest"), object (target)), options);
-  return conversion_execute (input, from, to, options, input_source (input, from), target);
+conversion_payload conversion_to_file (conversion_payload input, string from,
+                                        string to, url target,
+                                        conversion_options options) {
+  return conversion_execute (input, from, to, std::move (options),
+    input_source (input, from), target, nullptr, target);
 }
 
 string conversion_file_format (url source) {
@@ -124,11 +127,6 @@ bool conversion_file_available (url source, url target) {
   string from= conversion_file_format (source), to= conversion_file_format (target);
   return bool (conversion_graph_path ({from.data (), std::size_t (N(from))},
                                      {to.data (), std::size_t (N(to))}));
-}
-
-object conversion_file (url source, url target, object options) {
-  return conversion_to_file (object (source), conversion_file_format (source),
-                            conversion_file_format (target), target, options);
 }
 
 string conversion_latex_document (tree input, const conversion_options& options, url source, url target) {
@@ -161,7 +159,8 @@ static string convert_verbatim (tree input, bool wrap, string encoding,
   return *output;
 }
 
-static object execute_step (object input, const conversion_edge& edge,
+static conversion_payload execute_step (const conversion_payload& input,
+    const conversion_edge& edge,
     const conversion_options& values, url source, url target,
     url destination, bool last, temporary_files& temporary,
     editor_rep* rendering_editor) {
@@ -173,51 +172,52 @@ static object execute_step (object input, const conversion_edge& edge,
   };
   if (action == "load-file") {
     string data;
-    if (load_string (as_url (input), data, false)) throw std::runtime_error ("Cannot read conversion source");
-    if (conversion_format_image (from (0, N(from)-5))) return bytes_object (data);
-    return object (data);
+    if (load_string (std::get<url> (input), data, false)) throw std::runtime_error ("Cannot read conversion source");
+    if (conversion_format_image (from (0, N(from)-5))) return conversion_bytes {data};
+    return data;
   }
   if (action == "save-file") {
     url output= last && !is_none (destination) ? destination : url_temp ();
     if (!last || is_none (destination)) temporary.files.push_back (output);
-    string data= is_string (input) ? as_string (input) : as_bytes (input);
+    const auto* text= std::get_if<string> (&input);
+    string data= text ? *text : std::get<conversion_bytes> (input).data;
     if (save_string (output, data, false)) throw std::runtime_error ("Cannot write conversion output");
-    return object (output);
+    return output;
   }
   if (action == "convert-image") {
     url output= conversion_image_run (from (0, N(from)-5), to (0, N(to)-5),
-      as_url (input), last ? destination : url_none (), option ("texmacs->image:raster-resolution", ""));
+      std::get<url> (input), last ? destination : url_none (), option ("texmacs->image:raster-resolution", ""));
     if (!last || is_none (destination)) temporary.files.push_back (output);
-    return object (output);
+    return output;
   }
   if (action == "tree-to-stree" || action == "write-stm") {
     tree source= native (input);
     if (athena::node::contains_metadata (source))
       throw std::runtime_error (
         "Scheme/STM export cannot preserve native node metadata; use ATHENA XML v3");
-    return action == "tree-to-stree" ? serial (tree_to_scheme_tree (source))
-                                    : object (tree_to_scheme_document (source));
+    if (action == "tree-to-stree") return serial (tree_to_scheme_tree (source));
+    return tree_to_scheme_document (source);
   }
-  if (action == "stree-to-tree") return object (native (input));
-  if (action == "read-document") return object (conversion_read_document (as_string (input)));
-  if (action == "read-fragment") return object (conversion_read_fragment (as_string (input)));
-  if (action == "write-document") return object (conversion_write_document (native (input)));
-  if (action == "write-fragment") return object (conversion_write_fragment (native (input)));
-  if (action == "read-stm-document") return object (scheme_document_to_tree (as_string (input)));
-  if (action == "read-stm-snippet") return object (scheme_to_tree (as_string (input)));
-  if (action == "write-code") return object (convert_verbatim (
-    native (input), false, get_locale_charset (), source, rendering_editor));
-  if (action == "write-source-code") return object (convert_verbatim (
-    native (input), false, "SourceCode", source, rendering_editor));
-  if (action == "read-code-snippet") return object (verbatim_to_tree (as_string (input), false, "SourceCode"));
-  if (action == "read-code-document") return object (verbatim_document_to_tree (as_string (input), false, "SourceCode"));
+  if (action == "stree-to-tree") return native (input);
+  if (action == "read-document") return conversion_read_document (std::get<string> (input));
+  if (action == "read-fragment") return conversion_read_fragment (std::get<string> (input));
+  if (action == "write-document") return conversion_write_document (native (input));
+  if (action == "write-fragment") return conversion_write_fragment (native (input));
+  if (action == "read-stm-document") return scheme_document_to_tree (std::get<string> (input));
+  if (action == "read-stm-snippet") return scheme_to_tree (std::get<string> (input));
+  if (action == "write-code") return convert_verbatim (
+    native (input), false, get_locale_charset (), source, rendering_editor);
+  if (action == "write-source-code") return convert_verbatim (
+    native (input), false, "SourceCode", source, rendering_editor);
+  if (action == "read-code-snippet") return verbatim_to_tree (std::get<string> (input), false, "SourceCode");
+  if (action == "read-code-document") return verbatim_document_to_tree (std::get<string> (input), false, "SourceCode");
   if (action == "read-verbatim-document" || action == "read-verbatim-snippet") {
     bool wrap= option ("verbatim->texmacs:wrap", "off") == "on";
     string encoding= option ("verbatim->texmacs:encoding", "auto");
     if (encoding == "cork") encoding= "utf-8";
-    return object (action == "read-verbatim-document"
-      ? verbatim_document_to_tree (as_string (input), wrap, encoding)
-      : verbatim_to_tree (as_string (input), wrap, encoding));
+    return action == "read-verbatim-document"
+      ? verbatim_document_to_tree (std::get<string> (input), wrap, encoding)
+      : verbatim_to_tree (std::get<string> (input), wrap, encoding);
   }
   if (action == "write-verbatim-document" || action == "write-verbatim-snippet") {
     string encoding= option ("texmacs->verbatim:encoding", "auto");
@@ -228,66 +228,53 @@ static object execute_step (object input, const conversion_edge& edge,
           rendering_editor->get_env_string ("font-family") == "tt")
         wrap= false;
     }
-    return object (convert_verbatim (native (input), wrap, encoding, source, rendering_editor));
+    return convert_verbatim (native (input), wrap, encoding, source, rendering_editor);
   }
-  if (action == "parse-html-document") return serial (parse_html_document (as_string (input)));
-  if (action == "parse-html-snippet") return serial (parse_html_snippet (as_string (input)));
-  if (action == "serialize-html") return object (serialize_html (as_scheme_tree (input)));
-  if (action == "import-html-tree") return object (html_import_document (as_scheme_tree (input)));
-  if (action == "import-html-stree") return serial (html_import_document_serial (as_scheme_tree (input)));
+  if (action == "parse-html-document") return serial (parse_html_document (std::get<string> (input)));
+  if (action == "parse-html-snippet") return serial (parse_html_snippet (std::get<string> (input)));
+  if (action == "serialize-html") return serialize_html (serialized (input));
+  if (action == "import-html-tree") return html_import_document (serialized (input));
+  if (action == "import-html-stree") return serial (html_import_document_serial (serialized (input)));
   if (action == "export-html" || action == "export-html-document") {
-    tree prepared= is_tree (input) ? latex_export_prepare_v3_source (as_tree (input))
-                                    : as_scheme_tree (input);
+    const auto* document= std::get_if<tree> (&input);
+    tree prepared= document ? latex_export_prepare_v3_source (*document)
+                            : serialized (input);
     tree html= html_export_document (prepared, values, source, target, rendering_editor);
-    return action == "export-html" ? serial (html) : object (serialize_html (html));
+    if (action == "export-html") return serial (html);
+    return serialize_html (html);
   }
   if (action == "export-latex" || action == "export-latex-document") {
-    if (is_tree (input)) check_latex_properties (as_tree (input));
-    tree prepared= is_tree (input) ? latex_export_prepare_v3_source (as_tree (input)) : as_scheme_tree (input);
+    const auto* document= std::get_if<tree> (&input);
+    if (document) check_latex_properties (*document);
+    tree prepared= document ? latex_export_prepare_v3_source (*document)
+                            : serialized (input);
     bool structured= v3_math (prepared);
     if (action == "export-latex-document" && !structured)
-      return object (conservative_texmacs_to_latex (
-        scheme_tree_to_tree (prepared), values));
+      return conservative_texmacs_to_latex (
+        scheme_tree_to_tree (prepared), values);
     tree output= latex_export_convert_top (prepared, values, source, target);
     if (structured) check_latex (output);
-    return action == "export-latex" ? serial (output) : object (serialize_latex (output));
+    if (action == "export-latex") return serial (output);
+    return serialize_latex (output);
   }
-  if (action == "serialize-latex") return object (serialize_latex (as_scheme_tree (input)));
-  if (action == "parse-latex-document") return object (parse_latex_document (as_string (input)));
-  if (action == "parse-latex-snippet") return object (parse_latex (as_string (input)));
-  if (action == "import-latex-document") return object (latex_native_document_to_texmacs (
-    as_string (input), option ("latex->texmacs:fallback-on-pictures", "off") == "on"));
-  if (action == "import-latex-class") return object (latex_class_document_to_tree (as_string (input)));
-  if (action == "import-latex-tree") return object (latex_to_tree (native (input)));
-  if (action == "import-mathml-xml") return object (mathml_xml_to_tree_v3 (as_string (input)));
-  if (action == "import-mathml-stree") return object (mathml_to_tree_v3 (as_scheme_tree (input)));
-  if (action == "import-markdown") return object (aofm_markdown_to_tree (as_string (input)));
+  if (action == "serialize-latex") return serialize_latex (serialized (input));
+  if (action == "parse-latex-document") return parse_latex_document (std::get<string> (input));
+  if (action == "parse-latex-snippet") return parse_latex (std::get<string> (input));
+  if (action == "import-latex-document") return latex_native_document_to_texmacs (
+    std::get<string> (input), option ("latex->texmacs:fallback-on-pictures", "off") == "on");
+  if (action == "import-latex-class") return latex_class_document_to_tree (std::get<string> (input));
+  if (action == "import-latex-tree") return latex_to_tree (native (input));
+  if (action == "import-mathml-xml") return mathml_xml_to_tree_v3 (std::get<string> (input));
+  if (action == "import-mathml-stree") return mathml_to_tree_v3 (serialized (input));
+  if (action == "import-markdown") return aofm_markdown_to_tree (std::get<string> (input));
   throw std::runtime_error ("Unknown native conversion executor: " + action);
 }
 
-object conversion_execute (object input, string from, string to,
-                           object options, url source, url target,
-                           editor_rep* rendering_editor) {
-  object settings= null_object ();
-  url destination= url_none ();
-  bool have_destination= false;
-  for (object tail= options; !is_null (tail); tail= cdr (tail)) {
-    object entry= car (tail), key= car (entry), value= cdr (entry);
-    if (is_string (key)) settings= cons (entry, settings);
-    else if (is_symbol (key) && as_symbol (key) == "dest" && !have_destination) {
-      destination= as_url (value); have_destination= true;
-    }
-  }
-  object ordered= null_object ();
-  for (; !is_null (settings); settings= cdr (settings)) ordered= cons (car (settings), ordered);
-  return conversion_execute (input, from, to, conversion_options_from_scheme (ordered),
-                              source, target, rendering_editor, destination);
-}
-
-object conversion_execute (object input, string from, string to,
-                           conversion_options values, url source, url target,
-                           editor_rep* rendering_editor, url destination) {
-  // A direct Scheme request may already belong to an editor. Passive actor
+conversion_payload conversion_execute (conversion_payload input, string from,
+                                        string to, conversion_options values,
+                                        url source, url target,
+                                        editor_rep* rendering_editor, url destination) {
+  // A direct request may already belong to an editor. Passive actor
   // exports supply their actual rendering editor explicitly instead.
   if (rendering_editor == nullptr) {
     const auto* owner= current_scheme_execution_context ();
@@ -301,23 +288,23 @@ object conversion_execute (object input, string from, string to,
                               std::string (from.data (), N(from)) + " -> " +
                               std::string (to.data (), N(to)));
   for (const auto& entry: conversion_options_snapshot ()) values.emplace (entry);
-  // (convert ... '(dest . URL)) has no separate target argument. Its resource
-  // writers still need that destination, just as convert-to-file does.
+  // Resource writers need the final destination even when no separate target
+  // context was supplied.
   url effective_target= is_none (target) ? destination : target;
   request_scope scope (source, effective_target, rendering_editor);
   temporary_files temporary;
-  object result= input;
+  conversion_payload result= std::move (input);
   for (std::size_t i=0; i<path->size (); ++i)
     result= execute_step (result, (*path)[i], values, source, effective_target,
                           destination, i+1 == path->size (), temporary,
                           rendering_editor);
-  if (is_url (result)) {
-    url output= as_url (result);
+  if (const auto* file= std::get_if<url> (&result)) {
+    url output= *file;
     if (!is_none (destination) && output != destination) {
       copy (output, destination);
-      result= object (destination);
+      result= destination;
     }
-    temporary.retained= as_url (result);
+    temporary.retained= std::get<url> (result);
   }
   return result;
 }

@@ -507,8 +507,8 @@ std::string latex_for_tree (const tree& t) {
   if (headless_mode)
     return to_std (tree_to_texmacs (semantic));
   try {
-    return to_std (as_string (conversion_dispatch (
-      object (semantic), "texmacs-tree", "latex-snippet", null_object ())));
+    return to_std (std::get<string> (conversion_dispatch (
+      semantic, "texmacs-tree", "latex-snippet")));
   }
   catch (...) {
     return to_std (tree_to_texmacs (semantic));

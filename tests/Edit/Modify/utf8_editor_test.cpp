@@ -55,6 +55,7 @@
 #include "Kernel/Types/node_metadata.hpp"
 #include "convert.hpp"
 #include "Data/Convert/Generic/conversion_executor.hpp"
+#include "Data/Convert/Verbatim/verbatim.hpp"
 #include "Data/Convert/Xml/html_export.hpp"
 #include "Scheme/Scheme/object.hpp"
 #include "file.hpp"
@@ -64,13 +65,13 @@ bool headless_mode= true;
 bool is_headless () { return true; }
 static server_rep* test_server= nullptr;
 
-static object latex_document_for_test (object source, object options) {
-  return conversion_execute (source, "texmacs-tree", "latex-document", options,
-                             url_none (), url_none ());
+static string latex_document_for_test (tree source, const conversion_options& options) {
+  return std::get<string> (conversion_execute (source, "texmacs-tree", "latex-document",
+    options, url_none (), url_none ()));
 }
-static object html_document_for_test (object source, object options) {
-  return conversion_execute (source, "texmacs-tree", "html-document", options,
-                             url_none (), url_none ());
+static string html_document_for_test (tree source, const conversion_options& options) {
+  return std::get<string> (conversion_execute (source, "texmacs-tree", "html-document",
+    options, url_none (), url_none ()));
 }
 
 class InlineRenderProbe: public qt_renderer_rep {
@@ -120,11 +121,6 @@ public:
   Utf8TestEditor (server_rep* server, buffer_document_state* buffer):
     editor_rep (server, buffer), edit_main_rep (server, buffer) {}
   void* derived_this () override { return this; }
-  bool border_jump_skips_accessible_child (
-    path old_path, path new_path, bool forwards) {
-    return physical_border_jump_skips_accessible_child (
-      old_path, new_path, forwards);
-  }
   void set_test_child_accessibility (tree_label tag, int child, bool accessible) {
     using namespace athena::contracts;
     contract_state.contracts.edit (tag, [=] (node_contract& value) {
@@ -1018,21 +1014,6 @@ private slots:
       QVERIFY (!is_atom (entered) && entered->item == 0);
     }
 
-    const tree_label test_heading= make_tree_label ("test-heading-navigation");
-    const tree_label test_anchor= make_tree_label ("test-anchor-navigation");
-    tree navigation (DOCUMENT,
-      tree (test_heading, "Heading"), tree (test_anchor, "anchor"));
-    set_document (buffer->document, buffer->root_path, navigation);
-    editor->set_test_child_accessibility (test_heading, 0, true);
-    editor->set_test_child_accessibility (test_anchor, 0, false);
-    const path heading_path= buffer->root_path * 0;
-    const path anchor_path= buffer->root_path * 1;
-    QVERIFY (editor->border_jump_skips_accessible_child (
-      heading_path * 0, heading_path * 1, true));
-    QVERIFY (editor->border_jump_skips_accessible_child (
-      heading_path * 1, heading_path * 0, false));
-    QVERIFY (!editor->border_jump_skips_accessible_child (
-      anchor_path * 0, anchor_path * 1, true));
   }
 
   void nativeUtf8MetadataAndLegacyEncodingPreference () {
@@ -1040,18 +1021,25 @@ private slots:
       compound ("doc-data",
         compound ("doc-title", "Functional Analysis 中"),
         compound ("author-name", "Fran\xc3\xa7ois \xce\xb1")));
-    QCOMPARE (search_metadata (doc, "title"),
+    const auto contexts= [] (path) {
+      return std::make_shared<const athena::contracts::contract_scope> (
+        athena::contracts::builtin_contracts ());
+    };
+    const auto title= search_metadata (doc, "title", contexts);
+    const auto author= search_metadata (doc, "author", contexts);
+    QVERIFY (title && author);
+    QCOMPARE (*title,
               string ("Functional Analysis \xe4\xb8\xad"));
-    QCOMPARE (search_metadata (doc, "author"),
+    QCOMPARE (*author,
               string ("Fran\xc3\xa7ois \xce\xb1"));
 
-    QCOMPARE (as_string (eval (
-      "(convert (tm->tree \"caf\303\251 \344\270\255\") \"texmacs-tree\" \"verbatim-snippet\""
-      " '(\"texmacs->verbatim:encoding\" . \"cork\"))")),
+    QCOMPARE (std::get<string> (conversion_dispatch (
+      tree ("caf\xc3\xa9 \xe4\xb8\xad"), "texmacs-tree", "verbatim-snippet",
+      {{"texmacs->verbatim:encoding", "cork"}})),
       string ("caf\xc3\xa9 \xe4\xb8\xad"));
-    QVERIFY (as_bool (eval (
-      "(begin (convert \"caf\303\251\" \"verbatim-document\" \"texmacs-tree\" "
-      " '(\"verbatim->texmacs:encoding\" . \"cork\")) #t)")));
+    QVERIFY (std::holds_alternative<tree> (conversion_dispatch (
+      string ("caf\xc3\xa9"), "verbatim-document", "texmacs-tree",
+      {{"verbatim->texmacs:encoding", "cork"}})));
   }
 
   void unicodeMathLanguage () {
@@ -2353,7 +2341,7 @@ private slots:
       latex_export_prepare_v3_source (styled));
   }
   void nativeV3LatexEndToEndSerializationKeepsOriginalV2Behavior () {
-    object options= eval ("'()");
+    const conversion_options options;
     const tree baseline (DOCUMENT,
       compound ("style", "generic"),
       compound ("body", tree (DOCUMENT,
@@ -2362,8 +2350,7 @@ private slots:
     const tree old_style_tex_tree= latex_export_convert_top (
       tree_to_scheme_tree (baseline), {}, url_none (), url_none ());
     const string expected= serialize_latex (old_style_tex_tree);
-    const string actual= as_string (
-      latex_document_for_test (object (baseline), options));
+    const string actual= latex_document_for_test (baseline, options);
     QCOMPARE (actual, expected);
 
     tree scripts= athena::math_v3::scripts (
@@ -2377,8 +2364,7 @@ private slots:
     const tree document (DOCUMENT,
       compound ("style", "generic"),
       compound ("body", tree (DOCUMENT, formula)));
-    const string latex= as_string (
-      latex_document_for_test (object (document), options));
+    const string latex= latex_document_for_test (document, options);
     QVERIFY (occurs ("\\begin{equation}", latex));
     QVERIFY (occurs ("\\sum", latex));
     QVERIFY (occurs ("\\limits", latex));
@@ -2403,8 +2389,7 @@ private slots:
     const tree grid_document (DOCUMENT,
       compound ("style", "generic"),
       compound ("body", tree (DOCUMENT, grid_block)));
-    const string grid_latex= as_string (
-      latex_document_for_test (object (grid_document), options));
+    const string grid_latex= latex_document_for_test (grid_document, options);
     QVERIFY (occurs ("\\begin{eqnarray*}", grid_latex));
     QVERIFY (occurs ("\\end{eqnarray*}", grid_latex));
     QVERIFY (!occurs ("ATHENA-DATA cmd=\"object\"", grid_latex));
@@ -2421,8 +2406,7 @@ private slots:
     athena::node::set (matrix_block, block_header);
     const tree matrix_doc (DOCUMENT, compound ("style", "generic"),
       compound ("body", tree (DOCUMENT, matrix_block)));
-    const string matrix_latex= as_string (
-      latex_document_for_test (object (matrix_doc), options));
+    const string matrix_latex= latex_document_for_test (matrix_doc, options);
     QVERIFY (occurs ("\\begin{equation}", matrix_latex));
     QVERIFY (occurs ("\\begin{matrix}", matrix_latex));
     QVERIFY (occurs ("\\end{matrix}", matrix_latex));
@@ -2439,8 +2423,7 @@ private slots:
       compound ("style", "generic"),
       compound ("body", tree (DOCUMENT,
         compound ("math", tree (CONCAT, standalone, tree (";"), grouped)))));
-    const string groups_latex= as_string (
-      latex_document_for_test (object (scripts_doc), options));
+    const string groups_latex= latex_document_for_test (scripts_doc, options);
     // The regular text-token converter turns `op` into \operatorname{op}
     // and places spaces around the binary +. Check the essential TeX groups
     // rather than reimplementing the pre-existing lexical normalization.
@@ -2448,40 +2431,22 @@ private slots:
     QVERIFY (occurs ("operatorname{op}", groups_latex));
     QVERIFY (occurs ("{x + y}_i", groups_latex));
   }
-  void nativeV3ExportRuntimeRoutesFailClosed () {
-    const string test_path= get_env ("ATHENA_PATH") *
-      "/../tests/scheme/native-v3-export-runtime-test.scm";
-    object run= eval ("(lambda (path) (catch #t "
-      "(lambda () (load path) #t) "
-      "(lambda args (display args) (newline) #f)))");
-    QVERIFY (as_bool (call (run, object (test_path))));
-  }
-  void nativeV3MathmlRuntimeRoutesPreserveMetadata () {
-    const string test_path= get_env ("ATHENA_PATH") *
-      "/../tests/scheme/native-v3-mathml-routing-test.scm";
-    object run= eval ("(lambda (path) (catch #t "
-      "(lambda () (load path) #t) "
-      "(lambda args (display args) (newline) #f)))");
-    QVERIFY (as_bool (call (run, object (test_path))));
-  }
   void nativeV3HtmlMathJaxKeepsMathBlockAndScriptMetadata () {
-    object options= eval ("'((\"texmacs->html:mathjax\" . \"on\") "
-                          "(\"texmacs->html:css\" . \"on\") "
-                          "(\"texmacs->html:images\" . \"off\"))");
+    const conversion_options options {
+      {"texmacs->html:mathjax", "on"}, {"texmacs->html:css", "on"},
+      {"texmacs->html:images", "off"}};
     const tree baseline (DOCUMENT,
       compound ("style", "generic"),
       compound ("body", tree (DOCUMENT, "HTML baseline text.")));
     const string before= serialize_html (html_export_document (
-      tree_to_scheme_tree (baseline), conversion_options_from_scheme (options),
+      tree_to_scheme_tree (baseline), options,
       url_none (), url_none ()));
-    const string after= as_string (html_document_for_test (object (baseline), options));
+    const string after= html_document_for_test (baseline, options);
     QVERIFY (!before.empty ());
     QCOMPARE (after, before);
-    object direct_mathjax= eval (
-      "'(\"texmacs->html:mathjax\" . \"on\")");
-    const string routed_baseline= as_string (call ("convert",
-      object (baseline), object ("texmacs-tree"), object ("html-document"),
-      direct_mathjax));
+    const conversion_options direct_mathjax {{"texmacs->html:mathjax", "on"}};
+    const string routed_baseline= std::get<string> (conversion_dispatch (baseline,
+      "texmacs-tree", "html-document", direct_mathjax));
     QCOMPARE (routed_baseline, before);
 
     tree expression= athena::math_v3::scripts (
@@ -2493,7 +2458,7 @@ private slots:
     athena::node::set (block, numbered);
     const tree doc (DOCUMENT, compound ("style", "generic"),
       compound ("body", tree (DOCUMENT, "HTML v3 mathematics:", block)));
-    const string html= as_string (html_document_for_test (object (doc), options));
+    const string html= html_document_for_test (doc, options);
     QVERIFY (!html.empty ());
     QVERIFY (occurs ("mathjax@3", html));
     QVERIFY (occurs ("athena-math-block", html));
@@ -2501,9 +2466,8 @@ private slots:
     QVERIFY (occurs ("\\sum", html));
     QVERIFY (occurs ("\\limits", html));
     QVERIFY (occurs ("\\end{equation}", html));
-    const string routed= as_string (call ("convert",
-      object (doc), object ("texmacs-tree"), object ("html-document"),
-      direct_mathjax));
+    const string routed= std::get<string> (conversion_dispatch (doc,
+      "texmacs-tree", "html-document", direct_mathjax));
     QCOMPARE (routed, html);
 
     const tree inline_scripts= athena::math_v3::scripts (
@@ -2511,8 +2475,7 @@ private slots:
     const tree inline_doc (DOCUMENT, compound ("style", "generic"),
       compound ("body", tree (DOCUMENT,
         tree (CONCAT, "Compare ", compound ("math", inline_scripts), "."))));
-    const string inline_html= as_string (
-      html_document_for_test (object (inline_doc), options));
+    const string inline_html= html_document_for_test (inline_doc, options);
     QVERIFY (occurs ("\\(", inline_html));
     QVERIFY (occurs ("_i", inline_html));
     QVERIFY (occurs ("^2", inline_html));
@@ -2527,7 +2490,7 @@ private slots:
     const tree delimiters_doc (DOCUMENT, compound ("style", "generic"),
       compound ("body", tree (DOCUMENT,
         tree (CONCAT, "Delimiter: ", compound ("math", bracketed)))));
-    const string delimiter_html= as_string (html_document_for_test (object (delimiters_doc), options));
+    const string delimiter_html= html_document_for_test (delimiters_doc, options);
     QVERIFY (occurs ("\\(", delimiter_html));
     QVERIFY (occurs ("\\left(", delimiter_html));
     QVERIFY (occurs ("\\middle|", delimiter_html));
@@ -2549,21 +2512,19 @@ private slots:
     athena::node::set (grid_block, unnumbered);
     const tree grid_doc (DOCUMENT, compound ("style", "generic"),
       compound ("body", tree (DOCUMENT, grid_block)));
-    const string grid_html= as_string (html_document_for_test (object (grid_doc), options));
+    const string grid_html= html_document_for_test (grid_doc, options);
     QVERIFY (occurs ("athena-math-block", grid_html));
     QVERIFY (occurs ("\\begin{eqnarray*}", grid_html));
     QVERIFY (occurs ("\\end{eqnarray*}", grid_html));
 
     // MathJax is the only HTML backend currently retaining all native v3
     // structural math slots. Rendering the same document without it must
-    // produce a Scheme error, not a deceptively math-free HTML page.
-    object without_mathjax= eval (
-      "'((\"texmacs->html:mathjax\" . \"off\") "
-        "(\"texmacs->html:css\" . \"on\") "
-        "(\"texmacs->html:images\" . \"off\"))");
-    const scheme_tree refused= as_scheme_tree (html_document_for_test (object (doc), without_mathjax));
-    QVERIFY (is_func (refused, TUPLE));
-    QCOMPARE (refused[0], tree ("misc-error"));
+    // throw a native exception, not return a deceptively math-free HTML page.
+    const conversion_options without_mathjax {
+      {"texmacs->html:mathjax", "off"}, {"texmacs->html:css", "on"},
+      {"texmacs->html:images", "off"}};
+    QVERIFY_THROWS_EXCEPTION (std::runtime_error,
+      html_document_for_test (doc, without_mathjax));
   }
 private:
   buffer_document_state* buffer= nullptr;

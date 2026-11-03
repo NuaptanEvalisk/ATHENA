@@ -499,8 +499,8 @@ qt_gui_rep::get_selection (string key, tree& t, string& s, string format) {
               relative (get_current_buffer_safe (), url_unix (ref));
             qt_pretty_image_size (image, w, h);
             tree im (IMAGE, ref, w, h, "", "");
-            s= as_string (conversion_dispatch (
-              object (im), "texmacs-tree", "texmacs-snippet", null_object ()));
+            s= std::get<string> (conversion_dispatch (
+              im, "texmacs-tree", "texmacs-snippet"));
             input_format= "";
           }
           else if (prepared) {
@@ -530,8 +530,8 @@ qt_gui_rep::get_selection (string key, tree& t, string& s, string format) {
           string w, h;
           qt_pretty_image_size (ww, hh, w, h);
           tree im (IMAGE, ref, w, h, "", "");
-          s= as_string (conversion_dispatch (
-            object (im), "texmacs-tree", "texmacs-snippet", null_object ()));
+          s= std::get<string> (conversion_dispatch (
+            im, "texmacs-tree", "texmacs-snippet"));
           input_format= "";
           buf.clear ();
         }
@@ -581,14 +581,14 @@ qt_gui_rep::get_selection (string key, tree& t, string& s, string format) {
       input_format != "picture" &&
       input_format != "linked-picture" &&
       !direct_selection)
-    s = as_string (conversion_dispatch (
-      object (s), input_format, "texmacs-snippet", null_object ()));
+    s = std::get<string> (conversion_dispatch (
+      s, input_format, "texmacs-snippet"));
   if (input_format == "html-snippet") {
-    tree t = as_tree (conversion_dispatch (
-      object (s), "texmacs-snippet", "texmacs-tree", null_object ()));
+    tree t = std::get<tree> (conversion_dispatch (
+      s, "texmacs-snippet", "texmacs-tree"));
     t = default_with_simplify (t);
-    s = as_string (conversion_dispatch (
-      object (t), "texmacs-tree", "texmacs-snippet", null_object ()));
+    s = std::get<string> (conversion_dispatch (
+      t, "texmacs-tree", "texmacs-snippet"));
   }
   if (input_format == "picture") {
     tree t (IMAGE);
@@ -597,13 +597,13 @@ qt_gui_rep::get_selection (string key, tree& t, string& s, string format) {
     string w, h;
     qt_pretty_image_size (ww, hh, w, h);
     t << tuple (tree (RAW_DATA, s), "png") << w << h << "" << "";
-    s= as_string (conversion_dispatch (
-      object (t), "texmacs-tree", "texmacs-snippet", null_object ()));
+    s= std::get<string> (conversion_dispatch (
+      t, "texmacs-tree", "texmacs-snippet"));
   }
   if (input_format == "linked-picture") {
     tree im (IMAGE, s, "", "", "", "");
-    s= as_string (conversion_dispatch (
-      object (im), "texmacs-tree", "texmacs-snippet", null_object ()));
+    s= std::get<string> (conversion_dispatch (
+      im, "texmacs-tree", "texmacs-snippet"));
   }
   t = tuple ("extern", s);
 

@@ -16,10 +16,10 @@
 
 namespace {
 std::optional<string> statistics_text (tree document) {
-  object result= conversion_dispatch (
-    object (document), "texmacs-tree", "verbatim-snippet", conversion_options {});
-  if (!is_string (result)) return std::nullopt;
-  return as_string (result);
+  auto result= conversion_dispatch (document, "texmacs-tree", "verbatim-snippet");
+  const auto* text= std::get_if<string> (&result);
+  if (!text) return std::nullopt;
+  return *text;
 }
 }
 

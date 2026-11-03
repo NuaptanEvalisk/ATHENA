@@ -14,7 +14,6 @@
 #include "conversion_executor.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "file.hpp"
-#include "scheme.hpp"
 #include <stdexcept>
 
 tree conversion_read_document (string source) {
@@ -70,18 +69,18 @@ format_exists (string format) {
 
 tree
 generic_to_tree (string s, string fm) {
-  object result= conversion_execute (object (s), fm, "texmacs-tree", conversion_options {},
+  auto result= conversion_execute (s, fm, "texmacs-tree", conversion_options {},
                                     conversion_source_url (), conversion_target_url ());
-  if (!is_tree (result))
+  if (!std::holds_alternative<tree> (result))
     throw std::runtime_error ("Native conversion did not produce a document tree");
-  return as_tree (result);
+  return std::get<tree> (result);
 }
 
 string
 tree_to_generic (tree doc, string fm) {
-  object result= conversion_execute (object (doc), "texmacs-tree", fm, conversion_options {},
+  auto result= conversion_execute (doc, "texmacs-tree", fm, conversion_options {},
                                     conversion_source_url (), conversion_target_url ());
-  if (!is_string (result))
+  if (!std::holds_alternative<string> (result))
     throw std::runtime_error ("Native conversion did not produce serialized text");
-  return as_string (result);
+  return std::get<string> (result);
 }

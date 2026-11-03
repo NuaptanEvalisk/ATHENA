@@ -33,7 +33,6 @@
 #include "Data/Convert/Generic/conversion_registry.hpp"
 #include "ATHENA/Data/buffer_export.hpp"
 #include "Data/Convert/Generic/image_conversion.hpp"
-#include "Data/Convert/Generic/conversion_concat.hpp"
 #include "Data/Convert/Generic/conversion_graph.hpp"
 #include "Data/Convert/Generic/conversion_executor.hpp"
 #include "Data/Convert/Xml/html_import.hpp"

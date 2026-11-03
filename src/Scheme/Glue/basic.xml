@@ -1,29 +1,10 @@
 <?xml version='1.0' encoding='utf-8'?>
 <glue version="1" prefix="" initializer="initialize_glue_basic">
-  <binding name="convert" native="conversion_dispatch" returns="object" exceptions="scheme">
-    <arg type="object" /><arg type="string" /><arg type="string" />
-    <arg type="object" rest="true" />
-  </binding>
-  <binding name="convert-to-file" native="conversion_to_file" returns="object" exceptions="scheme">
-    <arg type="object" /><arg type="string" /><arg type="string" /><arg type="url" />
-    <arg type="object" rest="true" />
-  </binding>
   <binding name="file-format" native="conversion_file_format" returns="string" exceptions="scheme">
     <arg type="url" />
   </binding>
   <binding name="file-converter-exists?" native="conversion_file_available" returns="bool" exceptions="scheme">
     <arg type="url" /><arg type="url" />
-  </binding>
-  <binding name="file-convert" native="conversion_file" returns="object" exceptions="scheme">
-    <arg type="url" /><arg type="url" /><arg type="object" rest="true" />
-  </binding>
-  <binding name="native-convert" native="conversion_execute" returns="object" exceptions="scheme">
-    <arg type="object" />
-    <arg type="string" />
-    <arg type="string" />
-    <arg type="object" />
-    <arg type="url" />
-    <arg type="url" />
   </binding>
   <binding name="converter-search" native="conversion_graph_search" returns="scheme_tree" exceptions="scheme">
     <arg type="string" />
@@ -52,15 +33,6 @@
   <binding name="serialize-html" native="serialize_html" returns="string" exceptions="scheme">
     <arg type="scheme_tree" />
   </binding>
-  <binding name="tmconcat" native="conversion_concat" returns="object" exceptions="scheme">
-    <arg type="object" rest="true" />
-  </binding>
-  <binding name="tmconcat*" native="conversion_concat_raw" returns="object" exceptions="scheme">
-    <arg type="object" rest="true" />
-  </binding>
-  <binding name="tmconcat-simplify" native="conversion_concat_simplify" returns="object" exceptions="scheme">
-    <arg type="object" />
-  </binding>
   <binding name="native-image-conversion-routes" native="conversion_image_routes" returns="scheme_tree" exceptions="scheme" />
   <binding name="native-convert-image" native="conversion_image_run" returns="url" exceptions="scheme">
     <arg type="string" />
@@ -68,12 +40,6 @@
     <arg type="url" />
     <arg type="url" />
     <arg type="string" />
-  </binding>
-  <binding name="buffer-export-with-options" native="buffer_export_with_options" returns="bool" exceptions="scheme">
-    <arg type="url" />
-    <arg type="url" />
-    <arg type="string" />
-    <arg type="object" />
   </binding>
   <binding name="native-conversion-read-document" native="conversion_read_document" returns="tree" exceptions="scheme">
     <arg type="string" />

@@ -6,7 +6,6 @@
 ******************************************************************************/
 #include "conversion_options.hpp"
 #include "file.hpp"
-#include "scheme.hpp"
 #include "System/Boot/boot.hpp"
 #include <nlohmann/json.hpp>
 #include <stdexcept>
@@ -54,26 +53,6 @@ conversion_options current_values (const std::set<std::string>& keys) {
 
 conversion_options conversion_options_snapshot () {
   return current_values (registry ().keys);
-}
-
-conversion_options conversion_options_from_scheme (object source) {
-  conversion_options result;
-  while (!is_null (source)) {
-    if (!is_pair (source) || !is_pair (car (source)) ||
-        !is_string (car (car (source))) || !is_string (cdr (car (source))))
-      throw std::runtime_error ("Conversion options must be a string association list");
-    // Preserve the first-value-wins association-list contract.
-    result.emplace (bytes (as_string (car (car (source)))), bytes (as_string (cdr (car (source)))));
-    source= cdr (source);
-  }
-  return result;
-}
-
-object conversion_options_to_scheme (const conversion_options& options) {
-  object result= null_object ();
-  for (auto it= options.rbegin (); it != options.rend (); ++it)
-    result= cons (cons (object (text (it->first)), object (text (it->second))), result);
-  return result;
 }
 
 string encode_conversion_export_request (const conversion_export_request& request) {

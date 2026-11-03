@@ -304,14 +304,6 @@ add_test(NAME html5_export_editor_test
     --runtime ${ATHENA_GUILE_PREFIX}
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
 set_tests_properties(html5_export_editor_test PROPERTIES TIMEOUT 90)
-add_test(NAME headless_html_export_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/runtime-test.py
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/headless-html-export-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(headless_html_export_test PROPERTIES TIMEOUT 120)
 add_test(NAME website_export_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/website-export-test.py
@@ -574,13 +566,6 @@ add_test(NAME native_v3_structured_search_runtime_test
     --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
     --runtime ${ATHENA_GUILE_PREFIX}
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-add_test(NAME native_v3_export_runtime_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/runtime-test.py
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/native-v3-export-runtime-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
 foreach (_mode file vault)
   set(_vault_option)
   if (_mode STREQUAL "vault")
@@ -595,13 +580,6 @@ foreach (_mode file vault)
   set_tests_properties(native_v3_${_mode}_persistence_test PROPERTIES
     TIMEOUT 390 RESOURCE_LOCK athena_application_runtime)
 endforeach ()
-add_test(NAME native_v3_mathml_routing_runtime_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/runtime-test.py
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/native-v3-mathml-routing-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
 add_test(NAME native_v3_hodarium_shared_audit_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/scheme/native-v3-hodarium-shared-audit-test.py
@@ -620,8 +598,7 @@ set_tests_properties(
   node_data_art_scheme_test node_model_bridge_scheme_test
   node_source_edit_scheme_test node_tree_diff_scheme_test
   node_reference_headless_export_scheme_test
-  native_v3_structured_search_runtime_test native_v3_export_runtime_test
-  native_v3_mathml_routing_runtime_test
+  native_v3_structured_search_runtime_test
   PROPERTIES TIMEOUT 150)
 add_test(NAME two_buffer_save_test
   COMMAND ${Python3_EXECUTABLE}
@@ -685,8 +662,6 @@ set(_athena_application_runtime_tests
   node_tree_diff_scheme_test
   node_reference_headless_export_scheme_test
   native_v3_structured_search_runtime_test
-  native_v3_export_runtime_test
-  native_v3_mathml_routing_runtime_test
   native_v3_math_variant_typeset_editor_test
   two_buffer_save_test
   save_as_ownership_test
@@ -725,6 +700,10 @@ foreach (_test_file ${TEST_SRC_FILES})
   # render through Qt, or launch ATHENA.bin on a loaded CI host.  Keep a sane
   # default and override genuinely long integrations below.
   set_tests_properties (${_test_name} PROPERTIES TIMEOUT 15)
+  if (_test_name STREQUAL "native_conversion_test")
+    set_tests_properties (${_test_name} PROPERTIES
+      TIMEOUT 120 RESOURCE_LOCK athena_application_runtime)
+  endif ()
   if (_test_name STREQUAL "native_v3_export_test")
     # This also compiles generated LaTeX twice when pdflatex is available.
     set_tests_properties (${_test_name} PROPERTIES TIMEOUT 90)

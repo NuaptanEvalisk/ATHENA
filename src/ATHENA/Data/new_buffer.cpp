@@ -1044,9 +1044,10 @@ import_loaded_tree_with_format (
     catch (const std::exception& e) { return tree (_ERROR, string (e.what ())); }
   }
   else {
-    object result= conversion_execute (object (s), fm * "-document", "texmacs-tree",
+    auto result= conversion_execute (s, fm * "-document", "texmacs-tree",
                                       conversion_options {}, u, url_none ());
-    t= is_tree (result) ? as_tree (result) : tree (_ERROR, "Unsupported import format");
+    const auto* document= std::get_if<tree> (&result);
+    t= document ? *document : tree (_ERROR, "Unsupported import format");
   }
   tree links= extract (t, "links");
   if (N (links) != 0)
@@ -1237,10 +1238,11 @@ export_tree_with_options (tree doc, url u, string fm, url source,
                           const conversion_options& options,
                           editor_rep* rendering_editor) {
   if (fm == "generic") fm= "verbatim";
-  object converted= conversion_execute (object (doc), "texmacs-tree", fm * "-document",
+  auto converted= conversion_execute (doc, "texmacs-tree", fm * "-document",
     options, source, u, rendering_editor);
-  if (!is_string (converted)) return true;
-  string serialized= as_string (converted);
+  const auto* text= std::get_if<string> (&converted);
+  if (!text) return true;
+  string serialized= *text;
   return ends (as_string (u), "~") ?
     save_autosave_string (u, serialized) : save_string (u, serialized);
 }
@@ -1308,14 +1310,6 @@ buffer_export_request (url name, url dest, string fm, const conversion_options& 
 bool
 buffer_export (url name, url dest, string fm) {
   return buffer_export_request (name, dest, fm, conversion_options_snapshot ());
-}
-
-bool
-buffer_export_with_options (url name, url dest, string fm, object overrides) {
-  auto options= conversion_options_snapshot ();
-  for (const auto& entry: conversion_options_from_scheme (overrides))
-    options.insert_or_assign (entry.first, entry.second);
-  return buffer_export_request (name, dest, fm, options);
 }
 
 tree
