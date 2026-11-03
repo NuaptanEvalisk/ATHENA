@@ -31,7 +31,6 @@ __pycache__/
 *.log
 SVNREV
 Testing
-texmacs.1
 tests/gtest
 cmake-build-debug
 CMakeLists.txt.user
