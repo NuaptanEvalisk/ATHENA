@@ -43,10 +43,6 @@ scheme_tree make_list (string head) {
 
 scheme_tree quoted (string value) { return tree (scm_quote (value)); }
 
-object stree_object (scheme_tree t) {
-  return scheme_tree_to_object (t);
-}
-
 string strip_dashes (string s) {
   string r;
   for (int i=0; i<N(s); ++i) if (s[i] != '-') r << s[i];

@@ -601,18 +601,18 @@ filter_known_style_macros (scheme_tree t) {
 
 } // namespace latex_export_internal
 
-object
+array<string>
 latex_export_collect_user_defs (scheme_tree t) {
   hashmap<string,bool> defs (false);
   scheme_tree preamble= filter_preamble (t);
   for (int i=0; i<N(preamble); ++i) collect_user_defs (preamble[i], defs);
-  array<object> out;
+  array<string> out;
   iterator<string> it= iterate (defs);
   while (it->busy ()) {
     string name= it->next ();
-    if (defs[name]) out << symbol_object (name);
+    if (defs[name]) out << name;
   }
-  return as_list_object (out);
+  return out;
 }
 
 scheme_tree

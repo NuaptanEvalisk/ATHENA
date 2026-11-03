@@ -1276,10 +1276,8 @@ edit_typeset_rep::exec_latex (tree t, path p) {
     return t;
   const auto context= conversion_context_at (p);
   hashmap<string,tree> H= context->variables ();
-  object l= null_object ();
-  iterator<string> it= iterate (H);
-  while (it->busy ()) l= cons (object (it->next ()), l);
-  tree patch= scheme_tree_to_tree (latex_compat_tmtex_env_patch (t, l));
+  tree patch= scheme_tree_to_tree (
+    latex_export_env_patch (tree_to_scheme_tree (t), expand_user_macro));
   hashmap<string,tree> P (UNINIT, patch);
   H->join (P);
   prefix_specific (H, "tmlatex-");

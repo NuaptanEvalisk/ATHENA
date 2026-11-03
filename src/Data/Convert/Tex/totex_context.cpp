@@ -3983,13 +3983,6 @@ latex_export_dynamic_set (string name, string kind) {
   latex_export_context.dynamic (name)= kind;
 }
 
-object
-latex_export_dynamic_get (string name) {
-  string kind= latex_export_context.dynamic[name];
-  if (kind == "") return object (false);
-  return symbol_object (kind);
-}
-
 void
 latex_export_set_portable (bool value) {
   latex_export_context.portable= value;
@@ -4005,11 +3998,9 @@ latex_export_portable_image_used (string name) {
   return latex_export_context.portable_image_used[name];
 }
 
-object
+string
 latex_export_portable_image_copy_get (string source) {
-  string copied= latex_export_context.portable_image_copies[source];
-  if (copied == "") return object (false);
-  return object (copied);
+  return latex_export_context.portable_image_copies[source];
 }
 
 void

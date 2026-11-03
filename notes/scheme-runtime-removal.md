@@ -1999,6 +1999,24 @@ generated native entries and remain on the secure-function list.
 - Remaining export object queries and the full runtime/build dependency removal
   are still outstanding; this is not completion of the overall goal.
 
+## Native Export Queries And Editor Environment Patching
+
+- Portable-image cache lookup returns its native filename string, retaining
+  the empty/missing sentinel. Removed the unused dynamic query and two unused
+  serialized-tree-to-object helpers.
+- User macro collection passes native string arrays into expansion. Editor
+  LaTeX conversion calls the native environment patch directly with its existing
+  expansion flag, eliminating traversal of the entire environment to construct
+  an ignored Scheme list. Removed the compatibility wrapper and four bindings.
+- The totex implementation files now have no Scheme object values; remaining
+  occurrences of the word object are document preservation tag strings. Shared
+  Scheme includes and preference helpers are still transitional dependencies.
+- Interface generation and seven implementation units compiled with -j16.
+  Logs: build_qt6/native-latex-query-glue.log,
+  build_qt6/native-latex-query-build.log and
+  build_qt6/native-latex-query-editor-build.log. No tests added/run; combined
+  linking and deployment are pending. The full runtime-removal goal stays active.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

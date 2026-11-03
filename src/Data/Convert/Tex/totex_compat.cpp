@@ -7,7 +7,6 @@
 *******************************************************************************/
 
 #include "convert.hpp"
-#include "scheme.hpp"
 
 void
 latex_compat_set_style (string style) {
@@ -29,12 +28,4 @@ latex_compat_has_style (string style) {
 bool
 latex_compat_has_texmacs_style (string style) {
   return style == latex_export_latex_texmacs_style ();
-}
-
-scheme_tree
-latex_compat_tmtex_env_patch (tree t, object legacy_options) {
-  (void) legacy_options;
-  bool expand_user_macros=
-    get_preference ("texmacs->latex:expand-user-macros", "off") == "on";
-  return latex_export_env_patch (tree_to_scheme_tree (t), expand_user_macros);
 }

@@ -100,8 +100,8 @@ portable_image_fresh_name (url source, string tail_name) {
 string
 portable_image_copy (url source) {
   string key= as_system_string (source);
-  object old= latex_export_portable_image_copy_get (key);
-  if (is_string (old)) return as_string (old);
+  string old= latex_export_portable_image_copy_get (key);
+  if (old != "") return old;
 
   string tail_name= as_system_string (tail (source));
   string file_name= portable_image_fresh_name (source, tail_name);

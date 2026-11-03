@@ -1460,10 +1460,6 @@
            native="latex_export_prepare_v3_source" returns="scheme_tree" exceptions="scheme">
     <arg type="tree" />
   </binding>
-  <binding name="tmtex-env-patch" native="latex_compat_tmtex_env_patch" returns="scheme_tree">
-    <arg type="tree" />
-    <arg type="object" />
-  </binding>
   <binding name="latex-native-document-&gt;texmacs" native="latex_native_document_to_texmacs" returns="tree">
     <arg type="string" />
     <arg type="bool" />
@@ -1488,9 +1484,6 @@
     <arg type="bool" />
   </binding>
   <binding name="latex-export-use-macros?" native="latex_export_use_macros" returns="bool" />
-  <binding name="latex-export-collect-user-defs" native="latex_export_collect_user_defs" returns="object">
-    <arg type="scheme_tree" />
-  </binding>
   <binding name="latex-export-set-latex-language" native="latex_export_set_latex_language" returns="void">
     <arg type="string" />
   </binding>
@@ -1568,17 +1561,11 @@
     <arg type="string" />
     <arg type="string" />
   </binding>
-  <binding name="latex-export-dynamic-get" native="latex_export_dynamic_get" returns="object">
-    <arg type="string" />
-  </binding>
   <binding name="latex-export-set-portable" native="latex_export_set_portable" returns="void">
     <arg type="bool" />
   </binding>
   <binding name="latex-export-portable?" native="latex_export_portable" returns="bool" />
   <binding name="latex-export-portable-image-used?" native="latex_export_portable_image_used" returns="bool">
-    <arg type="string" />
-  </binding>
-  <binding name="latex-export-portable-image-copy-get" native="latex_export_portable_image_copy_get" returns="object">
     <arg type="string" />
   </binding>
   <binding name="latex-export-portable-image-record" native="latex_export_portable_image_record" returns="void">

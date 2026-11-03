@@ -133,11 +133,6 @@ stree_apply (string head) {
   return r;
 }
 
-inline object
-stree_object (scheme_tree t) {
-  return scheme_tree_to_object (t);
-}
-
 inline scheme_tree
 tmtex_convert (scheme_tree t) {
   return latex_export_convert_node (t);

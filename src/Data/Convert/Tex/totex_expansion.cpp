@@ -151,18 +151,6 @@ known_tmtex_name (string name) {
 }
 
 std::vector<string>
-object_strings (object values) {
-  std::vector<string> result;
-  if (!is_list (values)) return result;
-  array<object> items= as_array_object (values);
-  for (int i=0; i<N(items); ++i) {
-    if (is_string (items[i])) result.push_back (as_string (items[i]));
-    else if (is_symbol (items[i])) result.push_back (as_symbol (items[i]));
-  }
-  return result;
-}
-
-std::vector<string>
 ordered_difference (const std::vector<string>& values,
                     const std::set<string>& removed) {
   std::vector<string> result;
@@ -224,7 +212,9 @@ latex_export_env_patch (scheme_tree st, bool expand_user_macros) {
   excluded_l5.insert (always.begin (), always.end ());
   std::vector<string> l5= ordered_difference (l3, excluded_l5);
 
-  std::vector<string> l6= object_strings (latex_export_collect_user_defs (st));
+  array<string> defs= latex_export_collect_user_defs (st);
+  std::vector<string> l6;
+  for (int i=0; i<N(defs); ++i) l6.push_back (defs[i]);
   std::set<string> l6_set (l6.begin (), l6.end ());
   std::vector<string> l7= expand_user_macros ? std::vector<string> () : l6;
 
