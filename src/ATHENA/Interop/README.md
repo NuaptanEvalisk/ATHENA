@@ -197,6 +197,47 @@ Ticket-scoped ERR is fatal; operation-scoped ERR does not invalidate the ticket.
 All resources expose `inspect` (command parameter descriptions) and `get`.
 The vault exposes `create_namespace` with a `definition` map.
 
+### Global transformation proposals
+
+The interactive editor accepts a complete proposed change through the active
+vault handle (`@/vaults/@`). External tools compute their transformations outside
+ATHENA and call `propose_transformation` with:
+
+```json
+{
+  "name": "Normalize example metadata",
+  "documents": [
+    {"path": "Notes Root/example.ath", "before": "<full v3 node value>",
+     "after": "<full v3 node value>"}
+  ]
+}
+```
+
+The strings above are placeholders: `before` and `after` must be complete
+document-model-v3 **node objects**, including the top-level source, version,
+style, initial settings, body, IDs and typed properties. Use the `tree` value
+returned by the document's `get` operation, not only its body. Paths are unique,
+normalized, vault-relative `.ath` paths. Documents not listed remain unchanged.
+
+An accepted operation returns `{"id":"…","status":"queued"}`. This acknowledges
+queue admission only. The Qt frontend performs the existing native scan and
+preview, asks the user to apply the changes, retains backups, and refreshes
+affected open buffers. An exact metadata-aware `before` comparison rejects stale
+proposals. The commit phase rechecks source bytes, open-buffer changes and the
+captured vault incarnation; cancellation does not write documents.
+
+Poll `transformation_status {"id":"…"}` on the same vault to obtain `queued`,
+`reviewing`, or terminal `ok`, `cancelled` or `error` status. Completed results
+include `message`, `backup` and `documents` when available. The last 32 completed
+results are retained in this process. Closing/reopening the vault invalidates
+its handles and proposals; unknown/expired results return `NOT_FOUND`.
+
+The queue admits up to eight waiting proposals, with a shared 64 MiB payload
+budget including the current review. Headless instances return `UNAVAILABLE`;
+full queues return `BUSY`. Normal AUDMAP authorization still applies. The
+Global transformation menu displays pending work and the submission instructions;
+it no longer selects or executes `.scm` files.
+
 Namespaces expose `get`, full-definition `set`, `rename`, `delete`, `members`,
 `relations`, `set_relation`, `remove_relation`, `template_fields`, `create_file`,
 `sorter_source` and `subproduct`. `set` can change names while preserving UUID;

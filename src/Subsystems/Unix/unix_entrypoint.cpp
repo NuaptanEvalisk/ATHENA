@@ -223,7 +223,6 @@ int main (int argc, char** argv) {
   reexec_detached (argc, argv);
 #endif
 
-  texmacs_init_guile_hooks ();
   setup_athena_path ();
   if (get_env ("APPIMAGE") != "") {
     url usr_bin = url (get_env ("APPDIR")) * "usr/bin";

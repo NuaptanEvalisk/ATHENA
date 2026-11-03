@@ -2,9 +2,9 @@
 * Native owner-bound selection image export. GNU GPL version 3 or later.
 ******************************************************************************/
 #include "selection_image_export.hpp"
+#include "boot.hpp"
 #include "editor.hpp"
 #include "buffer_actor.hpp"
-#include "guile_tm.hpp"
 #include "ATHENA/Data/node_reference_export.hpp"
 #include "ATHENA/Data/compound_edit_batch.hpp"
 #include "Data/Convert/Generic/conversion_registry.hpp"
@@ -12,7 +12,6 @@
 #include "Pdf/pdf_hummus_make_attachment.hpp"
 #include "node_metadata.hpp"
 #include "file.hpp"
-#include "scheme.hpp"
 #include "tree_traverse.hpp"
 #include "Typeset/Env/local_environment.hpp"
 #include "Qt/qt_utilities.hpp"
@@ -62,7 +61,7 @@ tree math_fragment (editor_rep& editor) {
 }
 
 void attach_source (url output, tree fragment) {
-  const auto* owner= current_scheme_execution_context ();
+  const auto* owner= current_execution_context ();
   tree document= copy (owner->actor->current_source (owner->view_id));
   for (int i=0; i<N(document); ++i) {
     if (is_compound (document[i], "body", 1))
@@ -178,7 +177,7 @@ void clipboard_copy_image () {
 }
 
 void native_export_selection_as_image_dialog (string format) {
-  const auto* owner= current_scheme_execution_context ();
+  const auto* owner= current_execution_context ();
   if (!owner || !owner->actor || !owner->editor)
     throw std::runtime_error ("Selection export requires an owning editor");
   const auto actor= owner->actor_id, view= owner->view_id;

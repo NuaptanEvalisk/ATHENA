@@ -190,7 +190,6 @@ def properties(tree):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, required=True)
-    parser.add_argument("--runtime", type=Path, required=True)
     parser.add_argument("--resources", type=Path, required=True)
     parser.add_argument("--artifacts", type=Path)
     args = parser.parse_args()
@@ -214,6 +213,11 @@ def main():
     }))
     source = root / "source.ath"
     source.write_bytes(fixture())
+    (root / "Vaultfile.json").write_text(json.dumps({
+        "name": "AUDMAP native proposal fixture", "node_model_version": 2,
+        "map_path": "map.sqlite", "namespace_db_path": "namespaces.sqlite",
+        "preferences_path": "vprefs.json", "startup_page": "", "backup_dispatchers": [],
+    }))
 
     public, secret = curve_keypair()
     identity = root / "client/identity.json"
@@ -230,7 +234,6 @@ def main():
     runtime_dir = Path(tempfile.mkdtemp(prefix="a3-", dir="/tmp"))
     os.chmod(runtime_dir, 0o700)
 
-    runtime = args.runtime.resolve()
     resources = args.resources.resolve()
     env = dict(os.environ)
     env.update({
@@ -240,25 +243,16 @@ def main():
         "XDG_DATA_HOME": str(root / "data"),
         "XDG_RUNTIME_DIR": str(runtime_dir),
         "ATHENA_PATH": str(resources), "QT_QPA_PLATFORM": "offscreen",
-        "GUILE_AUTO_COMPILE": "0",
-        "GUILE_LOAD_PATH": str(runtime / "share/guile/3.0"),
-        "GUILE_LOAD_COMPILED_PATH": str(runtime / "lib/guile/3.0/ccache"),
-        "LD_LIBRARY_PATH": ":".join((str(runtime / "lib"),
+        "LD_LIBRARY_PATH": ":".join((
                                      str(resources / "lib"),
                                      env.get("LD_LIBRARY_PATH", ""))),
     })
-    quoted = json.dumps(str(source))
-    expression = (
-        '(exec-global (lambda () '
-        f'(let ((name (string->url {quoted}))) '
-        '(when (buffer-load name) (error "AUDMAP v3 fixture load failed")) '
-        '(switch-to-buffer name))))')
     log_path = root / "runtime.log"
     probe = root / "athena-audmap-v3-probe"
     build_stdio_client(repository, args.binary.resolve().parents[1], probe)
     with log_path.open("w") as log:
         process = subprocess.Popen(
-            [str(args.binary.resolve()), "-X", "-no-splash-screen", "-x", expression],
+            [str(args.binary.resolve()), "-X", "-no-splash-screen", "--vault", str(root), str(source)],
             cwd=root, env=env, start_new_session=True,
             stdout=log, stderr=subprocess.STDOUT)
         try:
@@ -277,6 +271,40 @@ def main():
                         if time.monotonic() >= deadline:
                             raise
                         time.sleep(0.05)
+
+                # Exercise the real worker-to-Qt review handoff with an unchanged
+                # proposal: it completes without requiring a confirmation dialog.
+                vt, vh = resolve_one(client, "@/vaults/@")
+                st, sh = resolve_one(client, "@/vaults/@/filesystem/source.ath/saved")
+                baseline = source.read_bytes()
+                snapshot = operation(client, st, 1, sh, "get")
+                assert snapshot["status"] == "OK", snapshot
+                tree = snapshot["data"]["tree"]
+                invalid = operation(client, vt, 1, vh, "propose_transformation", {
+                    "name": "Invalid path", "documents": [
+                        {"path": "../source.ath", "before": tree, "after": tree}]})
+                assert invalid["status"] == "INVALID_ARGUMENT", invalid
+                queued = operation(client, vt, 2, vh, "propose_transformation", {
+                    "name": "Unchanged native source", "documents": [
+                        {"path": "source.ath", "before": tree, "after": tree}]})
+                assert queued["status"] == "OK", queued
+                proposal = queued["data"]["id"]
+                deadline = time.monotonic() + 20
+                poll = 3
+                while True:
+                    reviewed = operation(client, vt, poll, vh, "transformation_status", {"id": proposal})
+                    poll += 1
+                    assert reviewed["status"] == "OK", reviewed
+                    if reviewed["data"]["status"] not in ("queued", "reviewing"):
+                        break
+                    if time.monotonic() > deadline:
+                        raise TimeoutError("Native transformation review did not complete")
+                    time.sleep(0.05)
+                assert reviewed["data"]["status"] == "ok", reviewed
+                assert reviewed["data"]["documents"] == [], reviewed
+                assert source.read_bytes() == baseline
+                finish(client, st)
+                finish(client, vt)
 
                 oid = 1
                 before = operation(client, ticket, oid, handle, "get"); oid += 1

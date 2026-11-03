@@ -19,7 +19,7 @@
 #include "boot.hpp"
 #include "data_cache.hpp"
 #include "observer.hpp"
-#include "scheme.hpp"
+#include "native_dispatch.hpp"
 #include "sys_utils.hpp"
 #include "buffer_state.hpp"
 
@@ -93,8 +93,6 @@ run_tests (int argc, char** argv) {
   {
     server sv;
     test_server= sv->get_server ();
-    eval ("(begin "
-          "  (tm-define (like-emacs?) #f))");
     TestReadOnlyEdit test;
     test_status= QTest::qExec (&test, argc, argv);
     test_server= nullptr;
@@ -114,7 +112,7 @@ main (int argc, char** argv) {
   cache_initialize ();
   reset_document_tree (current_document_tree ());
   init_athena ();
-  start_scheme (argc, argv, run_tests);
+  run_tests (argc, argv);
   return test_status;
 }
 

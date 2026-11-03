@@ -275,7 +275,7 @@ bool QTMProofTrack::eventFilter (QObject*, QEvent* event) {
       {"previous", proof.target.toStdString ()}}.dump ();
     const auto payload= actor_text_from_string (string (bytes.data (), bytes.size ()));
     if (!buffer_actor::try_submit_to (proof.actor, actor_command_kind::native_editor_action_json,
-          proof.view, payload, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+          proof.view, payload, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
           0, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY)) {
       actor_text_registry::instance ().discard (payload);
       drop->ignore ();

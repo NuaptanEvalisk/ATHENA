@@ -14,7 +14,7 @@
 #include "editor.hpp"
 #include "file.hpp"
 #include "qt_utilities.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 
 #include <QCoreApplication>
 #include <QTimer>
@@ -69,7 +69,7 @@ struct VaultBugcheckRun: std::enable_shared_from_this<VaultBugcheckRun> {
   std::uint64_t generation= 0;
   athena_actor_id actor_id= ATHENA_NO_ACTOR;
   athena_view_id view_id= ATHENA_NO_VIEW;
-  SchemeCapabilitySet capabilities= SCHEME_CAPABILITY_NONE;
+  ExecutionCapabilitySet capabilities= EXECUTION_CAPABILITY_NONE;
   std::string root;
   std::vector<std::string> files;
   std::vector<std::string> errors;
@@ -92,7 +92,7 @@ struct VaultBugcheckRun: std::enable_shared_from_this<VaultBugcheckRun> {
   }
 
   void set_progress_message (const std::string& text) {
-    const SchemeExecutionContext* context= current_scheme_execution_context ();
+    const ExecutionContext* context= current_execution_context ();
     if (context != nullptr && context->editor != nullptr)
       context->editor->set_message (
         tree (string (text.c_str ())), tree ("Vault Bugcheck"));
@@ -233,7 +233,7 @@ vault_bugcheck_native () {
     });
     return;
   }
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context == nullptr || context->actor_id == ATHENA_NO_ACTOR ||
       context->view_id == ATHENA_NO_VIEW) {
     qt_post_to_main_thread ([] {

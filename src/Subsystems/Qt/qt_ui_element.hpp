@@ -15,7 +15,6 @@
 #include "ntuple.hpp"
 #include "promise.hpp"
 #include "url.hpp"
-#include "scheme.hpp"
 #include "hashmap.hpp"
 
 #include "qt_widget.hpp"
@@ -163,35 +162,13 @@ public:
 class qt_choice_command_rep: public command_rep {
   QPointer<QTMListView> qwid;
   command                cmd;
-  bool              multiple;  //<! Are multiple choices allowed in the widget?
-  bool              filtered;
   
 public:
-  qt_choice_command_rep (QTMListView* w, command c, bool m, bool f=false)
-  : qwid(w), cmd(c), multiple(m), filtered(f) {}
+  qt_choice_command_rep (QTMListView* w, command c, bool, bool=false)
+  : qwid(w), cmd(c) {}
   
-  virtual void apply () {
-    if (qwid) {
-      QStringList selected;
-      foreach (QModelIndex item, qwid->selectionModel()->selectedIndexes())
-      selected << qwid->model()->data(item).toString();
-      
-      object l= null_object ();
-      if (multiple)
-        for (int i = selected.size() - 1; i >= 0; --i)
-          l = cons (from_qstring (selected[i]), l);
-      else if (selected.size() > 0)
-        l = from_qstring (selected[0]);
-      else
-        l = "";
-      
-      if (filtered)
-        cmd (list_object (l, from_qstring (qwid->filter()->filterRegularExpression().pattern())));
-      else
-        cmd (list_object (l));
-    }
-  }
-  
+  void apply () override { if (qwid) cmd (); }
+
   tm_ostream& print (tm_ostream& out) { return out << "<command qt_choice>"; }
 };
 #endif

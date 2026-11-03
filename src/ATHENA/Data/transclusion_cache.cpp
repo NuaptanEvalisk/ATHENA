@@ -7,6 +7,7 @@
 *******************************************************************************/
 
 #include "ATHENA/Data/transclusion_cache.hpp"
+#include "boot.hpp"
 
 #include "ATHENA/Data/vault.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
@@ -14,7 +15,6 @@
 #include "convert.hpp"
 #include "converter.hpp"
 #include "file.hpp"
-#include "scheme.hpp"
 
 #include <algorithm>
 #include <cstdint>
@@ -278,13 +278,12 @@ repair_error (tree t, string message) {
   string file= N(t) > 1 ? tree_text (t[1]) : "";
   string begin= N(t) > 2 ? tree_text (t[2]) : "";
   string end= N(t) > 3 ? tree_text (t[3]) : "";
-  string command= "(vault-transclude-repair " * scm_quote (uuid) * " " *
-                  scm_quote (file) * " " * scm_quote (begin) * " " *
-                  scm_quote (end) * ")";
+  tree action (ACTION);
+  action << "Repair" << "vault-transclude-repair" << uuid << file << begin << end;
   tree body (CONCAT);
   body << compound ("bold", "Broken Transclusion: ")
        << tree (message * " ")
-       << tree (ACTION, "Repair", command);
+       << action;
   return tree (WITH, "color", "red", body);
 }
 

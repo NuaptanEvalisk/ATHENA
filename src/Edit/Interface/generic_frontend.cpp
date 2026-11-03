@@ -11,7 +11,7 @@
 #include "application_tools.hpp"
 #include "editor.hpp"
 #include "native_interfaces.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #include "ATHENA/Data/compound_edit_batch.hpp"
 #include "ATHENA/Data/application_lifecycle.hpp"
 #include "buffer_name_catalog.hpp"
@@ -70,7 +70,7 @@ void chosen (editor_rep& ed, const std::string& kind, const std::string& file,
 }
 } // namespace
 void generic_insert_dialog (string kind) {
-  auto* context= current_scheme_execution_context ();
+  auto* context= current_execution_context ();
   const auto actor= context->actor_id, view= context->view_id;
   const std::string operation (kind.data (), N (kind));
   qt_post_to_main_thread ([actor, view, operation] {
@@ -202,7 +202,7 @@ struct document_update : std::enable_shared_from_this<document_update> {
 };
 } // namespace
 void generic_update_document (string what) {
-  const auto* owner= current_scheme_execution_context ();
+  const auto* owner= current_execution_context ();
   auto request= std::make_shared<document_update> ();
   request->actor= owner->actor_id;
   request->view= owner->view_id;

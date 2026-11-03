@@ -7,8 +7,8 @@
 *******************************************************************************/
 
 #include "QTMToolbarController.hpp"
+#include "boot.hpp"
 
-#include "scheme.hpp"
 
 #include <QAction>
 #include <QApplication>

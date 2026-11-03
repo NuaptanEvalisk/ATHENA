@@ -15,7 +15,7 @@
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "buffer_actor.hpp"
 #include "buffer_state.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #include "editor.hpp"
 #include "tm_window.hpp"
 #include "new_view.hpp"
@@ -101,7 +101,7 @@ std::mutex sessions_mutex;
 std::unordered_map<athena_actor_id, std::shared_ptr<input_session>> sessions;
 
 std::shared_ptr<input_session> input_for (editor_rep& editor) {
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   if (!context || !context->actor) return {};
   const string name= as_string (context->actor->current_buffer_url ());
   if (!starts (name, "tmfs://aux/enunciation-slot-")) return {};
@@ -126,7 +126,7 @@ void submit_value (const std::shared_ptr<input_session>& session, tree value,
   const auto index= session->index;
   auto continuation= actor_continuation_registry::instance ().store (
     [expected, desired, extra, action, id, field, where, index] {
-      const auto* context= current_scheme_execution_context ();
+      const auto* context= current_execution_context ();
       if (!context || !context->editor || !context->actor) return;
       editor_rep& editor= *context->editor;
       try {
@@ -202,7 +202,7 @@ void submit_value (const std::shared_ptr<input_session>& session, tree value,
       }
     });
   if (!buffer_actor::submit_to (actor, actor_command_kind::run_native_continuation,
-        view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, continuation))
+        view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, continuation))
     actor_continuation_registry::instance ().discard (continuation);
 }
 
@@ -318,7 +318,7 @@ public:
         native_input->viewport ()->height () * PIXEL);
       auto start= actor_continuation_registry::instance ().store (
         [zoom, guard= QPointer<QTMWidget> (native_input), container= QPointer<SlotInput> (this)] {
-          const auto* context= current_scheme_execution_context ();
+          const auto* context= current_execution_context ();
           if (!context || !context->editor) return;
           auto* editor= context->editor;
           editor->handle_set_zoom_factor (zoom);
@@ -334,7 +334,7 @@ public:
           });
         });
       if (!buffer_actor::submit_to (input_actor, actor_command_kind::run_native_continuation,
-            input_view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, start))
+            input_view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, start))
         actor_continuation_registry::instance ().discard (start);
     });
     cleanup.dismiss ();
@@ -355,22 +355,22 @@ public:
     if (closing || !environment || request.at ("node") != node_id ||
         request.at ("field") != field || request.at ("index") != field_index) return;
     const auto update= actor_continuation_registry::instance ().store ([environment] {
-      const auto* context= current_scheme_execution_context ();
+      const auto* context= current_execution_context ();
       context->editor->set_field_environment (environment);
     });
     if (!buffer_actor::submit_to (input_actor, actor_command_kind::run_native_continuation,
-          input_view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, update))
+          input_view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, update))
       actor_continuation_registry::instance ().discard (update);
   }
   void finish (std::function<void ()> after= {}) {
     if (closing && !after) return;
     closing= true;
     auto flush= actor_continuation_registry::instance ().store ([] {
-      const auto* context= current_scheme_execution_context ();
+      const auto* context= current_execution_context ();
       if (context && context->editor) en::title_input_changed (*context->editor);
     });
     if (!buffer_actor::submit_to (input_actor, actor_command_kind::run_native_continuation,
-          input_view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, flush))
+          input_view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, flush))
       actor_continuation_registry::instance ().discard (flush);
     hide ();
     // Destruction follows the queued native input commands and final flush.
@@ -384,7 +384,7 @@ public:
       });
     });
     if (!buffer_actor::submit_to (input_actor, actor_command_kind::run_native_continuation,
-          input_view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, dispose)) {
+          input_view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, dispose)) {
       actor_continuation_registry::instance ().discard (dispose);
       if (after) QObject::connect (this, &QObject::destroyed, qApp, [after] { after (); });
       deleteLater ();
@@ -443,7 +443,7 @@ void qtm_enunciation_slot (QTMWidget* canvas, athena_actor_id actor,
       // switch also waits for its flush and focus cleanup before reopening.
       previous->finish ([actor, view, field, id, index, generation] {
         auto reopen= actor_continuation_registry::instance ().store ([field, id, index, generation] {
-          const auto* context= current_scheme_execution_context ();
+          const auto* context= current_execution_context ();
           if (!context || !context->editor) return;
           auto& editor= *context->editor;
           tree body= editor.the_buffer ();
@@ -457,7 +457,7 @@ void qtm_enunciation_slot (QTMWidget* canvas, athena_actor_id actor,
           }
         });
         if (!buffer_actor::submit_to (actor, actor_command_kind::run_native_continuation,
-              view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, reopen))
+              view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, reopen))
           actor_continuation_registry::instance ().discard (reopen);
       });
     }
@@ -483,7 +483,7 @@ void title_input_layout (editor_rep& editor, const std::function<int (tree)>& me
 void title_input_changed (editor_rep& editor) {
   auto session= input_for (editor);
   if (!session || session->navigating) return;
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   const auto epoch= context->actor->source_epoch ();
   if (session->epoch == epoch) return;
   const tree value= inline_value (editor.the_buffer ());

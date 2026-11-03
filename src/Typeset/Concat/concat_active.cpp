@@ -10,11 +10,11 @@
 ******************************************************************************/
 
 #include "concater.hpp"
+#include "boot.hpp"
 #include "file.hpp"
 #include "image_files.hpp"
 #include "sys_utils.hpp"
 #include "analyze.hpp"
-#include "scheme.hpp"
 #include "native_command_security.hpp"
 #include "packrat.hpp"
 #include "convert.hpp"

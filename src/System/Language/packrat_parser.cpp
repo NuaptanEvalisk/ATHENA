@@ -761,28 +761,6 @@ packrat_available_path (string lan, tree in, path in_p) {
   return par->current_start->contains (in_p);
 }
 
-object
-packrat_context (string lan, string s, tree in, path in_pos) {
-  //cout << "Context " << in << " at " << in_pos
-  //     << " (" << lan << ", " << s << ")" << LF;
-  packrat_parser par= make_packrat_parser (lan, in);
-  C sym= encode_symbol (compound ("symbol", s));
-  if (par->parse (sym, 0) != N(par->current_input))
-    par= make_packrat_parser (lan, in, in_pos);
-  C pos= par->encode_tree_position (in_pos);
-  if (pos == PACKRAT_FAILED) return object (false);
-  array<C> kind, begin, end;
-  par->context (sym, 0, pos-1, pos+1, 0, kind, begin, end);
-  par->compress (kind, begin, end);
-  object ret= null_object ();
-  for (int i=0; i<N(kind); i++) {
-    object x1 (symbol_object (packrat_decode[kind[i]][0]->label));
-    object x2 (par->decode_tree_position (begin[i]));
-    object x3 (par->decode_tree_position (end[i]));
-    ret= cons (list_object (x1, x2, x3), ret);
-  }
-  return ret;
-}
 
 bool
 packrat_select (string lan, string s, tree in, path in_pos,

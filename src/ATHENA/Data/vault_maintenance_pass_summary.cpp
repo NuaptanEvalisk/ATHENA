@@ -9,7 +9,6 @@
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "ATHENA/Data/source_document_creation.hpp"
 #include "boot.hpp"
-#include "scheme.hpp"
 
 #include <algorithm>
 #include <cctype>

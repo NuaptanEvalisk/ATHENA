@@ -53,7 +53,7 @@ std::pair<path, path> range_positions (editor_rep& editor, const source_range& r
 }
 
 void require_writable () {
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   if (context->actor->current_state ()->read_only)
     throw std::runtime_error ("A compound source is read-only");
 }
@@ -144,7 +144,7 @@ void copy_ranges (std::vector<source_range> ranges,
     edit_participant member;
     member.actor= range.actor; member.view= range.view;
     member.prepare= [range] (editor_rep& editor) {
-      if (current_scheme_execution_context ()->actor->source_epoch () != range.epoch)
+      if (current_execution_context ()->actor->source_epoch () != range.epoch)
         throw std::runtime_error ("Source changed after compound selection");
       (void) range_positions (editor, range);
     };
@@ -157,7 +157,7 @@ void copy_ranges (std::vector<source_range> ranges,
       tree mode= editor.selection_get_env_value ("mode");
       if (mode != "src") require_clipboard_grid_context (editor, content, first, last);
       if (mode != "src" && is_func (content, MATH_BLOCK)) mode= "text";
-      const auto version= current_scheme_execution_context ()->actor->current_state ()->storage_version;
+      const auto version= current_execution_context ()->actor->current_state ()->storage_version;
       (*pieces)[i]= athena::document::write_clipboard_xml (
         tuple ("texmacs", content, mode,
                editor.selection_get_env_value (MODE_LANGUAGE (as_string (mode)))), version);
@@ -201,7 +201,7 @@ void replace_ranges (std::vector<source_range> ranges, std::string clipboard_xml
       require_writable ();
       if (editor.inside_active_graphics ())
         throw std::runtime_error ("Compound range editing does not support an active graphics selection");
-      if (current_scheme_execution_context ()->actor->source_epoch () != range.epoch)
+      if (current_execution_context ()->actor->source_epoch () != range.epoch)
         throw std::runtime_error ("A source changed after the compound selection was made");
       const auto positions= range_positions (editor, range);
       editor.select (positions.first, positions.second);
@@ -247,7 +247,7 @@ void replace_ranges (std::vector<source_range> ranges, std::string clipboard_xml
 }
 
 bool coordinate_compound_history (bool redo, int branch) {
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   if (!context || !context->actor || !context->editor) return false;
   const double requested= redo ? context->editor->source_move_redo_marker (branch) : 0;
   if (redo && branch != 0 && requested == 0) return false;

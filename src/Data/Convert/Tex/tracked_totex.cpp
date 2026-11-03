@@ -10,9 +10,10 @@
 ******************************************************************************/
 
 #include "Tex/convert_tex.hpp"
+#include "path.hpp"
+#include "boot.hpp"
 #include "analyze.hpp"
 #include "hashset.hpp"
-#include "scheme.hpp"
 #include "base64.hpp"
 #include "iterator.hpp"
 #include "fast_search.hpp"

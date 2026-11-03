@@ -1,8 +1,16 @@
 # Complete Native Runtime
 
+## Current State (2026-11-03)
+
+Production Scheme execution, Guile values/glue, VM callback and startup
+boundaries, and interpreter build/link/install dependencies have been removed.
+The native application is deployed locally. The final closure and verification
+record is at the end of this file; earlier pending-work statements describe
+historical checkpoints and are superseded by that record.
+
 ## Completion Contract
 
-The active goal is complete removal of Scheme execution from ATHENA, not a
+The completion contract is removal of Scheme execution from ATHENA, not a
 single migration batch. Batches are commit and verification boundaries only.
 Completion requires no production Scheme execution, no Guile runtime/build or
 packaging dependency, and preserved supported editor behavior and actor
@@ -2113,10 +2121,131 @@ generated native entries and remain on the secure-function list.
   Complete runtime removal remains active; command values, callbacks and startup
   still require migration.
 
-## Known Outstanding Failure
+## Native Runtime Closure (2026-11-03)
 
-- A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
-  inconsistent. See the concrete core evidence in `native-application-ui.md`.
+### Values, commands and ownership
 
-Do not describe this as fixed by removal of `progs`. It remains an explicit
-part of the complete runtime-removal work.
+- Replaced the final `object`/SCM boundary with bounded native command values.
+  Native trees retain handles and typed node metadata; bytes and serialized
+  syntax remain explicit distinct types. The value model has no procedures,
+  arbitrary pairs, recursive heterogeneous lists or evaluation operation.
+- Moved the XML interfaces and retained native implementations to
+  `src/ATHENA/Commands`. The four XML files remain the sole command signature
+  and registration authority. Their generator emits direct native adapters,
+  validates arity/types and permits only explicit native UI routing.
+- Keyboard JSON, document actions, style extern functions, interactive defaults,
+  observers and delayed callbacks now use native values and owned callbacks.
+  Tree selectors have a dedicated native pattern representation. Literal
+  document action names pass typed data; Scheme expressions are rejected.
+- Replaced VM execution scopes with native `ExecutionContext`/`ExecutionScope`
+  and native environment scopes. BufferActor retains document ownership, Qt
+  retains UI ownership, and mailboxes retain ID-based transport. Native
+  exceptions unwind ordinary C++ RAII; compound edits report failure and roll
+  back through native completion paths.
+
+### Startup, automation and distribution
+
+- Deleted `src/Scheme`, the vendored Guile and BDW-GC sources, obsolete glue
+  generation, VM bootstraps, interpreter-only fixtures and private runtime
+  build/deployment scripts. Retained CLI integrations live in `tests/runtime`;
+  retained editor checks initialize the native application directly.
+- Added native `--vault DIR` startup before document/CLI tasks. Conversion and
+  quit use native startup work; retired script execution flags fail explicitly.
+  Maintenance, migration and profiling helpers use native CLI operations.
+- Global transformations use AUDMAP `propose_transformation` and
+  `transformation_status`, carrying full native v3 before/after documents.
+  Proposals enter bounded Qt review, retain preview/confirmation/backups, reject
+  invalid or stale source and dirty-buffer conflicts, and recheck Vault identity
+  before commit. No alternative interpreter was introduced.
+- Profiling opens the Vault and document natively and records first paint from
+  the actual compositor frame, matched by actor ID. The native timing workflow
+  completed through normal shutdown in an isolated profile.
+- CMake installation and release copy/validation exclude retired runtime and
+  bytecode trees even when a development runtime still contains them. Updated
+  Linux/container, iPadOS and Windows dependency instructions. Existing Windows
+  port limitations remain explicit; no new platform build success is claimed.
+- Existing S-expression font/cache data and syntax readers remain data-only
+  formats. The older `COMPILE.ath`/`.tex`/`.pdf` files remain explicitly labelled
+  historical snapshots in the root README, rather than current build guidance.
+
+### Verification and deployment
+
+- Built the explicit `ATHENA.bin` target with `-j16`. The final application and
+  test build log is `build_qt6/native-runtime-removal-verified-build.log`.
+- Five focused C++ suites passed: `buffer_actor_test`, `execution_context_test`,
+  `native_context_test`, `native_conversion_test` and
+  `native_interactive_dialog_test`. These cover strict values, node metadata
+  identity, ownership, native exception recovery, conversion, selector behavior,
+  transformation stale-source rejection and backups. They were relinked and
+  passed again against the final native test body; see
+  `build_qt6/native-runtime-removal-focused-final.log`.
+- Eight selected UTF-8 boundary cases passed with the CTest environment:
+  native tmfs import, Unicode keyboard input, math typesetting, metadata,
+  math language classification, packrat syntax data, LaTeX primitive conversion
+  and LaTeX source-metadata preparation. QtTest reports 10 passes including
+  setup/cleanup. Logs: `build_qt6/native-runtime-removal-utf8-final-build.log`
+  and `build_qt6/native-runtime-removal-utf8-selected.log`. This is scoped
+  verification; the complete executable's existing failures are recorded below.
+- Four CLI/generator checks passed in
+  `build_qt6/native-runtime-removal-cli-tests.log`. The expanded real AUDMAP
+  runtime check passed proposal admission, invalid-path rejection, Qt review and
+  completion status in `build_qt6/native-runtime-removal-proposal-test.log`.
+- Audited 792 JSON command invocations against 2,152 XML signatures and all 147
+  style ACTION/EXTERN invocations for names and arities. The generator contract
+  test compiles and executes its generated C++ adapters.
+- Nine release-policy tests and eleven maintenance audit harness tests passed.
+  A real temporary CMake resource installation excluded retired runtime files
+  while retaining native JSON/styles and font data. No container, package
+  installation or broad test suite was run.
+- Native startup/Vault/export, invalid Vault rejection, retired-script rejection
+  and the isolated compositor profiling workflow passed. Profiling results
+  verify instrumentation and lifecycle; they are not performance benchmarks.
+- Deployed using `tools/deploy-local-runtime.sh build_qt6`. Installed and built
+  ELF build IDs match `5e64fb7d8b5bf4e6c969477991b05b4bd1c8da25`; neither dynamic
+  dependencies nor exported/imported symbols reference Guile or BDW-GC. The
+  installed executable separately passed isolated native Vault opening and v3
+  conversion with UUID preservation. Logs:
+  `build_qt6/native-runtime-removal-deploy.log` and
+  `build_qt6/native-runtime-removal-installed-smoke.log`.
+- Existing user processes were left running. The official installer retained
+  their previous executable; old local private libraries remain available to
+  that executable but are unused by the new binary and excluded from new
+  installation/package copies. Production Notes and the user profile were not
+  accessed or modified. The supplied handoff note remains uncommitted.
+  Isolated source fixtures, startup logs and profiling output are retained in
+  `build_qt6/native-runtime-removal-evidence`; temporary private profiles were
+  removed after their processes exited.
+
+### Existing test failures retained explicitly
+
+The complete `utf8_editor_test` executable is not green. It passes 27 checks
+before `unicodeSearchAndReplace` encounters `Cursor environment is awaiting
+preparation for mode`. Initial layout preparation allowed the first search,
+but the replace-all loop again lost its admitted cursor context after mutation.
+Those exploratory fixture changes were reverted; no production context getter
+was relaxed and no search assertion was disabled.
+
+A separate selected case,
+`nativeV3LatexEndToEndSerializationKeepsOriginalV2Behavior`, fails on
+`LaTeX mode statistics: source context unavailable for !math-row-policy`.
+The search pipeline and LaTeX mode-statistics implementation are unchanged by
+runtime removal. Both error paths were independently reproduced using the
+retained pre-removal executable, build ID
+`53b24febae62e17f220fbd8b1050ca4884264172`, in a private profile. The same v3
+eqnarray fixture fails with the same LaTeX diagnostic and exit status 1 in both
+the previous and new executables. These are existing source-context defects,
+not evidence that the new runtime still requires Guile. Their repair remains
+separate work; neither complete UTF-8 nor unrestricted LaTeX coverage is claimed.
+
+Evidence: `build_qt6/native-runtime-removal-utf8-final.log`,
+`build_qt6/native-runtime-utf8-search-final-diagnostic.log`,
+`build_qt6/native-runtime-utf8-previous-binary-repro.log`, and
+`build_qt6/native-runtime-utf8-latex-baseline.log`.
+
+### Former dynamic-wind failure
+
+The inconsistent Scheme dynamic-wind stack documented in
+`native-application-ui.md` no longer has an executable path: the VM, SCM calls
+and cross-VM C++ exception boundary have been deleted. Native nested-context
+restoration and repeated exception recovery pass in the focused tests. This
+closure follows removal of the complete runtime boundary, not just `progs`.

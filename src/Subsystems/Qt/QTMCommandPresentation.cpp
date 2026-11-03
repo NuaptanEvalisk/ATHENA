@@ -14,7 +14,6 @@
 
 #include "athena_platform.hpp"
 #include "file.hpp"
-#include "scheme.hpp"
 #include "tm_ostream.hpp"
 
 #include <QJsonArray>

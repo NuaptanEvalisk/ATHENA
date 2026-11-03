@@ -18,8 +18,7 @@
 #include "Data/NodeContracts/execution_state.hpp"
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
-#include "scheme.hpp"
-#include "Scheme/Guile/guile_tm.hpp"
+#include "native_dispatch.hpp"
 #include "Xml/athena_document_xml.hpp"
 
 using athena::node::property;
@@ -332,7 +331,7 @@ private slots:
 };
 
 static void run_tests (int argc, char** argv) {
-  initialize_scheme ();
+  initialize_native_commands ();
   athena::contracts::initialize_builtins ();
   TestNativeV3Export test;
   std::exit (QTest::qExec (&test, argc, argv));
@@ -340,7 +339,7 @@ static void run_tests (int argc, char** argv) {
 
 int main (int argc, char** argv) {
   QCoreApplication app (argc, argv);
-  start_scheme (argc, argv, run_tests);
+  run_tests (argc, argv);
   return 1;
 }
 

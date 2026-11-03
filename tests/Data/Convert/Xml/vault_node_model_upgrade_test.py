@@ -509,7 +509,6 @@ def check_migrated(root):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, required=True)
-    parser.add_argument("--runtime", type=Path, required=True)
     parser.add_argument("--resources", type=Path, required=True)
     parser.add_argument("--artifacts", type=Path)
     args = parser.parse_args()
@@ -522,17 +521,13 @@ def main():
     create_vault(vault)
     before_target = (vault / "Target.ath").read_bytes()
 
-    runtime = args.runtime.resolve()
     resources = args.resources.resolve()
     env = dict(os.environ)
     env.update({
         "ATHENA_PATH": str(resources),
         "QT_QPA_PLATFORM": "offscreen",
-        "GUILE_AUTO_COMPILE": "0",
-        "GUILE_LOAD_PATH": str(runtime / "share/guile/3.0"),
-        "GUILE_LOAD_COMPILED_PATH": str(runtime / "lib/guile/3.0/ccache"),
         "LD_LIBRARY_PATH": ":".join((
-            str(runtime / "lib"), str(resources / "lib"),
+            str(resources / "lib"),
             env.get("LD_LIBRARY_PATH", ""),
         )),
     })

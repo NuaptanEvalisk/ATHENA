@@ -11,12 +11,12 @@
 #ifndef ATHENA_GENERIC_KEYBOARD_COMMANDS_HPP
 #define ATHENA_GENERIC_KEYBOARD_COMMANDS_HPP
 
-#include "scheme.hpp"
+#include "command_value.hpp"
 #include "tree.hpp"
 
 void generic_keyboard_load ();
 void generic_keyboard_load_domain (string domain);
-object generic_keyboard_run (int group, int binding);
+command_value generic_keyboard_run (int group, int binding);
 bool generic_keyboard_condition (int group);
 void generic_escape_symbol_insert (string action);
 void generic_open_escape_symbol_picker ();

@@ -9,8 +9,8 @@
 ******************************************************************************/
 
 #include "edit_interface.hpp"
+#include "boot.hpp"
 #include "Ispell/ispell.hpp"
-#include "scheme.hpp"
 #include "vars.hpp"
 #include "Bridge/impl_typesetter.hpp"
 

@@ -14,7 +14,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include "Data/Convert/Xml/math_source_normalization.hpp"
-#include "Scheme/Scheme/native_interfaces.hpp"
+#include "native_interfaces.hpp"
 
 namespace {
 string variant_text (QString value) {
@@ -135,8 +135,7 @@ void native_variant_circulate (tree t, bool forward) {
       }
     return;
   }
-  object parent= tree_command_outer (t);
-  if (is_tree (parent)) native_variant_circulate (as_tree (parent), forward);
+  if (auto parent= tree_command_outer (t)) native_variant_circulate (*parent, forward);
 }
 
 bool math_script_context (tree t) {

@@ -20,7 +20,6 @@
 #include "qt_actor_widget.hpp"
 #include "converter.hpp"
 #include "boot.hpp"
-#include "scheme.hpp"
 #include "new_view.hpp"
 #include "ATHENA/Data/new_buffer.hpp"
 #include "ATHENA/Data/vault_image_insertion.hpp"
@@ -68,6 +67,8 @@
 #include <QImage>
 #include <QUrl>
 #include <QFileInfo>
+#include <QFile>
+#include <chrono>
 
 #include <algorithm>
 #include <cmath>
@@ -75,6 +76,22 @@
 static long int QTMWcounter = 0; // debugging hack
 
 namespace {
+
+
+void profile_presented_frame (qt_simple_widget_rep* widget) {
+  const QByteArray arm= qgetenv ("ATHENA_PROFILE_FIRST_PAINT_ARM_FILE");
+  if (arm.isEmpty ()) return;
+  auto* actor= dynamic_cast<qt_actor_widget_rep*> (widget);
+  if (!actor || actor->actor_id () != qgetenv ("ATHENA_PROFILE_ACTOR").toULongLong ())
+    return;
+  // Only a frame painted for the requested document completes the measurement.
+  if (!QFile::remove (QString::fromUtf8 (arm))) return;
+  const auto now= std::chrono::system_clock::now ().time_since_epoch ();
+  const auto ns= std::chrono::duration_cast<std::chrono::nanoseconds> (now).count ();
+  QFile timing (QString::fromUtf8 (qgetenv ("ATHENA_PROFILE_TIMING_FILE")));
+  if (timing.open (QIODevice::WriteOnly | QIODevice::Append))
+    timing.write ("first-paint\t" + QByteArray::number (qlonglong (ns)) + "\tcompositor\n");
+}
 
 class scoped_event_check_suppression {
   qt_gui_rep* gui;
@@ -1091,6 +1108,7 @@ QTMWidget::paintContent (QPainter& p, const QRegion& region) {
   }
   else if (renderedFrame) {
     p.drawImage (QPointF (0.0, 0.0), renderedFrame.image ());
+    profile_presented_frame (tm_widget ());
   }
   else {
     qreal pixel_ratio= lastPixelRatio;

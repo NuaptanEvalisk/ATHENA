@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "tt_file.hpp"
+#include "boot.hpp"
 #include "font_domain.hpp"
 #include <mutex>
 #include <unordered_map>
@@ -21,7 +22,6 @@
 #include "hashmap.hpp"
 #include "tm_timer.hpp"
 #include "data_cache.hpp"
-#include "scheme.hpp"
 #include "sys_utils.hpp"
 
 extern bool use_locate;

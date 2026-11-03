@@ -179,8 +179,6 @@ assemble_linux_runtime () {
   run rm -f "$runtime/lib"/libqt6advanceddocking*.so*
   run install -m 755 "$local_build_dir/src/ATHENA.bin" \
     "$runtime/bin/ATHENA.bin"
-  run python3 "$script_dir/copy-private-guile-runtime.py" \
-    "$local_build_dir/athena-guile-runtime" "$runtime"
   run install -m 755 "$local_build_dir/src/athena-codex-bridge" \
     "$runtime/bin/athena-codex-bridge"
   run install -m 755 \

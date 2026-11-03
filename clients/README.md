@@ -1,7 +1,7 @@
 # Standalone AUDMAP clients
 
 The SDKs connect to a running ATHENA instance over authenticated local IPC.
-Neither SDK links or loads the editor, Guile, Qt, the rendering engine, or the
+Neither SDK links or loads the editor, Qt, the rendering engine, or the
 native resource resolvers. They share wire protocol 2, document model 3 and the
 CURVE identity format.
 The server still applies its connection and operation authorization policies.
@@ -37,7 +37,7 @@ client.finish(selection.ticket).result.get();
 ```
 
 Document-model-v3 node values expose persistent `id` and typed `properties`
-separately from the ticket-local integer handle. For an active XML-v2 source,
+separately from the ticket-local integer handle. For an active XML-v3 source,
 metadata operations are ordinary `operate` calls:
 
 ```cpp

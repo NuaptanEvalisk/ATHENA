@@ -12,7 +12,6 @@
 
 #include "GoogleAsyncDispatch.hpp"
 #include "boot.hpp"
-#include "scheme.hpp"
 #include "tm_ostream.hpp"
 
 #include <QByteArray>

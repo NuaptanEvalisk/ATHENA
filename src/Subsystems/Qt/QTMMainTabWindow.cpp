@@ -1,4 +1,5 @@
 #include "QTMMainTabWindow.hpp"
+#include "boot.hpp"
 #include "application_lifecycle.hpp"
 #include "athena_platform.hpp"
 #if ATHENA_PLATFORM_IPADOS
@@ -22,7 +23,6 @@
 #include "ATHENA/Data/background_workers.hpp"
 #include "qt_window_widget.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
 #include "tm_server.hpp"
 #include "tm_ostream.hpp"
 #include "tm_timer.hpp"

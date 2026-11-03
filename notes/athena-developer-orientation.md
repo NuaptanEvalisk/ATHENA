@@ -1,6 +1,6 @@
 # ATHENA: Orientation For A New Development Session
 
-Updated 2026-10-20. This is project background, not a task assignment.
+Updated 2026-11-03. This is project background, not a task assignment.
 The user will supply the bug or feature to work on.
 
 The production Notes Vault uses native XML v3, and Hodarium XML v3 is deployed
@@ -56,7 +56,7 @@ Repository: `/home/felix/data/Software/TeXmacs/texmacs`.
 
 | Location | Meaning |
 | --- | --- |
-| `ATHENA/` | Runtime resource tree: styles, Scheme, fonts, data and tools |
+| `ATHENA/` | Runtime resource tree: styles, fonts, declarative data and tools |
 | `ATHENA/bin/ATHENA.bin` | Installed development executable used by the user |
 | `build_qt6/` | Existing configured normal Debug build |
 | `build_qt6/src/ATHENA.bin` | Build output, not automatically the running binary |
@@ -89,7 +89,7 @@ Paths in this note are relative to the repository unless absolute.
 | Rendering | `src/Graphics/Renderer/`, `src/Subsystems/Qt/qt_renderer.cpp` |
 | Native UI and render service | `src/Subsystems/Qt/` |
 | Native document codec and legacy import | `src/Data/Convert/Xml/` |
-| Scheme runtime and generated bindings | `src/Scheme/` |
+| Native command declarations and generated dispatch | `src/ATHENA/Commands/` |
 | Styles and declarative resources | `ATHENA/packages/`, `ATHENA/misc/` |
 | AUDM resolution and resource adapters | `src/ATHENA/Interop/`, `src/ATHENA/Data/interop_*.cpp` |
 | AUDMAP transport and new plugins | `src/Subsystems/AUDMAP/`, `src/Subsystems/Plugins/`, `clients/` |
@@ -104,7 +104,7 @@ current behavior or compatibility requirements.
 The main/Qt thread owns widgets, windows and the GUI buffer registry. Each live
 buffer has a serial **BufferActor** owning its mutable document, editor, cursor,
 selection, undo, typesetting state and boxes. Different buffers may compute
-concurrently. Buffer-bound Scheme executes in the corresponding actor context.
+concurrently. Native document commands execute in their owning actor context.
 
 Consequences for ordinary bug fixes:
 
@@ -114,7 +114,7 @@ Consequences for ordinary bug fixes:
 - Preserve the originating actor/view identity across asynchronous work; the
   currently focused document can change before completion.
 - Use existing command/effect, payload and lifetime mechanisms. Do not capture
-  live editor/tree/Scheme/font pointers in arbitrary cross-thread callbacks.
+  live editor/tree/font pointers in arbitrary cross-thread callbacks.
 - Background work needs explicit ownership of detached data, not merely a
   convenient pointer into a live document or a global lock around it.
 - Ownership assertions are evidence of a wrong boundary. Do not disable them
@@ -139,7 +139,7 @@ current ownership model; verify the implementation when exact details matter.
 Ordinary runtime text is **UTF-8**, retained in the existing native string/tree
 containers. Internal text positions are **byte offsets**. Editing boundaries use
 ICU grapheme segmentation; parsing and font operations can use scalar boundaries.
-Qt UTF-16 positions and Guile character indices require explicit conversion.
+Qt UTF-16 positions require explicit conversion to UTF-8 byte offsets.
 Do not use byte count, character count and visual cursor position interchangeably.
 
 Native `.ath` persistence is versioned XML. The codec preserves structured tags,
@@ -155,7 +155,7 @@ be atomic and still have identity. Source identities must survive
 normalization, editing and undo; copying as new objects is distinct from
 copying a snapshot. Full storage equality and content/model-input equality
 are different operations. Do not round-trip source edits through
-metadata-losing Scheme strees. See `notes/athena-xml-v3.md` and
+metadata-losing serialized syntax trees. See `notes/athena-xml-v3.md` and
 `src/Data/Tree/math_tree_v3.hpp` for the current math structure.
 
 Wikilinks and transclusions resolve source UUIDs through native location services
@@ -192,15 +192,16 @@ that does not justify deleting unrelated user data or artifact indexes.
 
 ## Native Interfaces And Plugins
 
-The project is moving behavior from Scheme to native C++ plus declarative data.
-Application Scheme sources have been removed. Vendored Guile, embedded Scheme
-expressions and style definitions remain; new business logic belongs in C++.
+Application behavior is native C++ plus declarative resources. The embedded
+Scheme runtime, object/glue bridge and vendored Guile/GC dependencies have been
+removed. The native typesetting/style evaluator and legacy data readers remain.
 
-Native Scheme interfaces are declared in XML under `src/Scheme/Glue/`. CMake's
-`athena_glue` preprocessor generates C++ and Scheme in the build directory.
-Read that directory's README before changing bindings. No manual per-procedure
-glue, generated-file edits, generator function-name exceptions, or revived
-`build-glue.scm`. Implement functionality and ownership handling in normal C++.
+Named native commands are declared in XML under `src/ATHENA/Commands/Interfaces/`.
+CMake's `athena_commands` target generates typed C++ dispatch in the build
+directory. Read that directory's README before changing bindings. Keep XML as
+the single signature/registration source; do not add manual command wrappers,
+generator name exceptions or a generic expression interpreter. Implement
+functionality and ownership handling in normal C++.
 
 Old TeXmacs plugins were removed. Current ATHENA plugins are subprocess clients
 of **AUDMAP**, the protocol exposing **AUDM** resource resolution and operations.
@@ -218,16 +219,16 @@ Follow `AGENTS.md`. For the existing Linux Debug configuration:
 
 ```sh
 cmake --build build_qt6 --target ATHENA.bin -j16
-python3 tools/install-local-executable.py build_qt6/src/ATHENA.bin ATHENA/bin/ATHENA.bin
+tools/deploy-local-runtime.sh build_qt6
 ```
 
 Use an explicit application target, not the default ALL target. Do not deploy
 after a failed or unfinished build. The installer retains retired executables
 by ELF build ID; do not substitute a manual install/copy/rename sequence.
 
-Generated interfaces are built by `athena_glue` as an application dependency.
-Use `tools/deploy-local-runtime.sh build_qt6` when the private Guile runtime also
-changes. There is no longer an application Scheme bytecode target or payload.
+Generated interfaces are built by `athena_commands` as an application dependency.
+Deployment uses the existing installer and retains the previous executable for
+running processes. No interpreter library, source tree or bytecode is packaged.
 
 Tests are not a default deliverable. Clear, straightforward changes do not need
 tests; use focused evidence only for concrete uncertainty. Do not run broad
@@ -239,7 +240,7 @@ See `notes/ipados-build-handoff.md` for the existing platform workflow.
 
 ## Current development context
 
-Updated: 2026-11-02.
+Updated: 2026-11-03.
 
 - Real-window IME validation is **complete, confirmed by the user**. The
   outstanding-validation sentence in historical commit `abdd53b8e` describes
@@ -252,9 +253,11 @@ Updated: 2026-11-02.
   are native; command UI metadata lives in `misc/command-properties.json`.
   Application Scheme bytecode compilation and packaging are removed. Structural
   pattern selection, editor utilities, preferences, interactive dialogs and
-  output ports are native. Unconsumed Scheme list/hash/logic/patch infrastructure
-  was removed rather than reproduced in C++. Guile and its native `(athena
-  runtime)` module still exist; this is not yet removal of the Scheme runtime.
+  output ports are native. Commands and converters use bounded typed values;
+  callbacks, startup and actor contexts are native C++. Embedded Scheme execution
+  and Guile/GC build, link and package dependencies have been removed. Explicit
+  script CLI options are rejected; maintenance tools use native CLI/AUDMAP.
+  Verification records are in `notes/scheme-runtime-removal.md`.
 
 The production Vault is already XML v3 and the Hodarium NAS replica has
 converged and is in use. Do not treat the previous cutover as pending.
@@ -281,9 +284,8 @@ Read `AGENTS.md`; it is authoritative and more detailed than this summary.
 - The user often offers a running process for GDB inspection. Confirm its PID
   and `/proc/PID/exe`: backup installations, watchdogs and old headless tests can
   coexist. Never attach to a historical PID without checking.
-- For GDB, disable debuginfod prompts; Guile/GC SIGPWR and SIGXCPU should normally
-  pass without stopping. Optimized Debug frames can lose locals. Detach promptly
-  after collecting evidence, without killing the user's inferior.
+- For GDB, disable debuginfod prompts. Optimized Debug frames can lose locals.
+  Detach promptly after collecting evidence, without killing the user's inferior.
 - Watchdog stall reports are under `/home/felix/.ATHENA/system/hangs/`.
 - Use temporary profiles/vaults or sample copies for destructive testing. Do not
   edit production Notes, rebuild its databases, reset credentials or change

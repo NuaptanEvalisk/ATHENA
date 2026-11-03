@@ -10,10 +10,10 @@
 ******************************************************************************/
 
 #include "Tex/convert_tex.hpp"
+#include "boot.hpp"
 #include "Data/Convert/Generic/conversion_executor.hpp"
 #include "converter.hpp"
 #include "wencoding.hpp"
-#include "Scheme/scheme.hpp"
 #include <regex>
 
 extern bool textm_class_flag;

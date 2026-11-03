@@ -88,8 +88,6 @@ tm_buffer concrete_buffer_insist (url name);
 ******************************************************************************/
 
 array<url> get_all_buffers ();
-class object;
-bool exec_buffer (url name, object command);
 url  make_new_buffer ();
 url  make_new_source_buffer ();
 // False on success, matching buffer_load/buffer_import error polarity.

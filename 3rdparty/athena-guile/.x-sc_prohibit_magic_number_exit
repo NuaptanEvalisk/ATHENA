@@ -1,5 +1,0 @@
-configure.ac
-NEWS
-doc/ref/api-init.texi
-libguile/ChangeLog*
-m4/*

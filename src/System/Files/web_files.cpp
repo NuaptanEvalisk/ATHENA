@@ -15,7 +15,6 @@
 #include "sys_utils.hpp"
 #include "analyze.hpp"
 #include "hashmap.hpp"
-#include "scheme.hpp"
 #include "Xml/document_file_codec.hpp"
 
 #ifdef QTTEXMACS

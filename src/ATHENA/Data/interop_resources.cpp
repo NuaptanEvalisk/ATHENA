@@ -10,6 +10,7 @@
 #include "../Interop/resources.hpp"
 #include "../Interop/traversal.hpp"
 #include "interop_vault_resource.hpp"
+#include "global_transformation_frontend.hpp"
 #include "interop_filesystem.hpp"
 #include "interop_document.hpp"
 #include "interop_buffers.hpp"
@@ -101,7 +102,12 @@ public:
   }
   value inspect () const override {
     value commands = {{"inspect", {{"parameters", value::object ()}}}, {"get", {{"parameters", value::object ()}}}};
-    if (type () == "vault") commands["create_namespace"] = {{"parameters", {{"definition", "map"}}}};
+    if (type () == "vault") {
+      commands["create_namespace"] = {{"parameters", {{"definition", "map"}}}};
+      commands["propose_transformation"] = {{"parameters", {{"name", "string"},
+        {"documents", "array of {path: Vault-relative .ath, before: complete v3 document, after: complete v3 document}"}}}};
+      commands["transformation_status"] = {{"parameters", {{"id", "string"}}}};
+    }
     if (type () == "namespace") {
       commands["set"] = {{"parameters", {{"definition", "map (complete replacement)"}}}};
       commands["delete"] = {{"parameters", value::object ()}};
@@ -124,6 +130,10 @@ public:
       if (command == "get") return {"OK", properties ()};
       if (type () == "root") return {"UNKNOWN_COMMAND", command};
       require_current (context);
+      if (type () == "vault" && command == "propose_transformation")
+        return propose_global_transformation (context, p);
+      if (type () == "vault" && command == "transformation_status")
+        return global_transformation_status (context, required_string (p, "id"));
       string error;
       if (type () == "vault" && command == "create_namespace") {
         auto ns = definition (p.at ("definition"));

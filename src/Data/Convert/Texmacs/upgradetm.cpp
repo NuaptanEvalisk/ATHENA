@@ -17,7 +17,6 @@
 #include "Data/NodeContracts/execution_state.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
 #include <stdio.h>
-#include "scheme.hpp"
 #include "tree_correct.hpp"
 #include "merge_sort.hpp"
 

@@ -60,7 +60,7 @@ bool apply_open_document (const std::filesystem::path& root,
       }
       bool applied= false; std::exception_ptr error;
       try {
-        const auto* execution= current_scheme_execution_context ();
+        const auto* execution= current_execution_context ();
         if (execution && execution->actor && execution->actor->id () == owner.first &&
             (!permitted || permitted ())) {
           auto* actor= execution->actor;
@@ -120,7 +120,7 @@ bool apply_open_document (const std::filesystem::path& root,
       response->ready.notify_one ();
     });
   if (!buffer_actor::try_submit_to (owner.first, actor_command_kind::run_native_continuation,
-      owner.second, ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, continuation)) {
+      owner.second, ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, continuation)) {
     actor_continuation_registry::instance ().discard (continuation); return false;
   }
   const auto deadline= std::chrono::steady_clock::now () + std::chrono::seconds (5);

@@ -13,7 +13,6 @@
 #include "view_fit.hpp"
 #include "ATHENA/Data/document_persistence.hpp"
 #include "tm_data.hpp"
-#include "scheme.hpp"
 #include "message.hpp"
 #include "gui_text.hpp"
 #include "merge_sort.hpp"

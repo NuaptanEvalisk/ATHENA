@@ -8,7 +8,7 @@
 
 #include "totex_internal.hpp"
 #include "sys_utils.hpp"
-#include "scheme_native_context.hpp"
+#include "native_context.hpp"
 
 namespace {
 
@@ -16,20 +16,10 @@ using namespace latex_export_internal;
 
 struct export_scope {
   bool entered= false;
-
-  static void unwind (void* raw) noexcept {
-    auto* self= static_cast<export_scope*> (raw);
-    if (!self->entered) return;
-    self->entered= false;
-    latex_export_leave ();
-  }
-
-  // Register before entering. Guile escapes skip C++ destructors; a
-  // non-rewindable frame also prevents revisiting this stack-owned callback.
-  export_scope () { scheme_begin_native_scope (&unwind, this); }
-  ~export_scope () noexcept { scheme_end_native_scope (); }
-  export_scope (const export_scope&) = delete;
-  export_scope& operator= (const export_scope&) = delete;
+  export_scope ()= default;
+  ~export_scope () noexcept { if (entered) latex_export_leave (); }
+  export_scope (const export_scope&)= delete;
+  export_scope& operator= (const export_scope&)= delete;
 
   void enter () {
     latex_export_enter ();

@@ -18,7 +18,7 @@
 #include "qt_actor_widget.hpp"
 #include "file.hpp"
 #include "Data/Convert/Generic/conversion_registry.hpp"
-#include "scheme.hpp"
+#include "application_lifecycle.hpp"
 #include "tm_ostream.hpp"
 
 #include <QAbstractSpinBox>
@@ -50,24 +50,6 @@ enabled_dynamic_item (QString key, QString label, QString help= QString ()) {
   item.state.available= true;
   item.state.enabled= true;
   return item;
-}
-
-inline QVector<QString>
-scheme_string_vector (object value) {
-  QVector<QString> result;
-  list<string> values= as_list_string (value);
-  for (list<string> it= values; !is_nil (it); it= it->next)
-    result.append (to_qstring (it->item));
-  return result;
-}
-
-inline array<string>
-scheme_string_array (object value) {
-  array<string> result;
-  list<string> values= as_list_string (value);
-  for (list<string> it= values; !is_nil (it); it= it->next)
-    result << it->item;
-  return result;
 }
 
 inline list<string>
@@ -175,8 +157,9 @@ open_document_from_shell (
     QObject::tr ("ATHENA documents (*.ath *.avd *.tm);;Compound documents (*.avd);;All files (*)"));
   if (path.isEmpty ()) return true;
   try {
-    (void) call (newWindow ? "load-buffer-in-new-window" : "load-buffer",
-                 object (url_system (from_qstring (path))));
+    const url source= url_system (from_qstring (path));
+    if (newWindow) application_open_window_url (source);
+    else application_open_document_url (source);
     return true;
   }
   catch (...) {

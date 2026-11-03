@@ -29,8 +29,6 @@ deps_prefix="$developer_root/athena-deps/ipados/prefix/deps"
 qt_build="$developer_root/athena-deps/ipados/build/qt-6.11.2-iphoneos"
 qt_toolchain="$qt_build/qtbase/lib/cmake/Qt6/qt.toolchain.cmake"
 chainload_toolchain="$source_root/tools/ipados/iphoneos.toolchain.cmake"
-guile_build="$developer_root/athena-deps/ipados/build/athena-guile-3.0.10"
-guile_config="$guile_build/config.h"
 
 banner () {
   printf '\n\n======================================================================\n'
@@ -47,27 +45,12 @@ done
 
 for required in \
     "$qt_toolchain" \
-    "$chainload_toolchain" \
-    "$runtime_prefix/lib/libathena-guile.a" \
-    "$runtime_prefix/lib/libgc.a" \
-    "$runtime_prefix/lib/libgmp.a" \
-    "$runtime_prefix/lib/libffi.a" \
-    "$runtime_prefix/lib/libunistring.a" \
-    "$guile_config"; do
+    "$chainload_toolchain"; do
   test -e "$required" || {
     echo "Missing required iPadOS build input: $required" >&2
     exit 1
   }
 done
-
-grep -Eq '^(#define ENABLE_JIT 0|/\* #undef ENABLE_JIT \*/)$' "$guile_config" || {
-  echo "Target Guile config does not prove that JIT is disabled: $guile_config" >&2
-  exit 1
-}
-if grep -Eq '^#define ENABLE_JIT 1$' "$guile_config"; then
-  echo "Target Guile config enables JIT: $guile_config" >&2
-  exit 1
-fi
 
 
 mkdir -p "$build_dir" "$deps_prefix"
@@ -94,7 +77,7 @@ printf 'source:          %s\n' "$source_root"
 printf 'build:           %s\n' "$build_dir"
 printf 'Qt toolchain:    %s\n' "$qt_toolchain"
 printf 'chainload:       %s\n' "$chainload_toolchain"
-printf 'Guile prefix:    %s\n' "$runtime_prefix"
+printf 'runtime prefix:    %s\n' "$runtime_prefix"
 printf 'target deps:     %s\n' "$deps_prefix"
 
 cmake -S "$source_root" -B "$build_dir" -G Xcode \
@@ -106,8 +89,6 @@ cmake -S "$source_root" -B "$build_dir" -G Xcode \
   -DQT_ADDITIONAL_PACKAGES_PREFIX_PATH="$deps_prefix" \
   -DCMAKE_DISABLE_FIND_PACKAGE_freetype=ON \
   -DKF6SyntaxHighlighting_DIR="$deps_prefix/lib/cmake/KF6SyntaxHighlighting" \
-  -DATHENA_GUILE_PREBUILT_PREFIX="$runtime_prefix" \
-  -DATHENA_GUILE_PREBUILT_CONFIG_HEADER="$guile_config" \
   -DOPENGL_GLES3_INCLUDE_DIR="$opengles/Headers" \
   -DOPENGL_gles3_LIBRARY="$opengles/OpenGLES.tbd" \
   -DOPENGL_INCLUDE_DIR="$opengles/Headers" \

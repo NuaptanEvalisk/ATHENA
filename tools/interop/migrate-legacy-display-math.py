@@ -397,31 +397,38 @@ def validate_native_candidate(staged, workspace, binary):
             path = version_dir / f"{identity}.ath"
             path.write_bytes(payload)
             paths.append(str(path))
-    manifest = validation / "paths.scm"
-    manifest.write_text("(" + " ".join(json.dumps(p, ensure_ascii=False)
-                            for p in paths) + ")\n")
-    script = validation / "check.scm"
-    script.write_text(
-        '(define (verify path)\n'
-        '  (let* ((bytes (string-load (string->url path)))\n'
-        '         (source (native-conversion-read-document bytes))\n'
-        '         (written (native-conversion-write-document source)))\n'
-        '    (unless (tree? (native-conversion-read-document written))\n'
-        '      (error "Native XML v3 verification failed" path))))\n'
-        '(for-each verify (call-with-input-file '
-        + json.dumps(str(manifest), ensure_ascii=False) + ' read))\n'
-    )
     repo = Path(__file__).resolve().parents[2]
-    command = [sys.executable, str(repo / "tests/scheme/runtime-test.py"),
-               "--binary", str(binary),
-               "--runtime", str(repo / "build_qt6/athena-guile-runtime"),
-               "--resources", str(repo / "ATHENA"),
-               "--script", str(script), "--timeout", "600"]
+    profile = validation / "profile"
+    (profile / "system").mkdir(parents=True)
+    (profile / "system/sys_state.json").write_text(json.dumps({
+        "format": "athena-system-state", "version": 3}))
+    resources = repo / "ATHENA"
+    environment = dict(os.environ)
+    environment.update({
+        "HOME": str(validation), "ATHENA_HOME_PATH": str(profile),
+        "XDG_CONFIG_HOME": str(validation / "config"),
+        "XDG_CACHE_HOME": str(validation / "cache"),
+        "XDG_DATA_HOME": str(validation / "data"),
+        "ATHENA_PATH": str(resources), "QT_QPA_PLATFORM": "offscreen",
+        "LD_LIBRARY_PATH": str(resources / "lib") + ":" + environment.get("LD_LIBRARY_PATH", ""),
+    })
     with (validation / "runtime.log").open("w") as log:
-        execution = subprocess.run(command, stdout=log,
-                                   stderr=subprocess.STDOUT, timeout=660)
-    require(execution.returncode == 0,
-            "Native XML v3 verification failed; see " + str(validation / "runtime.log"))
+        for start in range(0, len(paths), 64):
+            command = [str(binary), "-H", "-X"]
+            batch = paths[start:start + 64]
+            outputs = [validation / f"verified-{start + i}.ath" for i in range(len(batch))]
+            for path, target in zip(batch, outputs):
+                command.extend(("-c", path, str(target)))
+            command.append("-q")
+            execution = subprocess.run(command, cwd=validation, env=environment,
+                                       stdout=log, stderr=subprocess.STDOUT, timeout=660)
+            require(execution.returncode == 0,
+                    "Native XML v3 verification failed; see " + str(validation / "runtime.log"))
+            for path, target in zip(batch, outputs):
+                written = ET.fromstring(target.read_bytes())
+                require(written.tag == "a" and written.get("v") == "3" and
+                        identity_inventory(written) == identity_inventory(ET.parse(path).getroot()),
+                        "Native XML v3 verification changed identities: " + path)
     print(f"Native XML v3 verified {len(paths)} candidate documents and revisions",
           flush=True)
 
@@ -438,10 +445,7 @@ def run(root, apply, binary):
                          indent=2, ensure_ascii=False, default=dict))
         return
 
-    require(binary.is_file() and
-            (Path(__file__).resolve().parents[2] /
-             "build_qt6/athena-guile-runtime").is_dir(),
-            "Native XML v3 verifier binary/runtime is unavailable")
+    require(binary.is_file(), "Native XML v3 verifier binary is unavailable")
 
     source = file_inventory(root)
     backup_dir = Path(tempfile.mkdtemp(prefix="athena-legacy-display-math-", dir="/tmp"))

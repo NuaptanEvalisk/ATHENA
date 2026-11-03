@@ -13,7 +13,6 @@
 #define SERVER_H
 #include "editor.hpp"
 #include "url.hpp"
-#include "scheme.hpp"
 #include "new_data.hpp"
 #include "Data/new_buffer.hpp"
 #include "Data/new_view.hpp"

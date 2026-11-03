@@ -66,7 +66,7 @@ if (ATHENA_ENABLE_AUDMAP_REPL)
   target_compile_features (athena_audmap_terminal PRIVATE cxx_std_17)
   target_link_libraries (athena_audmap_terminal PUBLIC Qt6::Widgets PRIVATE qtermwidget6)
 endif ()
-include(AthenaGlue)
+include(AthenaCommands)
 include(AthenaShippedMacroLabels)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   "${ATHENA_SOURCE_DIR}/ATHENA/misc/node-fields.json")
@@ -114,7 +114,7 @@ if(ATHENA_ENABLE_PLUGINS)
     "${CMAKE_CURRENT_SOURCE_DIR}/Data/String")
   target_link_libraries(athena_plugin_ui PUBLIC athena_plugin_runtime Qt6::Widgets)
 endif()
-set_source_files_properties(Scheme/Scheme/glue.cpp PROPERTIES
+set_source_files_properties(ATHENA/Commands/native_commands.cpp PROPERTIES
   INCLUDE_DIRECTORIES "${ATHENA_BINARY_DIR}/generated")
 
 function (athena_configure_body_target target_name)
@@ -123,10 +123,8 @@ function (athena_configure_body_target target_name)
   if (ATHENA_ENABLE_WATCHDOG)
     target_sources (${target_name} PRIVATE ./ATHENA/Watchdog/watchdog_client.cpp)
   endif ()
-  add_dependencies (${target_name} athena_build_info athena_guile_runtime athena_glue)
+  add_dependencies (${target_name} athena_build_info athena_commands)
   target_compile_definitions (${target_name} PRIVATE
-    ATHENA_GUILE_BUILD_RUNTIME_ROOT="${ATHENA_GUILE_PREFIX}"
-    ATHENA_GUILE_RUNTIME_ID="${ATHENA_GUILE_RUNTIME_ID}"
     $<$<CONFIG:Debug>:ATHENA_DEBUG_BUILD=1>
   )
   target_link_libraries (${target_name}
@@ -206,7 +204,6 @@ else ()
 endif ()
 target_compile_definitions(${ATHENA_binary_name} PRIVATE
   MI_OVERRIDE=1
-  ATHENA_GUILE_RUNTIME_ID="${ATHENA_GUILE_RUNTIME_ID}"
   $<$<BOOL:${ATHENA_ENABLE_TSAN}>:ATHENA_TSAN_BUILD=1>
   $<$<CONFIG:Debug>:ATHENA_DEBUG_BUILD=1>
 )
@@ -232,7 +229,7 @@ endif ()
 if (NOT APPLE AND NOT WIN32)
   add_custom_command (TARGET ${ATHENA_binary_name} POST_BUILD
     COMMAND ${PATCHELF_EXECUTABLE}
-            --set-rpath "$ORIGIN/../lib/athena-guile/lib:$ORIGIN/../lib"
+            --set-rpath "$ORIGIN/../lib"
             $<TARGET_FILE:${ATHENA_binary_name}>
     COMMENT "Setting relocatable runtime library path for ATHENA"
     VERBATIM)
@@ -287,16 +284,11 @@ if (NOT WIN32 AND NOT ATHENA_PLATFORM_IPADOS)
   add_custom_target (athena_local_runtime ALL
     COMMAND ${CMAKE_COMMAND} -E make_directory
             "${ATHENA_LOCAL_RUNTIME_DIR}/bin"
-    COMMAND "${Python3_EXECUTABLE}"
-            "${ATHENA_SOURCE_DIR}/tools/release/copy-private-guile-runtime.py"
-            "${ATHENA_GUILE_PREFIX}"
-            "${ATHENA_LOCAL_RUNTIME_DIR}"
     ${ATHENA_LOCAL_EXECUTABLE_COPY}
     COMMAND ${CMAKE_COMMAND}
             "-DATHENA_EXECUTABLE=$<TARGET_FILE:${ATHENA_binary_name}>"
             "-DATHENA_RUNTIME_LIB_DIR=${ATHENA_LOCAL_RUNTIME_DIR}/lib"
             "-DATHENA_SEARCH_DIR_0=${ATHENA_LOCAL_RUNTIME_DIR}/lib"
-            "-DATHENA_SEARCH_DIR_1=${ATHENA_GUILE_PREFIX}/lib"
             "-DATHENA_SEARCH_DIR_2=${ATHENA_LLAMA_RUNTIME_DIR}"
             "-DATHENA_SEARCH_DIR_3=${ATHENA_BINARY_DIR}/x64/lib"
             -P "${ATHENA_SOURCE_DIR}/tools/release/copy-vtk-runtime.cmake"
@@ -312,7 +304,7 @@ if (NOT WIN32 AND NOT ATHENA_PLATFORM_IPADOS)
     COMMENT "Deploying the complete ATHENA runtime tree"
     VERBATIM)
   add_dependencies (athena_local_runtime
-                    ${ATHENA_binary_name} athena_guile_runtime athena-audmap athena-audmap-repl)
+                    ${ATHENA_binary_name} athena-audmap athena-audmap-repl)
   if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_dependencies (athena_local_runtime ATHENA-Watchdog athena-plugin-sandbox)
     if (TARGET athena-rag-npu-worker)

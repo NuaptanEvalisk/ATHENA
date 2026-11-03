@@ -10,11 +10,11 @@
 ******************************************************************************/
 
 #include "bridge.hpp"
+#include "boot.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
 #include "enunciation_surround.hpp"
 #include "program_presentation.hpp"
 #include "radioactive_link_scope.hpp"
-#include "scheme.hpp"
 
 tree insert_at (tree, path, tree);
 tree remove_at (tree, path, int);

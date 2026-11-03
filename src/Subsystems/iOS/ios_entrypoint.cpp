@@ -14,7 +14,6 @@
 #include <cstdlib>
 
 extern int texmacs_entrypoint (int, char**);
-extern void texmacs_init_guile_hooks ();
 
 int main (int argc, char** argv) {
   std::string error;
@@ -27,9 +26,7 @@ int main (int argc, char** argv) {
     "/system/ipados-startup.log";
   if (std::freopen (log.c_str (), "w", stderr)) {
     std::setvbuf (stderr, nullptr, _IONBF, 0);
-    setenv ("ATHENA_GUILE_LOAD_TRACE", "1", 1);
   }
   athena_ios_install_application_bridge ();
-  texmacs_init_guile_hooks ();
   return texmacs_entrypoint (argc, argv);
 }

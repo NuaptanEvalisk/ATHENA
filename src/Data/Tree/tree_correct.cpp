@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "tree_correct.hpp"
+#include "boot.hpp"
 #include "tree_math_context.hpp"
 #include "Data/NodeContracts/syntax_query.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
@@ -18,7 +19,6 @@
 #include "convert.hpp"
 #include "node_metadata.hpp"
 #include "tree_analyze.hpp"
-#include "scheme.hpp"
 #include "Env/local_environment.hpp"
 #include <unordered_map>
 #include <stdexcept>

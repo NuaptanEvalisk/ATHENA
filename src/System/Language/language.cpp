@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "impl_language.hpp"
+#include "boot.hpp"
 #include "packrat.hpp"
 #include "analyze.hpp"
 #include "hyphenate.hpp"

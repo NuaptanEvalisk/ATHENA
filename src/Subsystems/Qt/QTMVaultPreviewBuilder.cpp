@@ -9,10 +9,10 @@
 ******************************************************************************/
 
 #include "QTMVaultPreviewBuilder.hpp"
+#include "boot.hpp"
 #include "convert.hpp"
 #include "converter.hpp"
 #include "new_buffer.hpp"
-#include "scheme.hpp"
 #include "node_metadata.hpp"
 #include <algorithm>
 

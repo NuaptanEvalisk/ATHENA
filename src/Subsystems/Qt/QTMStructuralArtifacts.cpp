@@ -16,7 +16,6 @@
 #include "buffer_state.hpp"
 #include "editor.hpp"
 #include "native_interfaces.hpp"
-#include "scheme.hpp"
 #include "boot.hpp"
 #include <QApplication>
 #include <QTimer>
@@ -66,7 +65,7 @@ class StructuralArtifacts final: public QObject {
       const auto callback= actor_continuation_registry::instance ().store ([busy, stop] {
         struct Reset { std::shared_ptr<std::atomic<bool>> value; ~Reset () { value->store (false); } } reset {busy};
         if (stop->load ()) return;
-        const auto* execution= current_scheme_execution_context ();
+        const auto* execution= current_execution_context ();
         if (!execution || !execution->actor || !execution->editor) return;
         auto* state= execution->actor->current_state ();
         auto* editor= execution->editor;
@@ -89,7 +88,7 @@ class StructuralArtifacts final: public QObject {
         }
       });
       if (!buffer_actor::try_submit_to (actor, actor_command_kind::run_native_continuation,
-            view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, callback)) {
+            view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, callback)) {
         actor_continuation_registry::instance ().discard (callback); pending->store (false);
       }
     }

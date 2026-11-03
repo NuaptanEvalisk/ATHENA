@@ -59,7 +59,6 @@
 #include "tm_window.hpp"
 #include "Interface/edit_interface.hpp"
 #include "ATHENA/Watchdog/watchdog_client.hpp"
-#include "scheme.hpp"
 #include "convert.hpp"
 #include "Freetype/tt_file.hpp"
 #include "ATHENA/Data/vault_maintenance.hpp"
@@ -75,6 +74,8 @@
 #include "native_keyboard_loader.hpp"
 #include "native_interfaces.hpp"
 #include "application_lifecycle.hpp"
+#include "vault_frontend.hpp"
+#include "vault.hpp"
 #include "buffer_actor.hpp"
 #include "buffer_name_catalog.hpp"
 
@@ -90,6 +91,8 @@
 #include <QDebug>
 #endif
 #include <QDir>
+#include <QProcess>
+#include <QFileInfo>
 #include <QTimer>
 #endif
 
@@ -99,8 +102,6 @@
 
 extern bool   char_clip;
 
-extern url    tm_init_file;
-extern url    tm_init_buffer_file;
 extern string original_path;
 
 extern int geometry_w, geometry_h;
@@ -150,34 +151,14 @@ string website_post_command_id;
 bool   aofm_ignore_nonempty_dest = false;
 int    aofm_convert_vault_parallelism = 0;
 namespace {
-enum class startup_operation { convert, execute, quit };
+enum class startup_operation { convert, quit };
 struct startup_task {
   startup_operation operation;
   std::string source, destination;
 };
 std::vector<startup_task> startup_tasks;
+std::string startup_vault;
 std::vector<std::string> startup_documents;
-
-void execute_startup_script (const std::string& source, const std::string& document) {
-  const auto owner= published_buffer_source (document);
-  if (document.empty () || owner.first == ATHENA_NO_ACTOR || owner.second == ATHENA_NO_VIEW) {
-    eval (string (source.c_str ()));
-    return;
-  }
-  std::exception_ptr failure;
-  const auto continuation= actor_continuation_registry::instance ().store ([source, &failure] {
-    try { eval (string (source.c_str ())); }
-    catch (...) { failure= std::current_exception (); }
-  });
-  if (!buffer_actor::invoke_on (owner.first, actor_command_kind::run_native_continuation,
-      owner.second, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
-      SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_UI | SCHEME_CAPABILITY_GLOBAL,
-      continuation)) {
-    actor_continuation_registry::instance ().discard (continuation);
-    throw std::runtime_error ("Startup command document has closed");
-  }
-  if (failure) std::rethrow_exception (failure);
-}
 
 void run_startup_task (size_t index, std::string document= {}) {
   if (index == startup_tasks.size ()) {
@@ -192,13 +173,6 @@ void run_startup_task (size_t index, std::string document= {}) {
         run_startup_task (index + 1, source);
       });
     return;
-  case startup_operation::execute:
-    try { execute_startup_script (task.source, document); }
-    catch (const std::exception& error) {
-      cerr << "ATHENA: startup command failed: " << error.what () << "\n";
-      std::exit (1);
-    }
-    break;
   case startup_operation::quit:
     get_server ()->quit ();
     return;
@@ -206,7 +180,79 @@ void run_startup_task (size_t index, std::string document= {}) {
   qt_post_to_main_thread ([index, document] { run_startup_task (index + 1, document); });
 }
 
+
+#if !ATHENA_PLATFORM_IPADOS
+void profile_phase (const char* phase) {
+  const QString helper= qEnvironmentVariable ("ATHENA_PROFILE_CONTROL_HELPER");
+  if (QProcess::execute (helper, {QString::fromLatin1 (phase)}) != 0) {
+    cerr << "ATHENA: profiling control failed at " << phase << "\n";
+    std::exit (1);
+  }
+}
+int profile_delay (const char* name) {
+  return std::max (0, qEnvironmentVariableIntValue (name));
+}
+void finish_profile_after_paint () {
+  if (QFileInfo::exists (qEnvironmentVariable ("ATHENA_PROFILE_FIRST_PAINT_ARM_FILE"))) {
+    QTimer::singleShot (10, qApp, finish_profile_after_paint);
+    return;
+  }
+  QTimer::singleShot (profile_delay ("ATHENA_PROFILE_SETTLE_MS"), qApp, [] {
+    profile_phase ("finish");
+    get_server ()->quit ();
+  });
+}
+void start_profile_run () {
+  // Fixed native profiling workflow; paths and durations are data, not code.
+  set_preference ("check for updates", "off");
+  set_preference ("google oauth client id", "");
+  QTimer::singleShot (profile_delay ("ATHENA_PROFILE_STARTUP_DELAY_MS"), qApp, [] {
+    profile_phase ("start");
+    const QByteArray directory= qgetenv ("ATHENA_PROFILE_VAULT");
+    const url root= url_system (string (directory.constData (), directory.size ()));
+    vault_load_directory_native (root);
+    if (!vault_active () || vault_get_root () != root) {
+      cerr << "ATHENA: profiling Vault could not be activated\n";
+      std::exit (1);
+    }
+    profile_phase ("vault-loaded");
+    QTimer::singleShot (profile_delay ("ATHENA_PROFILE_VAULT_SETTLE_MS"), qApp, [] {
+      profile_phase ("vault-settled");
+      const QByteArray document= qgetenv ("ATHENA_PROFILE_DOCUMENT");
+      application_document_load_options options;
+      options.strict= true;
+      application_load_document (
+        url_system (string (document.constData (), document.size ())), options, [] (url loaded) {
+          const string name= as_string (loaded);
+          const auto actor= published_buffer_actor_id (std::string (name.data (), N(name)));
+          qputenv ("ATHENA_PROFILE_ACTOR", QByteArray::number (qulonglong (actor)));
+          profile_phase ("buffer-loaded");
+          QTimer::singleShot (10, qApp, finish_profile_after_paint);
+        });
+    });
+  });
+}
+#endif
+
 void open_startup_documents () {
+  if (!startup_vault.empty ()) {
+    const url root (startup_vault.c_str ());
+    const string path= concretize (root);
+    AthenaVaultfileInfo info;
+    std::string error;
+    if (!athena_vaultfile_read (
+          std::filesystem::u8path (std::string (path.data (), N(path))), info, error)) {
+      cerr << "ATHENA: could not open Vault: " << error.c_str () << "\n";
+      std::exit (1);
+    }
+    const string failure= vault_load (root, string (info.name.c_str ()),
+      string (info.map_path.c_str ()), string (info.namespace_db_path.c_str ()));
+    if (failure != "") {
+      cerr << "ATHENA: could not open Vault: " << failure << "\n";
+      std::exit (1);
+    }
+    startup_vault.clear ();
+  }
   for (size_t index= 0; index < startup_documents.size (); ++index) {
     application_document_load_options options;
     options.new_window= index != 0;
@@ -533,30 +579,6 @@ startup_process_events () {
     qtmapp->processEvents (QEventLoop::ExcludeUserInputEvents, 25);
 }
 
-static int startup_scheme_compile_depth= 0;
-
-static string
-startup_scheme_module_name (string source) {
-  string install_root= get_env ("ATHENA_PATH") * "/";
-  if (starts (source, install_root))
-    return source (N(install_root), N(source));
-  return source;
-}
-
-static void
-startup_scheme_compile (bool compiling, string source) {
-  if (headless_mode || qtmapp == NULL || no_splash_screen) return;
-  if (compiling) {
-    startup_scheme_compile_depth++;
-    qtmapp->set_splash_busy (
-      "Compiling Scheme module: " * startup_scheme_module_name (source));
-  }
-  else {
-    startup_scheme_compile_depth= std::max (0, startup_scheme_compile_depth - 1);
-    if (startup_scheme_compile_depth == 0)
-      qtmapp->set_splash_progress (83, "Loading Scheme modules");
-  }
-}
 #else
 static void
 startup_progress (int progress, string message) {
@@ -566,10 +588,6 @@ startup_progress (int progress, string message) {
 static void
 startup_process_events () {}
 
-static void
-startup_scheme_compile (bool compiling, string source) {
-  (void) compiling; (void) source;
-}
 #endif
 
 #ifndef ATHENA_TSAN_BUILD
@@ -754,22 +772,21 @@ static void
 print_command_line_help () {
   cout << "\n";
   cout << "Options for ATHENA:\n\n";
-  cout << "  -b [file]  Specify scheme buffers initialization file\n";
   cout << "  -C [i] [o] Convert file 'i' into file 'o'\n";
   cout << "  -d         For debugging purposes\n";
   cout << "  -fn [font] Set the default TeX font\n";
   cout << "  -g [geom]  Set geometry of window in pixels\n";
   cout << "  -h         Display this help message\n";
   cout << "  -H         Run ATHENA in headless mode\n";
-  cout << "  -i [file]  Specify scheme initialization file\n";
   cout << "  -p         Get the ATHENA path\n";
-  cout << "  -q         Shortcut for -x \"(quit-TeXmacs)\"\n";
+  cout << "  -q         Quit after completing startup tasks\n";
   cout << "  -r         Reverse video mode\n";
   cout << "  -s         Suppress information messages\n";
   cout << "  -S         Rerun ATHENA setup program before starting\n";
   cout << "  -v         Display current ATHENA version\n";
   cout << "  -V         Show some informative messages\n";
   cout << "  --no-splash-screen       Start without the startup progress window\n";
+  cout << "  --vault [dir]            Activate a Vault before opening startup documents\n";
   cout << "  --vault-maintenance [dir]  Maintain an ATHENA vault headlessly\n";
   cout << "  --upgrade-vault-format [dir]  Offline transactional UTF-8/XML vault upgrade\n";
   cout << "  --upgrade-vault-node-model [dir]  Offline UTF-8 XML v1 -> node-model XML v2 vault migration\n";
@@ -799,7 +816,6 @@ print_command_line_help () {
   cout << "  --skip-fonts-cache         Skip the private font file cache\n";
   cout << "  --insert-build-warning     Insert ATHENA experimental build warnings during AOFM conversion\n";
   cout << "  --model-vault [dir]        Reuse a model vault for AOFM namespace/style conversion\n";
-  cout << "  -x [cmd]   Execute scheme command\n";
   cout << "  -Oc        TeX characters bitmap clipping off\n";
   cout << "  +Oc        TeX characters bitmap clipping on (default)\n";
   cout << "\nPlease report bugs to <nuaptan@outlook.com>\n";
@@ -906,9 +922,18 @@ set_global_options  (int argc, char** argv)  {
           }
         }
       }
-      else if ((s == "-b") || (s == "-initialize-buffer")) {
-        i++;
-        if (i<argc) tm_init_buffer_file= url_system (argv[i]);
+      else if (s == "-vault") {
+        if (++i >= argc) {
+          cerr << "ATHENA: --vault requires a directory\n";
+          std::exit (2);
+        }
+        const string root= as_string (url_pwd () * url_system (argv[i]));
+        startup_vault.assign (root.data (), N(root));
+      }
+      else if (s == "-b" || s == "-initialize-buffer" || s == "-i" ||
+               s == "-initialize" || s == "-x" || s == "-execute") {
+        cerr << "ATHENA: embedded script execution is no longer supported\n";
+        exit (1);
       }
       else if (s == "-aofm-convert-file") {
         i++;
@@ -984,10 +1009,6 @@ set_global_options  (int argc, char** argv)  {
       else if (s == "-no-splash-screen") {
         no_splash_screen= true;
       }
-      else if ((s == "-i") || (s == "-initialize")) {
-        i++;
-        if (i<argc) tm_init_file= url_system (argv[i]);
-      }
       else if ((s == "-v") || (s == "-version")) {
         print_version ();
         exit (0);
@@ -1018,10 +1039,6 @@ set_global_options  (int argc, char** argv)  {
             std::string (source.data (), N(source)),
             std::string (target.data (), N(target))});
         }
-      }
-      else if ((s == "-x") || (s == "-execute")) {
-        i++;
-        if (i<argc) startup_tasks.push_back ({startup_operation::execute, argv[i], {}});
       }
       else if ((s == "-X")) {
         exec_exit= false;
@@ -1075,7 +1092,7 @@ set_global_options  (int argc, char** argv)  {
 }
 
 /******************************************************************************
-* Real main program for encaptulation of guile
+* Application main program
 ******************************************************************************/
 
 void
@@ -1230,8 +1247,9 @@ TeXmacs_main (int argc, char** argv) {
     }
     if (vault_maintenance_toc_worker_file != "" &&
         vault_maintenance_toc_worker_marker != "") {
-      application_load_document (url_system (vault_maintenance_toc_worker_file),
-        list_object (keyword_object ("strict")));
+      application_document_load_options options;
+      options.strict= true;
+      application_load_document (url_system (vault_maintenance_toc_worker_file), options);
       bool failed= true;
       try {
         url document= url_system (vault_maintenance_toc_worker_file);
@@ -1301,10 +1319,14 @@ TeXmacs_main (int argc, char** argv) {
       qt_post_to_main_thread (ads_restore_visible_panes);
     });
 
-    if (!startup_documents.empty () || !startup_tasks.empty ()) {
+    if (!startup_vault.empty () || !startup_documents.empty () || !startup_tasks.empty ()) {
       qt_post_to_main_thread (open_startup_documents);
       startup_progress (97, "Scheduling startup tasks");
     }
+#if !ATHENA_PLATFORM_IPADOS
+    if (!qEnvironmentVariable ("ATHENA_PROFILE_CONTROL_HELPER").isEmpty ())
+      qt_post_to_main_thread (start_profile_run);
+#endif
     startup_progress (98, "Preparing workspace");
 #ifdef QTTEXMACS
     google_tasks_schedule_background_refresh ();
@@ -2181,8 +2203,8 @@ texmacs_entrypoint (int argc, char** argv) {
 //#ifdef EXPERIMENTAL
 //  test_environments ();
 //#endif
-  startup_progress (83, "Loading Scheme modules");
-  start_scheme (argc, argv, TeXmacs_main, startup_scheme_compile);
+  startup_progress (83, "Starting native commands");
+  TeXmacs_main (argc, argv);
 #ifdef QTTEXMACS
   if (headless_mode) {
     if (qtmapp != NULL) delete qtmapp;

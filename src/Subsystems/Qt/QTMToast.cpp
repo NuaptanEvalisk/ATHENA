@@ -13,7 +13,6 @@
 #include "boot.hpp"
 
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
 
 #include <QApplication>
 #include <QEvent>

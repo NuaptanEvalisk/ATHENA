@@ -262,34 +262,6 @@ release_boot_lock () {
   remove (lock_file);
 }
 
-/******************************************************************************
-* Detection of guile
-******************************************************************************/
-
-static void
-init_guile () {
-  url runtime_root= get_env_path ("ATHENA_GUILE_RUNTIME_ROOT");
-  url bundled_root= "$ATHENA_PATH/lib/athena-guile";
-  if (is_none (runtime_root) || runtime_root->t == "") {
-    if (exists (bundled_root * "share/guile/3.0/ice-9/boot-9.scm"))
-      runtime_root= bundled_root;
-#ifdef ATHENA_GUILE_BUILD_RUNTIME_ROOT
-    else
-      runtime_root= url_system (ATHENA_GUILE_BUILD_RUNTIME_ROOT);
-#endif
-  }
-
-  url standard_path= runtime_root * "share/guile/3.0";
-  url compiled_path= runtime_root * "lib/guile/3.0/ccache";
-  if (!exists (standard_path * "ice-9/boot-9.scm")) {
-    failed_error << "\nATHENA Guile runtime root=" << runtime_root << "\n";
-    FAILED ("ATHENA's bundled Guile standard library could not be found");
-  }
-  set_env_path ("GUILE_SYSTEM_PATH", standard_path);
-  set_env_path ("GUILE_SYSTEM_COMPILED_PATH", compiled_path);
-
-  set_env ("GUILE_AUTO_COMPILE", "0");
-}
 
 /******************************************************************************
 * Set additional environment variables
@@ -490,8 +462,6 @@ init_athena () {
   athena::contracts::initialize_builtins ();
   //cout << "Initialize -- User preferences\n";
   load_user_preferences ();
-  //cout << "Initialize -- Guile\n";
-  init_guile ();
   //cout << "Initialize -- Environment variables\n";
   init_athena_resource_paths ();
   //cout << "Initialize -- Miscellaneous\n";

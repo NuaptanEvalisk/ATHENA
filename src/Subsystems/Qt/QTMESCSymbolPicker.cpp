@@ -15,8 +15,7 @@
 #include "file.hpp"
 #include "QTMWidget.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #include "Edit/Interface/generic_keyboard_commands.hpp"
 
 #include <QApplication>
@@ -631,12 +630,12 @@ run_escape_symbol_picker () {
 
 string
 escape_symbol_picker_dialog () {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr && context->actor_id != ATHENA_NO_ACTOR &&
       context->view_id != ATHENA_NO_VIEW) {
     const athena_actor_id actor= context->actor_id;
     const athena_view_id view= context->view_id;
-    const SchemeCapabilitySet capabilities= context->capabilities;
+    const ExecutionCapabilitySet capabilities= context->capabilities;
     qt_post_to_main_thread ([actor, view, capabilities] {
       string action= run_escape_symbol_picker ();
       if (action == "") return;
@@ -644,7 +643,7 @@ escape_symbol_picker_dialog () {
       athena_continuation_id id=
         actor_continuation_registry::instance ().store (
           [action= std::move (action)] () mutable {
-            const auto* context= current_scheme_execution_context ();
+            const auto* context= current_execution_context ();
             if (context != nullptr && context->editor != nullptr)
               generic_escape_symbol_insert (std::move (action));
           });

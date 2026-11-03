@@ -9,9 +9,9 @@
 ******************************************************************************/
 
 #include "ATHENA/Data/image_background.hpp"
+#include "boot.hpp"
 
 #include "athena_platform.hpp"
-#include "scheme.hpp"
 
 #if ATHENA_PLATFORM_IPADOS
 #include <QImage>

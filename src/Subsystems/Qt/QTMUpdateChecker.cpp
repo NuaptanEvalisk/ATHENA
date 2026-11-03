@@ -9,9 +9,9 @@
 ******************************************************************************/
 
 #include "QTMUpdateChecker.hpp"
+#include "boot.hpp"
 
 #include "QTMToast.hpp"
-#include "scheme.hpp"
 
 #include <QCoreApplication>
 #include <QJsonArray>

@@ -59,7 +59,8 @@ def prepare(args, output):
     config = json.loads(config_path.read_text())
     if config.get('node_model_version') != 2:
         raise RuntimeError('This audit requires a native XML v3 Vault')
-    config.update(backup_dispatchers=[], startup_page='', one_time_startup_page='')
+    config.update(backup_dispatchers=[], startup_page='', one_time_startup_page='',
+                  websites_path='.athena/load-audit-websites.json')
     for key in ('map_path', 'namespace_db_path', 'preferences_path'):
         value = Path(config[key])
         if value.is_absolute() or '..' in value.parts:
@@ -94,38 +95,30 @@ def stop_owned_process(process):
 def check_one(args, output, vault, config, home, relative, index, stop_event=None):
     directory = output/'logs'/f'{index:03d}'
     directory.mkdir(parents=True)
-    result = directory/'result.scm'
-    messages = directory/'messages.txt'
-    runtime = args.runtime.resolve()
+    site = directory/'site'
+    registry = vault/config['websites_path']
+    registry.parent.mkdir(parents=True, exist_ok=True)
+    registry.write_text(json.dumps({'version': 1, 'websites': [{
+        'id': 'audit', 'name': 'Native load audit',
+        'selector': {'kind': 'path', 'path': relative.as_posix()},
+        'destination': str(site), 'generatePdfs': True,
+        'entrypoint': {'kind': 'file', 'path': relative.as_posix()}}]}))
     resources = args.resources.resolve()
     env = dict(os.environ)
     env.update({
         'HOME': str(home), 'ATHENA_HOME_PATH': str(home/'profile'),
         'XDG_CONFIG_HOME': str(home/'config'), 'XDG_CACHE_HOME': str(home/'cache'),
         'XDG_DATA_HOME': str(home/'data'), 'ATHENA_PATH': str(resources),
-        'QT_QPA_PLATFORM': 'offscreen', 'GUILE_AUTO_COMPILE': '0',
-        'GUILE_LOAD_PATH': str(runtime/'share/guile/3.0'),
-        'GUILE_LOAD_COMPILED_PATH': str(runtime/'lib/guile/3.0/ccache'),
-        'LD_LIBRARY_PATH': ':'.join((str(runtime/'lib'), str(resources/'lib'),
+        'QT_QPA_PLATFORM': 'offscreen',
+        'LD_LIBRARY_PATH': ':'.join((str(resources/'lib'),
                                     env.get('LD_LIBRARY_PATH', ''))),
-        'ATHENA_LOAD_AUDIT_RESULT': str(result),
-        'ATHENA_LOAD_AUDIT_MESSAGES': str(messages),
-        'ATHENA_LOAD_AUDIT_SOURCE': str(vault/relative),
-        'ATHENA_LOAD_AUDIT_VAULT': str(vault),
-        'ATHENA_LOAD_AUDIT_MAP': config['map_path'],
-        'ATHENA_LOAD_AUDIT_NAMESPACES': config['namespace_db_path'],
-        'ATHENA_LOAD_AUDIT_SETTLE_MS': str(int(args.settle*1000)),
     })
-    script = Path(__file__).with_suffix('.scm')
-    expression = f'(exec-global (lambda () (primitive-load {json.dumps(str(script))})))'
     started = time.monotonic()
-    timed_out = False
-    cancelled = False
-    actor_failed = False
+    timed_out = cancelled = actor_failed = False
     before = hashlib.sha256((vault/relative).read_bytes()).hexdigest()
     with (directory/'runtime.log').open('w') as log:
         process = subprocess.Popen(
-            [str(args.binary.resolve()), '-H', '-X', '-x', expression],
+            [str(args.binary.resolve()), '-H', '-X', '--generate-website', str(vault), 'audit'],
             cwd=home, env=env, start_new_session=True,
             stdout=log, stderr=subprocess.STDOUT)
         try:
@@ -134,8 +127,6 @@ def check_one(args, output, vault, config, home, relative, index, stop_event=Non
                 if stop_event is not None and stop_event.is_set():
                     cancelled = True
                     break
-                # Native exceptions unwind past Scheme catch and are reported
-                # by the actor boundary; the completion callback never runs.
                 if 'buffer actor command failed' in (directory/'runtime.log').read_text(errors='replace'):
                     actor_failed = True
                     break
@@ -149,21 +140,17 @@ def check_one(args, output, vault, config, home, relative, index, stop_event=Non
                     pass
         finally:
             stop_owned_process(process)
-    response = result.read_text() if result.exists() else 'No completion report'
-    phase = Path(str(result) + '.phase')
-    if response != '#t' and phase.exists():
-        response += '\nLast phase: ' + phase.read_text()
+    pdfs = list(site.rglob('*.pdf'))
+    exported = (bool(pdfs) and bool(list(site.rglob('*.html'))) and
+                all(path.read_bytes().startswith(b'%PDF-') for path in pdfs))
+    response = 'OK' if exported else 'Native HTML/PDF export did not complete'
     log = (directory/'runtime.log').read_text(errors='replace')
     diagnostics = list(dict.fromkeys(line for line in log.splitlines() if DIAGNOSTIC.search(line)))
-    if messages.exists():
-        for message in messages.read_text(errors='replace').splitlines():
-            if message and message not in diagnostics:
-                diagnostics.append(message)
     unchanged = before == hashlib.sha256((vault/relative).read_bytes()).hexdigest()
     status = ('CANCELLED' if cancelled else
               'FAILED' if actor_failed else
               'TIMEOUT' if timed_out else
-              'FAILED' if process.returncode or response != '#t' else
+              'FAILED' if process.returncode or not exported else
               'CHANGED_COPY' if not unchanged else
               'DIAGNOSTICS' if diagnostics else 'OK')
     return dict(path=str(relative), status=status, returncode=process.returncode,
@@ -177,16 +164,14 @@ def main():
     parser.add_argument('--count', type=int, default=50)
     parser.add_argument('--seed', type=int)
     parser.add_argument('--timeout', type=int, default=180)
-    parser.add_argument('--settle', type=float, default=3)
     parser.add_argument('--output', type=Path, help='New directory outside the source Vault')
     parser.add_argument('--binary', type=Path, default=REPO/'ATHENA/bin/ATHENA.bin')
-    parser.add_argument('--runtime', type=Path, default=REPO/'build_qt6/athena-guile-runtime')
     parser.add_argument('--resources', type=Path, default=REPO/'ATHENA')
     args = parser.parse_args()
     source = args.vault.resolve(strict=True)
-    if args.count <= 0 or args.timeout <= 0 or not 0 <= args.settle < args.timeout:
-        parser.error('Require count > 0 and 0 <= settle < timeout')
-    for path in (args.binary, args.runtime, args.resources, source/'Vaultfile.json'):
+    if args.count <= 0 or args.timeout <= 0:
+        parser.error('Require count > 0 and timeout > 0')
+    for path in (args.binary, args.resources, source/'Vaultfile.json'):
         if not path.exists():
             parser.error(f'Missing required path: {path}')
     seed = args.seed if args.seed is not None else secrets.randbits(64)
@@ -221,7 +206,7 @@ def main():
         print(f'  {entry["status"]}', flush=True)
         for message in entry['diagnostics']:
             print(f'    {message}', flush=True)
-        if entry.get('result') not in (None, '#t'):
+        if entry.get('result') not in (None, 'OK'):
             print(f'    {entry["result"]}', flush=True)
         (output/'summary.json').write_text(json.dumps(summary, ensure_ascii=False, indent=2))
         with (output/'summary.txt').open('w') as report:
@@ -229,7 +214,7 @@ def main():
                 report.write(f'{row["status"]}: {row["path"]}\n')
                 for message in row['diagnostics']:
                     report.write(f'  {message}\n')
-                if row.get('result') not in (None, '#t'):
+                if row.get('result') not in (None, 'OK'):
                     report.write(f'  Result: {row["result"]}\n')
                 if row.get('log'):
                     report.write(f'  Log: {row["log"]}\n')

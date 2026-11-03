@@ -15,7 +15,7 @@
 #include "boot.hpp"
 #include "buffer_state.hpp"
 #include "data_cache.hpp"
-#include "scheme.hpp"
+#include "native_dispatch.hpp"
 #include "sys_utils.hpp"
 #include <cstdlib>
 #include <unistd.h>
@@ -183,8 +183,6 @@ static void run_tests (int argc, char** argv) {
   gui_open (argc, argv);
   server sv;
   test_server= sv->get_server ();
-  eval ("(begin "
-        "(tm-define (like-emacs?) #f))");
   TableResizeTest test;
   test_status= QTest::qExec (&test, argc, argv);
   std::_Exit (test_status);
@@ -198,7 +196,7 @@ int main (int argc, char** argv) {
   cache_initialize ();
   reset_document_tree (current_document_tree ());
   init_athena ();
-  start_scheme (argc, argv, run_tests);
+  run_tests (argc, argv);
   return test_status;
 }
 #include "table_resize_test.moc"

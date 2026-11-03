@@ -10,7 +10,7 @@
 ******************************************************************************/
 
 #include "env.hpp"
-#include "scheme.hpp"
+#include "boot.hpp"
 #include "iterator.hpp"
 
 thread_local hashmap<string,tree> default_env (UNINIT);

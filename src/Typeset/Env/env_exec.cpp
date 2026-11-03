@@ -21,10 +21,9 @@
 #include "locale.hpp"
 #include "image_files.hpp"
 #include "brush.hpp"
-#include "scheme.hpp"
 #include "native_dispatch.hpp"
 #include "native_command_security.hpp"
-#include "scheme_native_context.hpp"
+#include "native_context.hpp"
 #include "page_type.hpp"
 #include "typesetter.hpp"
 #include "dictionary.hpp"
@@ -74,12 +73,12 @@ edit_env_rep::exec_string (tree t) {
 }
 
 /******************************************************************************
-* Rewriting (scheme-like macro expansion)
+* Native macro expansion
 ******************************************************************************/
 
 // EXTERN callbacks are synchronous on the owning actor.  Keep a per-thread
-// stack of retained environments, including nested Scheme-to-C++ re-entry.
-using rewrite_environment= scheme_native_context<edit_env>;
+// stack of retained environments, including nested native callback re-entry.
+using rewrite_environment= native_context_scope<edit_env>;
 
 tree
 edit_env_rep::rewrite (tree t) {
@@ -97,15 +96,15 @@ edit_env_rep::rewrite (tree t) {
         return tree (_ERROR, "Native callback disabled in offline style analysis");
       if (!secure && script_status < 2 && !native_secure_function (fun))
         return tree (_ERROR, "insecure native callback");
-      array<object> arguments;
+      command_arguments arguments;
       for (i=1; i<n; i++)
-        arguments << object (exec (t[i]));
+        arguments << command_value (exec (t[i]));
       rewrite_environment context;
       context.bind (edit_env (this));
-      object o;
+      command_value o;
       if (!native_dispatch_call (fun, arguments, o))
         return tree (_ERROR, "unknown native extern: " * fun);
-      return content_to_tree (o);
+      return command_is_content (o) ? command_content (o, "extern content") : tree ("?");
     }
   case MAP_ARGS:
     {
@@ -545,8 +544,7 @@ edit_env_rep::exec (tree t) {
   case HLINK:
     return exec_compound (t);
   case ACTION:
-    if (N(t) < 3) return exec_compound (t);
-    else return exec_compound (tree (ACTION, t[0], t[1]));
+    return exec_compound (t);
   case SET_BINDING:
     return exec_set_binding (t);
   case GET_BINDING:

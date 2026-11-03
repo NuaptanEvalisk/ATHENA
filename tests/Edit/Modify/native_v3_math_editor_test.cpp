@@ -24,8 +24,8 @@
 #include "Data/NodeContracts/execution_state.hpp"
 #include "node_metadata.hpp"
 #include "document_node_model.hpp"
-#include "scheme.hpp"
-#include "scheme_execution_context.hpp"
+#include "native_dispatch.hpp"
+#include "execution_context.hpp"
 #include "sys_utils.hpp"
 #include "Xml/athena_document_xml.hpp"
 
@@ -76,10 +76,10 @@ class NativeV3MathEditorTest: public QObject {
   }
 
   void verify_display_focus (path block) {
-    SchemeExecutionContext context (nullptr, editor, &editor->contract_state,
+    ExecutionContext context (nullptr, editor, &editor->contract_state,
       &buffer->document, ATHENA_NO_ACTOR, ATHENA_NO_VIEW, 0,
-      SCHEME_CAPABILITY_BUFFER);
-    SchemeExecutionScope execution (context);
+      EXECUTION_CAPABILITY_BUFFER);
+    ExecutionScope execution (context);
     editor->go_to_end (block * 0);
     editor->typeset_forced ();
     for (int side: {0, 1}) {
@@ -115,9 +115,9 @@ private slots:
     QVERIFY (native_latex_get_command ("(", help, inline_formula));
   }
   void nativeGridRowSelectionKeepsNativeOwnership () {
-    SchemeExecutionContext context (nullptr, editor, &editor->contract_state,
-      &buffer->document, 0, 0, 0, SCHEME_CAPABILITY_BUFFER);
-    SchemeExecutionScope scope (context);
+    ExecutionContext context (nullptr, editor, &editor->contract_state,
+      &buffer->document, 0, 0, 0, EXECUTION_CAPABILITY_BUFFER);
+    ExecutionScope scope (context);
     tree grid (MATH_GRID,
       tree (ROW, tree (CELL, "a"), tree (CELL, "="), tree (CELL, "b")),
       tree (ROW, tree (CELL, "c"), tree (CELL, "="), tree (CELL, "def")));
@@ -184,9 +184,9 @@ private slots:
     QFETCH (int, columns);
     QFETCH (int, row);
     QFETCH (int, column);
-    SchemeExecutionContext context (nullptr, editor, &editor->contract_state,
-      &buffer->document, 0, 0, 0, SCHEME_CAPABILITY_BUFFER);
-    SchemeExecutionScope scope (context);
+    ExecutionContext context (nullptr, editor, &editor->contract_state,
+      &buffer->document, 0, 0, 0, EXECUTION_CAPABILITY_BUFFER);
+    ExecutionScope scope (context);
     tree grid (MATH_GRID, 2);
     for (int r= 0; r < 2; ++r) {
       grid[r]= tree (ROW, columns);
@@ -249,9 +249,9 @@ private slots:
     QFETCH (QString, entry);
     QFETCH (bool, grid);
     QFETCH (bool, selected);
-    SchemeExecutionContext context (nullptr, editor, &editor->contract_state,
-      &buffer->document, 0, 0, 0, SCHEME_CAPABILITY_BUFFER);
-    SchemeExecutionScope scope (context);
+    ExecutionContext context (nullptr, editor, &editor->contract_state,
+      &buffer->document, 0, 0, 0, EXECUTION_CAPABILITY_BUFFER);
+    ExecutionScope scope (context);
     buffer->storage_version= athena::document::xml_storage_version::v3;
     const tree body= selected ? tree ("X") : tree ("");
     set_document (buffer->document, buffer->root_path, tree (DOCUMENT, body));
@@ -326,10 +326,10 @@ private slots:
     QFETCH (QString, right);
     QFETCH (QString, automatic);
     QFETCH (bool, selected);
-    SchemeExecutionContext context (nullptr, editor, &editor->contract_state,
+    ExecutionContext context (nullptr, editor, &editor->contract_state,
       &buffer->document, ATHENA_NO_ACTOR, ATHENA_NO_VIEW, 0,
-      SCHEME_CAPABILITY_BUFFER);
-    SchemeExecutionScope execution (context);
+      EXECUTION_CAPABILITY_BUFFER);
+    ExecutionScope execution (context);
     set_preference ("automatic brackets", string (automatic.toUtf8 ().constData ()));
     const tree body= selected ? tree (CONCAT, "x", tree (FRAC, "a", "b")) : tree ("");
     reset_inline (body);
@@ -346,10 +346,10 @@ private slots:
     QCOMPARE (editor->the_path (), editor->command_tree_end (current_document_tree (), content_path () * 5));
   }
   void escapePickerBracketsInTextStaySerializable () {
-    SchemeExecutionContext context (nullptr, editor, &editor->contract_state,
+    ExecutionContext context (nullptr, editor, &editor->contract_state,
       &buffer->document, ATHENA_NO_ACTOR, ATHENA_NO_VIEW, 0,
-      SCHEME_CAPABILITY_BUFFER);
-    SchemeExecutionScope execution (context);
+      EXECUTION_CAPABILITY_BUFFER);
+    ExecutionScope execution (context);
     for (const string preference: {string ("on"), string ("off"), string ("mathematics")})
       for (bool angle: {true, false}) {
         set_preference ("automatic brackets", preference);
@@ -1071,9 +1071,9 @@ private slots:
     QVERIFY (editor->the_path () == editor->command_tree_end (current_document_tree (), content_path ()));
   }
   void hybridBigOperatorsAcceptScriptsInV3 () {
-    SchemeExecutionContext context (nullptr, editor, &editor->contract_state,
-      &buffer->document, 0, 0, 0, SCHEME_CAPABILITY_BUFFER);
-    SchemeExecutionScope scope (context);
+    ExecutionContext context (nullptr, editor, &editor->contract_state,
+      &buffer->document, 0, 0, 0, EXECUTION_CAPABILITY_BUFFER);
+    ExecutionScope scope (context);
     for (const char* name: {"prod", "sum", "int", "coprod"}) {
       reset_inline ("");
       editor->start_editing ();
@@ -1156,9 +1156,9 @@ private slots:
       }
   }
   void hybridEmptyHatCanBeDeleted () {
-    SchemeExecutionContext context (nullptr, editor, &editor->contract_state,
-      &buffer->document, 0, 0, 0, SCHEME_CAPABILITY_BUFFER);
-    SchemeExecutionScope scope (context);
+    ExecutionContext context (nullptr, editor, &editor->contract_state,
+      &buffer->document, 0, 0, 0, EXECUTION_CAPABILITY_BUFFER);
+    ExecutionScope scope (context);
     reset_inline ("");
     editor->make_hybrid ();
     editor->insert_tree ("hat");
@@ -1266,10 +1266,10 @@ private slots:
     verify_roundtrip ();
   }
   void escapeBlackboardFollowedByBracketUsesNativeV3 () {
-    SchemeExecutionContext context (nullptr, editor, &editor->contract_state,
+    ExecutionContext context (nullptr, editor, &editor->contract_state,
       &buffer->document, ATHENA_NO_ACTOR, ATHENA_NO_VIEW, 0,
-      SCHEME_CAPABILITY_BUFFER);
-    SchemeExecutionScope scope (context);
+      EXECUTION_CAPABILITY_BUFFER);
+    ExecutionScope scope (context);
     reset_inline ("");
     editor->start_editing ();
     generic_escape_symbol_insert ("bbb-k");
@@ -1344,8 +1344,6 @@ static void run_tests (int argc, char** argv) {
   {
     server sv;
     test_server= sv->get_server ();
-    eval ("(begin "
-          "(tm-define (like-emacs?) #f))");
     NativeV3MathEditorTest test;
     status= QTest::qExec (&test, argc, argv);
     test_server= nullptr;
@@ -1363,7 +1361,7 @@ int main (int argc, char** argv) {
   cache_initialize ();
   reset_document_tree (current_document_tree ());
   init_athena ();
-  start_scheme (argc, argv, run_tests);
+  run_tests (argc, argv);
   return 1;
 }
 

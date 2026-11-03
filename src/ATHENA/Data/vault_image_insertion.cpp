@@ -9,10 +9,10 @@
 ******************************************************************************/
 
 #include "ATHENA/Data/vault_image_insertion.hpp"
+#include "boot.hpp"
 
 #include "ATHENA/Data/image_background.hpp"
 #include "ATHENA/Data/vault.hpp"
-#include "scheme.hpp"
 #include "web_files.hpp"
 
 #include <algorithm>

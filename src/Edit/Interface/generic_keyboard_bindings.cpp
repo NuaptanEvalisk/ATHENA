@@ -9,8 +9,6 @@
 ******************************************************************************/
 
 #include "generic_keyboard_commands.hpp"
-#include "auto_close.hpp"
-#include "table_commands.hpp"
 #include "file.hpp"
 #include "convert.hpp"
 #include "native_keyboard_prefixes.hpp"
@@ -40,6 +38,21 @@ string binding_string (QJsonValue value) {
   QByteArray bytes= text.toUtf8 ();
   ASSERT (QString::fromUtf8 (bytes) == text, "invalid Unicode keymap string");
   return string (bytes.constData (), bytes.size ());
+}
+
+tree content_descriptor (QJsonValue value) {
+  if (value.isString ()) return tree (binding_string (value));
+  const QJsonObject descriptor= value.toObject ();
+  ASSERT (descriptor.size () == 1 && descriptor["list"].isArray (),
+          "keymap content must be text or a tagged tree");
+  const QJsonArray values= descriptor["list"].toArray ();
+  ASSERT (!values.isEmpty () && values[0].isObject (),
+          "keymap content needs a tag");
+  const QJsonObject tag= values[0].toObject ();
+  ASSERT (tag.size () == 1 && tag["symbol"].isString (), "keymap content tag expected");
+  tree result (as_tree_label (binding_string (tag["symbol"])));
+  for (int i=1; i<values.size (); ++i) result << content_descriptor (values[i]);
+  return result;
 }
 
 void validate_expression (QJsonValue value) {
@@ -82,15 +95,14 @@ void validate_expression (QJsonValue value) {
               "equality needs two operands");
       for (QJsonValue arg: data.toArray ()) validate_expression (arg);
     }
-    else if (kind == "symbol" || kind == "keyword") {
+    else if (kind == "symbol") {
       ASSERT (binding_string (data) != "", "empty keymap identifier");
     }
     else if (kind == "number") {
       ASSERT (data.isDouble (), "keymap real number expected");
     }
     else if (kind == "list") {
-      ASSERT (data.isArray (), "keymap list must be an array");
-      for (QJsonValue arg: data.toArray ()) validate_expression (arg);
+      (void) content_descriptor (value);
     }
     else if (kind == "not") validate_expression (data);
     else {
@@ -190,114 +202,89 @@ const QJsonArray& keymap_groups () {
   return keymap_registry ().groups;
 }
 
-bool truth (object value) {
-  return !(is_bool (value) && !as_bool (value));
-}
-
-tree command_data (object value) {
-  if (is_list (value)) {
-    tree result (TUPLE);
-    for (; is_pair (value); value= cdr (value))
-      result << command_data (car (value));
+// Syntax is retained only for inverse shortcut lookup and command display.
+tree source_expression (QJsonValue value) {
+  if (value.isString ()) return raw_quote (binding_string (value));
+  if (value.isBool ()) return value.toBool () ? "#t" : "#f";
+  if (value.isDouble ()) return as_string (value.toInt ());
+  const auto item= value.toObject ();
+  if (item.contains ("focus")) return tuple ("focus-tree");
+  if (item.contains ("equal")) {
+    const auto operands= item["equal"].toArray ();
+    return tuple ("==", source_expression (operands[0]), source_expression (operands[1]));
+  }
+  if (item.contains ("prompt")) {
+    tree result= tuple ("interactive", binding_string (item["prompt"]));
+    for (QJsonValue label: item["labels"].toArray ())
+      result << raw_quote (binding_string (label));
     return result;
   }
-  if (is_string (value)) return raw_quote (as_string (value));
-  if (is_symbol (value)) return as_symbol (value);
-  if (is_keyword (value)) return "#:" * keyword_name (value);
-  if (is_bool (value)) return as_bool (value) ? "#t" : "#f";
-  if (is_exact_integer (value)) return as_string (as_int (value));
-  if (is_double (value)) {
+  if (item.contains ("number")) {
     char buffer[64];
-    auto encoded= std::to_chars (buffer, buffer + sizeof (buffer), as_double (value));
+    auto encoded= std::to_chars (buffer, buffer + sizeof (buffer), item["number"].toDouble ());
     ASSERT (encoded.ec == std::errc (), "cannot encode keymap number");
     string number (buffer, encoded.ptr - buffer);
     if (!occurs (".", number) && !occurs ("e", number)) number << ".0";
     return number;
   }
-  throw std::invalid_argument ("Unsupported native keymap metadata value");
+  if (item.contains ("symbol")) return tuple ("quote", binding_string (item["symbol"]));
+  if (item.contains ("list")) return tuple ("quote", tree_to_scheme_tree (content_descriptor (value)));
+  if (item.contains ("call")) {
+    tree result= tuple (binding_string (item["call"]));
+    for (QJsonValue arg: item["args"].toArray ()) result << source_expression (arg);
+    return result;
+  }
+  if (item.contains ("if"))
+    return tuple ("if", source_expression (item["if"]),
+                  source_expression (item["then"]), source_expression (item["else"]));
+  if (item.contains ("not")) return tuple ("not", source_expression (item["not"]));
+  const bool all= item.contains ("all");
+  tree result= tuple (all ? "and" : "or");
+  for (QJsonValue arg: item[all ? "all" : "any"].toArray ()) result << source_expression (arg);
+  return result;
 }
 
-// Source reconstruction is only for inverse key lookup and command metadata.
-// Native commands use generated dispatch, including named movement actions.
-object expression (QJsonValue value, bool source) {
-  if (value.isString ()) return object (binding_string (value));
-  if (value.isBool ()) return object (value.toBool ());
-  if (value.isDouble ()) return object (value.toInt ());
-  auto item= value.toObject ();
+command_value expression (QJsonValue value) {
+  if (value.isString ()) return binding_string (value);
+  if (value.isBool ()) return value.toBool ();
+  if (value.isDouble ()) return value.toInt ();
+  const auto item= value.toObject ();
   if (item.contains ("focus")) {
-    if (source) return list_object (symbol_object ("focus-tree"));
     editor ed= get_current_editor ();
-    return object (ed->the_subtree (ed->focus_get ()));
+    return ed->the_subtree (ed->focus_get ());
   }
   if (item.contains ("equal")) {
-    auto operands= item["equal"].toArray ();
-    object left= expression (operands[0], source);
-    object right= expression (operands[1], source);
-    return source ? list_object (symbol_object ("=="), left, right)
-                  : object (left == right);
+    const auto operands= item["equal"].toArray ();
+    return command_equal (expression (operands[0]), expression (operands[1]));
   }
   if (item.contains ("prompt")) {
-    const string function= binding_string (item["prompt"]);
     array<string> labels;
-    array<object> source_arguments;
-    if (source) source_arguments << symbol_object (function);
-    for (QJsonValue label: item["labels"].toArray ()) {
-      labels << binding_string (label);
-      if (source) source_arguments << object (labels[N(labels)-1]);
-    }
-    if (source) return cons (symbol_object ("interactive"), as_list_object (source_arguments));
-    interactive_command (function, labels);
-    return object (true);
+    for (QJsonValue label: item["labels"].toArray ()) labels << binding_string (label);
+    interactive_command (binding_string (item["prompt"]), labels);
+    return true;
   }
-  if (item.contains ("number")) return object (item["number"].toDouble ());
-  if (item.contains ("symbol")) {
-    object name= symbol_object (binding_string (item["symbol"]));
-    return source ? list_object (symbol_object ("quote"), name) : name;
-  }
-  if (item.contains ("keyword"))
-    return keyword_object (binding_string (item["keyword"]));
-  if (item.contains ("list")) {
-    array<object> values;
-    for (QJsonValue arg: item["list"].toArray ())
-      values << expression (arg, false);
-    object value= as_list_object (values);
-    return source ? list_object (symbol_object ("quote"), value) : value;
-  }
+  if (item.contains ("number")) return item["number"].toDouble ();
+  if (item.contains ("symbol")) return as_tree_label (binding_string (item["symbol"]));
+  if (item.contains ("list")) return content_descriptor (value);
   if (item.contains ("call")) {
-    array<object> args;
-    for (QJsonValue arg: item["args"].toArray ()) args << expression (arg, source);
-    string name= binding_string (item["call"]);
-    if (source) return cons (symbol_object (name), as_list_object (args));
-    object native_result;
-    if (athena::auto_close::keyboard_call (name, args, native_result))
-      return native_result;
-    if (athena::table_commands::keyboard_call (name, args, native_result))
-      return native_result;
-    if (native_dispatch_call (name, args, native_result)) return native_result;
+    command_arguments args;
+    for (QJsonValue arg: item["args"].toArray ()) args << expression (arg);
+    const string name= binding_string (item["call"]);
+    command_value result;
+    if (native_dispatch_call (name, args, result)) return result;
     throw std::invalid_argument ("Unknown native keymap command: " +
                                 std::string (name.data (), N(name)));
   }
-  if (item.contains ("if")) {
-    if (!source) return expression (item[truth (expression (item["if"], false))
-                                       ? "then" : "else"], false);
-    array<object> terms;
-    terms << symbol_object ("if") << expression (item["if"], true)
-          << expression (item["then"], true) << expression (item["else"], true);
-    return as_list_object (terms);
-  }
-  if (item.contains ("not")) {
-    object arg= expression (item["not"], source);
-    return source ? list_object (symbol_object ("not"), arg) : object (!truth (arg));
-  }
-  bool all= item.contains ("all");
-  array<object> terms;
-  object result (all);
+  if (item.contains ("if"))
+    return expression (item[command_truth (expression (item["if"])) ? "then" : "else"]);
+  if (item.contains ("not")) return !command_truth (expression (item["not"]));
+  const bool all= item.contains ("all");
+  command_value result (all);
   for (QJsonValue arg: item[all ? "all" : "any"].toArray ()) {
-    result= expression (arg, source);
-    if (source) terms << result;
-    else if (truth (result) != all) return result;
+    result= expression (arg);
+    if (command_truth (result) != all) return result;
   }
-  return source ? cons (symbol_object (all ? "and" : "or"), as_list_object (terms)) : result;
+  return result;
 }
 
 QJsonObject keymap_group (int group) {
@@ -308,20 +295,20 @@ QJsonObject keymap_group (int group) {
 
 } // namespace
 
-object generic_keyboard_run (int group, int binding) {
+command_value generic_keyboard_run (int group, int binding) {
   auto descriptor= keymap_group (group);
   auto entries= descriptor["bindings"].toArray ();
   ASSERT (binding >= 0 && binding < entries.size (), "invalid generic key binding");
   auto commands= entries[binding].toObject ()["commands"].toArray ();
-  object result= object (false);
-  for (QJsonValue command: commands) result= expression (command, false);
+  command_value result (false);
+  for (QJsonValue command: commands) result= expression (command);
   return result;
 }
 
 bool generic_keyboard_condition (int group) {
   auto descriptor= keymap_group (group)["require"];
   ASSERT (!descriptor.isUndefined (), "generic keymap group has no condition");
-  return truth (expression (descriptor, false));
+  return command_truth (expression (descriptor));
 }
 
 void register_group (int g) {
@@ -356,11 +343,10 @@ void register_group (int g) {
       source= scm_quote (binding_string (binding["text"]));
     }
     else {
-      array<object> terms;
+      tree terms (TUPLE, "begin");
       for (QJsonValue command: binding["commands"].toArray ())
-        terms << expression (command, true);
-      source= scheme_tree_to_string (command_data (N(terms) == 1 ? terms[0] :
-        cons (symbol_object ("begin"), as_list_object (terms))));
+        terms << source_expression (command);
+      source= scheme_tree_to_string (N(terms) == 2 ? terms[1] : terms);
       action.action= [g, b] { (void) generic_keyboard_run (g, b); };
     }
     action.help= binding["help"].toString ().toStdString ();

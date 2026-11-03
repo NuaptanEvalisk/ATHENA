@@ -1,4 +1,0 @@
-*.o
-+*
-/lightning.info
-/tests/test-*

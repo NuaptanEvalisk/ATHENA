@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMVaultWikilinkWizard.hpp"
+#include "boot.hpp"
 #include "QTMCompletingComboBox.hpp"
 #include "QTMVaultAnchorModel.hpp"
 #include "QTMVaultArtifactPage.hpp"
@@ -23,7 +24,6 @@
 #include "new_buffer.hpp"
 #include "node_metadata.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
 #include "tree_search.hpp"
 #include "vault.hpp"
 #include <QApplication>

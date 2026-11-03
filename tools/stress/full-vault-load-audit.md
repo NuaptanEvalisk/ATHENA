@@ -13,8 +13,8 @@ Close this Vault in ATHENA during the initial snapshot. When the script prints
 `Snapshot ready; original Vault may be reopened`, it no longer needs the source.
 An already-running random audit uses its own snapshot and may continue.
 
-The script reuses the random audit's offscreen load and two-pass typesetting
-check. Every worker has a separate writable Vault copy and HOME/profile, and
+The script reuses the random audit's native website export command, checking
+that loading and typesetting produce both HTML and valid PDF output. Every worker has a separate writable Vault copy and HOME/profile, and
 every document gets a fresh ATHENA process. Backup dispatchers are disabled in
 the copies; no user Hodarium credentials are copied into the isolated profiles.
 The original Vault is never opened by the test processes. Symlinks are refused.
@@ -23,9 +23,10 @@ The original Vault is never opened by the test processes. Symlinks are refused.
 each process has its own editor, caches and background workers. Snapshots use
 `cp --reflink=auto` on the source filesystem. Allow space for one base copy and
 one copy per worker; without reflink support these are full physical copies.
-`--timeout` defaults to 180 seconds per document; `--settle` defaults to 3 seconds
-between typesetting passes. Both are adjustable. This checks loading/typesetting,
-not all visual, editing or export behavior.
+`--timeout` defaults to 180 seconds per document and is adjustable. Each check
+also verifies that the copied source document remains byte-identical. This
+covers native loading and HTML/PDF export, not interactive editing or visual
+acceptance. No startup script or embedded interpreter is used.
 
 For a detached run:
 

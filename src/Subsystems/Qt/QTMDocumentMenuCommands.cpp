@@ -8,7 +8,7 @@
 
 #include "QTMCommandRegistry.hpp"
 #include "QTMCommandRegistryInternal.hpp"
-#include "Scheme/Scheme/native_interfaces.hpp"
+#include "native_interfaces.hpp"
 
 #include <QColor>
 #include <QColorDialog>
@@ -146,23 +146,20 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
         QObject::tr ("Citation Style"), writable, true,
         document.materials_citation_default);
       try {
-        object raw= athena_materials_csl_styles ();
-        if (is_tree (raw)) {
-          tree styles= as_tree (raw);
-          for (int i=0; i<N(styles); ++i) {
-            tree entry= styles[i];
-            if (!is_compound (entry, "tuple", 2) ||
-                !is_atomic (entry[0]) || !is_atomic (entry[1]))
-              continue;
-            QString name= to_qstring (as_string (entry[0]));
-            QString title= to_qstring (as_string (entry[1]));
-            append_item (
-              out, QStringLiteral ("citation/%1").arg (name),
-              title + QStringLiteral (" (") + name + QStringLiteral (")"),
-              QObject::tr ("Citation Style"), writable, true,
-              !document.materials_citation_default &&
-                qs (document.materials_citation_style) == name);
-          }
+        tree styles= athena_materials_csl_styles ();
+        for (int i=0; i<N(styles); ++i) {
+          tree entry= styles[i];
+          if (!is_compound (entry, "tuple", 2) ||
+              !is_atomic (entry[0]) || !is_atomic (entry[1]))
+            continue;
+          QString name= to_qstring (as_string (entry[0]));
+          QString title= to_qstring (as_string (entry[1]));
+          append_item (
+            out, QStringLiteral ("citation/%1").arg (name),
+            title + QStringLiteral (" (") + name + QStringLiteral (")"),
+            QObject::tr ("Citation Style"), writable, true,
+            !document.materials_citation_default &&
+              qs (document.materials_citation_style) == name);
         }
       }
       catch (...) {}

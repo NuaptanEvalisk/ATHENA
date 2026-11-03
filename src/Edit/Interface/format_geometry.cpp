@@ -9,11 +9,11 @@
 ******************************************************************************/
 
 #include "format_geometry.hpp"
+#include "boot.hpp"
 #include "analyze.hpp"
 #include "convert.hpp"
 #include "editor.hpp"
 #include "new_view.hpp"
-#include "scheme.hpp"
 #include "native_interfaces.hpp"
 
 #include <algorithm>

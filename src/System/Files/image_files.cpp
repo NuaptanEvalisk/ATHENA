@@ -34,7 +34,6 @@
 #include "sys_utils.hpp"
 #include "analyze.hpp"
 #include "hashmap.hpp"
-#include "scheme.hpp"
 #include "Imlib2/imlib2.hpp"
 
 #ifdef MACOSX_EXTENSIONS

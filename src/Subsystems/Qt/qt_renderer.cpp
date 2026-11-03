@@ -15,7 +15,6 @@
 #include "qt_utilities.hpp"
 #include "file.hpp"
 #include "image_files.hpp"
-#include "scheme.hpp"
 #include "frame.hpp"
 #include "font_domain.hpp"
 

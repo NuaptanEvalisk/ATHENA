@@ -7,6 +7,7 @@
 *******************************************************************************/
 
 #include "QTMVaultFontConfigurator.hpp"
+#include "boot.hpp"
 
 #include "QTMFontSelector.hpp"
 #include "ATHENA/Data/new_buffer.hpp"
@@ -14,7 +15,6 @@
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include "convert.hpp"
 #include "file.hpp"
-#include "scheme.hpp"
 #include "qt_utilities.hpp"
 
 #include <QApplication>

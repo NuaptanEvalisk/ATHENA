@@ -20,7 +20,7 @@
 #include "boot.hpp"
 #include "buffer_actor.hpp"
 #include "editor.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #include "ATHENA/Data/document_persistence.hpp"
 #include <memory>
 #include <vector>
@@ -56,7 +56,7 @@ url window_catalog_url (const std::string& value) {
 
 void
 publish_window_catalog () {
-  ASSERT (current_scheme_execution_context () == nullptr,
+  ASSERT (current_execution_context () == nullptr,
           "window catalog publication requires the GUI owner");
   window_catalog entries;
   for (int i= 0; i < N (all_windows); ++i) {
@@ -162,7 +162,7 @@ delete_view_from_window (url win) {
 
 void
 delete_window (url win_u) {
-  ASSERT (current_scheme_execution_context () == nullptr,
+  ASSERT (current_execution_context () == nullptr,
           "window teardown entered from a BufferActor");
   tm_window win= concrete_window (win_u);
   if (win == NULL) return;
@@ -184,7 +184,7 @@ concrete_window (url win) {
 
 array<url>
 windows_list () {
-  if (current_scheme_execution_context () != nullptr) {
+  if (current_execution_context () != nullptr) {
     array<url> result;
     auto catalog= std::atomic_load_explicit (&published_windows,
                                             std::memory_order_acquire);
@@ -202,7 +202,7 @@ get_nr_windows () {
 
 bool
 has_current_window () {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr)
     return context->editor != nullptr &&
       context->editor->ui_viewport ().window_id != 0;
@@ -219,7 +219,7 @@ concrete_window () {
 
 url
 get_current_window () {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr) {
     if (context->editor == nullptr) return url_none ();
     std::uint64_t id= context->editor->ui_viewport ().window_id;
@@ -233,7 +233,7 @@ get_current_window () {
 
 array<url>
 buffer_to_windows (url name) {
-  if (current_scheme_execution_context () != nullptr) {
+  if (current_execution_context () != nullptr) {
     array<url> result;
     auto catalog= std::atomic_load_explicit (&published_windows,
                                             std::memory_order_acquire);
@@ -252,7 +252,7 @@ buffer_to_windows (url name) {
 
 url
 window_to_buffer (url win) {
-  if (current_scheme_execution_context () != nullptr) {
+  if (current_execution_context () != nullptr) {
     auto catalog= std::atomic_load_explicit (&published_windows,
                                             std::memory_order_acquire);
     auto key= window_catalog_key (win);
@@ -265,7 +265,7 @@ window_to_buffer (url win) {
 
 url
 window_to_view (url win) {
-  if (current_scheme_execution_context () != nullptr) {
+  if (current_execution_context () != nullptr) {
     auto catalog= std::atomic_load_explicit (&published_windows,
                                             std::memory_order_acquire);
     auto key= window_catalog_key (win);
@@ -388,7 +388,7 @@ create_buffer () {
 
 void
 new_document_buffer () {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr && context->editor != nullptr) {
     (void) context->editor->publish_ui (actor_command_kind::ui_new_buffer);
     return;
@@ -411,7 +411,7 @@ open_initial_window () {
 
 void
 open_document_window (bool floating) {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr && context->editor != nullptr) {
     (void) context->editor->publish_ui (
       actor_command_kind::ui_open_document_window, floating ? 1 : 0);
@@ -429,7 +429,7 @@ clone_window () {
 
 void
 kill_buffer (url name) {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr && context->editor != nullptr) {
     athena_actor_id actor_id= context->actor_id;
     if (name != context->actor->current_buffer_url ()) {
@@ -468,7 +468,7 @@ kill_buffer_by_actor_id (athena_actor_id actor_id) {
 
 void
 kill_window (url wname) {
-  ASSERT (current_scheme_execution_context () == nullptr,
+  ASSERT (current_execution_context () == nullptr,
           "window teardown entered from a BufferActor");
   array<url> vs= get_all_views ();
   for (int i=0; i<N(vs); i++) {

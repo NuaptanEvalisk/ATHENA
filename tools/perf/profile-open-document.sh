@@ -35,9 +35,9 @@ Options:
   --allow-concurrent        Permit another ATHENA process to remain running.
   --help                    Show this help.
 
-The measured interval contains load-vault-dir, load-buffer, transclusion
-resolution, initial typesetting, and initial painting. Startup runs with events
-disabled. No UI interaction is required.
+The measured interval contains native vault activation, document loading,
+transclusion resolution, initial typesetting, and the requested document's
+first presented frame. No UI interaction or startup script is required.
 EOF
 }
 
@@ -287,37 +287,12 @@ if [[ "$backend" == "vtune" || "$backend" == "both" ]]; then
   }
 fi
 
-scheme_quote() {
-  local value="$1"
-  value="${value//\\/\\\\}"
-  value="${value//\"/\\\"}"
-  printf '"%s"' "$value"
-}
-
-helper_start_scheme="$(scheme_quote "$control_helper start")"
-helper_vault_scheme="$(scheme_quote "$control_helper vault-loaded")"
-helper_vault_settled_scheme="$(scheme_quote "$control_helper vault-settled")"
-helper_buffer_scheme="$(scheme_quote "$control_helper buffer-loaded")"
-helper_finish_scheme="$(scheme_quote "$control_helper finish")"
-vault_scheme="$(scheme_quote "$vault")"
-document_scheme="$(scheme_quote "$document")"
-scheme_command="(delayed (:pause $startup_delay_ms) (begin
-  (system $helper_start_scheme)
-  (load-vault-dir (system->url $vault_scheme))
-  (system $helper_vault_scheme)
-  (delayed (:pause $vault_settle_ms) (begin
-    (system $helper_vault_settled_scheme)
-    (load-buffer (system->url $document_scheme))
-    (system $helper_buffer_scheme)
-    (delayed (:pause $settle_ms) (begin
-      (system $helper_finish_scheme)
-      (exec-global (lambda () (quit-TeXmacs)))))))))"
-startup_scheme="(begin
-  (set-preference \"check for updates\" \"off\")
-  (set-preference \"google oauth client id\" \"\")
-  $scheme_command)"
-profile_init="$output/athena-profile-init.scm"
-printf '%s\n' "$startup_scheme" > "$profile_init"
+export ATHENA_PROFILE_CONTROL_HELPER="$control_helper"
+export ATHENA_PROFILE_VAULT="$vault"
+export ATHENA_PROFILE_DOCUMENT="$document"
+export ATHENA_PROFILE_STARTUP_DELAY_MS="$startup_delay_ms"
+export ATHENA_PROFILE_VAULT_SETTLE_MS="$vault_settle_ms"
+export ATHENA_PROFILE_SETTLE_MS="$settle_ms"
 
 # Match the normal ATHENA launcher when the local build uses the SYCL llama.cpp
 # backend.  Without the oneAPI runtime path, profiling would fail before main.
@@ -348,9 +323,6 @@ if [[ "$build_type" == "Debug" ]]; then
 fi
 if [[ -d "$binary_build_dir/x64/lib" ]]; then
   library_path="$binary_build_dir/x64/lib:$library_path"
-fi
-if [[ -d "$binary_build_dir/athena-guile-runtime/lib" ]]; then
-  library_path="$binary_build_dir/athena-guile-runtime/lib:$library_path"
 fi
 if [[ -n "${LD_LIBRARY_PATH:-}" ]]; then
   library_path="$library_path:$LD_LIBRARY_PATH"
@@ -497,7 +469,6 @@ run_perf() {
         --output "$run_dir/perf.data" -- \
       "$binary" --no-splash-screen -debug-bench \
         -log-file "$run_dir/athena.log" \
-        -i "$profile_init" \
         --platform "$platform"
   ) > "$run_dir/stdout-stderr.log" 2>&1
   local status=$?
@@ -542,7 +513,6 @@ run_timing() {
         LD_LIBRARY_PATH="$library_path" \
       "$binary" --no-splash-screen -debug-bench \
         -log-file "$run_dir/athena.log" \
-        -i "$profile_init" \
         --platform "$platform"
   ) > "$run_dir/stdout-stderr.log" 2>&1
   local status=$?
@@ -588,7 +558,6 @@ run_vtune() {
         -result-dir "$result_dir" -app-working-dir "$repo_root/ATHENA" -- \
       "$binary" --no-splash-screen -debug-bench \
         -log-file "$run_dir/athena.log" \
-        -i "$profile_init" \
         --platform "$platform"
   ) > "$run_dir/stdout-stderr.log" 2>&1
   local status=$?

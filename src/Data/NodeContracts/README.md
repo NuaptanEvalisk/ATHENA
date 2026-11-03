@@ -4124,7 +4124,7 @@ requiring delayed callbacks. Graphics keyboard commands now call native entry
 points directly. The obsolete Scheme graphics modules have been removed;
 object property defaults live in `ATHENA/misc/input/graphics-properties.json`,
 shared by drawing property edits and geometry commands. The remaining bindings are declared in
-`src/Scheme/Glue/native.xml`; CMake generates their wrappers and registration.
+`src/ATHENA/Commands/Interfaces/native.xml`; CMake generates their wrappers and registration.
 Grid rendering and snapping implementations are unchanged.
 
 Production built with `-j16` after correcting the native point label spelling

@@ -12,7 +12,6 @@
 
 #include "QTMMenuHelper.hpp"
 #include "qt_window_widget.hpp"
-#include "scheme.hpp"
 
 #include <QCompleter>
 #include <QDir>
@@ -75,7 +74,6 @@ qt_input_text_widget_rep::commit (bool flag) {
   if (win) {
     if (done) return;
     done= true;
-    the_gui->process_command (
-      cmd, ok ? list_object (object (input)): list_object (object (false)));
+    the_gui->process_command (cmd);
   }
 }

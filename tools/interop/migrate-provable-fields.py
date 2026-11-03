@@ -540,19 +540,11 @@ def require_no_athena(binary):
 @contextmanager
 def running_athena(binary, root, vault_name, destination, progress):
     """Own only the child we launch; inherit the user's normal configuration."""
-    vaultfile = json.loads((root / "Vaultfile.json").read_text(encoding="utf-8"))
-    arguments = [str(root), vault_name, vaultfile.get("map_path", "map.sqlite"),
-                 vaultfile.get("namespace_db_path", "ns.sqlite")]
-    quoted = [json.dumps(value, ensure_ascii=False) for value in arguments]
-    expression = (
-        "(exec-global (lambda () (let ((failure (vault-load-with-ns "
-        f"(system->url {quoted[0]}) {quoted[1]} {quoted[2]} {quoted[3]}))) "
-        '(unless (equal? failure "") (error failure)))))')
     log_path = destination / "athena.log"
     progress.update("Starting ATHENA")
     with log_path.open("w", encoding="utf-8") as log:
         process = subprocess.Popen(
-            [str(binary), "-X", "-no-splash-screen", "-x", expression],
+            [str(binary), "-X", "-no-splash-screen", "--vault", str(root)],
             cwd=Path(__file__).resolve().parents[2] / "ATHENA",
             stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
         print(f"Started ATHENA PID: {process.pid}\nATHENA log: {log_path}", flush=True)

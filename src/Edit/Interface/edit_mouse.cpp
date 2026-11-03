@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "edit_interface.hpp"
+#include "boot.hpp"
 #include "native_input_events.hpp"
 #include "structured_commands.hpp"
 #include "format_geometry.hpp"
@@ -22,7 +23,6 @@
 #include "link_markup.hpp"
 #include "analyze.hpp"
 #include "message.hpp"
-#include "scheme.hpp"
 #include "tree_select.hpp"
 #include "window.hpp"
 #include "vault.hpp"

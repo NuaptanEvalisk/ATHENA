@@ -9,6 +9,9 @@
 #include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QProcess>
 #include <QProcessEnvironment>
 #include <QTemporaryDir>
@@ -425,12 +428,6 @@ structured_theorem_document (int prefix_count= 0, bool folded= false) {
   return document;
 }
 
-static QString
-scheme_quote (QString value) {
-  value.replace ('\\', "\\\\");
-  value.replace ('"', "\\\"");
-  return '"' + value + '"';
-}
 
 static const AthenaArtifactRecord*
 record_with_display_text (const std::vector<AthenaArtifactRecord>& records,
@@ -1194,54 +1191,41 @@ TestArtifacts::keepsRadioactiveRangeMacroLociAlive () {
   QString home= temporary.filePath ("home");
   QVERIFY (QDir ().mkpath (home + "/fonts"));
   QVERIFY (QDir ().mkpath (home + "/system"));
-  QString resultPath= temporary.filePath ("range-result.txt");
-  QString demoPath= QString::fromStdString ((root / "Demo.ath").string ());
-  QString script= QString (R"SCM(
-(set-preference "check for updates" "off")
-(delayed (:pause 500)
-  (exec-global
-    (lambda ()
-      (load-vault-dir (system->url %1))
-      (load-browse-buffer (system->url %2))
-      (if (not (equal? (current-buffer-url) (system->url %2)))
-          (error "Range fixture was not opened"))
-      (exec-buffer (system->url %2)
-        (lambda ()
-          (string-save "range-locus-alive=1\n" (system->url %3))
-          (exec-global (lambda () (quit-TeXmacs))))))))
-)SCM")
-    .arg (scheme_quote (QString::fromStdString (root.string ())))
-    .arg (scheme_quote (demoPath))
-    .arg (scheme_quote (resultPath));
+  const QString destination= temporary.filePath ("range-site");
+  const QString demoPath= QString::fromStdString ((root / "Demo.ath").string ());
+  QFile website (QString::fromStdString ((root / "websites.json").string ()));
+  QVERIFY (website.open (QIODevice::WriteOnly));
+  QJsonObject entry {
+    {"id", "range"}, {"name", "Range lifecycle"},
+    {"selector", QJsonObject {{"kind", "path"}, {"path", "Demo.ath"}}},
+    {"destination", destination}, {"generatePdfs", true},
+    {"entrypoint", QJsonObject {{"kind", "file"}, {"path", "Demo.ath"}}}
+  };
+  const QByteArray configuration= QJsonDocument (
+    QJsonObject {{"version", 1}, {"websites", QJsonArray {entry}}}).toJson ();
+  QCOMPARE (website.write (configuration), qint64 (configuration.size ()));
+  website.close ();
   QString executable=
     QDir (QCoreApplication::applicationDirPath ())
       .absoluteFilePath ("../src/ATHENA.bin");
   const QString resources=
     QDir (QCoreApplication::applicationDirPath ())
       .absoluteFilePath ("../../ATHENA");
-  const QString initPath= temporary.filePath ("artifact-range-init.scm");
-  QFile init (initPath);
-  QVERIFY (init.open (QIODevice::WriteOnly | QIODevice::Text));
-  const QString initScript= script;
-  const QByteArray initBytes= initScript.toUtf8 ();
-  QCOMPARE (init.write (initBytes), (qint64) initBytes.size ());
-  init.close ();
-  QString launcherDirectory= temporary.filePath ("bin");
-  QVERIFY (QDir ().mkpath (launcherDirectory));
-  QString launcher= launcherDirectory + "/ATHENA";
-  QVERIFY2 (QFile::link (executable, launcher), qPrintable (launcher));
   QProcess process;
   QProcessEnvironment environment= QProcessEnvironment::systemEnvironment ();
   environment.insert ("ATHENA_PATH", resources);
   environment.insert ("ATHENA_BIN_PATH", QFileInfo (executable).absolutePath ());
-  environment.insert ("PATH", launcherDirectory + ':' + environment.value ("PATH"));
+  environment.insert ("HOME", home);
+  environment.insert ("XDG_CONFIG_HOME", home + "/config");
+  environment.insert ("XDG_CACHE_HOME", home + "/cache");
+  environment.insert ("XDG_DATA_HOME", home + "/data");
   environment.insert ("ATHENA_HOME_PATH", home);
   environment.insert ("QT_QPA_PLATFORM", "offscreen");
   environment.insert ("TM_REEXEC", "1");
   process.setProcessEnvironment (environment);
-  process.setProgram (launcher);
-  process.setArguments (
-    {"--no-splash-screen", "--platform", "offscreen", "-i", initPath});
+  process.setProgram (executable);
+  process.setArguments ({"-H", "-X", "--generate-website",
+                        QString::fromStdString (root.string ()), "range"});
   process.start ();
   QVERIFY2 (process.waitForFinished (30000), qPrintable (process.errorString ()));
   QByteArray diagnostic= process.readAllStandardOutput () +
@@ -1250,10 +1234,10 @@ TestArtifacts::keepsRadioactiveRangeMacroLociAlive () {
             diagnostic.right (8192).constData ());
   QVERIFY2 (!diagnostic.contains ("The required path does not exist"),
             diagnostic.right (8192).constData ());
-  QFile result (resultPath);
-  QVERIFY2 (result.open (QIODevice::ReadOnly | QIODevice::Text),
-            diagnostic.right (8192).constData ());
-  QVERIFY (result.readAll ().contains ("range-locus-alive=1"));
+  QVERIFY2 (process.exitCode () == 0, diagnostic.right (8192).constData ());
+  QFile result (destination + "/Demo.pdf");
+  QVERIFY2 (result.open (QIODevice::ReadOnly), diagnostic.right (8192).constData ());
+  QVERIFY (result.read (5) == "%PDF-");
 }
 
 void

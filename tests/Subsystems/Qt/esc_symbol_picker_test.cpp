@@ -14,7 +14,7 @@
 #include <QTimer>
 
 #include "QTMESCSymbolPicker.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 
 #include <atomic>
 #include <thread>
@@ -87,10 +87,10 @@ private slots:
     for (bool accept: {false, true}) {
       bool returned_empty= false;
       std::thread actor ([&] {
-        SchemeExecutionContext context (
+        ExecutionContext context (
           nullptr, nullptr, nullptr, nullptr, 1234567, 7654321, 1,
-          SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_UI);
-        SchemeExecutionScope scope (context);
+          EXECUTION_CAPABILITY_BUFFER | EXECUTION_CAPABILITY_UI);
+        ExecutionScope scope (context);
         returned_empty= escape_symbol_picker_dialog () == "";
       });
       actor.join ();

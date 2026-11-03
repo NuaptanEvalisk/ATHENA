@@ -27,7 +27,7 @@ private:
   tree_rep* ptr;
   bool flag;
   string cb;
-  void dispatch (const char* event, tree ref, object change);
+  void dispatch (const char* event, tree ref, command_value change);
 
 public:
   tree_pointer_rep (tree ref, bool flag2):
@@ -63,10 +63,10 @@ public:
 ******************************************************************************/
 
 void
-tree_pointer_rep::dispatch (const char* event, tree ref, object change) {
-  object result;
-  array<object> args;
-  args << symbol_object (event) << object (ref) << change;
+tree_pointer_rep::dispatch (const char* event, tree ref, command_value change) {
+  command_value result;
+  command_arguments args;
+  args << command_value (as_tree_label (event)) << command_value (ref) << change;
   if (!native_dispatch_call (cb, args, result))
     throw std::invalid_argument ("Unknown native tree observer: " +
                                  std::string (cb.data (), N(cb)));
@@ -77,21 +77,21 @@ tree_pointer_rep::announce (tree& ref, modification mod) {
   //cout << "Announce " << mod << "\n";
   (void) ref;
   if (N(cb) != 0 && ip_attached (obtain_ip (ref)))
-    dispatch ("announce", ref, object (mod));
+    dispatch ("announce", ref, command_value (mod));
 }
 
 void
 tree_pointer_rep::done (tree& ref, modification mod) {
   //cout << "Done " << mod->p << "\n";
   if (N(cb) != 0 && ip_attached (obtain_ip (ref)))
-    dispatch ("done", ref, object (mod));
+    dispatch ("done", ref, command_value (mod));
 }
 
 void
 tree_pointer_rep::touched (tree& ref, path p) {
   //cout << "Touched " << p << "\n";
   if (N(cb) != 0 && ip_attached (obtain_ip (ref)))
-    dispatch ("touched", ref, object (p));
+    dispatch ("touched", ref, command_value (p));
 }
 
 /******************************************************************************

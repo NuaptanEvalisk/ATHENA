@@ -10,7 +10,7 @@
 
 #include "QTMCommandRegistry.hpp"
 #include "QTMCommandRegistryInternal.hpp"
-#include "Scheme/Scheme/native_interfaces.hpp"
+#include "native_interfaces.hpp"
 
 #include <QColor>
 #include <QColorDialog>
@@ -159,21 +159,18 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
                 QObject::tr ("Use document Citation Style"), styles,
                 true, current.isEmpty ());
         try {
-          object raw= athena_materials_csl_styles ();
-          if (is_tree (raw)) {
-            tree values= as_tree (raw);
-            for (int i=0; i<N(values); ++i) {
-              tree entry= values[i];
-              if (!is_compound (entry, "tuple", 2) ||
-                  !is_atomic (entry[0]) || !is_atomic (entry[1]))
-                continue;
-              QString name= to_qstring (as_string (entry[0]));
-              QString title= to_qstring (as_string (entry[1]));
-              append (
-                QStringLiteral ("materials/style/") + name,
-                title + QStringLiteral (" (") + name + QStringLiteral (")"),
-                styles, true, current == name);
-            }
+          tree values= athena_materials_csl_styles ();
+          for (int i=0; i<N(values); ++i) {
+            tree entry= values[i];
+            if (!is_compound (entry, "tuple", 2) ||
+                !is_atomic (entry[0]) || !is_atomic (entry[1]))
+              continue;
+            QString name= to_qstring (as_string (entry[0]));
+            QString title= to_qstring (as_string (entry[1]));
+            append (
+              QStringLiteral ("materials/style/") + name,
+              title + QStringLiteral (" (") + name + QStringLiteral (")"),
+              styles, true, current == name);
           }
         }
         catch (...) {}

@@ -10,12 +10,11 @@
 #include "ATHENA/Data/materials_document.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "QTMVaultLinkFocus.hpp"
-#include "scheme.hpp"
 #include "new_buffer.hpp"
 #include "qt_utilities.hpp"
 #include "actor_transport.hpp"
 #include "buffer_actor.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 
 #include <QApplication>
 #include <QComboBox>
@@ -400,7 +399,7 @@ namespace {
 struct MaterialChooserRequest {
   athena_actor_id actor;
   athena_view_id view;
-  SchemeCapabilitySet capabilities;
+  ExecutionCapabilitySet capabilities;
   athena_continuation_id completion;
   athena_blob_id result= ATHENA_NO_BLOB;
   vault_context_handle vault;
@@ -412,7 +411,7 @@ struct MaterialChooserRequest {
 void choose_async (bool citation, string style, std::function<void(tree)> completion) {
   auto* app= QCoreApplication::instance ();
   if (!app) return;
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   if (!context || context->actor_id == ATHENA_NO_ACTOR || context->view_id == ATHENA_NO_VIEW) {
     if (QThread::currentThread () == app->thread ())
       completion (citation ?

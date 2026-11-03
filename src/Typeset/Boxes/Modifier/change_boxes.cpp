@@ -12,7 +12,6 @@
 #include "Boxes/change.hpp"
 #include "Boxes/construct.hpp"
 #include "Boxes/inline_link.hpp"
-#include "scheme.hpp"
 #include "native_command_security.hpp"
 #include "native_dispatch.hpp"
 #include <stdexcept>
@@ -1078,23 +1077,23 @@ relay_box_rep::message (tree type, SI x, SI y, rectangles& rs) {
   int callback= framed? 1: 0;
   const string function= args[callback]->label;
   if (!native_secure_function (function)) return "";
-  array<object> objs;
-  objs << object (type);
+  command_arguments objs;
+  objs << command_value (type);
   frame f;
   if (framed && relay_find_frame (bs[0], sx(0), sy(0), f)) {
     point p= f [point (x, y)];
-    objs << object (p[0]) << object (p[1]);
+    objs << command_value (p[0]) << command_value (p[1]);
   }
-  else objs << object ((int) x) << object ((int) y);
-  for (int i=callback+1; i<N(args); i++) objs << object (args[i]);
-  object r;
+  else objs << command_value ((int) x) << command_value ((int) y);
+  for (int i=callback+1; i<N(args); i++) objs << command_value (args[i]);
+  command_value r;
   if (!native_dispatch_call (function, objs, r))
     throw std::invalid_argument ("Unknown native relay command: " +
                                  std::string (function.data (), N(function)));
-  if (!is_bool (r) || as_bool (r))
+  if (command_truth (r))
     rs << rectangle (x3, y3, x4, y4);
-  if (is_string (r)) return as_string (r);
-  if (is_tree (r)) return as_tree (r);
+  if (const auto* text= std::get_if<string> (&r)) return *text;
+  if (const auto* source= std::get_if<tree> (&r)) return *source;
   return "";
 }
 

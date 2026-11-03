@@ -1,7 +1,8 @@
 // Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later.
 #ifndef ATHENA_INTERACTIVE_COMMANDS_HPP
 #define ATHENA_INTERACTIVE_COMMANDS_HPP
-#include "scheme.hpp"
+#include "array.hpp"
+#include "string.hpp"
 #include <map>
 #include <string>
 #include <vector>

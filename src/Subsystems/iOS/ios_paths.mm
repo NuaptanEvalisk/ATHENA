@@ -49,8 +49,6 @@ bool athena_ios_initialize_paths (std::string& error) {
     }
     setenv ("ATHENA_PATH", resources.path.UTF8String, 1);
     setenv ("ATHENA_HOME_PATH", support.path.UTF8String, 1);
-    setenv ("ATHENA_GUILE_RUNTIME_ROOT",
-      [resources URLByAppendingPathComponent:@"lib/athena-guile"].path.UTF8String, 1);
     setenv ("ATHENA_VAULTS_PATH", vaults.path.UTF8String, 1);
     setenv ("PWD", documents.path.UTF8String, 1);
     if (chdir (documents.path.UTF8String) != 0) {

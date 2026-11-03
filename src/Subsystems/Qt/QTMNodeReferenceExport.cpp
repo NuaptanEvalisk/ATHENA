@@ -14,7 +14,7 @@
 #include "buffer_name_catalog.hpp"
 #include "editor.hpp"
 #include "qt_utilities.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #include <QCoreApplication>
 #include <QPointer>
 #include <QTimer>
@@ -47,7 +47,7 @@ std::vector<int> indices (path p) {
 }
 
 void perform (const std::shared_ptr<request>& job) {
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   if (!context || !context->actor || !context->editor ||
       context->actor_id != job->actor || context->view_id != job->view) return;
   try {
@@ -148,7 +148,7 @@ void resume_preparation (std::shared_ptr<request> job, std::vector<ref::selectio
 
 void athena_node_reference_with_native_export (
   std::function<void(editor_rep&)> action, std::function<void(std::string)> completion) {
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   if (!context || !context->actor || !context->editor)
     throw std::runtime_error ("Selection export requires an owning editor");
   if (ref::current_export_references ()) {

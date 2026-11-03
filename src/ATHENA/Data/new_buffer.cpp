@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "tm_data.hpp"
+#include "boot.hpp"
 #include "tmfs.hpp"
 #include "tm_server.hpp"
 #include "buffer_actor.hpp"
@@ -17,9 +18,7 @@
 #include "Data/Convert/Generic/conversion_executor.hpp"
 #include "buffer_state.hpp"
 #include "buffer_name_catalog.hpp"
-#include "scheme_execution_context.hpp"
-#include "guile_tm.hpp"
-#include "object.hpp"
+#include "execution_context.hpp"
 #include "convert.hpp"
 #include "path.hpp"
 #include "file.hpp"
@@ -128,7 +127,7 @@ published_active_buffer () { return active_buffer_id.load (std::memory_order_acq
 
 void
 publish_active_buffer (std::uint64_t id) {
-  ASSERT (current_scheme_execution_context () == nullptr,
+  ASSERT (current_execution_context () == nullptr,
           "active buffer publication requires the GUI owner");
   active_buffer_id.store (id, std::memory_order_release);
 }
@@ -188,30 +187,12 @@ published_buffer_source (const std::string& native_url_name) {
 
 void
 publish_buffer_source_view (tm_buffer buf) {
-  ASSERT (current_scheme_execution_context () == nullptr,
+  ASSERT (current_execution_context () == nullptr,
           "source view publication requires the GUI owner");
   if (!is_nil (buf))
     published_buffer_names.set_source_view (catalog_text (as_string (buf->buf->name)), source_view (buf));
 }
 
-bool
-exec_buffer (url name, object command) {
-  ASSERT (current_scheme_execution_context () == nullptr,
-          "buffer command scheduling requires the global context");
-  tm_buffer buf= concrete_buffer (name);
-  if (is_nil (buf)) return false;
-  tm_view view= concrete_view (get_recent_view (name));
-  if (view == nullptr) return false;
-  athena_scheme_handle_id handle=
-    scheme_command_handle_acquire (object_to_tmscm (command));
-  actor_command_ticket ticket= buf->actor->try_submit (
-    actor_command_kind::run_scheme_handle, view->runtime_id,
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB,
-    SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_UI | SCHEME_CAPABILITY_GLOBAL,
-    handle);
-  if (!ticket) scheme_command_handle_release (handle);
-  return static_cast<bool> (ticket);
-}
 
 string propose_title (string old_title, url u);
 
@@ -225,7 +206,7 @@ invoke_buffer_actor (
   std::uint64_t argument0= 0,
   std::uint64_t argument1= 0) {
   return actor != nullptr && actor->invoke (
-    kind, view_id, payload0, payload1, result, SCHEME_CAPABILITY_BUFFER,
+    kind, view_id, payload0, payload1, result, EXECUTION_CAPABILITY_BUFFER,
     argument0, argument1);
 }
 
@@ -244,7 +225,7 @@ invoke_buffer_actor (
 
 static buffer_actor*
 current_buffer_actor (url name, athena_view_id& view_id) {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context == nullptr || context->actor == nullptr ||
       context->actor->current_buffer_url () != name)
     return nullptr;
@@ -266,7 +247,7 @@ discard_text_payload (athena_blob_id payload) {
 
 static athena_view_id
 buffer_command_view (tm_buffer buf, url name) {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr)
     return context->actor == buf->actor ? context->view_id : ATHENA_NO_VIEW;
   tm_view view= concrete_view (get_recent_view (name));
@@ -348,7 +329,7 @@ number_buffers () {
 array<url>
 get_all_buffers () {
   array<url> r;
-  if (current_scheme_execution_context () != nullptr) {
+  if (current_execution_context () != nullptr) {
     // Decode only when membership changes. Native URL representations remain
     // local to this reader thread; each result gets its own array container.
     static thread_local buffer_name_catalog::snapshot observed;
@@ -371,7 +352,7 @@ get_all_buffers () {
 
 tm_buffer
 concrete_buffer (url name) {
-  ASSERT (current_scheme_execution_context () == nullptr,
+  ASSERT (current_execution_context () == nullptr,
           "GUI buffer registry accessed from a BufferActor");
   int i, n= N(bufs);
   for (i=0; i<n; i++)
@@ -394,7 +375,7 @@ concrete_buffer_insist (url u) {
 
 url
 get_current_buffer () {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr) {
     ASSERT (context->actor_id != ATHENA_NO_ACTOR,
             "no active buffer in Scheme execution context");
@@ -406,7 +387,7 @@ get_current_buffer () {
 
 url
 get_current_buffer_safe () {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr) return context->actor->current_buffer_url ();
   url v= get_current_view_safe ();
   if (is_none (v)) return v;
@@ -415,7 +396,7 @@ get_current_buffer_safe () {
 
 url
 path_to_buffer (path p) {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr && context->actor != nullptr) {
     buffer_document_state* state= context->actor->current_state ();
     return state != nullptr && state->root_path <= p ? state->name : url_none ();
@@ -428,7 +409,7 @@ path_to_buffer (path p) {
 
 void
 rename_buffer (url name, url new_name) {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr && context->actor != nullptr &&
       context->actor->current_buffer_url () == name) {
     if (new_name == name) return;
@@ -463,7 +444,7 @@ rename_buffer (url name, url new_name) {
 
 void
 rename_buffer_from_actor (tm_buffer buf, url new_name) {
-  ASSERT (current_scheme_execution_context () == nullptr,
+  ASSERT (current_execution_context () == nullptr,
           "actor buffer rename publication requires the GUI owner");
   if (is_nil (buf) || new_name == buf->buf->name) return;
 
@@ -555,7 +536,7 @@ get_title_buffer (url name) {
   athena_view_id view_id= ATHENA_NO_VIEW;
   if (buffer_actor* actor= current_buffer_actor (name, view_id))
     return actor->current_state ()->title;
-  if (current_scheme_execution_context () != nullptr) {
+  if (current_execution_context () != nullptr) {
     buffer_name_catalog::metadata entry;
     if (!published_buffer_names.lookup (catalog_text (as_string (name)), entry))
       return "";
@@ -681,7 +662,7 @@ initialize_buffer_tree (url name, tree doc,
   if (field_environment) {
     insert_buffer (name);
     const auto install= actor_continuation_registry::instance ().store ([field_environment] {
-      const auto* context= current_scheme_execution_context ();
+      const auto* context= current_execution_context ();
       context->actor->current_state ()->field_environment= field_environment;
     });
     if (!invoke_buffer_actor (concrete_buffer (name), actor_command_kind::run_native_continuation,
@@ -876,7 +857,7 @@ is_aux_buffer (url name) {
 
 double
 last_visited (url name) {
-  if (current_scheme_execution_context () != nullptr) {
+  if (current_execution_context () != nullptr) {
     buffer_name_catalog::metadata entry;
     if (published_buffer_names.lookup (catalog_text (as_string (name)), entry))
       return entry.last_visit;
@@ -889,7 +870,7 @@ last_visited (url name) {
 
 void
 visit_buffer (tm_buffer buf) {
-  ASSERT (current_scheme_execution_context () == nullptr,
+  ASSERT (current_execution_context () == nullptr,
           "buffer visits require the GUI owner");
   buf->buf->last_visit= texmacs_time ();
   published_buffer_names.visit (catalog_text (as_string (buf->buf->name)),
@@ -925,7 +906,7 @@ buffer_menu_modified (url name) {
 
 void
 publish_buffer_menu_modified (tm_buffer buf, bool modified) {
-  ASSERT (current_scheme_execution_context () == nullptr,
+  ASSERT (current_execution_context () == nullptr,
           "buffer menu publication requires the GUI owner");
   buf->buf->menu_modified= modified;
   published_buffer_names.set_modified (
@@ -934,7 +915,7 @@ publish_buffer_menu_modified (tm_buffer buf, bool modified) {
 
 void
 publish_buffer_realtime_save_paused (tm_buffer buf, bool paused) {
-  ASSERT (current_scheme_execution_context () == nullptr,
+  ASSERT (current_execution_context () == nullptr,
           "realtime save publication requires the GUI owner");
   if (buf == nullptr) return;
   buf->buf->realtime_save_paused= paused;
@@ -970,7 +951,7 @@ pretend_buffer_modified (url name) {
 
 void
 pretend_buffer_saved (url name) {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr && context->actor != nullptr &&
       context->actor->current_buffer_url () == name) {
     actor_command_record result;
@@ -1258,7 +1239,7 @@ buffer_export_request (url name, url dest, string fm, const conversion_options& 
     view_id= buffer_command_view (buf, name);
   }
   std::unique_ptr<athena::node_reference::export_reference_scope> headless_references;
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   if (is_headless () && (!context || !context->actor) &&
       !athena::node_reference::current_export_references ()) {
     try {
@@ -1282,13 +1263,13 @@ buffer_export_request (url name, url dest, string fm, const conversion_options& 
         athena::node_reference::export_reference_scope references (frozen);
         athena::node_reference::verify_export_origin ();
         actor_command_record result;
-        auto* owner= current_scheme_execution_context ()->actor;
+        auto* owner= current_execution_context ()->actor;
         if (owner->invoke (actor_command_kind::export_buffer, view_id,
-            destination, format, &result, SCHEME_CAPABILITY_BUFFER, 1))
+            destination, format, &result, EXECUTION_CAPABILITY_BUFFER, 1))
           *failed= result.argument[0] != 0;
       });
     const bool completed= actor->invoke (actor_command_kind::run_native_continuation, view_id,
-      ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, continuation);
+      ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER, continuation);
     if (!completed) {
       actor_continuation_registry::instance ().discard (continuation);
       discard_text_payload (destination); discard_text_payload (format);
@@ -1298,7 +1279,7 @@ buffer_export_request (url name, url dest, string fm, const conversion_options& 
   actor_command_record result;
   bool completed= actor->invoke (
     actor_command_kind::export_buffer, view_id,
-    destination, format, &result, SCHEME_CAPABILITY_BUFFER, 1);
+    destination, format, &result, EXECUTION_CAPABILITY_BUFFER, 1);
   if (!completed) {
     discard_text_payload (destination);
     discard_text_payload (format);
@@ -1330,9 +1311,9 @@ latex_expand (tree doc, url name) {
 
 tree
 latex_expand (tree doc) {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr) {
-    if (context->editor != nullptr && context->has (SCHEME_CAPABILITY_BUFFER)) {
+    if (context->editor != nullptr && context->has (EXECUTION_CAPABILITY_BUFFER)) {
       tree body= context->editor->exec_latex (extract (doc, "body"));
       doc= change_doc_attr (doc, "body", body);
     }
@@ -1382,7 +1363,7 @@ buffer_save (url name) {
     actor_command_record result;
     const bool invoked= actor->invoke (
       actor_command_kind::save_buffer, view_id, vault_payload,
-      ATHENA_NO_BLOB, &result, SCHEME_CAPABILITY_BUFFER);
+      ATHENA_NO_BLOB, &result, EXECUTION_CAPABILITY_BUFFER);
     if (!invoked && vault_payload != ATHENA_NO_BLOB)
       discard_text_payload (vault_payload);
     r= !invoked || result.argument[0] != 0;

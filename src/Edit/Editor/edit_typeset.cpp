@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include <climits>
+#include "boot.hpp"
 #include <stdexcept>
 #include "edit_typeset.hpp"
 #include "prooftrack_presentation.hpp"
@@ -26,7 +27,6 @@
 #include "merge_sort.hpp"
 #include "Typeset/Env/compound_counters.hpp"
 #include "Typeset/Env/local_environment.hpp"
-#include "scheme.hpp"
 #include "node_metadata_transform.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
 #include "cursor_navigation.hpp"
@@ -774,7 +774,7 @@ edit_typeset_rep::prepare_cursor_environment () {
   env->style_init_env ();
   env->update ();
   std::function<void ()> wake;
-  if (const auto* context= current_scheme_execution_context (); context && context->actor) {
+  if (const auto* context= current_execution_context (); context && context->actor) {
     const auto actor= context->actor_id;
     const auto view= context->view_id;
     wake= [actor, view] {

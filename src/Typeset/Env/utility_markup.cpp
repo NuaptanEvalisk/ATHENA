@@ -7,50 +7,76 @@
 #include "Edit/Interface/tree_pattern.hpp"
 #include "analyze.hpp"
 #include "convert.hpp"
+#include <optional>
 
 namespace {
-object selector_value (tree value) {
-  if (is_atomic (value)) {
-    const string text= value->label;
-    if (starts (text, "#:")) return keyword_object (text (2, N(text)));
-    if (!is_int (text) && is_double (text)) return object (as_double (text));
-    return scheme_tree_to_object (value);
-  }
-  if (is_tuple (value, "'", 1))
-    return list_object (symbol_object ("quote"), selector_value (value[1]));
-  object result= null_object ();
-  for (int i=N(value)-1; i>=0; --i) result= cons (selector_value (value[i]), result);
-  return result;
-}
-object selector (tree pattern) {
+using selector_kind= tree_selector::kind;
+tree_selector selector (tree pattern) {
+  tree_selector result;
   if (is_atomic (pattern)) {
-    string s= pattern->label;
-    return starts (s, "(") ? object (s) : selector_value (string_to_scheme_tree (s));
+    const string text= pattern->label;
+    if (starts (text, "(")) return result;
+    const tree parsed= string_to_scheme_tree (text);
+    if (is_tuple (parsed, "'", 1) || is_tuple (parsed, "quote", 1)) {
+      result.operation= selector_kind::capture;
+      result.name= scheme_tree_to_string (parsed[1]);
+      return result;
+    }
+    if (!is_atomic (parsed)) return result;
+    const string value= parsed->label;
+    if (starts (value, "#:")) {
+      result.name= value (2, N(value));
+      if (result.name == "*") result.operation= selector_kind::descendants;
+      else if (starts (result.name, "%") && is_int (result.name (1, N(result.name)))) {
+        result.operation= selector_kind::depth;
+        result.count= as_int (result.name (1, N(result.name)));
+      }
+      else if (result.name == "same" || result.name == "up" || result.name == "down" ||
+               result.name == "first" || result.name == "last" ||
+               result.name == "next" || result.name == "previous")
+        result.operation= selector_kind::navigate;
+    }
+    else if (is_int (value)) {
+      result.operation= selector_kind::index;
+      result.count= as_int (value);
+    }
+    else if (!is_double (value) && value != "#t" && value != "#f" && !is_quoted (value)) {
+      result.operation= selector_kind::tag;
+      result.name= value;
+    }
+    return result;
   }
   const string name= as_string (L(pattern));
-  if (name == "pat-any") return keyword_object ("%1");
-  if (name == "pat-any-repeat") return keyword_object ("*");
-  if (name != "pat-or" && name != "pat-and" && name != "pat-group" && name != "pat-and-not")
-    return object (false);
-  object result= null_object ();
-  for (int i=N(pattern)-1; i>=0; --i) result= cons (selector (pattern[i]), result);
-  return cons (keyword_object (name (4, N(name))), result);
-}
-object reference (tree body, tree arguments) {
-  object selectors= null_object ();
-  for (int i=N(arguments)-1; i>=0; --i) {
-    tree arg= arguments[i];
-    object decoded= keyword_object ("same");
-    if (is_atomic (arg)) {
-      string s= arg->label;
-      if (is_int (s)) decoded= object (as_int (s));
-      else if (s == "up" || s == "next" || s == "previous" || s == "first" || s == "last")
-        decoded= keyword_object (s);
-    }
-    selectors= cons (decoded, selectors);
+  if (name == "pat-any") { result.operation= selector_kind::depth; result.count= 1; }
+  else if (name == "pat-any-repeat") result.operation= selector_kind::descendants;
+  else {
+    if (name == "pat-or") result.operation= selector_kind::unite;
+    else if (name == "pat-and") result.operation= selector_kind::intersect;
+    else if (name == "pat-and-not") result.operation= selector_kind::subtract;
+    else if (name == "pat-group") result.operation= selector_kind::sequence;
+    else return result;
+    for (int i=0; i<N(pattern); ++i) result.branches.push_back (selector (pattern[i]));
   }
-  object result= native_tree_select (object (body), selectors);
-  return is_null (result) ? object (false) : car (result);
+  return result;
+}
+std::optional<tree> reference (tree body, tree arguments) {
+  std::vector<tree_selector> selectors;
+  for (int i=0; i<N(arguments); ++i) {
+    tree_selector decoded {selector_kind::navigate, "same"};
+    if (is_atomic (arguments[i])) {
+      const string text= arguments[i]->label;
+      if (is_int (text)) {
+        decoded.operation= selector_kind::index;
+        decoded.count= as_int (text);
+      }
+      else if (text == "up" || text == "next" || text == "previous" ||
+               text == "first" || text == "last") decoded.name= text;
+    }
+    selectors.push_back (std::move (decoded));
+  }
+  const auto result= native_tree_select (body, selectors);
+  if (N(result) == 0) return std::nullopt;
+  return result[0];
 }
 tree mark (tree root, tree source, tree rewritten) {
   path root_ip= obtain_ip (root), source_ip= obtain_ip (source);
@@ -112,32 +138,32 @@ tree markup_concat_tuple (tree tuple, tree separator, tree final_separator) {
   return result;
 }
 tree markup_select (tree body, tree arguments) {
-  object selectors= null_object ();
-  for (int i=N(arguments)-1; i>=1; --i) selectors= cons (selector (arguments[i]), selectors);
+  std::vector<tree_selector> selectors;
+  for (int i=1; i<N(arguments); ++i) selectors.push_back (selector (arguments[i]));
   tree result (TUPLE);
-  for (object selected= native_tree_select (object (body), selectors); !is_null (selected); selected= cdr (selected))
-    result << content_to_tree (car (selected));
+  const auto selected= native_tree_select (body, selectors);
+  for (int i=0; i<N(selected); ++i) result << selected[i];
   return tree (QUOTE, result);
 }
 tree markup_reference (tree body, tree arguments) {
-  object result= reference (body, arguments);
-  return is_tree (result) ? as_tree (result) : tree ("false");
+  auto result= reference (body, arguments);
+  return result ? *result : tree ("false");
 }
 string markup_reference_arity (tree body, tree arguments) {
-  object result= reference (body, arguments);
-  return is_tree (result) ? as_string (N(as_tree (result))) : string ("false");
+  auto result= reference (body, arguments);
+  return result ? as_string (N(*result)) : string ("false");
 }
 string markup_reference_index (tree body, tree arguments) {
-  object result= reference (body, arguments);
-  if (!is_tree (result)) return "false";
-  tree t= as_tree (result);
+  auto result= reference (body, arguments);
+  if (!result) return "false";
+  tree t= *result;
   path ip= obtain_ip (t);
   return ip_attached (ip) && !is_nil (ip) ? as_string (ip->item) : string ("false");
 }
 string markup_reference_last (tree body, tree arguments) {
-  object result= reference (body, arguments);
-  if (!is_tree (result)) return "false";
-  tree t= as_tree (result);
+  auto result= reference (body, arguments);
+  if (!result) return "false";
+  tree t= *result;
   path ip= obtain_ip (t);
   if (!ip_attached (ip) || is_nil (ip)) return "false";
   tree parent= get_current_editor ()->the_subtree (reverse (ip->next));

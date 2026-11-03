@@ -29,7 +29,7 @@
 #include "Data/Convert/Generic/image_conversion.hpp"
 #include "iterator.hpp"
 #include "actor_ui_bridge.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #include "tm_frame.hpp"
 #include "iterator.hpp"
 
@@ -135,7 +135,7 @@ editor_rep::display_context_at (path source, path display) {
 
 bool
 editor_rep::is_current_editor () {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   return context != nullptr && context->editor == this &&
          context->view_id == runtime_view_id;
 }

@@ -1,6 +1,6 @@
 /******************************************************************************
 * MODULE     : compound_edit_batch.cpp
-* DESCRIPTION: Nonblocking admission and Guile-safe multi-actor edit barriers
+* DESCRIPTION: Nonblocking admission and native multi-actor edit barriers
 * COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -10,8 +10,6 @@
 #include "compound_edit_batch.hpp"
 #include "buffer_actor.hpp"
 #include "editor.hpp"
-#include "scheme.hpp"
-#include "guile_tm.hpp"
 #include <chrono>
 #include <condition_variable>
 #include <exception>
@@ -25,36 +23,6 @@ namespace {
 
 std::mutex reservation_mutex;
 std::set<athena_actor_id> reservations;
-
-struct callback_call {
-  const std::function<void(editor_rep&)>& function;
-  editor_rep& editor;
-  std::exception_ptr failure;
-  bool scheme_failure= false;
-};
-
-SCM call_body (void* data) {
-  auto& call= *static_cast<callback_call*> (data);
-  try { call.function (call.editor); }
-  catch (...) { call.failure= std::current_exception (); }
-  return SCM_UNSPECIFIED;
-}
-
-SCM call_handler (void* data, SCM, SCM) {
-  static_cast<callback_call*> (data)->scheme_failure= true;
-  return SCM_UNSPECIFIED;
-}
-
-void call (const std::function<void(editor_rep&)>& function, editor_rep& editor) {
-  // A Scheme throw must be caught inside the rendezvous, not by the actor's
-  // outer command handler after it has abandoned the other participants.
-  callback_call invocation {function, editor, {}, false};
-  scm_c_catch (SCM_BOOL_T, call_body, &invocation, call_handler, &invocation,
-               nullptr, nullptr);
-  if (invocation.failure) std::rethrow_exception (invocation.failure);
-  if (invocation.scheme_failure)
-    throw std::runtime_error ("Scheme exception in compound edit callback");
-}
 
 std::string exception_message () {
   try { throw; }
@@ -108,35 +76,26 @@ struct batch {
     changed.notify_all ();
   }
 
-  struct wait_request { batch* group; unsigned stage; };
-  static void* wait_without_guile (void* data) {
-    auto& request= *static_cast<wait_request*> (data);
-    auto& group= *request.group;
-    std::unique_lock<std::mutex> lock (group.mutex);
-    if (request.stage == 0) {
-      if (!group.changed.wait_until (lock, group.deadline, [&] {
-            return group.preparation_failed ||
-              (group.admitted && group.prepared == group.members.size ());
+  void wait (unsigned stage) {
+    std::unique_lock<std::mutex> lock (mutex);
+    if (stage == 0) {
+      if (!changed.wait_until (lock, deadline, [&] {
+            return preparation_failed ||
+              (admitted && prepared == members.size ());
           })) {
-        group.preparation_failed= true;
-        if (group.error.empty ())
-          group.error= "Source actors are busy; no compound edit was performed";
-        group.changed.notify_all ();
+        preparation_failed= true;
+        if (error.empty ())
+          error= "Source actors are busy; no compound edit was performed";
+        changed.notify_all ();
       }
     }
-    else if (request.stage == 3) group.changed.wait (lock, [&] {
-      return group.completion_finished;
+    else if (stage == 3) changed.wait (lock, [&] {
+      return completion_finished;
     });
-    else group.changed.wait (lock, [&] {
-      return (request.stage == 1 ? group.applied : group.finished) ==
-             group.members.size ();
+    else changed.wait (lock, [&] {
+      return (stage == 1 ? applied : finished) ==
+             members.size ();
     });
-    return nullptr;
-  }
-
-  void wait (unsigned stage) {
-    wait_request request {this, stage};
-    scm_without_guile (wait_without_guile, &request);
   }
 
   void run (std::size_t index) {
@@ -147,10 +106,10 @@ struct batch {
         std::lock_guard<std::mutex> lock (mutex);
         if (preparation_failed) return;
       }
-      const auto* context= current_scheme_execution_context ();
+      const auto* context= current_execution_context ();
       editor= context ? context->editor : nullptr;
       if (editor == nullptr) throw std::runtime_error ("Compound source view was closed");
-      call (member.prepare, *editor);
+      member.prepare (*editor);
     }
     catch (...) { fail (exception_message (), true); }
     {
@@ -168,7 +127,7 @@ struct batch {
 
     // All participants now occupy their owner actors. Later edit/save/read
     // commands remain queued until every member has committed or rolled back.
-    try { call (member.apply, *editor); }
+    try { member.apply (*editor); }
     catch (...) { fail (exception_message (), false); }
     {
       std::lock_guard<std::mutex> lock (mutex);
@@ -181,8 +140,8 @@ struct batch {
       cancelled= apply_failed;
     }
     try {
-      if (cancelled) call (member.rollback, *editor);
-      else call (member.commit, *editor);
+      if (cancelled) member.rollback (*editor);
+      else member.commit (*editor);
     }
     catch (...) {
       // Finalizers are required to be nonthrowing. Still release every owner
@@ -235,7 +194,7 @@ void submit_edit_batch (std::vector<edit_participant> members,
       [group, i] { group->run (i); });
     if (!buffer_actor::try_submit_to (member.actor,
           actor_command_kind::run_native_continuation, member.view,
-          ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, continuation)) {
+          ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, continuation)) {
       actor_continuation_registry::instance ().discard (continuation);
       group->fail ("Could not queue every source; no compound edit was performed", true);
       group->complete ();
@@ -254,12 +213,12 @@ void submit_source_task (athena_actor_id actor, athena_view_id view,
   const auto continuation= actor_continuation_registry::instance ().store (
     [action= std::move (action), completion] {
       std::string error;
-      try { call (action, *current_scheme_execution_context ()->editor); }
+      try { action (*current_execution_context ()->editor); }
       catch (...) { error= exception_message (); }
       completion (std::move (error));
     });
   if (!buffer_actor::try_submit_to (actor, actor_command_kind::run_native_continuation,
-        view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, continuation)) {
+        view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, continuation)) {
     actor_continuation_registry::instance ().discard (continuation);
     completion ("Source buffer is unavailable or busy");
   }

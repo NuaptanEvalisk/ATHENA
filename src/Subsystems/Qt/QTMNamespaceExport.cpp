@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMNamespaceExport.hpp"
+#include "boot.hpp"
 
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/fruchterman_reingold.hpp>
@@ -26,7 +27,6 @@
 #include "new_window.hpp"
 #include "node_metadata.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
 #include "server.hpp"
 #include "string.hpp"
 #include "tm_configure.hpp"

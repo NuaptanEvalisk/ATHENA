@@ -10,10 +10,10 @@
 ******************************************************************************/
 
 #include "tree_correct.hpp"
+#include "boot.hpp"
 #include "tree_math_context.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
 #include "tree_analyze.hpp"
-#include "scheme.hpp"
 #include "unicode_text.hpp"
 #include "node_metadata.hpp"
 

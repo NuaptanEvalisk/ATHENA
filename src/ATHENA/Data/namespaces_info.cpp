@@ -9,11 +9,11 @@
 *******************************************************************************/
 
 #include "namespaces_private.hpp"
+#include "boot.hpp"
 
 #include "ATHENA/Data/new_buffer.hpp"
 #include "converter.hpp"
 #include "file.hpp"
-#include "scheme.hpp"
 #include "vault.hpp"
 
 namespace athena_namespaces {

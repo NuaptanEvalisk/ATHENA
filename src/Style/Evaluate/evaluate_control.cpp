@@ -14,7 +14,6 @@
 #include "vars.hpp"
 #include "file.hpp"
 #include "convert.hpp"
-#include "scheme.hpp"
 #include "new_style.hpp"
 
 tree load_inclusion (url u); // implemented in tm_file.cpp

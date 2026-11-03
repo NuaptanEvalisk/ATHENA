@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "edit_interface.hpp"
+#include "boot.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
 #include "Typeset/Env/local_environment.hpp"
 #include "gui_text.hpp"
@@ -20,12 +21,6 @@
 #ifdef QTTEXMACS
 #include "QTMToast.hpp"
 #endif
-
-tree
-as_footer_tree (object obj) {
-  if (is_string (obj)) return tree (as_string (obj));
-  return as_tree (obj);
-}
 
 static bool
 is_startup_banner_message (tree l, tree r) {

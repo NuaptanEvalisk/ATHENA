@@ -31,9 +31,6 @@
 #include "editor.hpp"
 #include "file.hpp"
 #include "font_domain.hpp"
-#include "guile_tm.hpp"
-#include "glue.hpp"
-#include "object.hpp"
 #include "outline_snapshot.hpp"
 #include "native_editor_actions.hpp"
 #include "source_commands.hpp"
@@ -395,26 +392,6 @@ acquire_actor (athena_actor_id id) {
 }
 athena_actor_id next_actor_id= 1;
 
-struct actor_wait_request {
-  actor_command_transport* transport;
-  actor_command_transport::readable_command* command;
-  actor_command_transport::event received;
-};
-
-struct actor_dispatch_request {
-  buffer_actor* actor;
-  actor_command_record* command;
-  std::exception_ptr failure;
-};
-
-tmscm
-dispatch_actor_command (void* raw) {
-  actor_dispatch_request* request=
-    static_cast<actor_dispatch_request*> (raw);
-  try { request->actor->dispatch (*request->command); }
-  catch (...) { request->failure= std::current_exception (); }
-  return TMSCM_UNSPECIFIED;
-}
 
 void
 report_unhandled_actor_exception (std::exception_ptr failure) noexcept {
@@ -546,7 +523,7 @@ buffer_actor::retain_native_callback (std::function<void()> callback) {
   ASSERT (is_owner_thread (), "native callbacks belong to their BufferActor");
   const auto id= impl_->next_callback++;
   impl_->callbacks.emplace (id, implementation::pending_callback {
-    current_scheme_execution_context ()->view_id, std::move (callback)});
+    current_execution_context ()->view_id, std::move (callback)});
   return id;
 }
 
@@ -557,7 +534,7 @@ buffer_actor::resolve_native_callback (athena_continuation_id id, bool run) {
   if (entry == impl_->callbacks.end ()) return;
   auto callback= std::move (entry->second);
   impl_->callbacks.erase (entry);
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   if (run && callback.view == context->view_id &&
       (callback.view == ATHENA_NO_VIEW || context->editor != nullptr))
     callback.action ();
@@ -567,7 +544,7 @@ actor_command_ticket
 buffer_actor::submit (
   actor_command_kind kind, athena_view_id view_id,
   athena_blob_id payload0, athena_blob_id payload1,
-  SchemeCapabilitySet capabilities, std::uint64_t argument0,
+  ExecutionCapabilitySet capabilities, std::uint64_t argument0,
   std::uint64_t argument1, std::uint64_t argument2,
   std::uint64_t argument3, std::uint64_t argument4,
   std::uint64_t argument5, std::uint64_t argument6,
@@ -582,7 +559,7 @@ actor_command_ticket
 buffer_actor::try_submit (
   actor_command_kind kind, athena_view_id view_id,
   athena_blob_id payload0, athena_blob_id payload1,
-  SchemeCapabilitySet capabilities, std::uint64_t argument0,
+  ExecutionCapabilitySet capabilities, std::uint64_t argument0,
   std::uint64_t argument1, std::uint64_t argument2,
   std::uint64_t argument3, std::uint64_t argument4,
   std::uint64_t argument5, std::uint64_t argument6,
@@ -597,7 +574,7 @@ actor_command_ticket
 buffer_actor::submit_with_response (
   actor_command_kind kind, athena_view_id view_id,
   athena_blob_id payload0, athena_blob_id payload1,
-  SchemeCapabilitySet capabilities, athena_response_id response_id,
+  ExecutionCapabilitySet capabilities, athena_response_id response_id,
   std::uint64_t argument0, std::uint64_t argument1,
   std::uint64_t argument2, std::uint64_t argument3,
   std::uint64_t argument4, std::uint64_t argument5,
@@ -650,7 +627,7 @@ actor_command_ticket
 buffer_actor::submit_to (
   athena_actor_id actor_id, actor_command_kind kind, athena_view_id view_id,
   athena_blob_id payload0, athena_blob_id payload1,
-  SchemeCapabilitySet capabilities, std::uint64_t argument0,
+  ExecutionCapabilitySet capabilities, std::uint64_t argument0,
   std::uint64_t argument1, std::uint64_t argument2,
   std::uint64_t argument3, std::uint64_t argument4,
   std::uint64_t argument5, std::uint64_t argument6,
@@ -674,7 +651,7 @@ buffer_actor::try_submit_coalesced_to (
   if (!endpoint->begin_coalesced_command (kind)) return true;
   actor_command_ticket ticket= actor->try_submit (
     kind, view_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB,
-    SCHEME_CAPABILITY_BUFFER, argument0, argument1, argument2, argument3);
+    EXECUTION_CAPABILITY_BUFFER, argument0, argument1, argument2, argument3);
   if (!ticket) endpoint->finish_coalesced_command (kind);
   return static_cast<bool> (ticket);
 }
@@ -683,7 +660,7 @@ actor_command_ticket
 buffer_actor::try_submit_to (
   athena_actor_id actor_id, actor_command_kind kind, athena_view_id view_id,
   athena_blob_id payload0, athena_blob_id payload1,
-  SchemeCapabilitySet capabilities, std::uint64_t argument0,
+  ExecutionCapabilitySet capabilities, std::uint64_t argument0,
   std::uint64_t argument1, std::uint64_t argument2,
   std::uint64_t argument3, std::uint64_t argument4,
   std::uint64_t argument5, std::uint64_t argument6,
@@ -713,7 +690,7 @@ bool
 buffer_actor::invoke_on (
   athena_actor_id actor_id, actor_command_kind kind, athena_view_id view_id,
   athena_blob_id payload0, athena_blob_id payload1,
-  actor_command_record* result, SchemeCapabilitySet capabilities,
+  actor_command_record* result, ExecutionCapabilitySet capabilities,
   std::uint64_t argument0, std::uint64_t argument1,
   std::uint64_t argument2, std::uint64_t argument3,
   std::uint64_t argument4, std::uint64_t argument5,
@@ -834,7 +811,7 @@ bool
 buffer_actor::invoke (
   actor_command_kind kind, athena_view_id view_id,
   athena_blob_id payload0, athena_blob_id payload1,
-  actor_command_record* result, SchemeCapabilitySet capabilities,
+  actor_command_record* result, ExecutionCapabilitySet capabilities,
   std::uint64_t argument0, std::uint64_t argument1,
   std::uint64_t argument2, std::uint64_t argument3,
   std::uint64_t argument4, std::uint64_t argument5,
@@ -903,7 +880,7 @@ buffer_actor::shutdown () {
 bool
 buffer_actor::ensure_started () {
   std::unique_lock<std::mutex> guard (state_lock_);
-  if (!accepting_ || !scheme_runtime_is_initialized ()) return false;
+  if (!accepting_) return false;
   if (!worker_.joinable ()) {
     // The destructor joins this thread. Startup must not look itself up in
     // a registry from which concurrent teardown may already have removed it.
@@ -1032,25 +1009,11 @@ void
 buffer_actor::thread_entry (buffer_actor* actor) {
   athena_crash_register_thread (AthenaCrashThreadRole::BufferActor, actor->id ());
   athena_crash_set_execution (actor->id (), 0, 0);
-  scm_with_guile (guile_entry, actor);
-}
-
-void*
-buffer_actor::guile_entry (void* raw_actor) {
-  initialize_scheme_ports ();
-  static_cast<buffer_actor*> (raw_actor)->run_in_guile ();
-  return nullptr;
-}
-
-void*
-buffer_actor::wait_without_guile (void* raw_request) {
-  actor_wait_request* request= static_cast<actor_wait_request*> (raw_request);
-  request->received= request->transport->wait_event (*request->command);
-  return nullptr;
+  actor->run_loop ();
 }
 
 void
-buffer_actor::run_in_guile () {
+buffer_actor::run_loop () {
   font_domain fonts;
   font_domain_binding font_owner (fonts);
   string initial_name= actor_text_registry::instance ().take (initial_name_);
@@ -1071,15 +1034,12 @@ buffer_actor::run_in_guile () {
 
   while (true) {
     actor_command_transport::readable_command command;
-    actor_wait_request request= {
-      &commands_, &command, actor_command_transport::event::closed};
-    scm_without_guile (wait_without_guile, &request);
-    if (request.received == actor_command_transport::event::closed) break;
+    const auto received= commands_.wait_event (command);
+    if (received == actor_command_transport::event::closed) break;
 
-    if (request.received == actor_command_transport::event::wakeup) {
+    if (received == actor_command_transport::event::wakeup) {
       publish_ready_contracts ();
       flush_hybrid_activations ();
-      scheme_runtime_safe_point ();
       continue;
     }
 
@@ -1102,7 +1062,6 @@ buffer_actor::run_in_guile () {
     (void) commands_.complete (command.slot);
     flush_hybrid_activations ();
     completed_condition_.notify_all ();
-    scheme_runtime_safe_point ();
   }
 
   impl_.reset ();
@@ -1127,7 +1086,7 @@ buffer_actor::flush_hybrid_activations () {
   auto& pending= impl_->hybrid_activations;
   for (auto it= pending.begin (); it != pending.end ();) {
     if (!try_submit (actor_command_kind::resume_hybrid_activation, it->first,
-        ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, it->second))
+        ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, it->second))
       // A full ring has queued work; a busy producer either publishes another
       // command or closes the actor. Retry after consumption, without spinning.
       break;
@@ -1147,7 +1106,7 @@ buffer_actor::publish_ready_contracts () {
     actor_command_record signal;
     signal.view_id= view;
     signal.kind= actor_command_kind::contracts_ready;
-    signal.capabilities= SCHEME_CAPABILITY_BUFFER;
+    signal.capabilities= EXECUTION_CAPABILITY_BUFFER;
     // Signals have no mailbox ticket and do not advance command completion.
     execute (signal);
   }
@@ -1158,16 +1117,16 @@ buffer_actor::execute (actor_command_record& command) {
   current_font_domain ().synchronize_configuration ();
   editor_rep* editor= current_editor (command.view_id);
   athena::contracts::evaluation_state* contract_state= editor == nullptr ? nullptr : &editor->contract_state;
-  SchemeExecutionContext context (
+  ExecutionContext context (
     this, editor, contract_state, impl_ == nullptr ? nullptr : &impl_->state.document,
     id_, command.view_id,
     command.command_id, command.capabilities);
-  actor_dispatch_request request= {this, &command, nullptr};
+  std::exception_ptr failure;
   try {
-    (void) scheme_with_execution_context (
-      context, dispatch_actor_command, &request);
+    ExecutionScope scope (context);
+    dispatch (command);
   }
-  catch (...) { request.failure= std::current_exception (); }
+  catch (...) { failure= std::current_exception (); }
   // Dispatch can destroy the view. Do not reuse its pre-dispatch pointer.
   editor= current_editor (command.view_id);
   if (editor != nullptr && editor->ui_endpoint != nullptr &&
@@ -1178,7 +1137,7 @@ buffer_actor::execute (actor_command_record& command) {
        command.kind == actor_command_kind::user_scroll ||
        command.kind == actor_command_kind::cursor_blink))
     editor->ui_endpoint->finish_coalesced_command (command.kind);
-  report_unhandled_actor_exception (request.failure);
+  report_unhandled_actor_exception (failure);
 }
 
 void
@@ -1570,25 +1529,6 @@ buffer_actor::dispatch (actor_command_record& command) {
     auto found= impl_->views.find (command.view_id);
     if (found != impl_->views.end ())
       found->second.render_connection= command.argument[0];
-    break;
-  }
-  case actor_command_kind::run_scheme_handle: {
-    athena_scheme_handle_id handle= command.argument[0];
-    if (command.view_id != ATHENA_NO_VIEW && editor == nullptr) {
-      scheme_command_handle_release (handle);
-      break;
-    }
-    std::exception_ptr failure;
-    try {
-      tmscm procedure= scheme_command_handle_value (handle);
-      if (scm_is_eq (procedure, SCM_UNDEFINED))
-        FAILED ("buffer Scheme command handle is no longer live");
-      (void) call_scheme (procedure);
-    }
-    catch (...) { failure= std::current_exception (); }
-
-    scheme_command_handle_release (handle);
-    if (failure != nullptr) std::rethrow_exception (failure);
     break;
   }
   case actor_command_kind::run_native_continuation: {
@@ -2242,7 +2182,8 @@ buffer_actor::dispatch (actor_command_record& command) {
        command.kind == actor_command_kind::native_drawing_trim ||
        command.kind == actor_command_kind::replace_document ||
        command.kind == actor_command_kind::replace_body ||
-       command.kind == actor_command_kind::run_scheme_handle))
+       command.kind == actor_command_kind::run_native_continuation ||
+       command.kind == actor_command_kind::resolve_native_callback))
     editor->mark_native_ink_interaction_dirty ();
 
   if (editor != nullptr && editor->ui_endpoint != nullptr &&

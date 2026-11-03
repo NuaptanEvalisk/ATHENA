@@ -14,7 +14,6 @@
 
 #include "message.hpp"
 #include "promise.hpp"
-#include "scheme.hpp"
 
 #include "qt_gui.hpp"
 #include "qt_dialogues.hpp"

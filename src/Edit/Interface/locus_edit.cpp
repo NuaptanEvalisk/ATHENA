@@ -23,12 +23,6 @@ void native_make_locus () {
   ed->insert_tree (wrapper, end);
 }
 
-object native_locus_id (tree locus) {
-  if (is_func (locus, LOCUS) && N(locus) >= 2 &&
-      is_func (locus[0], ID, 1) && is_atomic (locus[0][0]))
-    return object (locus[0][0]->label);
-  return object (false);
-}
 
 void native_locus_set (string id, tree content) {
   for (list<tree> nodes= get_trees (id); !is_nil (nodes); nodes= nodes->next)

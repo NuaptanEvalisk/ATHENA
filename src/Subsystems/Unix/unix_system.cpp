@@ -14,10 +14,6 @@
 
 #include <chrono>
 
-#include "Guile/guile_tm.hpp"
-#ifdef SCM_HAVE_HOOKS
-#include "libguile/system.h"
-#endif
 
 #ifdef QTTEXMACS
 #include <QApplication>
@@ -209,7 +205,4 @@ url texmacs_get_application_directory () {
   string exe_path = path;
   return url_system (exe_path) * "..";
 #endif
-}
-
-void texmacs_init_guile_hooks() {
 }

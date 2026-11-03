@@ -5,9 +5,9 @@
 * GNU GPL version 3 or later; see LICENSE.
 ******************************************************************************/
 #include "image_conversion.hpp"
+#include "boot.hpp"
 #include "conversion_registry.hpp"
 #include "conversion_graph.hpp"
-#include "scheme.hpp"
 #include "file.hpp"
 #include "analyze.hpp"
 #include "Qt/qt_utilities.hpp"

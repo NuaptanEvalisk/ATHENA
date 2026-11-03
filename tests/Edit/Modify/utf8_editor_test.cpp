@@ -8,6 +8,8 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include <QApplication>
+#include <QTemporaryDir>
+#include "ATHENA/Data/tmfs.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
 #include "Data/NodeContracts/builtin_contracts.hpp"
 #include "Data/NodeContracts/syntax_query.hpp"
@@ -31,7 +33,7 @@
 #include "buffer_state.hpp"
 #include "data_cache.hpp"
 #include "cursor_navigation.hpp"
-#include "scheme.hpp"
+#include "native_dispatch.hpp"
 #include "sys_utils.hpp"
 #include "tree_select.hpp"
 #include "tree_traverse.hpp"
@@ -57,7 +59,6 @@
 #include "Data/Convert/Generic/conversion_executor.hpp"
 #include "Data/Convert/Verbatim/verbatim.hpp"
 #include "Data/Convert/Xml/html_export.hpp"
-#include "Scheme/Scheme/object.hpp"
 #include "file.hpp"
 #include "web_files.hpp"
 
@@ -144,20 +145,15 @@ private slots:
     const tree expected (DOCUMENT, compound ("style", "generic"),
       compound ("body", tree (DOCUMENT, "caf\xc3\xa9 \xe4\xb8\xad \xf0\x9f\x91\xa9 <literal> \\\\xE9",
                                compound ("named-symbol", "texmacs:mathD"))));
-    object handler= call (eval ("(lambda (doc) (lambda (name) "
-      "(if (equal? name \"tree\") doc (tree->stree doc))))"), object (expected));
-    call ("tmfs-handler", object ("utf8-native-test"), eval ("'load"), handler);
-    for (const char* kind: {"tree", "stree"}) {
-      url source (string ("tmfs://utf8-native-test/") * kind);
-      QVERIFY (import_tree (source, "stm") == expected);
-    }
-    call ("tmfs-handler", object ("utf8-raw-test"), eval ("'load"),
-          eval ("(lambda (name) \"raw caf\xc3\xa9\")"));
-    url raw= get_from_server (url ("tmfs://utf8-raw-test/file"));
-    string data;
-    QVERIFY (!load_string (raw, data, false));
-    QCOMPARE (data, string ("raw caf\xc3\xa9"));
-    remove (raw);
+    QTemporaryDir directory;
+    QVERIFY (directory.isValid ());
+    const url file= url_system (string (directory.filePath ("native.ath").toUtf8 ().constData ()));
+    const auto bytes= athena::document::write_xml_v3 (expected);
+    QVERIFY (!save_string (file, string (bytes.data (), bytes.size ())));
+    const url source ("tmfs://import/texmacs/" * tmfs_encode_url (file));
+    QCOMPARE (import_tree (source, "stm"), expected);
+    QVERIFY (tmfs_permission (source, "read"));
+    QVERIFY (!tmfs_permission (source, "write"));
   }
   void init () {
     buffer= tm_new<buffer_document_state> (nullptr, "tmfs://utf8-test", "", "UTF-8", false, 0);
@@ -545,8 +541,6 @@ private slots:
   }
   void mathTypesetting () {
     using namespace athena::text;
-    QCOMPARE (native_math_keyboard_binding_count (), 2355);
-    QCOMPARE (native_latex_command_count (), 736);
     string latex_help;
     command latex_command;
     QVERIFY (native_latex_get_command ("alpha", latex_help, latex_command));
@@ -1083,13 +1077,6 @@ private slots:
       QCOMPARE (pos, end);
     }
     QCOMPARE (pos, N(tokens));
-    QVERIFY (as_bool (eval ("(string=? (math-symbol-group '(named-symbol \"texmacs:backassign\")) \"Assign-symbol\")")));
-    QVERIFY (as_bool (eval ("(string=? (math-symbol-type '(named-symbol \"texmacs:backassign\")) \"infix\")")));
-    QVERIFY (as_bool (eval (
-      "(let loop ((members (math-group-members \"Assign-symbol\"))) "
-      "(and (pair? members) "
-      "(or (equal? (tree->stree (car members)) '(named-symbol \"texmacs:backassign\")) "
-      "(loop (cdr members)))))")));
   }
   void unicodePackrat () {
     const hashmap<string,tree> values (UNINIT);
@@ -1483,19 +1470,6 @@ private slots:
       tuple ("texmacs", "text", "text", "english"), xml_format_version::v3);
     QVERIFY_THROWS_EXCEPTION (std::invalid_argument, editor->selection_validate_paste (offer));
     QCOMPARE (editor->the_buffer (), before);
-  }
-  void schemeTextBoundaries () {
-    QVERIFY (as_bool (eval (
-      "(let* ((s (string (integer->char #xe9) #\\e (integer->char #x301))) "
-      "       (t (string->tree s))) "
-      "  (and (= (string-length s) 3) (= (tm-length s) 5) "
-      "       (= (tm-length t) 5) "
-      "       (equal? (tm-range t 2 5) (substring s 1 3))))")));
-    QVERIFY (as_bool (eval (
-      "(let* ((b (decode-base64 \"AP8=\")) "
-      "       (s (list 'raw-data b)) (t (stree->tree s))) "
-      "  (and (tm-equal? t s) (equal? (tree->list t) s) "
-      "       (equal? (tree->stree (tm->tree (tree->list t))) s)))")));
   }
   void programTypesetting () {
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
@@ -2216,8 +2190,8 @@ private slots:
     QVERIFY (restored != before_undo);
   }
   void nativeV3LatexPrimitivesExportWithoutLegacyAdapters () {
-    // This test runs on the initialized Scheme owner thread. The standalone
-    // XML codec unit target intentionally does not initialize libguile.
+    // This test includes native converter initialization beyond the standalone
+    // XML codec unit target.
     latex_export_context_reset ();
     latex_export_env_set ("mode", tree (scm_quote ("math")));
     const auto exported= [] (const tree& source) {
@@ -2538,8 +2512,6 @@ static void run_tests (int argc, char** argv) {
   {
     server sv;
     test_server= sv->get_server ();
-    eval ("(begin "
-          "(tm-define (like-emacs?) #f))");
     TestUtf8Editor test;
     status= QTest::qExec (&test, argc, argv);
     test_server= nullptr;
@@ -2556,7 +2528,7 @@ int main (int argc, char** argv) {
   cache_initialize ();
   reset_document_tree (current_document_tree ());
   init_athena ();
-  start_scheme (argc, argv, run_tests);
+  run_tests (argc, argv);
   return 1;
 }
 

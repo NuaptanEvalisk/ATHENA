@@ -39,7 +39,6 @@
 #include "sys_utils.hpp"
 #include "language.hpp"
 #include "namespaces.hpp"
-#include "scheme.hpp"
 #include "tm_ostream.hpp"
 #include "qt_utilities.hpp"
 #include "vault.hpp"

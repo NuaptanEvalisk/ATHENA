@@ -15,7 +15,6 @@
 #include "boot.hpp"
 #include "convert.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
 #include "tree.hpp"
 
 #include <DockAreaWidget.h>

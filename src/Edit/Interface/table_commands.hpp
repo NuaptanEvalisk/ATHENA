@@ -9,7 +9,6 @@
 #pragma once
 
 #include "editor.hpp"
-#include "scheme.hpp"
 
 namespace athena::table_commands {
 
@@ -74,14 +73,9 @@ bool native_grid_numbering_available (editor_rep* ed, tree target);
 bool eqnarray_numbered (editor_rep* ed, tree target);
 bool eqnarray_toggle_numbering (editor_rep* ed, tree target);
 
-// Direct JSON keymap dispatch. Fixed-value table editing actions do not touch
-// Scheme; only generic interactive prompting remains outside this feature.
-bool keyboard_call (string name, const array<object>& args, object& result);
-
 } // namespace athena::table_commands
 
-// Native glue entry points used by generic interactive UI and remaining
-// Scheme callers. These mutate the current editor directly.
+// Native entry points shared by generated commands and direct callers.
 void native_cell_set_format_star (string var, string value);
 void native_table_set_format_star (string var, string value);
 void native_table_set_automatic_width ();

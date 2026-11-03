@@ -44,7 +44,7 @@ void require_background () {
   if (QCoreApplication::instance () &&
       QThread::currentThread () == QCoreApplication::instance ()->thread ())
     throw std::logic_error ("Node location waits are forbidden on the GUI thread");
-  if (const auto* context= current_scheme_execution_context ())
+  if (const auto* context= current_execution_context ())
     if (context->actor) throw std::logic_error ("Node location waits are background-only");
 }
 
@@ -95,7 +95,7 @@ T on_actor (const vault_context_handle& vault, const endpoint& source,
       std::string error;
       try {
         check_context (vault);
-        auto* owner= current_scheme_execution_context ()->actor;
+        auto* owner= current_execution_context ()->actor;
         if (!owner || text (as_string (owner->current_buffer_url ())) != source.url)
           throw std::runtime_error ("Node source was renamed or replaced");
         value= action (*owner, source.view);
@@ -114,7 +114,7 @@ T on_actor (const vault_context_handle& vault, const endpoint& source,
   // A saturated actor mailbox must not trap the locator worker or vault close.
   const auto submitted= buffer_actor::try_submit_to (source.actor,
     actor_command_kind::run_native_continuation, source.view,
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, continuation);
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, continuation);
   if (!submitted) {
     actor_continuation_registry::instance ().discard (continuation);
     throw std::runtime_error ("Source actor is busy or closed; retry node resolution");
@@ -143,7 +143,7 @@ std::vector<live_source> capture_live (const vault_context_handle& vault,
     try {
       auto captured= on_actor<std::pair<std::uint64_t, census>> (vault, source, cancelled,
         [] (buffer_actor& owner, std::uint64_t view) {
-          return std::make_pair (current_scheme_execution_context ()->command_id,
+          return std::make_pair (current_execution_context ()->command_id,
                                  collect (owner.current_source (view)));
         });
       next.capture= captured.first;
@@ -220,7 +220,7 @@ content_payload read_online (vault_context_handle vault, const item& target,
 
 namespace athena::node_reference {
 prepared_snapshot prepare_headless_export (std::uint64_t actor, std::uint64_t view) {
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   if (!is_headless () || (context && context->actor))
     throw std::logic_error ("Export preparation waits require the headless global owner");
   struct capture {
@@ -231,7 +231,7 @@ prepared_snapshot prepare_headless_export (std::uint64_t actor, std::uint64_t vi
   auto source= std::make_shared<capture> ();
   auto continuation= actor_continuation_registry::instance ().store ([source, view] {
     try {
-      auto* owner= current_scheme_execution_context ()->actor;
+      auto* owner= current_execution_context ()->actor;
       if (!owner) throw std::runtime_error ("Export source has no owner");
       const auto* state= owner->current_state ();
       if (!state) throw std::runtime_error ("Export source has no storage context");
@@ -248,7 +248,7 @@ prepared_snapshot prepare_headless_export (std::uint64_t actor, std::uint64_t vi
   });
   if (!buffer_actor::invoke_on (actor, actor_command_kind::run_native_continuation,
         view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
-        SCHEME_CAPABILITY_BUFFER, continuation)) {
+        EXECUTION_CAPABILITY_BUFFER, continuation)) {
     actor_continuation_registry::instance ().discard (continuation);
     throw std::runtime_error ("Export source actor is unavailable");
   }
@@ -302,7 +302,7 @@ prepared_snapshot prepare_headless_export (std::uint64_t actor, std::uint64_t vi
     auto probe= std::make_shared<probe_result> ();
     auto inspect= actor_continuation_registry::instance ().store ([frozen, probe] {
       try {
-        const auto* context= current_scheme_execution_context ();
+        const auto* context= current_execution_context ();
         if (!context || !context->editor) throw std::runtime_error ("Export view has closed");
         export_reference_scope references (frozen);
         context->editor->probe_print_references ();
@@ -314,7 +314,7 @@ prepared_snapshot prepare_headless_export (std::uint64_t actor, std::uint64_t vi
       catch (...) { probe->error= "Export reference layout failed"; }
     });
     if (!buffer_actor::invoke_on (actor, actor_command_kind::run_native_continuation,
-          view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, inspect)) {
+          view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER, inspect)) {
       actor_continuation_registry::instance ().discard (inspect);
       throw std::runtime_error ("Export source actor is unavailable");
     }
@@ -331,7 +331,7 @@ prepared_snapshot prepare_headless_export (std::uint64_t actor, std::uint64_t vi
 void verify_export_origin () {
   auto snapshot= current_export_references ();
   if (!snapshot || !snapshot->origin_actor) return;
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   if (!context || !context->actor)
     throw std::logic_error ("Export source verification requires its actor");
   if (context->actor_id != snapshot->origin_actor) return;

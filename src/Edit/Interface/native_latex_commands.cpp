@@ -10,7 +10,7 @@
 #include "file.hpp"
 #include "generic_editor_commands.hpp"
 #include "native_editor_actions.hpp"
-#include "Scheme/Scheme/native_interfaces.hpp"
+#include "native_interfaces.hpp"
 #include "Subsystems/Qt/QTMReverseHierarchyGraph.hpp"
 #include "Typeset/Env/local_environment.hpp"
 

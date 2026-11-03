@@ -18,7 +18,6 @@
 #include "tm_window.hpp"
 #include "qt_sys_utils.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
 
 #include <QApplication>
 #include <QCheckBox>

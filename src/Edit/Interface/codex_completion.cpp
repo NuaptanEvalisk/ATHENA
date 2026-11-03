@@ -1,9 +1,8 @@
 // Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later.
 #include "codex_completion.hpp"
 #include "editor.hpp"
-#include "scheme.hpp"
 #include "native_interfaces.hpp"
-#include "scheme_native_context.hpp"
+#include "native_context.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "Data/Convert/Generic/conversion_executor.hpp"
 #include "analyze.hpp"
@@ -11,7 +10,7 @@
 #include "boot.hpp"
 #include "tree_traverse.hpp"
 #include "buffer_actor.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #include "ATHENA/Data/compound_edit_batch.hpp"
 #include "buffer_name_catalog.hpp"
 #include "new_buffer.hpp"
@@ -31,19 +30,11 @@ struct selection_figures {
   std::vector<std::pair<string, string>> markers;
   bool transferred= false;
 
-  static void cleanup (void* raw) noexcept {
-    auto& self= *static_cast<selection_figures*> (raw);
-    if (!self.transferred)
-      for (int i= 0; i < N(self.files); ++i) remove (self.files[i]);
-    self.files= array<url> ();
-    std::vector<std::pair<string, string>> ().swap (self.markers);
-    self.uuid= "";
+  explicit selection_figures (editor ed): owner (*ed.operator-> ()) {}
+  ~selection_figures () {
+    if (!transferred)
+      for (int i=0; i<N(files); ++i) remove (files[i]);
   }
-
-  explicit selection_figures (editor ed): owner (*ed.operator-> ()) {
-    scheme_begin_native_scope (&cleanup, this);
-  }
-  ~selection_figures () { scheme_end_native_scope (); }
 
   tree visit (tree node) {
     if (is_atomic (node)) return copy (node);
@@ -106,7 +97,7 @@ struct completion_request: std::enable_shared_from_this<completion_request> {
   athena_actor_id actor= 0;
   athena_view_id view= 0;
   athena_continuation_id completion= ATHENA_NO_CONTINUATION;
-  SchemeCapabilitySet capabilities= SCHEME_CAPABILITY_NONE;
+  ExecutionCapabilitySet capabilities= EXECUTION_CAPABILITY_NONE;
 
   ~completion_request () {
     std::error_code ignored;
@@ -116,13 +107,13 @@ struct completion_request: std::enable_shared_from_this<completion_request> {
   }
 
   void attach (tree node) {
-    const auto* owner= current_scheme_execution_context ();
+    const auto* owner= current_execution_context ();
     actor= owner->actor_id;
     view= owner->view_id;
     capabilities= owner->capabilities;
     completion= owner->actor->retain_native_callback (
       [self= shared_from_this (), node] {
-        self->finish (*current_scheme_execution_context ()->editor, node);
+        self->finish (*current_execution_context ()->editor, node);
       });
   }
 

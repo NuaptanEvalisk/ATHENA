@@ -303,18 +303,17 @@ def runtime_test():
     helpers.private_json(identity, {"version": 1, "public_key": public, "secret_key": secret})
     helpers.private_json(profile / "system/audmap/clients.json",
                          {"version": 1, "clients": {public: {"allow": True, "trust": 0}}})
-    resources, guile = REPO / "ATHENA", REPO / "build_qt6/athena-guile-runtime"
+    resources = REPO / "ATHENA"
     import msgpack
     import zmq
+    env_path = os.environ.get("LD_LIBRARY_PATH", "")
     env = dict(os.environ, HOME=str(root), ATHENA_HOME_PATH=str(profile),
         XDG_CONFIG_HOME=str(root / "config"), XDG_CACHE_HOME=str(root / "cache"),
         XDG_DATA_HOME=str(root / "data"), XDG_RUNTIME_DIR=str(runtime),
-        ATHENA_PATH=str(resources), QT_QPA_PLATFORM="offscreen", GUILE_AUTO_COMPILE="0",
-        GUILE_LOAD_PATH=str(guile / "share/guile/3.0"),
-        GUILE_LOAD_COMPILED_PATH=str(guile / "lib/guile/3.0/ccache"),
+        ATHENA_PATH=str(resources), QT_QPA_PLATFORM="offscreen",
         PYTHONPATH=os.pathsep.join({str(Path(package.__file__).parent.parent)
                                    for package in (msgpack, zmq)}),
-        LD_LIBRARY_PATH=str(resources / "lib") + ":" + str(guile / "lib"))
+        LD_LIBRARY_PATH=str(resources / "lib") + ":" + env_path)
     binary = REPO / "ATHENA/bin/ATHENA.bin"
 
     class Progress:

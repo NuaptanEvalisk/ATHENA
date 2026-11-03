@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "edit_math.hpp"
+#include "boot.hpp"
 #include "native_math_edit.hpp"
 #include "analyze.hpp"
 #include "utf8_edit.hpp"

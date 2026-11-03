@@ -10,27 +10,6 @@
 ******************************************************************************/
 
 #include "command.hpp"
-#include "scheme.hpp"
-
-/******************************************************************************
-* default implementation of command application with arguments
-******************************************************************************/
-
-void
-command_rep::apply (object args) {
-  (void) args;
-  apply ();
-}
-
-void
-command::operator () (object args) {
-  rep->apply (args);
-}
-
-void
-apply (command cmd, object args) {
-  cmd (args);
-}
 
 /******************************************************************************
 * standard commands without arguments

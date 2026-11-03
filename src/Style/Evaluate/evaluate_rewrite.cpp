@@ -13,7 +13,6 @@
 #include "memorizer.hpp"
 #include "std_environment.hpp"
 #include "vars.hpp"
-#include "scheme.hpp"
 #include "native_dispatch.hpp"
 #include "native_command_security.hpp"
 
@@ -89,17 +88,17 @@ rewrite_impl (tree t) {
       bool secure= as_bool (std_env ["secure"]);
       if (!secure && script_status < 2 && !native_secure_function (fun))
         return tree (_ERROR, "insecure native callback");
-      array<object> arguments;
-      for (i=1; i<n; i++) arguments << object (evaluate (t[i]));
+      command_arguments arguments;
+      for (i=1; i<n; i++) arguments << command_value (evaluate (t[i]));
       struct restore_environment {
         environment previous;
         ~restore_environment () { reenter_rewrite_env= previous; }
       } restore {reenter_rewrite_env};
       reenter_rewrite_env= std_env;
-      object o;
+      command_value o;
       if (!native_dispatch_call (fun, arguments, o))
         return tree (_ERROR, "unknown native extern: " * fun);
-      return content_to_tree (o);
+      return command_is_content (o) ? command_content (o, "extern content") : tree ("?");
     }
 #ifdef CLASSICAL_MACRO_EXPANSION
   case MAP_ARGS:

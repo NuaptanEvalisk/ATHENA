@@ -259,7 +259,7 @@ class actor_document final: public document_source {
       [answer, captured_vault, expected, source_view, require_file, kind, node, command, parameters] {
         try {
           if (require_file && !vault_context_is_current (captured_vault)) throw std::runtime_error ("STALE: vault changed");
-          auto* owner= current_scheme_execution_context ()->actor;
+          auto* owner= current_execution_context ()->actor;
           if (require_file) {
             auto actual= std::filesystem::weakly_canonical (
               std::filesystem::path (native_text (as_system_string (owner->current_buffer_url ()))));
@@ -309,7 +309,7 @@ class actor_document final: public document_source {
         catch (...) { answer->error= "Native document access failed"; }
       });
     if (!buffer_actor::invoke_on (actor, actor_command_kind::run_native_continuation,
-          source_view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, continuation)) {
+          source_view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER, continuation)) {
       actor_continuation_registry::instance ().discard (continuation);
       throw std::runtime_error ("STALE: document actor no longer accepts requests");
     }

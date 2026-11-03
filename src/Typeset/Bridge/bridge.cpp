@@ -13,7 +13,6 @@
 #include "Env/local_environment.hpp"
 #include "node_metadata.hpp"
 #include "Boxes/construct.hpp"
-#include "scheme.hpp"
 #include "new_document.hpp"
 #include "ATHENA/Data/node_reference_export.hpp"
 

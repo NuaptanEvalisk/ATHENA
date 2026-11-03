@@ -42,10 +42,6 @@ endfunction ()
 foreach (directory styles packages langs misc doc fonts)
   athena_ios_resources ("${ATHENA_SOURCE_DIR}/ATHENA/${directory}" "ATHENA/${directory}")
 endforeach ()
-athena_ios_resources ("${ATHENA_GUILE_PREFIX}/share/guile/3.0"
-  "ATHENA/lib/athena-guile/share/guile/3.0")
-athena_ios_resources ("${ATHENA_GUILE_PREFIX}/lib/guile/3.0/ccache"
-  "ATHENA/lib/athena-guile/lib/guile/3.0/ccache")
 # ATHENA's Info.plist uses the modern UILaunchScreen declaration.  Do not let
 # Qt add its default storyboard as well: with a deployment target newer than
 # the installed SDK, ibtool rejects that redundant storyboard even though

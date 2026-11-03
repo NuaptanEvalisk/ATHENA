@@ -11,7 +11,6 @@
 
 #include "boot.hpp"
 #include "file.hpp"
-#include "Scheme/scheme.hpp"
 #include "tm_ostream.hpp"
 
 #include <llama.h>

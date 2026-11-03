@@ -11,7 +11,6 @@
 
 #include "convert.hpp"
 #include "analyze.hpp"
-#include "scheme.hpp"
 #include "unicode_text.hpp"
 
 #include <set>
@@ -89,19 +88,6 @@ old_tm_to_xml_cdata (string s) {
   return r;
 }
 
-object
-tm_to_xml_cdata (string s) {
-  std::string_view bytes (s.data (), static_cast<std::size_t> (N(s)));
-  athena::text::require_utf8 (bytes);
-  string r;
-  int n= N(s);
-  for (int i=0; i<n; ++i)
-    if (s[i] == '&') r << "&amp;";
-    else if (s[i] == '<') r << "&lt;";
-    else if (s[i] == '>') r << "&gt;";
-    else r << s[i];
-  return object (r);
-}
 
 string
 old_xml_cdata_to_tm (string s) {

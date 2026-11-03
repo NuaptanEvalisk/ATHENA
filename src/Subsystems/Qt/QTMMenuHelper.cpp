@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "analyze.hpp"
+#include "boot.hpp"
 #include "wencoding.hpp"
 
 #include "qt_gui.hpp"
@@ -624,26 +625,7 @@ QTMLineEdit::keyPressEvent (QKeyEvent* ev)
         (ev->modifiers() & Qt::ControlModifier) == 0 &&
         (ev->modifiers() & Qt::MetaModifier) == 0)
       QLineEdit::keyPressEvent (ev);
-    string key= "none";
-    string s  = from_qstring (text());
-    if (last_key >= 32 && last_key <= 126) {
-      key= string ((char) last_key);
-      if (is_upcase (key[0]))
-        if ((ev->modifiers() & Qt::ShiftModifier) == 0)
-          key.set (0, (char) (key[0] + ((int) 'a') - ((int) 'A')));
-    }
-    tmapp()->keyboard().getMappingIfExist (last_key, key);
-    if ((ev->modifiers() & Qt::ShiftModifier) && N(key) > 1) key= "S-" * key;
-#ifdef Q_OS_MAC
-    if (ev->modifiers() & Qt::ControlModifier) key= "C-" * key;
-    if (ev->modifiers() & Qt::AltModifier) key= "none";
-    if (ev->modifiers() & Qt::MetaModifier) key= "M-" * key;
-#else
-    if (ev->modifiers() & Qt::ControlModifier) key= "M-" * key;
-    if (ev->modifiers() & Qt::AltModifier) key= "A-" * key;
-    if (ev->modifiers() & Qt::MetaModifier) key= "C-" * key;
-#endif
-    cmd (list_object (list_object (object (s), object (key))));
+    cmd ();
     return;
   }
   else if (c) {
@@ -813,8 +795,7 @@ QTMLineEdit::inputMethodEvent (QInputMethodEvent* ev) {
   if (!ev->commitString().isEmpty() &&
       ev->preeditString().isEmpty() &&
       continuous()) {
-    string str= from_qstring(ev->commitString());
-    cmd (list_object (list_object (object (str), object (str))));
+    cmd ();
   }
 }
 
@@ -1111,25 +1092,9 @@ QTMTreeView::currentChanged (const QModelIndex& curr, const QModelIndex& prev) {
 }
 
 void
-QTMTreeView::callOnChange (const QModelIndex& index, bool mouse) {
+QTMTreeView::callOnChange (const QModelIndex&, bool) {
 BEGIN_SLOT
-  object arguments = mouse ? list_object ((int)QApplication::mouseButtons())
-                           : list_object (-1);
-    
-    // docs state the index is valid, no need to check
-    // If there's no CommandRole, we return the subtree by default
-  QVariant d = tmModel()->data (index, QTMTreeModel::CommandRole);
-  if (!d.isValid() || !d.canConvert (QMetaType(QMetaType::QString)))
-    arguments = cons (tmModel()->item_from_index (index), arguments);
-  else
-    arguments = cons (from_qstring (d.toString()), arguments);
-  int cnt = QTMTreeModel::TMUserRole;
-  d = tmModel()->data (index, cnt);
-  while (d.isValid() && d.canConvert (QMetaType(QMetaType::QString))) {
-    arguments = cons (from_qstring (d.toString()), arguments);
-    d = tmModel()->data (index, ++cnt);
-  }
-  _cmd (arguments);
+  _cmd ();
 END_SLOT
 }
 

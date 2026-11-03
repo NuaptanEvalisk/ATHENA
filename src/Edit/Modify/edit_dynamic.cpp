@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "edit_dynamic.hpp"
+#include "boot.hpp"
 #include "Typeset/Env/local_environment.hpp"
 #include "tree_analyze.hpp"
 #include "cursor_navigation.hpp"

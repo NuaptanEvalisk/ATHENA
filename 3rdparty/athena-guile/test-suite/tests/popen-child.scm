@@ -1,5 +1,0 @@
-(close-port (current-input-port))
-(let loop ()
-  (display "closed\n" (current-error-port))
-  (force-output  (current-error-port))
-  (loop))

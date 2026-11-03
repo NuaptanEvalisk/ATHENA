@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "ATHENA/Data/websites_internal.hpp"
+#include "boot.hpp"
 #include "ATHENA/Data/buffer_export.hpp"
 #include "ATHENA/Data/transclusion_cache.hpp"
 #include "ATHENA/Data/data_art.hpp"

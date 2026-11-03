@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "Replace/edit_select.hpp"
+#include "boot.hpp"
 #include "Interface/edit_interface.hpp"
 #include "convert.hpp"
 #include "tree_select.hpp"
@@ -22,7 +23,7 @@
 #include "ATHENA/Data/vault.hpp"
 #include "ATHENA/Data/document_node_copy.hpp"
 #include "ATHENA/buffer_actor.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 
 #include <filesystem>
 #include <stdexcept>
@@ -741,7 +742,7 @@ remote_source_move_marker_is_current (
   auto answer= std::make_shared<response> ();
   auto continuation= actor_continuation_registry::instance ().store (
     [answer, marker] {
-      const auto* context= current_scheme_execution_context ();
+      const auto* context= current_execution_context ();
       if (context != nullptr && context->editor != nullptr)
         answer->current=
           context->editor->source_move_cut_marker_present (marker);
@@ -749,7 +750,7 @@ remote_source_move_marker_is_current (
   if (!buffer_actor::invoke_on (
         endpoint.actor, actor_command_kind::run_native_continuation,
         endpoint.view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
-        SCHEME_CAPABILITY_BUFFER, continuation)) {
+        EXECUTION_CAPABILITY_BUFFER, continuation)) {
     actor_continuation_registry::instance ().discard (continuation);
     return false;
   }

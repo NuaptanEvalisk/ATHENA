@@ -2,7 +2,9 @@
 #ifndef ATHENA_LINK_MARKUP_HPP
 #define ATHENA_LINK_MARKUP_HPP
 
-#include "scheme.hpp"
+#include "tree.hpp"
+#include "path.hpp"
+#include "url.hpp"
 #include <functional>
 #include <optional>
 #include <set>
@@ -18,7 +20,6 @@ native_link_records native_matching_links (list<string> ids, string event);
 
 string native_link_unique_id ();
 void native_make_locus ();
-object native_locus_id (tree locus);
 void native_locus_set (string id, tree content);
 void native_locus_insert_link (tree locus, tree link);
 void native_locus_remove_link (tree link);
@@ -48,15 +49,11 @@ void native_register_link_locations (url here, tree locations);
 bool native_resolve_link_id (string id, std::set<std::string>& attempted,
                              std::function<void(url)> completed);
 void native_link_follow_ids (list<string> ids, string event);
-void native_link_execute_script (string source, bool trusted, object arguments);
 void native_locus_link_follow ();
-object native_link_process_url (url target);
 void native_link_post_load (url target);
-void native_link_go_to_url (url target, object optional_from);
 void native_link_go_to_url (url target, std::optional<path> from= std::nullopt);
 void native_link_go_to_url (string target, std::optional<path> from= std::nullopt);
 void native_link_open_label (url target, string label);
-void native_link_go_to_id (string id, object optional_from);
 void native_link_go_to_id (string id, std::optional<path> from= std::nullopt);
 
 #endif

@@ -8,7 +8,6 @@
 
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "boot.hpp"
-#include "scheme.hpp"
 #include "sys_utils.hpp"
 
 #include <filesystem>

@@ -28,7 +28,6 @@ using athena_actor_id= std::uint64_t;
 using athena_view_id= std::uint64_t;
 using athena_slot_id= std::uint32_t;
 using athena_blob_id= std::uint64_t;
-using athena_scheme_handle_id= std::uint64_t;
 using athena_resource_id= std::uint64_t;
 using athena_response_id= std::uint64_t;
 using athena_continuation_id= std::uint64_t;
@@ -37,7 +36,6 @@ constexpr athena_actor_id ATHENA_NO_ACTOR= 0;
 constexpr athena_view_id ATHENA_NO_VIEW= 0;
 constexpr athena_blob_id ATHENA_NO_BLOB= 0;
 constexpr athena_resource_id ATHENA_NO_RESOURCE= 0;
-constexpr athena_scheme_handle_id ATHENA_NO_SCHEME_HANDLE= 0;
 constexpr athena_response_id ATHENA_NO_RESPONSE= 0;
 constexpr athena_continuation_id ATHENA_NO_CONTINUATION= 0;
 
@@ -125,7 +123,6 @@ enum class actor_command_kind: std::uint32_t {
   center_message_state,
   render_view,
   set_render_connection,
-  run_scheme_handle,
   run_native_continuation,
   resolve_native_callback,
   resume_hybrid_activation,
@@ -211,7 +208,6 @@ enum class actor_command_kind: std::uint32_t {
   ui_realtime_save_state,
   ui_document_history_snapshot,
   ui_document_history_manual_request,
-  ui_schedule_global_scheme,
   native_editor_command,
   native_editor_action_json,
   request_personal_macro_items

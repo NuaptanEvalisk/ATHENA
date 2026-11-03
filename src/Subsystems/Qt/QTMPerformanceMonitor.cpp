@@ -9,9 +9,9 @@
 ******************************************************************************/
 
 #include "QTMPerformanceMonitor.hpp"
+#include "boot.hpp"
 #include "QTMWidget.hpp"
 #include "qt_simple_widget.hpp"
-#include "scheme.hpp"
 
 #include <QFontDatabase>
 #include <QFontMetrics>

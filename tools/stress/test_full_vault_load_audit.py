@@ -24,9 +24,10 @@ class FullAuditTests(unittest.TestCase):
         self.output = self.root/'output'
         for path in (self.vault, self.home, self.output):
             path.mkdir()
-        self.args = argparse.Namespace(jobs=2, runtime=self.root, resources=self.root,
-            settle=0, timeout=5, binary=self.root/'fake-athena')
-        self.config = dict(map_path='map.sqlite', namespace_db_path='ns.sqlite')
+        self.args = argparse.Namespace(jobs=2, resources=self.root,
+            timeout=5, binary=self.root/'fake-athena')
+        self.config = dict(map_path='map.sqlite', namespace_db_path='ns.sqlite',
+            websites_path='.athena/load-audit-websites.json')
 
     def document(self, name):
         path = self.vault/name
@@ -46,8 +47,12 @@ class FullAuditTests(unittest.TestCase):
         for name in ('a.ath', 'b.ath', 'c.ath'):
             self.document(name)
         self.args.binary.write_text('''#!/usr/bin/env python3
-import json, os, pathlib, time
-result = pathlib.Path(os.environ['ATHENA_LOAD_AUDIT_RESULT'])
+import json, os, pathlib, sys, time
+assert sys.argv[1:4] == ['-H', '-X', '--generate-website']
+vault = pathlib.Path(sys.argv[4])
+website = json.loads((vault/'.athena/load-audit-websites.json').read_text())['websites'][0]
+site = pathlib.Path(website['destination'])
+result = site.parent/'result'
 result.with_suffix('.started').write_text(str(time.monotonic()))
 logs = result.parent.parent
 deadline = time.monotonic() + 3
@@ -56,13 +61,15 @@ while len(list(logs.glob('*/result.started'))) < 2:
         raise RuntimeError('Workers did not run concurrently')
     time.sleep(.02)
 result.with_suffix('.context').write_text(json.dumps([
-    os.environ['HOME'], os.environ['ATHENA_LOAD_AUDIT_VAULT']]))
-source = pathlib.Path(os.environ['ATHENA_LOAD_AUDIT_SOURCE'])
+    os.environ['HOME'], str(vault)]))
+source = vault/website['selector']['path']
 if source.name == 'a.ath':
     os._exit(17)
 if source.name == 'b.ath':
-    pathlib.Path(os.environ['ATHENA_LOAD_AUDIT_MESSAGES']).write_text('typeset-warning: probe')
-result.write_text('#t')
+    print('typeset-warning: probe')
+site.mkdir()
+(site/'page.html').write_text('<html>export</html>')
+(site/'page.pdf').write_bytes(b'%PDF-1.7 probe')
 ''')
         self.args.binary.chmod(0o755)
         contexts = audit.workers(self.output, self.vault, self.home, 2)

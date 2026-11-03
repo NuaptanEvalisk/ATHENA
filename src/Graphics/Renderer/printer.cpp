@@ -10,13 +10,13 @@
 ******************************************************************************/
 
 #include "printer.hpp"
+#include "boot.hpp"
 #include "page_type.hpp"
 #include "file.hpp"
 #include "image_files.hpp"
 #include "analyze.hpp"
 #include "iterator.hpp"
 #include "merge_sort.hpp"
-#include "scheme.hpp"
 #include "image_files.hpp"
 #include "link.hpp"
 #include "frame.hpp"

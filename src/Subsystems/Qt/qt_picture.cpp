@@ -17,7 +17,6 @@
 #include "font_domain.hpp"
 #include "file.hpp"
 #include "image_files.hpp"
-#include "scheme.hpp"
 #include "frame.hpp"
 #include "effect.hpp"
 #include "iterator.hpp"

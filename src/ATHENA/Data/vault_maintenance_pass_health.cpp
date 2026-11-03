@@ -17,7 +17,6 @@
 #include "rag_embedding.hpp"
 #include "rag_embedding_contract.hpp"
 #include "rag_index.hpp"
-#include "scheme.hpp"
 
 #include <algorithm>
 #include <filesystem>

@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "Line/lazy_typeset.hpp"
+#include "boot.hpp"
 #include "Env/local_environment.hpp"
 #include "Line/lazy_vstream.hpp"
 #include "Format/format.hpp"
@@ -20,7 +21,6 @@
 #include "program_presentation.hpp"
 #include "packrat.hpp"
 #include "radioactive_link_scope.hpp"
-#include "scheme.hpp"
 #include "tree_label.hpp"
 #include "ATHENA/Data/node_reference_export.hpp"
 

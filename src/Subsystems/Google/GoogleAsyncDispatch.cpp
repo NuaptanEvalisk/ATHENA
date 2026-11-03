@@ -11,7 +11,7 @@
 #include "GoogleAsyncDispatch.hpp"
 
 #include "buffer_actor.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 
 #include <QCoreApplication>
 #include <QMetaObject>
@@ -19,7 +19,7 @@
 
 GoogleAsyncOrigin
 google_async_origin () noexcept {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context == nullptr) return {};
   return {context->actor_id, context->view_id, context->capabilities};
 }

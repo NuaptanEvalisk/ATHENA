@@ -71,7 +71,7 @@ def save_report(output, entries, total, interrupted=False):
     for entry in ordered:
         lines.append(f'{entry["status"]}: {entry["path"]}')
         lines.extend(f'  {message}' for message in entry['diagnostics'])
-        if entry.get('result') not in (None, '#t'):
+        if entry.get('result') not in (None, 'OK'):
             lines.append(f'  Result: {entry["result"]}')
         if entry.get('log'):
             lines.append(f'  Log: {entry["log"]}')
@@ -102,7 +102,7 @@ def run_checks(args, output, contexts, config, selected):
                   flush=True)
             for diagnostic in entry['diagnostics']:
                 print(f'  {diagnostic}', flush=True)
-            if entry.get('result') not in (None, '#t'):
+            if entry.get('result') not in (None, 'OK'):
                 print(f'  {entry["result"]}', flush=True)
             save_report(output, entries, len(selected))
     except KeyboardInterrupt:
@@ -125,16 +125,14 @@ def main():
     parser.add_argument('-j', '--jobs', type=int, default=4,
                         help='Concurrent ATHENA processes (default: 4)')
     parser.add_argument('--timeout', type=int, default=180)
-    parser.add_argument('--settle', type=float, default=3)
     parser.add_argument('--output', type=Path, help='New directory outside the source Vault')
     parser.add_argument('--binary', type=Path, default=audit.REPO/'ATHENA/bin/ATHENA.bin')
-    parser.add_argument('--runtime', type=Path, default=audit.REPO/'build_qt6/athena-guile-runtime')
     parser.add_argument('--resources', type=Path, default=audit.REPO/'ATHENA')
     args = parser.parse_args()
     source = args.vault.resolve(strict=True)
-    if args.jobs <= 0 or args.timeout <= 0 or not 0 <= args.settle < args.timeout:
-        parser.error('Require jobs > 0 and 0 <= settle < timeout')
-    for path in (args.binary, args.runtime, args.resources, source/'Vaultfile.json'):
+    if args.jobs <= 0 or args.timeout <= 0:
+        parser.error('Require jobs > 0 and timeout > 0')
+    for path in (args.binary, args.resources, source/'Vaultfile.json'):
         if not path.exists():
             parser.error(f'Missing required path: {path}')
     output = (args.output.resolve() if args.output else source.parent/

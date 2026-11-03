@@ -7,6 +7,7 @@
 ******************************************************************************/
 
 #include "QTMDocumentHistory.hpp"
+#include "boot.hpp"
 
 #include "ATHENA/Data/document_history_store.hpp"
 #include "ATHENA/Data/document_persistence.hpp"
@@ -21,8 +22,7 @@
 #include "editor.hpp"
 #include "file.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #include "tm_ostream.hpp"
 #include "vault.hpp"
 #include "vaultfile_json.hpp"
@@ -262,7 +262,7 @@ public:
     buffer->buf->history_snapshot_queued= true;
     actor_command_ticket ticket= buffer->actor->try_submit (
       actor_command_kind::document_history_snapshot, first_view (buffer),
-      ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+      ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
       0, generation, static_cast<std::uint64_t> (trigger));
     if (!ticket) {
       buffer->buf->history_snapshot_queued= false;
@@ -399,7 +399,7 @@ qtm_document_history_initialize () {
 bool
 qtm_document_history_manual_save_requested () {
   if (!manual_trigger_enabled ()) return true;
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr && context->editor != nullptr)
     return context->editor->publish_ui (
       actor_command_kind::ui_document_history_manual_request);
@@ -454,10 +454,10 @@ qtm_document_history_open_version (url document, std::int64_t version_id) {
   publish_buffer_realtime_save_paused (buffer, true);
   (void) buffer->actor->invoke (
     actor_command_kind::set_buffer_read_only, first_view (buffer),
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, 1);
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER, 1);
   (void) buffer->actor->invoke (
     actor_command_kind::set_realtime_save_paused, first_view (buffer),
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, 1);
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER, 1);
   string title= as_string (tail (document));
   title << " @ history " << as_string (version_id);
   set_title_buffer (history_name, title);

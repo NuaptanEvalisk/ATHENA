@@ -17,7 +17,7 @@
 #include "new_view.hpp"
 #include "analyze.hpp"
 #include "node_metadata.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #include "buffer_actor.hpp"
 #include "buffer_state.hpp"
 #include <stdexcept>
@@ -100,7 +100,7 @@ namespace {
 url input_source (const conversion_payload& input, string from) {
   if (ends (from, "-file")) return std::get<url> (input);
   if (active_request) return active_request->source;
-  const auto* owner= current_scheme_execution_context ();
+  const auto* owner= current_execution_context ();
   if (owner && owner->actor) return owner->actor->current_state ()->master;
   return url_none ();
 }
@@ -277,8 +277,8 @@ conversion_payload conversion_execute (conversion_payload input, string from,
   // A direct request may already belong to an editor. Passive actor
   // exports supply their actual rendering editor explicitly instead.
   if (rendering_editor == nullptr) {
-    const auto* owner= current_scheme_execution_context ();
-    if (owner && owner->editor && owner->has (SCHEME_CAPABILITY_BUFFER))
+    const auto* owner= current_execution_context ();
+    if (owner && owner->editor && owner->has (EXECUTION_CAPABILITY_BUFFER))
       rendering_editor= owner->editor;
   }
   auto path= conversion_graph_path ({from.data (), std::size_t (N(from))},

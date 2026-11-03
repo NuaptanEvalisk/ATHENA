@@ -16,7 +16,6 @@
 #include "Sqlite3/sqlite3.hpp"
 #include "file.hpp"
 #include "convert.hpp"
-#include "scheme.hpp"
 #if __cplusplus >= 201103L
 #  include "Editor/edit_typeset.hpp"
 #  include "locale.hpp"

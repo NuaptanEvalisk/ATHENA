@@ -24,7 +24,7 @@
 #include "tm_window.hpp"
 #include "tm_buffer.hpp"
 #include "buffer_actor.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #include "file.hpp"
 #include <vector>
 
@@ -91,7 +91,7 @@ void setDiffHighlights (url view_name, string key, range_set ranges) {
   if (!view || is_nil (buffer)) throw std::runtime_error ("Comparison view has closed");
   const auto continuation= actor_continuation_registry::instance ().store (
     [key, ranges] {
-      const auto* context= current_scheme_execution_context ();
+      const auto* context= current_execution_context ();
       if (!context || !context->editor) throw std::runtime_error ("Comparison editor has closed");
       range_set absolute;
       for (int i=0; i<N(ranges); ++i)
@@ -100,7 +100,7 @@ void setDiffHighlights (url view_name, string key, range_set ranges) {
     });
   if (!buffer->actor->invoke (actor_command_kind::run_native_continuation,
       view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
-      SCHEME_CAPABILITY_BUFFER, continuation)) {
+      EXECUTION_CAPABILITY_BUFFER, continuation)) {
     actor_continuation_registry::instance ().discard (continuation);
     throw std::runtime_error ("Cannot highlight comparison document");
   }
@@ -204,12 +204,12 @@ athena_diff_show_snapshots (athena::document::native_xml_read_result left_snapsh
     buffer->buf->read_only= true;
     publish_buffer_realtime_save_paused (buffer, true);
     buffer->actor->invoke (actor_command_kind::set_buffer_read_only, view->runtime_id,
-      ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, 1);
+      ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER, 1);
     buffer->actor->invoke (actor_command_kind::set_realtime_save_paused, view->runtime_id,
-      ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, 1);
+      ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER, 1);
     const auto continuation= actor_continuation_registry::instance ().store (
       [positions= std::move (positions), id= view->runtime_id] {
-        const auto* context= current_scheme_execution_context ();
+        const auto* context= current_execution_context ();
         if (!context || !context->actor) return;
         auto* editor= context->actor->current_editor (id);
         if (!editor) return;
@@ -222,7 +222,7 @@ athena_diff_show_snapshots (athena::document::native_xml_read_result left_snapsh
         editor->set_alt_selection ("hodarium-diff", highlights);
       });
     if (!buffer_actor::try_submit_to (buffer->actor->id (), actor_command_kind::run_native_continuation,
-        view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, continuation)) {
+        view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, continuation)) {
       actor_continuation_registry::instance ().discard (continuation);
       throw std::runtime_error ("Cannot queue Hodarium comparison highlights");
     }

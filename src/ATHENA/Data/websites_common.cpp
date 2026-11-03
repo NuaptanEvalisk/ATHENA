@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "ATHENA/Data/websites_internal.hpp"
+#include "boot.hpp"
 #include "ATHENA/Data/vaultfile_json.hpp"
 
 namespace athena_websites {

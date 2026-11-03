@@ -12,7 +12,7 @@
 #define ATHENA_STRUCTURED_COMMANDS_HPP
 
 #include "tree.hpp"
-#include "scheme.hpp"
+#include "tree.hpp"
 
 bool generic_context (tree t);
 bool generic_complex_context (tree t);
@@ -103,7 +103,8 @@ void generic_structured_inner_extremal (tree t, bool forwards);
 void generic_structured_extremal (tree t, bool forwards);
 void generic_structured_incremental (tree t, bool downwards);
 void generic_structured_exit (tree t, bool forwards);
-void generic_special_navigate (tree t, object direction);
+enum class structural_navigation { previous, next, first, last };
+void generic_special_navigate (tree t, structural_navigation direction);
 void generic_special_horizontal (tree t, bool forwards);
 void generic_special_vertical (tree t, bool downwards);
 void generic_special_extremal (tree t, bool forwards);

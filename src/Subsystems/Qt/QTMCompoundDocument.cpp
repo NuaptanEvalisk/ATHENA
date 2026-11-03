@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "QTMCompoundDocument.hpp"
+#include "boot.hpp"
 #include "QTMApplication.hpp"
 #include "athena_platform.hpp"
 #include "QTMWidget.hpp"
@@ -23,7 +24,6 @@
 #include "ATHENA/Data/compound_edit_batch.hpp"
 #include "ATHENA/Data/hodarium_resources.hpp"
 #include "tree_cursor.hpp"
-#include "scheme.hpp"
 #include "qt_gui.hpp"
 #include "qt_actor_widget.hpp"
 #include "node_metadata.hpp"
@@ -94,7 +94,7 @@ url source_url (const QString& filename) {
 }
 
 athena::document::xml_format_version source_xml_version () {
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   if (!context || !context->actor || !context->actor->current_state ())
     throw std::runtime_error ("AVD serialization requires a source actor state");
   return context->actor->current_state ()->storage_version;
@@ -372,7 +372,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
     const auto continuation= actor_continuation_registry::instance ().store (std::move (work));
     if (buffer_actor::try_submit_to (view->buf->actor->id (),
         actor_command_kind::run_native_continuation, view->runtime_id,
-        ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, continuation)) return true;
+        ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, continuation)) return true;
     actor_continuation_registry::instance ().discard (continuation);
     return false;
   }
@@ -391,12 +391,12 @@ class QTMCompoundViewport: public QAbstractScrollArea {
     delete_when_ready_= false;
     for (const auto& range: selection_) {
       const auto continuation= actor_continuation_registry::instance ().store ([] {
-        if (auto* editor= current_scheme_execution_context ()->editor)
+        if (auto* editor= current_execution_context ()->editor)
           editor->selection_cancel ();
       });
       if (!buffer_actor::try_submit_to (range.actor,
             actor_command_kind::run_native_continuation, range.view,
-            ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, continuation))
+            ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, continuation))
         actor_continuation_registry::instance ().discard (continuation);
     }
     selection_.clear ();
@@ -427,7 +427,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
         member.prepare= [token, serial, points, source= first_member + i] (editor_rep&) {
           if (token->load () != serial) throw std::runtime_error ("Selection was cancelled");
           if (points) {
-            const auto epoch= current_scheme_execution_context ()->actor->source_epoch ();
+            const auto epoch= current_execution_context ()->actor->source_epoch ();
             for (const auto& endpoint: {points->first, points->second})
               if (endpoint.member == source && endpoint.epoch != epoch)
                 throw std::runtime_error ("Source changed during compound selection");
@@ -465,7 +465,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
             for (path p= last; !is_nil (p); p= p->next) (*ranges)[i].last.push_back (p->item);
           }
           editor.select (root * first, root * last);
-          (*ranges)[i].epoch= current_scheme_execution_context ()->actor->source_epoch ();
+          (*ranges)[i].epoch= current_execution_context ()->actor->source_epoch ();
         };
         member.rollback= [] (editor_rep& editor) { editor.selection_cancel (); };
         member.commit= [] (editor_rep&) {};
@@ -583,7 +583,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
               self->updateRange (self->layout_.top (i));
               self->arrange (); self->mount (i); self->activateMember (i);
               self->views_[i].canvas->focusEditor (Qt::OtherFocusReason);
-              self->submit (i, [] { current_scheme_execution_context ()->editor->go_to_here (); });
+              self->submit (i, [] { current_execution_context ()->editor->go_to_here (); });
               break;
             }
         }
@@ -670,7 +670,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
       athena::avd::edit_participant member;
       member.actor= view->buf->actor->id (); member.view= view->runtime_id;
       member.prepare= [dirty, i] (editor_rep& editor) {
-        (*dirty)[i]= editor.need_save () || current_scheme_execution_context ()->actor->current_state ()->source_modified;
+        (*dirty)[i]= editor.need_save () || current_execution_context ()->actor->current_state ()->source_modified;
       };
       member.apply= member.rollback= member.commit= [] (editor_rep&) {};
       participants.push_back (std::move (member));
@@ -707,7 +707,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
     const auto filename= members_[i].filename;
     athena::avd::submit_source_task (view->buf->actor->id (), view->runtime_id,
       [] (editor_rep& editor) {
-        auto* state= current_scheme_execution_context ()->actor->current_state ();
+        auto* state= current_execution_context ()->actor->current_state ();
         if (!state->source_modified && !editor.need_save ()) return;
         if (state->read_only) throw std::runtime_error ("Source is read-only");
         if (buffer_save (state->name)) throw std::runtime_error ("Could not save source document; original file retained");
@@ -801,7 +801,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
               member.destinations.push_back ({std::string (as_charp (label), N (label)),
                 static_cast<unsigned long> (page), x, y});
             }, true);
-          job->epochs[index]= current_scheme_execution_context ()->actor->source_epoch ();
+          job->epochs[index]= current_execution_context ()->actor->source_epoch ();
         }, finish);
       }, [finish] (std::string error) { if (!error.empty ()) finish (std::move (error)); });
   }
@@ -905,7 +905,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
     const QPointer<QTMCompoundViewport> guard (this);
     const auto work= [guard, result, i, incoming, cached, job, epoch, expected] {
       try {
-        const auto* context= current_scheme_execution_context ();
+        const auto* context= current_execution_context ();
         auto* editor= dynamic_cast<edit_typeset_rep*> (context->editor);
         result->stale= context->actor->source_epoch () != epoch;
         if (!result->stale) {
@@ -950,7 +950,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
     try {
       if (!submit (i, [guard, result, i, incoming, job] {
         try {
-          const auto* context= current_scheme_execution_context ();
+          const auto* context= current_execution_context ();
           auto* editor= dynamic_cast<edit_typeset_rep*> (context->editor);
           result->epoch= context->actor->source_epoch ();
           const auto version= source_xml_version ();
@@ -1715,7 +1715,7 @@ public:
     // their later resize/focus freeze suppresses this navigation's scrolling.
     queueInput ([i, at_end] (QTMCompoundViewport& self) {
       if (!self.submit (i, [at_end] {
-            auto* editor= current_scheme_execution_context ()->editor;
+            auto* editor= current_execution_context ()->editor;
             if (at_end) editor->go_to_end (editor->the_buffer_path ());
             else editor->go_to_start (editor->the_buffer_path ());
             editor->notify_change (THE_CURSOR, THE_FREEZE);

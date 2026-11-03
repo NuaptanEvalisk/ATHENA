@@ -14,6 +14,25 @@ from runtime_policy import (
 
 
 class RuntimePolicyTest(unittest.TestCase):
+    def test_copy_excludes_retired_interpreter_even_when_libraries_are_kept(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source, target = root / "source", root / "target"
+            for relative in ("lib/athena-guile/lib/libathena-guile-3.0.so",
+                             "lib/guile/3.0/ccache/module.go",
+                             "share/guile/3.0/module.scm",
+                             "lib/libguile-3.0.so", "lib/libgc.so.1",
+                             "lib/libgc.1.dylib", "lib/libgc-1.dll",
+                             "progs/init-texmacs.scm"):
+                path = source / relative
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("obsolete runtime")
+            with self.assertRaisesRegex(RuntimeError, "retired Scheme"):
+                verify_runtime(source)
+            copy_runtime(source, target, keep_source_libraries=True)
+            self.assertFalse(any(path.is_file() for path in target.rglob("*")))
+            verify_runtime(target)
+
     def test_copy_keeps_runtime_code_but_excludes_release_artifacts(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -76,15 +95,6 @@ class RuntimePolicyTest(unittest.TestCase):
             binary = runtime / "bin/ATHENA.bin"
             binary.parent.mkdir()
             binary.write_text("executable")
-            for relative in (
-                "lib/athena-guile/bin/guile",
-                "lib/athena-guile/lib/libathena-guile.so.1",
-                "lib/athena-guile/share/guile/3.0/ice-9/boot-9.scm",
-                "lib/athena-guile/lib/guile/3.0/ccache/ice-9/boot-9.go",
-            ):
-                dependency = runtime / relative
-                dependency.parent.mkdir(parents=True, exist_ok=True)
-                dependency.write_text("runtime")
             verify_runtime(runtime)
 
     def test_verify_allows_the_packaged_handwriting_model(self) -> None:

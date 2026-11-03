@@ -1,5 +1,6 @@
 // Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later.
 #include "view_fit.hpp"
+#include "boot.hpp"
 #include "view_zoom.hpp"
 #include "document_commands.hpp"
 #include "editor.hpp"
@@ -7,7 +8,7 @@
 #include "new_buffer.hpp"
 #include "tm_window.hpp"
 #include "buffer_actor.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 
 namespace {
 bool applicable (editor_rep* ed) {
@@ -34,7 +35,7 @@ void fit (editor_rep* ed) {
 }
 
 void view_schedule_fit_width () {
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   if (context) {
     if (context->editor) schedule (context->editor);
     return;
@@ -42,12 +43,12 @@ void view_schedule_fit_width () {
   tm_view view= concrete_view (get_current_view_safe ());
   if (!view) return;
   auto continuation= actor_continuation_registry::instance ().store ([] {
-    const auto* owner= current_scheme_execution_context ();
+    const auto* owner= current_execution_context ();
     if (owner && owner->editor) schedule (owner->editor);
   });
   if (!view->buf->actor->submit (actor_command_kind::run_native_continuation,
       view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB,
-      SCHEME_CAPABILITY_BUFFER, continuation))
+      EXECUTION_CAPABILITY_BUFFER, continuation))
     actor_continuation_registry::instance ().discard (continuation);
 }
 

@@ -205,7 +205,7 @@ QTMOutlinePane::activateItem (QTreeWidgetItem* item) {
   athena_blob_id payload= reservation.publish ();
   actor_command_ticket ticket= buffer_actor::submit_to (
     lastActorId, actor_command_kind::activate_outline_entry, lastViewId,
-    payload, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    payload, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
     static_cast<std::uint64_t> (path.size ()));
   if (!ticket) (void) actor_blob_registry::instance ().discard (payload);
 }

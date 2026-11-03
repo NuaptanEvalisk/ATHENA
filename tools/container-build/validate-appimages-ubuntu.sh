@@ -60,8 +60,8 @@ podman run --rm \
       if grep "not found" "$ldd_log"; then
         exit 1
       fi
-      if grep -E "libguile-(2|3)" "$ldd_log"; then
-        echo "unexpected system Guile dependency" >&2
+      if grep -E "lib(athena-)?guile" "$ldd_log"; then
+        echo "unexpected embedded Scheme dependency" >&2
         cat "$ldd_log" >&2
         exit 1
       fi
@@ -85,7 +85,7 @@ podman run --rm \
         cat "$startup_log" >&2
         exit "$startup_status"
       fi
-      if grep -E "Syntax error|Unbound variable|Backtrace:|libguile-(2|3)" "$startup_log"; then
+      if grep -E "fatal error|lib(athena-)?guile" "$startup_log"; then
         cat "$startup_log" >&2
         exit 1
       fi

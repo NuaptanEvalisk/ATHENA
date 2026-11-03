@@ -13,7 +13,6 @@
 #include "qt_utilities.hpp"
 
 #include "message.hpp"
-#include "scheme.hpp"
 #include "boot.hpp"
 
 #include <QColorDialog>
@@ -153,7 +152,7 @@ qt_color_picker_widget_rep::showDialog() {
     if (result == QDialog::Accepted && selected.isValid ()) {
       string name= from_qcolor (selected);
       color_picker_remember_color (name);
-      _commandAfterExecution (list_object (object (tree (name))));
+      _commandAfterExecution ();
     }
   }
 }

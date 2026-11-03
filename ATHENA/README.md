@@ -40,9 +40,10 @@ ATHENA is a fork of GNU TeXmacs with major changes:
   not understand.
 
 ATHENA can still benefit from TeXmacs' core strengths: structured documents,
-native mathematical editing, high-quality layout, TeX-style fonts, Guile/Scheme
-extension support, and a deep style system. The project also inherits decades
-of work by Joris van der Hoeven and the GNU TeXmacs contributors.
+native mathematical editing, high-quality layout, TeX-style fonts, and a deep
+style system. Commands and callbacks execute natively; external automation uses
+AUDMAP. The project also inherits decades of work by Joris van der Hoeven and
+the GNU TeXmacs contributors.
 
 ## Major Features
 
@@ -403,7 +404,7 @@ Recent ATHENA work includes substantial low-level engineering:
 - Font discovery caching.
 - Startup warming for font-menu probes to avoid first-open font dropdown lag.
 - Headless `--skip-fonts-cache` startup path for non-GUI RAG runs.
-- Cache invalidation when Scheme/package sources change.
+- Cache invalidation when package and style sources change.
 - Shared-memory backed runtime temporary files.
 - PDF/export fallback font safety.
 - Large-enunciation typing responsiveness fixes.
@@ -435,9 +436,9 @@ cp -a ../build_qt6/x64/lib/libqt6advanceddocking*.so* lib/
 ```
 
 Redistributable Linux builds are produced through the scripted openSUSE
-container/AppImage workflow under `tools/container-build`. Experimental native
-Windows release builds are produced through the MinGW-w64 cross-build workflow
-under `tools/windows-deps`. WSL2/WSLg runs the Linux build path rather than the
+container/AppImage workflow under `tools/container-build`. The experimental
+MinGW-w64 workflow under `tools/windows-deps` still requires native Windows
+build and packaging validation. WSL2/WSLg runs the Linux build path rather than the
 native Windows one.
 
 ## Compatibility

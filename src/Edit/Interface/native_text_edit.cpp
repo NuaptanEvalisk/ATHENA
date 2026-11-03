@@ -1,8 +1,10 @@
 // Copyright (C) 2001 Joris van der Hoeven, 2026 ATHENA contributors.
 // GPL-3.0-or-later.
 #include "insertion_commands.hpp"
+#include "boot.hpp"
 #include "editing_utilities.hpp"
 #include "native_text_edit.hpp"
+#include "table_commands.hpp"
 #include "native_interfaces.hpp"
 #include "editor.hpp"
 #include "tree_traverse.hpp"
@@ -354,19 +356,19 @@ bool text_list_context (tree t) {
   return text_node_in_group (t, "list-tag");
 }
 
-object text_previous_section () {
+std::optional<tree> text_previous_section () {
   editor ed= get_current_editor ();
   const path relative= ed->the_path () / ed->the_buffer_path ();
   tree buffer= ed->the_buffer ();
   const path previous= previous_section (buffer, relative);
-  return previous == relative ? object (false) :
-    object (subtree (buffer, previous));
+  if (previous == relative) return std::nullopt;
+  return subtree (buffer, previous);
 }
 
 void text_go_to_section_title () {
-  object previous= text_previous_section ();
-  if (!is_tree (previous)) return;
-  tree section= as_tree (previous);
+  auto previous= text_previous_section ();
+  if (!previous) return;
+  tree section= *previous;
   if (text_node_in_group (section, "section-tag") ||
       text_node_in_group (section, "section*-tag"))
     get_current_editor ()->go_to_start (reverse (obtain_ip (section)) * 0);
@@ -473,14 +475,15 @@ bool text_numbered_numbered (tree t) {
     (text_node_in_group (t, "numbered-tag", true) && !ends (as_string (L(t)), "*"));
 }
 void text_numbered_toggle (tree t) {
+  editor ed= get_current_editor ();
+  if (athena::table_commands::eqnarray_toggle_numbering (ed.operator-> (), t)) return;
   string tag= as_string (L(t));
   if (text_node_in_group (t, "itemize-tag")) tag= "enumerate";
   else if (text_node_in_group (t, "enumerate-tag")) tag= "itemize";
   else if (text_node_in_group (t, "numbered-tag", true))
     tag= ends (tag, "*") ? tag (0, N(tag)-1) : tag * "*";
   else {
-    object parent= tree_command_outer (t);
-    if (is_tree (parent)) text_numbered_toggle (as_tree (parent));
+    if (auto parent= tree_command_outer (t)) text_numbered_toggle (*parent);
     return;
   }
   editing_variant_set (t, as_tree_label (tag));
@@ -556,9 +559,7 @@ void text_algorithm_toggle_name (tree t) {
   }
 }
 
-bool text_heading_fold_toggle (object value) {
-  if (!is_tree (value)) return false;
-  tree t= as_tree (value);
+bool text_heading_fold_toggle (tree t) {
   const path ip= obtain_ip (t);
   if (!ip_attached (ip)) return false;
   editor ed= get_current_editor ();
@@ -566,9 +567,8 @@ bool text_heading_fold_toggle (object value) {
   return ed->heading_fold_toggle ();
 }
 
-tree text_heading_word_count (object value) {
-  if (get_preference ("heading word counts", "off") != "on" || !is_tree (value)) return "";
-  tree t= as_tree (value);
+tree text_heading_word_count (tree t) {
+  if (get_preference ("heading word counts", "off") != "on") return "";
   const path ip= obtain_ip (t);
   if (!ip_attached (ip)) return "";
   const int count= get_current_editor ()->heading_word_count_at (reverse (ip));

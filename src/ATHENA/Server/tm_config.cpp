@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "tm_config.hpp"
+#include "boot.hpp"
 #include "analyze.hpp"
 #include "gui_text.hpp"
 #include "native_latex_commands.hpp"

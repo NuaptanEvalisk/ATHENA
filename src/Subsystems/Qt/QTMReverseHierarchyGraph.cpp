@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMReverseHierarchyGraph.hpp"
+#include "boot.hpp"
 
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/graph/fruchterman_reingold.hpp>

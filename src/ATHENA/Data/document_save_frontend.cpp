@@ -14,7 +14,7 @@
 #include "buffer_actor.hpp"
 #include "buffer_name_catalog.hpp"
 #include "tm_data.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #include "GoogleCloudTodo.hpp"
 #include "document_persistence.hpp"
 #include "buffer_export.hpp"
@@ -39,7 +39,7 @@ void remove_autosave (url name) {
 }
 
 void queue_cloud_sync (url name) {
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   buffer_actor* actor= context == nullptr? nullptr: context->actor;
   athena_view_id view= context == nullptr? ATHENA_NO_VIEW: context->view_id;
   if (actor == nullptr) {
@@ -58,13 +58,13 @@ void queue_cloud_sync (url name) {
   auto ticket= buffer_actor::submit_to (
     actor->id (), actor_command_kind::run_native_continuation,
     view, ATHENA_NO_BLOB, ATHENA_NO_BLOB,
-    SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_GLOBAL, id);
+    EXECUTION_CAPABILITY_BUFFER | EXECUTION_CAPABILITY_GLOBAL, id);
   if (!ticket) actor_continuation_registry::instance ().discard (id);
 }
 }
 
 void document_save_preserve_viewport (url name) {
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   if (context != nullptr && context->editor != nullptr &&
       context->actor != nullptr && context->actor->current_buffer_url () == name)
     context->editor->notify_change (THE_FREEZE);
@@ -108,7 +108,7 @@ namespace {
 struct save_request {
   athena_actor_id actor;
   athena_view_id view;
-  SchemeCapabilitySet capabilities;
+  ExecutionCapabilitySet capabilities;
   std::string source, destination;
   bool overwrite= false;
   std::function<void()> completed;
@@ -127,7 +127,7 @@ bool open_buffer (url name) {
 }
 
 save_task make_save_request (url source, bool overwrite= false) {
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   auto request= std::make_shared<save_request> ();
   request->source= encode_url (source);
   if (context && context->actor && context->actor->current_buffer_url () == source) {
@@ -141,26 +141,15 @@ save_task make_save_request (url source, bool overwrite= false) {
   }
   if (request->actor == ATHENA_NO_ACTOR)
     throw std::runtime_error ("The buffer to save no longer exists");
-  request->capabilities= SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_GLOBAL;
+  request->capabilities= EXECUTION_CAPABILITY_BUFFER | EXECUTION_CAPABILITY_GLOBAL;
   request->overwrite= overwrite;
   return request;
 }
 
-save_task make_save_request (object arguments) {
-  url source= get_current_buffer_safe ();
-  if (!is_null (arguments) && is_url (car (arguments))) {
-    source= as_url (car (arguments));
-    arguments= cdr (arguments);
-  }
-  bool overwrite= false;
-  for (object opts= arguments; !is_null (opts); opts= cdr (opts))
-    if (car (opts) == keyword_object ("overwrite")) overwrite= true;
-  return make_save_request (source, overwrite);
-}
 
 void resume_save (save_task request, std::function<void()> next) {
   auto id= actor_continuation_registry::instance ().store ([request, next] {
-    const auto* context= current_scheme_execution_context ();
+    const auto* context= current_execution_context ();
     if (!context || !context->actor ||
         (request->view != ATHENA_NO_VIEW && !context->editor) ||
         context->actor->current_buffer_url () != url (request->source.c_str ())) return;
@@ -173,7 +162,7 @@ void resume_save (save_task request, std::function<void()> next) {
 }
 
 void start_save (save_task request, std::function<void()> next) {
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   if (context && context->actor_id == request->actor) next ();
   else resume_save (request, std::move (next));
 }
@@ -300,8 +289,8 @@ bool document_cannot_write (url name, string action) {
   return false;
 }
 
-void document_save (object arguments) {
-  auto request= make_save_request (arguments);
+void document_save () {
+  auto request= make_save_request (get_current_buffer_safe ());
   start_save (request, [request] { save_permissions (request); });
 }
 
@@ -319,18 +308,17 @@ void start_manual_save (save_task request) {
 }
 }
 
-void document_save_manual (object arguments) {
-  start_manual_save (make_save_request (arguments));
+void document_save_manual () {
+  start_manual_save (make_save_request (get_current_buffer_safe ()));
 }
 
 void document_save_manual (url source) {
   start_manual_save (make_save_request (source));
 }
 
-void document_save_as (object destination, object arguments) {
-  auto request= make_save_request (arguments);
-  request->destination= encode_url (is_url (destination)? as_url (destination):
-                                   url_system (as_string (destination)));
+void document_save_as (url destination) {
+  auto request= make_save_request (get_current_buffer_safe ());
+  request->destination= encode_url (destination);
   start_save (request, [request] { save_as_permissions (request); });
 }
 
@@ -339,60 +327,6 @@ void document_save_dialog () {
   start_save (request, [request] { choose_save_destination (request); });
 }
 
-namespace {
-void start_export (url source, string target, bool relative_text, string format,
-                   bool portable, bool overwrite) {
-  if (relative_text) target= replace (replace (target, ":", "-"), ";", "-");
-  auto request= make_save_request (source, overwrite);
-  request->destination= std::string (target.data (), N(target));
-  const std::string fmt (format.data (), N(format));
-  start_save (request, [request, relative_text, portable, fmt] {
-    url destination= relative_text ? relative (get_master_buffer (url (request->source.c_str ())),
-                                               url_system (request->destination.c_str ())):
-                                    url (request->destination.c_str ());
-    request->destination= encode_url (destination);
-    if (document_cannot_write (destination, "Export file")) return;
-    auto export_document= [request, portable, fmt] {
-      auto settings= conversion_options_snapshot ();
-      if (fmt == "latex" && portable) settings["texmacs->latex:portable"]= "on";
-      url destination (request->destination.c_str ());
-      const bool failed= buffer_export_request (url (request->source.c_str ()), destination,
-                                                string (fmt.c_str ()), settings);
-      get_server ()->set_message (compound ("concat", failed ? "Could not save " : "Exported to ",
-        compound ("verbatim", as_string (destination, URL_SYSTEM))), "Export file");
-    };
-    if (is_of_type (destination, "f") && !request->overwrite)
-      confirm_save (request, QObject::tr ("File already exists. Really overwrite?"),
-                    export_document, QObject::tr ("Export file"));
-    else export_document ();
-  });
-}
-}
-
-void document_export_main (url source, object destination, string format, object options) {
-  bool portable= false, overwrite= false;
-  if (is_list (destination) && !is_null (destination) && is_url (car (destination))) {
-    object rest= cdr (destination);
-    portable= !is_null (rest) && is_string (car (rest)) && as_string (car (rest)) == "on";
-    destination= car (destination);
-  }
-  for (object opts= options; !is_null (opts); opts= cdr (opts)) {
-    if (car (opts) == keyword_object ("latex-portable")) portable= true;
-    if (car (opts) == keyword_object ("overwrite")) overwrite= true;
-  }
-  const bool relative_text= is_string (destination);
-  start_export (source, relative_text ? as_string (destination) : as_string (as_url (destination)),
-                relative_text, format, portable, overwrite);
-}
-
-void document_export (object destination) {
-  const url target= is_url (destination) ? as_url (destination) : url_system (as_string (destination));
-  string format= file_format (target);
-  if (format == "generic") format= "verbatim";
-  const bool relative_text= is_string (destination);
-  start_export (get_current_buffer (), relative_text ? as_string (destination) : as_string (target),
-                relative_text, format, false, true);
-}
 
 bool document_autosave_enabled (url source) {
   return get_preference ("document save mode") == "autosave" &&

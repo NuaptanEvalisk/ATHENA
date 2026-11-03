@@ -24,12 +24,13 @@ class AuditTests(unittest.TestCase):
         (self.source/'Notes Root/example.ath').write_text('original')
         self.config = dict(node_model_version=2, backup_dispatchers=[{'destination': '/forbidden'}],
                            map_path='map.sqlite', namespace_db_path='ns.sqlite',
-                           preferences_path='vprefs.json', startup_page='user-page')
+                           preferences_path='vprefs.json', startup_page='user-page',
+                           websites_path='.athena/load-audit-websites.json')
         (self.source/'Vaultfile.json').write_text(json.dumps(self.config))
         self.output = self.root/'output'
         self.output.mkdir()
-        self.args = argparse.Namespace(vault=self.source, runtime=self.root,
-            resources=self.root, settle=0, timeout=1, binary=self.root/'fake-athena')
+        self.args = argparse.Namespace(vault=self.source,
+            resources=self.root, timeout=1, binary=self.root/'fake-athena')
 
     def test_snapshot_keeps_source_and_removes_backup_targets(self):
         original = (self.source/'Vaultfile.json').read_bytes()
@@ -47,27 +48,34 @@ class AuditTests(unittest.TestCase):
 
     def run_fake(self, body):
         self.args.binary.write_text('#!/usr/bin/env python3\n'
-            'import os, pathlib, time\n' + body)
+            'import json, os, pathlib, sys, time\n'
+            'assert sys.argv[1:4] == ["-H", "-X", "--generate-website"]\n'
+            'vault = pathlib.Path(sys.argv[4])\n'
+            'website = json.loads((vault/".athena/load-audit-websites.json").read_text())["websites"][0]\n'
+            'site = pathlib.Path(website["destination"])\n'
+            'def complete_export():\n'
+            '    site.mkdir()\n'
+            '    (site/"page.html").write_text("<html>export</html>")\n'
+            '    (site/"page.pdf").write_bytes(b"%PDF-1.7 probe")\n' + body)
         self.args.binary.chmod(0o755)
         home = self.root/'home'
         home.mkdir()
         return audit.check_one(self.args, self.output, self.source,
             self.config, home, Path('Notes Root/example.ath'), 1)
 
-    def test_success_requires_completion_report(self):
+    def test_success_requires_native_exports(self):
         entry = self.run_fake('pass\n')
         self.assertEqual(entry['status'], 'FAILED')
 
     def test_success(self):
         entry = self.run_fake(
-            'pathlib.Path(os.environ["ATHENA_LOAD_AUDIT_RESULT"]).write_text("#t")\n')
+            'complete_export()\n')
         self.assertEqual(entry['status'], 'OK')
 
     def test_error_pane_diagnostics_are_reported(self):
         entry = self.run_fake(
-            'pathlib.Path(os.environ["ATHENA_LOAD_AUDIT_RESULT"]).write_text("#t")\n'
-            'pathlib.Path(os.environ["ATHENA_LOAD_AUDIT_MESSAGES"]).write_text('
-            '"typeset-warning: invalid rubber character\\n")\n')
+            'complete_export()\n'
+            'print("typeset-warning: invalid rubber character")\n')
         self.assertEqual(entry['status'], 'DIAGNOSTICS')
         self.assertIn('invalid rubber', entry['diagnostics'][0])
 

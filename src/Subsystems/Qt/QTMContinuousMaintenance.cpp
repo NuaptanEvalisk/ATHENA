@@ -20,7 +20,6 @@
 #include "buffer_state.hpp"
 #include "editor.hpp"
 #include "native_interfaces.hpp"
-#include "scheme.hpp"
 #include "node_metadata.hpp"
 #include "vault.hpp"
 #include "boot.hpp"
@@ -99,7 +98,7 @@ class Maintenance final: public QObject {
         std::string deferred;
         try {
           if (!stop->load () && vault_context_is_current (vault)) {
-            const auto* execution= current_scheme_execution_context ();
+            const auto* execution= current_execution_context ();
             if (!execution || !execution->actor || !execution->editor)
               throw MaintenanceDeferred {"Source view is no longer available"};
             auto* owner= execution->actor;
@@ -145,7 +144,7 @@ class Maintenance final: public QObject {
         reply->ready.notify_one ();
       });
     if (!buffer_actor::try_submit_to (actor, actor_command_kind::run_native_continuation,
-          view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, callback)) {
+          view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, callback)) {
       actor_continuation_registry::instance ().discard (callback);
       throw MaintenanceDeferred {
         "Nonblocking actor submission unavailable (actor lifecycle or queue contention)"};

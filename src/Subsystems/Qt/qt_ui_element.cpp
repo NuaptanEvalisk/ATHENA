@@ -23,7 +23,6 @@
 #include "widget.hpp"
 #include "message.hpp"
 #include "promise.hpp"
-#include "scheme.hpp"
 
 #include "QTMApplication.hpp"
 #include "QTMWindow.hpp"
@@ -147,7 +146,7 @@ class qt_toggle_command_rep: public command_rep {
   
 public:
   qt_toggle_command_rep(QCheckBox* w, command c) : qwid(w), cmd(c) { }
-  void apply () { if (qwid) cmd (list_object (object (qwid->isChecked()))); }
+  void apply () { if (qwid) cmd (); }
 
   tm_ostream& print (tm_ostream& out) { return out << "<command qt_toggle>"; }
 };
@@ -166,7 +165,7 @@ public:
   qt_enum_command_rep(QComboBox* w, command c) : qwid(w), cmd(c) {}
   void apply () { 
     if (qwid)
-      cmd (list_object (object (from_qstring(qwid->currentText()))));
+      cmd ();
   }
   
   tm_ostream& print (tm_ostream& out) { return out << "<command qt_enum>"; }

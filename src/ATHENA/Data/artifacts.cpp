@@ -29,7 +29,6 @@
 #include "Data/Convert/Generic/conversion_executor.hpp"
 #include "Data/NodeContracts/execution_state.hpp"
 #include "file.hpp"
-#include "scheme.hpp"
 #include "System/Boot/boot.hpp"
 #include "tm_ostream.hpp"
 
@@ -501,9 +500,9 @@ tree artifact_semantic_tree (const tree& t) {
 
 std::string latex_for_tree (const tree& t) {
   tree semantic= artifact_semantic_tree (t);
-  // Standalone artifact readers and unit tests do not boot Guile.  Their range
-  // selectors only need a stable textual representation; the full ATHENA
-  // process continues to use the normal LaTeX converter below.
+  // Standalone artifact readers have no application converter context. Their
+  // range selectors only need stable text; the full application uses the normal
+  // LaTeX converter below.
   if (headless_mode)
     return to_std (tree_to_texmacs (semantic));
   try {
@@ -1617,7 +1616,7 @@ bool apply_bindings_to_open_buffer (
   auto continuation= actor_continuation_registry::instance ().store (
     [response, assignments_ptr= &assignments, view= endpoint.second] {
       try {
-        auto* owner= current_scheme_execution_context ()->actor;
+        auto* owner= current_execution_context ()->actor;
         if (!owner) throw std::runtime_error ("Artifact binding has no BufferActor owner");
         tree& source= owner->current_source (view);
         tree live_body= document_body (source);
@@ -1651,7 +1650,7 @@ bool apply_bindings_to_open_buffer (
   if (!buffer_actor::invoke_on (
         endpoint.first, actor_command_kind::run_native_continuation,
         endpoint.second, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
-        SCHEME_CAPABILITY_BUFFER, continuation)) {
+        EXECUTION_CAPABILITY_BUFFER, continuation)) {
     actor_continuation_registry::instance ().discard (continuation);
     error= "Open document stopped accepting artifact binding work";
     return true;

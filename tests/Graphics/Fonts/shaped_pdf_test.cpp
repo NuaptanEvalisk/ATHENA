@@ -21,7 +21,7 @@
 #include "pdf_text_string.hpp"
 #include "printer.hpp"
 #include "Ghostscript/gs_utilities.hpp"
-#include "scheme.hpp"
+#include "native_dispatch.hpp"
 #include <QCoreApplication>
 #include <QFile>
 #include <QImage>
@@ -391,7 +391,6 @@ static std::unique_ptr<QTemporaryDir> profile;
 static void run_tests (int, char **) {
   try {
     athena::contracts::initialize_builtins ();
-    eval ("(define (standard-paper-size value) value)");
     set_user_preference ("texmacs->pdf:version", "1.4");
     require (athena::text::pdf_text_string ("e\xcc\x81") == "<FEFF00650301>",
              "PDF text strings must preserve decomposed spelling");
@@ -508,6 +507,6 @@ int main (int argc, char **argv) {
   if (!profile->isValid () || std::getenv ("ATHENA_PATH") == nullptr)
     return 1;
   qputenv ("ATHENA_HOME_PATH", profile->path ().toUtf8 ());
-  start_scheme (argc, argv, run_tests);
+  run_tests (argc, argv);
   return status;
 }

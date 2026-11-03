@@ -24,7 +24,7 @@
 #include "data_cache.hpp"
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
-#include "scheme.hpp"
+#include "native_dispatch.hpp"
 #include "sys_utils.hpp"
 
 #include <cstdlib>
@@ -135,7 +135,6 @@ static void run_tests (int argc, char** argv) {
 
 int main (int argc, char** argv) {
   qputenv ("QT_QPA_PLATFORM", "offscreen");
-  qputenv ("GUILE_AUTO_COMPILE", "0");
   QTMApplication app (argc, argv);
   QTemporaryDir profile;
   if (!profile.isValid () || !QDir (profile.path ()).mkpath ("fonts")) return 1;
@@ -143,7 +142,7 @@ int main (int argc, char** argv) {
   cache_initialize ();
   reset_document_tree (current_document_tree ());
   init_athena ();
-  start_scheme (argc, argv, run_tests);
+  run_tests (argc, argv);
   return 1;
 }
 

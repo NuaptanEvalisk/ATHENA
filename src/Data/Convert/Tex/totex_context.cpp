@@ -7,6 +7,7 @@
 *******************************************************************************/
 
 #include "convert.hpp"
+#include "boot.hpp"
 #include "totex_internal.hpp"
 #include "latex_preprocess.hpp"
 #include "converter.hpp"

@@ -16,13 +16,13 @@
 #include "buffer_actor.hpp"
 #include "editor.hpp"
 #include "new_view.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 
 namespace {
 
 editor_rep*
 actor_frame_editor () noexcept {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   return context == nullptr ? nullptr : context->editor;
 }
 
@@ -262,7 +262,7 @@ tm_frame_rep::set_message (tree left, tree right, bool temp) {
     actor_tree_registry::instance ().store (std::move (right));
   if (!view->buf->actor->submit (
         actor_command_kind::set_message, view->runtime_id,
-        left_id, right_id, SCHEME_CAPABILITY_BUFFER,
+        left_id, right_id, EXECUTION_CAPABILITY_BUFFER,
         temp ? 1 : 0)) {
     (void) actor_tree_registry::instance ().discard (left_id);
     (void) actor_tree_registry::instance ().discard (right_id);
@@ -297,7 +297,7 @@ tm_frame_rep::full_screen_mode (bool on, bool edit) {
   });
   if (!view->buf->actor->submit (actor_command_kind::run_native_continuation,
         view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB,
-        SCHEME_CAPABILITY_BUFFER, continuation))
+        EXECUTION_CAPABILITY_BUFFER, continuation))
     actor_continuation_registry::instance ().discard (continuation);
 }
 

@@ -195,7 +195,7 @@ void reference_flatten_document () {
     return;
   }
   athena_node_reference_with_native_export ([] (editor_rep&) {
-    const auto* owner= current_scheme_execution_context ();
+    const auto* owner= current_execution_context ();
     const url source= owner->actor->current_buffer_url ();
     tree document= copy (owner->actor->current_source (owner->view_id));
     flattened_document flatten;

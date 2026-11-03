@@ -5,6 +5,7 @@
 *******************************************************************************/
 
 #include "native_math_keyboard.hpp"
+#include "boot.hpp"
 #include "editor.hpp"
 #include "edit_interface.hpp"
 #include "structured_commands.hpp"

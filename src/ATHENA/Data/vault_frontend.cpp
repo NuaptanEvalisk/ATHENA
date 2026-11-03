@@ -15,13 +15,11 @@
 #include "QTMVaultExplorer.hpp"
 #include "QTMNativeDialogs.hpp"
 #include "analyze.hpp"
-#include "scheme.hpp"
 #include "tm_configure.hpp"
 #include "url.hpp"
 #include "boot.hpp"
 #include "server.hpp"
 #include "native_interfaces.hpp"
-#include "guile_tm.hpp"
 #include "buffer_actor.hpp"
 #include "qt_utilities.hpp"
 #include "file.hpp"
@@ -146,7 +144,7 @@ void sync_preferences_mode () {
 }
 
 void on_gui_directory (url directory, void (*action) (url)) {
-  if (!current_scheme_execution_context ()) { action (directory); return; }
+  if (!current_execution_context ()) { action (directory); return; }
   const string name= as_string (directory);
   std::string transfer (name.data (), N(name));
   qt_post_to_main_thread ([transfer= std::move (transfer), action] {
@@ -231,6 +229,11 @@ action_node (string label, string command) {
 }
 
 tree
+action_node (string label, string command, string argument) {
+  return compound ("action", tree (label), tree (command), tree (argument));
+}
+
+tree
 item_node (tree content) {
   return compound ("concat", compound ("item"), content);
 }
@@ -260,12 +263,11 @@ welcome_body () {
 
   body << compound ("section*", "Start here");
   array<tree> start;
-  start << item_node (action_node ("Open a blank document", "(new-document)"));
+  start << item_node (action_node ("Open a blank document", "new-document"));
   if (N(recent_vaults) > 0) {
     url latest (recent_vaults[0]);
     string label= "Load latest vault (" * as_string (tail (latest), URL_SYSTEM) * ")";
-    string command= "(vault-load-latest-action " * scm_quote (recent_vaults[0]) * ")";
-    start << item_node (action_node (label, command));
+    start << item_node (action_node (label, "vault-load-latest-action", recent_vaults[0]));
   }
   body << enumerate_nodes (start);
 
@@ -277,9 +279,8 @@ welcome_body () {
   for (int i=0; i<N(recent_vaults); ++i) {
     url current (recent_vaults[i]);
     string label= as_string (tail (current), URL_SYSTEM);
-    string command= "(vault-load-latest-action " * scm_quote (recent_vaults[i]) * ")";
     vault_lines << item_node (compound (
-      "concat", action_node (label, command), "  ",
+      "concat", action_node (label, "vault-load-latest-action", recent_vaults[i]), "  ",
       compound ("with", "font-size", "0.85", "color", "grey",
                 tree (recent_vaults[i]))));
   }
@@ -290,8 +291,7 @@ welcome_body () {
   if (N(recent_files) == 0)
     file_lines << item_node (tree ("No recent files yet."));
   for (int i=0; i<N(recent_files); ++i) {
-    string command= "(load-buffer (system->url " * scm_quote (recent_files[i]) * "))";
-    file_lines << item_node (action_node (recent_files[i], command));
+    file_lines << item_node (action_node (recent_files[i], "load-buffer", recent_files[i]));
   }
   body << enumerate_nodes (file_lines);
 

@@ -61,8 +61,13 @@ def distribution_forbidden_reason(relative: Path, is_directory: bool) -> str | N
     rel = _normalized_relative(relative)
     for prefix in (PurePosixPath("."), PurePosixPath("usr/share/ATHENA")):
         if (rel.is_relative_to(prefix / "progs") or
-                rel.is_relative_to(prefix / "lib/athena-scheme")):
-            return "retired application Scheme source or bytecode"
+                rel.is_relative_to(prefix / "lib/athena-scheme") or
+                rel.is_relative_to(prefix / "lib/athena-guile") or
+                rel.is_relative_to(prefix / "lib/guile") or
+                rel.is_relative_to(prefix / "share/guile")):
+            return "retired Scheme runtime, source or bytecode"
+    if rel.name.startswith(("libguile", "libathena-guile", "libgc.", "libgc-")):
+        return "retired Scheme runtime library"
     if any(part in CACHE_DIRECTORY_NAMES for part in rel.parts):
         return "generated Python environment or cache"
     if not is_directory and _is_packaged_model_file(rel):
@@ -204,28 +209,6 @@ def verify_linux_services(root: Path) -> None:
     )
 
 
-def verify_private_guile(root: Path) -> None:
-    candidates = (root.resolve(), root.resolve() / "usr/share/ATHENA")
-    for runtime in candidates:
-        if not (runtime / "bin/ATHENA.bin").is_file():
-            continue
-        required = (
-            PurePosixPath("lib/athena-guile/bin/guile"),
-            PurePosixPath("lib/athena-guile/lib/libathena-guile.so.1"),
-            PurePosixPath(
-                "lib/athena-guile/share/guile/3.0/ice-9/boot-9.scm"
-            ),
-            PurePosixPath(
-                "lib/athena-guile/lib/guile/3.0/ccache/ice-9/boot-9.go"
-            ),
-        )
-        missing = [path for path in required if not (runtime / path).exists()]
-        if missing:
-            details = "\n".join(f"  missing: {path}" for path in missing)
-            raise RuntimeError(
-                "Linux runtime does not contain ATHENA's private Guile 3 "
-                "runtime:\n" + details
-            )
 
 
 def verify_runtime(root: Path, require_linux_services: bool = False) -> None:
@@ -240,7 +223,6 @@ def verify_runtime(root: Path, require_linux_services: bool = False) -> None:
         )
     if require_linux_services:
         verify_linux_services(root)
-    verify_private_guile(root)
 
 
 def main(argv: list[str]) -> int:

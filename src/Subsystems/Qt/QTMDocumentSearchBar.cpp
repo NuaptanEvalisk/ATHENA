@@ -262,7 +262,7 @@ QTMDocumentSearchBar::dispatchPending () {
       from_qstring (request.text));
   }
   auto ticket= view->buf->actor->try_submit (
-    request.kind, viewId, payload, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    request.kind, viewId, payload, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
     request.generation, request.flag1, request.flag2);
   if (!ticket) {
     if (payload != ATHENA_NO_BLOB)

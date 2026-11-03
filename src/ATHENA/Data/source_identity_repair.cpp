@@ -45,7 +45,7 @@ void repair_source_identity (const std::filesystem::path& vault,
         [name, expected, id, hash, version= decoded.version, completed] {
           std::string error;
           try {
-            const auto* execution= current_scheme_execution_context ();
+            const auto* execution= current_execution_context ();
             if (!execution || !execution->actor || !execution->editor)
               throw std::runtime_error ("Document view is no longer available; retry");
             auto* state= execution->actor->current_state ();
@@ -77,7 +77,7 @@ void repair_source_identity (const std::filesystem::path& vault,
           completed (true, std::move (error));
         });
       if (!buffer_actor::try_submit_to (owner.first, actor_command_kind::run_native_continuation,
-            owner.second, ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, continuation)) {
+            owner.second, ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, continuation)) {
         actor_continuation_registry::instance ().discard (continuation);
         throw std::runtime_error ("Document actor is busy; retry identity repair");
       }

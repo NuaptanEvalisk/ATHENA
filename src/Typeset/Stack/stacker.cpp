@@ -10,9 +10,9 @@
 ******************************************************************************/
 
 #include "Stack/stacker.hpp"
+#include "boot.hpp"
 #include "Boxes/construct.hpp"
 #include "tree_label.hpp"
-#include "scheme.hpp"
 
 static string
 athena_labels_mode (edit_env env) {

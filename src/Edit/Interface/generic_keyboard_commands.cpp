@@ -28,7 +28,6 @@
 #include "structured_commands.hpp"
 #include "new_view.hpp"
 #include "server.hpp"
-#include "scheme.hpp"
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
 #include "Subsystems/Qt/QTMESCSymbolPicker.hpp"
@@ -98,8 +97,8 @@ bool json_keyboard_string (QJsonValue value, string capture, string& result) {
     return true;
   }
   if (!value.isObject ()) return false;
-  QJsonObject object= value.toObject ();
-  if (object.value ("capture").toString () != "suffix") return false;
+  QJsonObject command_value= value.toObject ();
+  if (command_value.value ("capture").toString () != "suffix") return false;
   result= capture;
   return true;
 }
@@ -126,21 +125,21 @@ bool json_keyboard_tree (QJsonValue value, string capture, tree& result) {
   return true;
 }
 
-bool json_keyboard_argument (QJsonValue value, string capture, object& result) {
+bool json_keyboard_argument (QJsonValue value, string capture, command_value& result) {
   string text;
   if (json_keyboard_string (value, capture, text)) {
-    result= object (text);
+    result= command_value (text);
     return true;
   }
   if (value.isBool ()) {
-    result= object (value.toBool ());
+    result= command_value (value.toBool ());
     return true;
   }
   if (!value.isObject ()) return false;
   QJsonObject obj= value.toObject ();
   QJsonValue symbol= obj.value ("symbol");
   if (!symbol.isString ()) return false;
-  result= symbol_object (keyboard_native_string (symbol.toString ()));
+  result= as_tree_label (keyboard_native_string (symbol.toString ()));
   return true;
 }
 
@@ -234,14 +233,14 @@ bool dispatch_json_keyboard_action (QJsonObject descriptor,
   QJsonValue args_value= descriptor.value ("args");
   ASSERT (function_value.isString () && args_value.isArray (),
           "invalid native keyboard action descriptor");
-  array<object> args;
+  command_arguments args;
   for (QJsonValue value: args_value.toArray ()) {
-    object arg;
+    command_value arg;
     ASSERT (json_keyboard_argument (value, capture, arg),
             "invalid keyboard action call argument");
     args << arg;
   }
-  object result;
+  command_value result;
   if (!native_dispatch_call (keyboard_native_string (function_value.toString ()),
                              args, result))
     throw std::invalid_argument ("Unknown native keyboard action: " +
@@ -445,9 +444,12 @@ void generic_kbd_vertical (tree t, bool downwards) {
 
 void generic_kbd_extremal (tree t, bool forwards) {
   if (graphical_text_context (t)) {
-    object child= tree_command_down (t);
-    if (!(is_bool (child) && !as_bool (child)))
-      tree_command_go_to (child, list_object (keyword_object (forwards ? "end" : "start")));
+    if (auto child= tree_command_down (t)) {
+      editor ed= get_current_editor ();
+      const path p= reverse (obtain_ip (*child));
+      ed->go_to (forwards ? ed->command_tree_end (ed->the_root (), p) :
+                            ed->command_tree_start (ed->the_root (), p));
+    }
     return;
   }
   if (!admits_edit_observer (t)) {
@@ -475,8 +477,8 @@ void generic_kbd_page_up_raw () { dispatch_focus (generic_kbd_incremental, false
 void generic_kbd_page_down_raw () { dispatch_focus (generic_kbd_incremental, true); }
 
 static void dispatch_keyboard_move (string move) {
-  object result;
-  if (!native_dispatch_call (move, array<object> (), result))
+  command_value result;
+  if (!native_dispatch_call (move, command_arguments (), result))
     throw std::invalid_argument ("Unknown native movement command: " +
                                  std::string (move.data (), N(move)));
 }

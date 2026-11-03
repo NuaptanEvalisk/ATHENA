@@ -7,6 +7,7 @@
 *******************************************************************************/
 
 #include "QTMVaultMaintenanceDialog.hpp"
+#include "boot.hpp"
 
 #include "ATHENA/Data/vault_maintenance.hpp"
 #include "athena_platform.hpp"

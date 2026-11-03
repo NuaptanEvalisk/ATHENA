@@ -16,7 +16,6 @@
 #include "analyze.hpp"
 #include "utf8_edit.hpp"
 #include "hashset.hpp"
-#include "scheme.hpp"
 #include "Data/NodeContracts/node_groups.hpp"
 #include "Data/NodeContracts/builtin_contracts.hpp"
 #include "Data/NodeContracts/native_fields.hpp"

@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "pdf_hummus_renderer.hpp"
+#include "boot.hpp"
 #include "page_type.hpp"
 #include "Freetype/tt_file.hpp"
 #include "file.hpp"
@@ -17,7 +18,6 @@
 #include "analyze.hpp"
 #include "iterator.hpp"
 #include "merge_sort.hpp"
-#include "scheme.hpp"
 #include "sys_utils.hpp"
 #include "convert.hpp"
 #include "converter.hpp"

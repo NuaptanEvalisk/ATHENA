@@ -50,8 +50,8 @@ remains unchanged outside this explicit private-bridge mode.
 ## Build
 
 First produce the release AppImage with the existing container build. It
-contains ATHENA's private Guile runtime and the shared-library closure required
-by the openSUSE sandbox. Then build the web image:
+contains the native ATHENA executable and its shared-library closure for the
+openSUSE sandbox. Then build the web image:
 
 ```bash
 tools/athena-web-server/build-image.sh \

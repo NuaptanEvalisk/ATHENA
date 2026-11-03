@@ -14,7 +14,6 @@
 #include "buffer_actor.hpp"
 #include "buffer_name_catalog.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
 #include "Interface/edit_interface.hpp"
 #include "tree_cursor.hpp"
 #include "Edit/Interface/vault_navigation.hpp"
@@ -224,7 +223,7 @@ public:
         athena_refresh_node_reference_view ();
       });
       if (buffer_actor::try_submit_to (it->first, actor_command_kind::run_native_continuation,
-          it->second, ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, callback))
+          it->second, ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, callback))
         it= refresh.erase (it);
       else { actor_continuation_registry::instance ().discard (callback); ++it; }
     }
@@ -387,7 +386,7 @@ view get (std::vector<std::string> ids, std::vector<std::string> ancestry,
       fresh= true;
     }
     current= stored;
-    if (const auto* context= current_scheme_execution_context ())
+    if (const auto* context= current_execution_context ())
       if (context->actor) stored->subscribers.emplace (context->actor_id, context->view_id);
     result= require_current? stored->verified: stored->published;
     if (require_current && (stored->refreshing ||
@@ -427,20 +426,20 @@ bool athena_node_reference_open (string target) {
     if (found == ref::entries.end ()) return false;
     entry= found->second;
   }
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   const auto origin= context && context->actor ? context->actor_id : published_active_buffer ();
   qt_post_to_main_thread ([entry, origin] { ref::controller ()->navigate (entry, origin); });
   return true;
   }
   catch (const std::exception& e) {
-    const auto* context= current_scheme_execution_context ();
+    const auto* context= current_execution_context ();
     if (context && context->actor && context->editor)
       context->editor->set_message ("Node reference", tree (e.what ()), true);
     return false;
   }
 }
 bool athena_node_reference_position (string identity) {
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   if (!context || !context->actor || !context->editor) return false;
   auto* editor= context->editor;
   const std::string id (identity.data (), std::size_t (N(identity)));

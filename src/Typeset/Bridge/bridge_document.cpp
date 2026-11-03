@@ -10,7 +10,7 @@
 ******************************************************************************/
 
 #include "bridge.hpp"
-#include "scheme.hpp"
+#include "boot.hpp"
 #include "tm_timer.hpp"
 
 static string

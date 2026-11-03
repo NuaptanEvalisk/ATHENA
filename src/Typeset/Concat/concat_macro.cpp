@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "concater.hpp"
+#include "boot.hpp"
 #include "Env/local_environment.hpp"
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
 #include "ATHENA/Data/transclusion_cache.hpp"
@@ -17,7 +18,6 @@
 #include "enunciation_surround.hpp"
 #include "Format/format.hpp"
 #include "formatter.hpp"
-#include "glue.hpp"
 #include "hashset.hpp"
 #include "radioactive_link_scope.hpp"
 

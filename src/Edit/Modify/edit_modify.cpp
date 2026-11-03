@@ -10,10 +10,10 @@
 ******************************************************************************/
 
 #include "modification.hpp"
+#include "boot.hpp"
 #include "edit_modify.hpp"
 #include "ATHENA/Data/compound_document_edit.hpp"
 #include "tm_window.hpp"
-#include "scheme.hpp"
 #include "node_metadata.hpp"
 #include "ATHENA/Data/document_node_copy.hpp"
 #include "ATHENA/Data/node_reference.hpp"
@@ -648,7 +648,7 @@ edit_modify_rep::coordinate_source_move_history (bool redo) {
     auto answer= std::make_shared<response> ();
     auto continuation= actor_continuation_registry::instance ().store (
       [answer, marker, action] {
-        const auto* context= current_scheme_execution_context ();
+        const auto* context= current_execution_context ();
         editor_rep* editor= context ? context->editor : nullptr;
         if (editor == nullptr) return;
         switch (action) {
@@ -669,7 +669,7 @@ edit_modify_rep::coordinate_source_move_history (bool redo) {
     if (!buffer_actor::invoke_on (
           endpoint.actor, actor_command_kind::run_native_continuation,
           endpoint.view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
-          SCHEME_CAPABILITY_BUFFER, continuation)) {
+          EXECUTION_CAPABILITY_BUFFER, continuation)) {
       actor_continuation_registry::instance ().discard (continuation);
       return false;
     }

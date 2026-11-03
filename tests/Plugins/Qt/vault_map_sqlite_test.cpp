@@ -20,7 +20,7 @@
 #include "transclusion_cache.hpp"
 #include "link_peek.hpp"
 #include "node_metadata.hpp"
-#include "Scheme/Scheme/native_interfaces.hpp"
+#include "native_interfaces.hpp"
 #include "convert.hpp"
 #include "Data/NodeContracts/execution_state.hpp"
 #include "file.hpp"

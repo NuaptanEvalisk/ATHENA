@@ -12,11 +12,10 @@
 #include "file.hpp"
 #include "web_files.hpp"
 #include "boot.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #include "editor.hpp"
 #include "QTMNativeDialogs.hpp"
 #include "convert.hpp"
-#include "object.hpp"
 #include "native_interfaces.hpp"
 #include "analyze.hpp"
 #include "buffer_actor.hpp"
@@ -47,13 +46,13 @@ std::string encode (url name) {
 }
 
 athena_actor_id current_actor () {
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   if (context && context->actor_id != ATHENA_NO_ACTOR) return context->actor_id;
   return published_buffer_actor_id (encode (get_current_buffer_safe ()));
 }
 
 void on_gui (std::function<void()> action) {
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   if (context && context->editor && context->editor->ui_endpoint &&
       context->editor->ui_endpoint->viewport ().attached) {
     context->editor->ui_endpoint->publish_continuation (std::move (action));
@@ -63,7 +62,7 @@ void on_gui (std::function<void()> action) {
 }
 
 void on_document_gui (std::function<void()> action) {
-  if (current_scheme_execution_context () == nullptr) action ();
+  if (current_execution_context () == nullptr) action ();
   else on_gui (std::move (action));
 }
 
@@ -82,21 +81,11 @@ bool window_exists (url window) {
 }
 
 using load_options= application_document_load_options;
-load_options decode_load_options (object options) {
-  load_options result;
-  for (; !is_null (options); options= cdr (options)) {
-    object option= car (options);
-    if (option == keyword_object ("background")) result.background= true;
-    if (option == keyword_object ("new-window")) result.new_window= true;
-    if (option == keyword_object ("strict")) result.strict= true;
-  }
-  return result;
-}
 
 void schedule_loaded_cloud_sync (athena_actor_id actor, athena_view_id view) {
   QTimer::singleShot (1000, QCoreApplication::instance (), [actor, view] {
     auto continuation= actor_continuation_registry::instance ().store ([actor, view] {
-      const auto* context= current_scheme_execution_context ();
+      const auto* context= current_execution_context ();
       if (context->editor && context->editor->idle_time () < 1000) {
         on_gui ([actor, view] { schedule_loaded_cloud_sync (actor, view); });
         return;
@@ -104,7 +93,7 @@ void schedule_loaded_cloud_sync (athena_actor_id actor, athena_view_id view) {
       google_cloud_todo_sync_buffer (context->actor->current_buffer_url (), false);
     });
     if (!buffer_actor::submit_to (actor, actor_command_kind::run_native_continuation, view,
-          ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_GLOBAL,
+          ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER | EXECUTION_CAPABILITY_GLOBAL,
           continuation)) actor_continuation_registry::instance ().discard (continuation);
   });
 }
@@ -154,7 +143,7 @@ void load_document_permissions (url name, load_options options,
     auto continuation= actor_continuation_registry::instance ().store ([] { document_set_default_style (); });
     if (!buffer_actor::submit_to (source.first, actor_command_kind::run_native_continuation,
           source.second, ATHENA_NO_BLOB, ATHENA_NO_BLOB,
-          SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_GLOBAL, continuation))
+          EXECUTION_CAPABILITY_BUFFER | EXECUTION_CAPABILITY_GLOBAL, continuation))
       actor_continuation_registry::instance ().discard (continuation);
     get_server ()->set_message (compound ("concat", "Could not load ", filename,
       ". Created new document"), "Load file");
@@ -409,12 +398,6 @@ void application_close_buffer () {
   });
 }
 
-void application_close_window (object arguments) {
-  std::optional<url> window;
-  if (!is_null (arguments))
-    window= is_url (car (arguments)) ? as_url (car (arguments)) : url (as_string (car (arguments)));
-  application_close_window (window);
-}
 
 void application_close_window (std::optional<url> requested) {
   const bool explicit_window= requested.has_value ();
@@ -470,11 +453,6 @@ array<url> application_sorted_buffers () {
   return result;
 }
 
-void application_open_auxiliary (string name, tree body, object master) {
-  const url base= is_null (master) ? get_master_buffer (get_current_buffer ()) :
-    (is_string (car (master)) ? url (as_string (car (master))) : as_url (car (master)));
-  athena_open_auxiliary_document (name, body, base);
-}
 
 namespace {
 void open_document_dialog (bool window) {
@@ -502,23 +480,10 @@ void application_queue_open_document (url source) {
 void application_open_window_url (url source) {
   if (!is_none (source)) application_load_document_window (source, load_options {});
 }
-namespace {
-url revert_source (object arguments) {
-  return is_null (arguments) ? get_current_buffer () :
-    (is_string (car (arguments)) ? url_system (as_string (car (arguments))) : as_url (car (arguments)));
-}
-}
-void application_revert_buffer (object arguments) { request_revert (revert_source (arguments), true); }
+void application_revert_buffer () { request_revert (get_current_buffer (), true); }
 void application_revert_buffer (url source) { request_revert (source, true); }
-void application_revert_buffer_now (object arguments) { request_revert (revert_source (arguments), false); }
 
-void application_load_document (url source, object options) {
-  application_load_document (source, options, {});
-}
 
-void application_load_document (url source, object options, std::function<void(url)> completed) {
-  application_load_document (source, decode_load_options (options), std::move (completed));
-}
 
 void application_load_document (url source, application_document_load_options settings,
                                 std::function<void(url)> completed) {
@@ -528,9 +493,6 @@ void application_load_document (url source, application_document_load_options se
   });
 }
 
-void application_load_document_window (url source, object options) {
-  application_load_document_window (source, decode_load_options (options));
-}
 
 void application_load_document_window (url source, application_document_load_options settings) {
   const std::string name= encode (source);
@@ -542,11 +504,6 @@ void application_load_document_window (url source, application_document_load_opt
   });
 }
 
-void application_open_loaded_document (url source, object options) {
-  const std::string name= encode (source);
-  const load_options settings= decode_load_options (options);
-  on_document_gui ([name, settings] { open_loaded_document (url (name.c_str ()), settings); });
-}
 
 void application_browse_document (url source) {
   application_browse_document (source, std::function<void(url)> ());
@@ -559,9 +516,9 @@ void application_browse_document (url source, std::function<void(url)> completed
   on_document_gui ([name, completed] { browse_document_gui (url (name.c_str ()), completed); });
 }
 
-void application_import_document (url source, string format, object options) {
+void application_import_document (url source, string format,
+                                  application_document_load_options settings) {
   const std::string encoded= encode (source), selected (format.data (), N(format));
-  const load_options settings= decode_load_options (options);
   on_gui ([encoded, selected, settings] {
     url source (encoded.c_str ());
     const url search= url ("$ATHENA_FILE_PATH") * source;

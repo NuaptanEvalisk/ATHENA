@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMContinuousRag.hpp"
+#include "boot.hpp"
 #include "QTMSystemPowerMonitor.hpp"
 
 #include "rag_index.hpp"
@@ -16,7 +17,6 @@
 #include "rag_realtime_generation.hpp"
 #include "ATHENA/Data/node_location_cache.hpp"
 #include "ATHENA/Data/background_workers.hpp"
-#include "scheme.hpp"
 #include "tm_ostream.hpp"
 #include "vault.hpp"
 

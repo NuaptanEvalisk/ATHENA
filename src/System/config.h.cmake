@@ -18,10 +18,6 @@
 /* gs lib */
 #cmakedefine GS_LIB "@GS_LIB@"
 
-/* ATHENA's private Guile 3 runtime */
-#cmakedefine ATHENA_GUILE3 1
-
-#cmakedefine GUILE_NUM 0
 
 /* Define to 1 if the system has the type `FILE'. */
 #cmakedefine HAVE_FILE 1
@@ -137,8 +133,6 @@
 
 #cmakedefine USE_STACK_TRACE 1
 
-/* Guile string size type */
-#define guile_str_size_t @guile_str_size_t@
 
 #define MAX_FAST 264
 
@@ -154,7 +148,6 @@
 
 #define AC_QT_MAJOR_VERSION 5
 
-#define GUILE_VERSION 1.8
 
 #define STACK_SIZE @STACK_SIZE@
 

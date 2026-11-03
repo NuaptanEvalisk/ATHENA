@@ -1,6 +1,7 @@
 // Copyright (C) 2006 Joris van der Hoeven, 2026 ATHENA contributors.
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "link_markup.hpp"
+#include "boot.hpp"
 #include "editor.hpp"
 #include "link.hpp"
 #include <algorithm>

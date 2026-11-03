@@ -15,7 +15,6 @@
 #include "ATHENA/Data/vault.hpp"
 #include "boot.hpp"
 #include "convert.hpp"
-#include "scheme.hpp"
 #include "qt_utilities.hpp"
 #include "Edit/Interface/vault_navigation.hpp"
 
@@ -120,7 +119,7 @@ void execute_open (const AthenaArtifactRecord& record) {
   url file;
   path source_path;
   if (resolve_open_target (record, file, source_path)) {
-    native_artifact_jump_to_position (file, source_path, null_object ());
+    native_artifact_jump_to_position (file, source_path);
     return;
   }
   native_artifact_navigation_failed (tmstr (record.relative_path));

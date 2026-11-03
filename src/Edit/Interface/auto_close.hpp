@@ -10,7 +10,6 @@
 #pragma once
 
 #include "editor.hpp"
-#include "scheme.hpp"
 
 namespace athena::auto_close {
 
@@ -49,17 +48,14 @@ void insert_big_operator (editor_rep* ed, tree descriptor);
 // unsupported font families do not silently become legacy XML v2 wrappers.
 void insert_alphabet (editor_rep* ed, string tag, string value);
 
-// The JSON keymap evaluator asks this before falling back to Scheme.
-bool keyboard_call (string name, const array<object>& args, object& result);
-
 } // namespace athena::auto_close
 
-// Stable native glue names for Scheme callers that still use these commands.
+// Native entry points shared by generated commands and direct callers.
 void native_insert_quote ();
 void native_insert_apostrophe (bool alternate);
-void native_make_bracket_open (string left, string right, object options);
-void native_make_separator (string separator, object options);
-void native_make_bracket_close (string right, string left, object options);
+void native_make_bracket_open (string left, string right, bool large= false);
+void native_make_separator (string separator, bool large= false);
+void native_make_bracket_close (string right, string left, bool large= false);
 bool native_test_matching_brackets ();
 void native_toggle_matching_brackets ();
 void native_make_big_operator (string op);

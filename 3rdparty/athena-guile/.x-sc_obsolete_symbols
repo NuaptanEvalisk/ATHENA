@@ -1,5 +1,0 @@
-doc/*
-lib/flock.c
-lib/fcntl.in.h
-libguile/filesys.c
-libguile/ChangeLog-2008

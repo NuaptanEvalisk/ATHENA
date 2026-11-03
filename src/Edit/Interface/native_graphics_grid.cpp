@@ -341,13 +341,13 @@ edit_graphics_rep& current_graphics () {
 
 } // namespace
 
-scheme_tree native_graphics_grid_query (string property, bool visual) {
+tree native_graphics_grid_query (string property, bool visual) {
   const grid_plan state (current_graphics ());
-  return tree_to_scheme_tree (state.query (property, visual));
+  return state.query (property, visual);
 }
 
-void native_graphics_grid_command (string operation, scheme_tree argument, bool visual) {
+void native_graphics_grid_command (string operation, tree argument, bool visual) {
   grid_plan plan (current_graphics ());
-  plan.update (operation, scheme_tree_to_tree (argument), visual);
+  plan.update (operation, argument, visual);
   plan.commit ();
 }

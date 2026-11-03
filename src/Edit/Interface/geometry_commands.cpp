@@ -16,7 +16,6 @@
 #include "editor.hpp"
 #include "new_view.hpp"
 #include "native_interfaces.hpp"
-#include "scheme.hpp"
 
 #include <cmath>
 

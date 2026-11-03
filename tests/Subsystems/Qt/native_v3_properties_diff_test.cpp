@@ -43,8 +43,8 @@
 #include "file.hpp"
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
-#include "scheme.hpp"
-#include "scheme_execution_context.hpp"
+#include "native_dispatch.hpp"
+#include "execution_context.hpp"
 #include "sys_utils.hpp"
 
 bool headless_mode= false;
@@ -107,12 +107,12 @@ class NativeV3PropertiesDiffTest: public QObject {
   bool run (std::function<void (editor_rep*, buffer_document_state*)> action) {
     auto buffer= concrete_buffer (name);
     const auto continuation= actor_continuation_registry::instance ().store ([&, action] {
-      auto* actor= current_scheme_execution_context ()->actor;
+      auto* actor= current_execution_context ()->actor;
       action (actor->current_editor (view->runtime_id), actor->current_state ());
     });
     const bool result= buffer->actor->invoke (actor_command_kind::run_native_continuation,
       view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
-      SCHEME_CAPABILITY_BUFFER, continuation);
+      EXECUTION_CAPABILITY_BUFFER, continuation);
     if (!result) actor_continuation_registry::instance ().discard (continuation);
     return result;
   }
@@ -296,11 +296,11 @@ private slots:
       bool read_only= false;
       auto buffer= concrete_buffer (after[i]);
       const auto continuation= actor_continuation_registry::instance ().store ([&] {
-        read_only= current_scheme_execution_context ()->actor->current_state ()->read_only;
+        read_only= current_execution_context ()->actor->current_state ()->read_only;
       });
       QVERIFY (buffer->actor->invoke (actor_command_kind::run_native_continuation,
         ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
-        SCHEME_CAPABILITY_BUFFER, continuation));
+        EXECUTION_CAPABILITY_BUFFER, continuation));
       QVERIFY (read_only);
     }
     QVERIFY (found_left && found_right);
@@ -366,7 +366,6 @@ static void run_tests (int argc, char** argv) {
   int status;
   {
     server runtime;
-    eval ("(begin (tm-define (like-emacs?) #f))");
     NativeV3PropertiesDiffTest test;
     status= QTest::qExec (&test, argc, argv);
   }
@@ -376,7 +375,6 @@ static void run_tests (int argc, char** argv) {
 }
 
 int main (int argc, char** argv) {
-  qputenv ("GUILE_AUTO_COMPILE", "0");
   qputenv ("QT_QPA_PLATFORM", "offscreen");
   QTMApplication application (argc, argv);
   QTemporaryDir profile;
@@ -385,7 +383,7 @@ int main (int argc, char** argv) {
   cache_initialize ();
   reset_document_tree (current_document_tree ());
   init_athena ();
-  start_scheme (argc, argv, run_tests);
+  run_tests (argc, argv);
   return 1;
 }
 

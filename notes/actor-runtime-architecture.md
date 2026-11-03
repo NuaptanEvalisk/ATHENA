@@ -1,19 +1,19 @@
-# ATHENA Actor, Rendering, and Guile Runtime Architecture
+# ATHENA Actor And Native Runtime Architecture
 
 Status: core architecture implemented; this note records current ownership and
 cross-thread invariants.
 
-This note records the agreed direction for moving document computation away
-from the Qt/Server thread while retaining one shared ATHENA Scheme world.  The
-design favors ownership and immutable hand-off over coarse locks and bulk data
-copies.
+Updated 2026-11-03. Document computation runs in native C++ on its owning
+BufferActor. The embedded Scheme runtime, object/glue bridge, rooted procedure
+handles and interpreter workers have been removed. Ownership and immutable
+hand-off remain the concurrency model.
 
 ## Goals
 
 - Keep the Qt event loop responsive while multiple buffers compute.
 - Preserve deterministic, serial mutation within each buffer.
-- Share Guile modules, bytecode, definitions, and global services process-wide.
-- Allow Scheme code associated with different buffers to execute in parallel.
+- Run independent buffer commands concurrently with explicit native contexts.
+- Share only services whose interfaces define thread-safe ownership.
 - Avoid copying document trees, box trees, or large render payloads between
   threads.
 - Make ownership, lifetime, and thread affinity mechanically checkable.
@@ -24,7 +24,7 @@ copies.
 
 There remains one Server on the Qt main thread.  It owns windows, Qt objects,
 application routing, and the registry of buffers and actors.  It does not own
-document computation and must not synchronously execute long document Scheme or
+document computation and must not synchronously execute long document processing or
 typesetting work.
 
 ### BufferActor
@@ -36,20 +36,20 @@ thread is the sole mutating owner of:
 - editor, cursor, selection, undo, and per-view document state;
 - typesetter state, bridge/lazy structures, and box trees;
 - the open file descriptor and save transaction for a file-backed buffer;
-- buffer-local Scheme handles and dynamic execution context.
+- owner-local native callbacks and dynamic execution context.
 
 Commands for a buffer are messages processed in order.  Different actors may
 compute concurrently, but no two threads mutate the same buffer.
 
 Opening a buffer creates its actor before document initialization.  Closing it
 stops new commands, drains or cancels outstanding work, retires all render
-submissions, releases owner-affine Scheme and C++ objects, closes the file, and
+submissions, releases owner-affine C++ objects, closes the file, and
 only then joins the actor thread.
 
 ### RenderService
 
 `RenderService` is a separate thread shared by all BufferActors.  It consumes
-immutable render commands; it does not execute Scheme and does not receive
+immutable render commands; it does not execute editor commands or receive
 document trees or box trees.  CPU rendering resources belong to this service.
 If GPU rendering is introduced later, the graphics context and GPU resources
 also belong here rather than to a BufferActor.
@@ -57,19 +57,18 @@ also belong here rather than to a BufferActor.
 The Qt thread presents only a completed frame or surface handle.  It never
 traverses actor-owned typesetting data.
 
-### Global Scheme workers
+### Background services
 
-A bounded process-lifetime pool may execute Scheme jobs that are independent of
-any buffer, such as immutable parsing or indexing work.  Such jobs receive no
-editor or Qt capability.  Buffer-bound Scheme is executed directly by the
-corresponding BufferActor, not forwarded to this pool.
+Native worker pools handle buffer-independent service work using immutable data
+and captured service identities. They receive no editor or Qt capability.
+Buffer commands always run in the corresponding BufferActor.
 
 ## Zero-copy render hand-off
 
 ## Cross-thread data invariant
 
 Thread queues carry numeric identifiers only.  They never carry C++ pointers,
-`string`, `url`, `tree`, `path`, `box`, `SCM`, Qt value objects, containers, or
+`string`, `url`, `tree`, `path`, `box`, Qt value objects, containers, or
 type-erased callables.  In particular, `std::function` and lambdas with captures
 are forbidden as actor messages because their captures make ownership invisible.
 
@@ -86,7 +85,7 @@ The same rule applies in both directions and at every boundary:
 - BufferActor to Server/Qt effects;
 - BufferActor to RenderService command streams;
 - RenderService to Qt completed frame storage;
-- Scheme rooted-handle requests and owner-affine releases.
+- owner-local callback requests, completion IDs and owner-affine releases.
 
 Writing a semantic render command directly into a shared render slot is not an
 intermediate copy.  Recording into `QPicture`, serializing it, rebuilding it,
@@ -127,89 +126,48 @@ images, brushes, and other resources are installed in a RenderService-owned
 immutable resource table; legacy reference-counted resource objects do not cross
 the ring.
 
-## Shared Guile runtime
+## Native command execution
 
-ATHENA boots one process-global Modified Guile 3 runtime.  All Guile execution
-threads share its heap, compiled bytecode, module graph, symbols, procedures,
-syntax, and global definitions.  There is no Guile runtime or module copy per
-buffer and no central Scheme request thread.
+Named application commands are declared once in XML under
+`src/ATHENA/Commands/Interfaces/`. The `athena_commands` build target generates
+typed C++ dispatch. XML controls names, parameter/result types and UI routing;
+there is no interpreter, dynamic procedure registry or handwritten duplicate
+per-command adapter.
 
-Every BufferActor thread enters the shared runtime using `scm_with_guile` and
-executes its own document Scheme calls.  The Qt thread remains Guile-capable for
-short UI/global work.  RenderService never enters Guile.
+The bounded `command_value` transport holds native scalar/container values,
+document trees, paths, URLs and explicitly distinguished byte/syntax payloads.
+It cannot contain procedures or recursive heterogeneous lists. Document trees
+retain their metadata and owner-local handle identity. Serialized syntax trees
+are data for legacy formats, not a substitute execution model.
 
 ### Dynamic buffer context
 
-Each Scheme command binds one `SchemeExecutionContext` containing at least the
-BufferActor, buffer id, view id, command id, and capability set.  A Guile
-thread-local fluid and C++ thread-local pointer reference the same context
-object; they do not contain duplicate copies of document state.
+Each native command installs an `ExecutionContext` through `ExecutionScope`.
+It identifies the actor, buffer, view, command and capabilities. The scope uses
+a C++ thread-local stack; nested scopes and exceptions restore the previous
+context with normal RAII. The document, DRD and node-contract contexts remain
+owned by their actor rather than copied into a second runtime.
 
-The context replaces process-global notions such as `the_view`, `the_drd`, and
-the implicit `get_current_editor()`.  Existing Scheme editor APIs remain source
-compatible, but their glue resolves the editor through the current execution
-context.
-
-Current module, ports, exception state, security context, and similar dynamic
-settings are rebound for every command and restored afterwards.  State left by
-one command must not leak into the next command on the actor thread.
+Generated editor dispatch resolves the editor through this context. Native
+callbacks stay in owner-local registries; actor/UI queues carry their IDs.
+`native_context_scope` provides exception-safe scoped native state without VM
+dynamic-wind, roots or process-global deferred destruction.
 
 ### Capabilities and cross-thread calls
 
-- Buffer Scheme may access only its owning document/editor state.
-- UI Scheme may access Qt but may not mutate an actor-owned document directly.
-- Global workers may use only thread-safe global services and immutable values.
-- A UI request from Buffer Scheme is asynchronous.  The actor suspends or splits
-  the command and resumes after a result; it must not synchronously wait in a
-  cycle with the Qt thread.
-- Cross-buffer operations are messages to the target actor, never direct tree or
-  editor calls.
+- Buffer commands access only their owning document/editor state.
+- UI commands access Qt but may not mutate an actor-owned document directly.
+- Global workers use only thread-safe services and immutable values.
+- UI requests from actors are asynchronous; completion resumes the owning
+  command through existing effect/payload IDs without a Qt/actor wait cycle.
+- Cross-buffer operations dispatch to the target actor. Compound edits preserve
+  prepare, apply, rollback and commit ownership and exception propagation.
+- Interactive dialogs return typed string/URL data to the originating command;
+  changing focus does not redirect the result to another document.
 
-### Native module and lazy-definition concurrency
-
-The ATHENA module tables in Modified Guile must become native synchronized
-registries.  Each module has a record with `UNLOADED`, `LOADING(owner)`,
-`LOADED`, or `FAILED` state, a condition variable, result/failure data, and a
-generation.
-
-The global registry lock is held only to find or create a record.  Module
-top-level Scheme executes with no registry lock.  Different modules may load in
-parallel; callers requesting the same module wait outside Guile mode.  A
-wait-for graph distinguishes an actual dependency cycle from another thread
-already loading the module.  Completion or failure is published once to every
-waiter.
-
-`lazy-define` uses the same per-symbol forcing state machine.  Its provider list
-is an immutable snapshot and is not removed before successful completion.
-`tm-define` serializes publication per binding; normal calls use the stable
-Guile variable cell without a hot-path lock.
-
-### Global mutable Scheme state
-
-Guile's ability to run threads concurrently does not make a compound mutation
-of shared state atomic.  ATHENA classifies mutable global state explicitly:
-
-- read-mostly configuration uses immutable, versioned snapshots;
-- shared caches use native concurrent services;
-- intentionally shared Scheme cells use Guile mutexes, conditions, or atomic
-  boxes;
-- buffer state stays in its BufferActor rather than in module globals.
-
-Module infrastructure and editor-context compatibility are fixed in Modified
-Guile and glue code.  Existing `.scm` files do not need mechanical per-file
-rewrites, although genuinely shared runtime caches must be audited.
-
-### GC, roots, and finalization
-
-All Guile threads share one BDW-GC heap.  Actor mailbox waits and long C++ work
-that holds no unrooted `SCM` values run through `scm_without_guile`, reducing GC
-root scanning and rendezvous cost.
-
-The global Scheme `object-stack` and deferred destruction list are replaced by
-owner-sharded rooted handle arenas.  A Guile finalizer must never directly
-destroy an actor-owned editor, widget, tree, or other C++ object.  It enqueues an
-owner-affine release request, and the owning actor or Qt thread performs the
-destruction.
+Keyboard JSON and document ACTION nodes select named native commands. They
+cannot evaluate expressions. Global transformations arrive as AUDMAP document
+proposals and use native preview, confirmation and backup transactions.
 
 ## Native object ownership and reference counts
 
@@ -251,13 +209,11 @@ separate requirement.
 
 ## Current implementation status
 
-The core migration described above is implemented: allocator/string lifetime,
-owner-affine Scheme handling, concurrent module publication,
-`SchemeExecutionContext`, per-buffer actors, ID-based transports and the
-RenderService boundary are all part of the current runtime.
+Native execution contexts, owner-local callbacks, per-buffer actors, ID-based
+transports, allocator/string lifetime and the RenderService boundary are part
+of the current runtime. No Guile heap, module publication, rooted Scheme handles
+or interpreter entry/exit wrappers remain.
 
-Remaining work is feature-specific boundary auditing rather than completion of
-a numbered runtime migration. New cross-thread value types must continue to use
-immutable snapshots, stable IDs or explicitly thread-safe storage. Global
-Scheme workers, when used, are restricted to buffer-independent jobs and are
-not a fallback execution path for editor or document work.
+Feature-specific boundary auditing still applies. New cross-thread value types
+must use immutable snapshots, stable IDs or explicitly thread-safe storage.
+See `notes/scheme-runtime-removal.md` for build and runtime verification records.

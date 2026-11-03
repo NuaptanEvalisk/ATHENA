@@ -18,8 +18,7 @@
 #include "buffer_actor.hpp"
 #include "new_buffer.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #include "tm_data.hpp"
 
 #include <QHash>
@@ -233,7 +232,7 @@ collect_cloud_todos (tree t) {
 static void
 sync_current_buffer_with_tasks (const QString& listId,
                                 const QVector<GoogleTask>& tasks) {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context == nullptr || context->actor == nullptr) return;
   url name= context->actor->current_buffer_url ();
   if (is_none (name)) return;
@@ -283,15 +282,15 @@ google_tasks_connected () {
 void
 google_cloud_todo_sync_buffer (url name, bool notifyDisconnected) {
   if (headless_mode || is_none (name)) return;
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context == nullptr) {
     tm_buffer buffer= concrete_buffer (name);
     if (is_nil (buffer)) return;
     athena_continuation_id continuationId=
       actor_continuation_registry::instance ().store (
         [notifyDisconnected] {
-          const SchemeExecutionContext* actorContext=
-            current_scheme_execution_context ();
+          const ExecutionContext* actorContext=
+            current_execution_context ();
           if (actorContext == nullptr || actorContext->actor == nullptr) return;
           google_cloud_todo_sync_buffer (
             actorContext->actor->current_buffer_url (), notifyDisconnected);
@@ -299,7 +298,7 @@ google_cloud_todo_sync_buffer (url name, bool notifyDisconnected) {
     actor_command_ticket ticket= buffer_actor::submit_to (
       buffer->actor->id (), actor_command_kind::run_native_continuation,
       ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB,
-      SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_GLOBAL,
+      EXECUTION_CAPABILITY_BUFFER | EXECUTION_CAPABILITY_GLOBAL,
       continuationId);
     if (!ticket)
       (void) actor_continuation_registry::instance ().discard (continuationId);

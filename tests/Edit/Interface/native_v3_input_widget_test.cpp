@@ -26,8 +26,8 @@
 #include "data_cache.hpp"
 #include "node_metadata.hpp"
 #include "message.hpp"
-#include "scheme.hpp"
-#include "scheme_execution_context.hpp"
+#include "native_dispatch.hpp"
+#include "execution_context.hpp"
 #include "sys_utils.hpp"
 #include "ATHENA/Data/enunciation_model.hpp"
 #include "Subsystems/Qt/QTMEnunciationSlots.hpp"
@@ -78,10 +78,10 @@ private slots:
     const auto owner= view->buf->actor;
     auto cleanup= qScopeGuard ([&] {
       const auto close= actor_continuation_registry::instance ().store ([] {
-        current_scheme_execution_context ()->editor->open_enunciation_slot ("", 0);
+        current_execution_context ()->editor->open_enunciation_slot ("", 0);
       });
       owner->invoke (actor_command_kind::run_native_continuation, view->runtime_id,
-        ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, close);
+        ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER, close);
       qtm_enunciation_slot (nullptr, owner->id (), view->runtime_id, "");
       const bool drained= QTest::qWaitFor ([] {
         const auto buffers= get_all_buffers ();
@@ -95,11 +95,11 @@ private slots:
     });
     const auto command= [&] (const std::function<void (editor_rep&)>& action) {
       const auto token= actor_continuation_registry::instance ().store ([action] {
-        action (*current_scheme_execution_context ()->editor);
+        action (*current_execution_context ()->editor);
       });
       return owner->invoke (actor_command_kind::run_native_continuation,
         view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
-        SCHEME_CAPABILITY_BUFFER, token);
+        EXECUTION_CAPABILITY_BUFFER, token);
     };
     bool opened= false;
     QVERIFY (command ([&] (editor_rep& editor) {
@@ -125,11 +125,11 @@ private slots:
       tm_view child= concrete_runtime_view (proxy->view_id ());
       if (!child) return false;
       const auto token= actor_continuation_registry::instance ().store ([action] {
-        action (*current_scheme_execution_context ()->editor);
+        action (*current_execution_context ()->editor);
       });
       return child->buf->actor->invoke (actor_command_kind::run_native_continuation,
         child->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
-        SCHEME_CAPABILITY_BUFFER, token);
+        EXECUTION_CAPABILITY_BUFFER, token);
     };
     auto snapshot= [&] () {
       actor_command_record reply;
@@ -354,7 +354,7 @@ private slots:
 
     bool native_context= false, math_context= false;
     const auto prepare= actor_continuation_registry::instance ().store ([&] {
-      auto* actor= current_scheme_execution_context ()->actor;
+      auto* actor= current_execution_context ()->actor;
       auto* editor= actor->current_editor (view->runtime_id);
       editor->go_to_end (actor->current_state ()->root_path * path (0, 0));
       math_context= editor->get_env_string ("mode") == "math";
@@ -363,14 +363,14 @@ private slots:
     });
     QVERIFY (buffer->actor->invoke (actor_command_kind::run_native_continuation,
       view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
-      SCHEME_CAPABILITY_BUFFER, prepare));
+      EXECUTION_CAPABILITY_BUFFER, prepare));
     QVERIFY (math_context);
     QCOMPARE (native_context, native);
 
     const auto key= actor_text_registry::instance ().store ("(");
     QVERIFY (buffer->actor->invoke (actor_command_kind::key_press,
       view->runtime_id, key, ATHENA_NO_BLOB, nullptr,
-      SCHEME_CAPABILITY_BUFFER, std::uint64_t (texmacs_time ())));
+      EXECUTION_CAPABILITY_BUFFER, std::uint64_t (texmacs_time ())));
     QVERIFY (buffer->actor->invoke (actor_command_kind::snapshot_document,
       view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB, &snapshot));
     const tree edited= actor_tree_registry::instance ().take (snapshot.payload0);
@@ -399,8 +399,6 @@ static void run_tests (int argc, char** argv) {
   int status;
   {
     server runtime;
-    eval ("(begin "
-          "(tm-define (like-emacs?) #f))");
     TestNativeV3InputWidget test;
     status= QTest::qExec (&test, argc, argv);
   }
@@ -411,7 +409,6 @@ static void run_tests (int argc, char** argv) {
 
 int main (int argc, char** argv) {
   qputenv ("QT_QPA_PLATFORM", "offscreen");
-  qputenv ("GUILE_AUTO_COMPILE", "0");
   QTMApplication app (argc, argv);
   QTemporaryDir profile;
   if (!profile.isValid () || !QDir (profile.path ()).mkpath ("fonts")) return 1;
@@ -419,7 +416,7 @@ int main (int argc, char** argv) {
   cache_initialize ();
   reset_document_tree (current_document_tree ());
   init_athena ();
-  start_scheme (argc, argv, run_tests);
+  run_tests (argc, argv);
   return 1;
 }
 

@@ -151,11 +151,6 @@ void user_shortcuts_open_native (string key, string command) {
     qtm_info_dialog (string (error.what ()), "Keyboard shortcuts");
   }
 }
-void user_shortcuts_open (object options) {
-  auto args= as_array_object (options);
-  user_shortcuts_open_native (N (args) > 0 ? as_string (args[0]) : string (""),
-                              N (args) > 1 ? as_string (args[1]) : string (""));
-}
 std::optional<native_key_binding> user_shortcuts_find (string key) {
   bool matched= false, prefix= false;
   {

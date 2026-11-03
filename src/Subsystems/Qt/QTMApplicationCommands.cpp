@@ -62,8 +62,7 @@
 #include "new_buffer.hpp"
 #include "new_view.hpp"
 #include "new_window.hpp"
-#include "scheme.hpp"
-#include "Scheme/Scheme/native_interfaces.hpp"
+#include "native_interfaces.hpp"
 #include "server.hpp"
 #include "tm_window.hpp"
 #include "ATHENA/Data/vault.hpp"
@@ -483,7 +482,7 @@ QTMCommandRegistry::registerApplicationCommands () {
       if (path.isEmpty ()) return true;
       try {
         application_import_document (url_system (from_qstring (path)),
-                                     from_qstring (key), null_object ());
+                                     from_qstring (key));
         return true;
       }
       catch (...) {

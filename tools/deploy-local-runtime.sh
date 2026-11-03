@@ -99,10 +99,6 @@ for src in "$build_dir"/x64/lib/libqt6advanceddocking*.so; do
   deploy_library "$src"
 done
 
-if [ -f "$build_dir/athena-guile-runtime/lib/libathena-guile.so.1" ]; then
-  python3 "$repo_root/tools/release/copy-private-guile-runtime.py" \
-    "$build_dir/athena-guile-runtime" "$runtime_dir"
-fi
 
 for src in "$@"; do
   deploy_library "$src"

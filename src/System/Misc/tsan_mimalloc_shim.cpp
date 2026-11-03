@@ -13,8 +13,8 @@
 extern "C" const char*
 __tsan_default_options () {
   // System Qt and its platform plugins are not TSan-instrumented, so their
-  // internal synchronization is invisible. Instrumented ATHENA and Guile
-  // accesses remain reportable.
+  // internal synchronization is invisible. Instrumented ATHENA accesses
+  // remain reportable.
   return "ignore_noninstrumented_modules=1";
 }
 

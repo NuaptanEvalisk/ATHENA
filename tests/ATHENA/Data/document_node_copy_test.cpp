@@ -14,7 +14,7 @@
 #include "tree_select.hpp"
 #include "cursor_navigation.hpp"
 #include "Data/NodeContracts/builtin_contracts.hpp"
-#include "Scheme/Scheme/native_interfaces.hpp"
+#include "native_interfaces.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }

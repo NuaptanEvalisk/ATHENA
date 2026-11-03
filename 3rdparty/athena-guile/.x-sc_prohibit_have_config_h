@@ -1,5 +1,0 @@
-libguile/*
-srfi/*
-test-suite/*
-guile-readline/*
-lib/*

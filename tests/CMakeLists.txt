@@ -213,20 +213,9 @@ set_tests_properties (completion_popup_test PROPERTIES TIMEOUT 20
   ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  add_test (NAME guile_gc_plugin_test
-    COMMAND ${Python3_EXECUTABLE}
-      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/gc-plugin-test.py
-      --compiler ${CMAKE_CXX_COMPILER}
-      --runtime ${ATHENA_GUILE_PREFIX})
-  set_tests_properties (guile_gc_plugin_test PROPERTIES TIMEOUT 150)
-  add_test (NAME vault_audit_dispatch_test
-    COMMAND ${Python3_EXECUTABLE}
-      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/vault-audit-dispatch-test.py
-      --runtime ${ATHENA_GUILE_PREFIX})
-  set_tests_properties (vault_audit_dispatch_test PROPERTIES TIMEOUT 70)
   add_test (NAME stacktrace_symbolize_test
     COMMAND ${Python3_EXECUTABLE}
-      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/stacktrace-symbolize-test.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/runtime/stacktrace-symbolize-test.py
       --compiler ${CMAKE_CXX_COMPILER}
       --source-dir ${ATHENA_SOURCE_DIR})
   set_tests_properties (stacktrace_symbolize_test PROPERTIES TIMEOUT 150)
@@ -237,437 +226,53 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_include_directories (watchdog_fake_child PRIVATE ${ATHENA_SOURCE_DIR}/src)
   add_test (NAME watchdog_supervisor_test
     COMMAND ${Python3_EXECUTABLE}
-      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/watchdog-test.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/runtime/watchdog-test.py
       --watchdog $<TARGET_FILE:ATHENA-Watchdog>
       --child $<TARGET_FILE:watchdog_fake_child>)
   set_tests_properties (watchdog_supervisor_test PROPERTIES TIMEOUT 15)
 
   add_test (NAME crash_report_test
     COMMAND ${Python3_EXECUTABLE}
-      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/crash-report-test.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/runtime/crash-report-test.py
       --compiler ${CMAKE_CXX_COMPILER}
       --source-dir ${ATHENA_SOURCE_DIR}
       --build-dir ${ATHENA_BINARY_DIR}
       --binary $<TARGET_FILE:ATHENA.bin>
-      --runtime ${ATHENA_GUILE_PREFIX}
       --resources ${ATHENA_SOURCE_DIR}/ATHENA)
   set_tests_properties (crash_report_test PROPERTIES TIMEOUT 90)
 endif ()
 
-add_test(NAME glue_generator_test
+# Command contracts are XML-generated and exercised without an interpreter.
+add_test(NAME native_command_generator_test
   COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/glue-generator-test.py)
-if(TARGET ATHENA.bin)
-  set(ATHENA_GLUE_TEST_BINARY ATHENA.bin)
-else()
-  set(ATHENA_GLUE_TEST_BINARY ATHENA)
-endif()
-get_target_property(ATHENA_GLUE_TEST_INPUTS athena_glue ATHENA_GLUE_INTERFACES)
-add_test(NAME glue_runtime_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/glue-runtime-test.py
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA
-    ${ATHENA_GLUE_TEST_INPUTS})
-set_tests_properties(glue_runtime_test PROPERTIES TIMEOUT 100)
-add_test(NAME native_v3_website_export_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/native-v3-website-export-test.py
-    --binary $<TARGET_FILE:ATHENA.bin>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(native_v3_website_export_test PROPERTIES
-  TIMEOUT 360 RESOURCE_LOCK athena_application_runtime)
-add_test(NAME vault_random_document_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/vault-random-document-test.py
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(vault_random_document_test PROPERTIES TIMEOUT 45)
-add_test(NAME native_v3_math_variant_typeset_editor_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/anonymous-editor-owner-setup.scm
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/native-v3-math-variant-typeset-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(native_v3_math_variant_typeset_editor_test PROPERTIES TIMEOUT 90)
-add_test(NAME html5_export_editor_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/anonymous-editor-owner-setup.scm
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/html5-export-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(html5_export_editor_test PROPERTIES TIMEOUT 90)
-add_test(NAME website_export_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/website-export-test.py
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(website_export_test PROPERTIES TIMEOUT 150)
-add_test(NAME commutative_diagram_editor_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/commutative-diagram-render-test.py
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(commutative_diagram_editor_test PROPERTIES
-  TIMEOUT 120 SKIP_RETURN_CODE 77)
-add_test(NAME eqnarray_clipboard_editor_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/anonymous-editor-owner-setup.scm
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/eqnarray-clipboard-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(eqnarray_clipboard_editor_test PROPERTIES TIMEOUT 90)
-add_test(NAME proof_eqnarray_navigation_editor_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/proof-eqnarray-navigation-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(proof_eqnarray_navigation_editor_test PROPERTIES TIMEOUT 90)
-add_test(NAME window_ownership_editor_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/window-ownership-setup.scm
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/window-ownership-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(window_ownership_editor_test PROPERTIES TIMEOUT 90)
-add_test(NAME document_tabs_editor_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/document-tabs-setup.scm
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/document-tabs-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(document_tabs_editor_test PROPERTIES TIMEOUT 90)
-add_test(NAME link_invalidation_editor_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/anonymous-editor-owner-setup.scm
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/link-invalidation-editor-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(link_invalidation_editor_test PROPERTIES TIMEOUT 90)
-add_test(NAME completion_editor_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/completion-editor-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(completion_editor_test PROPERTIES TIMEOUT 90)
-add_test(NAME geometry_editor_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/anonymous-editor-owner-setup.scm
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/geometry-editor-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(geometry_editor_test PROPERTIES TIMEOUT 90)
-add_test(NAME format_editor_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/anonymous-editor-owner-setup.scm
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/format-editor-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(format_editor_test PROPERTIES TIMEOUT 90)
-add_test(NAME structured_editor_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/structured-editor-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(structured_editor_test PROPERTIES TIMEOUT 90)
-add_test(NAME generic_keyboard_editor_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/generic-keyboard-editor-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(generic_keyboard_editor_test PROPERTIES TIMEOUT 90)
-add_test(NAME generic_keybindings_editor_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/generic-keybindings-editor-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(generic_keybindings_editor_test PROPERTIES TIMEOUT 90)
-add_test(NAME native_math_keyboard_editor_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/native-math-keyboard-editor-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(native_math_keyboard_editor_test PROPERTIES TIMEOUT 90)
-add_test(NAME generic_editor_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/generic-editor-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(generic_editor_test PROPERTIES TIMEOUT 90)
-add_test(NAME generic_extra_editor_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/generic-extra-editor-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(generic_extra_editor_test PROPERTIES TIMEOUT 90)
-add_test(NAME document_edit_editor_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/document-edit-editor-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(document_edit_editor_test PROPERTIES TIMEOUT 90)
-add_test(NAME embedded_image_editor_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/anonymous-editor-owner-setup.scm
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/embedded-image-editor-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(embedded_image_editor_test PROPERTIES TIMEOUT 90)
-add_test(NAME document_part_editor_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/document-part-editor-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(document_part_editor_test PROPERTIES TIMEOUT 90)
-add_test(NAME global_typeset_refresh_editor_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/evaluation-bar-test.py
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/editor-owner-setup.scm
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/global-typeset-refresh-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(global_typeset_refresh_editor_test PROPERTIES TIMEOUT 90)
-add_test(NAME node_move_lifecycle_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/node-move-lifecycle-test.py
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-add_test(NAME node_new_v2_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/node-new-v2-test.py
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(
-  node_move_lifecycle_test node_new_v2_test
-  PROPERTIES TIMEOUT 150)
+    ${CMAKE_CURRENT_SOURCE_DIR}/ATHENA/Commands/command-generator-test.py
+    --compiler ${CMAKE_CXX_COMPILER})
+set_tests_properties(native_command_generator_test PROPERTIES TIMEOUT 30)
+
+foreach(_case website-export website-math-export native-v3-website-export
+              native-v3-hodarium-shared-audit native-v3-math-alphabet-stage)
+  string(REPLACE "-" "_" _test_name "${_case}_test")
+  add_test(NAME ${_test_name}
+    COMMAND ${Python3_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/runtime/${_case}-test.py
+      --binary $<TARGET_FILE:ATHENA.bin>
+      --resources ${ATHENA_SOURCE_DIR}/ATHENA)
+  set_tests_properties(${_test_name} PROPERTIES
+    TIMEOUT 360 RESOURCE_LOCK athena_application_runtime)
+endforeach()
+
 add_test(NAME vault_node_model_upgrade_runtime_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/Data/Convert/Xml/vault_node_model_upgrade_test.py
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
+    --binary $<TARGET_FILE:ATHENA.bin>
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(vault_node_model_upgrade_runtime_test PROPERTIES TIMEOUT 240)
 add_test(NAME audmap_v3_runtime_test
   COMMAND ${Python3_EXECUTABLE}
     ${CMAKE_CURRENT_SOURCE_DIR}/interop/audmap-v3-runtime-test.py
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
+    --binary $<TARGET_FILE:ATHENA.bin>
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(audmap_v3_runtime_test PROPERTIES TIMEOUT 240)
-add_test(NAME node_data_art_scheme_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/runtime-test.py
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/node-data-art-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-add_test(NAME cardlink_gui_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/runtime-test.py
-    --gui
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/cardlink-gui-test.scm
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/anonymous-editor-owner-setup.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(cardlink_gui_test PROPERTIES TIMEOUT 110)
-add_test(NAME node_model_bridge_scheme_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/runtime-test.py
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/node-model-bridge-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-add_test(NAME node_source_edit_scheme_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/runtime-test.py
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/node-source-edit-test.scm
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/anonymous-editor-owner-setup.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-add_test(NAME node_tree_diff_scheme_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/runtime-test.py
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/node-tree-diff-test.scm
-    --setup-script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/anonymous-editor-owner-setup.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-add_test(NAME node_reference_headless_export_scheme_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/runtime-test.py
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/node-reference-headless-export-test.scm
-    --root-env ATHENA_NODE_EXPORT_TEST_ROOT
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA
-    --timeout 120)
-add_test(NAME native_v3_structured_search_runtime_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/runtime-test.py
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/native-v3-structured-search-runtime-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-foreach (_mode file vault)
-  set(_vault_option)
-  if (_mode STREQUAL "vault")
-    set(_vault_option --vault)
-  endif ()
-  add_test(NAME native_v3_${_mode}_persistence_test
-    COMMAND ${Python3_EXECUTABLE}
-      ${CMAKE_CURRENT_SOURCE_DIR}/scheme/native-v3-persistence-test.py
-      --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-      --runtime ${ATHENA_GUILE_PREFIX}
-      --resources ${ATHENA_SOURCE_DIR}/ATHENA ${_vault_option})
-  set_tests_properties(native_v3_${_mode}_persistence_test PROPERTIES
-    TIMEOUT 390 RESOURCE_LOCK athena_application_runtime)
-endforeach ()
-add_test(NAME native_v3_hodarium_shared_audit_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/native-v3-hodarium-shared-audit-test.py
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(native_v3_hodarium_shared_audit_test PROPERTIES TIMEOUT 120)
-add_test(NAME native_v3_math_alphabet_stage_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/native-v3-math-alphabet-stage-test.py
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(native_v3_math_alphabet_stage_test PROPERTIES TIMEOUT 120)
-set_tests_properties(
-  node_data_art_scheme_test node_model_bridge_scheme_test
-  node_source_edit_scheme_test node_tree_diff_scheme_test
-  node_reference_headless_export_scheme_test
-  native_v3_structured_search_runtime_test
-  PROPERTIES TIMEOUT 150)
-add_test(NAME two_buffer_save_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/two-buffer-save-test.py
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(two_buffer_save_test PROPERTIES TIMEOUT 120)
-add_test(NAME save_as_ownership_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/save-as-ownership-test.py
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(save_as_ownership_test PROPERTIES TIMEOUT 60)
-add_test(NAME packrat_concurrency_test
-  COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/scheme/two-buffer-save-test.py
-    --script ${CMAKE_CURRENT_SOURCE_DIR}/scheme/packrat-concurrency-test.scm
-    --binary $<TARGET_FILE:${ATHENA_GLUE_TEST_BINARY}>
-    --runtime ${ATHENA_GUILE_PREFIX}
-    --resources ${ATHENA_SOURCE_DIR}/ATHENA)
-set_tests_properties(packrat_concurrency_test PROPERTIES TIMEOUT 60)
-
-# These tests launch a complete ATHENA application/runtime, often with private
-# Guile, Qt, font and actor subsystems.  Running many of them at once turns the
-# ordinary suite into an accidental multi-instance stress test and has produced
-# startup timeouts and BufferActor crashes that do not reproduce in isolation.
-# Serialize application integrations with each other while leaving C++ unit
-# tests and host-Guile source tests fully parallel.
-set(_athena_application_runtime_tests
-  glue_runtime_test
-  vault_random_document_test
-  html5_export_editor_test
-  commutative_diagram_editor_test
-  eqnarray_clipboard_editor_test
-  proof_eqnarray_navigation_editor_test
-  window_ownership_editor_test
-  document_tabs_editor_test
-  link_invalidation_editor_test
-  completion_editor_test
-  geometry_editor_test
-  format_editor_test
-  structured_editor_test
-  generic_keyboard_editor_test
-  generic_keybindings_editor_test
-  native_math_keyboard_editor_test
-  generic_editor_test
-  generic_extra_editor_test
-  document_edit_editor_test
-  embedded_image_editor_test
-  document_part_editor_test
-  global_typeset_refresh_editor_test
-  node_move_lifecycle_test
-  node_new_v2_test
-  vault_node_model_upgrade_runtime_test
-  audmap_v3_runtime_test
-  node_data_art_scheme_test
-  node_model_bridge_scheme_test
-  node_source_edit_scheme_test
-  node_tree_diff_scheme_test
-  node_reference_headless_export_scheme_test
-  native_v3_structured_search_runtime_test
-  native_v3_math_variant_typeset_editor_test
-  two_buffer_save_test
-  save_as_ownership_test
-  packrat_concurrency_test)
-set_tests_properties(${_athena_application_runtime_tests}
-  PROPERTIES RESOURCE_LOCK athena_application_runtime)
+set_tests_properties(vault_node_model_upgrade_runtime_test audmap_v3_runtime_test
+  PROPERTIES TIMEOUT 240 RESOURCE_LOCK athena_application_runtime)
 
 # from list of files we'll create tests test_name.cpp -> test_name
 foreach (_test_file ${TEST_SRC_FILES})

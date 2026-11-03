@@ -24,7 +24,6 @@
 #include <QDebug>
 #include <iostream>
 
-#include "Scheme/Guile/guile_tm.hpp"
 
 /*
  * Qt can replace the main with qMain by doing a #define main qMain.
@@ -77,7 +76,6 @@ int WINAPI CommonMain() {
   //if (is_running_in_msix()) {
   //  setup_athena_home_path();
   //}
-  texmacs_init_guile_hooks();
 
   int argc = 0;
   LPWSTR* pArgvW = CommandLineToArgvW(GetCommandLineW(), &argc);

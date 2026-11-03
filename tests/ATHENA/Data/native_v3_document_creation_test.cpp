@@ -26,7 +26,7 @@
 #include "convert.hpp"
 #include "analyze.hpp"
 #include "Data/NodeContracts/execution_state.hpp"
-#include "scheme.hpp"
+#include "native_dispatch.hpp"
 #include "ATHENA/server.hpp"
 #include "Graphics/Gui/gui.hpp"
 #include "boot.hpp"
@@ -471,7 +471,6 @@ static void run_tests (int argc, char** argv) {
 }
 
 int main (int argc, char** argv) {
-  qputenv ("GUILE_AUTO_COMPILE", "0");
   qputenv ("QT_QPA_PLATFORM", "offscreen");
   QApplication application (argc, argv);
   QTemporaryDir profile;
@@ -480,7 +479,7 @@ int main (int argc, char** argv) {
   cache_initialize ();
   reset_document_tree (current_document_tree ());
   init_athena ();
-  start_scheme (argc, argv, run_tests);
+  run_tests (argc, argv);
   return 1;
 }
 #include "native_v3_document_creation_test.moc"

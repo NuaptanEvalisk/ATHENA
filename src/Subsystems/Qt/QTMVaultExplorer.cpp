@@ -15,7 +15,7 @@
 #include "QTMMainTabWindow.hpp"
 #include "editor.hpp"
 #include "boot.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #include "ATHENA/Data/application_lifecycle.hpp"
 #include "qt_utilities.hpp"
 #include "vault.hpp"
@@ -574,7 +574,7 @@ vault_explorer_track_file (url file) {
 
   QCoreApplication* app= QCoreApplication::instance ();
   if (app != nullptr && QThread::currentThread () != app->thread ()) {
-    const SchemeExecutionContext* context= current_scheme_execution_context ();
+    const ExecutionContext* context= current_execution_context ();
     if (context != nullptr && context->editor != nullptr &&
         context->view_id != ATHENA_NO_VIEW)
       (void) context->editor->publish_ui_text (

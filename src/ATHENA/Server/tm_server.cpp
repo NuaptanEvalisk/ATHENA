@@ -15,6 +15,7 @@
 #include "tm_server.hpp"
 #include "ATHENA/Window/interactive_commands.hpp"
 #include "native_interfaces.hpp"
+#include "native_dispatch.hpp"
 #include "native_node_groups.hpp"
 #include "ATHENA/Data/document_persistence.hpp"
 #include "Data/NodeContracts/execution_state.hpp"
@@ -43,12 +44,11 @@
 #include "QTMMainTabWindow.hpp"
 #include "QTMStructuralArtifacts.hpp"
 #include "qt_utilities.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #endif
 
 server* the_server= NULL;
 bool texmacs_started= false;
-url tm_init_file= url_none ();
 
 /******************************************************************************
 * Execution of commands
@@ -113,9 +113,9 @@ server_rep::~server_rep () {}
 
 tm_server_rep::tm_server_rep (): def_zoomf (1.0), center_message ("") {
   the_server= tm_new<server> (this);
-  bench_start ("initialize guile");
-  initialize_scheme ();
-  bench_cumul ("initialize guile");
+  bench_start ("initialize commands");
+  initialize_native_commands ();
+  bench_cumul ("initialize commands");
   gui_interpose (texmacs_interpose_handler);
   gui_post_repaint (texmacs_post_repaint_handler);
   set_wait_handler (texmacs_wait_handler);
@@ -128,8 +128,6 @@ tm_server_rep::tm_server_rep (): def_zoomf (1.0), center_message ("") {
   user_shortcuts_initialize ();
   interactive_startup ();
   native_keyboard_initialize ();
-  if (!is_none (tm_init_file)) exec_file (tm_init_file);
-  finalize_scheme_bootstrap ();
   bench_cumul ("initialize application");
 #ifdef OS_GNU_LINUX
   return; // in order to avoid segmentation faults
@@ -158,7 +156,7 @@ tm_server_rep::set_center_message (tree m) {
       (void) buf->actor->submit (
         actor_command_kind::center_message_state,
         buf->vws[j]->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB,
-        SCHEME_CAPABILITY_BUFFER, active ? 1 : 0);
+        EXECUTION_CAPABILITY_BUFFER, active ? 1 : 0);
   }
   tree c (as_string (m));
   set_center_footer (ui_text (c));
@@ -249,7 +247,6 @@ tm_server_rep::interpose_handler () {
   process_all_pipes ();
 #else
   perform_select ();
-  exec_pending_commands ();
 #endif
 
   if (!headless_mode) {
@@ -290,7 +287,7 @@ tm_server_rep::wait_handler (string message, string arg) {
 #ifdef QTTEXMACS
   if (!headless_mode && qApp != nullptr &&
       QThread::currentThread () != qApp->thread ()) {
-    const auto* context= current_scheme_execution_context ();
+    const auto* context= current_execution_context ();
     athena_view_id view_id= context? context->view_id: ATHENA_NO_VIEW;
     message.ensure_transferable ();
     arg.ensure_transferable ();
@@ -359,7 +356,7 @@ tm_server_rep::inclusions_gc (string which) {
 
 void
 tm_server_rep::typeset_update (path p) {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr) {
     // Link visitation runs before navigation, in the source buffer's actor.
     // Its views are already owned here; do not consult the GUI registry or
@@ -452,7 +449,6 @@ tm_server_rep::quit () {
 #endif
   close_all_pipes ();
   interactive_history_save ();
-  clear_pending_commands ();
 #ifdef QTTEXMACS
   del_obj_qt_renderer ();
 #endif

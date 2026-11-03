@@ -157,7 +157,7 @@ void dispatch_focus (void (*command) (tree, bool), bool flag) {
   command (focus_tree (), flag);
 }
 
-void dispatch_focus (void (*command) (tree, object), object direction) {
+void dispatch_focus (void (*command) (tree, structural_navigation), structural_navigation direction) {
   command (focus_tree (), direction);
 }
 
@@ -174,7 +174,7 @@ void outward (tree t, void (*command) (tree, bool), bool direction) {
     command (parent, direction);
 }
 
-void outward (tree t, void (*command) (tree, object), object argument) {
+void outward (tree t, void (*command) (tree, structural_navigation), structural_navigation argument) {
   tree parent;
   if (parent_tree (t, parent)) command (parent, argument);
 }
@@ -509,10 +509,10 @@ void generic_structured_top () { dispatch_focus (generic_structured_incremental,
 void generic_structured_bottom () { dispatch_focus (generic_structured_incremental, true); }
 void generic_structured_exit_left () { dispatch_focus (generic_structured_exit, false); }
 void generic_structured_exit_right () { dispatch_focus (generic_structured_exit, true); }
-void generic_special_back () { dispatch_focus (generic_special_navigate, keyword_object ("previous")); }
-void generic_special_forward () { dispatch_focus (generic_special_navigate, keyword_object ("next")); }
-void generic_special_return () { dispatch_focus (generic_special_navigate, keyword_object ("first")); }
-void generic_special_shift_return () { dispatch_focus (generic_special_navigate, keyword_object ("last")); }
+void generic_special_back () { dispatch_focus (generic_special_navigate, structural_navigation::previous); }
+void generic_special_forward () { dispatch_focus (generic_special_navigate, structural_navigation::next); }
+void generic_special_return () { dispatch_focus (generic_special_navigate, structural_navigation::first); }
+void generic_special_shift_return () { dispatch_focus (generic_special_navigate, structural_navigation::last); }
 void generic_special_left () { dispatch_focus (generic_special_horizontal, false); }
 void generic_special_right () { dispatch_focus (generic_special_horizontal, true); }
 void generic_special_up () { dispatch_focus (generic_special_vertical, false); }
@@ -714,7 +714,7 @@ void generic_structured_exit (tree t, bool forwards) {
   else ed->go_to_start (p);
 }
 
-void generic_special_navigate (tree t, object direction) {
+void generic_special_navigate (tree t, structural_navigation direction) {
   outward (t, generic_special_navigate, direction);
 }
 

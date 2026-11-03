@@ -153,7 +153,7 @@ void interactive_history_save () {
     history_modified= false;
 }
 void interactive_command (string function, array<string> labels) {
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   ASSERT (context && context->editor, "interactive command requires a BufferActor");
   const auto actor= context->actor_id;
   const auto view= context->view_id;
@@ -173,12 +173,12 @@ void interactive_command (string function, array<string> labels) {
     field.type= from_qstring (argument.value ("type").toString ("string"));
     if (!ends (field.prompt, ":") && !ends (field.prompt, "?")) field.prompt << ":";
     if (argument.contains ("default")) {
-      object initial;
+      command_value initial;
       const string provider= from_qstring (argument["default"].toString ());
-      if (!native_dispatch_call (provider, array<object> (), initial))
+      if (!native_dispatch_call (provider, command_arguments (), initial))
         throw std::invalid_argument ("Unknown native argument default: " + bytes (provider));
-      if (is_string (initial)) field.proposals << as_string (initial);
-      else if (is_url (initial)) field.proposals << as_string (as_url (initial));
+      if (const auto* value= std::get_if<string> (&initial)) field.proposals << *value;
+      else if (const auto* value= std::get_if<url> (&initial)) field.proposals << as_string (*value);
     }
     for (const auto& row: learned) {
       const auto found= row.find (std::to_string (i));
@@ -199,23 +199,23 @@ void interactive_command (string function, array<string> labels) {
       if (answers.size () != passwords.size ()) return;
       const auto continuation= actor_continuation_registry::instance ().store (
         [command, passwords, answers= std::move (answers)] {
-          if (current_scheme_execution_context ()->editor == nullptr) return;
-          array<object> arguments;
+          if (current_execution_context ()->editor == nullptr) return;
+          command_arguments arguments;
           interactive_history_row learned;
           for (const auto& answer: answers)
-            arguments << object (string (answer.data (), answer.size ()));
+            arguments << command_value (string (answer.data (), answer.size ()));
           for (std::size_t i=0; i<answers.size (); ++i)
             learned[std::to_string (i)]= passwords[i] ? std::string () : answers[i];
           const string function (command.data (), command.size ());
           interactive_learn (function, std::move (learned));
-          object result;
+          command_value result;
           if (!native_dispatch_call (function, arguments, result))
             throw std::invalid_argument ("Unknown native interactive command: " + command);
         });
       if (!buffer_actor::submit_to (actor, actor_command_kind::run_native_continuation,
             view, ATHENA_NO_BLOB, ATHENA_NO_BLOB,
-            SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_UI |
-              SCHEME_CAPABILITY_GLOBAL, continuation))
+            EXECUTION_CAPABILITY_BUFFER | EXECUTION_CAPABILITY_UI |
+              EXECUTION_CAPABILITY_GLOBAL, continuation))
         actor_continuation_registry::instance ().discard (continuation);
     });
 }

@@ -31,36 +31,16 @@ Implemented boundaries:
 - Exclude Codex subprocess completion; ordinary LaTeX import uses the shared
   deterministic parser.
 - Exclude startup source-fingerprint refresh/re-execution.
-- Force Guile auto-compilation off; no application Scheme sources or bytecode
-  are shipped. The private Guile standard library remains packaged.
+- Use native command startup, with no Scheme interpreter, GC, bytecode or
+  private standard-library bundle.
 
-Linux behavior is preserved, including its private Guile runtime identity.
+## Native command inputs
 
-## Guile and bytecode inputs
-
-Cross-compilation must not run the desktop Guile bootstrap or execute an
-iPad binary to generate bytecode. The future packaging build supplies:
-
-- `ATHENA_GUILE_PREBUILT_PREFIX`: the target-built private Guile/GC runtime.
-- `ATHENA_GUILE_PREBUILT_CONFIG_HEADER`: that same runtime build's `config.h`,
-  produced with `--disable-jit`.  Autoconf may represent that as either
-  `#define ENABLE_JIT 0` or `/* #undef ENABLE_JIT */`; both mean JIT is disabled
-  because the runtime guards JIT code with `#if ENABLE_JIT`.
-
-Application startup is native; there is no application bytecode input.
-
-The target Guile is built with `ATHENA_GUILE_BUNDLED_ONLY=1`. Its immutable
-bundle ignores source/bytecode mtimes, which Xcode copying and IPA installation
-do not preserve as compilation ordering. Missing or invalid bytecode is an
-error, not a request to interpret or compile source. This also applies to
-`primitive-load` startup entries: bundled source paths map to the corresponding
-standard-library `.go` files. ELF/VM compatibility validation
-remains enabled. Linux retains its existing freshness and development behavior.
-
-Application resources and Guile\'s standard library are collected into the
-bundle by `AthenaIOS.cmake`. Guile runtime library/framework packaging and
-signing remain separate work; the prebuilt runtime loader expects shared
-libraries.
+The build generates C++ command adapters from XML using host Python. Cross
+compilation does not run a target executable or produce runtime bytecode.
+`AthenaIOS.cmake` bundles application resources only. Target-native dependency
+builds and code signing remain required; removing the interpreter does not
+constitute an iPad SDK/device validation.
 
 ## Application storage
 

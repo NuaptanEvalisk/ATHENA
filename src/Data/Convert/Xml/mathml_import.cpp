@@ -10,8 +10,8 @@
 *******************************************************************************/
 
 #include "convert.hpp"
+#include "boot.hpp"
 #include "analyze.hpp"
-#include "scheme.hpp"
 #include "unicode_text.hpp"
 #include "utf8_edit.hpp"
 #include "math_tree_v3.hpp"

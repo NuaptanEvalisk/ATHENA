@@ -1,6 +1,6 @@
 /******************************************************************************
 * MODULE     : global_transformation.hpp
-* DESCRIPTION: Transactional Scheme-driven transformations over a Vault
+* DESCRIPTION: Transactional native transformations over a Vault
 * COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.

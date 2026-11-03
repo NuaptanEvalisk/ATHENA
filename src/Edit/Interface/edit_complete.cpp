@@ -10,13 +10,13 @@
 ******************************************************************************/
 
 #include "edit_interface.hpp"
+#include "boot.hpp"
 #include "Data/NodeContracts/editing_query.hpp"
 #include "Typeset/Env/local_environment.hpp"
 #include "Bridge/impl_typesetter.hpp"
 #include "hashmap.hpp"
 #include "hashset.hpp"
 #include "analyze.hpp"
-#include "scheme.hpp"
 #include "vars.hpp"
 #include "unicode_text.hpp"
 #include "native_latex_commands.hpp"

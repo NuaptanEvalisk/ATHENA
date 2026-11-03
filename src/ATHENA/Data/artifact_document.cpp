@@ -9,12 +9,12 @@
 *******************************************************************************/
 
 #include "ATHENA/Data/artifact_document.hpp"
+#include "boot.hpp"
 
 #include "ATHENA/Data/artifact_radioactive_links.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "System/Boot/boot.hpp"
 #include "convert.hpp"
-#include "scheme.hpp"
 
 #include <algorithm>
 #include <cctype>

@@ -18,7 +18,6 @@
 #include "Obsidian/aofm_telemetry.hpp"
 #include "Tex/convert_tex.hpp"
 #include "metadata.hpp"
-#include "scheme.hpp"
 #include "tree_correct.hpp"
 #include "Data/NodeContracts/execution_state.hpp"
 #include "url.hpp"

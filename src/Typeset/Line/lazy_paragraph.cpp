@@ -11,13 +11,13 @@
 ******************************************************************************/
 
 #include "Line/lazy_paragraph.hpp"
+#include "boot.hpp"
 #include "Line/lazy_vstream.hpp"
 #include "Format/format.hpp"
 #include "Line/lazy_vstream.hpp"
 #include "Boxes/construct.hpp"
 #include "Boxes/utf8_line.hpp"
 #include "analyze.hpp"
-#include "scheme.hpp"
 
 array<line_item> typeset_concat (edit_env env, tree t, path ip);
 array<line_item> typeset_concat_cached (edit_env env, tree t, path ip,

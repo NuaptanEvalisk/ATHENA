@@ -19,7 +19,7 @@
 #include "boot.hpp"
 #include "data_cache.hpp"
 #include "gui.hpp"
-#include "scheme.hpp"
+#include "native_dispatch.hpp"
 #include "server.hpp"
 
 bool headless_mode= true;
@@ -76,7 +76,7 @@ int main (int argc, char** argv) {
   qputenv ("ATHENA_HOME_PATH", profile.path ().toUtf8 ());
   cache_initialize ();
   init_athena ();
-  start_scheme (argc, argv, run_tests);
+  run_tests (argc, argv);
   return 1;
 }
 

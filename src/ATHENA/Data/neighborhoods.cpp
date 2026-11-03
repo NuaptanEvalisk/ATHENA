@@ -14,7 +14,6 @@
 #include "namespaces.hpp"
 #include "namespaces_private.hpp"
 #include "new_buffer.hpp"
-#include "scheme.hpp"
 #include "vault.hpp"
 
 #include <algorithm>

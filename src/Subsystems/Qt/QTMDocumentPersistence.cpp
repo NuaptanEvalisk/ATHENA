@@ -131,7 +131,7 @@ private:
       athena_blob_id payload= vault_payload ();
       actor_command_ticket ticket= buffer->actor->try_submit (
         actor_command_kind::realtime_save_buffer, first_view (buffer),
-        payload, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER);
+        payload, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER);
       if (!ticket) {
         buffer->buf->realtime_save_queued= false;
         if (payload != ATHENA_NO_BLOB)
@@ -194,7 +194,7 @@ qtm_document_persistence_flush_realtime_async (std::function<void(bool)> complet
       try {
         invoked= buffer_actor::invoke_on (job.actor,
           actor_command_kind::realtime_save_buffer, job.view, job.vault,
-          ATHENA_NO_BLOB, &result, SCHEME_CAPABILITY_BUFFER);
+          ATHENA_NO_BLOB, &result, EXECUTION_CAPABILITY_BUFFER);
       }
       catch (...) { *saved= false; }
       if (!invoked && job.vault != ATHENA_NO_BLOB)

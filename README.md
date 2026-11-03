@@ -23,9 +23,9 @@ drop-in replacement for upstream TeXmacs. The primary ATHENA document format is
 ATHENA is designed for large structured mathematical note collections. Its main
 workflows center on vaults, wikilinks and transclusions, Materials and citations,
 namespaces, structural search, mathematical editing, and native Qt tools. The
-application also uses per-buffer execution actors so mutable editor, document,
-typesetting, and buffer-bound Scheme state remain owned by the corresponding
-buffer.
+application also uses per-buffer execution actors so mutable editor, document
+and typesetting state remain owned by the corresponding buffer. Qt owns the UI;
+native callbacks return to their originating actor through IDs.
 
 Many inherited TeXmacs subsystems that do not fit this direction have been
 removed rather than kept for compatibility. ATHENA therefore favors its own
@@ -107,19 +107,20 @@ The repository's `COMPILE.ath`, `COMPILE.tex` and `COMPILE.pdf` are older
 target. An existing configured Debug tree is built with:
 
 ```sh
-cmake --build build_qt6 --target ATHENA.bin -j20
+cmake --build build_qt6 --target ATHENA.bin -j16
 ```
 
-Do not substitute the default ALL target, which also operates on staged
-runtime resources and Scheme bytecode. A new configuration needs the
-project's CMake dependencies, private Guile 3 runtime, FreeType, HarfBuzz,
-ICU and LMDB. Intel oneAPI `icx`/`icpx` is the primary Linux toolchain.
+Use the explicit application target; the default ALL target also builds other
+tools and staged resources. A new configuration needs the project's native
+CMake dependencies, including FreeType, HarfBuzz, ICU and LMDB. Commands are
+generated from XML and execute directly in C++; no Scheme interpreter or Guile
+runtime is built or linked. Intel oneAPI `icx`/`icpx` is the primary Linux toolchain.
 Optional NPU RAG requires a working OpenVINO/Intel NPU environment and
 separate compatible models; weights are not included in source releases.
 
 **iPadOS:** ATHENA has an arm64 iPad application build path using an Xcode
-macOS host, Qt for iOS, precompiled no-JIT private Guile and the
-`tools/ipados/` scripts. The intended device baseline is iPadOS 27 or later
+macOS host, Qt for iOS, native target dependencies and the `tools/ipados/`
+scripts. The intended device baseline is iPadOS 27 or later
 on M2-or-newer iPads; the iPad application target is `ATHENA`, not
 `ATHENA.bin`. After provisioning the target dependencies, the host
 workflow uses:

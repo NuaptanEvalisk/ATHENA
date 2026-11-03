@@ -12,7 +12,7 @@
 #ifndef NEW_STYLE_H
 #define NEW_STYLE_H
 #include "Data/NodeContracts/execution_state.hpp"
-#include "scheme.hpp"
+#include "url.hpp"
 #include "Data/NodeContracts/evaluation_inputs.hpp"
 #include <cstdint>
 #include <filesystem>

@@ -1,8 +1,12 @@
 // Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later.
-#ifndef ATHENA_GLOBAL_TRANSFORMATION_FRONTEND_HPP
-#define ATHENA_GLOBAL_TRANSFORMATION_FRONTEND_HPP
-#include "scheme.hpp"
-void register_global_transformation (string name, object transformer);
-object load_global_transformation_script (url script);
+#pragma once
+#include "global_transformation.hpp"
+#include "vault.hpp"
+#include "../Interop/resolution.hpp"
 void run_global_transformation ();
-#endif
+namespace athena::interop {
+operation_result propose_global_transformation (
+  const vault_context_handle&, const value& parameters);
+operation_result global_transformation_status (
+  const vault_context_handle&, const std::string& id);
+}

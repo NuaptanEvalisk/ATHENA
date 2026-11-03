@@ -2,9 +2,7 @@
 set -euo pipefail
 
 export ATHENA_PATH=/opt/ATHENA
-private_guile=/opt/ATHENA/lib/athena-guile
-export ATHENA_GUILE_RUNTIME_ROOT="$private_guile"
-export LD_LIBRARY_PATH="$private_guile/lib:/opt/ATHENA/lib:/opt/ATHENA/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH="/opt/ATHENA/lib:/opt/ATHENA/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
 export QT_QPA_PLATFORM=wayland
 export QT_PLUGIN_PATH=/opt/ATHENA/plugins

@@ -19,7 +19,7 @@
 #include "boot.hpp"
 #include "data_cache.hpp"
 #include "gui.hpp"
-#include "scheme.hpp"
+#include "native_dispatch.hpp"
 #include "convert.hpp"
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
@@ -83,7 +83,7 @@ class CompoundClipboardV3Test: public QObject {
     const auto continuation= actor_continuation_registry::instance ().store (std::move (callback));
     return buffer_actor::invoke_on (range.actor, actor_command_kind::run_native_continuation,
       range.view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
-      SCHEME_CAPABILITY_BUFFER, continuation);
+      EXECUTION_CAPABILITY_BUFFER, continuation);
   }
 
   std::future<std::string> replace (const std::vector<avd::source_range>& ranges,
@@ -254,7 +254,7 @@ private slots:
     QCOMPARE (concrete_buffer (sources[0])->actor->source_epoch (), target.epoch);
     QCOMPARE (concrete_buffer (sources[1])->actor->source_epoch (), peer.epoch);
 
-    QVERIFY (on_owner (peer, [] { current_scheme_execution_context ()->actor->current_state ()->read_only= true; }));
+    QVERIFY (on_owner (peer, [] { current_execution_context ()->actor->current_state ()->read_only= true; }));
     future= replace ({target, peer}, piece ("x", version::v1, "math", "std-math"));
     QTRY_VERIFY_WITH_TIMEOUT (future.wait_for (std::chrono::seconds (0)) == std::future_status::ready, 10000);
     QVERIFY (future.get ().find ("read-only") != std::string::npos);
@@ -277,7 +277,7 @@ private slots:
     for (int i=0; i<2; ++i) {
       version actual= version::v1;
       QVERIFY (on_owner (i == 0 ? target : peer, [&] {
-        actual= current_scheme_execution_context ()->actor->current_state ()->storage_version;
+        actual= current_execution_context ()->actor->current_state ()->storage_version;
       }));
       QCOMPARE (actual, i == 0 ? version::v3 : version::v2);
     }
@@ -312,7 +312,6 @@ static void run_tests (int argc, char** argv) {
 
 int main (int argc, char** argv) {
   qputenv ("QT_QPA_PLATFORM", "offscreen");
-  qputenv ("GUILE_AUTO_COMPILE", "0");
   QTMApplication app (argc, argv);
   QTemporaryDir profile;
   if (!profile.isValid () || !QDir (profile.path ()).mkpath ("fonts")) return 1;
@@ -321,7 +320,7 @@ int main (int argc, char** argv) {
   cache_initialize ();
   reset_document_tree (current_document_tree ());
   init_athena ();
-  start_scheme (argc, argv, run_tests);
+  run_tests (argc, argv);
   return 1;
 }
 

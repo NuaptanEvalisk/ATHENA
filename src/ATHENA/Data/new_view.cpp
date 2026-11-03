@@ -19,7 +19,7 @@
 #include "new_document.hpp"
 #include "Data/NodeContracts/execution_state.hpp"
 #include "boot.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #include "buffer_actor.hpp"
 #include "editor.hpp"
 #include "actor_ui_bridge.hpp"
@@ -154,8 +154,8 @@ notify_viewport_follow () {
     if (endpoint == nullptr || !endpoint->viewport ().attached) continue;
     athena_continuation_id continuation=
       actor_continuation_registry::instance ().store ([] {
-        const SchemeExecutionContext* context=
-          current_scheme_execution_context ();
+        const ExecutionContext* context=
+          current_execution_context ();
         if (context == nullptr || context->editor == nullptr ||
             context->editor->ui_endpoint == nullptr ||
             !context->editor->ui_endpoint->viewport ().attached) return;
@@ -164,7 +164,7 @@ notify_viewport_follow () {
       });
     if (!view->buf->actor->submit (
           actor_command_kind::run_native_continuation, view->runtime_id,
-          ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+          ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
           continuation))
       (void) actor_continuation_registry::instance ().discard (continuation);
   }
@@ -174,7 +174,7 @@ tm_view the_view= NULL;
 
 bool
 has_current_view () {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr) return context->view_id != ATHENA_NO_VIEW;
   return the_view != NULL;
 }
@@ -194,7 +194,7 @@ set_current_view (url u) {
 
 url
 get_current_view () {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr) {
     ASSERT (context->view_id != ATHENA_NO_VIEW,
             "no active view in Scheme context");
@@ -206,7 +206,7 @@ get_current_view () {
 
 url
 get_current_view_safe () {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr)
     return context->view_id == ATHENA_NO_VIEW ? url_none () :
       context->actor->current_view_url (context->view_id);
@@ -218,11 +218,11 @@ void notify_delete_view (url u);
 
 editor
 get_current_editor () {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr) {
     ASSERT (context->editor != nullptr,
             "no editor capability in Scheme execution context");
-    ASSERT (context->has (SCHEME_CAPABILITY_BUFFER),
+    ASSERT (context->has (EXECUTION_CAPABILITY_BUFFER),
             "Scheme execution context cannot access a buffer editor");
     return editor (context->editor);
   }
@@ -232,11 +232,11 @@ get_current_editor () {
 
 void
 keyboard_focus_on_current_view (string field) {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr) {
     ASSERT (context->editor != nullptr,
             "no editor capability in Scheme execution context");
-    ASSERT (context->has (SCHEME_CAPABILITY_BUFFER),
+    ASSERT (context->has (EXECUTION_CAPABILITY_BUFFER),
             "Scheme execution context cannot access the current view");
     context->editor->keyboard_focus_on (std::move (field));
     return;
@@ -251,11 +251,11 @@ keyboard_focus_on_current_view (string field) {
 
 void
 init_default_current_view (string variable) {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr) {
     ASSERT (context->editor != nullptr,
             "no editor capability in Scheme execution context");
-    ASSERT (context->has (SCHEME_CAPABILITY_BUFFER),
+    ASSERT (context->has (EXECUTION_CAPABILITY_BUFFER),
             "Scheme execution context cannot modify a buffer editor");
     context->editor->init_default (std::move (variable));
     return;
@@ -267,7 +267,7 @@ init_default_current_view (string variable) {
     actor_text_registry::instance ().store (std::move (variable));
   actor_command_ticket ticket= buffer_actor::submit_to (
     view->buf->actor->id (), actor_command_kind::init_default,
-    view->runtime_id, payload, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER);
+    view->runtime_id, payload, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER);
   if (!ticket)
     (void) actor_text_registry::instance ().discard (payload);
 }
@@ -308,7 +308,7 @@ view_to_editor (url u) {
     return editor ();
 #endif
   }
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr && context->actor == vw->buf->actor &&
       context->view_id == vw->runtime_id && context->editor != nullptr)
     return editor (context->editor);
@@ -380,7 +380,6 @@ get_all_views () {
 * Creation of views on buffers
 ******************************************************************************/
 
-url tm_init_buffer_file= url_none ();
 static bool defer_view_initialization= false;
 static url deferred_view= url_none ();
 
@@ -396,7 +395,6 @@ initialize_current_view () {
     if (document_missing_style ()) document_set_default_style ();
     document_apply_vault_font ();
   }
-  if (!is_none (tm_init_buffer_file)) exec_file (tm_init_buffer_file);
 }
 
 static void
@@ -430,7 +428,7 @@ get_new_view (url name) {
   if (!buf->actor->invoke (
         actor_command_kind::create_view, vw->runtime_id,
         ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
-        SCHEME_CAPABILITY_BUFFER, static_cast<std::uint64_t> (vw->nr)))
+        EXECUTION_CAPABILITY_BUFFER, static_cast<std::uint64_t> (vw->nr)))
     FAILED ("BufferActor rejected view creation");
   bench_cumul ("construct initial editor");
 
@@ -586,7 +584,7 @@ window_set_view (url win_u, url new_u, bool focus) {
 
 void
 switch_to_buffer (url name) {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr && context->editor != nullptr) {
     (void) context->editor->publish_ui_text (
       actor_command_kind::ui_switch_to_buffer, encode_url (name));

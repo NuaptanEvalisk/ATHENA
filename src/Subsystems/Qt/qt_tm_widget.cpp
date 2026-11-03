@@ -10,6 +10,7 @@
  ******************************************************************************/
 
 #include "QTMEditorToolbarPresenter.hpp"
+#include "boot.hpp"
 #include <QToolButton>
 #include <QToolBar>
 #include <QPushButton>
@@ -38,7 +39,6 @@
 
 #include "config.h"
 #include "analyze.hpp"
-#include "scheme.hpp"
 
 #include "qt_tm_widget.hpp"
 #include "athena_platform.hpp"

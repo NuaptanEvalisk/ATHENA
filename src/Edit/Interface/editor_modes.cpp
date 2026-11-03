@@ -1,6 +1,7 @@
 // Copyright (C) 2001 Joris van der Hoeven, 2026 ATHENA contributors.
 // GPL-3.0-or-later.
 #include "editor_modes.hpp"
+#include "boot.hpp"
 #include "editor.hpp"
 #include "file.hpp"
 #include <stdexcept>

@@ -2,8 +2,8 @@
 Running ATHENA from this tree
 -------------------------------------------------------------------------------
 
-This directory is the ATHENA runtime tree.  It contains Scheme programs,
-packages, styles, tools, assets, and the executable under `bin/`.
+This directory is the ATHENA runtime tree. It contains declarative command
+data, packages, styles, tools, assets, and the executable under `bin/`.
 
 ATHENA is currently maintained on Linux with Qt 6.  The default local launcher
 uses native Wayland:
@@ -49,14 +49,14 @@ From the repository root, configure a Qt 6 build.  A typical debug build uses
       -DATHENA_GUI=Qt6 \
       -DCMAKE_BUILD_TYPE=Debug
 
-No system Guile installation is needed. CMake builds ATHENA's vendored private
-Guile 3 runtime and links the executable to it. Qt Advanced Docking System is
-also vendored under `3rdparty/athena-ads/`; ATHENA-specific docking changes are
-maintained directly in that source tree and require no post-configure patching.
+CMake generates native command adapters from XML; ATHENA does not build or link
+a Scheme interpreter or Guile runtime. Qt Advanced Docking System is vendored
+under `3rdparty/athena-ads/`; ATHENA-specific docking changes are maintained
+directly in that source tree and require no post-configure patching.
 
 Build and install the local development binary into this runtime tree:
 
-    cmake --build build_qt6 -j"$(nproc)"
+    cmake --build build_qt6 --target ATHENA.bin -j16
     tools/deploy-local-runtime.sh build_qt6
 
 The deploy helper skips byte-identical runtime files and replaces changed ELF
@@ -84,7 +84,7 @@ oneAPI when available:
 Pass any local dependency paths required by your machine, such as llama.cpp,
 resvg, or KIO options, then build:
 
-    cmake --build build_rel -j"$(nproc)"
+    cmake --build build_rel --target ATHENA.bin -j16
 
 Use the idempotent all-platform release driver:
 
@@ -130,8 +130,7 @@ For redistributable Linux builds, use the scripted container build:
     tools/container-build/build-athena-container.sh
 
 The script builds inside an openSUSE Leap 16.0 Podman environment, uses Qt 6,
-builds the vendored private ATHENA Guile runtime, prefers Intel icx/icpx when
-available, and produces:
+prefers Intel icx/icpx when available, and produces:
 
     container_build/ATHENA-dev/
     container_build/ATHENA-rel/
@@ -152,10 +151,9 @@ RPM or DEB on the build host:
     tools/container-build/validate-native-packages.sh
 
 The AppImage launch path defaults to Wayland in the same spirit as
-`StartATHENA.qt6.wayland.sh`. The AppImage already contains ATHENA's complete
-relocatable Scheme bytecode. DEB and RPM installation compiles the same Scheme
-corpus once during the package post-install phase and stores it below
-`/var/cache/athena`; normal startup does not compile it again.
+`StartATHENA.qt6.wayland.sh`. Native packages contain the executable, native
+libraries and declarative resources. Installation and startup do not compile
+Scheme modules.
 
 `tools/release/build-all.sh` invokes this workflow for both `dev` and `rel`,
 copies its AppImages and native packages into `release/` using canonical names,
@@ -167,8 +165,9 @@ Useful environment variables for the container build include:
     ATHENA_SKIP_UBUNTU_VALIDATE=1
     ATHENA_ALLOW_SYSTEM_COMPILER=1
 
-The private Guile library, standard library, and compiled standard library are
-bundled under `ATHENA/lib/athena-guile`; no target-system Guile is required.
+Install and release policies exclude retired interpreter libraries and module
+trees, including copies left in a previously deployed local runtime. Native
+font/cache data in S-expression format remains supported as data.
 
 -------------------------------------------------------------------------------
 Platform status

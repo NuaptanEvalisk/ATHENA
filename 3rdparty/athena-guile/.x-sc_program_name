@@ -1,5 +1,0 @@
-test-suite/*
-examples/*
-doc/example-smob/*
-libguile/gen-scmconfig.c
-*

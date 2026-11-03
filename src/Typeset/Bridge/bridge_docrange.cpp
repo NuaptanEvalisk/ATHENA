@@ -18,7 +18,7 @@
 ******************************************************************************/
 
 #include "bridge.hpp"
-#include "scheme.hpp"
+#include "boot.hpp"
 
 static string
 athena_labels_mode (edit_env env) {

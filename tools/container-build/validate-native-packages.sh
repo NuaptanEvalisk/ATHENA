@@ -34,8 +34,8 @@ for flavor in "${flavors[@]}"; do
     grep -q '/opt/ATHENA/usr/share/ATHENA/bin/athena-web-server' "$listing"
     grep -q '/opt/ATHENA/usr/share/ATHENA/share/ATHENA/web/index.html' "$listing"
     grep -q '/opt/ATHENA/usr/share/ATHENA/share/ATHENA/web/app.js' "$listing"
-    if grep -q '/opt/ATHENA/usr/share/ATHENA/lib/athena-scheme/' "$listing"; then
-      echo "native package unexpectedly contains retired application Scheme bytecode: $listing" >&2
+    if grep -E '/(progs|lib/(athena-scheme|athena-guile|guile)|share/guile)/|/lib(athena-)?guile[^/]*[.](so|dylib)|/libgc[.]so' "$listing"; then
+      echo "native package unexpectedly contains retired Scheme runtime files: $listing" >&2
       exit 1
     fi
     if grep -E 'ATHENA\.bin\.before-|/\.venv/|/\.uv-cache/|/__pycache__/|\.(gguf|safetensors|onnx|ckpt|pth|pt)$' \

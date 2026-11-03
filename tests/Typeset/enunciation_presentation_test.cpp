@@ -22,7 +22,7 @@
 #include "data_cache.hpp"
 #include "Data/NodeContracts/execution_state.hpp"
 #include "gui.hpp"
-#include "scheme.hpp"
+#include "native_dispatch.hpp"
 #include "server.hpp"
 #include "typesetter.hpp"
 #include "Bridge/impl_typesetter.hpp"
@@ -1130,7 +1130,7 @@ int main (int argc, char** argv) {
   qputenv ("ATHENA_HOME_PATH", profile.path ().toUtf8 ());
   cache_initialize ();
   init_athena ();
-  start_scheme (argc, argv, run_tests);
+  run_tests (argc, argv);
   return 1;
 }
 

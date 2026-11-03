@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMGlobalSearch.hpp"
+#include "boot.hpp"
 #include "generic_frontend.hpp"
 #include "QTMDocumentIdentity.hpp"
 #include "QTMMainTabWindow.hpp"
@@ -32,7 +33,6 @@
 #include "qt_utilities.hpp"
 #include "qt_widget.hpp"
 #include "renderer.hpp"
-#include "scheme.hpp"
 #include "link.hpp"
 #include "link_markup.hpp"
 #include "tm_buffer.hpp"
@@ -1099,7 +1099,7 @@ QTMGlobalSearch::openResult (QListWidgetItem* item) {
   if (!result.occurrenceAvailable && !result.sourceUuid.isEmpty ()) {
     const std::string target= ("tmfs://wikilink/" + result.sourceUuid).toStdString ();
     qt_schedule_buffer_idle (get_current_buffer_safe (), 0, [target] {
-      native_link_go_to_url (url (target.c_str ()), null_object ());
+      native_link_go_to_url (url (target.c_str ()));
     });
     return;
   }

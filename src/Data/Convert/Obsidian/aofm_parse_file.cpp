@@ -1,4 +1,5 @@
 #include <peglib.h>
+#include "boot.hpp"
 #include <fstream>
 #include <memory>
 #include <sstream>
@@ -8,7 +9,6 @@
 #include "convert.hpp"
 #include "file.hpp"
 #include "new_data.hpp"
-#include "scheme.hpp"
 #include "tm_configure.hpp"
 #include "tm_ostream.hpp"
 #include "tree.hpp"

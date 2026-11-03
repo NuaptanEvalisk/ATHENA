@@ -18,7 +18,6 @@
 #include "merge_sort.hpp"
 #include "data_cache.hpp"
 #include "web_files.hpp"
-#include "scheme.hpp"
 #include "convert.hpp"
 
 #include <stddef.h>

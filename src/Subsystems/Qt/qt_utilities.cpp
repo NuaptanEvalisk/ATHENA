@@ -12,7 +12,7 @@
 #include "QTMStyle.hpp"
 #include "actor_ui_bridge.hpp"
 #include "qt_utilities.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #include "unicode_text.hpp"
 #include "boot.hpp"
 #include <stdexcept>
@@ -56,7 +56,6 @@
 
 #include "converter.hpp"
 #include "locale.hpp"
-#include "scheme.hpp"
 #include "wencoding.hpp"
 
 #include "qt_gui.hpp"    // gui_maximal_extents()
@@ -91,8 +90,8 @@ qt_with_buffer (url buffer, std::function<void()> action) {
   if (!view->buf->actor->invoke (
         actor_command_kind::run_native_continuation, view->runtime_id,
         ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
-        SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_UI |
-          SCHEME_CAPABILITY_GLOBAL, id)) {
+        EXECUTION_CAPABILITY_BUFFER | EXECUTION_CAPABILITY_UI |
+          EXECUTION_CAPABILITY_GLOBAL, id)) {
     (void) actor_continuation_registry::instance ().discard (id);
     return false;
   }
@@ -129,7 +128,7 @@ void queue_editor_task (athena_actor_id actor, athena_view_id view,
       }
       const auto continuation= actor_continuation_registry::instance ().store (
         [actor, view, action= std::move (action)] {
-          const auto* context= current_scheme_execution_context ();
+          const auto* context= current_execution_context ();
           if (context->editor == nullptr) return;
           const int next= action ();
           if (next >= 0) queue_editor_task (actor, view, next, action);
@@ -137,15 +136,15 @@ void queue_editor_task (athena_actor_id actor, athena_view_id view,
       if (!buffer_actor::submit_to (actor,
             actor_command_kind::run_native_continuation, view,
             ATHENA_NO_BLOB, ATHENA_NO_BLOB,
-            SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_UI |
-              SCHEME_CAPABILITY_GLOBAL, continuation))
+            EXECUTION_CAPABILITY_BUFFER | EXECUTION_CAPABILITY_UI |
+              EXECUTION_CAPABILITY_GLOBAL, continuation))
         actor_continuation_registry::instance ().discard (continuation);
     });
 }
 }
 
 void qt_schedule_editor_task (int delay, std::function<int()> action) {
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   queue_editor_task (context ? context->actor_id : ATHENA_NO_ACTOR,
                      context ? context->view_id : ATHENA_NO_VIEW,
                      delay, std::move (action));
@@ -167,7 +166,7 @@ void qt_schedule_editor_idle (int idle, std::function<void()> action) {
 }
 
 void qt_schedule_buffer_idle (url buffer, int idle, std::function<void()> action) {
-  ASSERT (current_scheme_execution_context () == nullptr,
+  ASSERT (current_execution_context () == nullptr,
           "buffer idle scheduling requires the GUI owner");
   tm_view view= concrete_view (get_recent_view (buffer));
   if (view == nullptr) return;
@@ -193,7 +192,7 @@ qt_defer_to_main_thread (qt_main_thread_action action) {
   if (app == nullptr || QThread::currentThread () == app->thread ())
     return false;
 
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr && context->editor != nullptr &&
       context->view_id != ATHENA_NO_VIEW) {
     athena_resource_id id= actor_ui_register_action (action);
@@ -1002,10 +1001,6 @@ qt_apply_tm_style (QWidget* qwid, int style, color c) {
 string
 qt_application_directory () {
   return string (QCoreApplication::applicationDirPath().toUtf8().constData());
-  // This is used to set $ATHENA_PATH
-  // in Windows TeXmacs cannot run if this path contains unicode characters
-  // apparently because Guile uses standard narrow char api to load its modules => patch Guile?.  
-  // return from_qstring (QCoreApplication::applicationDirPath ());
 }
 
 string

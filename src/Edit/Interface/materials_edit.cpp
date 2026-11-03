@@ -1,5 +1,6 @@
 // Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later.
 #include "materials_edit.hpp"
+#include "boot.hpp"
 #include "native_interfaces.hpp"
 #include "editor.hpp"
 #include "tree_traverse.hpp"

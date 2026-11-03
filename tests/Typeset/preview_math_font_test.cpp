@@ -18,7 +18,7 @@
 #include "gui.hpp"
 #include "ATHENA/tm_frame.hpp"
 #include "Qt/qt_widget.hpp"
-#include "scheme.hpp"
+#include "native_dispatch.hpp"
 #include "server.hpp"
 #include "typesetter.hpp"
 #include "qt_renderer.hpp"
@@ -1025,7 +1025,7 @@ int main (int argc, char** argv) {
   qputenv ("ATHENA_HOME_PATH", profile.path ().toUtf8 ());
   cache_initialize ();
   init_athena ();
-  start_scheme (argc, argv, run_tests);
+  run_tests (argc, argv);
   return 1;
 }
 

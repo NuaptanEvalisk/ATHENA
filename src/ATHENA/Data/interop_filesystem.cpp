@@ -76,8 +76,8 @@ std::string new_filesystem_document_bytes (const value& encoded, int node_model_
   auto* app= QCoreApplication::instance ();
   if (!app) throw std::runtime_error ("Desktop is not available");
   std::string bytes, error;
-  // Style DRD evaluation can enter Guile. Prepare this detached document on
-  // the registered GUI owner; only immutable JSON/bytes cross the boundary.
+  // Prepare this detached document on the registered GUI owner for style
+  // contract evaluation; only immutable JSON/bytes cross the boundary.
   QMetaObject::invokeMethod (app, [&] {
     try {
       tree doc= document_node_from_value_v3 (encoded);

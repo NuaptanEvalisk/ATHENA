@@ -15,7 +15,6 @@
 #include "Data/NodeContracts/execution_state.hpp"
 #include "hashset.hpp"
 #include "analyze.hpp"
-#include "scheme.hpp"
 #include "matrix.hpp"
 #include "graphics_transform.hpp"
 

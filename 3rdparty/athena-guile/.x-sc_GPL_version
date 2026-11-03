@@ -1,4 +1,0 @@
-^lib/
-^gc-benchmarks/
-^libguile/libgettext.h
-^libguile/mkstemp.c

@@ -19,7 +19,6 @@
 #include "file.hpp" // added for copy_as_graphics
 #include "analyze.hpp"
 #include "message.hpp"
-#include "scheme.hpp"
 #include "sys_utils.hpp"
 #include "locale.hpp"
 #include "tm_window.hpp"
@@ -29,9 +28,7 @@
 #include "actor_ui_bridge.hpp"
 #include "buffer_actor.hpp"
 #include "boot.hpp"
-#include "guile_tm.hpp"
-#include "object.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 
 #include "qt_gui.hpp"
 #include "qt_ui_element.hpp"
@@ -804,8 +801,7 @@ gui_open (int& argc, char** argv) {
   mac_begin_remote();
 #endif
 
-  // Qt and Guile want to change the locale.
-  // We reset it to have POSIX functions parse correctly the configuration files
+  // Qt may change the locale. Keep numeric configuration parsing stable.
   // (see as_double() in string.cpp)
 
   setlocale (LC_NUMERIC, "C");
@@ -915,7 +911,7 @@ system_icon_for_link (string target, string type) {
   url file= dir * url (from_qstring (hash) * ".png");
   QString path= to_qstring (concretize (file));
   static QTMLinkIconCache cache;
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   QTMLinkIconCache::observer owner= context == nullptr ?
     QTMLinkIconCache::observer {0, 0} :
     QTMLinkIconCache::observer {context->actor_id, context->view_id};
@@ -1014,27 +1010,12 @@ qt_gui_rep::process_queued_events (int max) {
         cmd->apply();
       }
         break;
-      case qp_type::QP_COMMAND_ARGS :
-      {
-        typedef pair<command, object> T;
-        T x = open_box <T> (ev.x2);
-        x.x1->apply (x.x2);
-      }
-        break;
-      case qp_type::QP_GLOBAL_COMMANDS :
-      {
-        global_commands.exec_pending();
-      }
-        break;
-        
       default:
         FAILED ("Unexpected queued event");
     }
     switch (ev.x1) {
       case qp_type::QP_COMMAND:
-      case qp_type::QP_COMMAND_ARGS:
       case qp_type::QP_RESIZE:
-      case qp_type::QP_GLOBAL_COMMANDS:
         break;
       default:
         count++;
@@ -1084,18 +1065,6 @@ qt_gui_rep::process_resize (qt_simple_widget_rep *wid, SI x, SI y ) {
 void
 qt_gui_rep::process_command (command _cmd) {
   add_event (queued_event (qp_type::QP_COMMAND, close_box<command> (_cmd)));
-}
-
-void
-qt_gui_rep::process_command (command _cmd, object _args) {
-  typedef pair<command, object > T;
-  add_event (queued_event (qp_type::QP_COMMAND_ARGS,
-                           close_box<T> (T (_cmd,_args))));
-}
-
-void
-qt_gui_rep::process_global_commands () {
-  add_event (queued_event (qp_type::QP_GLOBAL_COMMANDS, blackbox()));
 }
 
 /*!
@@ -1191,12 +1160,6 @@ qt_gui_rep::update () {
   }
   
     // 2.
-    // Run pending process-global script callbacks.
-  
-  if (global_commands.has_pending ())
-    process_global_commands ();
-  
-    // 3.
     // If there are pending events in the private queue process them until the
     // limit in processed events is reached.
     // If there are no events or the limit is reached then proceed to a redraw.
@@ -1237,7 +1200,7 @@ qt_gui_rep::update () {
       !athena_has_open_ads_panes ())
     qApp->quit ();
   
-  time_t delay= needing_update || global_commands.has_pending () ? 0 : std_delay;
+  time_t delay= needing_update ? 0 : std_delay;
   if (postpone_treatment) delay= 9; // NOTE: force occasional display
  
   updatetimer->start (delay);
@@ -1245,8 +1208,7 @@ qt_gui_rep::update () {
 
   if (!headless_mode &&
       startup_splash_hide_allowed &&
-      !startup_splash_hidden &&
-      !global_commands.has_pending ()) {
+      !startup_splash_hidden) {
     startup_splash_hidden= true;
     tmapp()->set_splash_progress (100, "Ready");
     tmapp()->hide_splash ();
@@ -1426,7 +1388,7 @@ bool
 check_event (int type) {
     // Check whether an event of one of the above types has occurred;
     // we check for keyboard events while repainting windows
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr && context->actor_id != ATHENA_NO_ACTOR)
     return false;
   return the_gui->check_event (type);
@@ -1458,105 +1420,6 @@ external_event (string type, time_t t) {
   }
 }
 
-/******************************************************************************
- * One-shot global script commands
- ******************************************************************************/
-
-command_queue::~command_queue() { clear_pending(); /* implicit */ }
-
-void
-command_queue::exec_global (object cmd) {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
-  if (context == nullptr) {
-    (void) call_scheme (object_to_tmscm (cmd));
-    return;
-  }
-
-  athena_scheme_handle_id handle=
-    scheme_command_handle_acquire (object_to_tmscm (cmd));
-  actor_ui_endpoint* endpoint= find_actor_ui_endpoint (context->view_id);
-  if (headless_mode || endpoint == nullptr || !endpoint->viewport ().attached) {
-    // Passive conversion views, like headless views, have no attached canvas
-    // to drain global UI effects. Their global commands still need delivery.
-    qt_post_to_main_thread ([handle] {
-      schedule_global_scheme_handle (handle, ATHENA_NO_VIEW);
-    });
-    return;
-  }
-  if (endpoint->publish (
-        actor_command_kind::ui_schedule_global_scheme, ATHENA_NO_BLOB,
-        handle))
-    return;
-  scheme_command_handle_release (handle);
-}
-
-void
-command_queue::exec_handle (std::uint64_t handle, std::uint64_t view_id) {
-  if (handle == ATHENA_NO_SCHEME_HANDLE) return;
-  handles << handle;
-  view_ids << view_id;
-  if (gui_event_loop_started) the_gui->need_update ();
-}
-
-void
-command_queue::exec_pending () {
-  static const int command_call_budget= 20;
-  static const time_t command_time_budget= 25;
-  array<std::uint64_t> h= handles;
-  array<std::uint64_t> views= view_ids;
-  handles= array<std::uint64_t> (0);
-  view_ids= array<std::uint64_t> (0);
-  auto retain_remaining= [&] (int next) {
-    for (int j=next; j<N(h); ++j) {
-      handles << h[j];
-      view_ids << views[j];
-    }
-  };
-  time_t batch_begin= texmacs_time ();
-  for (int i=0; i<N(h); ++i) {
-    if (views[i] != ATHENA_NO_VIEW) {
-      tm_view view= concrete_runtime_view (views[i]);
-      if (view != nullptr) set_current_view (abstract_view (view));
-    }
-    try {
-      tmscm command= scheme_command_handle_value (h[i]);
-      if (!scm_is_eq (command, SCM_UNDEFINED)) (void) call_scheme (command);
-    }
-    catch (...) {
-      scheme_command_handle_release (h[i]);
-      retain_remaining (i+1);
-      throw;
-    }
-    scheme_command_handle_release (h[i]);
-    if (i+1 >= command_call_budget || texmacs_time () - batch_begin >= command_time_budget) {
-      retain_remaining (i+1);
-      break;
-    }
-  }
-}
-
-void
-command_queue::clear_pending () {
-  for (int i= 0; i < N (handles); ++i)
-    scheme_command_handle_release (handles[i]);
-  handles= array<std::uint64_t> (0);
-  view_ids= array<std::uint64_t> (0);
-}
-
-
-/******************************************************************************
- * Global script command interface
- ******************************************************************************/
-
-void exec_global (object cmd) {
-  the_gui->global_commands.exec_global(cmd);
-}
-void schedule_global_scheme_handle (std::uint64_t handle, std::uint64_t view_id) {
-  the_gui->global_commands.exec_handle (handle, view_id);
-}
-void clear_pending_commands () {
-  the_gui->global_commands.clear_pending();
-}
 
 
 /******************************************************************************

@@ -1,7 +1,7 @@
 // Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later.
 #pragma once
 #include "tree.hpp"
-#include "object.hpp"
+#include <optional>
 
 bool text_node_in_group (tree t, const char* group, bool numbered_variants= false);
 bool text_titled_context (tree t);
@@ -18,10 +18,10 @@ bool text_title_enter (tree t);
 void text_doc_data_clean (tree t);
 bool text_section_context (tree t);
 bool text_list_context (tree t);
-object text_previous_section ();
+std::optional<tree> text_previous_section ();
 void text_go_to_section_title ();
-bool text_heading_fold_toggle (object t);
-tree text_heading_word_count (object t);
+bool text_heading_fold_toggle (tree t);
+tree text_heading_word_count (tree t);
 void text_space_bar ();
 bool text_enter (tree t, bool shift);
 void text_make_list (tree_label tag);

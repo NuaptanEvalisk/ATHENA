@@ -7,12 +7,12 @@
  ******************************************************************************/
 
 #include "native_program_edit.hpp"
+#include "boot.hpp"
 #include "Data/Convert/Generic/conversion_graph.hpp"
 #include "analyze.hpp"
 #include "modification.hpp"
 #include "new_view.hpp"
 #include "program_syntax.hpp"
-#include "scheme.hpp"
 #include <vector>
 
 namespace

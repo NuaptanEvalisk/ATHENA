@@ -127,7 +127,7 @@ if (ATHENA_PLATFORM_IPADOS)
 endif ()
 
 option (ATHENA_ENABLE_TSAN
-  "Instrument ATHENA and its private Guile runtime with ThreadSanitizer" OFF)
+  "Instrument ATHENA with ThreadSanitizer" OFF)
 
 function (athena_write_build_fingerprint path content)
   set (previous "")
@@ -588,16 +588,6 @@ if (NOT ATHENA_PLATFORM_IPADOS)
   pkg_check_modules (MAGICKWAND REQUIRED MagickWand)
   add_definitions (${MAGICKWAND_CFLAGS_OTHER})
 endif ()
-### --------------------------------------------------------------------
-### ATHENA's private Guile 3 runtime
-### --------------------------------------------------------------------
-
-include(AthenaGuile)
-set(CONFIG_GUILE_SERIAL "ATHENA-GUILE3")
-set(ATHENA_GUILE3 1)
-set(SCM_SIZET size_t)
-set(CMAKE_REQUIRED_INCLUDES "${ATHENA_GUILE_INCLUDE_DIR}")
-set (guile_str_size_t size_t)
 
 ### --------------------------------------------------------------------
 ### Generate configure headers
@@ -617,7 +607,6 @@ else ()
   set (GS_LIB ../share/ghostscript/9.06/lib:)
 endif ()
 
-set (GUILE_NUM 1)
 set (SIZEOF_VOID_P 8)
 set (STDC_HEADERS 1)
 
@@ -745,9 +734,7 @@ set (ATHENA_Include_Dirs
   ${ATHENA_SOURCE_DIR}/src/Subsystems/MCP
   ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt
   ${ATHENA_SOURCE_DIR}/src/Subsystems/RAG
-  ${ATHENA_SOURCE_DIR}/src/Scheme
-  ${ATHENA_SOURCE_DIR}/src/Scheme/Guile
-  ${ATHENA_SOURCE_DIR}/src/Scheme/Scheme
+  ${ATHENA_SOURCE_DIR}/src/ATHENA/Commands
   ${ATHENA_SOURCE_DIR}/src/Style/Environment
   ${ATHENA_SOURCE_DIR}/src/Style/Evaluate
   ${ATHENA_SOURCE_DIR}/src/Style/Memorizer
@@ -782,7 +769,7 @@ else (WIN32)
 endif (WIN32)
 
 set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
-  ${ATHENA_GUILE_INCLUDE_DIR} ${FREETYPE_INCLUDE_DIRS}
+  ${FREETYPE_INCLUDE_DIRS}
   ${IMLIB2_INCLUDE_DIR} ${GMP_INCLUDES} ${GNUTLS_INCLUDE_DIRS}
   ${SQLITE3_INCLUDE_DIRS} ${ICONV_INCLUDE_DIR}
   ${NLOHMANN_JSON_INCLUDE_DIR}
@@ -797,8 +784,7 @@ file (GLOB_RECURSE ATHENA_Base_SRCS CONFIGURE_DEPENDS
   "${ATHENA_SOURCE_DIR}/src/Edit/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Graphics/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Kernel/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Scheme/Scheme/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Scheme/Guile/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/ATHENA/Commands/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/System/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/ATHENA/Data/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/ATHENA/Math/*.cpp"
@@ -866,7 +852,6 @@ if (ATHENA_PLATFORM_MACOS AND EXISTS /opt/homebrew/lib)
 endif ()
 
 set (ATHENA_Libraries
-  ATHENA::Guile
   ${ZLIB_LIBRARIES}
   ${JPEG_LIBRARIES}
   ${PNG_LIBRARIES}
@@ -1212,13 +1197,6 @@ install (FILES ATHENA/misc/images/text-x-athena-style.svg RENAME org.athena.styl
 install (FILES ATHENA/misc/images/application-x-athena-avd.svg RENAME org.athena.avd.svg
   DESTINATION share/icons/hicolor/scalable/mimetypes)
 install (FILES ATHENA/misc/mime/athena.xml DESTINATION share/mime/packages)
-install (DIRECTORY "${ATHENA_GUILE_PREFIX}/share/guile/3.0"
-  DESTINATION share/ATHENA/lib/athena-guile/share/guile)
-install (DIRECTORY "${ATHENA_GUILE_PREFIX}/lib/guile/3.0"
-  DESTINATION share/ATHENA/lib/athena-guile/lib/guile)
-install (DIRECTORY "${ATHENA_GUILE_PREFIX}/lib/"
-  DESTINATION share/ATHENA/lib/athena-guile/lib
-  FILES_MATCHING PATTERN "libathena-guile.so*")
 foreach (size IN ITEMS 16 22 24 32 48 64 128 256 512)
   message (STATUS ${size})
   install (FILES ATHENA/misc/images/ATHENA-${size}.png RENAME ATHENA.png
@@ -1232,14 +1210,6 @@ endforeach ()
 if (BUILD_TESTS)
   find_package(Qt6 COMPONENTS Test REQUIRED)
   set(ATHENA_QT_TEST_LIBRARY Qt6::Test)
-  add_test(NAME athena_guile_native_runtime
-    COMMAND ${CMAKE_COMMAND} -E env
-      "LD_LIBRARY_PATH=${ATHENA_GUILE_PREFIX}/lib"
-      "GUILE_LOAD_PATH=${CMAKE_SOURCE_DIR}/tests/scheme/native-runtime:${ATHENA_GUILE_STANDARD_LIBRARY}"
-      "GUILE_LOAD_COMPILED_PATH=${ATHENA_GUILE_COMPILED_LIBRARY}"
-      "GUILE_AUTO_COMPILE=0"
-      ${ATHENA_GUILE_PREFIX}/bin/guile --no-auto-compile
-      ${CMAKE_SOURCE_DIR}/tests/scheme/native-runtime/native-runtime-test.scm)
   if (NOT WIN32 AND ATHENA_ENABLE_CODEX_BRIDGE)
     add_test(NAME codex_bridge_protocol
       COMMAND ${Python3_EXECUTABLE}

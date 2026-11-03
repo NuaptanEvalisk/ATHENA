@@ -13,7 +13,7 @@
 #include "analyze.hpp"
 #include "actor_transport.hpp"
 #include "buffer_actor.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #include "vault.hpp"
 #include "new_buffer.hpp"
 #include "recent_files.hpp"
@@ -58,7 +58,7 @@ struct QuickSwitcherRequest {
   array<string> recentFiles;
   athena_actor_id actorId= ATHENA_NO_ACTOR;
   athena_view_id viewId= ATHENA_NO_VIEW;
-  SchemeCapabilitySet capabilities= SCHEME_CAPABILITY_NONE;
+  ExecutionCapabilitySet capabilities= EXECUTION_CAPABILITY_NONE;
 };
 
 std::mutex quickRequestMutex;
@@ -68,7 +68,7 @@ athena_resource_id nextQuickRequestId= 1;
 
 athena_resource_id
 registerQuickRequest (array<string>& recentFiles,
-                      const SchemeExecutionContext* context) {
+                      const ExecutionContext* context) {
   auto request= std::make_unique<QuickSwitcherRequest> ();
   request->recentFiles.swap (recentFiles);
   if (context != nullptr) {
@@ -151,12 +151,12 @@ completeQuickSwitcherResult (tree result) {
     loadQuickSwitcherTarget (target);
     return;
   }
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr && context->actor_id != ATHENA_NO_ACTOR &&
       context->view_id != ATHENA_NO_VIEW) {
     const athena_actor_id actor= context->actor_id;
     const athena_view_id view= context->view_id;
-    const SchemeCapabilitySet capabilities= context->capabilities;
+    const ExecutionCapabilitySet capabilities= context->capabilities;
     string targetPath= as_string (target, URL_SYSTEM);
     targetPath.ensure_transferable ();
     string requestPath= targetPath;
@@ -838,7 +838,7 @@ vault_quick_switcher (array<string>& recentFiles) {
   if (app == nullptr) return;
 
   athena_resource_id requestId=
-    registerQuickRequest (recentFiles, current_scheme_execution_context ());
+    registerQuickRequest (recentFiles, current_execution_context ());
   bool invoked= QMetaObject::invokeMethod (
     app, [requestId] () { executeQuickRequest (requestId); },
     Qt::QueuedConnection);

@@ -37,7 +37,7 @@ operation_result editor_operation (std::uint64_t id, const std::string& command,
   auto answer= std::make_shared<operation_result> ();
   auto continuation= actor_continuation_registry::instance ().store ([answer, view, command, p] {
     try {
-      auto* actor= current_scheme_execution_context ()->actor;
+      auto* actor= current_execution_context ()->actor;
       auto* editor= actor->current_editor (view);
       if (!editor) { *answer= {"STALE", "Editor view has closed"}; return; }
       const value cursor= encode_path (editor->the_path () / editor->the_buffer_path ());
@@ -88,7 +88,7 @@ operation_result editor_operation (std::uint64_t id, const std::string& command,
     catch (const string& error) { *answer= {"ERROR", std::string (error.data (), N (error))}; }
   });
   if (!buffer_actor::invoke_on (id, actor_command_kind::run_native_continuation, view,
-        ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, continuation)) {
+        ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER, continuation)) {
     actor_continuation_registry::instance ().discard (continuation);
     return {"STALE", "Buffer has closed"};
   }

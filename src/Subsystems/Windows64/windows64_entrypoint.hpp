@@ -29,14 +29,5 @@ int texmacs_entrypoint(int argc, char** argv);
  */
 void texmacs_attach_console();
 
-/*
- * @brief Initialize the guile hooks to make guile compatible 
- * with unicode strings.
- * 
- * The texmacs-guile provides a set of hooks to intercept the system calls.
- * This function initializes the guile hooks to incercept each string and
- * make them compatible with unicode.
- */
-void texmacs_init_guile_hooks();
 
 #endif

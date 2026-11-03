@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMVaultArtifactPage.hpp"
+#include "boot.hpp"
 
 #include "QTMVaultAnchorModel.hpp"
 #include "QTMVaultLinkModel.hpp"
@@ -18,7 +19,6 @@
 #include "convert.hpp"
 #include "node_metadata.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
 
 #include <rapidfuzz/fuzz.hpp>
 

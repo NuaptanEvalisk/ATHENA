@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "auto_close.hpp"
+#include "boot.hpp"
 
 #include "analyze.hpp"
 #include "file.hpp"
@@ -168,25 +169,6 @@ find_opening_quote_in_concat (const tree& concat, int child, int byte) {
   return find_opening_quote_in_concat (concat, child - 1, previous_end);
 }
 
-bool
-string_arg (const array<object>& args, int index, string& result) {
-  if (index < 0 || index >= N(args) || !is_string (args[index])) return false;
-  result= as_string (args[index]);
-  return true;
-}
-
-bool
-bool_arg (const array<object>& args, int index, bool& result) {
-  if (index < 0 || index >= N(args) || !is_bool (args[index])) return false;
-  result= as_bool (args[index]);
-  return true;
-}
-
-bool
-large_arg (const array<object>& args, int index) {
-  return index < N(args) && is_bool (args[index]) && as_bool (args[index]);
-}
-
 } // namespace
 
 void
@@ -284,12 +266,6 @@ insert_alphabet (editor_rep* ed, string tag, string value) {
   ed->insert_tree (tree (as_tree_label (tag), value));
 }
 
-bool
-rest_large_option (object options) {
-  if (!is_list (options)) return false;
-  const array<object> values= as_array_object (options);
-  return N(values) == 1 && is_bool (values[0]) && as_bool (values[0]);
-}
 
 quote_style
 quote_style_for_language (string language) {
@@ -451,64 +427,6 @@ make_big_operator (editor_rep* ed, string op) {
   ed->insert_tree (tree (BIG, op));
 }
 
-bool
-keyboard_call (string name, const array<object>& args, object& result) {
-  editor ed= get_current_editor ();
-  editor_rep* target= is_nil (ed) ? nullptr : ed.operator-> ();
-  if (name == "insert-quote" && N(args) == 0) {
-    insert_quote (target);
-    result= object (true);
-    return true;
-  }
-  if (name == "insert-apostrophe" && N(args) == 1) {
-    bool alternate;
-    if (!bool_arg (args, 0, alternate)) return false;
-    insert_apostrophe (target, alternate);
-    result= object (true);
-    return true;
-  }
-  if (name == "make-bracket-open" && (N(args) == 2 || N(args) == 3)) {
-    string left, right;
-    if (!string_arg (args, 0, left) || !string_arg (args, 1, right))
-      return false;
-    make_bracket_open (target, left, right, large_arg (args, 2));
-    result= object (true);
-    return true;
-  }
-  if (name == "make-separator" && (N(args) == 1 || N(args) == 2)) {
-    string separator;
-    if (!string_arg (args, 0, separator)) return false;
-    make_separator (target, separator, large_arg (args, 1));
-    result= object (true);
-    return true;
-  }
-  if (name == "make-bracket-close" && (N(args) == 2 || N(args) == 3)) {
-    string right, left;
-    if (!string_arg (args, 0, right) || !string_arg (args, 1, left))
-      return false;
-    make_bracket_close (target, right, left, large_arg (args, 2));
-    result= object (true);
-    return true;
-  }
-  if (name == "test-matching-brackets?" && N(args) == 0) {
-    result= object (test_matching_brackets ());
-    return true;
-  }
-  if (name == "toggle-matching-brackets" && N(args) == 0) {
-    toggle_matching_brackets ();
-    result= object (true);
-    return true;
-  }
-  if (name == "make-big-operator" && N(args) == 1) {
-    string op;
-    if (!string_arg (args, 0, op)) return false;
-    make_big_operator (target, op);
-    result= object (true);
-    return true;
-  }
-  return false;
-}
-
 } // namespace athena::auto_close
 
 void
@@ -525,27 +443,27 @@ native_insert_apostrophe (bool alternate) {
 }
 
 void
-native_make_bracket_open (string left, string right, object options) {
+native_make_bracket_open (string left, string right, bool large) {
   editor ed= get_current_editor ();
   athena::auto_close::make_bracket_open (
     is_nil (ed) ? nullptr : ed.operator-> (), left, right,
-    athena::auto_close::rest_large_option (options));
+    large);
 }
 
 void
-native_make_separator (string separator, object options) {
+native_make_separator (string separator, bool large) {
   editor ed= get_current_editor ();
   athena::auto_close::make_separator (
     is_nil (ed) ? nullptr : ed.operator-> (), separator,
-    athena::auto_close::rest_large_option (options));
+    large);
 }
 
 void
-native_make_bracket_close (string right, string left, object options) {
+native_make_bracket_close (string right, string left, bool large) {
   editor ed= get_current_editor ();
   athena::auto_close::make_bracket_close (
     is_nil (ed) ? nullptr : ed.operator-> (), right, left,
-    athena::auto_close::rest_large_option (options));
+    large);
 }
 
 bool

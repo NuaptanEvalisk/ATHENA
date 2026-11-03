@@ -10,9 +10,9 @@
 ******************************************************************************/
 
 #include "basic.hpp"
+#include "boot.hpp"
 #include "string.hpp"
 #include "analyze.hpp"
-#include "scheme.hpp"
 #include "url.hpp"
 #include "file.hpp"
 #include "Freetype/tt_file.hpp"

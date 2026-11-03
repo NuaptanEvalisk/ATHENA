@@ -7,14 +7,14 @@
 ******************************************************************************/
 
 #include "document_persistence.hpp"
+#include "boot.hpp"
 
 #include "buffer_actor.hpp"
 #include "buffer_name_catalog.hpp"
 #include "buffer_state.hpp"
 #include "file.hpp"
 #include "new_buffer.hpp"
-#include "scheme.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #include "tm_buffer.hpp"
 #include "tm_window.hpp"
 #include "vault.hpp"
@@ -65,7 +65,7 @@ invoke_realtime_save (tm_buffer buffer) {
   actor_command_record result;
   const bool invoked= buffer->actor->invoke (
     actor_command_kind::realtime_save_buffer, realtime_view (buffer),
-    vault_payload, ATHENA_NO_BLOB, &result, SCHEME_CAPABILITY_BUFFER);
+    vault_payload, ATHENA_NO_BLOB, &result, EXECUTION_CAPABILITY_BUFFER);
   if (!invoked && vault_payload != ATHENA_NO_BLOB)
     (void) actor_text_registry::instance ().discard (vault_payload);
   return invoked && result.argument[0] == 0;
@@ -100,7 +100,7 @@ athena_realtime_save_eligible (url name) {
       is_scratch (name) || !realtime_suffix (name))
     return false;
 
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr && context->actor != nullptr &&
       context->actor->current_buffer_url () == name) {
     buffer_document_state* state= context->actor->current_state ();
@@ -121,7 +121,7 @@ athena_realtime_save_eligible (url name) {
 
 bool
 athena_realtime_save_paused (url name) {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr && context->actor != nullptr &&
       context->actor->current_buffer_url () == name) {
     buffer_document_state* state= context->actor->current_state ();
@@ -147,12 +147,12 @@ athena_realtime_save_active (url name) {
 
 bool
 athena_set_realtime_save_paused (url name, bool paused) {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context != nullptr && context->actor != nullptr &&
       context->actor->current_buffer_url () == name) {
     return context->actor->invoke (
       actor_command_kind::set_realtime_save_paused, context->view_id,
-      ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER,
+      ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER,
       paused ? 1 : 0);
   }
 
@@ -160,7 +160,7 @@ athena_set_realtime_save_paused (url name, bool paused) {
   if (buffer == nullptr || buffer->actor == nullptr) return false;
   return buffer->actor->invoke (
     actor_command_kind::set_realtime_save_paused, realtime_view (buffer),
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER,
     paused ? 1 : 0);
 }
 
@@ -209,7 +209,7 @@ athena_flush_realtime_buffer (url name) {
   tm_buffer buffer= concrete_buffer (name);
   if (buffer == nullptr) return true;
   const bool saved= invoke_realtime_save (buffer);
-  if (saved && current_scheme_execution_context () == nullptr) {
+  if (saved && current_execution_context () == nullptr) {
     publish_buffer_menu_modified (buffer, false);
     buffer->buf->realtime_save_queued= false;
     buffer->buf->last_save= last_modified (name);
@@ -219,7 +219,7 @@ athena_flush_realtime_buffer (url name) {
 
 bool
 athena_flush_all_realtime_buffers () {
-  if (current_scheme_execution_context () != nullptr) return false;
+  if (current_execution_context () != nullptr) return false;
   array<url> buffers= get_all_buffers ();
   bool ok= true;
   for (int i=0; i<N(buffers); ++i) {

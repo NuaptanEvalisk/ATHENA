@@ -12,7 +12,6 @@
 #include "analyze.hpp"
 #include "merge_sort.hpp"
 #include "converter.hpp"
-#include "scheme.hpp"
 #include "ntuple.hpp"
 #include "new_document.hpp"
 #include "node_metadata_transform.hpp"

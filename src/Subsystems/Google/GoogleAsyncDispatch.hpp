@@ -11,14 +11,14 @@
 #ifndef GOOGLEASYNCDISPATCH_HPP
 #define GOOGLEASYNCDISPATCH_HPP
 
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 
 #include <functional>
 
 struct GoogleAsyncOrigin {
   athena_actor_id actorId= ATHENA_NO_ACTOR;
   athena_view_id viewId= ATHENA_NO_VIEW;
-  SchemeCapabilitySet capabilities= SCHEME_CAPABILITY_NONE;
+  ExecutionCapabilitySet capabilities= EXECUTION_CAPABILITY_NONE;
 };
 
 GoogleAsyncOrigin google_async_origin () noexcept;

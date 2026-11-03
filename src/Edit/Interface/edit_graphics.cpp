@@ -12,7 +12,6 @@
 #include "native_graphics_commands.hpp"
 #include "Interface/edit_graphics.hpp"
 #include "server.hpp"
-#include "scheme.hpp"
 #include "curve.hpp"
 #include "Boxes/graphics.hpp"
 #include "Bridge/impl_typesetter.hpp"

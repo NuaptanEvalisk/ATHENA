@@ -12,7 +12,7 @@
 #define BUFFER_ACTOR_H
 
 #include "actor_transport.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #include "url.hpp"
 #include "path.hpp"
 
@@ -57,7 +57,7 @@ public:
     actor_command_kind kind, athena_view_id view_id= ATHENA_NO_VIEW,
     athena_blob_id payload0= ATHENA_NO_BLOB,
     athena_blob_id payload1= ATHENA_NO_BLOB,
-    SchemeCapabilitySet capabilities= SCHEME_CAPABILITY_BUFFER,
+    ExecutionCapabilitySet capabilities= EXECUTION_CAPABILITY_BUFFER,
     std::uint64_t argument0= 0, std::uint64_t argument1= 0,
     std::uint64_t argument2= 0, std::uint64_t argument3= 0,
     std::uint64_t argument4= 0, std::uint64_t argument5= 0,
@@ -67,7 +67,7 @@ public:
     actor_command_kind kind, athena_view_id view_id= ATHENA_NO_VIEW,
     athena_blob_id payload0= ATHENA_NO_BLOB,
     athena_blob_id payload1= ATHENA_NO_BLOB,
-    SchemeCapabilitySet capabilities= SCHEME_CAPABILITY_BUFFER,
+    ExecutionCapabilitySet capabilities= EXECUTION_CAPABILITY_BUFFER,
     std::uint64_t argument0= 0, std::uint64_t argument1= 0,
     std::uint64_t argument2= 0, std::uint64_t argument3= 0,
     std::uint64_t argument4= 0, std::uint64_t argument5= 0,
@@ -78,7 +78,7 @@ public:
     athena_view_id view_id= ATHENA_NO_VIEW,
     athena_blob_id payload0= ATHENA_NO_BLOB,
     athena_blob_id payload1= ATHENA_NO_BLOB,
-    SchemeCapabilitySet capabilities= SCHEME_CAPABILITY_BUFFER,
+    ExecutionCapabilitySet capabilities= EXECUTION_CAPABILITY_BUFFER,
     std::uint64_t argument0= 0, std::uint64_t argument1= 0,
     std::uint64_t argument2= 0, std::uint64_t argument3= 0,
     std::uint64_t argument4= 0, std::uint64_t argument5= 0,
@@ -89,7 +89,7 @@ public:
     athena_view_id view_id= ATHENA_NO_VIEW,
     athena_blob_id payload0= ATHENA_NO_BLOB,
     athena_blob_id payload1= ATHENA_NO_BLOB,
-    SchemeCapabilitySet capabilities= SCHEME_CAPABILITY_BUFFER,
+    ExecutionCapabilitySet capabilities= EXECUTION_CAPABILITY_BUFFER,
     std::uint64_t argument0= 0, std::uint64_t argument1= 0,
     std::uint64_t argument2= 0, std::uint64_t argument3= 0,
     std::uint64_t argument4= 0, std::uint64_t argument5= 0,
@@ -112,7 +112,7 @@ public:
     athena_blob_id payload0= ATHENA_NO_BLOB,
     athena_blob_id payload1= ATHENA_NO_BLOB,
     actor_command_record* result= nullptr,
-    SchemeCapabilitySet capabilities= SCHEME_CAPABILITY_BUFFER,
+    ExecutionCapabilitySet capabilities= EXECUTION_CAPABILITY_BUFFER,
     std::uint64_t argument0= 0, std::uint64_t argument1= 0,
     std::uint64_t argument2= 0, std::uint64_t argument3= 0,
     std::uint64_t argument4= 0, std::uint64_t argument5= 0,
@@ -123,7 +123,7 @@ public:
     athena_blob_id payload0= ATHENA_NO_BLOB,
     athena_blob_id payload1= ATHENA_NO_BLOB,
     actor_command_record* result= nullptr,
-    SchemeCapabilitySet capabilities= SCHEME_CAPABILITY_BUFFER,
+    ExecutionCapabilitySet capabilities= EXECUTION_CAPABILITY_BUFFER,
     std::uint64_t argument0= 0, std::uint64_t argument1= 0,
     std::uint64_t argument2= 0, std::uint64_t argument3= 0,
     std::uint64_t argument4= 0, std::uint64_t argument5= 0,
@@ -143,7 +143,7 @@ public:
     source_epoch_.fetch_add (1, std::memory_order_release);
   }
 
-  // Actor-thread accessors used by Scheme compatibility glue.
+  // Actor-thread accessors used by native editor commands.
   url current_buffer_url () const;
   url current_view_url (athena_view_id view_id) const;
   editor_rep* current_editor (athena_view_id view_id) const noexcept;
@@ -169,11 +169,10 @@ public:
   // FIFO command queue accepts it; never perform source edits during layout.
   void queue_hybrid_activation (athena_view_id view_id, std::uint64_t token);
 
-  // Fixed dispatch is public only for the Guile C trampoline.  Callers submit
-  // command ids; they never invoke this directly.
+private:
+  // Fixed native dispatch runs only on the owner thread after mailbox delivery.
   void dispatch (actor_command_record& command);
 
-private:
   bool can_apply_saved_document (const std::string& expected_storage) const;
   const athena_actor_id id_;
   std::atomic<std::uint64_t> source_epoch_ {1};
@@ -185,7 +184,7 @@ private:
   actor_command_transport commands_;
 
   // The transport itself remains SPSC. This lock is the one producer gate for
-  // callers from Qt and other Guile actors; it never protects actor state.
+  // callers from Qt and other buffer actors; it never protects actor state.
   std::mutex submit_lock_;
   mutable std::mutex state_lock_;
   std::condition_variable started_condition_;
@@ -213,7 +212,7 @@ private:
   actor_command_ticket submit_with_response (
     actor_command_kind kind, athena_view_id view_id,
     athena_blob_id payload0, athena_blob_id payload1,
-    SchemeCapabilitySet capabilities, athena_response_id response_id,
+    ExecutionCapabilitySet capabilities, athena_response_id response_id,
     std::uint64_t argument0, std::uint64_t argument1,
     std::uint64_t argument2, std::uint64_t argument3,
     std::uint64_t argument4, std::uint64_t argument5,
@@ -221,15 +220,13 @@ private:
     bool wait_for_slot);
   bool wait (actor_command_ticket ticket,
              actor_command_record* result= nullptr);
-  void run_in_guile ();
+  void run_loop ();
   void execute (actor_command_record& command);
   void publish_ready_contracts ();
   void flush_hybrid_activations ();
   void publish_tmfs_title (editor_rep* preferred_editor);
 
   static void thread_entry (buffer_actor* actor);
-  static void* guile_entry (void* raw_actor);
-  static void* wait_without_guile (void* raw_request);
 };
 
 athena_blob_id actor_text_from_string (string text);

@@ -16,7 +16,6 @@
 #include "Data/new_window.hpp"
 #include "Data/new_view.hpp"
 #include "message.hpp"
-#include "scheme.hpp"
 #include "gui_text.hpp"
 #include "tm_server.hpp"
 #include "tm_window.hpp"
@@ -35,7 +34,7 @@
 #include "QTMVaultExplorer.hpp"
 #include "ATHENA/Math/native_shape_recognizer.hpp"
 #include "qt_utilities.hpp"
-#include "Scheme/Scheme/native_interfaces.hpp"
+#include "native_interfaces.hpp"
 #include "qt_tm_widget.hpp"
 #include "renderer.hpp"
 
@@ -80,7 +79,7 @@ submit_native_recognition_result (
     athena_blob_id payload= reservation.publish ();
     actor_command_ticket ticket= buffer_actor::submit_to (
       actor, actor_command_kind::native_drawing_recognition, view, payload,
-      ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER);
+      ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER);
     if (!ticket) (void) actor_blob_registry::instance ().discard (payload);
     return;
   }
@@ -93,7 +92,7 @@ submit_native_recognition_result (
   athena_blob_id payload= reservation.publish ();
   actor_command_ticket ticket= buffer_actor::submit_to (
     actor, actor_command_kind::native_ink_stroke, view, payload,
-    ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
     static_cast<std::uint64_t> (samples.size ()),
     static_cast<std::uint64_t> (native_drawing_tool::pen),
     static_cast<std::uint64_t> (native_drawing_shape::line));
@@ -213,7 +212,7 @@ qt_actor_widget_rep::submit_editor_command (native_editor_command_id command) {
   if (command == native_editor_command_id::none) return false;
   return static_cast<bool> (buffer_actor::try_submit_to (
     actor_id_, actor_command_kind::native_editor_command, view_id_,
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
     static_cast<std::uint64_t> (command)));
 }
 
@@ -224,7 +223,7 @@ qt_actor_widget_rep::submit_editor_command (
   athena_blob_id payload= actor_text_from_string (std::move (argument));
   actor_command_ticket ticket= buffer_actor::try_submit_to (
     actor_id_, actor_command_kind::native_editor_command, view_id_,
-    payload, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    payload, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
     static_cast<std::uint64_t> (command));
   if (!ticket) {
     (void) actor_text_registry::instance ().discard (payload);
@@ -242,7 +241,7 @@ qt_actor_widget_rep::submit_editor_action (
     string (bytes.constData (), bytes.size ()));
   actor_command_ticket ticket= buffer_actor::try_submit_to (
     actor_id_, actor_command_kind::native_editor_action_json, view_id_,
-    payload, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    payload, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
     0, requiredFlags, forbiddenFlags, anyFlags);
   if (!ticket) {
     (void) actor_text_registry::instance ().discard (payload);
@@ -267,7 +266,7 @@ qt_actor_widget_rep::submit_text (
   athena_blob_id payload= actor_text_from_string (std::move (text));
   actor_command_ticket ticket= buffer_actor::submit_to (
     actor_id_, kind, view_id_, payload, ATHENA_NO_BLOB,
-    SCHEME_CAPABILITY_BUFFER, argument0);
+    EXECUTION_CAPABILITY_BUFFER, argument0);
   if (!ticket)
     (void) actor_text_registry::instance ().discard (payload);
 }
@@ -285,7 +284,7 @@ qt_actor_widget_rep::handle_notify_resize (SI width, SI height) {
   refresh_viewport ();
   (void) buffer_actor::submit_to (
     actor_id_, actor_command_kind::viewport_changed, view_id_,
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
     static_cast<std::uint64_t> (width),
     static_cast<std::uint64_t> (height),
     static_cast<std::uint64_t> (old_viewport.visible_y2),
@@ -316,7 +315,7 @@ qt_actor_widget_rep::handle_keyboard_focus (bool focused, time_t time) {
   refresh_viewport ();
   (void) buffer_actor::submit_to (
     actor_id_, actor_command_kind::keyboard_focus, view_id_,
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
     focused ? 1 : 0, static_cast<std::uint64_t> (time));
 }
 
@@ -382,7 +381,7 @@ qt_actor_widget_rep::submit_mouse (
   }
   actor_command_ticket ticket= (preview ? buffer_actor::try_submit_to : buffer_actor::submit_to) (
     actor_id_, actor_command_kind::mouse, view_id_, kind_payload,
-    data_payload, SCHEME_CAPABILITY_BUFFER,
+    data_payload, EXECUTION_CAPABILITY_BUFFER,
     static_cast<std::uint64_t> (x), static_cast<std::uint64_t> (y),
     static_cast<std::uint64_t> (modifiers),
     static_cast<std::uint64_t> (time),
@@ -455,7 +454,7 @@ bool
 qt_actor_widget_rep::handle_set_native_drawing_tool (native_drawing_tool tool) {
   actor_command_ticket ticket= buffer_actor::submit_to (
     actor_id_, actor_command_kind::set_native_drawing_tool, view_id_,
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
     static_cast<std::uint64_t> (tool));
   return static_cast<bool> (ticket);
 }
@@ -489,7 +488,7 @@ qt_actor_widget_rep::handle_set_native_drawing_property (
   native_drawing_property property, std::uint64_t value) {
   actor_command_ticket ticket= buffer_actor::submit_to (
     actor_id_, actor_command_kind::set_native_drawing_property, view_id_,
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
     static_cast<std::uint64_t> (property), value);
   return static_cast<bool> (ticket);
 }
@@ -536,7 +535,7 @@ qt_actor_widget_rep::handle_native_drawing_gesture (
   athena_blob_id payload= reservation.publish ();
   actor_command_ticket ticket= buffer_actor::submit_to (
     actor_id_, actor_command_kind::native_ink_stroke, view_id_, payload,
-    ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
     static_cast<std::uint64_t> (count),
     static_cast<std::uint64_t> (tool),
     static_cast<std::uint64_t> (shape));
@@ -568,7 +567,7 @@ qt_actor_widget_rep::handle_native_drawing_transform (
   athena_blob_id payload= reservation.publish ();
   actor_command_ticket ticket= buffer_actor::submit_to (
     actor_id_, actor_command_kind::native_drawing_transform, view_id_, payload,
-    ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
     static_cast<std::uint64_t> (transform),
     static_cast<std::uint64_t> (count));
   if (!ticket) (void) actor_blob_registry::instance ().discard (payload);
@@ -597,7 +596,7 @@ qt_actor_widget_rep::handle_native_drawing_insert_space (
   athena_blob_id payload= reservation.publish ();
   actor_command_ticket ticket= buffer_actor::submit_to (
     actor_id_, actor_command_kind::native_drawing_insert_space, view_id_, payload,
-    ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
     horizontal ? 1U : 0U, static_cast<std::uint64_t> (count));
   if (!ticket) (void) actor_blob_registry::instance ().discard (payload);
   return static_cast<bool> (ticket);
@@ -607,7 +606,7 @@ bool
 qt_actor_widget_rep::handle_native_drawing_trim () {
   actor_command_ticket ticket= buffer_actor::submit_to (
     actor_id_, actor_command_kind::native_drawing_trim, view_id_,
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER);
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER);
   return static_cast<bool> (ticket);
 }
 
@@ -620,7 +619,7 @@ qt_actor_widget_rep::handle_commutative_diagram_action (
   if (second != "") second_id= actor_text_registry::instance ().store (second);
   actor_command_ticket ticket= buffer_actor::submit_to (
     actor_id_, actor_command_kind::commutative_diagram_action, view_id_,
-    first_id, second_id, SCHEME_CAPABILITY_BUFFER,
+    first_id, second_id, EXECUTION_CAPABILITY_BUFFER,
     static_cast<std::uint64_t> (action));
   if (!ticket) {
     if (first_id != ATHENA_NO_BLOB)
@@ -657,7 +656,7 @@ void
 qt_actor_widget_rep::handle_zoom_by (bool zoom_in, double amount) {
   (void) buffer_actor::submit_to (
     actor_id_, actor_command_kind::zoom_by, view_id_,
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
     zoom_in ? 1 : 0, double_bits (amount));
 }
 
@@ -665,7 +664,7 @@ void
 qt_actor_widget_rep::handle_change_zoom_factor (double zoom) {
   (void) buffer_actor::submit_to (
     actor_id_, actor_command_kind::change_zoom, view_id_,
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
     double_bits (zoom));
 }
 
@@ -673,7 +672,7 @@ void
 qt_actor_widget_rep::handle_set_zoom_factor (double zoom) {
   (void) buffer_actor::submit_to (
     actor_id_, actor_command_kind::set_zoom, view_id_,
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
     double_bits (zoom));
 }
 
@@ -681,7 +680,7 @@ void
 qt_actor_widget_rep::handle_device_pixel_ratio_changed () {
   (void) buffer_actor::submit_to (
     actor_id_, actor_command_kind::device_pixel_ratio_changed, view_id_,
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER);
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER);
 }
 
 bool
@@ -713,7 +712,7 @@ qt_actor_widget_rep::handle_render_connection_ready (
   athena_resource_id connection_id) {
   (void) buffer_actor::submit_to (
     actor_id_, actor_command_kind::set_render_connection, view_id_,
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
     connection_id);
 }
 
@@ -1046,7 +1045,7 @@ qt_actor_widget_rep::drain_external_effects () {
       string encoded= actor_text_registry::instance ().take (record.payload0);
       auto reject= [&] {
         (void) buffer_actor::submit_to (actor_id_, actor_command_kind::completion_choice,
-          view_id_, 0, 0, SCHEME_CAPABILITY_BUFFER, record.argument[0],
+          view_id_, 0, 0, EXECUTION_CAPABILITY_BUFFER, record.argument[0],
           static_cast<std::uint64_t> (-1));
       };
       if (!canvas () || !canvas ()->presentationVisible () ||
@@ -1070,7 +1069,7 @@ qt_actor_widget_rep::drain_external_effects () {
         completion_popup_= new QTMCompletionPopup (canvas (),
           [actor, view] (std::uint64_t session, int index, bool activate) {
             (void) buffer_actor::submit_to (actor, actor_command_kind::completion_choice,
-              view, 0, 0, SCHEME_CAPABILITY_BUFFER, session,
+              view, 0, 0, EXECUTION_CAPABILITY_BUFFER, session,
               static_cast<std::uint64_t> (index), activate);
           });
       }
@@ -1184,9 +1183,6 @@ qt_actor_widget_rep::drain_external_effects () {
       if (view != nullptr) qtm_document_history_manual_request (view->buf);
       break;
     }
-    case actor_command_kind::ui_schedule_global_scheme:
-      schedule_global_scheme_handle (record.argument[0], view_id_);
-      break;
     default:
       break;
     }

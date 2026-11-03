@@ -1,0 +1,295 @@
+// Native implementations for generated native commands.
+// SPDX-License-Identifier: GPL-3.0-or-later
+#ifndef ATHENA_NATIVE_INTERFACES_HPP
+#define ATHENA_NATIVE_INTERFACES_HPP
+
+#include "tree.hpp"
+#include "url.hpp"
+#include "Edit/Interface/tree_pattern.hpp"
+#include "native_command_security.hpp"
+#include "ATHENA/Window/interactive_commands.hpp"
+#include "modification.hpp"
+#include "patch.hpp"
+#include "ATHENA/Data/data_art.hpp"
+#include "ATHENA/Data/heading_word_count.hpp"
+#include "Edit/Interface/auto_close.hpp"
+#include "Edit/Interface/table_commands.hpp"
+#include "Edit/Interface/format_geometry.hpp"
+#include "Edit/Interface/format_commands.hpp"
+#include "Edit/Interface/structured_commands.hpp"
+#include "Edit/Interface/generic_keyboard_commands.hpp"
+#include "Edit/Interface/native_program_edit.hpp"
+#include "Edit/Interface/native_keyboard_registry.hpp"
+#include "Edit/Interface/user_shortcuts.hpp"
+#include "Edit/Interface/presentation_commands.hpp"
+#include "Edit/Interface/source_commands.hpp"
+#include "Edit/Interface/generic_frontend.hpp"
+#include "Typeset/Env/title_markup.hpp"
+#include "Typeset/Env/utility_markup.hpp"
+#include "Edit/Interface/native_keyboard_loader.hpp"
+#include "Edit/Interface/native_input_events.hpp"
+#include "Edit/Interface/generic_editor_commands.hpp"
+#include "Edit/Interface/editing_utilities.hpp"
+#include "Edit/Interface/insertion_commands.hpp"
+#include "Edit/Interface/tree_commands.hpp"
+#include "Edit/Interface/editor_modes.hpp"
+#include "Edit/Interface/cursor_history.hpp"
+#include "Edit/Interface/document_commands.hpp"
+#include "Edit/Interface/reference_markup.hpp"
+#include "Edit/Interface/link_markup.hpp"
+#include "Edit/Interface/vault_navigation.hpp"
+#include "Edit/Interface/codex_completion.hpp"
+#include "Edit/Interface/materials_edit.hpp"
+#include "Edit/Interface/application_tools.hpp"
+#include "Edit/Interface/application_preferences.hpp"
+#include "Edit/Interface/view_zoom.hpp"
+#include "Edit/Interface/view_controls.hpp"
+#include "Edit/Interface/view_fit.hpp"
+#include "Edit/Interface/view_modes.hpp"
+#include "ATHENA/Data/global_transformation_frontend.hpp"
+#include "ATHENA/Data/recent_files.hpp"
+#include "ATHENA/Data/document_save_frontend.hpp"
+#include "ATHENA/Data/application_lifecycle.hpp"
+#include "Edit/Interface/document_style_commands.hpp"
+#include "Edit/Interface/selection_image_export.hpp"
+#include "Edit/Interface/document_print.hpp"
+#include "ATHENA/Data/vault_frontend.hpp"
+
+void athena_dispatch_ui (void (*function) ());
+void athena_open_auxiliary_document (string name, tree document, url master);
+void native_link_disambiguation (array<url> candidates);
+bool athena_node_reference_target (string target);
+bool athena_node_reference_open (string target);
+bool athena_node_reference_position (string identity);
+void gui_set_cursor_color (string value);
+void gui_set_selection_color (string value);
+void gui_set_focus_color (string value);
+void gui_set_focus_border_width (string value);
+extern string original_path;
+string get_original_path ();
+string texmacs_version (string which);
+string image_remove_background_current (string image);
+void ads_restore_visible_panes ();
+void win32_display (string s);
+void tm_output (string s);
+void tm_errput (string s);
+array<int> get_bounding_rectangle (tree t);
+bool supports_native_pdf ();
+bool supports_ghostscript ();
+bool is_busy_versioning ();
+array<SI> get_screen_size ();
+void cout_buffer ();
+string cout_unbuffer ();
+tree coerce_string_tree (string s);
+string coerce_tree_string (tree t);
+string named_symbol_render_glyph (string identity);
+tree tree_ref (tree t, int i);
+tree tree_set (tree t, int i, tree u);
+tree tree_range (tree t, int i, int j);
+tree tree_append (tree t1, tree t2);
+bool tree_active (tree t);
+tree tree_child_insert (tree t, int pos, tree x);
+// Owner-local reconstruction; children retain normal tree sharing semantics.
+// Use copy() for an independent snapshot, duplicate_source for new identities.
+tree tree_rebuild (tree source, array<tree> children);
+string tree_node_id (tree source);
+bool node_properties_show (tree source);
+tree tree_duplicate_source (tree source);
+tree tree_assign (tree r, tree t);
+// Exact target, including metadata. Content-only callers must explicitly
+// preserve the source header when they mean to edit the same logical node.
+tree tree_set_diff (tree source, tree target);
+tree tree_insert (tree r, int pos, tree t);
+tree tree_remove (tree r, int pos, int nr);
+tree tree_split (tree r, int pos, int at);
+tree tree_join (tree r, int pos);
+tree tree_assign_node (tree r, tree_label op);
+tree tree_insert_node (tree r, int pos, tree t);
+tree tree_remove_node (tree r, int pos);
+url url_concat (url u1, url u2);
+url url_or (url u1, url u2);
+void string_save (string s, url u);
+string string_load (url u);
+void string_append_to_file (string s, url u);
+url url_ref (url u, int i);
+tree var_apply (tree& t, modification m);
+tree var_clean_apply (tree& t, modification m);
+patch branch_patch (array<patch> a);
+tree var_clean_apply (tree t, patch p);
+tree var_apply (tree& t, patch p);
+
+void
+athena_native_info_dialog (string arg1, string arg2);
+
+void athena_restart_message ();
+void athena_notify_now (string message);
+void athena_notify_restart ();
+
+string
+athena_native_linked_file_choice (string arg1, array<string> arg2);
+
+array<string>
+athena_native_unsaved_buffers (array<string> arg1, bool arg2);
+
+void
+athena_native_text_report (string arg1, string arg2);
+
+array<string>
+athena_native_latex_formula_dialog ();
+
+array<string>
+athena_native_color_dialog (string title, array<string> recent,
+                            array<string> saved);
+
+array<string>
+athena_native_background_selector (string arg1, array<string> arg2);
+
+array<string>
+athena_native_shortcut_editor (string arg1, string arg2, array<string> arg3);
+
+void athena_native_print_file_dialog (url file);
+array<SI> athena_native_tooltip_size (tree doc, tree style);
+void athena_native_tooltip_show (tree doc, tree style, int x, int y,
+                                string id, array<double> settings, string type);
+bool athena_native_tooltip_confirm (string id, array<double> settings, string type);
+void athena_native_tooltip_close ();
+
+void athena_cell_properties_pane_show ();
+void athena_table_properties_pane_show ();
+void athena_slide_properties_pane_show ();
+void athena_make_commutative_diagram ();
+bool athena_in_commutative_diagramP ();
+bool athena_graphics_selection_activeP ();
+bool athena_graphics_edit_props_activeP ();
+bool athena_graphics_selection_supports_propertyP (string name);
+scheme_tree athena_graphics_get_property (string name);
+void athena_graphics_set_property (string name, scheme_tree value);
+void athena_graphics_remove_property (string name);
+void athena_graphics_get_props_at_mouse ();
+void athena_graphics_apply_props_at_mouse ();
+tree athena_graphics_geometry ();
+void athena_graphics_set_width (string value);
+void athena_graphics_set_height (string value);
+bool athena_graphics_geo_valign_has_valueP (string value);
+void athena_graphics_set_geo_valign (string value);
+void athena_graphics_set_extents (string width, string height);
+tree athena_graphics_cartesian_frame ();
+bool athena_graphics_unit_has_valueP (string value);
+void athena_graphics_set_unit (string value);
+bool athena_graphics_origin_has_valueP (string x, string y);
+void athena_graphics_set_origin (string x, string y);
+bool athena_graphics_auto_cropP ();
+void athena_graphics_toggle_auto_crop ();
+bool athena_graphics_has_crop_paddingP (string value);
+void athena_graphics_set_crop_padding (string value);
+void athena_graphics_zoom (double factor);
+double athena_graphics_get_zoom ();
+void athena_graphics_set_zoom (double zoom);
+void athena_graphics_move_origin (string dx, string dy);
+void athena_graphics_change_extents (string dw, string dh);
+void athena_graphics_change_geo_valign (bool down);
+void athena_graphics_zoom_in ();
+void athena_graphics_zoom_out ();
+void athena_graphics_move_origin_left ();
+void athena_graphics_move_origin_right ();
+void athena_graphics_move_origin_down ();
+void athena_graphics_move_origin_up ();
+void athena_graphics_move_origin_left_fast ();
+void athena_graphics_move_origin_right_fast ();
+void athena_graphics_move_origin_down_fast ();
+void athena_graphics_move_origin_up_fast ();
+void athena_graphics_decrease_hsize ();
+void athena_graphics_increase_hsize ();
+void athena_graphics_decrease_vsize ();
+void athena_graphics_increase_vsize ();
+void athena_graphics_decrease_hsize_fast ();
+void athena_graphics_increase_hsize_fast ();
+void athena_graphics_decrease_vsize_fast ();
+void athena_graphics_increase_vsize_fast ();
+
+bool
+athena_native_preferences_openP ();
+
+int
+athena_native_preferences_export_privacy ();
+
+array<string>
+athena_native_preferences_export_metadata ();
+
+string
+athena_escape_symbol_picker ();
+
+void
+athena_google_cloud_todo_sync_buffer (url arg1);
+
+void
+athena_google_cloud_todo_sync_open_buffers ();
+
+tree
+athena_materials_update_document (tree arg1, string arg2);
+
+tree
+athena_materials_update_document_auto (tree arg1);
+
+tree
+athena_materials_csl_styles ();
+
+tree
+athena_material_info_page (string arg1);
+
+tree athena_global_transformation_run (
+  const AthenaGlobalTransformationCallback& transform, string name,
+  const std::function<bool(std::string&)>& validate= {});
+
+tree
+athena_reverse_hierarchy_graph_render (tree arg1);
+
+string
+athena_vault_validate_root_namespace ();
+
+string
+athena_namespace_new_file_wizard ();
+
+string
+athena_namespace_create_file_with_optional_initializer (string arg1);
+
+void
+athena_namespace_new_file_within_wizard ();
+
+void open_vault_quick_switcher ();
+void namespace_manager_show ();
+void namespace_explorer_show ();
+void vault_track_current_buffer_if_enabled ();
+void vault_show_explorer_and_track_native ();
+void vault_startup_open_initial_buffer_native ();
+void vault_bugcheck_native ();
+void vault_load_latest_action_native (string path);
+void go_to_system_welcome_page_native ();
+void go_to_welcome_page_native ();
+void go_to_vault_initial_page_native ();
+tree vault_welcome_page_native ();
+
+int
+athena_vault_rewrite_anchor_references (string arg1, string arg2);
+
+void qtm_vault_maintenance_start ();
+
+bool
+athena_vaultfile_presentP (url arg1);
+
+array<string>
+athena_vaultfile_read (url arg1);
+
+array<string>
+athena_artifact_title_filter_read (url arg1);
+
+string
+athena_vaultfile_write (url arg1, array<string> arg2);
+
+string
+athena_vaultfile_ensure_json (url arg1);
+
+void
+athena_vault_backup_dispatch_realtime (url arg1);
+
+#endif

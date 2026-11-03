@@ -1,5 +1,6 @@
 // Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later.
 #include "view_controls.hpp"
+#include "boot.hpp"
 #include "editor.hpp"
 #include "server.hpp"
 #include "new_window.hpp"
@@ -7,7 +8,7 @@
 #include "tm_window.hpp"
 #include "new_buffer.hpp"
 #include "buffer_actor.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #include "native_interfaces.hpp"
 #include "native_input_events.hpp"
 #include <QString>
@@ -28,7 +29,7 @@ void view_notify_icon_bar (string key, string value) {
 }
 void view_notify_toolbar (string, string) { view_notify_change (THE_MENUS); }
 void view_notify_change (int changes) {
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   if (context) {
     if (context->editor) context->editor->notify_change (changes);
     return;
@@ -36,12 +37,12 @@ void view_notify_change (int changes) {
   tm_view view= concrete_view (get_current_view_safe ());
   if (!view) return;
   auto continuation= actor_continuation_registry::instance ().store ([changes] {
-    const auto* owner= current_scheme_execution_context ();
+    const auto* owner= current_execution_context ();
     if (owner && owner->editor) owner->editor->notify_change (changes);
   });
   if (!view->buf->actor->submit (actor_command_kind::run_native_continuation,
       view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB,
-      SCHEME_CAPABILITY_BUFFER, continuation))
+      EXECUTION_CAPABILITY_BUFFER, continuation))
     actor_continuation_registry::instance ().discard (continuation);
 }
 void view_notify_zoom (string, string value) {

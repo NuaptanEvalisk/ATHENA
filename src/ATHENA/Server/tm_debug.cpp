@@ -15,7 +15,7 @@
 #include "tm_link.hpp"
 #include "sys_utils.hpp"
 #include "new_document.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #include "System/Misc/crash_report.hpp"
 
 #include <ctime>

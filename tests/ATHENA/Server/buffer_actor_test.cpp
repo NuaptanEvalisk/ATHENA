@@ -20,6 +20,8 @@
 #include "ATHENA/Data/vault.hpp"
 #include "ATHENA/Data/hodarium_application.hpp"
 #include "node_metadata.hpp"
+#include "tree_pattern.hpp"
+#include "ATHENA/Data/global_transformation.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
 #include "ATHENA/Interop/resources.hpp"
 #include "vaultfile_json.hpp"
@@ -30,8 +32,6 @@
 #include "Data/NodeContracts/execution_state.hpp"
 #include "widget.hpp"
 #include "promise.hpp"
-#include "scheme.hpp"
-#include "object.hpp"
 #include "native_dispatch.hpp"
 #include "Edit/Interface/format_geometry.hpp"
 #include "Qt/QTMVaultSearchWorker.hpp"
@@ -65,7 +65,9 @@ private slots:
   void nativeGeometryPreservesActorDocument ();
   void startsLazily ();
   void nativeCallbacksRemainOwnedUntilResolution ();
-  void nativeValuesPreserveBridgeSemantics ();
+  void nativeValuesPreserveMetadataAndTypes ();
+  void nativeTreeSelectorsPreserveHandles ();
+  void globalTransformationPreservesMetadataAndRefusesStaleSource ();
   void cursorBlinkCoalescesWithoutQueueingDuplicates ();
   void ownsCommandsAndDocumentContext ();
   void preservesSynchronousInvocationContext ();
@@ -159,14 +161,14 @@ TestBufferActor::v3LoadSaveAndHistoryKeepVersion () {
   QVERIFY (!is_nil (buffer));
   bool pinned_v3= false;
   const auto inspect= actor_continuation_registry::instance ().store ([&] {
-    const auto* state= current_scheme_execution_context ()->actor->current_state ();
+    const auto* state= current_execution_context ()->actor->current_state ();
     pinned_v3= state->storage && state->node_identities &&
       state->storage_version == xml_storage_version::v3 &&
       state->storage->version () == xml_storage_version::v3;
   });
   QVERIFY (buffer->actor->invoke (actor_command_kind::run_native_continuation,
     ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
-    SCHEME_CAPABILITY_BUFFER, inspect));
+    EXECUTION_CAPABILITY_BUFFER, inspect));
   QVERIFY (pinned_v3);
   tree edited= copy (body);
   edited[0]= "second";
@@ -227,7 +229,7 @@ TestBufferActor::hodariumAppliesOnlyCleanSource () {
   auto command= [&] (std::function<void()> action) {
     const auto id= actor_continuation_registry::instance ().store (std::move (action));
     return buffer->actor->invoke (actor_command_kind::run_native_continuation,
-      ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, id);
+      ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER, id);
   };
   revision_store journal (database);
   revision value;
@@ -239,7 +241,7 @@ TestBufferActor::hodariumAppliesOnlyCleanSource () {
   journal.receive (base); QVERIFY (journal.record_applied (base.id, {}));
   value.parents= {base.id}; value.payload= second;
   const auto target= seal_revision (value); journal.receive (target);
-  QVERIFY (command ([] { current_scheme_execution_context ()->actor->current_state ()->source_modified= true; }));
+  QVERIFY (command ([] { current_execution_context ()->actor->current_state ()->source_modified= true; }));
   QVERIFY (!apply_open_document (root, database, target.id, [] { return true; }));
   QCOMPARE (journal.applied ("vault", object).value (), base.id);
   QVERIFY (journal.pending_applications ("vault").empty ());
@@ -249,7 +251,7 @@ TestBufferActor::hodariumAppliesOnlyCleanSource () {
   const auto fingerprint= journal.payload_fingerprint (target.id);
   bool adopted= false;
   QVERIFY (command ([&] {
-    auto* actor= current_scheme_execution_context ()->actor;
+    auto* actor= current_execution_context ()->actor;
     adopted= contains_text (actor->current_source (), "remote update") &&
       actor->current_state ()->storage->source_sha256 () == fingerprint &&
       !actor->current_state ()->source_modified;
@@ -421,12 +423,12 @@ TestBufferActor::normalSaveUpgradesLegacyAndPinsXmlRevision () {
 
   auto replace_body= [&] (const char* text) {
     athena_continuation_id id= actor_continuation_registry::instance ().store ([=] {
-      auto* state= current_scheme_execution_context ()->actor->current_state ();
+      auto* state= current_execution_context ()->actor->current_state ();
       assign (subtree (state->document, state->root_path), tree (DOCUMENT, text));
     });
     return buffer->actor->invoke (
       actor_command_kind::run_native_continuation, ATHENA_NO_VIEW,
-      ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, id);
+      ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER, id);
   };
   QVERIFY (replace_body ("second"));
   QVERIFY (save_actor ());
@@ -474,13 +476,13 @@ TestBufferActor::normalSaveUpgradesLegacyAndPinsXmlRevision () {
 
 void
 TestBufferActor::nativeGeometryLengths () {
-  QVERIFY (as_bool (call ("tm-rich-length?", object (tree (PLUS, "1cm", "-2pt")))));
-  QVERIFY (!as_bool (call ("tm-rich-length?", object (tree (MINUS, "1cm", tree (PLUS, "2pt", "3pt"))))));
-  QCOMPARE (as_string (call ("tm->rich-length", object (tree (MINUS, "1cm", "2pt", "3pt")))),
+  QVERIFY (geometry_rich_length (tree (PLUS, "1cm", "-2pt")));
+  QVERIFY (!geometry_rich_length (tree (MINUS, "1cm", tree (PLUS, "2pt", "3pt"))));
+  QCOMPARE (geometry_rich_length_string (tree (MINUS, "1cm", "2pt", "3pt")),
             string ("1cm+2pt-3pt"));
-  QVERIFY (as_bool (eval ("(equal? (rich-length->tm \"-1cm+2pt-3ex\")"
-                          " '(plus \"-1cm\" \"2pt\" \"-3ex\"))")));
-  QVERIFY (as_bool (eval ("(equal? (rich-length->tm \"-1cm\") \"-1cm\")")));
+  QCOMPARE (scheme_tree_to_tree (geometry_parse_rich_length ("-1cm+2pt-3ex")),
+            tree (PLUS, "-1cm", "2pt", "-3ex"));
+  QCOMPARE (scheme_tree_to_tree (geometry_parse_rich_length ("-1cm")), tree ("-1cm"));
 
   tree length (MINUS, "4cm", tree (PLUS, "2cm", "1cm"));
   QVERIFY (geometry_lengths_consistent (length, tree ("3cm")));
@@ -500,14 +502,14 @@ TestBufferActor::nativeGeometryPreservesActorDocument () {
   QVERIFY (buffer->actor->invoke (actor_command_kind::replace_document, ATHENA_NO_VIEW, payload));
   bool changed= false;
   auto id= actor_continuation_registry::instance ().store ([&] {
-    auto* actor= current_scheme_execution_context ()->actor;
+    auto* actor= current_execution_context ()->actor;
     tree& source= actor->current_source ();
     geometry_length_increase (source[2][0][0][0], 1);
     changed= source[2][0][0][0] == "1.1cm";
     tree body= source[2][0];
-    call ("length-increase", object (body[1]), object (2.0));
+    geometry_length_increase (body[1], 2.0);
     changed= changed && body[1] == tree (MINUS, "4cm", tree (PLUS, "2cm", "0.8cm"));
-    call ("length-scale", object (body[1]), object (2.0), object (1.0));
+    geometry_length_scale (body[1], 2.0, 1.0);
     changed= changed && body[1] == tree (MINUS, "8cm", tree (PLUS, "4cm", "1.6cm"));
     geometry_length_scale (body[2], 1.5, 1.0);
     changed= changed && body[2] == "75%";
@@ -524,7 +526,7 @@ TestBufferActor::nativeGeometryPreservesActorDocument () {
     changed= changed && actor->current_source ()[2][0][0][0] == "1.1cm";
   });
   QVERIFY (buffer->actor->invoke (actor_command_kind::run_native_continuation,
-    ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, id));
+    ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER, id));
   QVERIFY (changed);
 }
 
@@ -549,7 +551,7 @@ TestBufferActor::sourceCommitPreservesBorrowedMetadata () {
   QVERIFY (buffer->actor->invoke (actor_command_kind::replace_document, ATHENA_NO_VIEW, payload));
   bool body_stable= false, metadata_stable= false, references_updated= false;
   auto id= actor_continuation_registry::instance ().store ([&] {
-    auto* actor= current_scheme_execution_context ()->actor;
+    auto* actor= current_execution_context ()->actor;
     auto* state= actor->current_state ();
     // Retain the old owner so a regression reports an assertion, not a UAF.
     // These are the same member references borrowed by edit_env_rep.
@@ -581,7 +583,7 @@ TestBufferActor::sourceCommitPreservesBorrowedMetadata () {
     references_updated= refs["key"] == "updated" && aux["key"] == "updated" && att["key"] == "updated";
   });
   QVERIFY (buffer->actor->invoke (actor_command_kind::run_native_continuation,
-    ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, id));
+    ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER, id));
   QVERIFY (body_stable);
   QVERIFY (metadata_stable);
   QVERIFY (references_updated);
@@ -639,10 +641,10 @@ TestBufferActor::bufferResolutionWithoutVault () {
             std::string ("OK"));
   QCOMPARE (target->properties ().at ("path").back ().get<int> (), 1);
   QVERIFY (actor->invoke (actor_command_kind::set_buffer_read_only, ATHENA_NO_VIEW,
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, 1));
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER, 1));
   QCOMPARE (target->operate ("insert_after", {{"siblings", value::array ()}}).status, std::string ("READ_ONLY"));
   QVERIFY (actor->invoke (actor_command_kind::set_buffer_read_only, ATHENA_NO_VIEW,
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, 0));
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER, 0));
   QCOMPARE (document->operate ("insert_before", {{"siblings", value::array ()}}).status, std::string ("INVALID_ARGUMENT"));
   auto renamed= url_system (string ((temporary.path ().toStdString () + "/renamed.ath").c_str ()));
   rename_buffer (name, renamed);
@@ -724,11 +726,11 @@ TestBufferActor::onlineResolutionUsesUnsavedBody () {
   QCOMPARE (saved.tree.back ()->accessor->operate ("get", value::object ()).data.at ("tree").at ("text").get<std::string> (),
             std::string ("saved"));
   auto edit= actor_continuation_registry::instance ().store ([] {
-    auto* state= current_scheme_execution_context ()->actor->current_state ();
+    auto* state= current_execution_context ()->actor->current_state ();
     insert (state->document[0][0], 7, "!");
   });
   QVERIFY (buffer->actor->invoke (actor_command_kind::run_native_continuation,
-    ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, edit));
+    ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER, edit));
   QCOMPARE (text (), std::string ("unsaved!"));
   auto body= online.tree.back ()->parent->accessor;
   auto body_field= online.tree.back ()->parent->parent->accessor;
@@ -762,11 +764,11 @@ TestBufferActor::onlineResolutionUsesUnsavedBody () {
   QVERIFY2 (metadata.status == "OK", metadata.data.dump ().c_str ());
   bool metadata_installed= false;
   auto inspect_data= actor_continuation_registry::instance ().store ([&] {
-    auto* state= current_scheme_execution_context ()->actor->current_state ();
+    auto* state= current_execution_context ()->actor->current_state ();
     metadata_installed= state->data->init["font"] == "pagella" && state->document[0][1] == "interop edit";
   });
   QVERIFY (buffer->actor->invoke (actor_command_kind::run_native_continuation,
-    ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, inspect_data));
+    ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER, inspect_data));
   QVERIFY (metadata_installed);
   actor_command_record result;
   QVERIFY (buffer->actor->invoke (actor_command_kind::query_modified,
@@ -780,10 +782,10 @@ TestBufferActor::onlineResolutionUsesUnsavedBody () {
     if (is_compound (snapshot[i], "custom-field", 1) && snapshot[i][0] == "retained") preserved= true;
   QVERIFY (preserved);
   QVERIFY (buffer->actor->invoke (actor_command_kind::set_buffer_read_only,
-    ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, 1));
+    ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER, 1));
   QCOMPARE (body->operate ("insert", {{"index", 0}, {"children", value::array ()}}).status, std::string ("READ_ONLY"));
   QVERIFY (buffer->actor->invoke (actor_command_kind::set_buffer_read_only,
-    ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER, 0));
+    ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER, 0));
   QVERIFY (buffer->actor->invoke (actor_command_kind::mark_autosaved));
   QVERIFY (buffer->actor->invoke (actor_command_kind::query_autosaved,
     ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, &result));
@@ -845,7 +847,7 @@ TestBufferActor::fullSourceRetainsUnknownAttributesAndLiveBody () {
     auto id= actor_continuation_registry::instance ().store (std::move (action));
     return buffer->actor->invoke (actor_command_kind::run_native_continuation,
       ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
-      SCHEME_CAPABILITY_BUFFER, id);
+      EXECUTION_CAPABILITY_BUFFER, id);
   };
   tree document (DOCUMENT, compound ("TeXmacs", "2.1.4"),
     compound ("style", tree (TUPLE, "generic")),
@@ -860,7 +862,7 @@ TestBufferActor::fullSourceRetainsUnknownAttributesAndLiveBody () {
   value initial, changed;
   bool identities_preserved= false;
   QVERIFY (command ([&] {
-    auto* actor= current_scheme_execution_context ()->actor;
+    auto* actor= current_execution_context ()->actor;
     auto* state= actor->current_state ();
     tree& source= actor->current_source ();
     auto& nodes= state->interop_nodes ();
@@ -899,10 +901,10 @@ TestBufferActor::documentNodesRemainActorOwned () {
     auto id= actor_continuation_registry::instance ().store (std::move (action));
     return buffer->actor->invoke (actor_command_kind::run_native_continuation,
       ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
-      SCHEME_CAPABILITY_BUFFER, id);
+      EXECUTION_CAPABILITY_BUFFER, id);
   };
   QVERIFY (command ([&] {
-    auto* state= current_scheme_execution_context ()->actor->current_state ();
+    auto* state= current_execution_context ()->actor->current_state ();
     set_document (state->document, state->root_path, tree (DOCUMENT, "first", "second"));
     lease= state->interop_nodes ().track (state->document, {0, 1});
     encoded= document_node_to_value (state->document[0][1]);
@@ -910,7 +912,7 @@ TestBufferActor::documentNodesRemainActorOwned () {
   QVERIFY (encoded == value ({{"text", "second"}}));
   bool follows= false;
   QVERIFY (command ([&] {
-    auto* state= current_scheme_execution_context ()->actor->current_state ();
+    auto* state= current_execution_context ()->actor->current_state ();
     insert (state->document[0], 0, tree (TUPLE, "prefix"));
     follows= state->interop_nodes ().locate (state->document, lease) == document_node_path {0, 2};
   }));
@@ -936,15 +938,15 @@ TestBufferActor::preservesSynchronousInvocationContext () {
   bool valid_context= false;
   athena_continuation_id continuation=
     actor_continuation_registry::instance ().store ([&] {
-    const SchemeExecutionContext* context=
-      current_scheme_execution_context ();
+    const ExecutionContext* context=
+      current_execution_context ();
     valid_context= context != nullptr && context->actor == buffer->actor &&
                    context->view_id == expected_view &&
-                   context->has (SCHEME_CAPABILITY_BUFFER);
+                   context->has (EXECUTION_CAPABILITY_BUFFER);
   });
   QVERIFY (buffer->actor->invoke (
     actor_command_kind::run_native_continuation, expected_view,
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER,
     continuation));
 
   QVERIFY (valid_context);
@@ -963,8 +965,8 @@ TestBufferActor::ownsCommandsAndDocumentContext () {
   athena_continuation_id continuation=
     actor_continuation_registry::instance ().store ([&] {
     executor= std::this_thread::get_id ();
-    const SchemeExecutionContext* context=
-      current_scheme_execution_context ();
+    const ExecutionContext* context=
+      current_execution_context ();
     valid_context= context != nullptr && context->actor == buffer->actor &&
                    context->command_id != 0 &&
                    buffer->actor->current_state () != nullptr &&
@@ -973,7 +975,7 @@ TestBufferActor::ownsCommandsAndDocumentContext () {
   });
   QVERIFY (buffer->actor->invoke (
     actor_command_kind::run_native_continuation, ATHENA_NO_VIEW,
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, SCHEME_CAPABILITY_BUFFER,
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER,
     continuation));
 
   QVERIFY (executor != caller);
@@ -992,7 +994,7 @@ TestBufferActor::drainsInFifoOrderAndRejectsAfterShutdown () {
         [&observed, value] { observed.push_back (value); });
     QVERIFY (buffer->actor->submit (
       actor_command_kind::run_native_continuation, ATHENA_NO_VIEW,
-      ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER,
+      ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
       continuation));
   }
 
@@ -1006,7 +1008,7 @@ TestBufferActor::drainsInFifoOrderAndRejectsAfterShutdown () {
     actor_continuation_registry::instance ().store ([] {});
   QVERIFY (!buffer->actor->try_submit (
     actor_command_kind::run_native_continuation, ATHENA_NO_VIEW,
-    ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, rejected));
+    ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, rejected));
   QVERIFY (actor_continuation_registry::instance ().discard (rejected));
   tm_delete (buffer);
 }
@@ -1030,12 +1032,12 @@ TestBufferActor::nativeCallbacksRemainOwnedUntilResolution () {
     });
     return buffer->actor->invoke (actor_command_kind::run_native_continuation,
       view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
-      SCHEME_CAPABILITY_BUFFER, setup);
+      EXECUTION_CAPABILITY_BUFFER, setup);
   };
   auto resolve= [&] (bool run, athena_view_id view= ATHENA_NO_VIEW) {
     return buffer->actor->invoke (actor_command_kind::resolve_native_callback,
       view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
-      SCHEME_CAPABILITY_BUFFER, pending, run);
+      EXECUTION_CAPABILITY_BUFFER, pending, run);
   };
   QVERIFY (retain ());
   QVERIFY (resolve (true));
@@ -1062,83 +1064,142 @@ TestBufferActor::nativeCallbacksRemainOwnedUntilResolution () {
   QVERIFY (released_on_owner);
 }
 
-void TestBufferActor::nativeValuesPreserveBridgeSemantics () {
-  object bytes= bytes_object (string ("\0\xff", 2));
-  QVERIFY (!is_string (bytes));
-  tmscm byte_bridge= object_to_tmscm (bytes);
-  scm_c_bytevector_set_x (byte_bridge, 0, 42);
-  QCOMPARE (as_bytes (bytes), string ("*\xff", 2));
-  QVERIFY (bytes == tmscm_to_object (byte_bridge));
-  object tail= list_object (object (2));
-  object head= cons (object (1), tail);
-  tmscm pair_bridge= object_to_tmscm (head);
-  QVERIFY (scm_is_eq (scm_cdr (pair_bridge), object_to_tmscm (tail)));
-  scm_set_car_x (scm_cdr (pair_bridge), scm_from_int (3));
-  QCOMPARE (as_int (car (tail)), 3);
-  QVERIFY (head == list_object (object (1), object (3)));
-  scm_set_cdr_x (pair_bridge, scm_from_utf8_string ("end"));
-  QVERIFY (!is_list (head));
-  QCOMPARE (as_string (cdr (head)), string ("end"));
-  object mixed= cons (object (0), tmscm_to_object (object_to_tmscm (tail)));
-  QVERIFY (is_list (mixed));
-  QCOMPARE (as_int (cadr (mixed)), 3);
-  object cycle= list_object (object (1));
-  tmscm cycle_bridge= object_to_tmscm (cycle);
-  scm_set_cdr_x (cycle_bridge, cycle_bridge);
-  QVERIFY (!is_list (cycle));
 
-  object text ("alpha");
-  tmscm bridge= object_to_tmscm (text);
-  QVERIFY (scm_is_eq (bridge, object_to_tmscm (text)));
-  scm_c_string_set_x (bridge, 0, SCM_MAKE_CHAR ('A'));
-  QCOMPARE (as_string (text), string ("Alpha"));
-  QVERIFY (text == object ("Alpha"));
-  QVERIFY (text == tmscm_to_object (bridge));
+void TestBufferActor::nativeTreeSelectorsPreserveHandles () {
+  using kind= tree_selector::kind;
+  tree first= compound ("section", "A");
+  athena::node::set (first, {athena::node::new_id (), {}});
+  tree source (DOCUMENT, first, compound ("section", "B", compound ("subsection", "C")), "tail");
+  const tree_selector all {kind::depth, "", 1};
+  const tree_selector tag {kind::tag, "section"};
+  auto selected= native_tree_select (source, {tag});
+  QCOMPARE (N(selected), 2);
+  QVERIFY (strong_equal (selected[0], first));
+  QCOMPARE (athena::node::id (selected[0]), athena::node::id (first));
+  selected[0][0]= "changed";
+  QCOMPARE (source[0][0], tree ("changed"));
+
+  selected= native_tree_select (source, {{kind::unite, "", 0,
+    {{kind::index, "", 2}, {kind::index, "", 0}}}});
+  QCOMPARE (N(selected), 2);
+  QVERIFY (strong_equal (selected[0], source[2]));
+  QVERIFY (strong_equal (selected[1], source[0]));
+  selected= native_tree_select (source, {{kind::subtract, "", 0, {all, tag}}});
+  QCOMPARE (N(selected), 1);
+  QVERIFY (strong_equal (selected[0], source[2]));
+  selected= native_tree_select (source, {{kind::intersect, "", 0, {all, tag}}});
+  QCOMPARE (N(selected), 2);
+  selected= native_tree_select (source, {{kind::descendants}, tag});
+  QCOMPARE (N(selected), 2);
+  selected= native_tree_select (source, {{kind::depth, "", 2}});
+  QCOMPARE (N(selected), 3);
+  QCOMPARE (selected[0], tree ("changed"));
+  QCOMPARE (selected[1], tree ("B"));
+  QVERIFY (strong_equal (selected[2], source[1][1]));
+  selected= native_tree_select (source, {{kind::capture, "x"}, {kind::capture, "x"}});
+  QCOMPARE (N(selected), 1);
+  QVERIFY (strong_equal (selected[0], source));
+  selected= native_tree_select (source, {{kind::capture, "x"},
+    {kind::index, "", 0}, {kind::capture, "x"}});
+  QCOMPARE (N(selected), 0);
+  selected= native_tree_select (source, {{kind::navigate, "first"}});
+  QCOMPARE (N(selected), 1);
+  QVERIFY (strong_equal (selected[0], first));
+  QCOMPARE (N(native_tree_select (source, {{kind::depth, "", -1}})), 0);
+}
+
+void TestBufferActor::globalTransformationPreservesMetadataAndRefusesStaleSource () {
+  using namespace athena::document;
+  QTemporaryDir directory;
+  QVERIFY (directory.isValid ());
+  const std::filesystem::path root (directory.path ().toStdString ());
+  const auto path= root / "source.ath";
+  auto write= [&] (const std::string& bytes) {
+    std::ofstream output (path, std::ios::binary | std::ios::trunc);
+    output << bytes;
+    if (!output.good ()) throw std::runtime_error ("fixture write failed");
+  };
+  auto read= [] (const std::filesystem::path& file) {
+    std::ifstream input (file, std::ios::binary);
+    if (!input.good ()) throw std::runtime_error ("fixture read failed");
+    return std::string ((std::istreambuf_iterator<char> (input)), {});
+  };
+  tree body (DOCUMENT, "unchanged text");
+  const std::string identity= athena::node::new_id ();
+  athena::node::set (body, {identity, {}});
+  tree source (DOCUMENT, compound ("style", tree (TUPLE, "generic")), compound ("body", body));
+  const std::string original= write_xml_v3 (source);
+  write (original);
+  AthenaGlobalTransformationPlan plan;
+  std::string error;
+  auto transform= [] (const std::string&, const tree& input, tree& output, std::string&) {
+    output= copy (input);
+    auto metadata= *athena::node::get (output[1][0]);
+    metadata.properties["test:reviewed"]= athena::node::property (true);
+    athena::node::set (output[1][0], metadata);
+    return true;
+  };
+  QVERIFY2 (athena_global_transformation_prepare (root, transform, {}, plan, error), error.c_str ());
+  QCOMPARE (plan.rewrites.size (), std::size_t (1));
+  QCOMPARE (read (path), original);
+  const tree proposed= read_xml_v3 (plan.rewrites[0].serialized);
+  QCOMPARE (athena::node::id (proposed[1][0]), identity);
+  QVERIFY (std::get<bool> (athena::node::get (proposed[1][0])->properties.at ("test:reviewed").data));
+
+  const std::string external= original + "\n";
+  write (external);
+  QVERIFY (!athena_global_transformation_commit (plan, error));
+  QCOMPARE (read (path), external);
+  write (original);
+  QVERIFY2 (athena_global_transformation_commit (plan, error), error.c_str ());
+  QCOMPARE (read (plan.backup_root / "source.ath"), original);
+  QCOMPARE (read_xml_v3 (read (path)), proposed);
+}
+
+void TestBufferActor::nativeValuesPreserveMetadataAndTypes () {
+  const command_value bytes= command_bytes {string ("\0\xff", 2)};
+  QVERIFY (!std::holds_alternative<string> (bytes));
+  QCOMPARE (std::get<command_bytes> (bytes).data, string ("\0\xff", 2));
+  QVERIFY_EXCEPTION_THROWN (command_argument<string> (bytes, "text"), std::invalid_argument);
+  QVERIFY_EXCEPTION_THROWN (command_argument<int> (command_value (1.0), "integer"), std::invalid_argument);
+  QCOMPARE (command_argument<double> (command_value (1), "number"), 1.0);
+  QCOMPARE (command_argument<string> (command_value (tree ("native")), "text"), string ("native"));
+  QCOMPARE (command_argument<url> (command_value (tree ("/tmp/native-command")), "url"),
+            url_system ("/tmp/native-command"));
 
   tree source (TUPLE, "before");
-  object value (source);
-  object legacy= tmscm_to_object (object_to_tmscm (value));
-  QVERIFY (strong_equal (as_tree (value), as_tree (legacy)));
+  athena::node::metadata metadata;
+  metadata.id= athena::node::new_id ();
+  metadata.properties["native:test"]= athena::node::property (std::string ("kept"));
+  athena::node::set (source, metadata);
+  command_value value= source;
+  QVERIFY (strong_equal (command_content (value, "content"), source));
   source[0]= "after";
-  QCOMPARE (as_tree (legacy)[0], tree ("after"));
-  QVERIFY (value == legacy);
-  object location (url ("/tmp/native-object"));
-  QVERIFY (location == object (url ("/tmp/native-object")));
-  QVERIFY (location != object (url ("/tmp/other-object")));
-  QVERIFY (location == tmscm_to_object (object_to_tmscm (location)));
-  object values= list_object (object (42), text, value);
-  QCOMPARE (as_int (car (values)), 42);
-  QCOMPARE (as_string (cadr (values)), string ("Alpha"));
-  QVERIFY (strong_equal (as_tree (caddr (values)), source));
+  const tree retained= std::get<tree> (value);
+  QCOMPARE (retained[0], tree ("after"));
+  QCOMPARE (athena::node::id (retained), metadata.id);
+  QVERIFY (athena::node::equal_metadata (source, retained));
+  QCOMPARE (command_argument<path> (command_value (path (1, 2, 3)), "path"), path (1, 2, 3));
 
-  for (double number: {0.0, -0.0, 1.5, std::numeric_limits<double>::quiet_NaN ()}) {
-    object native (number);
-    object old= tmscm_to_object (object_to_tmscm (native));
-    QVERIFY (native == object (number));
-    QVERIFY (native == old);
-  }
-  QVERIFY (object (0.0) != object (-0.0));
-  QVERIFY (object (1) != object (1.0));
-  QVERIFY (is_int (object (1.0)));
-  QVERIFY_EXCEPTION_THROWN (as_int (object (1.0)), std::invalid_argument);
-  QVERIFY (is_double (object (1)));
-  QVERIFY (symbol_object ("name") != object ("name"));
-  QVERIFY (symbol_object ("name") != keyword_object ("name"));
-  QCOMPARE (keyword_name (keyword_object ("name")), string ("name"));
-  object result;
-  array<object> arguments;
-  arguments << object ("native");
+  command_value result;
+  command_arguments arguments;
+  arguments << command_value (string ("native"));
   QVERIFY (native_dispatch_call ("utf8-byte-length", arguments, result));
-  QCOMPARE (as_int (result), 6);
+  QCOMPARE (std::get<int> (result), 6);
   QVERIFY (native_dispatch_call ("utf8-text->bytes", arguments, result));
-  QVERIFY (is_bytes (result));
-  QCOMPARE (as_bytes (result), string ("native"));
+  QCOMPARE (std::get<command_bytes> (result).data, string ("native"));
   arguments[0]= result;
   QVERIFY (native_dispatch_call ("utf8-bytes->text", arguments, result));
-  QCOMPARE (as_string (result), string ("native"));
-  arguments[0]= object (tree (RAW_DATA, string ("\0\xff", 2)));
-  QVERIFY (native_dispatch_call ("tree->stree", arguments, result));
-  QCOMPARE (stree_to_tree (result), as_tree (arguments[0]));
+  QCOMPARE (std::get<string> (result), string ("native"));
+  arguments[0]= bytes;
+  QVERIFY_EXCEPTION_THROWN (native_dispatch_call ("utf8-bytes->text", arguments, result),
+                            std::invalid_argument);
+  QVERIFY_EXCEPTION_THROWN (native_dispatch_call ("utf8-byte-length", {}, result),
+                            std::invalid_argument);
+  arguments[0]= string ("recovered");
+  QVERIFY (native_dispatch_call ("utf8-byte-length", arguments, result));
+  QCOMPARE (std::get<int> (result), 9);
+  QVERIFY (!native_dispatch_call ("unknown-native-command", arguments, result));
 }
 
 static void run_tests (int argc, char** argv) {
@@ -1149,7 +1210,7 @@ static void run_tests (int argc, char** argv) {
     qputenv ("ATHENA_HOME_PATH", profile.path ().toUtf8 ());
     QApplication application (argc, argv);
     athena::contracts::initialize_builtins ();
-    initialize_scheme ();
+    initialize_native_commands ();
     TestBufferActor test;
     result= QTest::qExec (&test, argc, argv);
   }
@@ -1158,35 +1219,7 @@ static void run_tests (int argc, char** argv) {
 
 int main (int argc, char** argv) {
   init_standard_tree_labels ();
-  // Construction, access and destruction must work before Guile is booted.
-  {
-    const tree binary (RAW_DATA, string ("\0\xff", 2));
-    const object structured= tree_to_stree (binary);
-    if (!is_bytes (cadr (structured)) || content_to_tree (structured) != binary ||
-        stree_to_tree (structured) != binary) return 2;
-    object first, second;
-    for (int i=0; i<50000; ++i) {
-      first= cons (object (i), first);
-      second= cons (object (i), second);
-    }
-    if (!is_list (first) || first != second || as_int (car (first)) != 49999)
-      return 2;
-    const path route (1, 2, 3);
-    if (as_path (object (route)) != route) return 2;
-    array<double> numbers;
-    numbers << 1.25 << -2.5;
-    const auto restored= as_array_double (object (numbers));
-    if (N(restored) != 2 || restored[0] != 1.25 || restored[1] != -2.5) return 2;
-    object number (42), text ("native"), boolean (true), symbol= symbol_object ("name");
-    tree source (TUPLE, "payload");
-    object value (source);
-    if (as_int (number) != 42 || as_double (number) != 42.0 ||
-        as_string (text) != "native" || !as_bool (boolean) ||
-        as_symbol (symbol) != "name" || !strong_equal (as_tree (value), source) ||
-        number != object (42) || is_list (value)) return 2;
-  }
-  qputenv ("GUILE_AUTO_COMPILE", "0");
-  start_scheme (argc, argv, run_tests);
+  run_tests (argc, argv);
   return 1;
 }
 #include "buffer_actor_test.moc"

@@ -270,8 +270,8 @@ QString actionTitle (QAction* action) {
   return result;
 }
 - (void)buildMenuWithBuilder:(id<UIMenuBuilder>)builder {
-  // UIKit builds menus while splash events run, before Guile and the command
-  // providers have bootstrapped. Publish them only after application startup.
+  // UIKit builds menus during splash events, before native command providers
+  // are ready. Publish them only after application startup.
   if (!applicationReady || builder.system != UIMenuSystem.mainSystem) return;
   QTMMainTabWindow* shell= QTMMainTabWindow::topTabWindow ();
   if (!shell) return;

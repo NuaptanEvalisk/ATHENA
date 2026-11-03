@@ -14,7 +14,7 @@
 #include "QTMVaultWikilinkWizard.hpp"
 #include "actor_transport.hpp"
 #include "buffer_actor.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #include "vault.hpp"
 #include "ATHENA/Data/compound_edit_batch.hpp"
 #include "qt_utilities.hpp"
@@ -39,7 +39,7 @@ runVaultChooser (bool transcludeMode) {
 
 void
 vault_choose_link_native (bool transcludeMode, std::function<void(tree)> completion) {
-  const auto* owner= current_scheme_execution_context ();
+  const auto* owner= current_execution_context ();
   if (!owner || !owner->editor)
     throw std::runtime_error ("Vault link insertion requires an owning editor");
   const auto actor= owner->actor_id;

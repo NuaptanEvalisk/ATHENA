@@ -270,7 +270,7 @@ void restore_cells (const std::array<int, 4>& cells) {
 void restore_cells_after_command (array<int> cells) {
   if (N (cells) != 4 || (cells[0] == cells[1] && cells[2] == cells[3])) return;
   const std::array<int, 4> selected {cells[0], cells[1], cells[2], cells[3]};
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   if (context == nullptr || context->actor_id == ATHENA_NO_ACTOR ||
       QCoreApplication::instance () == nullptr) {
     restore_cells (selected);
@@ -283,7 +283,7 @@ void restore_cells_after_command (array<int> cells) {
   QTimer::singleShot (10, QCoreApplication::instance (), [actor, view, selected] {
     auto id= actor_continuation_registry::instance ().store ([selected] { restore_cells (selected); });
     if (!buffer_actor::submit_to (actor, actor_command_kind::run_native_continuation,
-          view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, id))
+          view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, id))
       actor_continuation_registry::instance ().discard (id);
   });
 }
@@ -296,7 +296,7 @@ enum class format_prompt_action {
 void format_prompt (string prompt, std::optional<string> proposal,
                     format_prompt_action action, string variable,
                     tree_label tag= WITH) {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   ASSERT (context != nullptr && context->actor_id != ATHENA_NO_ACTOR,
           "interactive formatting requires a BufferActor");
   get_current_editor ();
@@ -316,7 +316,7 @@ void format_prompt (string prompt, std::optional<string> proposal,
       // original actor/view rather than applying to whichever buffer has focus.
       auto id= actor_continuation_registry::instance ().store (
         [action, target, tag, answer= std::move (answers[0])] {
-          const auto* context= current_scheme_execution_context ();
+          const auto* context= current_execution_context ();
           if (context == nullptr || context->editor == nullptr) return;
           string variable (target.data (), target.size ());
           string value (answer.data (), answer.size ());
@@ -471,7 +471,7 @@ void format_make_interactive_space (string kind) {
 }
 
 void format_make_interactive_box () {
-  const SchemeExecutionContext* context= current_scheme_execution_context ();
+  const ExecutionContext* context= current_execution_context ();
   ASSERT (context != nullptr && context->actor_id != ATHENA_NO_ACTOR,
           "interactive rigid box requires a BufferActor");
   const auto actor= context->actor_id;
@@ -491,7 +491,7 @@ void format_make_interactive_box () {
       if (answers.size () != 3) return;
       auto id= actor_continuation_registry::instance ().store (
         [values= std::move (answers)] {
-          const SchemeExecutionContext* context= current_scheme_execution_context ();
+          const ExecutionContext* context= current_execution_context ();
           if (context == nullptr || context->editor == nullptr) return;
           auto from= [] (const std::string& value) {
             return string (value.data (), static_cast<int> (value.size ()));

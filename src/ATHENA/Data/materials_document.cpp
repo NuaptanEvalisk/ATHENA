@@ -5,12 +5,12 @@
 ******************************************************************************/
 
 #include "ATHENA/Data/materials_document.hpp"
+#include "boot.hpp"
 
 #include "ATHENA/Data/materials_engine.hpp"
 #include "ATHENA/Data/vault.hpp"
 #include "ATHENA/Data/namespaces.hpp"
 #include "convert.hpp"
-#include "scheme.hpp"
 
 #include <algorithm>
 #include <set>

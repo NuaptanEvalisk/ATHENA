@@ -10,7 +10,6 @@
  ******************************************************************************/
 
 #include "message.hpp"
-#include "scheme.hpp"
 
 #include "QTMScrollView.hpp"
 

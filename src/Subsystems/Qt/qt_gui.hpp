@@ -42,7 +42,7 @@ public:
   enum id_t {
     QP_NULL,    QP_KEYPRESS,     QP_TEXT_INPUT, QP_KEYBOARD_FOCUS,
     QP_MOUSE,   QP_RESIZE,       QP_SOCKET_NOTIFICATION,
-    QP_COMMAND, QP_COMMAND_ARGS, QP_GLOBAL_COMMANDS };
+    QP_COMMAND };
   id_t sid;
   inline qp_type (id_t sid2 = QP_NULL): sid (sid2) {}
   inline qp_type (const qp_type& s): sid (s.sid) {}
@@ -82,29 +82,6 @@ public:
 
 
 /******************************************************************************
- * Delayed commands
- ******************************************************************************/
-
-/*! The queue of delayed commands.
- */
-class command_queue {
-  array<std::uint64_t> handles;
-  array<std::uint64_t> view_ids;
-
-public:
-  ~command_queue();
-
-  void exec_global (object cmd);
-  void exec_handle (std::uint64_t handle, std::uint64_t view_id);
-  void exec_pending ();
-  void clear_pending ();
-  bool has_pending () const { return N(handles) != 0; }
-  
-  friend class qt_gui_rep;
-};
-
-
-/******************************************************************************
 * The qt_gui class
 ******************************************************************************/
 
@@ -137,7 +114,6 @@ class qt_gui_rep {
   bool  needing_update;
 
   event_queue     waiting_events;
-  command_queue global_commands;
 
 public:
   QTMGuiHelper*  gui_helper;
@@ -186,15 +162,10 @@ public:
                       int mods, time_t t, array<double> d= array<double> ());
   void process_resize (qt_simple_widget_rep *wid, SI x, SI y);
   void process_command (command _cmd);
-  void process_command (command _cmd, object _args);
-  void process_global_commands ();
   void process_queued_events (int max = -1);
   
   /* befriended interface functions */
   friend class QTMGuiHelper;
-  friend void exec_global (object cmd);
-  friend void schedule_global_scheme_handle (std::uint64_t handle, std::uint64_t view_id);
-  friend void clear_pending_commands ();
   friend void needs_update ();
 };
 

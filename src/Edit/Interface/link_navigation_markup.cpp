@@ -15,7 +15,7 @@
 #include <QUrlQuery>
 #include "buffer_actor.hpp"
 #include "buffer_name_catalog.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #include "ATHENA/Data/compound_edit_batch.hpp"
 #include "ATHENA/Data/application_lifecycle.hpp"
 #include "new_buffer.hpp"
@@ -39,7 +39,7 @@ using navigation_items= std::vector<navigation_item>;
 void follow_navigation (navigation_items candidates);
 void build_navigation_page (const navigation_items& items);
 void go_to_vertex (tree vertex, tree attributes);
-void execute_document_action (string source, bool trusted, array<object> arguments);
+void execute_document_action (string source, bool trusted, command_arguments arguments);
 
 navigation_items simplify (const navigation_items& items) {
   hashmap<tree, int> positions (-1);
@@ -185,7 +185,7 @@ void continue_navigation_page (std::shared_ptr<navigation_page_request> pending)
       // Loci enter the link repository during typesetting, not file loading.
       athena::avd::submit_source_task (source.first, source.second,
         [pending, key] (editor_rep&) {
-          const auto* context= current_scheme_execution_context ();
+          const auto* context= current_execution_context ();
           context->actor->invoke (actor_command_kind::typeset_document, context->view_id);
           const auto nodes= get_trees (string (key.c_str ()));
           if (!is_nil (nodes)) pending->previews.push_back (
@@ -223,7 +223,7 @@ void continue_navigation_page (std::shared_ptr<navigation_page_request> pending)
 namespace {
 void build_navigation_page (const navigation_items& items) {
   if (items.empty ()) throw std::invalid_argument ("A link page requires navigation candidates");
-  const auto* owner= current_scheme_execution_context ();
+  const auto* owner= current_execution_context ();
   if (!owner || !owner->editor)
     throw std::runtime_error ("A link page requires an owning editor");
   auto pending= std::make_shared<navigation_page_request> ();
@@ -261,7 +261,7 @@ void continue_id_navigation (const std::string& key, bool history,
     const auto owner= published_buffer_source (std::string (name.data (), N(name)));
     athena::avd::submit_source_task (owner.first, owner.second,
       [key, history, attempted] (editor_rep&) {
-        const auto* context= current_scheme_execution_context ();
+        const auto* context= current_execution_context ();
         context->actor->invoke (actor_command_kind::typeset_document, context->view_id);
         continue_id_navigation (key, history, attempted);
       }, [] (std::string error) {
@@ -271,10 +271,6 @@ void continue_id_navigation (const std::string& key, bool history,
 }
 }
 
-void native_link_go_to_id (string id, object optional_from) {
-  native_link_go_to_id (id, is_null (optional_from) ? std::nullopt :
-    std::optional<path> (as_path (car (optional_from))));
-}
 
 void native_link_go_to_id (string id, std::optional<path> from) {
   if (from) cursor_history_add (*from);
@@ -332,7 +328,7 @@ void follow_navigation (navigation_items candidates) {
   }
   else if (is_nil (choices->next)) follow_item (candidates.front ());
   else if (!headless_mode) {
-    const auto* owner= current_scheme_execution_context ();
+    const auto* owner= current_execution_context ();
     if (!owner || !owner->editor)
       throw std::runtime_error ("Link navigation requires an owning editor");
     tree snapshot (TUPLE);
@@ -380,18 +376,15 @@ void native_link_follow_ids (list<string> ids, string event) {
   follow_navigation (navigation_from_links (native_matching_links (ids, event)));
 }
 
-void native_link_execute_script (string source, bool trusted, object arguments) {
-  execute_document_action (source, trusted, as_array_object (arguments));
-}
 
 namespace {
-void execute_document_action (string source, bool trusted, array<object> arguments) {
+void execute_document_action (string source, bool trusted, command_arguments arguments) {
   if (starts (source, "(")) {
     get_current_editor ()->set_message (
       "Scheme expressions are not supported in document actions", "Document action");
     return;
   }
-  const auto* owner= current_scheme_execution_context ();
+  const auto* owner= current_execution_context ();
   ASSERT (owner && owner->actor && owner->editor,
           "document actions require their owning editor");
   const bool allowed= trusted || native_secure_function (source);
@@ -402,7 +395,7 @@ void execute_document_action (string source, bool trusted, array<object> argumen
     return;
   }
   const auto callback= owner->actor->retain_native_callback ([source, arguments] {
-    object result;
+    command_value result;
     if (!native_dispatch_call (source, arguments, result))
       throw std::invalid_argument ("Unknown native document action: " +
                                    std::string (source.data (), N(source)));
@@ -447,8 +440,8 @@ void go_to_vertex (tree vertex, tree attributes) {
         break;
       }
     }
-    array<object> arguments;
-    for (int i= 1; i < N(vertex); ++i) arguments << object (vertex[i]);
+    command_arguments arguments;
+    for (int i= 1; i < N(vertex); ++i) arguments << command_value (vertex[i]);
     execute_document_action (vertex[0]->label, trusted, std::move (arguments));
   }
 }
@@ -473,10 +466,6 @@ std::pair<url, string> split_link_url (url target) {
 }
 }
 
-object native_link_process_url (url target) {
-  const auto parts= split_link_url (target);
-  return list_object (object (parts.first), object (parts.second));
-}
 
 namespace {
 void collect_url_choices (url target, array<url>& choices) {
@@ -514,11 +503,6 @@ void native_link_go_to_url (string target, std::optional<path> from) {
 #else
   native_link_go_to_url (url (target), from);
 #endif
-}
-
-void native_link_go_to_url (url target, object optional_from) {
-  native_link_go_to_url (target, is_null (optional_from) ? std::nullopt :
-    std::optional<path> (as_path (car (optional_from))));
 }
 
 void native_link_go_to_url (url target, std::optional<path> from) {

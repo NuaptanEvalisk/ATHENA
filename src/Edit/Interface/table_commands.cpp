@@ -72,20 +72,6 @@ set_cell_pairs (editor_rep* ed,
 }
 
 bool
-string_arg (const array<object>& args, int index, string& result) {
-  if (index < 0 || index >= N(args) || !is_string (args[index])) return false;
-  result= as_string (args[index]);
-  return true;
-}
-
-bool
-bool_arg (const array<object>& args, int index, bool& result) {
-  if (index < 0 || index >= N(args) || !is_bool (args[index])) return false;
-  result= as_bool (args[index]);
-  return true;
-}
-
-bool
 cell_range (editor_rep* ed, int r1, int r2, int c1, int c2,
             path& start, path& end) {
   if (ed == nullptr) return false;
@@ -533,93 +519,6 @@ eqnarray_toggle_numbering (editor_rep* ed, tree target) {
   ed->go_to_end (cell);
   ed->insert_tree (compound ("eq-number"), path (0));
   return true;
-}
-
-bool
-keyboard_call (string name, const array<object>& args, object& result) {
-  editor_rep* ed= current_editor ();
-  auto done= [&] { result= object (true); return true; };
-  string value;
-  bool direction;
-  if (name == "table-set-halign" && N(args) == 1 && string_arg (args, 0, value)) {
-    table_set_halign (ed, value); return done ();
-  }
-  if (name == "table-set-valign" && N(args) == 1 && string_arg (args, 0, value)) {
-    table_set_valign (ed, value); return done ();
-  }
-  if (name == "table-set-automatic-width" && N(args) == 0) {
-    table_set_automatic_width (ed); return done ();
-  }
-  if (name == "table-set-exact-width" && N(args) == 1 && string_arg (args, 0, value)) {
-    table_set_exact_width (ed, value); return done ();
-  }
-  if (name == "table-format-center" && N(args) == 0) {
-    if (ed) ed->table_format_center (); return done ();
-  }
-  if (name == "table-deactivate" && N(args) == 0) {
-    if (ed) ed->table_deactivate (); return done ();
-  }
-  if (name == "table-test" && N(args) == 0) {
-    if (ed) ed->table_test (); return done ();
-  }
-  if (name == "make-subtable" && N(args) == 0) {
-    if (ed) ed->make_subtable (); return done ();
-  }
-  if (name == "set-cell-mode" && N(args) == 1 && string_arg (args, 0, value)) {
-    if (ed) ed->set_cell_mode (value); return done ();
-  }
-  if (name == "cell-del-format" && N(args) == 1 && string_arg (args, 0, value)) {
-    if (ed) ed->cell_del_format (value); return done ();
-  }
-  if (name == "cell-set-halign" && N(args) == 1 && string_arg (args, 0, value)) {
-    cell_set_halign (ed, value); return done ();
-  }
-  if (name == "cell-set-valign" && N(args) == 1 && string_arg (args, 0, value)) {
-    cell_set_valign (ed, value); return done ();
-  }
-  if (name == "cell-set-automatic-width" && N(args) == 0) {
-    cell_set_automatic_width (ed); return done ();
-  }
-  if (name == "cell-set-automatic-height" && N(args) == 0) {
-    cell_set_automatic_height (ed); return done ();
-  }
-  if (name == "cell-set-span-selection" && N(args) == 0) {
-    cell_set_span_selection (ed); return done ();
-  }
-  if (name == "table-insert-row" && N(args) == 1 && bool_arg (args, 0, direction)) {
-    if (ed) ed->table_insert_row (direction); return done ();
-  }
-  if (name == "table-remove-row" && N(args) == 1 && bool_arg (args, 0, direction)) {
-    if (ed) ed->table_remove_row (direction); return done ();
-  }
-  if (name == "table-insert-column" && N(args) == 1 && bool_arg (args, 0, direction)) {
-    if (ed) ed->table_insert_column (direction); return done ();
-  }
-  if (name == "table-remove-column" && N(args) == 1 && bool_arg (args, 0, direction)) {
-    if (ed) ed->table_remove_column (direction); return done ();
-  }
-  if (name == "table-column-decoration" && N(args) == 1 && bool_arg (args, 0, direction)) {
-    if (ed) ed->table_column_decoration (direction); return done ();
-  }
-  if (name == "table-row-decoration" && N(args) == 1 && bool_arg (args, 0, direction)) {
-    if (ed) ed->table_row_decoration (direction); return done ();
-  }
-  if (name == "numbered-toggle" && N(args) == 1 && is_tree (args[0])) {
-    if (eqnarray_toggle_numbering (ed, as_tree (args[0]))) return done ();
-    return false;
-  }
-  using unary= void (*) (editor_rep*, string);
-  const struct { const char* name; unary fn; } setters[]= {
-    {"cell-set-border", cell_set_border}, {"cell-set-hborder", cell_set_hborder},
-    {"cell-set-vborder", cell_set_vborder}, {"cell-set-lborder", cell_set_lborder},
-    {"cell-set-rborder", cell_set_rborder}, {"cell-set-bborder", cell_set_bborder},
-    {"cell-set-tborder", cell_set_tborder}
-  };
-  for (const auto& setter: setters)
-    if (name == setter.name && N(args) == 1 && string_arg (args, 0, value)) {
-      setter.fn (ed, value); return done ();
-    }
-  return false;
 }
 
 } // namespace athena::table_commands

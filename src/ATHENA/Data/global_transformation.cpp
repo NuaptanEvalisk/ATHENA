@@ -1,6 +1,6 @@
 /******************************************************************************
 * MODULE     : global_transformation.cpp
-* DESCRIPTION: Transactional Scheme-driven transformations over a Vault
+* DESCRIPTION: Transactional native transformations over a Vault
 * COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -12,6 +12,7 @@
 #include "ATHENA/Data/vaultfile_json.hpp"
 #include "Data/Convert/Xml/document_file_codec.hpp"
 #include "convert.hpp"
+#include "interop_document_source.hpp"
 
 #include <algorithm>
 #include <filesystem>
@@ -35,13 +36,13 @@ remove_stages (const std::vector<AthenaGlobalTransformationRewrite>& rewrites,
 
 bool
 serialize_document (const tree& document, std::string& serialized) {
-  string source= tree_to_texmacs (document);
-  tree validation;
-  try { validation= texmacs_document_to_tree (source); }
-  catch (...) { validation= tree (_ERROR, "parse failed"); }
-  if (is_func (validation, _ERROR)) return false;
-  serialized.assign (as_charp (source), (size_t) N(source));
-  return true;
+  if (!interop_document_source_error (document).empty ()) return false;
+  try {
+    serialized= athena::document::encode_native_xml_bytes (
+      document, athena::document::xml_format_version::v3);
+    return true;
+  }
+  catch (const std::exception&) { return false; }
 }
 
 bool

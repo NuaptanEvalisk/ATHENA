@@ -40,19 +40,19 @@ void queue_input_idle (athena_actor_id actor, athena_view_id view,
     [actor, view, idle, action] {
       const auto continuation= actor_continuation_registry::instance ().store (
         [actor, view, idle, action] {
-          if (current_scheme_execution_context ()->editor == nullptr) return;
+          if (current_execution_context ()->editor == nullptr) return;
           if (get_current_editor ()->idle_time () < idle)
             queue_input_idle (actor, view, idle, action);
           else action ();
         });
       if (!buffer_actor::submit_to (actor, actor_command_kind::run_native_continuation,
-            view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, continuation))
+            view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, continuation))
         actor_continuation_registry::instance ().discard (continuation);
     });
 }
 
 void after_input_idle (int idle, std::function<void()> action) {
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   ASSERT (context && context->actor_id != ATHENA_NO_ACTOR,
           "delayed input requires a BufferActor");
   queue_input_idle (context->actor_id, context->view_id, idle, std::move (action));
@@ -99,7 +99,7 @@ void update_reference_preview () {
 } // namespace
 
 void native_deferred_tree_set (tree source, tree value) {
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   ASSERT (context && context->editor && context->actor_id != ATHENA_NO_ACTOR,
           "deferred tree mutation requires its BufferActor");
   // Keep live tree references on their owner; only the continuation id is queued.
@@ -111,7 +111,7 @@ void native_deferred_tree_set (tree source, tree value) {
   // A rendering callback must not wait for space in its own mailbox.
   if (!context->actor->try_submit (actor_command_kind::resolve_native_callback,
         context->view_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB,
-        SCHEME_CAPABILITY_BUFFER, id, 1))
+        EXECUTION_CAPABILITY_BUFFER, id, 1))
     context->actor->resolve_native_callback (id, false);
 }
 
@@ -213,7 +213,7 @@ void edit_interface_rep::delay_pre_edit (string key, time_t time) {
 
 void edit_interface_rep::queue_pre_edit (std::string key, time_t time,
                                         std::uint64_t generation, int delay) {
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   ASSERT (context && context->actor_id != ATHENA_NO_ACTOR,
           "delayed pre-edit requires a BufferActor");
   const auto actor= context->actor_id;
@@ -222,7 +222,7 @@ void edit_interface_rep::queue_pre_edit (std::string key, time_t time,
     [actor, view, key= std::move (key), time, generation] {
       const auto continuation= actor_continuation_registry::instance ().store (
         [key, time, generation] {
-          if (current_scheme_execution_context ()->editor == nullptr) return;
+          if (current_execution_context ()->editor == nullptr) return;
           auto& ed= dynamic_cast<edit_interface_rep&> (*get_current_editor ().operator-> ());
           if (generation != ed.pre_edit_generation) return;
           const int remaining= 100 - ed.idle_time ();
@@ -241,7 +241,7 @@ void edit_interface_rep::queue_pre_edit (std::string key, time_t time,
           }
         });
       if (!buffer_actor::submit_to (actor, actor_command_kind::run_native_continuation,
-            view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, continuation))
+            view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, continuation))
         actor_continuation_registry::instance ().discard (continuation);
     });
 }

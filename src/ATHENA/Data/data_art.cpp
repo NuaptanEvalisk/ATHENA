@@ -15,13 +15,12 @@
 #include "new_buffer.hpp"
 #include "new_view.hpp"
 #include "new_window.hpp"
-#include "scheme_execution_context.hpp"
+#include "execution_context.hpp"
 #include "boot.hpp"
 #include "buffer_actor.hpp"
 #include "buffer_state.hpp"
 #include "node_metadata.hpp"
 #include "file.hpp"
-#include "scheme.hpp"
 
 #include <QByteArray>
 #include <QCoreApplication>
@@ -96,7 +95,7 @@ string
 export_snapshot_on_gui_owner (
   url source, url output, tree document, tree body,
   athena::document::xml_format_version version) {
-  if (current_scheme_execution_context () != nullptr)
+  if (current_execution_context () != nullptr)
     return "DataArt transient export entered outside the GUI owner";
 
   url transient= url_none ();
@@ -342,7 +341,7 @@ athena_data_art_generate (string seed, url output) {
 
 int
 athena_data_art_source_version () {
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   if (!context || !context->actor || !context->actor->current_state ())
     throw std::runtime_error ("DataArt snapshot requires its source actor");
   const auto version= context->actor->current_state ()->storage_version;
@@ -367,7 +366,7 @@ athena_data_art_export_snapshot (
   case 3: version= xml_format_version::v3; break;
   default: return "Unknown DataArt snapshot source version";
   }
-  if (current_scheme_execution_context () == nullptr)
+  if (current_execution_context () == nullptr)
     return export_snapshot_on_gui_owner (
       std::move (source), std::move (output), std::move (document),
       std::move (body), version);

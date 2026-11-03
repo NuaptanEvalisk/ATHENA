@@ -13,7 +13,6 @@
 #include "editor_modes.hpp"
 #include "file.hpp"
 #include "analyze.hpp"
-#include "scheme.hpp"
 #include "ATHENA/Data/vault_image_insertion.hpp"
 #include "node_metadata.hpp"
 #include "modification.hpp"

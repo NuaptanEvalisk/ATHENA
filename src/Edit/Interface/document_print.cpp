@@ -10,7 +10,6 @@
 #include "buffer_state.hpp"
 #include "file.hpp"
 #include "buffer_actor.hpp"
-#include "guile_tm.hpp"
 #include "ATHENA/Data/compound_edit_batch.hpp"
 #include "Data/Convert/Generic/conversion_registry.hpp"
 #include "Pdf/pdf_hummus_make_attachment.hpp"
@@ -156,7 +155,7 @@ void choose_print_file (print_dialog_request request, int first, int last,
 }
 
 void print_dialog (bool select_pages, bool to_file, bool export_pdf= false) {
-  const auto* owner= current_scheme_execution_context ();
+  const auto* owner= current_execution_context ();
   if (!owner || !owner->actor || !owner->editor)
     throw std::runtime_error ("Printing requires an owning editor");
   print_dialog_request request {owner->actor_id, owner->view_id,
@@ -215,7 +214,7 @@ void export_pdf (url target, bool attach_source) {
   auto destination= bytes (as_string (target));
   athena_node_reference_with_native_export (
     [destination, attach_source] (editor_rep&) {
-      const auto* owner= current_scheme_execution_context ();
+      const auto* owner= current_execution_context ();
       tree body= get_buffer_body (owner->actor->current_buffer_url ());
       if (!is_document (body) || N(body) == 0 ||
           !is_compound (body[N(body)-1], "screens")) {
@@ -294,7 +293,7 @@ void document_print () {
 }
 
 bool document_attach_source (url target) {
-  const auto* owner= current_scheme_execution_context ();
+  const auto* owner= current_execution_context ();
   if (!owner || !owner->actor || !owner->editor)
     throw std::runtime_error ("Attaching document source requires an owning editor");
   tree document= copy (owner->actor->current_source (owner->view_id));
@@ -367,7 +366,7 @@ void document_import_pdf_source (url source) {
     directory.setAutoRemove (false);
     switch_to_buffer (main);
   };
-  if (current_scheme_execution_context ())
+  if (current_execution_context ())
     qt_post_to_main_thread ([open_source= std::move (open_source)] {
       try { open_source (); }
       catch (const std::exception& error) { report_error (error.what ()); }

@@ -11,7 +11,6 @@
 
 #include "analyze.hpp"
 #include "impl_language.hpp"
-#include "scheme.hpp"
 #include "packrat.hpp"
 
 verb_language_rep::verb_language_rep (string name):

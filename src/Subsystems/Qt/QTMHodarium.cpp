@@ -1,5 +1,6 @@
 /* Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later. */
 #include "QTMHodarium.hpp"
+#include "boot.hpp"
 #include "QTMMainTabWindow.hpp"
 #include <DockWidget.h>
 #include <QWizard>
@@ -37,7 +38,6 @@
 #include "confined_filesystem.hpp"
 #include "qt_utilities.hpp"
 #include "tm_ostream.hpp"
-#include "scheme.hpp"
 #include "new_buffer.hpp"
 #include "new_window.hpp"
 #include "tm_buffer.hpp"

@@ -118,7 +118,7 @@ void edit_interface_rep::refresh_node_references () {
 }
 
 void athena_refresh_node_reference_view () {
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   if (!context || !context->actor || !context->editor) return;
   if (auto* editor= dynamic_cast<edit_interface_rep*> (context->editor))
     editor->refresh_node_references ();

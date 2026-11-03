@@ -1,5 +1,6 @@
 // Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later.
 #include "view_zoom.hpp"
+#include "boot.hpp"
 #include "editor.hpp"
 #include "server.hpp"
 #include "new_window.hpp"

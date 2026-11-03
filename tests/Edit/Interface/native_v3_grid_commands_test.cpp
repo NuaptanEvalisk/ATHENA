@@ -19,7 +19,7 @@
 #include "data_cache.hpp"
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
-#include "scheme.hpp"
+#include "native_dispatch.hpp"
 #include "sys_utils.hpp"
 #include "Xml/athena_document_xml.hpp"
 
@@ -195,7 +195,7 @@ int main (int argc, char** argv) {
   cache_initialize ();
   reset_document_tree (current_document_tree ());
   init_athena ();
-  start_scheme (argc, argv, run_tests);
+  run_tests (argc, argv);
   return 1;
 }
 

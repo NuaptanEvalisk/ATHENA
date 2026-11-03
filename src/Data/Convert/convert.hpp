@@ -16,7 +16,6 @@
 #include "Generic/conversion_options.hpp"
 typedef tree scheme_tree;
 class url;
-class object;
 
 /*** Miscellaneous ***/
 bool   is_snippet (tree doc);
@@ -259,7 +258,6 @@ tree   postprocess_metadata (tree t);
 
 /*** Xml / Html / Mathml ***/
 string old_tm_to_xml_cdata (string s);
-object tm_to_xml_cdata (string s);
 string old_xml_cdata_to_tm (string s);
 string tm_to_xml_name (string s);
 string xml_name_to_tm (string s);

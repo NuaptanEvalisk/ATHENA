@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "QTMVaultTransclusionWizard.hpp"
+#include "boot.hpp"
 #include "QTMChoiceNavigation.hpp"
 #include "QTMCompletingComboBox.hpp"
 #include "QTMVaultAnchorModel.hpp"
@@ -25,7 +26,6 @@
 #include "node_metadata.hpp"
 #include <QPointer>
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
 #include "tree_search.hpp"
 #include "vault.hpp"
 #include <QApplication>

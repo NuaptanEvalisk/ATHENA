@@ -273,8 +273,6 @@ copy_runtime_tree () {
   mkdir -p "$out_dir/bin" "$out_dir/lib"
 
   install -Dm755 "$build_dir/src/ATHENA.bin" "$out_dir/bin/ATHENA.bin"
-  python3 "$repo_root/tools/release/copy-private-guile-runtime.py" \
-    "$build_dir/athena-guile-runtime" "$out_dir"
   install -Dm755 "$build_dir/src/athena-codex-bridge" \
     "$out_dir/bin/athena-codex-bridge"
   install -Dm755 \
@@ -319,11 +317,6 @@ build_athena_flavor () {
   local out_dir="$container_build_dir/ATHENA-$label"
   local common_lib="$deps_dir/build/llama.cpp/common/libcommon.a"
 
-  if [ -f "$build_dir/CMakeCache.txt" ] &&
-     ! grep -Fxq 'ATHENA_GUILE_RUNTIME_ID:INTERNAL=athena-guile-3.0.10-native' \
-       "$build_dir/CMakeCache.txt"; then
-    rm -rf "$build_dir"
-  fi
 
   cmake -S "$repo_root" -B "$build_dir" -G Ninja \
     -DCMAKE_BUILD_TYPE="$cmake_type" \
@@ -353,10 +346,6 @@ build_athena_flavor () {
 
   cmake --build "$build_dir" -j"$jobs"
 
-  if [ ! -f "$build_dir/athena-guile-runtime/lib/libathena-guile.so.1" ]; then
-    echo "ATHENA $label build did not produce its private Guile runtime." >&2
-    exit 1
-  fi
 
   copy_runtime_tree "$build_dir" "$out_dir"
 

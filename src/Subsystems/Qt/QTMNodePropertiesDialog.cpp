@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "QTMNodePropertiesDialog.hpp"
+#include "boot.hpp"
 #include "ATHENA/Data/document_node_model.hpp"
 #include "ATHENA/Data/enunciation_model.hpp"
 #include "Data/Convert/Xml/athena_document_xml.hpp"
@@ -453,7 +454,7 @@ void commit (PropertyRequest request, std::string desired, node_property_complet
     [request= std::move (request), desired= std::move (desired), finish] {
       std::string error;
       try {
-        const auto* context= current_scheme_execution_context ();
+        const auto* context= current_execution_context ();
         if (!context || !context->editor || !context->actor)
           throw std::runtime_error ("The document editor has closed");
         if (context->actor->current_state ()->read_only)
@@ -481,7 +482,7 @@ void commit (PropertyRequest request, std::string desired, node_property_complet
       finish (std::move (error));
     });
   if (!buffer_actor::submit_to (actor, actor_command_kind::run_native_continuation,
-        view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, SCHEME_CAPABILITY_BUFFER, continuation)) {
+        view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, continuation)) {
     actor_continuation_registry::instance ().discard (continuation);
     finish ("The document no longer accepts edits");
   }
@@ -543,9 +544,9 @@ QDialog* make_node_properties_dialog (std::string snapshot, bool canonical, bool
 }
 
 bool node_properties_show (tree source) {
-  const auto* context= current_scheme_execution_context ();
+  const auto* context= current_execution_context ();
   if (!context || !context->actor || !context->editor ||
-      !context->has (SCHEME_CAPABILITY_BUFFER)) return false;
+      !context->has (EXECUTION_CAPABILITY_BUFFER)) return false;
   try {
     path ip= obtain_ip (source);
     if (!ip_attached (ip)) return false;

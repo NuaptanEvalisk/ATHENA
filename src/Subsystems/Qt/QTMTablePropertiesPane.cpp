@@ -14,7 +14,6 @@
 #include "tm_window.hpp"
 #include "buffer_actor.hpp"
 #include "qt_utilities.hpp"
-#include "scheme.hpp"
 #include "editor.hpp"
 #include "table_commands.hpp"
 #include "server.hpp"
@@ -52,7 +51,7 @@ bool postToBuffer (url buffer, std::function<void()> action) {
   if (view->buf->actor->try_submit (
         actor_command_kind::run_native_continuation, view->runtime_id,
         ATHENA_NO_BLOB, ATHENA_NO_BLOB,
-        SCHEME_CAPABILITY_BUFFER | SCHEME_CAPABILITY_UI, id)) return true;
+        EXECUTION_CAPABILITY_BUFFER | EXECUTION_CAPABILITY_UI, id)) return true;
   (void) actor_continuation_registry::instance ().discard (id);
   return false;
 }
