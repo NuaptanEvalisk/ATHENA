@@ -2216,10 +2216,10 @@ generated native entries and remain on the secure-function list.
   `build_qt6/native-runtime-removal-evidence`; temporary private profiles were
   removed after their processes exited.
 
-### Existing test failures retained explicitly
+### Test failures identified during removal (historical baseline)
 
-The complete `utf8_editor_test` executable is not green. It passes 27 checks
-before `unicodeSearchAndReplace` encounters `Cursor environment is awaiting
+At the runtime-removal commit, the complete `utf8_editor_test` executable
+passed 27 checks before `unicodeSearchAndReplace` encountered `Cursor environment is awaiting
 preparation for mode`. Initial layout preparation allowed the first search,
 but the replace-all loop again lost its admitted cursor context after mutation.
 Those exploratory fixture changes were reverted; no production context getter
@@ -2233,14 +2233,50 @@ runtime removal. Both error paths were independently reproduced using the
 retained pre-removal executable, build ID
 `53b24febae62e17f220fbd8b1050ca4884264172`, in a private profile. The same v3
 eqnarray fixture fails with the same LaTeX diagnostic and exit status 1 in both
-the previous and new executables. These are existing source-context defects,
-not evidence that the new runtime still requires Guile. Their repair remains
-separate work; neither complete UTF-8 nor unrestricted LaTeX coverage is claimed.
+the previous and new executables. These were existing source-context defects,
+not evidence that the new runtime still required Guile. At that commit neither
+complete UTF-8 nor unrestricted LaTeX coverage was claimed.
 
 Evidence: `build_qt6/native-runtime-removal-utf8-final.log`,
 `build_qt6/native-runtime-utf8-search-final-diagnostic.log`,
 `build_qt6/native-runtime-utf8-previous-binary-repro.log`, and
 `build_qt6/native-runtime-utf8-latex-baseline.log`.
+
+### Follow-up source-context repairs (2026-11-03)
+
+- `document_replace` prepares a per-hit source environment before edits and
+  retains its admitted selection policy throughout each replacement, including
+  post-mutation navigation and text-only undo cursor notifications. It does not
+  permit a stale layout cursor context or weaken `get_env_value` invariants.
+  `unicodeSearchAndReplace` now passes its entire replacement, undo and
+  subsequent search sequence.
+- LaTeX native v3 conversion retains the original document as the source of
+  mode-usage statistics, rather than treating synthetic `!math-row-policy` and
+  cell-format exporter nodes as physical source paths. The previous failing
+  eqnarray fixture now exports in an isolated Vault with the correct
+  `eqnarray*` environment. The end-to-end UTF-8/LaTeX test now passes; its
+  operator assertion reflects the exporter's defined `\\tmop` macro, which
+  implements `\\operatorname`, rather than requiring macro expansion.
+- Both formerly failing cases pass together (4 QtTest results including setup
+  and cleanup). The native v3 exporter suite also passes after correcting its
+  expectation for the constructor's existing `std::invalid_argument` type.
+  Logs: `build_qt6/fix-search-latex-both-targeted.log`,
+  `build_qt6/fix-search-latex-cli.log`,
+  `build_qt6/fix-search-latex-v3-final-test.log`.
+- The corrected binary was built with `-j16` and deployed through
+  `tools/deploy-local-runtime.sh build_qt6`, retaining the preceding ELF.
+  Built and installed ELF build IDs are both
+  `9c4dfee738c366df61468db476de547d82ec7597`. A separate native CLI
+  LaTeX conversion using the installed executable and isolated Vault passed.
+  Logs: `build_qt6/fix-search-latex-third-build.log`,
+  `build_qt6/fix-search-latex-deploy.log`, and
+  `build_qt6/fix-search-latex-installed-smoke.log`.
+- Running the entire UTF-8 editor executable beyond its formerly failing
+  search case reaches a separate `clipboardAndUndo` fixture failure,
+  `Paste destination is awaiting layout`. That test creates a detached editor
+  without an attached display/context and is not covered by the two source-
+  context fixes. Do not report the complete UTF-8 executable as green.
+  Log: `build_qt6/fix-search-latex-full-utf8.log`.
 
 ### Former dynamic-wind failure
 

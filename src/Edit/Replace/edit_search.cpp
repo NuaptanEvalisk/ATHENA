@@ -20,6 +20,7 @@
 #include "utf8_edit.hpp"
 #include "unicode_text.hpp"
 #include <stdexcept>
+#include <vector>
 
 /******************************************************************************
 * Constructor and destructor
@@ -591,7 +592,8 @@ edit_replace_rep::document_search (tree what, bool case_insensitive) {
   range_set hit= next_search_hit (document_search_sels,
                                   document_search_reference, false);
   if (N(hit) < 2) hit= range (document_search_sels, 0, 2);
-  selection_set_range_set (hit);
+  const auto selected= prepare_search_target (hit[0], preparation);
+  with_selection_context ([&] { selection_set_range_set (hit); }, selected);
   go_to (copy (hit[0]));
   document_search_index=
     document_search_result_index (document_search_sels, hit[0]);
@@ -622,7 +624,8 @@ edit_replace_rep::document_search_navigate (bool forward, bool extreme) {
       : range (document_search_sels, N(document_search_sels) - 2,
                N(document_search_sels));
 
-  selection_set_range_set (hit);
+  const auto selected= prepare_source_position (hit[0]);
+  with_selection_context ([&] { selection_set_range_set (hit); }, selected);
   go_to (copy (hit[0]));
   document_search_index=
     document_search_result_index (document_search_sels, hit[0]);
@@ -662,6 +665,11 @@ edit_replace_rep::document_replace (tree by, bool all) {
   range_set hits= all ? document_search_sels
     : range (document_search_sels, 2 * (document_search_index - 1),
              2 * document_search_index);
+  source_search_preparation preparation;
+  std::vector<std::shared_ptr<const evaluation_environment_checkpoint>> contexts;
+  contexts.reserve (N(hits) / 2);
+  for (int i=0; i<N(hits); i+=2)
+    contexts.push_back (prepare_search_target (hits[i], preparation));
   // Track boundaries because cutting a match may normalize adjacent concats.
   // Process the original matches backwards; inserted text is never searched
   // again during this replacement operation.
@@ -673,9 +681,11 @@ edit_replace_rep::document_replace (tree by, bool all) {
     for (int i=N(positions)-2; i>=0; i-=2) {
       path p= position_get (positions[i]);
       path q= position_get (positions[i+1]);
-      selection_set_range_set (range_set (p, q));
-      selection_cut ("none");
-      insert_tree (copy (by));
+      with_selection_context ([&] {
+        selection_set_range_set (range_set (p, q));
+        selection_cut ("none");
+        insert_tree (copy (by));
+      }, contexts[i / 2]);
     }
     end_editing ();
   }

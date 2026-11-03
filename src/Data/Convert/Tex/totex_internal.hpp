@@ -37,6 +37,8 @@ scheme_tree filter_known_style_macros (scheme_tree t);
 
 url save_source_url ();
 url save_target_url ();
+const tree* mode_stats_source ();
+void set_mode_stats_source (const tree* source);
 
 // Publisher-specific export policy is entirely native and kept behind this
 // seam so the generic driver/core do not depend on individual class families.

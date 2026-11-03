@@ -113,6 +113,9 @@ struct LatexExportContext {
 // driver resets this thread-local context for each conversion; thread-local
 // storage also prevents simultaneous BufferActors from sharing exporter state.
 thread_local LatexExportContext latex_export_context;
+// This is the original document, not the rewritten exporter syntax tree.
+// Its lifetime is scoped by latex_export_convert_top on the owning thread.
+thread_local const tree* native_mode_stats_source= nullptr;
 
 array<scheme_tree>
 env_values (string var) {
@@ -1243,7 +1246,12 @@ void
 init_mode_stats_native (scheme_tree value, scheme_tree styles, scheme_tree initial) {
   latex_export_context.command_text_uses= hashmap<string,int> (0);
   latex_export_context.command_math_uses= hashmap<string,int> (0);
-  tree body= scheme_tree_to_tree (value);
+  // Native v3 export inserts synthetic MathGrid policy/format slots into the
+  // serialized syntax. They have no original source paths or style contexts.
+  // Mode analysis must walk the unmodified source instead of those slots.
+  const tree* original= native_mode_stats_source;
+  tree body= original && is_document (*original)
+    ? extract (*original, "body") : scheme_tree_to_tree (value);
   if (!is_document (body)) body= tree (DOCUMENT, body);
   tree init= scheme_tree_to_tree (initial);
   tree style (TUPLE);
@@ -3706,6 +3714,16 @@ latex_export_prepare_v3_source (tree source) {
 }
 
 namespace latex_export_internal {
+
+const tree*
+mode_stats_source () {
+  return native_mode_stats_source;
+}
+
+void
+set_mode_stats_source (const tree* source) {
+  native_mode_stats_source= source;
+}
 
 url
 save_source_url () {

@@ -27,6 +27,15 @@ struct export_scope {
   }
 };
 
+struct mode_stats_source_scope {
+  const tree* previous;
+  explicit mode_stats_source_scope (const tree* source):
+    previous (mode_stats_source ()) { set_mode_stats_source (source); }
+  ~mode_stats_source_scope () { set_mode_stats_source (previous); }
+  mode_stats_source_scope (const mode_stats_source_scope&)= delete;
+  mode_stats_source_scope& operator= (const mode_stats_source_scope&)= delete;
+};
+
 string
 option_string (const conversion_options& options, string key) {
   const auto found= options.find (std::string (key.data (), N(key)));
@@ -221,10 +230,11 @@ convert_tmfile_native (scheme_tree value, const conversion_options& options) {
 
 scheme_tree
 latex_export_convert_top (scheme_tree value, const conversion_options& options,
-                          url source, url target) {
+                          url source, url target, const tree* native_source) {
   latex_export_set_save_urls (source, target);
   export_scope scope;
   scope.enter ();
+  mode_stats_source_scope source_scope (native_source);
   return tmfile_native (value)
     ? convert_tmfile_native (value, options)
     : latex_export_convert_tree (value, options);

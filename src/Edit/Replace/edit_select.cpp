@@ -166,7 +166,7 @@ edit_select_rep::select (path p1, path p2) {
     return;
   }
   if (p1 != p2) {
-    if (!selection_in_source () && is_table_selection (et, p1, p2, false)) {
+    if (is_table_selection (et, p1, p2, false) && !selection_in_source ()) {
       int r1, c1, r2, c2, rows, cols;
       path fp= find_subtable_selection (et, p1, p2, r1, c1, r2, c2);
       path owner= equation_array_owner (et, fp);
@@ -429,7 +429,18 @@ edit_select_rep::selection_active_enlarging () {
 bool
 edit_select_rep::with_selection_navigation (
     const std::function<void (const cursor_navigation&)>& action) {
-  const auto context= selection_environment ? selection_environment : editor_rep::cursor_context_at (tp);
+  if (selection_environment) {
+    // A source operation supplies the contract snapshot for this selected
+    // occurrence before modifying the tree. After the first edit the rendered
+    // cursor contexts are invalid, but this admitted selection still has its
+    // own explicit source contract and must not re-query the stale layout.
+    const auto access= selection_in_source ()
+      ? athena::contracts::access_policy::source
+      : athena::contracts::access_policy::normal;
+    action (cursor_navigation ({selection_environment->contract_context (), access}));
+    return true;
+  }
+  const auto context= editor_rep::cursor_context_at (tp);
   if (!context) return false;
   return with_admitted_navigation (*context, action);
 }

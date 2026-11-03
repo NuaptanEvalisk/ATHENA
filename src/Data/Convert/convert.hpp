@@ -201,7 +201,8 @@ scheme_tree latex_export_filter_styles (scheme_tree styles);
 scheme_tree latex_export_convert_charset (scheme_tree value);
 scheme_tree latex_export_convert_tree (scheme_tree value, const conversion_options& options);
 scheme_tree latex_export_convert_top (scheme_tree value, const conversion_options& options,
-                                      url source, url target);
+                                      url source, url target,
+                                      const tree* native_source= nullptr);
 void latex_export_initialize (const conversion_options& options);
 scheme_tree latex_export_mathjax_pre (scheme_tree value);
 scheme_tree latex_export_mathjax (scheme_tree value);

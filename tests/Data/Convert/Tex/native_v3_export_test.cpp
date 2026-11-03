@@ -97,7 +97,7 @@ private slots:
       QVERIFY_THROWS_EXCEPTION (std::runtime_error, output (big_operator (glyph), true));
     }
     QVERIFY_THROWS_EXCEPTION (std::runtime_error, output (big_operator ("\u222b", true)));
-    QVERIFY_THROWS_EXCEPTION (std::runtime_error, output (big_operator ("sum")));
+    QVERIFY_THROWS_EXCEPTION (std::invalid_argument, output (big_operator ("sum")));
   }
 
   void semanticSymbols () {

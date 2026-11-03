@@ -2398,11 +2398,12 @@ private slots:
       compound ("body", tree (DOCUMENT,
         compound ("math", tree (CONCAT, standalone, tree (";"), grouped)))));
     const string groups_latex= latex_document_for_test (scripts_doc, options);
-    // The regular text-token converter turns `op` into \operatorname{op}
+    // The text-token converter emits the defined \tmop macro for `op`
     // and places spaces around the binary +. Check the essential TeX groups
-    // rather than reimplementing the pre-existing lexical normalization.
+    // and operator mapping without requiring the exporter to inline macros.
     QVERIFY (occurs ("{}^{", groups_latex));
-    QVERIFY (occurs ("operatorname{op}", groups_latex));
+    QVERIFY (occurs ("\\tmop{op}", groups_latex));
+    QVERIFY (occurs ("\\operatorname{#1}", groups_latex));
     QVERIFY (occurs ("{x + y}_i", groups_latex));
   }
   void nativeV3HtmlMathJaxKeepsMathBlockAndScriptMetadata () {

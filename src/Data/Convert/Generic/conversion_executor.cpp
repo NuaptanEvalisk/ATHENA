@@ -132,7 +132,7 @@ bool conversion_file_available (url source, url target) {
 string conversion_latex_document (tree input, const conversion_options& options, url source, url target) {
   check_latex_properties (input);
   tree prepared= latex_export_prepare_v3_source (input);
-  tree output= latex_export_convert_top (prepared, options, source, target);
+  tree output= latex_export_convert_top (prepared, options, source, target, &input);
   if (v3_math (prepared)) check_latex (output);
   return serialize_latex (output);
 }
@@ -252,7 +252,8 @@ static conversion_payload execute_step (const conversion_payload& input,
     if (action == "export-latex-document" && !structured)
       return conservative_texmacs_to_latex (
         scheme_tree_to_tree (prepared), values);
-    tree output= latex_export_convert_top (prepared, values, source, target);
+    tree output= latex_export_convert_top (prepared, values, source, target,
+                                          document);
     if (structured) check_latex (output);
     if (action == "export-latex") return serial (output);
     return serialize_latex (output);
