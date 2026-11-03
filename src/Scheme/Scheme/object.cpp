@@ -19,7 +19,6 @@
 #include "hashmap.hpp"
 #include "promise.hpp"
 #include "widget.hpp"
-#include "editor.hpp"
 #include "modification.hpp"
 #include "patch.hpp"
 #include "tm_ostream.hpp"
@@ -700,20 +699,3 @@ object call (object fun, object a1) {
   return tmscm_to_object (call_scheme (object_to_tmscm (fun), object_to_tmscm (a1))); }
 object call (object fun, object a1, object a2) {
   return tmscm_to_object (call_scheme (object_to_tmscm (fun), object_to_tmscm (a1), object_to_tmscm (a2))); }
-
-void
-protected_call (object cmd) {
-#ifdef USE_EXCEPTIONS
-  try {
-#endif
-    get_current_editor()->before_menu_action ();
-    call (cmd);
-    get_current_editor()->after_menu_action ();
-#ifdef USE_EXCEPTIONS
-  }
-  catch (string s) {
-    get_current_editor()->cancel_menu_action ();
-  }
-  handle_exceptions ();
-#endif
-}

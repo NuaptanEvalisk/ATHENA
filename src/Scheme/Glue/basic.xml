@@ -237,9 +237,6 @@
   <binding name="exec-global" native="exec_global" returns="void">
     <arg type="object" />
   </binding>
-  <binding name="protected-call" native="protected_call" returns="void">
-    <arg type="object" />
-  </binding>
   <binding name="cpp-has-preference?" native="has_user_preference" returns="bool">
     <arg type="string" />
   </binding>

@@ -2049,6 +2049,19 @@ generated native entries and remain on the secure-function list.
   build_qt6/native-preference-lifecycle-build.log. No tests added/run; combined
   linking, startup verification and deployment remain pending.
 
+## Retired Protected Scheme Call
+
+- Removed protected-call, its binding and declaration after confirming no
+  production, resource, test or tooling consumers. The object implementation
+  no longer includes editor.hpp for this unused menu-transaction wrapper.
+- Did not remove live Scheme procedures used by actor/global scheduling or
+  startup. Tree observer markup still reaches native command dispatch through
+  concat_active.cpp and is not dead merely because direct C++ uses are sparse.
+- Interface generation and object implementation compilation passed with -j16.
+  Logs: build_qt6/retire-protected-call-glue.log and
+  build_qt6/retire-protected-call-build.log. No tests added/run; pending combined
+  linking/startup/deployment work from the preceding batches remains.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

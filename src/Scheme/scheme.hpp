@@ -137,7 +137,6 @@ void   exec_global (object cmd);
 void   schedule_global_scheme_handle (std::uint64_t handle, std::uint64_t view_id);
 void   exec_pending_commands ();
 void   clear_pending_commands ();
-void   protected_call (object cmd);
 
 object call (const char* fun);
 object call (const char* fun, object a1);
