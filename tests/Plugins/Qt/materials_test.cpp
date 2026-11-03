@@ -8,17 +8,17 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-#include "ATHENA/Data/materials.hpp"
-#include "ATHENA/Data/materials_document.hpp"
-#include "ATHENA/Data/materials_engine.hpp"
-#include "ATHENA/Data/materials_recognition.hpp"
-#include "ATHENA/Data/materials_schema.hpp"
-#include "ATHENA/Data/materials_zotero.hpp"
-#include "ATHENA/Data/vault.hpp"
-#include "ATHENA/Data/namespaces.hpp"
-#include "ATHENA/Data/namespace_ontology.hpp"
+#include "Materials/Model/materials.hpp"
+#include "Materials/Model/materials_document.hpp"
+#include "Materials/Model/materials_engine.hpp"
+#include "Materials/Model/materials_recognition.hpp"
+#include "Materials/Model/materials_schema.hpp"
+#include "Materials/Model/materials_zotero.hpp"
+#include "Domains/Vault/vault.hpp"
+#include "Domains/Namespaces/namespaces.hpp"
+#include "Domains/Namespaces/namespace_ontology.hpp"
 #include "convert.hpp"
-#include "Qt/QTMMaterialCitationDialog.hpp"
+#include "UI/Qt/Materials/QTMMaterialCitationDialog.hpp"
 #include <QDialog>
 #include <QTableWidget>
 #include <QScrollBar>

@@ -1,0 +1,792 @@
+/******************************************************************************
+* MODULE     : QTMCommandRegistry.cpp
+* DESCRIPTION: Native application command registry and work-context routing
+* COPYRIGHT  : (C) 2026 Felix
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+
+#include "UI/Qt/Commands/QTMCommandRegistry.hpp"
+#include "Editor/Commands/application_tools.hpp"
+#include "Editor/Commands/application_preferences.hpp"
+#include "App/Window/interactive_commands.hpp"
+#include "Editor/Commands/document_print.hpp"
+#include "global_transformation_frontend.hpp"
+#include "recent_files.hpp"
+#include "application_lifecycle.hpp"
+#include "vault_frontend.hpp"
+#include "UI/Qt/Commands/QTMCommandRegistryInternal.hpp"
+
+#include "UI/Qt/Shell/QTMAbout.hpp"
+#include "UI/Qt/Knowledge/QTMArtifactsPane.hpp"
+#include "UI/Qt/Shell/QTMATHENADiff.hpp"
+#include "UI/Qt/Integrations/QTMAudmap.hpp"
+#include "UI/Qt/Commands/QTMCommandPalette.hpp"
+#include "UI/Qt/Document/QTMCustomStylesManager.hpp"
+#include "UI/Qt/Document/QTMDocumentHistoryPane.hpp"
+#include "UI/Qt/Dialogs/QTMErrorMessagesPane.hpp"
+#include "UI/Qt/Editor/QTMGlobalSearch.hpp"
+#include "UI/Qt/Editor/QTMHandwritingSymbolPane.hpp"
+#include "UI/Qt/Integrations/QTMHodarium.hpp"
+#include "QTMGoogleTasksPane.hpp"
+#include "UI/Qt/Materials/QTMMaterialsManager.hpp"
+#include "UI/Qt/Vault/QTMNamespaceExplorer.hpp"
+#include "UI/Qt/Vault/QTMNamespaceExport.hpp"
+#include "UI/Qt/Document/QTMCompoundDocument.hpp"
+#include "UI/Qt/Vault/QTMNamespaceManager.hpp"
+#include "UI/Qt/Dialogs/QTMNativeDialogs.hpp"
+#include "UI/Qt/Vault/QTMNeighborhoodsPane.hpp"
+#include "UI/Qt/Document/QTMOutlinePane.hpp"
+#include "UI/Qt/Dialogs/QTMPreferencesDialog.hpp"
+#include "UI/Qt/Integrations/QTMPluginUi.hpp"
+#include "athena_platform.hpp"
+#if ATHENA_PLATFORM_IPADOS
+#include "Platform/iOS/athena_ios.hpp"
+#include <DockWidget.h>
+#endif
+#include "UI/Qt/Shell/QTMQuickSwitcher.hpp"
+#include "UI/Qt/Vault/QTMVaultExplorer.hpp"
+#include "UI/Qt/Vault/QTMVaultFontConfigurator.hpp"
+#include "UI/Qt/Vault/QTMVaultMaintenanceDialog.hpp"
+#include "UI/Qt/Integrations/QTMWebsitesManager.hpp"
+#include "boot.hpp"
+#include "Document/Convert/Generic/conversion_graph.hpp"
+#include "Document/Convert/Generic/conversion_registry.hpp"
+#include "Editor/editor.hpp"
+#include "native_keyboard_registry.hpp"
+#include "file.hpp"
+#include "message.hpp"
+#include "new_buffer.hpp"
+#include "new_view.hpp"
+#include "new_window.hpp"
+#include "native_interfaces.hpp"
+#include "App/Runtime/server.hpp"
+#include "App/Window/tm_window.hpp"
+#include "Domains/Vault/vault.hpp"
+
+#include <QDesktopServices>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QInputDialog>
+#include <QLineEdit>
+#include <QUrl>
+
+using namespace qtm_command_registry_detail;
+
+namespace {
+
+enum class help_action_kind {
+  license,
+  shortcuts
+};
+
+struct help_action {
+  const char* key;
+  const char* label;
+  const char* group;
+  help_action_kind kind;
+};
+
+const help_action help_actions[]= {
+  {"license", "License", "About", help_action_kind::license},
+  {"shortcuts", "Shortcuts listing", "Tools", help_action_kind::shortcuts}
+};
+
+const help_action*
+find_help_action (const QString& key) {
+  for (const help_action& action: help_actions)
+    if (key == QString::fromLatin1 (action.key)) return &action;
+  return nullptr;
+}
+
+bool
+execute_help_action (const help_action& action, const QTMCommandContext& context) {
+  try {
+    switch (action.kind) {
+    case help_action_kind::license:
+      application_open_document_url (url ("$ATHENA_PATH/LICENSE"));
+      return true;
+    case help_action_kind::shortcuts:
+      native_keyboard_list_shortcuts ();
+      return true;
+    }
+  }
+  catch (...) {}
+  return false;
+}
+
+enum class editor_chrome_part {
+  header,
+  main_toolbar,
+  mode_toolbar,
+  focus_toolbar,
+  status_bar
+};
+
+tm_view
+editor_view_for_context (const QTMCommandContext& context) {
+  qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+  if (proxy == nullptr) return nullptr;
+  tm_view view= concrete_runtime_view (proxy->view_id ());
+  return view != nullptr && view->win != nullptr ? view : nullptr;
+}
+
+bool
+editor_chrome_visible (tm_view view, editor_chrome_part part) {
+  if (view == nullptr || view->win == nullptr) return false;
+  widget target= view->win->wid;
+  switch (part) {
+  case editor_chrome_part::header:
+    return get_header_visibility (target);
+  case editor_chrome_part::main_toolbar:
+    return get_main_icons_visibility (target);
+  case editor_chrome_part::mode_toolbar:
+    return get_mode_icons_visibility (target);
+  case editor_chrome_part::focus_toolbar:
+    return get_focus_icons_visibility (target);
+  case editor_chrome_part::status_bar:
+    return get_footer_visibility (target);
+  }
+  return false;
+}
+
+void
+set_editor_chrome_visible (
+  tm_view view, editor_chrome_part part, bool visible) {
+  if (view == nullptr || view->win == nullptr) return;
+  widget target= view->win->wid;
+  switch (part) {
+  case editor_chrome_part::header:
+    set_header_visibility (target, visible);
+    return;
+  case editor_chrome_part::main_toolbar:
+    set_main_icons_visibility (target, visible);
+    return;
+  case editor_chrome_part::mode_toolbar:
+    set_mode_icons_visibility (target, visible);
+    return;
+  case editor_chrome_part::focus_toolbar:
+    set_focus_icons_visibility (target, visible);
+    return;
+  case editor_chrome_part::status_bar:
+    set_footer_visibility (target, visible);
+    return;
+  }
+}
+
+const char*
+editor_chrome_preference (editor_chrome_part part) {
+  switch (part) {
+  case editor_chrome_part::main_toolbar: return "main icon bar";
+  case editor_chrome_part::mode_toolbar: return "mode dependent icons";
+  case editor_chrome_part::focus_toolbar: return "focus dependent icons";
+  case editor_chrome_part::status_bar: return "status bar";
+  default: return nullptr;
+  }
+}
+
+QTMCommandState
+editor_chrome_state (
+  const QTMCommandContext& context, editor_chrome_part part) {
+  QTMCommandState state;
+  tm_view view= editor_view_for_context (context);
+  if (view == nullptr) return state;
+  state.available= true;
+  state.enabled= true;
+  state.checkable= true;
+  state.checked= editor_chrome_visible (view, part);
+  return state;
+}
+
+bool
+toggle_editor_chrome (
+  const QTMCommandContext& context, editor_chrome_part part) {
+  tm_view view= editor_view_for_context (context);
+  if (view == nullptr) return false;
+  bool visible= !editor_chrome_visible (view, part);
+  const char* preference= editor_chrome_preference (part);
+  if (preference != nullptr && get_nr_windows () == 1)
+    set_user_preference (
+      string (preference), visible ? string ("on") : string ("off"));
+  set_editor_chrome_visible (view, part, visible);
+  return true;
+}
+
+QString
+context_local_file (const QTMCommandContext& context) {
+  if (!context.lastDocument.has_buffer_name ()) return QString ();
+  url source (string (
+    context.lastDocument.native_url_name.data (),
+    static_cast<int> (context.lastDocument.native_url_name.size ())));
+  if (!is_rooted (source, "default") && !is_rooted (source, "file"))
+    return QString ();
+  QString path= to_qstring (concretize (source));
+  return QFileInfo (path).exists () ? path : QString ();
+}
+
+QTMCommandState
+local_file_command_state (const QTMCommandContext& context) {
+  QTMCommandState state;
+  state.available= !context_local_file (context).isEmpty ();
+  state.enabled= state.available;
+  return state;
+}
+
+} // namespace
+
+void
+QTMCommandRegistry::registerApplicationCommands () {
+  registerBehavior (
+    "application.new-document", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      new_document_buffer ();
+      return true;
+    });
+  registerBehavior (
+    "application.open", QTMCommandScope::Application,
+    [] (const QTMCommandContext& context) {
+      return open_document_from_shell (context);
+    });
+  registerBehavior (
+    "application.new-tab", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      open_document_window (false);
+      return true;
+    });
+  registerBehavior (
+    "application.open-new-window", QTMCommandScope::Application,
+    [] (const QTMCommandContext& context) {
+      return open_document_from_shell (context, true);
+    });
+  registerBehavior (
+    "application.page-setup", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      qtm_page_setup_dialog_show ();
+      return true;
+    });
+  registerBehavior (
+    "application.preferences", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      qtm_preferences_dialog_show ();
+      return true;
+    });
+  registerBehavior (
+    "application.view-all-preferences", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      try {
+        application_view_preferences ();
+        return true;
+      }
+      catch (...) {
+        return false;
+      }
+    });
+  registerBehavior (
+    "file.new-within-namespace", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      athena_namespace_new_file_within_wizard ();
+      return true;
+    });
+  registerBehavior (
+    "file.load-vault", QTMCommandScope::Application,
+    [] (const QTMCommandContext& context) {
+      QString initialDirectory;
+#if ATHENA_PLATFORM_IPADOS
+      initialDirectory= qEnvironmentVariable ("ATHENA_VAULTS_PATH");
+#endif
+      QString directory= QFileDialog::getExistingDirectory (
+        context.shell.data (), QObject::tr ("Load Vault"), initialDirectory);
+      if (directory.isEmpty ()) return true;
+      try {
+        vault_load_directory_native (url_system (from_qstring (directory)));
+        return true;
+      }
+      catch (...) {
+        return false;
+      }
+    });
+  registerBehavior (
+    "file.unload-vault", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      try {
+        vault_unload_native ();
+        return true;
+      }
+      catch (...) {
+        return false;
+      }
+    },
+    [] (const QTMCommandContext&) {
+      QTMCommandState state= enabled_application_command ();
+      state.enabled= vault_active ();
+      return state;
+    });
+  registerBehavior (
+    "file.clear-recent-files", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      try {
+        interactive_forget ("recent-buffer");
+        interactive_history_save ();
+        return true;
+      }
+      catch (...) {
+        return false;
+      }
+    });
+  registerBehavior (
+    "file.clear-recent-vaults", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      vault_clear_recent ();
+      return true;
+    });
+  registerBehavior (
+    "file.restart", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      try {
+        application_restart ();
+        return true;
+      }
+      catch (...) {
+        return false;
+      }
+    });
+  registerBehavior (
+    "file.open-external", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QString path= context_local_file (context);
+      return !path.isEmpty () &&
+             QDesktopServices::openUrl (QUrl::fromLocalFile (path));
+    },
+    local_file_command_state);
+  registerBehavior (
+    "file.open-folder", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QString path= context_local_file (context);
+      if (path.isEmpty ()) return false;
+      return QDesktopServices::openUrl (
+        QUrl::fromLocalFile (QFileInfo (path).absolutePath ()));
+    },
+    local_file_command_state);
+  registerBehavior (
+    "file.import-pdf-embedded", QTMCommandScope::Application,
+    [] (const QTMCommandContext& context) {
+      QString path= QFileDialog::getOpenFileName (
+        context.shell.data (), QObject::tr ("Import PDF with embedded document"),
+        QString (), QObject::tr ("PDF documents (*.pdf)"));
+      if (path.isEmpty ()) return true;
+      try {
+        document_import_pdf_source (url_system (from_qstring (path)));
+        return true;
+      }
+      catch (...) {
+        return false;
+      }
+    });
+  registerBehavior (
+    "application.command-palette", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      command_palette_show ();
+      return true;
+    });
+  registerBehavior (
+    "application.quit", QTMCommandScope::Application,
+    [] (const QTMCommandContext& context) {
+      QTMMainTabWindow* shell= context.shell.data ();
+      if (shell == nullptr) shell= QTMMainTabWindow::topTabWindow ();
+      if (shell == nullptr) return false;
+      shell->close ();
+      return true;
+    },
+    [] (const QTMCommandContext& context) {
+      QTMCommandState state= enabled_application_command ();
+      state.enabled= context.shell != nullptr ||
+                     QTMMainTabWindow::topTabWindow () != nullptr;
+      return state;
+    });
+  registerProvider (
+    "recent-files", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      QVector<QTMCommandDynamicItem> out;
+      try {
+        array<url> recent= recent_file_list (25);
+        for (int i= 0; i < N(recent); ++i) {
+          const QString key= to_qstring (as_string (recent[i]));
+          const QString path= to_qstring (as_string (recent[i], URL_SYSTEM));
+          QString label= to_qstring (as_string (tail (recent[i]), URL_SYSTEM)).trimmed ();
+          if (label.isEmpty ()) label= QFileInfo (path).fileName ();
+          if (label.isEmpty ()) label= key;
+          out.append (enabled_dynamic_item (
+            key, label, path));
+        }
+      }
+      catch (...) {}
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext&) {
+      if (key.isEmpty ()) return false;
+      try {
+        application_open_document_url (url (from_qstring (key)));
+        return true;
+      }
+      catch (...) {
+        return false;
+      }
+    });
+  registerProvider (
+    "recent-vaults", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      QVector<QTMCommandDynamicItem> out;
+      array<string> values= vault_get_recent ();
+      for (int i= 0; i<N(values); ++i) {
+        QString path= to_qstring (values[i]);
+        QString label= QFileInfo (path).fileName ();
+        if (label.isEmpty ()) label= path;
+        out.append (enabled_dynamic_item (path, label, path));
+      }
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext&) {
+      if (key.isEmpty ()) return false;
+      try {
+        vault_load_directory_native (url_system (from_qstring (key)));
+        return true;
+      }
+      catch (...) {
+        return false;
+      }
+    });
+  registerProvider (
+    "file-import-formats", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      QVector<QTMCommandDynamicItem> out;
+      tree formats= conversion_menu_formats ("texmacs-file", "-file", false, true);
+      for (int i=0; i<N(formats); ++i) {
+        string id= scm_unquote (formats[i]->label);
+        string name= scm_unquote (conversion_format_name (id)->label);
+        QTMCommandDynamicItem item= enabled_dynamic_item (
+          to_qstring (id), QObject::tr ("Import %1").arg (to_qstring (name)));
+        item.help= to_qstring (conversion_format_default_suffix (id));
+        out.append (std::move (item));
+      }
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      if (key.isEmpty ()) return false;
+      QString suffix= provider_format_suffix (key);
+      QString path= QFileDialog::getOpenFileName (
+        context.shell.data (), QObject::tr ("Import file"), QString (),
+        provider_file_filter (key, suffix));
+      if (path.isEmpty ()) return true;
+      try {
+        application_import_document (url_system (from_qstring (path)),
+                                     from_qstring (key));
+        return true;
+      }
+      catch (...) {
+        return false;
+      }
+    });
+  registerBehavior (
+    "workspace.namespace-explorer", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      namespace_explorer_show ();
+      return true;
+    });
+  registerBehavior (
+    "view.error-messages", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      error_messages_show ();
+      return true;
+    });
+  registerBehavior (
+    "application.hodarium", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) { qtm_hodarium_show (); return true; });
+  registerBehavior (
+    "view.artifacts", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      artifacts_pane_show ();
+      return true;
+    });
+  registerBehavior (
+    "view.outline", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      outline_pane_show ();
+      return true;
+    });
+  registerBehavior (
+    "application.handwriting-symbol", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      handwriting_symbol_pane_show ();
+      return true;
+    });
+  registerBehavior (
+    "view.neighborhoods", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      neighborhoods_pane_show ();
+      return true;
+    });
+  registerBehavior (
+    "view.document-history", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext& context) {
+      document_history_pane_show_frozen (frozen_document_url (context));
+      return true;
+    });
+  registerBehavior (
+    "workspace.global-search", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext& context) {
+      global_search_show_with_zoom (context.lastDocument.zoom_factor);
+      return true;
+    });
+  registerBehavior (
+    "workspace.artifacts-build-vault", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      artifacts_build_entire_vault ();
+      return true;
+    });
+  registerBehavior (
+    "file.compare-files", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      athena_diff_show ();
+      return true;
+    });
+  registerBehavior (
+    "file.export-namespace", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      namespace_export_show ();
+      return true;
+    });
+  registerBehavior (
+    "workspace.new-compound-document", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      compound_document_create ();
+      return true;
+    });
+  registerBehavior (
+    "application.quick-switcher", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      open_vault_quick_switcher ();
+      return true;
+    });
+  registerBehavior (
+    "workspace.namespace-manager", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      namespace_manager_show ();
+      return true;
+    });
+#if ATHENA_ENABLE_WEBSITE_EXPORT
+  registerBehavior (
+    "workspace.websites-manager", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      websites_manager_show ();
+      return true;
+    });
+#endif
+  registerBehavior (
+    "workspace.materials-manager", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      materials_manager_show ();
+      return true;
+    });
+  registerBehavior (
+    "workspace.custom-styles-manager", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      custom_styles_manager_show ();
+      return true;
+    });
+#if ATHENA_ENABLE_AUDMAP_REPL
+  registerBehavior (
+    "workspace.audmap-repl", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      audmap_repl_show ();
+      return true;
+    });
+#endif
+  registerBehavior (
+    "workspace.google-tasks", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      google_tasks_show ();
+      return true;
+    });
+#if ATHENA_PLATFORM_IPADOS
+  registerBehavior (
+    "workspace.new-system-window", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext& context) {
+      return athena_ios_new_scene (context.shell);
+    });
+  registerBehavior (
+    "workspace.pane-to-window", QTMCommandScope::Pane,
+    [] (const QTMCommandContext& context) {
+      if (!context.shell) return false;
+      for (auto* pane: context.shell->dockManager ()->dockWidgetsMap ())
+        if (pane->widget () == context.workPane)
+          return athena_ios_new_scene (context.shell, pane);
+      return false;
+    }, [] (const QTMCommandContext& context) {
+      bool enabled= context.shell && context.workPane;
+      return QTMCommandState {true, enabled};
+    });
+  registerBehavior (
+    "workspace.return-pane", QTMCommandScope::Pane,
+    [] (const QTMCommandContext& context) {
+      return athena_ios_return_pane (context.shell, context.workPane);
+    }, [] (const QTMCommandContext& context) {
+      return QTMCommandState {true, context.shell && context.workPane &&
+        athena_ios_can_return_pane (context.shell)};
+    });
+#else
+  registerBehavior (
+    "workspace.new-floating-window", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      open_document_window (true);
+      return true;
+    });
+#endif
+  registerBehavior (
+    "workspace.vault-explorer", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      vault_show_explorer ();
+      return true;
+    });
+  registerBehavior (
+    "workspace.configure-vault-font", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      qtm_configure_font_for_vault ();
+      return true;
+    });
+  registerBehavior (
+    "workspace.global-transformation", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      try {
+        run_global_transformation ();
+        return true;
+      }
+      catch (...) {
+        return false;
+      }
+    });
+  registerBehavior (
+    "workspace.vault-maintenance", QTMCommandScope::Workspace,
+    [] (const QTMCommandContext&) {
+      qtm_vault_maintenance_start ();
+      return true;
+    });
+  registerBehavior (
+    "workspace.refresh-styles", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      get_server ()->style_clear_cache ();
+      return true;
+    });
+  registerBehavior (
+    "workspace.clean-cache", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      try {
+        tools_clean_cache ();
+        return true;
+      }
+      catch (...) {
+        return false;
+      }
+    });
+  registerBehavior (
+    "help.about", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      help_about_qt ();
+      return true;
+    });
+#if ATHENA_ENABLE_PLUGINS
+  registerBehavior (
+    "plugins.manage", QTMCommandScope::Application,
+    [] (const QTMCommandContext& context) {
+      qtm_manage_plugins (context.shell.data ());
+      return true;
+    });
+#endif
+  registerProvider (
+    "help-resources", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      QVector<QTMCommandDynamicItem> out;
+      for (const help_action& action: help_actions) {
+        QTMCommandDynamicItem item= enabled_dynamic_item (
+          QString::fromLatin1 (action.key), QObject::tr (action.label));
+        item.group= QObject::tr (action.group);
+        out.append (std::move (item));
+      }
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      const help_action* action= find_help_action (key);
+      return action != nullptr && execute_help_action (*action, context);
+    });
+  const struct {
+    const char* id;
+    editor_chrome_part part;
+  } chromeCommands[]= {
+    {"interface.header", editor_chrome_part::header},
+    {"interface.main-toolbar", editor_chrome_part::main_toolbar},
+    {"interface.mode-toolbar", editor_chrome_part::mode_toolbar},
+    {"interface.focus-toolbar", editor_chrome_part::focus_toolbar},
+    {"interface.status-bar", editor_chrome_part::status_bar}
+  };
+  for (const auto& command: chromeCommands) {
+    editor_chrome_part part= command.part;
+    registerBehavior (
+      QString::fromLatin1 (command.id), QTMCommandScope::Editor,
+      [part] (const QTMCommandContext& context) {
+        return toggle_editor_chrome (context, part);
+      },
+      [part] (const QTMCommandContext& context) {
+        return editor_chrome_state (context, part);
+      });
+  }
+  registerBehavior (
+    "interface.presentation-tool", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      bool enabled= get_user_preference ("presentation tool", "off") == "on";
+      set_user_preference ("presentation tool", enabled ? "off" : "on");
+      return true;
+    },
+    [] (const QTMCommandContext&) {
+      QTMCommandState state= enabled_application_command ();
+      state.checkable= true;
+      state.checked= get_user_preference ("presentation tool", "off") == "on";
+      return state;
+    });
+  registerBehavior (
+    "interface.source-tool", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      bool enabled= get_user_preference ("source tool", "off") == "on";
+      set_user_preference ("source tool", enabled ? "off" : "on");
+      return true;
+    },
+    [] (const QTMCommandContext&) {
+      QTMCommandState state= enabled_application_command ();
+      state.checkable= true;
+      state.checked= get_user_preference ("source tool", "off") == "on";
+      return state;
+    });
+  registerBehavior (
+    "interface.show-keypresses", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      set_show_kbd (!get_show_kbd ());
+      return true;
+    },
+    [] (const QTMCommandContext&) {
+      QTMCommandState state= enabled_application_command ();
+      state.checkable= true;
+      state.checked= get_show_kbd ();
+      return state;
+    });
+  const QString paneCommands[]= {
+    "namespace.open",
+    "namespace.copy",
+    "namespace.paste",
+    "namespace.rename",
+    "namespace.delete",
+    "namespace.refresh"
+  };
+  for (const QString& id: paneCommands)
+    registerBehavior (id, QTMCommandScope::Pane, {});
+}

@@ -3,7 +3,7 @@
 * DESCRIPTION: Native interactive form GUI ownership and value return
 *******************************************************************************/
 
-#include "Subsystems/Qt/QTMNativeDialogs.hpp"
+#include "UI/Qt/Dialogs/QTMNativeDialogs.hpp"
 
 #include <QtTest/QtTest>
 

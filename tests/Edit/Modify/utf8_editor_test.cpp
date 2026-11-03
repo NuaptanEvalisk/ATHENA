@@ -9,10 +9,10 @@
 ******************************************************************************/
 #include <QApplication>
 #include <QTemporaryDir>
-#include "ATHENA/Data/tmfs.hpp"
-#include "Data/NodeContracts/editing_query.hpp"
-#include "Data/NodeContracts/builtin_contracts.hpp"
-#include "Data/NodeContracts/syntax_query.hpp"
+#include "Infrastructure/VirtualFS/tmfs.hpp"
+#include "Document/NodeContracts/editing_query.hpp"
+#include "Document/NodeContracts/builtin_contracts.hpp"
+#include "Document/NodeContracts/syntax_query.hpp"
 #include <QClipboard>
 #include <QMimeData>
 #include <QScopedValueRollback>
@@ -23,14 +23,14 @@
 #include <thread>
 #include <unistd.h>
 
-#include "ATHENA/server.hpp"
-#include "Editor/edit_main.hpp"
-#include "Edit/Interface/auto_close.hpp"
-#include "Edit/Interface/native_math_keyboard.hpp"
-#include "Edit/Interface/native_latex_commands.hpp"
-#include "Graphics/Gui/gui.hpp"
+#include "App/Runtime/server.hpp"
+#include "Editor/Engine/edit_main.hpp"
+#include "Editor/Commands/auto_close.hpp"
+#include "Editor/Commands/native_math_keyboard.hpp"
+#include "Editor/Commands/native_latex_commands.hpp"
+#include "UI/Abstract/gui.hpp"
 #include "boot.hpp"
-#include "buffer_state.hpp"
+#include "App/Runtime/buffer_state.hpp"
 #include "data_cache.hpp"
 #include "cursor_navigation.hpp"
 #include "native_dispatch.hpp"
@@ -38,12 +38,12 @@
 #include "tree_select.hpp"
 #include "tree_traverse.hpp"
 #include "utf8_edit.hpp"
-#include "Concat/concater.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
-#include "Stack/stacker.hpp"
-#include "Boxes/utf8_line.hpp"
-#include "Qt/qt_renderer.hpp"
-#include "Qt/QTMKeyboardEvent.hpp"
+#include "Typesetting/Concat/concater.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
+#include "Typesetting/Stack/stacker.hpp"
+#include "Typesetting/Boxes/utf8_line.hpp"
+#include "UI/Qt/Rendering/qt_renderer.hpp"
+#include "UI/Qt/Editor/QTMKeyboardEvent.hpp"
 #include "named_symbol.hpp"
 #include "tree_analyze.hpp"
 #include "Xml/legacy_document_import.hpp"
@@ -53,12 +53,12 @@
 #include "math_font.hpp"
 #include "math_tree_v3.hpp"
 #include "Xml/athena_document_xml.hpp"
-#include "ATHENA/Data/new_buffer.hpp"
-#include "Kernel/Types/node_metadata.hpp"
+#include "App/Frontend/new_buffer.hpp"
+#include "Core/Types/node_metadata.hpp"
 #include "convert.hpp"
-#include "Data/Convert/Generic/conversion_executor.hpp"
-#include "Data/Convert/Verbatim/verbatim.hpp"
-#include "Data/Convert/Xml/html_export.hpp"
+#include "Document/Convert/Generic/conversion_executor.hpp"
+#include "Document/Convert/Verbatim/verbatim.hpp"
+#include "Document/Convert/Xml/html_export.hpp"
 #include "file.hpp"
 #include "web_files.hpp"
 

@@ -1,0 +1,86 @@
+/* Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later. */
+#include "Sync/State/hodarium_inventory.hpp"
+#include "Document/Convert/Xml/athena_document_xml.hpp"
+#include "Interop/Adapters/interop_document_source.hpp"
+#include "node_metadata.hpp"
+#include <map>
+#include <set>
+#include <algorithm>
+#include <stdexcept>
+#include <system_error>
+
+namespace athena::hodarium {
+source_inventory inventory_sources (const std::filesystem::path& root,
+  const std::atomic<bool>& cancelled,
+  const std::map<std::string, source_inventory::cached_source>& previous,
+  background::source_watch* watch) {
+  filesystem::confined_root directory (root);
+  source_inventory result;
+  result.root_revision= directory.open (".").stat ();
+  auto files= background::inventory (root, &cancelled, watch);
+  (void) directory.open (".");
+  std::map<std::string, std::string> identities;
+  std::set<std::string> duplicates;
+  std::set<std::string> paths;
+  std::uint64_t bytes_held= 0;
+  for (const auto& file: files) {
+    if (cancelled.load ()) return {};
+    if (!paths.insert (file.path).second) continue;
+    try {
+      auto entry= directory.open (file.path);
+      auto before= entry.stat ();
+      if (!filesystem::same_revision (before, file.revision)) {
+        result.retry= true; continue;
+      }
+      auto cached= previous.find (file.path);
+      if (cached != previous.end () && cached->second.published &&
+          filesystem::same_revision (before, cached->second.revision)) {
+        result.cache.emplace (file.path, cached->second);
+        auto known= identities.emplace (cached->second.object, file.path);
+        if (!known.second) {
+          duplicates.insert (cached->second.object);
+          result.errors.push_back ("Duplicate source UUID: " + known.first->second + " and " + file.path);
+        }
+        continue;
+      }
+      if (before.size > 4ULL*1024*1024*1024 - bytes_held)
+        throw std::length_error ("Hodarium source snapshot exceeds 4 GiB budget");
+      auto bytes= std::make_shared<const std::string> (entry.read (document::codec_limits ().input_bytes));
+      if (!filesystem::same_revision (before, entry.stat ())) {
+        result.retry= true; continue;
+      }
+      auto source= document::read_xml_v3 (*bytes);
+      auto error= interop_document_source_error (source);
+      if (!error.empty ()) throw std::runtime_error (error);
+      std::string id;
+      for (int i= 0; i < N(source); ++i)
+        if (is_compound (source[i], "body", 1)) id= node::id (source[i][0]);
+      if (!node::valid_id (id)) throw std::runtime_error ("Source body has no valid persistent UUID");
+      auto known= identities.emplace (id, file.path);
+      if (!known.second) {
+        duplicates.insert (id);
+        result.errors.push_back ("Duplicate source UUID: " + known.first->second + " and " + file.path);
+      }
+      bytes_held+= bytes->size ();
+      result.cache.emplace (file.path, source_inventory::cached_source{before, id, false});
+      result.documents.push_back ({file.path, std::move (id), before, std::move (bytes)});
+    }
+    catch (const std::system_error& e) {
+      if (e.code () == std::errc::resource_unavailable_try_again ||
+          e.code () == std::errc::no_such_file_or_directory) result.retry= true;
+      else result.errors.push_back (file.path + ": " + e.what ());
+    }
+    catch (const std::exception& e) { result.errors.push_back (file.path + ": " + e.what ()); }
+  }
+  result.documents.erase (std::remove_if (result.documents.begin (), result.documents.end (),
+    [&] (const auto& entry) { return duplicates.count (entry.object); }), result.documents.end ());
+  for (auto& [path, entry]: result.cache) if (duplicates.count (entry.object)) entry.published= false;
+  for (const auto& id: duplicates) {
+    source_inventory::identity_conflict conflict{id, {}};
+    for (const auto& [path, entry]: result.cache)
+      if (entry.object == id) conflict.paths.push_back (path);
+    result.conflicts.push_back (std::move (conflict));
+  }
+  return result;
+}
+}

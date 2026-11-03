@@ -1,0 +1,206 @@
+
+/******************************************************************************
+* MODULE     : edit_typeset.hpp
+* DESCRIPTION: the typeset structure for the mathematical editor
+* COPYRIGHT  : (C) 1999  Joris van der Hoeven
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#ifndef EDIT_TYPESET_H
+#define EDIT_TYPESET_H
+#include "Typesetting/env.hpp"
+#include "Typesetting/typesetter.hpp"
+#include "Editor/editor.hpp"
+#include "hashset.hpp"
+#include "heading_word_count.hpp"
+
+class document_rep;
+class evaluation_environment_checkpoint;
+struct cursor_environment_checkpoint;
+struct source_occurrence;
+class edit_typeset_rep: virtual public editor_rep {
+protected:
+  tree the_style;                         // document style
+  std::shared_ptr<const cursor_environment_checkpoint> prepared_cursor;
+  std::vector<std::shared_ptr<const cursor_environment_checkpoint>> cursor_contexts;
+  std::unique_ptr<evaluation_environment_checkpoint> pre; // styles/init state
+  tree initial_background;
+  struct page_geometry {
+    SI page_width[2], pages_width[2], page_height[2];
+    int packet, offset;
+  } prepared_page_geometry;
+  bool page_geometry_from_layout= false;
+  hashmap<string,tree> init;              // environment changes w.r.t. style
+  hashmap<string,tree> fin;               // environment changes w.r.t. doc
+  hashmap<string,tree> grefs;             // global references
+  bool compound_counter_view= false;
+  tree compound_incoming_counters= tree (COLLECTION);
+  hashset<string> compound_counter_variables;
+  hashset<string> folded_headings;         // screen-only folded heading paths
+  hashset<string> folded_tocs;             // explicit screen-only ToC states
+  hashset<string> unfolded_tocs;
+  hashmap<path,tree> folded_source_pairs;  // source/display pairs for projected containers
+  bool fold_view_active;                   // screen typesetter uses folded tree
+  bool fold_view_rebuild;                  // recreate screen typesetter
+  bool fold_view_has_toc;                  // source tree contains a ToC
+  int  heading_word_count_cache_hash;       // source hash for cached counts
+  array<heading_word_count_entry> heading_word_count_cache;
+  hashmap<path,int> heading_word_count_cache_map;
+  edit_env env;                           // the environment for typesetting
+  typesetter ttt;                         // the (not) yet typesetted document
+
+protected:
+  typesetter           get_typesetter ();
+  tree                 get_style ();
+  void                 set_style (tree t);
+  hashmap<string,tree> get_init ();
+  hashmap<string,tree> get_fin ();
+  hashmap<string,tree> get_ref ();
+  hashmap<string,tree> get_aux ();
+  hashmap<string,tree> get_att ();
+  void                 set_init (hashmap<string,tree> init= tree ("?"));
+  void                 add_init (hashmap<string,tree> init);
+  void                 set_fin (hashmap<string,tree> fin);
+  void                 set_ref (hashmap<string,tree> ref);
+  void                 set_aux (hashmap<string,tree> aux);
+  void                 set_att (hashmap<string,tree> att);
+  tree                 folded_screen_tree ();
+  bool                 heading_fold_set_current (bool folded, bool toggle);
+  std::shared_ptr<const source_occurrence> source_occurrence_at (
+    path source, const tree& value,
+    const athena::contracts::evaluation_boundary_handle& selected);
+  std::shared_ptr<const cursor_environment_checkpoint> prepared_context_at (
+    path source, athena::contracts::evaluation_boundary_handle selected);
+  std::shared_ptr<const evaluation_environment_checkpoint> conversion_context_at (path source);
+  std::shared_ptr<const evaluation_environment_checkpoint> prepare_document_context () override;
+  void prepare_initial_background ();
+  void prepare_page_geometry ();
+  std::shared_ptr<const evaluation_environment_checkpoint> prepare_macro_argument (
+    tree invocation, int argument, const evaluation_environment_checkpoint& context) override;
+  std::shared_ptr<const evaluation_environment_checkpoint> prepare_tree_position (
+    tree source, path position, const evaluation_environment_checkpoint& context) override;
+  athena::document_node::source_contract_preparation
+    prepare_source_identity_contracts () override;
+
+public:
+  edit_typeset_rep ();
+  ~edit_typeset_rep ();
+  void clear_local_info ();
+  void prepare_cursor_environment () override;
+  void set_field_environment (
+    std::shared_ptr<const athena::contracts::detached_environment>) override;
+  std::shared_ptr<const evaluation_environment_checkpoint> cursor_context_at (
+    path source, athena::contracts::evaluation_boundary_handle selected) override;
+  std::shared_ptr<const evaluation_environment_checkpoint> occurrence_context_at (
+    path source, path anchor, athena::contracts::evaluation_boundary_handle selected) override;
+  bool cursor_occurrence_admitted (
+    path source, const athena::contracts::evaluation_boundary_handle& selected) override;
+  bool set_enunciation_editing_id (const std::string& id) override;
+  void set_data (new_data data);
+  void get_data (new_data& data);
+
+  // Owner-actor operations. This overlay belongs to one view, never buffer init.
+  void set_compound_counters (const tree& state);
+  void clear_compound_counters ();
+  tree evaluate_compound_counters (const tree& incoming);
+  tree compound_counter_environment ();
+
+  SI       as_length (string l);
+  string   add_lengths (string l1, string l2);
+  string   sub_lengths (string l1, string l2);
+  string   max_lengths (string l1, string l2);
+  string   min_lengths (string l1, string l2);
+  string   multiply_length (double x, string l);
+  bool     is_length (string s);
+  double   divide_lengths (string l1, string l2);
+
+  void     init_update ();
+#ifdef EXPERIMENTAL
+  void     environment_update ();
+#endif
+  tree     get_full_env ();
+  bool     defined_at_cursor (string var_name);
+  bool     defined_at_init (string var_name);
+  bool     defined_in_init (string var_name);
+  tree     get_env_value (string var_name, path p);
+  tree     get_env_value (string var_name);
+  tree     get_init_value (string var_name);
+  string   get_env_string (string var_name);
+  string   get_init_string (string var_name);
+  int      get_env_int (string var_name);
+  int      get_init_int (string var_name);
+  double   get_env_double (string var_name);
+  double   get_init_double (string var_name);
+  color    get_env_color (string var_name);
+  color    get_init_color (string var_name);
+  language get_env_language ();
+  int      get_page_count ();
+  SI       get_page_width (bool deco);
+  SI       get_pages_width (bool deco);
+  SI       get_page_height (bool deco);
+  SI       get_total_width (bool deco);
+  SI       get_total_height (bool deco);
+
+  tree     exec (tree t, const evaluation_environment_checkpoint& context,
+                 hashmap<string,tree> overlay, bool expand_refs= true);
+  tree     exec_texmacs (tree t, path p);
+  tree     exec_texmacs (tree t);
+  tree     exec_verbatim (tree t, path p);
+  tree     exec_verbatim (tree t);
+  tree     exec_html (tree t, path p);
+  tree     exec_html (tree t);
+  tree     exec_latex (tree t, path p);
+  tree     exec_latex (tree t);
+  tree     texmacs_exec (tree t);
+  tree     var_texmacs_exec (tree t);
+
+
+  void     change_style (tree style);
+  tree     get_init_all ();
+  void     init_env (string var, tree by);
+  void     init_default (string var);
+  void     init_style ();
+  void     init_style (string style);
+  tree     get_ref (string key);
+  tree     get_aux (string key);
+  tree     get_att (string key);
+  void     set_ref (string key, tree im);
+  void     set_aux (string key, tree im);
+  void     set_att (string key, tree im);
+  void     reset_ref (string key);
+  void     reset_aux (string key);
+  void     reset_att (string key);
+  array<string> find_refs (string val, bool global);
+  array<string> list_refs (bool global);
+  array<string> list_auxs (bool global);
+  array<string> list_atts (bool global);
+
+  void     typeset_style_use_cache (tree style);
+  void     typeset_preamble ();
+  void     typeset_prepare ();
+  void     typeset_invalidate_env ();
+  void     typeset_invalidate (path p);
+  void     typeset_invalidate_presentation (path p);
+  void     typeset_invalidate_all ();
+  void     typeset_refresh_radioactive_links ();
+  SI       typeset_enunciation_slot_width (tree content) override;
+  bool     heading_fold_toggle ();
+  bool     heading_fold_current ();
+  bool     heading_unfold_current ();
+  bool     heading_fold_toggle_at (string p);
+  void     heading_unfold_all ();
+  array<heading_cell_range> heading_cell_ranges ();
+  int      heading_word_count_at (path p);
+  bool     toc_fold_set_at (path p, bool folded);
+  void     typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2);
+  void     typeset (SI& x1, SI& y1, SI& x2, SI& y2);
+  void     typeset_forced ();
+
+  friend class tm_window_rep;
+  friend class tm_server_rep;
+};
+
+#endif // defined EDIT_TYPESET_H

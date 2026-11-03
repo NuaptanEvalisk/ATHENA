@@ -8,7 +8,7 @@
 #include <QtTest/QtTest>
 #include "Xml/athena_document_xml.hpp"
 #include "Xml/math_v2_to_v3.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
 

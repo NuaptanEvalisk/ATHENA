@@ -10,23 +10,23 @@
 #include <QTemporaryDir>
 #include <QtTest/QtTest>
 #include <cstdlib>
-#include "ATHENA/server.hpp"
-#include "ATHENA/Data/compound_virtual_document.hpp"
-#include "ATHENA/Data/interop_document_codec.hpp"
-#include "Editor/edit_main.hpp"
-#include "Typeset/Env/compound_counters.hpp"
-#include "typesetter.hpp"
+#include "App/Runtime/server.hpp"
+#include "Document/Model/compound_virtual_document.hpp"
+#include "Interop/Adapters/interop_document_codec.hpp"
+#include "Editor/Engine/edit_main.hpp"
+#include "Typesetting/Env/compound_counters.hpp"
+#include "Typesetting/typesetter.hpp"
 #include "boot.hpp"
-#include "buffer_state.hpp"
+#include "App/Runtime/buffer_state.hpp"
 #include "data_cache.hpp"
 #include "gui.hpp"
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
 #include "native_dispatch.hpp"
 #include "Xml/document_file_codec.hpp"
-#include "Subsystems/Pdf/pdf_merge.hpp"
-#include "Subsystems/Pdf/PDFWriter/InputFile.h"
-#include "Subsystems/Pdf/PDFWriter/PDFParser.h"
+#include "Rendering/Pdf/pdf_merge.hpp"
+#include "Rendering/Pdf/PDFWriter/InputFile.h"
+#include "Rendering/Pdf/PDFWriter/PDFParser.h"
 
 bool headless_mode= true;
 bool is_headless () { return true; }

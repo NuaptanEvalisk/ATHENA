@@ -54,15 +54,15 @@ target_link_libraries(hodarium_recovery_test PRIVATE athena_hodarium)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR APPLE)
   add_executable(hodarium_resources_test EXCLUDE_FROM_ALL
     hodarium/resources_test.cpp
-    ${ATHENA_SOURCE_DIR}/src/ATHENA/Data/hodarium_resources.cpp
-    ${ATHENA_SOURCE_DIR}/src/ATHENA/Data/background_workers.cpp
-    ${ATHENA_SOURCE_DIR}/src/ATHENA/Data/document_history_store.cpp
-    ${ATHENA_SOURCE_DIR}/src/ATHENA/Data/fossil_delta.cpp
-    ${ATHENA_SOURCE_DIR}/src/System/Files/confined_filesystem.cpp)
+    ${ATHENA_SOURCE_DIR}/src/Sync/State/hodarium_resources.cpp
+    ${ATHENA_SOURCE_DIR}/src/App/Runtime/background_workers.cpp
+    ${ATHENA_SOURCE_DIR}/src/Sync/State/document_history_store.cpp
+    ${ATHENA_SOURCE_DIR}/src/Sync/State/fossil_delta.cpp
+    ${ATHENA_SOURCE_DIR}/src/Infrastructure/Files/confined_filesystem.cpp)
   set_target_properties(hodarium_resources_test PROPERTIES AUTOMOC OFF)
   target_include_directories(hodarium_resources_test PRIVATE
-    ${ATHENA_SOURCE_DIR}/src ${ATHENA_SOURCE_DIR}/src/ATHENA
-    ${ATHENA_SOURCE_DIR}/src/ATHENA/Data ${ATHENA_SOURCE_DIR}/src/System/Files
+    ${ATHENA_SOURCE_DIR}/src ${ATHENA_SOURCE_DIR}/src/App/Runtime
+    ${ATHENA_SOURCE_DIR}/src/Sync/State ${ATHENA_SOURCE_DIR}/src/Infrastructure/Files
     ${NLOHMANN_JSON_INCLUDE_DIR} ${SQLITE3_INCLUDE_DIRS})
   target_link_libraries(hodarium_resources_test PRIVATE athena_hodarium
     ${SQLITE3_LIBRARIES} Threads::Threads)
@@ -85,10 +85,10 @@ function (athena_link_full_test_runtime target)
     ${ATHENA_Libraries}
     ${ATHENA_QT_TEST_LIBRARY})
   target_include_directories (${target} PRIVATE
-    "${ATHENA_SOURCE_DIR}/src/Subsystems/Plugins")
+    "${ATHENA_SOURCE_DIR}/src/Services/Plugins")
   if (ATHENA_ENABLE_TSAN)
     target_sources (${target} PRIVATE
-      "${ATHENA_SOURCE_DIR}/src/System/Misc/tsan_mimalloc_shim.cpp")
+      "${ATHENA_SOURCE_DIR}/src/Infrastructure/Misc/tsan_mimalloc_shim.cpp")
   endif ()
 endfunction ()
 list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/Data/String/unicode_text_test\\.cpp$")
@@ -158,7 +158,7 @@ set_tests_properties(plugin_subscription_test PROPERTIES TIMEOUT 25)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
   add_executable(confined_filesystem_test interop/confined_filesystem_test.cpp
-    ${ATHENA_SOURCE_DIR}/src/System/Files/confined_filesystem.cpp)
+    ${ATHENA_SOURCE_DIR}/src/Infrastructure/Files/confined_filesystem.cpp)
   set_target_properties(confined_filesystem_test PROPERTIES AUTOMOC OFF)
   target_link_libraries(confined_filesystem_test PRIVATE Threads::Threads)
   add_test(NAME confined_filesystem_test COMMAND confined_filesystem_test)
@@ -179,7 +179,7 @@ set_tests_properties(audmap_repl_terminal_test PROPERTIES TIMEOUT 25)
 
 add_executable(audmap_repl_pane_test interop/repl-pane-test.cpp)
 set_target_properties(audmap_repl_pane_test PROPERTIES AUTOMOC OFF)
-target_include_directories(audmap_repl_pane_test PRIVATE ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt)
+target_include_directories(audmap_repl_pane_test PRIVATE ${ATHENA_SOURCE_DIR}/src/UI/Qt/Integrations)
 target_link_libraries(audmap_repl_pane_test PRIVATE athena_audmap_terminal athena_audmap qtermwidget6 Qt6::Test)
 target_compile_definitions(audmap_repl_pane_test PRIVATE AUDMAP_REPL_PATH="$<TARGET_FILE:athena-audmap-repl>")
 add_dependencies(audmap_repl_pane_test athena-audmap-repl)
@@ -188,7 +188,7 @@ set_tests_properties(audmap_repl_pane_test PROPERTIES TIMEOUT 25 ENVIRONMENT "QT
 
 add_executable(audmap_authorization_ui_test interop/authorization_ui_test.cpp)
 set_target_properties(audmap_authorization_ui_test PROPERTIES AUTOMOC OFF)
-target_include_directories(audmap_authorization_ui_test PRIVATE ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt)
+target_include_directories(audmap_authorization_ui_test PRIVATE ${ATHENA_SOURCE_DIR}/src/UI/Qt/Integrations)
 athena_link_full_test_runtime(audmap_authorization_ui_test)
 target_link_libraries(audmap_authorization_ui_test PRIVATE athena_audmap_client Qt6::Widgets Qt6::Test)
 add_test(NAME audmap_authorization_ui_test COMMAND audmap_authorization_ui_test)
@@ -197,16 +197,16 @@ set_tests_properties(audmap_authorization_ui_test PROPERTIES TIMEOUT 20 ENVIRONM
 add_executable (link_icon_cache_test qt/link_icon_cache_test.cc)
 set_target_properties (link_icon_cache_test PROPERTIES AUTOMOC OFF)
 target_include_directories (link_icon_cache_test PRIVATE
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt)
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Knowledge)
 target_link_libraries (link_icon_cache_test PRIVATE Qt6::Widgets Threads::Threads)
 add_test (NAME link_icon_cache_test COMMAND link_icon_cache_test)
 set_tests_properties (link_icon_cache_test PROPERTIES TIMEOUT 15
   ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 add_executable (completion_popup_test qt/completion_popup_test.cpp
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMCompletionPopup.cpp)
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Editor/QTMCompletionPopup.cpp)
 target_include_directories (completion_popup_test PRIVATE
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt)
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Editor)
 target_link_libraries (completion_popup_test PRIVATE KF6::Completion Qt6::Test)
 add_test (NAME completion_popup_test COMMAND completion_popup_test)
 set_tests_properties (completion_popup_test PROPERTIES TIMEOUT 20
@@ -221,7 +221,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
   set_tests_properties (stacktrace_symbolize_test PROPERTIES TIMEOUT 150)
   add_executable (watchdog_fake_child watchdog/watchdog_fake_child.cpp)
   target_sources (watchdog_fake_child PRIVATE
-    ${ATHENA_SOURCE_DIR}/src/ATHENA/Watchdog/watchdog_client.cpp)
+    ${ATHENA_SOURCE_DIR}/src/App/Watchdog/watchdog_client.cpp)
   target_link_libraries (watchdog_fake_child PRIVATE Qt6::Core)
   target_include_directories (watchdog_fake_child PRIVATE ${ATHENA_SOURCE_DIR}/src)
   add_test (NAME watchdog_supervisor_test

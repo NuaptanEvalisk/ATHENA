@@ -18,11 +18,11 @@
 #include "charmap.hpp"
 #include "translator.hpp"
 #include "data_cache.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
-#include "Freetype/free_type.hpp"
-#include "Freetype/tt_face.hpp"
-#include "Qt/QTMRenderService.hpp"
-#include "Qt/qt_renderer.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
+#include "Rendering/Fonts/Freetype/free_type.hpp"
+#include "Rendering/Fonts/Freetype/tt_face.hpp"
+#include "UI/Qt/Editor/QTMRenderService.hpp"
+#include "UI/Qt/Rendering/qt_renderer.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }

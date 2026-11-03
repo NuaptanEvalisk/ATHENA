@@ -8,7 +8,7 @@ iPad application yet**. Linux Wayland remains the working target.
 ## Target policy
 
 `AthenaPlatform.cmake` distinguishes `CMAKE_SYSTEM_NAME=iOS` from macOS
-(`Darwin`). It generates `src/System/athena_platform.hpp` in the build tree.
+(`Darwin`). It generates `src/Infrastructure/athena_platform.hpp` in the build tree.
 Capability values are fixed by the platform profile, not independent user
 preferences. Source code should consume this policy instead of using `APPLE`
 to mean desktop macOS.

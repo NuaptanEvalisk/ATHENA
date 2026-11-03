@@ -2,7 +2,7 @@
 #include <QtTest/QtTest>
 #include <QCryptographicHash>
 #include "Xml/document_file_codec.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 #include "node_metadata.hpp"
 
 using namespace athena::document;

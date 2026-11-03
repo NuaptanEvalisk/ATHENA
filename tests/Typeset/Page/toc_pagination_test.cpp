@@ -18,11 +18,11 @@
 #include <QStandardPaths>
 #include <QTemporaryDir>
 
-#include "ATHENA/Data/document_node_model.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Document/Model/document_node_model.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 #include "node_metadata.hpp"
 #include "Xml/athena_document_xml.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 
 class TestTocPagination: public QObject {
   Q_OBJECT

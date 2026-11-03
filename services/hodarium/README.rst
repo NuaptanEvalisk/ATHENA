@@ -10,7 +10,7 @@ devices and do not forward to other Relays. Neither service is an offline mailbo
 
 The contract is ``notes/athena-hodarium.tex``. Native usage, synchronized data
 scope and current application/recovery limits are in
-``src/ATHENA/Hodarium/README.rst``. Implemented components and connected workflows
+``src/Sync/Hodarium/README.rst``. Implemented components and connected workflows
 should not be mistaken for complete production or iPad acceptance.
 
 Build and Server deployment

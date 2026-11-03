@@ -1,4 +1,4 @@
-#include "Subsystems/Qt/QTMVaultFontConfigurator.hpp"
+#include "UI/Qt/Vault/QTMVaultFontConfigurator.hpp"
 #include "convert.hpp"
 
 #include <QtTest/QtTest>

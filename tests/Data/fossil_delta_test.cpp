@@ -1,4 +1,4 @@
-#include "ATHENA/Data/fossil_delta.hpp"
+#include "Sync/State/fossil_delta.hpp"
 
 #include <cassert>
 #include <iostream>

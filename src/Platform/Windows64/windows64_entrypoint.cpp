@@ -1,0 +1,128 @@
+/******************************************************************************
+* MODULE   : windows64_entrypoint.cpp
+* DESCRIPTION: Windows entry point for TeXmacs
+* COPYRIGHT  : (C) 2024 Liza Belos
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#include "Platform/Windows64/windows64_entrypoint.hpp"
+#include "Platform/Windows64/windows64_system.hpp"
+#include "Platform/Windows64/windows64_encoding.hpp"
+
+#include "boot.hpp"
+
+#include <windows.h>
+#include <shellapi.h>
+#include <stdio.h>
+#include <fcntl.h>
+#include <io.h>
+
+#include <QApplication>
+#include <QDebug>
+#include <iostream>
+
+
+/*
+ * Qt can replace the main with qMain by doing a #define main qMain.
+ * This qMain is doing his own conversion of the arguments.
+ * Make sure that we are not using the main function 
+ * of Qt by emitting an error.
+ */
+#if defined(QT_NEEDS_QMAIN)
+#error "Qt is replacing main with qMain. \
+        Please, remove the usage of QMain \
+        (you shouldn't have a QT_NEEDS_QMAIN). \
+        With --with-qt-find-method=pkg-config, \
+        it is the default behavior."
+#endif
+
+void setup_athena_path () {
+  string environment_athena_path;
+  if (texmacs_getenv ("ATHENA_PATH", environment_athena_path)) {
+    cout << "ATHENA_PATH is set to: " 
+         << environment_athena_path << LF;
+    return;
+  }
+  url exedir = texmacs_get_application_directory ();
+  cout << "Executable directory is: " 
+       << exedir << LF;
+  if (test_athena_path (exedir * "ATHENA")) {
+      cout << "ATHENA_PATH is autoset to: " 
+           << exedir * "ATHENA" << LF;
+    return;
+  }
+  if (test_athena_path (exedir * "..")) {
+    cout << "ATHENA_PATH is autoset to: " 
+         << exedir * ".." << LF;
+    return;
+  }
+  cout << "ATHENA_PATH is not set" << LF;
+}
+
+void setup_athena_home_path () {
+  url appdata_path = url_system(get_local_appdata_path());
+  url athena_home_path = appdata_path * "ATHENA";
+  cout << "ATHENA_HOME_PATH is autoset to: " 
+       << athena_home_path << LF;
+  texmacs_setenv("ATHENA_HOME_PATH", concretize(athena_home_path));
+}
+
+int WINAPI CommonMain() {
+  texmacs_attach_console();
+  setup_athena_path();
+  //if (is_running_in_msix()) {
+  //  setup_athena_home_path();
+  //}
+
+  int argc = 0;
+  LPWSTR* pArgvW = CommandLineToArgvW(GetCommandLineW(), &argc);
+
+  string *texmacs_argv = new string[argc];
+  char **char_argv = new char*[argc];
+
+  for (int i = 0; i < argc; i++) {
+    texmacs_argv[i] = texmacs_wide_to_utf8(pArgvW[i]);
+    char_argv[i] = as_charp(texmacs_argv[i]);
+  }
+
+  int result = texmacs_entrypoint(argc, char_argv);
+
+  LocalFree(pArgvW);
+  delete[] texmacs_argv;
+  delete[] char_argv;
+
+  return result;
+}
+
+int WINAPI WinMain(HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int ncmd) {
+  return CommonMain();
+}
+
+int WINAPI wWinMain(HINSTANCE inst, HINSTANCE prev, LPWSTR cmdline, int ncmd) {
+  return CommonMain();
+}
+
+int main(int argc, char** argv) {
+  return CommonMain();
+}
+
+void texmacs_attach_console() {  
+  // if MSYSTEM is set, we are running in a msys environment
+  char *msystem = getenv("MSYSTEM");
+
+  // with native msys terminal, we don't need to attach to the console
+  if (msystem != nullptr && !IsDebuggerPresent()) {
+    return;
+  }
+
+  // attach to an existing windows command prompt (if any)
+  if (AttachConsole(ATTACH_PARENT_PROCESS)) {
+    // redirect the standard input, output and error to the console
+    freopen("CONIN$", "r", stdin);
+    freopen("CONOUT$", "w", stdout);
+    freopen("CONOUT$", "w", stderr);
+  }
+}

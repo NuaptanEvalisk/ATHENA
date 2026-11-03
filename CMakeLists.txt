@@ -64,8 +64,8 @@ endif ()
 set (PACKAGE ATHENA)
 set (CMAKE_MODULE_PATH ${ATHENA_SOURCE_DIR}/cmake)
 include (AthenaPlatform)
-configure_file (src/System/athena_platform.hpp.cmake
-                src/System/athena_platform.hpp @ONLY)
+configure_file (src/Infrastructure/athena_platform.hpp.cmake
+                src/Infrastructure/athena_platform.hpp @ONLY)
 
 set (ATHENA_VERSION ${ATHENA_APP_VERSION})
 
@@ -637,11 +637,12 @@ set (tmbin ${exec_prefix}/lib/athena/ATHENA)
 
 set (STACK_SIZE 0x8000000)
 
-configure_file (${ATHENA_SOURCE_DIR}/src/System/config.h.cmake ${ATHENA_BINARY_DIR}/src/System/config.h)
-configure_file (${ATHENA_SOURCE_DIR}/src/System/tm_configure.hpp.cmake ${ATHENA_BINARY_DIR}/src/System/tm_configure.hpp)
+file (MAKE_DIRECTORY "${ATHENA_BINARY_DIR}/src/Infrastructure")
+configure_file (${ATHENA_SOURCE_DIR}/src/Infrastructure/config.h.cmake ${ATHENA_BINARY_DIR}/src/Infrastructure/config.h)
+configure_file (${ATHENA_SOURCE_DIR}/src/Infrastructure/tm_configure.hpp.cmake ${ATHENA_BINARY_DIR}/src/Infrastructure/tm_configure.hpp)
 
 set (ATHENA_BUILD_INFO_HEADER
-  "${ATHENA_BINARY_DIR}/src/System/athena_build_info.hpp")
+  "${ATHENA_BINARY_DIR}/src/Infrastructure/athena_build_info.hpp")
 set (ATHENA_BUILD_INFO_COMMAND
   ${CMAKE_COMMAND}
   "-DATHENA_SOURCE_DIR=${ATHENA_SOURCE_DIR}"
@@ -657,7 +658,7 @@ add_custom_target (athena_build_info
   COMMENT "Refreshing ATHENA build identity"
   VERBATIM)
 
-set (CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -include ${ATHENA_BINARY_DIR}/src/System/config.h")
+set (CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -include ${ATHENA_BINARY_DIR}/src/Infrastructure/config.h")
 
 option (ATHENA_INTEL_NATIVE_OPTIMIZATION
         "Use native CPU tuning when building with IntelLLVM" ON)
@@ -698,71 +699,131 @@ endif ()
 ### --------------------------------------------------------------------
 ### the include dirs
 ### --------------------------------------------------------------------
+# Source directory migration: explicit per-directory include visibility.
+# Global include paths are transitional until the giant athena_body archive is
+# partitioned into separately compiled modules with target-local interfaces.
 set (ATHENA_Include_Dirs
   ${immer_SOURCE_DIR}
-  ${ATHENA_BINARY_DIR}/src/System/
-  ${ATHENA_SOURCE_DIR}/src/Data/Convert
-  ${ATHENA_SOURCE_DIR}/src/Data/Document
-  ${ATHENA_SOURCE_DIR}/src/Data/NodeContracts
-  ${ATHENA_SOURCE_DIR}/src/Data/History
-  ${ATHENA_SOURCE_DIR}/src/Data/Observers
-  ${ATHENA_SOURCE_DIR}/src/Data/String
-  ${ATHENA_SOURCE_DIR}/src/Data/Tree
-  ${ATHENA_SOURCE_DIR}/src/Edit
-  ${ATHENA_SOURCE_DIR}/src/Edit/Editor
-  ${ATHENA_SOURCE_DIR}/src/Edit/Interface
-  ${ATHENA_SOURCE_DIR}/src/Edit/Modify
-  ${ATHENA_SOURCE_DIR}/src/Edit/Process
-  ${ATHENA_SOURCE_DIR}/src/Edit/Replace
-  ${ATHENA_SOURCE_DIR}/src/Graphics/Bitmap_fonts
-  ${ATHENA_SOURCE_DIR}/src/Graphics/Colors
-  ${ATHENA_SOURCE_DIR}/src/Graphics/Fonts
-  ${ATHENA_SOURCE_DIR}/src/Graphics/Gui
-  ${ATHENA_SOURCE_DIR}/src/Graphics/Handwriting
-  ${ATHENA_SOURCE_DIR}/src/Graphics/Mathematics
-  ${ATHENA_SOURCE_DIR}/src/Graphics/Pictures
-  ${ATHENA_SOURCE_DIR}/src/Graphics/Renderer
-  ${ATHENA_SOURCE_DIR}/src/Graphics/Spacial
-  ${ATHENA_SOURCE_DIR}/src/Graphics/Types
-  ${ATHENA_SOURCE_DIR}/src/Kernel/Abstractions
-  ${ATHENA_SOURCE_DIR}/src/Kernel/Containers
-  ${ATHENA_SOURCE_DIR}/src/Kernel/Types
-  ${ATHENA_SOURCE_DIR}/src/Subsystems
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Google
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/PEGLib
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Pdf/LibAesgm
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/MCP
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/RAG
-  ${ATHENA_SOURCE_DIR}/src/ATHENA/Commands
-  ${ATHENA_SOURCE_DIR}/src/Style/Environment
-  ${ATHENA_SOURCE_DIR}/src/Style/Evaluate
-  ${ATHENA_SOURCE_DIR}/src/Style/Memorizer
-  ${ATHENA_SOURCE_DIR}/src/System
-  ${ATHENA_SOURCE_DIR}/src/System/Boot
-  ${ATHENA_SOURCE_DIR}/src/System/Classes
-  ${ATHENA_SOURCE_DIR}/src/System/Files
-  ${ATHENA_SOURCE_DIR}/src/System/Language
-  ${ATHENA_SOURCE_DIR}/src/System/Link
-  ${ATHENA_SOURCE_DIR}/src/System/Misc
-  ${ATHENA_SOURCE_DIR}/src/ATHENA
-  ${ATHENA_SOURCE_DIR}/src/ATHENA/Data
-  ${ATHENA_SOURCE_DIR}/src/Typeset
-  ${ATHENA_SOURCE_DIR}/src/Typeset/Bridge
-  ${ATHENA_SOURCE_DIR}/src/Typeset/Concat
-  ${ATHENA_SOURCE_DIR}/src/Typeset/Env
-  ${ATHENA_SOURCE_DIR}/src/Typeset/Page
+  ${ATHENA_BINARY_DIR}/src/Infrastructure
+  ${ATHENA_SOURCE_DIR}/src
+  ${ATHENA_SOURCE_DIR}/src/App/Boot
+  ${ATHENA_SOURCE_DIR}/src/App/Commands
+  ${ATHENA_SOURCE_DIR}/src/App/Frontend
+  ${ATHENA_SOURCE_DIR}/src/App/Runtime
+  ${ATHENA_SOURCE_DIR}/src/App/Watchdog
+  ${ATHENA_SOURCE_DIR}/src/App/Window
+  ${ATHENA_SOURCE_DIR}/src/Core/Abstractions
+  ${ATHENA_SOURCE_DIR}/src/Core/Containers
+  ${ATHENA_SOURCE_DIR}/src/Core/Language
+  ${ATHENA_SOURCE_DIR}/src/Core/Text
+  ${ATHENA_SOURCE_DIR}/src/Core/Types
+  ${ATHENA_SOURCE_DIR}/src/Core/Utilities
+  ${ATHENA_SOURCE_DIR}/src/Document/Convert
+  ${ATHENA_SOURCE_DIR}/src/Document/Convert/AI
+  ${ATHENA_SOURCE_DIR}/src/Document/Convert/Generic
+  ${ATHENA_SOURCE_DIR}/src/Document/Convert/Obsidian
+  ${ATHENA_SOURCE_DIR}/src/Document/Convert/Tex
+  ${ATHENA_SOURCE_DIR}/src/Document/Convert/Verbatim
+  ${ATHENA_SOURCE_DIR}/src/Document/Convert/Xml
+  ${ATHENA_SOURCE_DIR}/src/Document/History
+  ${ATHENA_SOURCE_DIR}/src/Document/Model
+  ${ATHENA_SOURCE_DIR}/src/Document/NodeContracts
+  ${ATHENA_SOURCE_DIR}/src/Document/Observers
+  ${ATHENA_SOURCE_DIR}/src/Document/Persistence
+  ${ATHENA_SOURCE_DIR}/src/Document/State
+  ${ATHENA_SOURCE_DIR}/src/Document/Tree
+  ${ATHENA_SOURCE_DIR}/src/Domains/Artifacts
+  ${ATHENA_SOURCE_DIR}/src/Domains/Knowledge
+  ${ATHENA_SOURCE_DIR}/src/Domains/Namespaces
+  ${ATHENA_SOURCE_DIR}/src/Domains/References
+  ${ATHENA_SOURCE_DIR}/src/Domains/Vault
+  ${ATHENA_SOURCE_DIR}/src/Domains/Websites
+  ${ATHENA_SOURCE_DIR}/src/Editor
+  ${ATHENA_SOURCE_DIR}/src/Editor/Commands
+  ${ATHENA_SOURCE_DIR}/src/Editor/Engine
+  ${ATHENA_SOURCE_DIR}/src/Editor/Modify
+  ${ATHENA_SOURCE_DIR}/src/Editor/Process
+  ${ATHENA_SOURCE_DIR}/src/Editor/Selection
+  ${ATHENA_SOURCE_DIR}/src/Infrastructure/Files
+  ${ATHENA_SOURCE_DIR}/src/Infrastructure/Link
+  ${ATHENA_SOURCE_DIR}/src/Infrastructure/Misc
+  ${ATHENA_SOURCE_DIR}/src/Infrastructure/VirtualFS
+  ${ATHENA_SOURCE_DIR}/src/Integrations/Ghostscript
+  ${ATHENA_SOURCE_DIR}/src/Integrations/Imlib2
+  ${ATHENA_SOURCE_DIR}/src/Integrations/Ispell
+  ${ATHENA_SOURCE_DIR}/src/Integrations/Openssl
+  ${ATHENA_SOURCE_DIR}/src/Integrations/PEGLib
+  ${ATHENA_SOURCE_DIR}/src/Integrations/Sqlite3
+  ${ATHENA_SOURCE_DIR}/src/Interop/Adapters
+  ${ATHENA_SOURCE_DIR}/src/Interop/Engine
+  ${ATHENA_SOURCE_DIR}/src/Materials/Model
+  ${ATHENA_SOURCE_DIR}/src/Math/Geometry
+  ${ATHENA_SOURCE_DIR}/src/Math/Tools
+  ${ATHENA_SOURCE_DIR}/src/Platform/MacOS
+  ${ATHENA_SOURCE_DIR}/src/Platform/Unix
+  ${ATHENA_SOURCE_DIR}/src/Platform/Windows
+  ${ATHENA_SOURCE_DIR}/src/Platform/Windows/nowide
+  ${ATHENA_SOURCE_DIR}/src/Platform/Windows64
+  ${ATHENA_SOURCE_DIR}/src/Platform/iOS
+  ${ATHENA_SOURCE_DIR}/src/Rendering/Art
+  ${ATHENA_SOURCE_DIR}/src/Rendering/Bitmap_fonts
+  ${ATHENA_SOURCE_DIR}/src/Rendering/Colors
+  ${ATHENA_SOURCE_DIR}/src/Rendering/Fonts
+  ${ATHENA_SOURCE_DIR}/src/Rendering/Fonts/Freetype
+  ${ATHENA_SOURCE_DIR}/src/Rendering/Pdf
+  ${ATHENA_SOURCE_DIR}/src/Rendering/Pdf/LibAesgm
+  ${ATHENA_SOURCE_DIR}/src/Rendering/Pdf/PDFWriter
+  ${ATHENA_SOURCE_DIR}/src/Rendering/Pictures
+  ${ATHENA_SOURCE_DIR}/src/Rendering/Renderer
+  ${ATHENA_SOURCE_DIR}/src/Rendering/Spacial
+  ${ATHENA_SOURCE_DIR}/src/Rendering/Types
+  ${ATHENA_SOURCE_DIR}/src/Rendering/VTK
+  ${ATHENA_SOURCE_DIR}/src/Services/AUDMAP
+  ${ATHENA_SOURCE_DIR}/src/Services/Google
+  ${ATHENA_SOURCE_DIR}/src/Services/MCP
+  ${ATHENA_SOURCE_DIR}/src/Services/Plugins
+  ${ATHENA_SOURCE_DIR}/src/Services/RAG
+  ${ATHENA_SOURCE_DIR}/src/Sync/Hodarium
+  ${ATHENA_SOURCE_DIR}/src/Sync/State
+  ${ATHENA_SOURCE_DIR}/src/Typesetting
+  ${ATHENA_SOURCE_DIR}/src/Typesetting/Boxes
+  ${ATHENA_SOURCE_DIR}/src/Typesetting/Boxes/Composite
+  ${ATHENA_SOURCE_DIR}/src/Typesetting/Bridge
+  ${ATHENA_SOURCE_DIR}/src/Typesetting/Concat
+  ${ATHENA_SOURCE_DIR}/src/Typesetting/Env
+  ${ATHENA_SOURCE_DIR}/src/Typesetting/Format
+  ${ATHENA_SOURCE_DIR}/src/Typesetting/Line
+  ${ATHENA_SOURCE_DIR}/src/Typesetting/Page
+  ${ATHENA_SOURCE_DIR}/src/Typesetting/Stack
+  ${ATHENA_SOURCE_DIR}/src/Typesetting/Style/Environment
+  ${ATHENA_SOURCE_DIR}/src/Typesetting/Style/Evaluate
+  ${ATHENA_SOURCE_DIR}/src/Typesetting/Style/Memorizer
+  ${ATHENA_SOURCE_DIR}/src/Typesetting/Table
+  ${ATHENA_SOURCE_DIR}/src/UI/Abstract
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Commands
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Dialogs
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Document
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Editor
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Integrations
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Knowledge
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Materials
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Platform
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Rendering
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Shell
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Toolkit
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Vault
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Widgets
 )
 
 if (WIN32)
   if (OS_MINGW64)
     set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
-      ${ATHENA_SOURCE_DIR}/src/Subsystems/Windows64
+      ${ATHENA_SOURCE_DIR}/src/Platform/Windows64
     )
   else ()
     set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
-      ${ATHENA_SOURCE_DIR}/src/Subsystems/Windows
-      ${ATHENA_SOURCE_DIR}/src/Subsystems/Windows/nowide
+      ${ATHENA_SOURCE_DIR}/src/Platform/Windows
+      ${ATHENA_SOURCE_DIR}/src/Platform/Windows/nowide
     )
   endif ()
 else (WIN32)
@@ -779,68 +840,87 @@ set (ATHENA_Include_Dirs ${ATHENA_Include_Dirs}
 ### --------------------------------------------------------------------
 ### the main sources
 ### --------------------------------------------------------------------
+# Source ownership is grouped by responsibility rather than TeXmacs history.
+# These globs retain the legacy body membership; independent executable,
+# transport and SDK targets remain excluded from athena_body.
 file (GLOB_RECURSE ATHENA_Base_SRCS CONFIGURE_DEPENDS
-  "${ATHENA_SOURCE_DIR}/src/Data/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Edit/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Graphics/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Kernel/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/ATHENA/Commands/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/System/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/ATHENA/Data/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/ATHENA/Math/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/ATHENA/Server/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/ATHENA/Window/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Typeset/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Core/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Document/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Editor/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/App/Boot/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/App/Commands/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/App/Frontend/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/App/Runtime/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/App/Window/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Infrastructure/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Domains/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Interop/Adapters/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Materials/Model/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Math/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Sync/State/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Typesetting/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/UI/Abstract/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Rendering/Art/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Rendering/Bitmap_fonts/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Rendering/Colors/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Rendering/Fonts/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Rendering/Pictures/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Rendering/Renderer/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Rendering/Spacial/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Rendering/Types/*.cpp"
 )
 
 file (GLOB_RECURSE ATHENA_Subsystems_SRCS CONFIGURE_DEPENDS
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/Freetype/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/Google/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/Pdf/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/Pdf/*.c"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/Ghostscript/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/Imlib2/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/Ispell/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/MCP/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/Openssl/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/RAG/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/Sqlite3/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/VTK/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Rendering/Fonts/Freetype/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Rendering/Pdf/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Rendering/VTK/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Services/Google/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Services/MCP/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Services/RAG/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Integrations/Ghostscript/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Integrations/Imlib2/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Integrations/Ispell/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Integrations/Openssl/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Integrations/Sqlite3/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Rendering/Pdf/*.c"
 )
 
-file (GLOB_RECURSE ATHENA_Style_SRCS
-  "${ATHENA_SOURCE_DIR}/src/Style/*.cpp"
-)
+# Style implementations were excluded from the prior athena_body source
+# membership; keep this distinction until the style target is audited.
+file (GLOB_RECURSE ATHENA_Style_SRCS CONFIGURE_DEPENDS
+  "${ATHENA_SOURCE_DIR}/src/Typesetting/Style/*.cpp")
+list (REMOVE_ITEM ATHENA_Base_SRCS ${ATHENA_Style_SRCS})
+list (REMOVE_ITEM ATHENA_Base_SRCS ${ATHENA_Subsystems_SRCS})
 
-set (ATHENA_All_SRCS ${ATHENA_Base_SRCS}  ${ATHENA_Subsystems_SRCS})
+set (ATHENA_All_SRCS ${ATHENA_Base_SRCS} ${ATHENA_Subsystems_SRCS})
 
 ### --------------------------------------------------------------------
 ### GUI Interfaces
 ### --------------------------------------------------------------------
 
-file (GLOB_RECURSE ATHENA_Qt_SRCS CONFIGURE_DEPENDS "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/*.cpp")
+file (GLOB_RECURSE ATHENA_Qt_SRCS CONFIGURE_DEPENDS "${ATHENA_SOURCE_DIR}/src/UI/Qt/*.cpp")
 
 set (ATHENA_Qt_Moc_HDRS
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAbout.hpp
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMApplication.hpp
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMGuiHelper.hpp
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMMenuHelper.hpp
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPipeLink.hpp
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPrintDialog.hpp
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPrinterSettings.hpp
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMScrollView.hpp
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMStyle.hpp
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMSystemPowerMonitor.hpp
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMTreeModel.hpp
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMVaultChooser.hpp
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMWidget.hpp
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMWindow.hpp
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Shell/QTMAbout.hpp
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Shell/QTMApplication.hpp
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Shell/QTMGuiHelper.hpp
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Shell/QTMMenuHelper.hpp
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Platform/QTMPipeLink.hpp
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Dialogs/QTMPrintDialog.hpp
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Dialogs/QTMPrinterSettings.hpp
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Widgets/QTMScrollView.hpp
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Shell/QTMStyle.hpp
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Shell/QTMSystemPowerMonitor.hpp
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Document/QTMTreeModel.hpp
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Vault/QTMVaultChooser.hpp
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Widgets/QTMWidget.hpp
+  ${ATHENA_SOURCE_DIR}/src/UI/Qt/Shell/QTMWindow.hpp
 )
 
 set (ATHENA_MacOS_SRCS
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/MacOS/HIDRemote.m
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/MacOS/mac_images.mm
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/MacOS/mac_utilities.mm
+  ${ATHENA_SOURCE_DIR}/src/Platform/MacOS/HIDRemote.m
+  ${ATHENA_SOURCE_DIR}/src/Platform/MacOS/mac_images.mm
+  ${ATHENA_SOURCE_DIR}/src/Platform/MacOS/mac_utilities.mm
 )
 
 ### --------------------------------------------------------------------
@@ -1092,15 +1172,15 @@ endif()
 
 if (WIN32)
   if (OS_MINGW64)
-    file (GLOB_RECURSE ATHENA_System_SRCS "${ATHENA_SOURCE_DIR}/src/Subsystems/Windows64/*.cpp")
+    file (GLOB_RECURSE ATHENA_System_SRCS "${ATHENA_SOURCE_DIR}/src/Platform/Windows64/*.cpp")
   else ()
-    file (GLOB_RECURSE ATHENA_System_SRCS "${ATHENA_SOURCE_DIR}/src/Subsystems/Windows/*.cpp")
+    file (GLOB_RECURSE ATHENA_System_SRCS "${ATHENA_SOURCE_DIR}/src/Platform/Windows/*.cpp")
   endif ()
 else (WIN32)
-  file (GLOB_RECURSE ATHENA_System_SRCS "${ATHENA_SOURCE_DIR}/src/Subsystems/Unix/*.cpp")
+  file (GLOB_RECURSE ATHENA_System_SRCS "${ATHENA_SOURCE_DIR}/src/Platform/Unix/*.cpp")
   if (ATHENA_PLATFORM_IPADOS)
-    list (REMOVE_ITEM ATHENA_System_SRCS "${ATHENA_SOURCE_DIR}/src/Subsystems/Unix/unix_entrypoint.cpp")
-    list (APPEND ATHENA_System_SRCS "${ATHENA_SOURCE_DIR}/src/Subsystems/iOS/ios_entrypoint.cpp")
+    list (REMOVE_ITEM ATHENA_System_SRCS "${ATHENA_SOURCE_DIR}/src/Platform/Unix/unix_entrypoint.cpp")
+    list (APPEND ATHENA_System_SRCS "${ATHENA_SOURCE_DIR}/src/Platform/iOS/ios_entrypoint.cpp")
   endif ()
 endif (WIN32)
 
@@ -1165,7 +1245,7 @@ if (BUILD_TESTS)
   enable_testing ()
 endif ()
 
-add_subdirectory (src/ATHENA/Hodarium)
+add_subdirectory (src/Sync/Hodarium)
 list (APPEND ATHENA_Libraries athena_hodarium)
 add_subdirectory (src)
 if (ATHENA_ENABLE_CODEX_BRIDGE)

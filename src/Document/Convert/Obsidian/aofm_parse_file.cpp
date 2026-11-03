@@ -1,0 +1,290 @@
+#include <peglib.h>
+#include "boot.hpp"
+#include <fstream>
+#include <memory>
+#include <sstream>
+#include <string>
+#include <vector>
+
+#include "convert.hpp"
+#include "file.hpp"
+#include "new_data.hpp"
+#include "tm_configure.hpp"
+#include "tm_ostream.hpp"
+#include "tree.hpp"
+#include "url.hpp"
+#include "Document/Convert/Obsidian/aofm_telemetry.hpp"
+
+#include "Document/Convert/Obsidian/aofm_utils.hpp"
+#include "Document/Convert/Obsidian/aofm_ast_helpers.hpp"
+#include "Document/Convert/Obsidian/aofm_metadata.hpp"
+#include "Document/Convert/Obsidian/aofm_tree_utils.hpp"
+#include "Document/Convert/Obsidian/aofm_math.hpp"
+#include "Document/Convert/Obsidian/aofm_callouts.hpp"
+#include "Document/Convert/Obsidian/aofm_inline.hpp"
+#include "Document/Convert/Obsidian/aofm_blocks.hpp"
+
+#include <chrono>
+
+extern const char* aofm_grammar;
+
+double time_track = 0.0;
+double time_simplify = 0.0;
+double time_normalize = 0.0;
+double time_latex_mark = 0.0;
+double time_doc_to_tree = 0.0;
+double time_group_markers = 0.0;
+double time_other = 0.0;
+
+double time_parse_latex_doc = 0.0;
+double time_latex_to_tree = 0.0;
+double aofm_math_time = 0.0;
+int aofm_math_count = 0;
+
+double time_l2t_kill_space = 0.0;
+double time_l2t_parsed_latex = 0.0;
+double time_l2t_finalize_doc = 0.0;
+double time_l2t_handle_matches = 0.0;
+double time_l2t_upgrade_tex = 0.0;
+double time_l2t_finalize_misc = 0.0;
+double time_l2t_arity_correct = 0.0;
+double time_l2t_style_check = 0.0;
+double time_l2t_simplify_correct = 0.0;
+double time_l2t_latex_correct = 0.0;
+double time_l2t_guess_missing = 0.0;
+double time_l2t_post_metadata = 0.0;
+
+int count_l2t_is_document = 0;
+int count_l2t_total = 0;
+bool aofm_insert_build_warning = false;
+
+using namespace aofm;
+
+namespace aofm {
+  std::string aofm_content;
+}
+
+static std::string
+aofm_path_stem(const std::string& path) {
+    size_t slash = path.find_last_of("/\\");
+    size_t start = (slash == std::string::npos) ? 0 : slash + 1;
+    size_t dot = path.find_last_of('.');
+    if (dot == std::string::npos || dot < start) return path.substr(start);
+    return path.substr(start, dot - start);
+}
+
+static void
+aofm_prepend_document_title(tree& body, const std::string& title,
+                            bool insert_build_warning) {
+    tree out(DOCUMENT);
+    out << compound("doc-data",
+                    compound("doc-title", tm_string(title)));
+    if (insert_build_warning) {
+        out << compound("experimental-build-warning");
+    }
+    out << compound("table-of-contents", "toc", tree(DOCUMENT));
+
+    if (is_document(body)) {
+        for (int i = 0; i < N(body); ++i) out << body[i];
+    } else {
+        out << body;
+    }
+    body = out;
+}
+
+static bool
+aofm_starts_with(const string& s, const char* prefix) {
+    string p(prefix);
+    return N(s) >= N(p) && s(0, N(p)) == p;
+}
+
+static string
+aofm_normalize_preferred_font(string font) {
+    if (font == "" || font == "default") return "";
+    if (font == "TeXmacs Computer Modern") return "roman";
+    if (font == "Roman") return "roman";
+    if (font == "Stix" || aofm_starts_with(font, "STIX")) return "stix";
+    if (font == "Bonum" || aofm_starts_with(font, "TeX Gyre Bonum")) return "bonum";
+    if (font == "Pagella" || aofm_starts_with(font, "TeX Gyre Pagella")) return "pagella";
+    if (font == "Schola" || aofm_starts_with(font, "TeX Gyre Schola")) return "schola";
+    if (font == "Termes" || aofm_starts_with(font, "TeX Gyre Termes")) return "termes";
+    return font;
+}
+
+static string
+aofm_matching_math_font(string font) {
+    if (font == "roman") return "roman";
+    if (font == "stix") return "math-stix";
+    if (font == "bonum") return "math-bonum";
+    if (font == "pagella") return "math-pagella";
+    if (font == "schola") return "math-schola";
+    if (font == "termes") return "math-termes";
+    return "";
+}
+
+static void
+aofm_apply_preferred_font(new_data& data) {
+    string font = aofm_normalize_preferred_font(
+        get_preference("vault preferred font", ""));
+    if (font == "") return;
+
+    data->init("font") = tree(font);
+    data->init("font-family") = tree("rm");
+
+    string math_font = aofm_matching_math_font(font);
+    if (math_font != "") data->init("math-font") = tree(math_font);
+}
+
+static std::shared_ptr<peg::Ast>
+aofm_parse_source(const std::string& raw, const std::string& source_name) {
+    peg::parser parser(aofm_grammar);
+    if (!parser) {
+        report_aofm_error("failed to initialize A-OFM grammar");
+        return nullptr;
+    }
+
+    parser.enable_ast();
+    parser.set_logger([source_name](size_t line, size_t col,
+                                    const std::string& msg,
+                                    const std::string& rule) {
+        report_aofm_parse_error(source_name, line, col, msg, rule);
+    });
+    
+    aofm_content = normalize_markdown_lines(raw);
+    aofm_content = normalize_transclusion_lines(aofm_content);
+    aofm_content = extract_aofm_document_metadata(aofm_content);
+    aofm_content = preprocess_isolated_callout_proofs(aofm_content);
+    aofm_content = sanitize_markdown_blocks(aofm_content);
+
+    if (!aofm_content.empty() && aofm_content.back() != '\n') {
+        aofm_content += '\n';
+    }
+
+    std::shared_ptr<peg::Ast> ast;
+    if (parser.parse(aofm_content, ast, source_name.c_str())) {
+        return ast;
+    }
+
+    report_aofm_error("parsing failed for: " + source_name);
+    return nullptr;
+}
+
+std::shared_ptr<peg::Ast>
+aofm_parse_file(const std::string& file_path) {
+    std::ifstream ifs(file_path, std::ios::in | std::ios::binary);
+    if (!ifs.is_open()) {
+        report_aofm_error("could not open file: " + file_path);
+        return nullptr;
+    }
+
+    std::string raw((std::istreambuf_iterator<char>(ifs)),
+                    std::istreambuf_iterator<char>());
+    return aofm_parse_source(raw, file_path);
+}
+
+tree
+aofm_ast_to_texmacs_document(const AstPtr& ast, const std::string& title,
+                             bool insert_build_warning) {
+    tree body = convert_block(ast);
+    body = sanitize_proof_trees(body);
+    if (!is_document(body)) body = document(body);
+    aofm_prepend_document_title(body, title, insert_build_warning);
+
+    new_data data;
+    data->init("page-medium") = tree("automatic");
+    aofm_apply_preferred_font(data);
+    if (!aofm_metadata.created_time.empty()) {
+        data->init("global-created-time") = tree(tm_string(aofm_metadata.created_time));
+    }
+    if (!aofm_metadata.modified_time.empty()) {
+        data->init("global-modified-time") = tree(tm_string(aofm_metadata.modified_time));
+    }
+    if (!aofm_metadata.content_hash.empty()) {
+        data->init("global-content-hash") = tree(tm_string(aofm_metadata.content_hash));
+    }
+    return attach_data(body, data, true);
+}
+
+std::string
+aofm_output_path_for(const std::string& file_path) {
+    size_t dot = file_path.find_last_of('.');
+    size_t slash = file_path.find_last_of("/\\");
+    if (dot == std::string::npos || (slash != std::string::npos && dot < slash)) {
+        return file_path + ".ath";
+    }
+    return file_path.substr(0, dot) + ".ath";
+}
+
+bool
+aofm_convert_file(const std::string& file_path,
+                  const std::string& output_path) {
+    aofm_math_time = 0.0;
+    aofm_math_count = 0;
+
+    tree doc;
+    if (!aofm_convert_tree(tm_string(file_path), doc, true)) return false;
+
+    string serialized = tree_to_texmacs(doc);
+
+    if (save_string(url_system(std_to_tm_string(output_path)), serialized)) {
+        report_aofm_error("failed to save output to: " + output_path);
+        return false;
+    }
+
+    if (aofm_math_count > 0) {
+        cout << "AOFM] Math processing: " << aofm_math_time << "s ("
+             << aofm_math_count << " formulas, avg "
+             << (aofm_math_time / aofm_math_count) << "s)" << LF;
+    }
+
+    return true;
+}
+
+bool
+aofm_convert_tree(string file_path, tree& document, bool materialize_anchor_literals) {
+    std::string source_path = as_charp(file_path);
+    auto ast = aofm_parse_file(source_path);
+    if (!ast) return false;
+
+    document = aofm_ast_to_texmacs_document(ast, aofm_path_stem(source_path),
+                                            aofm_insert_build_warning);
+    if (materialize_anchor_literals) {
+        document = materialize_aofm_anchor_literals(document);
+    }
+    return true;
+}
+
+tree
+aofm_markdown_to_tree(string source) {
+    std::string raw(as_charp(source), N(source));
+    auto ast = aofm_parse_source(raw, "<clipboard>");
+    if (!ast) return "";
+
+    tree body = convert_block(ast);
+    body = sanitize_proof_trees(body);
+    if (!is_document(body)) body = document(body);
+    body = simplify_correct(materialize_aofm_anchor_literals(body));
+    return is_empty(body) ? tree("") : body;
+}
+
+void
+aofm_debug_dump(const std::string& file_path) {
+    time_parse_latex_doc = 0.0;
+    time_latex_to_tree = 0.0;
+    aofm_math_time = 0.0;
+    aofm_math_count = 0;
+
+    tree doc;
+    if (!aofm_convert_tree(tm_string(file_path), doc, true)) {
+        report_aofm_error("conversion failed for file: " + file_path);
+        return;
+    }
+
+    string serialized = tree_to_texmacs(doc);
+    std::string output_path = aofm_output_path_for(file_path);
+
+    cout << "--- ATH DUMP BEGIN ---" << LF;
+    cout << serialized << LF;
+    cout << "--- ATH DUMP END ---" << LF;
+    cout << "Saved to: " << output_path.c_str () << LF;
+}

@@ -11,10 +11,10 @@
 #include <QFile>
 #include <iostream>
 #include <thread>
-#include "Ispell/ispell.hpp"
+#include "Integrations/Ispell/ispell.hpp"
 #include "tree_spell.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
-#include "Data/NodeContracts/editing_query.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
+#include "Document/NodeContracts/editing_query.hpp"
 #include "language.hpp"
 #include "convert.hpp"
 #include "unicode_text.hpp"

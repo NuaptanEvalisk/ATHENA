@@ -1,7 +1,8 @@
 # ATHENA source ownership and repository layout
 
-Updated: 2026-11-03. This describes the first phase of source reorganization,
-not a claim that the inherited editor and Qt directory boundaries are finished.
+Updated: 2026-11-03. This describes the physical source and service layout.
+It does not claim that build targets and compile-time dependency boundaries are
+fully modularized.
 
 ## Source versus service versus tooling
 
@@ -12,7 +13,7 @@ not a claim that the inherited editor and Qt directory boundaries are finished.
 - `services/` contains independently deployed applications. The Hodarium Go
   authority/relay, Web-Accessible ATHENA broker, and delegation transmitter each
   retain their own application entrypoints and deployment resources. The
-  native Hodarium client under `src/ATHENA/Hodarium/` is a separate component.
+  native Hodarium client under `src/Sync/Hodarium/` is a separate component.
 - `clients/` contains external AUDMAP client software. The C++ SDK under
   `clients/cpp/` owns the reusable connection implementation, and the native
   command-line/REPL frontends are under `clients/audmap-cli/`.
@@ -34,10 +35,42 @@ The Go Hodarium server/relay remain their own `services/hodarium/go.mod` module;
 the web broker and delegation transmitter remain separately deployable services.
 They must not be absorbed into the desktop `athena_body` compilation unit.
 
-This phase is a **source-path reorganization**, not a redesign of source types,
-protocols, XML v3, ownership or storage. The historical `src/ATHENA/Data/`,
-`src/Subsystems/Qt/`, `src/System/`, and `src/Kernel/` boundaries still require
-separate semantic and dependency analysis before relocating their code.
+The former TeXmacs directory hierarchy has been relocated according to
+responsibility. It is no longer the top-level source organization:
+
+| Current source directory | Responsibility |
+| --- | --- |
+| `src/App/` | Program entry, startup, actor runtime, buffer/view coordination, native commands, windows and watchdog |
+| `src/Core/` | Tree/metadata primitives, collections, Unicode text, language support, URL and timers |
+| `src/Document/` | Document tree model, node contracts, editing history, source serialization, format conversion and persistence |
+| `src/Domains/` | Vault, Artifacts, Namespaces, Knowledge, References and Websites |
+| `src/Editor/` | Editing engine, input/interaction commands, selection, modification and text processing |
+| `src/Infrastructure/` | Files, process/network links, virtual filesystem and common runtime utilities |
+| `src/Integrations/` | External adapters (including the Codex bridge), system APIs and optional libraries |
+| `src/Interop/` | AUDM selectors, resolution and document/resource adapters |
+| `src/Materials/` | Materials domain model and its Rust/Hayagriva engine |
+| `src/Math/` | Mathematics-related geometry, handwriting and graphical tools |
+| `src/Platform/` | Unix, Windows, macOS and iPadOS entrypoints and platform adapters |
+| `src/Rendering/` | Fonts, PDF, image and graphical rendering support |
+| `src/Services/` | AUDMAP transport, RAG, MCP, Google and plugins |
+| `src/Sync/` | Hodarium client, synchronization state and headless node entrypoint |
+| `src/Typesetting/` | Typesetter, boxes, environment, macros, styles and page layout |
+| `src/UI/` | Abstract widgets and Qt UI broken into focused, named directories |
+
+`src/UI/Qt/` now groups UI sources under `Commands`, `Dialogs`, `Document`,
+`Editor`, `Integrations`, `Knowledge`, `Materials`, `Platform`, `Rendering`,
+`Shell`, `Toolkit`, `Vault` and `Widgets`. The old completely flat directory
+is gone. The former `src/ATHENA/Data/` is split by actual consumer/domain;
+for example `vault.cpp` now belongs to `src/Domains/Vault/`, `materials.cpp`
+to `src/Materials/Model/`, and the Hodarium logical database to
+`src/Sync/State/`.
+
+This change is a **physical source-path reorganization**, not a redesign of
+source types, protocols, XML v3, BufferActor ownership, or persisted data.
+The desktop `athena_body` library and its transitional global include paths
+are intentionally retained for this unbuilt step. Splitting this library into
+separately enforceable module targets is a distinct architectural change,
+requiring a later explicitly authorized build and runtime verification.
 
 ## Verification boundary
 

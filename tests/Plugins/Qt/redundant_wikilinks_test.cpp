@@ -6,8 +6,8 @@
 
 #include <QtTest/QtTest>
 
-#include "ATHENA/Data/redundant_wikilinks.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Domains/References/redundant_wikilinks.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }

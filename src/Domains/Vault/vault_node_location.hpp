@@ -1,0 +1,26 @@
+/******************************************************************************
+* MODULE     : vault_node_location.hpp
+* DESCRIPTION: Vault-scoped node locator with cancellable native actor snapshots
+* COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+#pragma once
+#include "Domains/References/node_location.hpp"
+#include "Domains/Vault/vault.hpp"
+
+namespace athena::node_location {
+// Capture once per active vault, then share among native reference consumers.
+// Creating the service starts a sleeping worker, not an initial vault scan.
+std::shared_ptr<service> for_vault (vault_context_handle);
+
+// Background consumption for online targets. The actor revalidates the UUID
+// against its current source, then sends XML v2 content and preview context from
+// that same revision. The caller decodes on its own thread; no AUDMAP is involved.
+content_payload read_live (vault_context_handle, const item&, const std::atomic<bool>& cancelled);
+// Online reference consumption also refuses a disk candidate which has become
+// actor-owned since resolution. Callers retry resolution on stale locations.
+content_payload read_online (vault_context_handle, const item&, const std::atomic<bool>& cancelled);
+} // namespace athena::node_location

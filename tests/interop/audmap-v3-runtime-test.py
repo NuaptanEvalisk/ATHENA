@@ -68,7 +68,7 @@ def build_stdio_client(repository, build_dir, output):
         subprocess.run(argv, cwd=entry["directory"], check=True,
                        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
 
-    link_dir = build_dir / "src/ATHENA/Interop"
+    link_dir = build_dir / "src/Interop/Engine"
     argv = shlex.split((link_dir / "CMakeFiles/athena-audmap.dir/link.txt").read_text())
     argv = [arg for arg in argv if not arg.startswith("-Wl,--dependency-file=")]
     if argv and argv[0] == "ccache":

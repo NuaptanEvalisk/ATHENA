@@ -8,12 +8,12 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include <QtTest/QtTest>
-#include "ATHENA/Data/document_node_copy.hpp"
+#include "Document/Model/document_node_copy.hpp"
 #include "Xml/clipboard_xml.hpp"
 #include "tree_analyze.hpp"
 #include "tree_select.hpp"
 #include "cursor_navigation.hpp"
-#include "Data/NodeContracts/builtin_contracts.hpp"
+#include "Document/NodeContracts/builtin_contracts.hpp"
 #include "native_interfaces.hpp"
 
 bool headless_mode= true;

@@ -7,10 +7,10 @@
 ******************************************************************************/
 #include <QtTest/QtTest>
 #include <QTemporaryDir>
-#include "ATHENA/Data/websites_internal.hpp"
-#include "Data/Tree/math_tree_v3.hpp"
+#include "Domains/Websites/websites_internal.hpp"
+#include "Document/Tree/math_tree_v3.hpp"
 #include "node_metadata_transform.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 
 namespace {
 namespace node= athena::node;

@@ -36,7 +36,7 @@ As of commit `d7ae18662`, `ATHENA/progs/prog` and its seven language/editing
 modules are removed. ATHENA still owns rendering and structured editing;
 KTextEditor is not embedded.
 
-`src/Edit/Interface/native_program_edit.cpp` owns generic bracket insertion,
+`src/Editor/Commands/native_program_edit.cpp` owns generic bracket insertion,
 matching/highlighting, selection expansion, tab stops, indentation and program
 clipboard behavior. The shared keymap is `ATHENA/misc/input/prog-keybindings.json`.
 Return inherits leading whitespace; Tab/Shift+Tab adjust indentation. There is

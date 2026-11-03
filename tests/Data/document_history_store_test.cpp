@@ -1,4 +1,4 @@
-#include "ATHENA/Data/document_history_store.hpp"
+#include "Sync/State/document_history_store.hpp"
 
 #include <cassert>
 #include <chrono>

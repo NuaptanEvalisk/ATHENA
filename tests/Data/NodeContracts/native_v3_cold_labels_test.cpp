@@ -6,7 +6,7 @@
 * This software falls under the GNU general public license version 3 or later.
 ******************************************************************************/
 #include <QtTest/QtTest>
-#include "Data/Convert/Xml/document_file_codec.hpp"
+#include "Document/Convert/Xml/document_file_codec.hpp"
 #include "tree_label.hpp"
 
 namespace xml= athena::document;

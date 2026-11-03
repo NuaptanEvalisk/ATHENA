@@ -7,7 +7,7 @@
 #include <QtTest/QtTest>
 
 #include "QTMDelegationClient.hpp"
-#include "Data/Convert/Xml/athena_document_xml.hpp"
+#include "Document/Convert/Xml/athena_document_xml.hpp"
 
 #include <QFile>
 #include <QTemporaryDir>

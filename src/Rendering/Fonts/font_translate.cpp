@@ -1,0 +1,406 @@
+
+/******************************************************************************
+* MODULE     : font_translate.cpp
+* DESCRIPTION: Compatibility between old and new font schemes
+* COPYRIGHT  : (C) 2013  Joris van der Hoeven
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#include "Rendering/Fonts/font.hpp"
+#include "Rendering/Fonts/font_database.hpp"
+#include <mutex>
+#include "Rendering/Fonts/Freetype/tt_file.hpp"
+#include "Rendering/Fonts/Freetype/tt_tools.hpp"
+#include "analyze.hpp"
+#include "convert.hpp"
+#include "file.hpp"
+#include "iterator.hpp"
+#include <string>
+#include <unordered_map>
+
+bool is_weight (string s);
+bool is_glyphs (string s);
+
+/******************************************************************************
+* Translation into internal naming scheme
+******************************************************************************/
+
+string
+get_family (array<string> v) {
+  if (N(v) == 0) return "roman";
+  return v[0];
+}
+
+string
+get_variant (array<string> v) {
+  array<string> r;
+  for (int i=1; i<N(v); i++) {
+    if (v[i] == "mono" && contains (string ("typewriter"), v));
+    else if (v[i] == "mono" || v[i] == "typewriter")
+      r << string ("tt");
+    else if (v[i] == "sansserif")
+      r << string ("ss");
+    else if (is_glyphs (v[i]))
+      r << v[i];
+  }
+  if (N(r) == 0) return "rm";
+  return recompose (r, "-");
+}
+
+string
+get_series (array<string> v) {
+  for (int i=1; i<N(v); i++)
+    if (is_weight (v[i]))
+      return v[i];
+  return "medium";
+}
+
+string
+get_shape (array<string> v) {
+  array<string> r;
+  for (int i=1; i<N(v); i++)
+    if (ends (v[i], "condensed") ||
+        ends (v[i], "unextended") ||
+        ends (v[i], "wide") ||
+        v[i] == "proportional" ||
+        (v[i] == "mono" && contains (string ("typewriter"), v)))
+      r << v[i];
+  for (int i=1; i<N(v); i++)
+    if (v[i] == "upright") r << string ("right");
+    else if (v[i] == "italic") r << string ("italic");
+    else if (v[i] == "oblique") r << string ("slanted");
+    else if (v[i] == "mathitalic") r << string ("mathitalic");
+    else if (v[i] == "mathupright") r << string ("mathupright");
+    else if (v[i] == "mathshape") r << string ("mathshape");
+  for (int i=1; i<N(v); i++)
+    if (v[i] == "smallcaps") r << string ("small-caps");
+    else if (v[i] == "long") r << string ("long");
+    else if (v[i] == "flat") r << string ("flat");
+  if (N(r) == 0) return "right";
+  return recompose (r, "-");
+}
+
+/******************************************************************************
+* Upgrade old family names
+******************************************************************************/
+
+string
+upgrade_family_name (string f) {
+  static const std::unordered_map<std::string, std::string> names= {
+    {"luxi", "Luxi"}, {"ms-andalemo", "Andale Mono"},
+    {"ms-arial", "Arial"}, {"ms-comic", "Comic Sans MS"},
+    {"ms-courier", "Courier New"}, {"ms-georgia", "Georgia"},
+    {"ms-impact", "Impact"}, {"ms-lucida", "Lucida Console"},
+    {"ms-tahoma", "Tahoma"}, {"ms-times", "Times New Roman"},
+    {"ms-trebuchet", "Trebuchet MS"}, {"ms-verdana", "Verdana"},
+    {"apple-gothic", "AppleGothic"}, {"apple-lucida", "Lucida Grande"},
+    {"apple-mingliu", "MingLiU"}, {"apple-symbols", "Apple Symbols"},
+    {"apple-simsun", "SimSun"}, {"batang", "Batang"},
+    {"fireflysung", "AR PL New Sung"}, {"gulim", "Baekmuk Gulim"},
+    {"ipa", "IPAMincho"}, {"heiti", "STHeiti"},
+    {"kaku", "Hiragino Kaku Gothic ProN"}, {"kochi", "Kochi Gothic"},
+    {"lihei", "LiHei Pro"}, {"mingliu", "MingLiU"},
+    {"ms-gothic", "MS Gothic"}, {"ms-mincho", "MS Mincho"},
+    {"sazanami", "Sazanami Mincho"}, {"simfang", "FangSong_GB2312"},
+    {"simhei", "SimHei"}, {"simkai", "KaiTi_GB2312"},
+    {"simli", "LiSu"}, {"simsun", "SimSun"}, {"simyou", "YouYuan"},
+    {"ttf-japanese", "TakaoPMincho"}, {"ukai", "AR PL ZenKai Uni"},
+    {"uming", "AR PL UMing CN"}, {"unbatang", "UnBatang"},
+    {"wqy-microhei", "WenQuanYi Micro Hei"},
+    {"wqy-zenhei", "WenQuanYi Zen Hei"}, {"dejavu", "DejaVu Serif"},
+    {"stix", "Stix"}, {"bonum", "TeX Gyre Bonum"},
+    {"chancery", "TeX Gyre Chorus"}, {"pagella", "TeX Gyre Pagella"},
+    {"schola", "TeX Gyre Schola"}, {"termes", "TeX Gyre Termes"},
+    {"adobe", "Stix"}, {"Duerer", "duerer"},
+    {"math-asana", "Asana Math"}, {"math-apple", "Apple Symbols"},
+    {"math-bonum", "TeX Gyre Bonum"}, {"math-dejavu", "DejaVu Serif"},
+    {"math-lucida", "Lucida Grande"},
+    {"math-pagella", "TeX Gyre Pagella"},
+    {"math-schola", "TeX Gyre Schola"}, {"math-stix", "Stix"},
+    {"math-termes", "TeX Gyre Termes"}, {"modern", "roman"},
+    {"TeXmacs Computer Modern", "roman"},
+    {"TeXmacs Computer Modern Mono", "roman"},
+    {"TeXmacs Computer Modern Sans", "roman"},
+    {"cyrillic", "roman"}, {"rm-cyrillic", "roman"}
+  };
+  if (f == "sys-chinese") return default_chinese_font_name ();
+  if (f == "sys-japanese") return default_japanese_font_name ();
+  if (f == "sys-korean") return default_korean_font_name ();
+  if (f == "sys-taiwanese") return default_taiwanese_font_name ();
+  std::string key (f.data (), static_cast<std::size_t> (N(f)));
+  auto found= names.find (key);
+  if (found == names.end ()) return f;
+  return string (found->second.data (), static_cast<int> (found->second.size ()));
+}
+
+array<string>
+variant_features (string s) {
+  array<string> v= tokenize (s, "-");
+  array<string> r;
+  for (int i=0; i<N(v); i++)
+    if (v[i] == "ss") r << string ("sansserif");
+    else if (v[i] == "tt") r << string ("typewriter");
+    else if (is_glyphs (v[i]))
+      r << v[i];
+  return r;
+}
+
+array<string>
+series_features (string s) {
+  array<string> r;
+  r << s;
+  return r;
+}
+
+array<string>
+shape_features (string s) {
+  s= replace (s, "small-caps", "smallcaps");
+  array<string> v= tokenize (s, "-");
+  array<string> r;
+  for (int i=0; i<N(v); i++)
+    if (ends (v[i], "condensed") ||
+        ends (v[i], "unextended") ||
+        ends (v[i], "wide") ||
+        v[i] == "mono" ||
+        v[i] == "proportional" ||
+        v[i] == "italic" ||
+        v[i] == "mathitalic" ||
+        v[i] == "mathupright" ||
+        v[i] == "mathshape" ||
+        v[i] == "smallcaps" ||
+        v[i] == "long" ||
+        v[i] == "flat")
+      r << v[i];
+    else if (v[i] == "right") r << string ("upright");
+    else if (v[i] == "slanted") r << string ("oblique");
+  return r;
+}
+
+array<string>
+logical_font (string family, string variant, string series, string shape) {
+  array<string> r;
+  r << upgrade_family_name (family);
+  r << variant_features (variant);
+  r << series_features (series);
+  r << shape_features (shape);
+  array<string> v;
+  for (int i=0; i<N(r); i++)
+    if (r[i] != "medium" &&
+        r[i] != "upright")
+      v << r[i];
+  //cout << family << ", " << variant << ", "
+  //     << series << ", " << shape << " -> " << v << "\n";
+  return v;
+}
+
+/******************************************************************************
+* Find closest existing font
+******************************************************************************/
+
+#define CLOSEST_CACHE "$ATHENA_HOME_PATH/fonts/font-closest-cache.scm"
+
+namespace {
+struct local_closest_cache {
+  hashmap<tree,tree> entries{UNINIT};
+  bool loaded= false;
+  unsigned long generation= 0;
+};
+
+struct persisted_closest_cache {
+  std::mutex lock;
+  hashmap<tree,tree> entries{UNINIT};
+  bool loaded= false;
+  string signature;
+  unsigned long generation= 0;
+
+  void load (string current_signature) {
+    if (loaded && signature == current_signature) return;
+    loaded= true;
+    signature= current_signature;
+    entries= hashmap<tree,tree> (UNINIT);
+    ++generation;
+    string source;
+    if (!exists (CLOSEST_CACHE) ||
+        load_string (CLOSEST_CACHE, source, false)) return;
+    tree t= block_to_scheme_tree (source);
+    if (!is_tuple (t) || N(t) == 0 ||
+        !is_func (t[0], TUPLE, 2) ||
+        t[0][0] != "athena-font-closest-cache" ||
+        t[0][1] != signature) return;
+    for (int i=1; i<N(t); ++i)
+      if (is_func (t[i], TUPLE, 2) &&
+          is_func (t[i][0], TUPLE, 5) &&
+          is_func (t[i][1], TUPLE, 4))
+        entries (t[i][0])= t[i][1];
+  }
+
+  void save () {
+    array<scheme_tree> records;
+    records << tuple ("athena-font-closest-cache", signature);
+    iterator<tree> it= iterate (entries);
+    while (it->busy ()) {
+      tree key= it->next ();
+      records << tuple (key, entries[key]);
+    }
+    save_string (CLOSEST_CACHE,
+                 scheme_tree_to_block (tree (TUPLE, records)));
+  }
+};
+
+persisted_closest_cache& closest_persistence () {
+  static persisted_closest_cache cache;
+  return cache;
+}
+}
+
+static void
+closest_cache_load () {
+  auto& local= font_domain_local<local_closest_cache> ();
+  if (local.loaded) return;
+  // Do not acquire the font database lock while holding the persistence lock.
+  string signature= font_database_cache_signature ();
+  auto& persisted= closest_persistence ();
+  std::lock_guard<std::mutex> guard (persisted.lock);
+  persisted.load (signature);
+  iterator<tree> it= iterate (persisted.entries);
+  while (it->busy ()) {
+    tree key= it->next ();
+    local.entries (copy (key))= copy (persisted.entries[key]);
+  }
+  local.generation= persisted.generation;
+  local.loaded= true;
+}
+
+static void
+closest_cache_save (tree key, tree value) {
+  auto& local= font_domain_local<local_closest_cache> ();
+  auto& persisted= closest_persistence ();
+  std::lock_guard<std::mutex> guard (persisted.lock);
+  if (local.generation != persisted.generation) return;
+  // Only this store writes the profile file; actor lookup hits stay local.
+  persisted.entries (copy (key))= copy (value);
+  persisted.save ();
+}
+
+void
+font_closest_cache_invalidate () {
+  {
+    auto& persisted= closest_persistence ();
+    std::lock_guard<std::mutex> guard (persisted.lock);
+    persisted.entries= hashmap<tree,tree> (UNINIT);
+    ++persisted.generation;
+    remove (CLOSEST_CACHE);
+  }
+  auto& local= font_domain_local<local_closest_cache> ();
+  local.entries= hashmap<tree,tree> (UNINIT);
+  local.loaded= false;
+  invalidate_font_configuration ();
+}
+
+bool
+find_closest (string& family, string& variant, string& series, string& shape,
+	      int attempt) {
+  font_database_load ();
+  closest_cache_load ();
+  auto& closest_cache= font_domain_local<local_closest_cache> ().entries;
+  tree val= tuple (copy (family), variant, series, shape);
+  tree key= tuple (copy (family), variant, series, shape, as_string (attempt));
+  if (closest_cache->contains (key)) {
+    tree t = closest_cache[key];
+    family = t[0]->label;
+    variant= t[1]->label;
+    series = t[2]->label;
+    shape  = t[3]->label;
+    return t != val;
+  }
+  /*
+  else if (attempt == FONT_ATTEMPTS && family != "modern") {
+    family= "modern";
+    find_closest (family, variant, series, shape, 0);
+    tree t= tuple (family, variant, series, shape);
+    closest_cache (key)= t;
+    return t != val;
+  }
+  */
+  else {
+    //cout << "< " << family << ", " << variant
+    //     << ", " << series << ", " << shape << "\n";
+    array<string> lfn= logical_font (family, variant, series, shape);
+    lfn= apply_substitutions (lfn);
+    array<string> pfn= search_font (lfn, attempt);
+    array<string> nfn= logical_font (pfn[0], pfn[1]);
+    array<string> gfn= guessed_features (pfn[0], pfn[1]);
+    //cout << lfn << " -> " << pfn << ", " << nfn << ", " << gfn << "\n";
+    gfn << nfn;
+    family= get_family (nfn);
+    variant= get_variant (nfn);
+    series= get_series (nfn);
+    shape= get_shape (nfn);
+    if ( contains (string ("bold"), lfn) &&
+	!contains (string ("bold"), gfn))
+      series= series * "-poorbf";
+    if ( contains (string ("smallcaps"), lfn) &&
+	!contains (string ("smallcaps"), gfn))
+      shape= shape * "-poorsc";
+    if ((contains (string ("italic"), lfn) ||
+         contains (string ("oblique"), lfn)) &&
+	!contains (string ("italic"), gfn) &&
+        !contains (string ("oblique"), gfn))
+      shape= shape * "-poorit";
+    //cout << "> " << family << ", " << variant
+    //     << ", " << series << ", " << shape << "\n";
+    tree t= tuple (family, variant, series, shape);
+    closest_cache (key)= t;
+    closest_cache_save (key, t);
+    return t != val;
+  }
+}
+
+font
+closest_font (string family, string variant, string series, string shape,
+	      int sz, int dpi, int attempt) {
+  string s=
+    family * "-" * variant * "-" *
+    series * "-" * shape * "-" *
+    as_string (sz) * "-" * as_string (dpi) * "-" * as_string (attempt);
+  if (font::instances->contains (s)) return font (s);
+  find_closest (family, variant, series, shape, attempt);
+  auto materialize= [&] (auto&& self, string fam, string var, string ser,
+                            string sh) -> font {
+    if (ends (sh, "-poorit")) {
+      font base= self (self, fam, var, ser, sh (0, N(sh) - 7));
+      return is_nil (base) ? base
+                           : poor_italic_font (base->magnify (5.0/6.0, 1.0),
+                                               0.25001);
+    }
+    if (ends (sh, "-poorsc")) {
+      font base= self (self, fam, var, ser, sh (0, N(sh) - 7));
+      return is_nil (base) ? base : poor_smallcaps_font (base);
+    }
+    if (ends (ser, "-poorbf")) {
+      font base= self (self, fam, var, ser (0, N(ser) - 7), sh);
+      return is_nil (base) ? base : poor_bold_font (base);
+    }
+    array<string> pfn= search_font (logical_font (fam, var, ser, sh));
+    if (N(pfn) >= 2) {
+      const std::string selected_family (pfn[0].data (), N(pfn[0]));
+      const std::string selected_style (pfn[1].data (), N(pfn[1]));
+      if (auto source= athena::text::font_database_match_style (
+            selected_family, selected_style))
+        return unicode_font (pfn[0], *source, sz, dpi, dpi);
+    }
+    if (auto source= athena::text::font_database_match_family (
+          "Latin Modern Roman"))
+      return unicode_font ("Latin Modern Roman", *source, sz, dpi, dpi);
+    if (auto source= athena::text::font_database_match_family ("STIX"))
+      return unicode_font ("STIX", *source, sz, dpi, dpi);
+    return unicode_font ("STIX-Regular", sz, dpi);
+  };
+  font fn= materialize (materialize, family, variant, series, shape);
+  //cout << "Found " << fn->res_name << "\n";
+  font::instances (s)= (pointer) fn.rep;
+  return fn;
+}

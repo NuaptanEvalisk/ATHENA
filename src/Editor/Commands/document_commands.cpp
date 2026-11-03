@@ -1,0 +1,724 @@
+/******************************************************************************
+* MODULE     : document_commands.cpp
+* DESCRIPTION: Actor-owned generic document editing commands
+* COPYRIGHT  : (C) 2001 Joris van der Hoeven, 2026 Nuaptan Felix Evalisk
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+*******************************************************************************/
+
+#include "Editor/Commands/document_commands.hpp"
+#include "Editor/Commands/document_style_commands.hpp"
+#include "Editor/editor.hpp"
+#include "new_view.hpp"
+#include "native_interfaces.hpp"
+#include "font.hpp"
+#include "analyze.hpp"
+#include "node_metadata.hpp"
+#include "Editor/Commands/format_commands.hpp"
+#include "QTMFontSelector.hpp"
+#include "boot.hpp"
+#include "vault.hpp"
+#include "new_buffer.hpp"
+#include "App/Runtime/server.hpp"
+
+#include <cmath>
+#include <initializer_list>
+
+bool document_missing_style () {
+  return is_func (get_current_editor ()->get_style (), TUPLE, 0);
+}
+
+void document_set_default_style () {
+  editor ed= get_current_editor ();
+  ed->init_style ("generic");
+  string paper= get_server ()->get_printer_page_type ();
+  if (paper != "a4") document_init_page_type (paper);
+  string medium= get_preference ("page medium");
+  if (medium != "papyrus") ed->init_env ("page-medium", tree (medium));
+  pretend_buffer_saved (get_current_buffer ());
+}
+
+void document_apply_vault_font () {
+  if (!vault_active ()) return;
+  string font= get_preference ("vault preferred font", "");
+  if (font == "") return;
+  // The vault profile owns its math override as well as its main family.
+  init_default_current_view ("math-font");
+  document_init_font (font);
+}
+
+namespace {
+void select_font (bool local, string prefix) {
+  if (headless_mode) return;
+  editor ed= get_current_editor ();
+  const auto get= [&] (string name) {
+    if (local) return ed->get_env_string (name);
+    if (prefix != "" && ed->defined_in_init (prefix * name))
+      return ed->get_init_string (prefix * name);
+    return ed->get_init_string (name);
+  };
+  const string profile= get ("font");
+  const array<string> physical= search_font_exact (logical_font (
+    main_family (profile), get ("font-family"), get ("font-series"), get ("font-shape")));
+  const array<string> selected= native_font_selector_dialog (
+    N(physical) > 0 ? physical[0] : string ("TeXmacs Computer Modern"),
+    N(physical) > 1 ? physical[1] : string ("Regular"),
+    get ("font-base-size"), profile,
+    !local && prefix == "" ? string ("Document font selector") : string ("Font selector"));
+  if (N(selected) != 4) return;
+  const array<string> logical= logical_font (selected[0], selected[1]);
+  tree changes (WITH);
+  const auto add= [&] (string name, string value) {
+    if (get (name) == value) return;
+    changes << tree (name) << tree (value);
+  };
+  add ("font", selected[3]);
+  add ("font-family", get_variant (logical));
+  add ("font-series", get_series (logical));
+  add ("font-shape", get_shape (logical));
+  add ("font-base-size", selected[2]);
+  if (N(changes) > 0) {
+    if (local) format_make_multi_with (changes);
+    else if (prefix == "") document_init_multi (changes);
+    else for (int i=0; i<N(changes); i+=2)
+      document_set_init_env (prefix * as_string (changes[i]), tree (as_string (changes[i+1])));
+  }
+  keyboard_focus_on_current_view ("canvas");
+}
+}
+
+void open_font_selector () { select_font (true, ""); }
+void open_document_font_selector () { select_font (false, ""); }
+void open_document_other_font_selector (string prefix) { select_font (false, prefix); }
+
+bool document_in_source_mode () {
+  return get_current_editor ()->get_env_string ("preamble") == "true";
+}
+
+void document_toggle_source_mode () {
+  editor ed= get_current_editor ();
+  string next= ed->get_env_string ("preamble") == "true" ? "false" : "true";
+  if (next == "true") {
+    ed->init_env ("src-style", tree (get_preference ("source tree style")));
+    ed->init_env ("src-special", tree (get_preference ("source tree special rendering")));
+    ed->init_env ("src-compact", tree (get_preference ("source tree compactification")));
+    ed->init_env ("src-close", tree (get_preference ("source tree closing style")));
+  }
+  ed->init_env ("preamble", tree (next));
+}
+
+std::optional<string>
+document_get_init_text (string variable) {
+  tree value= get_current_editor ()->get_init_value (variable);
+  if (is_atomic (value)) return as_string (value);
+  if (is_compound (value, "macro") && N (value) == 1 && is_atomic (value[0]))
+    return as_string (value[0]);
+  return std::nullopt;
+}
+
+bool
+document_test_init (string variable, string value) {
+  return get_current_editor ()->get_init_value (variable) == tree (value);
+}
+
+void
+document_set_init_env (string variable, tree value) {
+  editor ed= get_current_editor ();
+  tree old= ed->get_init_value (variable);
+  if (is_compound (old, "macro") && N (old) == 1 &&
+      !is_compound (value, "macro"))
+    ed->init_env (variable, compound ("macro", value));
+  else
+    ed->init_env (variable, value);
+}
+
+bool
+document_test_init_true (string variable) {
+  return document_test_init (variable, "true");
+}
+
+void
+document_init_multi (tree values) {
+  for (int i= 0; i + 1 < N (values); i += 2) {
+    string variable= as_string (values[i]);
+    if (variable == "font")
+      document_init_font (as_string (values[i + 1]));
+    else
+      get_current_editor ()->init_env (variable, values[i + 1]);
+  }
+}
+
+namespace {
+
+bool tex_gyre_document_font (string value) {
+  return value == "Bonum" || value == "bonum" ||
+         value == "Pagella" || value == "pagella" ||
+         value == "Schola" || value == "schola" ||
+         value == "Termes" || value == "termes" ||
+         starts (value, "TeX Gyre Bonum") ||
+         starts (value, "TeX Gyre Pagella") ||
+         starts (value, "TeX Gyre Schola") ||
+         starts (value, "TeX Gyre Termes");
+}
+
+string tex_gyre_document_profile (string value) {
+  if (value == "Bonum" || value == "bonum" || starts (value, "TeX Gyre Bonum"))
+    return "TeX Gyre Bonum";
+  if (value == "Pagella" || value == "pagella" || starts (value, "TeX Gyre Pagella"))
+    return "TeX Gyre Pagella";
+  if (value == "Schola" || value == "schola" || starts (value, "TeX Gyre Schola"))
+    return "TeX Gyre Schola";
+  if (value == "Termes" || value == "termes" || starts (value, "TeX Gyre Termes"))
+    return "TeX Gyre Termes";
+  return value;
+}
+
+string font_package_name (string value) {
+  if (value == "Fira") return "fira-font";
+  if (value == "Linux Biolinum") return "biolinum-font";
+  if (value == "Linux Libertine") return "libertine-font";
+  return value * "-font";
+}
+
+} // namespace
+
+string
+document_font_display_name (string value) {
+  string family= main_family (value);
+  if (family == "bonum" || starts (family, "TeX Gyre Bonum")) return "Bonum";
+  if (family == "pagella" || starts (family, "TeX Gyre Pagella")) return "Pagella";
+  if (family == "schola" || starts (family, "TeX Gyre Schola")) return "Schola";
+  if (family == "termes" || starts (family, "TeX Gyre Termes")) return "Termes";
+  return upcase_first (family);
+}
+
+void
+document_remove_font_packages () {
+  const auto styles= document_get_style_list ();
+  list<string> filtered;
+  for (int i=0; i<N(styles); ++i)
+    if (!ends (styles[i], "-font")) filtered << styles[i];
+  document_set_style_list (filtered);
+}
+
+void
+document_init_font (string value, std::optional<string> math_font) {
+  editor ed= get_current_editor ();
+
+  if (value == "TeXmacs Computer Modern") {
+    document_init_font ("roman", string ("roman"));
+    return;
+  }
+  if (value == "roman" &&
+      (!math_font || *math_font != "roman")) {
+    document_init_font ("roman", string ("roman"));
+    return;
+  }
+  if (tex_gyre_document_font (value)) {
+    ed->init_env ("font", tree (tex_gyre_document_profile (value)));
+    init_default_current_view ("math-font");
+    ed->init_env ("font-family", tree ("rm"));
+    document_remove_font_packages ();
+    return;
+  }
+  if (starts (value, "Stix")) {
+    document_init_font ("stix", string ("math-stix"));
+    return;
+  }
+
+  ed->init_env ("font", tree (value));
+  if (math_font)
+    ed->init_env ("math-font", tree (*math_font));
+  ed->init_env ("font-family", tree ("rm"));
+  document_remove_font_packages ();
+
+  string package= font_package_name (value);
+  url file= url_concat (url ("$ATHENA_PATH/packages/customize/fonts"),
+                        url (package * ".ats"));
+  if (exists (file)) {
+    init_default_current_view ("font");
+    init_default_current_view ("font-family");
+    document_add_style_package (package);
+  }
+}
+
+namespace {
+
+bool document_style_language (string value) {
+  static const char* const languages[]= {
+    "british", "bulgarian", "chinese", "croatian", "czech", "danish",
+    "dutch", "english", "esperanto", "finnish", "french", "german",
+    "greek", "hungarian", "italian", "japanese", "korean", "polish",
+    "portuguese", "romanian", "russian", "slovak", "slovene", "spanish",
+    "swedish", "taiwanese", "ukrainian"
+  };
+  for (const char* language: languages)
+    if (value == language) return true;
+  return false;
+}
+
+list<string> current_style_list () {
+  const auto styles= document_get_style_list ();
+  list<string> result;
+  for (int i=N(styles)-1; i>=0; --i) result= list<string> (styles[i], result);
+  return result;
+}
+
+list<string> current_style_list (editor_rep* ed) {
+  const auto styles= document_get_style_list (ed);
+  list<string> result;
+  for (int i=N(styles)-1; i>=0; --i) result= list<string> (styles[i], result);
+  return result;
+}
+
+list<string> remove_document_languages (list<string> styles) {
+  list<string> filtered;
+  for (list<string> it= styles; !is_nil (it); it= it->next)
+    if (!document_style_language (it->item)) filtered << it->item;
+  return filtered;
+}
+
+} // namespace
+
+bool
+document_test_default_language () {
+  for (list<string> it= current_style_list (); !is_nil (it); it= it->next)
+    if (document_style_language (it->item)) return false;
+  return true;
+}
+
+void
+document_set_default_language () {
+  list<string> old= current_style_list ();
+  list<string> next= remove_document_languages (old);
+  if (next != old) document_set_style_list (next);
+}
+
+string
+document_get_language () {
+  for (list<string> it= current_style_list (); !is_nil (it); it= it->next)
+    if (document_style_language (it->item)) return it->item;
+  return get_current_editor ()->get_init_string ("language");
+}
+
+string
+document_get_language (editor_rep* ed) {
+  if (ed == nullptr) return string ("english");
+  for (list<string> it= current_style_list (ed); !is_nil (it); it= it->next)
+    if (document_style_language (it->item)) return it->item;
+  return ed->get_init_string ("language");
+}
+
+bool
+document_test_language (string value) {
+  return value == document_get_language ();
+}
+
+void
+document_set_language (string value) {
+  list<string> old= current_style_list ();
+  list<string> next= remove_document_languages (old);
+  if (value != "english") next << value;
+  if (next != old) document_set_style_list (next);
+}
+
+namespace {
+
+void notify_page_change () { get_current_editor ()->notify_page_change (); }
+
+bool defaults_absent (std::initializer_list<const char*> variables) {
+  editor ed= get_current_editor ();
+  for (const char* variable: variables)
+    if (ed->defined_in_init (string (variable))) return false;
+  return true;
+}
+
+void reset_defaults (std::initializer_list<const char*> variables) {
+  for (const char* variable: variables)
+    init_default_current_view (string (variable));
+}
+
+} // namespace
+
+bool document_test_default_page_medium () {
+  return defaults_absent ({"page-medium"});
+}
+
+void document_init_default_page_medium () {
+  reset_defaults ({"page-medium"});
+  notify_page_change ();
+}
+
+bool document_test_page_medium (string value) {
+  return get_current_editor ()->get_init_string ("page-medium") == value;
+}
+
+void document_init_page_medium (string value) {
+  get_current_editor ()->init_env ("page-medium", tree (value));
+  notify_page_change ();
+}
+
+bool document_test_default_page_type () {
+  return defaults_absent ({"page-type", "page-width", "page-height"});
+}
+
+void document_default_page_type () {
+  reset_defaults ({"page-type", "page-width", "page-height"});
+  notify_page_change ();
+}
+
+bool document_test_page_type (string value) {
+  return get_current_editor ()->get_init_string ("page-type") == value;
+}
+
+void document_init_page_type (string value) {
+  editor ed= get_current_editor ();
+  ed->init_env ("page-type", tree (value));
+  ed->init_env ("page-width", tree ("auto"));
+  ed->init_env ("page-height", tree ("auto"));
+  notify_page_change ();
+}
+
+void document_init_page_size (string width, string height) {
+  editor ed= get_current_editor ();
+  ed->init_env ("page-type", tree ("user"));
+  ed->init_env ("page-width", tree (width));
+  ed->init_env ("page-height", tree (height));
+  notify_page_change ();
+}
+
+bool document_test_default_page_orientation () {
+  return defaults_absent ({"page-orientation"});
+}
+
+void document_init_default_page_orientation () {
+  reset_defaults ({"page-orientation"});
+  notify_page_change ();
+}
+
+bool document_test_page_orientation (string value) {
+  return get_current_editor ()->get_env_string ("page-orientation") == value;
+}
+
+void document_init_page_orientation (string value) {
+  get_current_editor ()->init_env ("page-orientation", tree (value));
+  notify_page_change ();
+}
+
+bool document_test_default_page_rendering () {
+  return defaults_absent ({"page-medium"});
+}
+
+void document_init_default_page_rendering () {
+  reset_defaults ({"page-medium", "page-border", "page-packet", "page-offset"});
+  notify_page_change ();
+}
+
+int document_panorama_packets () {
+  editor ed= get_current_editor ();
+  int nr= ed->nr_pages ();
+  SI ww= ed->get_window_width ();
+  SI wh= ed->get_window_height ();
+  SI pw= ed->get_page_width (false);
+  SI ph= ed->get_page_height (false);
+  int best_n= 0;
+  double best_f= 0.0;
+  for (int n= 1; n <= nr; ++n) {
+    int rows= (nr + n - 1) / n;
+    double tw= ((double) n) * ((double) pw);
+    double th= ((double) rows) * ((double) ph);
+    double aw= ((double) ww) - ((double) n) * 5120.0;
+    double ah= ((double) wh) - ((double) rows) * 5120.0;
+    double fw= aw / tw;
+    double fh= ah / th;
+    double factor= std::min (fw, fh);
+    if (n == 1 || factor > best_f) {
+      best_n= n;
+      best_f= factor;
+    }
+  }
+  if (best_n > 0) return best_n;
+  if (nr > 10) return 10;
+  return (int) std::ceil (std::sqrt ((double) nr));
+}
+
+string document_get_init_page_rendering () {
+  editor ed= get_current_editor ();
+  if (ed->get_init_string ("page-border") == "attached") return "book";
+  if (ed->get_init_string ("page-packet") != "1") return "panorama";
+  if (ed->get_init_string ("page-medium") == "paper" && !ed->inside ("slideshow"))
+    return "slideshow";
+  return ed->get_init_string ("page-medium");
+}
+
+string document_get_init_page_rendering (editor_rep* ed) {
+  if (ed == nullptr) return string ("");
+  if (ed->get_init_string ("page-border") == "attached") return "book";
+  if (ed->get_init_string ("page-packet") != "1") return "panorama";
+  if (ed->get_init_string ("page-medium") == "paper" &&
+      !ed->inside ("slideshow"))
+    return "slideshow";
+  return ed->get_init_string ("page-medium");
+}
+
+bool document_test_page_rendering (string value) {
+  return document_get_init_page_rendering () == value;
+}
+
+void document_apply_page_rendering_state (string value) {
+  editor ed= get_current_editor ();
+  if (value == "paper" || value == "papyrus")
+    set_preference ("page medium", value);
+  view_save_zoom (document_get_init_page_rendering (ed.operator-> ()));
+
+  if (value == "book") {
+    ed->init_env ("page-medium", tree ("paper"));
+    ed->init_env ("page-border", tree ("attached"));
+    ed->init_env ("page-packet", tree ("2"));
+    ed->init_env ("page-offset", tree ("1"));
+  }
+  else if (value == "panorama") {
+    ed->init_env ("page-medium", tree ("paper"));
+    ed->init_env ("page-packet", tree (as_string (document_panorama_packets ())));
+    reset_defaults ({"page-border", "page-offset"});
+  }
+  else if (value == "slideshow") {
+    ed->init_env ("page-medium", tree ("paper"));
+    reset_defaults ({"page-packet", "page-border", "page-offset"});
+  }
+  else {
+    ed->init_env ("page-medium", tree (value));
+    reset_defaults ({"page-border", "page-packet", "page-offset"});
+  }
+  notify_page_change ();
+}
+
+bool document_visible_header_and_footer () {
+  return get_current_editor ()->get_env_string ("page-show-hf") == "true";
+}
+
+void document_toggle_visible_header_and_footer () {
+  editor ed= get_current_editor ();
+  string next= ed->get_env_string ("page-show-hf") == "true" ? "false" : "true";
+  ed->init_env ("page-show-hf", tree (next));
+}
+
+bool document_page_width_margin () {
+  return get_current_editor ()->get_env_string ("page-width-margin") == "true";
+}
+
+void document_toggle_page_width_margin () {
+  editor ed= get_current_editor ();
+  string next= ed->get_env_string ("page-width-margin") == "true" ? "false" : "true";
+  ed->init_env ("page-width-margin", tree (next));
+}
+
+bool document_not_page_screen_margin () {
+  return get_current_editor ()->get_env_string ("page-screen-margin") == "false";
+}
+
+void document_toggle_page_screen_margin () {
+  editor ed= get_current_editor ();
+  string next= ed->get_env_string ("page-screen-margin") == "false" ? "true" : "false";
+  ed->init_env ("page-screen-margin", tree (next));
+}
+
+namespace {
+
+bool has_style_package (string name) {
+  return document_has_style_package (name);
+}
+
+void add_style_package (string name) {
+  document_add_style_package (name);
+}
+
+void remove_style_package (string name) {
+  document_remove_style_package (name);
+}
+
+} // namespace
+
+bool document_reduced_margins () {
+  return document_test_init ("page-odd", "1cm");
+}
+
+void document_toggle_reduced_margins () {
+  if (has_style_package ("reduced-margins"))
+    remove_style_package ("reduced-margins");
+  else if (has_style_package ("normal-margins"))
+    remove_style_package ("normal-margins");
+  else if (document_reduced_margins ())
+    add_style_package ("normal-margins");
+  else
+    add_style_package ("reduced-margins");
+}
+
+bool document_indent_paragraphs () {
+  const auto value= document_get_init_text ("par-first");
+  if (!value) return true;
+  const string& s= *value;
+  return !(s == "0fn" || s == "0em" || s == "0tab" ||
+           s == "0cm" || s == "0mm" || s == "0in");
+}
+
+void document_toggle_indent_paragraphs () {
+  if (has_style_package ("indent-paragraphs"))
+    remove_style_package ("indent-paragraphs");
+  else if (has_style_package ("padded-paragraphs"))
+    remove_style_package ("padded-paragraphs");
+  else if (document_indent_paragraphs ())
+    add_style_package ("padded-paragraphs");
+  else
+    add_style_package ("indent-paragraphs");
+}
+
+bool document_no_page_numbers () {
+  return document_test_init ("no-page-numbers", "true");
+}
+
+void document_toggle_no_page_numbers () {
+  if (has_style_package ("page-numbers"))
+    remove_style_package ("page-numbers");
+  else if (has_style_package ("no-page-numbers"))
+    remove_style_package ("no-page-numbers");
+  else if (document_no_page_numbers ())
+    add_style_package ("page-numbers");
+  else
+    add_style_package ("no-page-numbers");
+}
+
+bool
+document_has_preamble (tree t) {
+  return is_compound (t, "document") && N (t) > 0 &&
+         (is_compound (t[0], "show-preamble") ||
+          is_compound (t[0], "hide-preamble"));
+}
+
+tree
+document_get_preamble (tree t) {
+  if (document_has_preamble (t) && N (t[0]) > 0) return t[0][0];
+  return compound ("document", "");
+}
+
+bool
+document_buffer_has_preamble () {
+  return document_has_preamble (get_current_editor ()->the_buffer ());
+}
+
+tree
+document_buffer_get_preamble () {
+  return document_get_preamble (get_current_editor ()->the_buffer ());
+}
+
+bool
+document_in_preamble_mode () {
+  tree root= get_current_editor ()->the_buffer ();
+  return document_has_preamble (root) && is_compound (root[0], "show-preamble");
+}
+
+namespace {
+
+void buffer_show_preamble_impl () {
+  tree root= get_current_editor ()->the_buffer ();
+  if (!is_compound (root, "document") || N (root) == 0 ||
+      !is_compound (root[0], "hide-preamble") || N (root[0]) == 0)
+    return;
+
+  tree shown= compound ("show-preamble", root[0][0]);
+  athena::node::copy_metadata (root[0], shown);
+  array<tree> body_children;
+  for (int i= 1; i < N (root); ++i) body_children << root[i];
+  tree body= compound ("ignore", compound ("document", body_children));
+  tree replacement= compound ("document", shown, body);
+  athena::node::copy_metadata (root, replacement);
+  (void) tree_assign (root, replacement);
+}
+
+void buffer_hide_preamble_impl () {
+  tree root= get_current_editor ()->the_buffer ();
+  if (!is_compound (root, "document", 2) ||
+      !is_compound (root[0], "show-preamble", 1) ||
+      !is_compound (root[1], "ignore", 1) ||
+      !is_compound (root[1][0], "document"))
+    return;
+
+  array<tree> children;
+  tree hidden= compound ("hide-preamble", root[0][0]);
+  athena::node::copy_metadata (root[0], hidden);
+  children << hidden;
+  if (athena::node::get (root[1])) {
+    // Normally these containers are anonymous presentation wrappers. If a
+    // caller explicitly annotated one, keep it as a visible content group.
+    tree visible (DOCUMENT, root[1][0]);
+    athena::node::copy_metadata (root[1], visible);
+    children << visible;
+  }
+  else if (athena::node::get (root[1][0])) children << root[1][0];
+  else
+    for (int i= 0; i < N (root[1][0]); ++i) children << root[1][0][i];
+  tree replacement= compound ("document", children);
+  athena::node::copy_metadata (root, replacement);
+  (void) tree_assign (root, replacement);
+}
+
+void document_refresh () {
+  get_current_editor ()->typeset_invalidate_all ();
+}
+
+} // namespace
+
+void
+document_buffer_show_preamble () {
+  buffer_show_preamble_impl ();
+}
+
+void
+document_buffer_hide_preamble () {
+  buffer_hide_preamble_impl ();
+}
+
+void
+document_toggle_preamble_mode () {
+  editor ed= get_current_editor ();
+  if (document_in_preamble_mode ()) {
+    buffer_hide_preamble_impl ();
+    tree root= ed->the_buffer ();
+    if (is_compound (root, "document") && N (root) > 1)
+      ed->go_to_start (reverse (obtain_ip (root)) * 1);
+    document_refresh ();
+    return;
+  }
+
+  if (document_buffer_has_preamble ()) {
+    buffer_show_preamble_impl ();
+    tree root= ed->the_buffer ();
+    ed->go_to_start (reverse (obtain_ip (root)) * 0 * 0);
+    document_refresh ();
+    return;
+  }
+
+  document_buffer_make_preamble ();
+}
+
+void
+document_buffer_make_preamble () {
+  if (document_buffer_has_preamble ()) return;
+  editor ed= get_current_editor ();
+  tree root= ed->the_buffer ();
+  if (!is_compound (root, "document")) return;
+
+  tree hidden= compound ("hide-preamble", compound ("document", ""));
+  array<tree> children;
+  children << hidden;
+  for (int i= 0; i < N (root); ++i) children << root[i];
+  tree replacement= compound ("document", children);
+  athena::node::copy_metadata (root, replacement);
+  (void) tree_assign (root, replacement);
+  buffer_show_preamble_impl ();
+  root= ed->the_buffer ();
+  ed->go_to_start (reverse (obtain_ip (root)) * 0 * 0);
+  document_refresh ();
+}

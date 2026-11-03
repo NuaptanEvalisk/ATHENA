@@ -8,7 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-#include "radioactive_link_scope.hpp"
+#include "Typesetting/radioactive_link_scope.hpp"
 
 #include <QtTest/QtTest>
 

@@ -11,9 +11,9 @@
 #include <QStandardPaths>
 #include <QTemporaryDir>
 
-#include "ATHENA/Data/vault_backup_dispatcher.hpp"
-#include "ATHENA/Data/vault_maintenance_passes.hpp"
-#include "ATHENA/Data/vaultfile_json.hpp"
+#include "Domains/Vault/vault_backup_dispatcher.hpp"
+#include "Domains/Vault/vault_maintenance_passes.hpp"
+#include "Domains/Vault/vaultfile_json.hpp"
 
 #include <filesystem>
 #include <fstream>

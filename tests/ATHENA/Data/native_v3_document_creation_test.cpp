@@ -6,29 +6,29 @@
 * This software falls under the GNU general public license version 3 or later.
 ******************************************************************************/
 #include <QtTest/QtTest>
-#include "Data/NodeContracts/editing_query.hpp"
+#include "Document/NodeContracts/editing_query.hpp"
 #include <QDir>
 #include <QFile>
 #include <QScopeGuard>
 #include <QTemporaryDir>
 
-#include "ATHENA/Data/source_document_creation.hpp"
-#include "ATHENA/Data/new_buffer.hpp"
-#include "ATHENA/Data/namespaces.hpp"
-#include "ATHENA/Data/interop_filesystem.hpp"
-#include "ATHENA/Data/interop_document_codec.hpp"
-#include "ATHENA/Data/document_node_model.hpp"
-#include "ATHENA/Data/vault.hpp"
-#include "Data/Tree/math_tree_v3.hpp"
+#include "Document/Model/source_document_creation.hpp"
+#include "App/Frontend/new_buffer.hpp"
+#include "Domains/Namespaces/namespaces.hpp"
+#include "Interop/Adapters/interop_filesystem.hpp"
+#include "Interop/Adapters/interop_document_codec.hpp"
+#include "Document/Model/document_node_model.hpp"
+#include "Domains/Vault/vault.hpp"
+#include "Document/Tree/math_tree_v3.hpp"
 #include "node_metadata.hpp"
-#include "buffer_actor.hpp"
-#include "tm_buffer.hpp"
+#include "App/Runtime/buffer_actor.hpp"
+#include "App/Runtime/tm_buffer.hpp"
 #include "convert.hpp"
 #include "analyze.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 #include "native_dispatch.hpp"
-#include "ATHENA/server.hpp"
-#include "Graphics/Gui/gui.hpp"
+#include "App/Runtime/server.hpp"
+#include "UI/Abstract/gui.hpp"
 #include "boot.hpp"
 #include "data_cache.hpp"
 #include "file.hpp"

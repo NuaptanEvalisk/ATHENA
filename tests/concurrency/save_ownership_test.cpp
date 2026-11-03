@@ -1,6 +1,6 @@
 // Compile without Qt/Guile; exercises the exact production lifetime/snapshot types.
-#include "actor_lifetime.hpp"
-#include "buffer_name_catalog.hpp"
+#include "App/Runtime/actor_lifetime.hpp"
+#include "App/Runtime/buffer_name_catalog.hpp"
 
 #include <atomic>
 #include <cassert>

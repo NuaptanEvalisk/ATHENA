@@ -19,11 +19,11 @@
 
 #include <sqlite3.h>
 #include <future>
-#include "../../../src/ATHENA/Interop/resources.hpp"
-#include "ATHENA/Interop/traversal.hpp"
-#include "ATHENA/Data/interop_filesystem.hpp"
-#include "ATHENA/Data/interop_document.hpp"
-#include "Data/Convert/Xml/document_file_codec.hpp"
+#include "../../../src/Interop/Engine/resources.hpp"
+#include "Interop/Engine/traversal.hpp"
+#include "Interop/Adapters/interop_filesystem.hpp"
+#include "Interop/Adapters/interop_document.hpp"
+#include "Document/Convert/Xml/document_file_codec.hpp"
 #include "node_metadata.hpp"
 #include <algorithm>
 #include <fstream>

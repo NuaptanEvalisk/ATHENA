@@ -190,7 +190,7 @@ MATH_BLOCK、MATH_GRID 等 v3 AST。详见 `notes/athena-xml-v3.md`。
 
 新文档、正常保存、Save As、自动保存/恢复须遵循相应 Vault 的
 版本与身份不变量。实际版本 dispatch 以
-`src/Data/Convert/Xml/native_xml_codec.cpp`、
+`src/Document/Convert/Xml/native_xml_codec.cpp`、
 `document_file_codec.cpp` 和 `document_upgrade_file.cpp` 为准。
 旧 XML v1/v2 与旧升级工具仍有源码残留，不意味着当前生产
 Vault 仍待升级。不得为普通开发任务重新迁移生产 Notes。
@@ -354,21 +354,21 @@ child 增删/label 变化、匿名目标、嵌套 wrap/unwrap、undo/redo 与 Ma
 
 | 领域 | 主要入口 |
 | --- | --- |
-| 元数据与 tree | `src/Kernel/Types/node_metadata.{hpp,cpp}`、`tree.*` |
-| 修改与历史 | `src/Kernel/Types/modification.*`、`src/Kernel/Abstractions/observer.cpp`、`src/Data/History/commute.cpp` |
-| 源角色/增量身份 | `src/ATHENA/Data/document_node_model.*`、`src/Edit/Modify/edit_modify.cpp`、`src/ATHENA/buffer_state.hpp` |
-| 源快照/校正/加载 | `src/ATHENA/Data/interop_document_source.*`、`src/ATHENA/Server/buffer_actor.cpp`、`src/Data/Tree/tree_correct.cpp`、`tree_brackets.cpp`、`tree_analyze.cpp` |
-| 复制/剪贴板 | `src/ATHENA/Data/document_node_copy.*`，以及 `tree_duplicate_source` / `duplicate_source` callers |
-| 原生源树接口 | `src/ATHENA/Commands/native_tree_diff.cpp`、`src/ATHENA/Data/document_node_model.*`、`src/ATHENA/Commands/Interfaces/native.xml` |
-| enunciation | `src/ATHENA/Data/enunciation_model.*`、`ATHENA/misc/enunciations.json` |
-| 呈现 | `src/Typeset/Env/env_enunciation.cpp`、`src/Typeset/enunciation_presentation.hpp`、`enunciation_surround.hpp` |
-| 属性 UI | `src/Subsystems/Qt/QTMNodePropertiesDialog.*` |
-| 定位 | `src/ATHENA/Data/node_location.*`、`vault_node_location.*` |
-| 引用/hover | `src/ATHENA/Data/node_reference.*`、`src/Subsystems/Qt/QTMNodeReferences.cpp` |
-| 导出 | `src/ATHENA/Data/node_reference_export.*`、`src/Subsystems/Qt/QTMNodeReferenceExport.cpp` |
-| 当前 XML v3 | `src/Data/Convert/Xml/athena_document_xml_v3.cpp`、`native_xml_codec.cpp` |
-| AUDMAP | `src/ATHENA/Data/interop_document_codec.*`、`interop_document_nodes.*` |
-| Safe Rename | `src/ATHENA/Data/vault_safe_rename.*`、`.athena/safe-rename.sqlite` |
+| 元数据与 tree | `src/Core/Types/node_metadata.{hpp,cpp}`、`tree.*` |
+| 修改与历史 | `src/Core/Types/modification.*`、`src/Core/Abstractions/observer.cpp`、`src/Document/History/commute.cpp` |
+| 源角色/增量身份 | `src/Document/Model/document_node_model.*`、`src/Editor/Modify/edit_modify.cpp`、`src/App/Runtime/buffer_state.hpp` |
+| 源快照/校正/加载 | `src/Interop/Adapters/interop_document_source.*`、`src/App/Runtime/buffer_actor.cpp`、`src/Document/Tree/tree_correct.cpp`、`tree_brackets.cpp`、`tree_analyze.cpp` |
+| 复制/剪贴板 | `src/Document/Model/document_node_copy.*`，以及 `tree_duplicate_source` / `duplicate_source` callers |
+| 原生源树接口 | `src/App/Commands/native_tree_diff.cpp`、`src/Document/Model/document_node_model.*`、`src/App/Commands/Interfaces/native.xml` |
+| enunciation | `src/Domains/Knowledge/enunciation_model.*`、`ATHENA/misc/enunciations.json` |
+| 呈现 | `src/Typesetting/Env/env_enunciation.cpp`、`src/Typesetting/enunciation_presentation.hpp`、`enunciation_surround.hpp` |
+| 属性 UI | `src/UI/Qt/Knowledge/QTMNodePropertiesDialog.*` |
+| 定位 | `src/Domains/References/node_location.*`、`src/Domains/Vault/vault_node_location.*` |
+| 引用/hover | `src/Domains/References/node_reference.*`、`src/UI/Qt/Knowledge/QTMNodeReferences.cpp` |
+| 导出 | `src/Domains/References/node_reference_export.*`、`src/UI/Qt/Knowledge/QTMNodeReferenceExport.cpp` |
+| 当前 XML v3 | `src/Document/Convert/Xml/athena_document_xml_v3.cpp`、`native_xml_codec.cpp` |
+| AUDMAP | `src/Interop/Adapters/interop_document_codec.*`、`interop_document_nodes.*` |
+| Safe Rename | `src/Domains/Vault/vault_safe_rename.*`、`.athena/safe-rename.sqlite` |
 | 当前 XML v3 契约 | `notes/athena-xml-v3.md` |
 
 ## 仓库工作流备注
@@ -381,7 +381,7 @@ cmake --build build_qt6 --target ATHENA.bin -j16
 
 binary 位于 `build_qt6/src/ATHENA.bin`。
 
-原生命令接口先读 `src/ATHENA/Commands/Interfaces/README.md`：签名在 XML 声明，
+原生命令接口先读 `src/App/Commands/Interfaces/README.md`：签名在 XML 声明，
 由 CMake 生成 C++ 调度器，实现留在独立 native C++ 文件中。不要手写逐命令的生成适配器或注册代码。
 
 跨线程继续遵守 BufferActor ownership。生成接口只解决 marshalling/dispatch，不授予任意线程

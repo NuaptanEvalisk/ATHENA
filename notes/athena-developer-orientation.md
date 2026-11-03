@@ -78,18 +78,19 @@ Paths in this note are relative to the repository unless absolute.
 
 | Area | Entry Points |
 | --- | --- |
-| Startup and CLI modes | `src/ATHENA/ATHENA/athena.cpp` |
-| Buffer lifecycle, vaults, namespaces, artifacts | `src/ATHENA/Data/` |
-| Application coordination and actors | `src/ATHENA/Server/`, `src/ATHENA/buffer_actor.hpp` |
-| Editing, selection, navigation, undo | `src/Edit/`, especially `src/Edit/Editor/` |
-| Style/macro evaluation | `src/Typeset/Env/` |
-| Inline content and mathematical construction | `src/Typeset/Concat/` |
-| Incremental typesetting and layout | `src/Typeset/Bridge/`, `src/Typeset/Boxes/` |
-| Font selection, shaping and ownership | `src/Graphics/Fonts/`, `src/Subsystems/Freetype/` |
-| Rendering | `src/Graphics/Renderer/`, `src/Subsystems/Qt/qt_renderer.cpp` |
-| Native UI and render service | `src/Subsystems/Qt/` |
-| Native document codec and legacy import | `src/Data/Convert/Xml/` |
-| Native command declarations and generated dispatch | `src/ATHENA/Commands/` |
+| Startup and CLI modes | `src/App/Entry/athena.cpp` |
+| Buffer/view lifecycle | `src/App/Frontend/`, `src/App/Runtime/` |
+| Vaults, namespaces, artifacts and knowledge | `src/Domains/Vault/`, `src/Domains/Namespaces/`, `src/Domains/Artifacts/`, `src/Domains/Knowledge/` |
+| Application coordination and actors | `src/App/Runtime/`, `src/App/Runtime/buffer_actor.hpp` |
+| Editing, selection, navigation, undo | `src/Editor/`, especially `src/Editor/Engine/` |
+| Style/macro evaluation | `src/Typesetting/Env/` |
+| Inline content and mathematical construction | `src/Typesetting/Concat/` |
+| Incremental typesetting and layout | `src/Typesetting/Bridge/`, `src/Typesetting/Boxes/` |
+| Font selection, shaping and ownership | `src/Rendering/Fonts/`, `src/Rendering/Fonts/Freetype/` |
+| Rendering | `src/Rendering/Renderer/`, `src/UI/Qt/Rendering/qt_renderer.cpp` |
+| Native UI and render service | `src/UI/Qt/` (grouped by shell, document, vault, commands, editor and integration) |
+| Native document codec and legacy import | `src/Document/Convert/Xml/` |
+| Native command declarations and generated dispatch | `src/App/Commands/` |
 | Directly linked citation engine | `src/Materials/Engine/` (Rust/Hayagriva) |
 | Installed Codex bridge helper | `src/Integrations/Codex/Bridge/` |
 | Independent Hodarium authority/relay | `services/hodarium/` (Go module) |
@@ -97,8 +98,8 @@ Paths in this note are relative to the repository unless absolute.
 | AUDMAP client SDK and CLI | `clients/cpp/`, `clients/audmap-cli/` |
 | Historical document migration tools | `tools/migrations/interop/` |
 | Styles and declarative resources | `ATHENA/packages/`, `ATHENA/misc/` |
-| AUDM resolution and resource adapters | `src/ATHENA/Interop/`, `src/ATHENA/Data/interop_*.cpp` |
-| AUDMAP transport and new plugins | `src/Subsystems/AUDMAP/`, `src/Subsystems/Plugins/`, `clients/` |
+| AUDM resolution and resource adapters | `src/Interop/Engine/`, `src/Interop/Adapters/` |
+| AUDMAP transport and new plugins | `src/Services/AUDMAP/`, `src/Services/Plugins/`, `clients/` |
 | Tests | `tests/`, organized by subsystem |
 
 Read the relevant implementation before attributing behavior to it. Historical
@@ -136,9 +137,9 @@ replays them; Qt presents completed frames. Live document boxes and font graphs
 are not handed to the GUI for traversal.
 
 References: `notes/font-domain-ownership.md`,
-`notes/actor-runtime-architecture.md`, `src/ATHENA/actor_transport.hpp`,
-`src/ATHENA/actor_ui_bridge.hpp`, `src/ATHENA/buffer_state.hpp`, and
-`src/Subsystems/Qt/QTMRenderService.cpp`. The architecture notes describe the
+`notes/actor-runtime-architecture.md`, `src/App/Runtime/actor_transport.hpp`,
+`src/App/Runtime/actor_ui_bridge.hpp`, `src/App/Runtime/buffer_state.hpp`, and
+`src/UI/Qt/Editor/QTMRenderService.cpp`. The architecture notes describe the
 current ownership model; verify the implementation when exact details matter.
 
 ## Text, Documents And Rendering
@@ -163,7 +164,7 @@ normalization, editing and undo; copying as new objects is distinct from
 copying a snapshot. Full storage equality and content/model-input equality
 are different operations. Do not round-trip source edits through
 metadata-losing serialized syntax trees. See `notes/athena-xml-v3.md` and
-`src/Data/Tree/math_tree_v3.hpp` for the current math structure.
+`src/Document/Tree/math_tree_v3.hpp` for the current math structure.
 
 Wikilinks and transclusions resolve source UUIDs through native location services
 and tmfs. Do not restore file/anchor hints or generated identity-anchor production.
@@ -176,7 +177,7 @@ Use the shared document IO/transaction interfaces rather than writing a new
 parser or directly calling a legacy writer. Do not run format migration on the
 production vault while investigating an unrelated bug. The current format
 reference is `notes/athena-xml-v3.md`; older storage notes in
-`src/Data/Convert/Xml/README.md` describe previous XML versions.
+`src/Document/Convert/Xml/README.md` describe previous XML versions.
 
 Document structure, macro expansion, layout and final painting are different
 representations. For a visual failure, follow the relevant transitions:
@@ -203,7 +204,7 @@ Application behavior is native C++ plus declarative resources. The embedded
 Scheme runtime, object/glue bridge and vendored Guile/GC dependencies have been
 removed. The native typesetting/style evaluator and legacy data readers remain.
 
-Named native commands are declared in XML under `src/ATHENA/Commands/Interfaces/`.
+Named native commands are declared in XML under `src/App/Commands/Interfaces/`.
 CMake's `athena_commands` target generates typed C++ dispatch in the build
 directory. Read that directory's README before changing bindings. Keep XML as
 the single signature/registration source; do not add manual command wrappers,
@@ -217,8 +218,8 @@ authorization UI. There are fixed worker pools, connection authorization and
 ticket-local handles. Plugin access must preserve actor and filesystem ownership
 boundaries; it is not arbitrary Scheme execution inside the editor.
 
-References: `src/ATHENA/Interop/README.md`,
-`src/Subsystems/Plugins/README.md`, and `clients/README.md`.
+References: `src/Interop/Engine/README.md`,
+`src/Services/Plugins/README.md`, and `clients/README.md`.
 
 ## Build, Test And Deploy
 

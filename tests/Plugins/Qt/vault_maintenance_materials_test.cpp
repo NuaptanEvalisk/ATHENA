@@ -6,9 +6,9 @@
 
 #include <QtTest/QtTest>
 
-#include "ATHENA/Data/materials.hpp"
-#include "ATHENA/Data/vault_maintenance_passes.hpp"
-#include "ATHENA/Data/vaultfile_json.hpp"
+#include "Materials/Model/materials.hpp"
+#include "Domains/Vault/vault_maintenance_passes.hpp"
+#include "Domains/Vault/vaultfile_json.hpp"
 
 #include <algorithm>
 #include <filesystem>

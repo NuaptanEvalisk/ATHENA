@@ -11,9 +11,9 @@
 
 #include "vault_map_sqlite.hpp"
 #include "reference_graph_cache.hpp"
-#include "Data/Convert/Xml/document_file_codec.hpp"
-#include "Data/Convert/Xml/document_upgrade_file.hpp"
-#include "Subsystems/RAG/rag_index.hpp"
+#include "Document/Convert/Xml/document_file_codec.hpp"
+#include "Document/Convert/Xml/document_upgrade_file.hpp"
+#include "Services/RAG/rag_index.hpp"
 #include "vault_safe_rename.hpp"
 #include "vaultfile_json.hpp"
 #include "vault.hpp"
@@ -22,7 +22,7 @@
 #include "node_metadata.hpp"
 #include "native_interfaces.hpp"
 #include "convert.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 #include "file.hpp"
 #include "url.hpp"
 

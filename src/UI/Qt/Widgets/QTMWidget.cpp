@@ -1,0 +1,2830 @@
+
+/******************************************************************************
+* MODULE     : QTMWidget.cpp
+* DESCRIPTION: QT Texmacs widget class
+* COPYRIGHT  : (C) 2008 Massimiliano Gubinelli and Joris van der Hoeven
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#include "UI/Qt/Widgets/QTMWidget.hpp"
+#include "athena_platform.hpp"
+#include "UI/Qt/Editor/QTMRenderService.hpp"
+#include "UI/Qt/Document/QTMDocumentSearchBar.hpp"
+#include "UI/Qt/Toolkit/qt_gui.hpp"
+#include "App/Window/tm_window.hpp"
+#include "UI/Qt/Toolkit/qt_utilities.hpp"
+#include "UI/Qt/Toolkit/qt_simple_widget.hpp"
+#include "UI/Qt/Toolkit/qt_actor_widget.hpp"
+#include "converter.hpp"
+#include "boot.hpp"
+#include "new_view.hpp"
+#include "App/Frontend/new_buffer.hpp"
+#include "Domains/Vault/vault_image_insertion.hpp"
+#include "Editor/editor.hpp"
+#include "Editor/Commands/edit_graphics.hpp"
+#include "renderer.hpp"
+#include "UI/Qt/Rendering/qt_renderer.hpp"
+#include "UI/Qt/Shell/QTMApplication.hpp"
+#include "UI/Qt/Editor/QTMKeyboardEvent.hpp"
+#include "UI/Qt/Vault/QTMNeighborhoodsPane.hpp"
+#include "UI/Qt/Editor/QTMCommutativeDiagramArrowPane.hpp"
+#include "UI/Qt/Editor/native_drawing_ui.hpp"
+
+#include "config.h"
+
+#include <QDebug>
+#include <QEvent>
+#include <QResizeEvent>
+#include <QKeyEvent>
+#include <QPaintEvent>
+#include <QMouseEvent>
+#include <QFocusEvent>
+#include <QPainter>
+#include <QPainterPath>
+#include <QPen>
+#include <QColor>
+#include <QActionGroup>
+#include <QIcon>
+#include <QMenu>
+#include <QCursor>
+#include <QPolygonF>
+#include <QTransform>
+#include <QApplication>
+#include <QInputMethod>
+#include <QNativeGestureEvent>
+#include <QStyleHints>
+#include <QScrollBar>
+#include <QTouchEvent>
+
+#include <limits>
+
+#include <QBuffer>
+#include <QMimeData>
+#include <QByteArray>
+#include <QImage>
+#include <QUrl>
+#include <QFileInfo>
+#include <QFile>
+#include <chrono>
+
+#include <algorithm>
+#include <cmath>
+
+static long int QTMWcounter = 0; // debugging hack
+
+namespace {
+
+
+void profile_presented_frame (qt_simple_widget_rep* widget) {
+  const QByteArray arm= qgetenv ("ATHENA_PROFILE_FIRST_PAINT_ARM_FILE");
+  if (arm.isEmpty ()) return;
+  auto* actor= dynamic_cast<qt_actor_widget_rep*> (widget);
+  if (!actor || actor->actor_id () != qgetenv ("ATHENA_PROFILE_ACTOR").toULongLong ())
+    return;
+  // Only a frame painted for the requested document completes the measurement.
+  if (!QFile::remove (QString::fromUtf8 (arm))) return;
+  const auto now= std::chrono::system_clock::now ().time_since_epoch ();
+  const auto ns= std::chrono::duration_cast<std::chrono::nanoseconds> (now).count ();
+  QFile timing (QString::fromUtf8 (qgetenv ("ATHENA_PROFILE_TIMING_FILE")));
+  if (timing.open (QIODevice::WriteOnly | QIODevice::Append))
+    timing.write ("first-paint\t" + QByteArray::number (qlonglong (ns)) + "\tcompositor\n");
+}
+
+class scoped_event_check_suppression {
+  qt_gui_rep* gui;
+  bool restore;
+
+public:
+  explicit scoped_event_check_suppression (qt_gui_rep* gui2)
+    : gui (gui2), restore (gui2 != nullptr && gui2->event_checking_enabled ()) {
+    if (gui != nullptr) gui->set_check_events (false);
+  }
+
+  ~scoped_event_check_suppression () {
+    if (gui != nullptr) gui->set_check_events (restore);
+  }
+};
+
+}
+
+static string
+gestureEventTypeName (QEvent::Type type) {
+  if (type == QEvent::TouchBegin) return "TouchBegin";
+  if (type == QEvent::TouchEnd) return "TouchEnd";
+  if (type == QEvent::TouchUpdate) return "TouchUpdate";
+  if (type == QEvent::TouchCancel) return "TouchCancel";
+  if (type == QEvent::NativeGesture) return "NativeGesture";
+  if (type == QEvent::Gesture) return "Gesture";
+  if (type == QEvent::GestureOverride) return "GestureOverride";
+  return "type_" * as_string ((int) type);
+}
+
+static QRectF
+native_shape_rect (QPointF first, QPointF last, bool constrained) {
+  if (!constrained) return QRectF (first, last).normalized ();
+  double dx= last.x () - first.x ();
+  double dy= last.y () - first.y ();
+  double side= std::max (std::fabs (dx), std::fabs (dy));
+  if (side <= 0.0) return QRectF (first, first);
+  QPointF end (first.x () + (dx < 0.0 ? -side : side),
+               first.y () + (dy < 0.0 ? -side : side));
+  return QRectF (first, end).normalized ();
+}
+
+static QPolygonF
+native_regular_polygon (const QRectF& rect, int sides) {
+  QPolygonF polygon;
+  if (sides < 3 || !rect.isValid ()) return polygon;
+  QPointF center= rect.center ();
+  double radius= 0.5 * std::min (rect.width (), rect.height ());
+  constexpr double pi= 3.1415926535897932384626433832795;
+  for (int i=0; i<sides; ++i) {
+    double angle= -0.5 * pi + 2.0 * pi * (double) i / (double) sides;
+    polygon << QPointF (center.x () + radius * std::cos (angle),
+                        center.y () + radius * std::sin (angle));
+  }
+  return polygon;
+}
+
+static void
+native_draw_arrow_head (QPainter& painter, QPointF tail, QPointF tip,
+                        double lineWidth) {
+  QPointF v= tip - tail;
+  double length= std::hypot (v.x (), v.y ());
+  if (length <= 1.0e-6) return;
+  v /= length;
+  QPointF normal (-v.y (), v.x ());
+  double size= std::max (8.0, 4.0 * lineWidth);
+  QPointF base= tip - v * size;
+  painter.drawLine (tip, base + normal * (0.45 * size));
+  painter.drawLine (tip, base - normal * (0.45 * size));
+}
+
+static void
+native_draw_shape_preview (QPainter& painter, native_drawing_shape shape,
+                           QPointF first, QPointF last, double lineWidth) {
+  switch (shape) {
+  case native_drawing_shape::line:
+    painter.drawLine (first, last);
+    break;
+  case native_drawing_shape::square:
+    painter.drawRect (native_shape_rect (first, last, true));
+    break;
+  case native_drawing_shape::rectangle:
+    painter.drawRect (native_shape_rect (first, last, false));
+    break;
+  case native_drawing_shape::circle:
+    painter.drawEllipse (native_shape_rect (first, last, true));
+    break;
+  case native_drawing_shape::ellipse:
+    painter.drawEllipse (native_shape_rect (first, last, false));
+    break;
+  case native_drawing_shape::triangle: {
+    QRectF r= native_shape_rect (first, last, false);
+    QPolygonF polygon;
+    polygon << QPointF (r.center ().x (), r.top ())
+            << r.bottomRight () << r.bottomLeft ();
+    painter.drawPolygon (polygon);
+    break;
+  }
+  case native_drawing_shape::right_triangle: {
+    QPolygonF polygon;
+    polygon << first << QPointF (last.x (), first.y ())
+            << QPointF (first.x (), last.y ());
+    painter.drawPolygon (polygon);
+    break;
+  }
+  case native_drawing_shape::pentagon:
+    painter.drawPolygon (native_regular_polygon (
+      native_shape_rect (first, last, true), 5));
+    break;
+  case native_drawing_shape::hexagon:
+    painter.drawPolygon (native_regular_polygon (
+      native_shape_rect (first, last, true), 6));
+    break;
+  case native_drawing_shape::arrow:
+    painter.drawLine (first, last);
+    native_draw_arrow_head (painter, first, last, lineWidth);
+    break;
+  case native_drawing_shape::double_arrow:
+    painter.drawLine (first, last);
+    native_draw_arrow_head (painter, first, last, lineWidth);
+    native_draw_arrow_head (painter, last, first, lineWidth);
+    break;
+  case native_drawing_shape::orthogonal_polyline: {
+    QPointF delta= last - first;
+    QPointF elbow= std::fabs (delta.x ()) >= std::fabs (delta.y ()) ?
+      QPointF (last.x (), first.y ()) : QPointF (first.x (), last.y ());
+    painter.drawLine (first, elbow);
+    painter.drawLine (elbow, last);
+    break;
+  }
+  }
+}
+
+/*! Constructor.
+ 
+  \param _parent The parent QWidget.
+  \param _tmwid the TeXmacs widget who owns this object.
+ */
+QTMWidget::QTMWidget (QWidget* _parent, qt_widget _tmwid)
+: QTMScrollView (_parent), tmwid (_tmwid),  imwidget (NULL),
+  preediting (false), performanceMonitor (this)
+{
+  setObjectName (to_qstring ("QTMWidget" * as_string (QTMWcounter++)));// What is this for? (maybe only debugging?)
+  setFocusPolicy (Qt::StrongFocus);
+  setAttribute (Qt::WA_InputMethodEnabled);
+  setInputMethodHints (Qt::ImhMultiLine);
+  surface ()->setMouseTracking (true);
+  proofTrack= std::make_unique<QTMProofTrack> (surface ());
+  if (auto* proxy= dynamic_cast<qt_actor_widget_rep*> (tm_widget ())) {
+    proofTrack->actor= proxy->actor_id ();
+    proofTrack->view= proxy->view_id ();
+  }
+  proofTrack->navigate= [this] (const QTMProofEndpoint& endpoint) {
+    const QPoint destination=
+      (endpoint.position + proofTrackDisplayedOrigin).toPoint ();
+    verticalScrollBar ()->setValue (destination.y ()-surface ()->height ()/3);
+  };
+  proofTrack->scroll= [this] (int delta) {
+    verticalScrollBar ()->setValue (verticalScrollBar ()->value ()+delta);
+  };
+  surface ()->setAcceptDrops (true);
+  setAttribute (Qt::WA_AcceptTouchEvents);
+  viewport ()->setAttribute (Qt::WA_AcceptTouchEvents);
+  surface ()->setAttribute (Qt::WA_AcceptTouchEvents);
+
+  grabGesture (Qt::PanGesture);
+  grabGesture (Qt::PinchGesture);
+  grabGesture (Qt::SwipeGesture);
+  fractionalScrollSettleTimer.setSingleShot (true);
+  fractionalScrollSettleTimer.setInterval (80);
+  fractionalScrollSettleTimer.setTimerType (Qt::CoarseTimer);
+  connect (&fractionalScrollSettleTimer, &QTimer::timeout, this, [this] () {
+    if (athena_qt_is_closing () || is_nil (tmwid) || !presentationVisible ()) return;
+    tm_widget ()->invalidate_all ();
+    the_gui->need_update ();
+  });
+  cursorBlinkTimer.setTimerType (Qt::CoarseTimer);
+  connect (&cursorBlinkTimer, &QTimer::timeout, this, [this] () {
+    if (get_preference ("blinking cursor", "on") != "on" ||
+        !editorHasFocus () || is_nil (tmwid) || !tm_widget ()->is_editor_widget ()) {
+      refreshCursorBlinking (false);
+      return;
+    }
+    setCursorBlinkVisible (!cursorBlinkVisible);
+  });
+  QStyleHints* hints= QGuiApplication::styleHints ();
+  if (hints != nullptr)
+    connect (hints, &QStyleHints::cursorFlashTimeChanged, this,
+             [this] (int) { refreshCursorBlinking (true); });
+
+  performanceMonitor.refresh ();
+
+  surface ()->setTabletTracking (true);
+  for (QWidget *parent = surface()->parentWidget();
+       parent != nullptr; parent = parent->parentWidget())
+    parent->setTabletTracking(true);
+
+  if (DEBUG_QT)
+    debug_qt << "Creating " << from_qstring(objectName()) << " of widget "
+             << (tm_widget() ? tm_widget()->type_as_string() : "NULL") << LF;
+  //part 1/2 of the fix for 43373
+  if (!isEmbedded ())
+    QApplication::postEvent(this, new QFocusEvent(QEvent::FocusIn, Qt::OtherFocusReason));
+}
+
+QTMWidget::~QTMWidget () {
+  if (DEBUG_QT)
+    debug_qt << "Destroying " << from_qstring(objectName()) << " of widget "
+             << (tm_widget() ? tm_widget()->type_as_string() : "NULL") << LF;
+}
+
+void
+QTMWidget::setCursorBlinkVisible (bool visible) {
+  if (cursorBlinkVisible == visible) return;
+  cursorBlinkVisible= visible;
+  if (athena_qt_is_closing () || is_nil (tmwid)) return;
+  tm_widget ()->handle_cursor_blink (visible);
+  the_gui->need_update ();
+}
+
+void
+QTMWidget::refreshCursorBlinking (bool restart) {
+  bool enabled= get_preference ("blinking cursor", "on") == "on" &&
+                editorHasFocus () && !is_nil (tmwid) &&
+                tm_widget ()->is_editor_widget ();
+  QStyleHints* hints= QGuiApplication::styleHints ();
+  int flashTime= hints == nullptr ? 0 : hints->cursorFlashTime ();
+  if (!enabled || flashTime <= 0) {
+    cursorBlinkTimer.stop ();
+    setCursorBlinkVisible (true);
+    return;
+  }
+  cursorBlinkTimer.setInterval (std::max (1, flashTime / 2));
+  if (restart || !cursorBlinkTimer.isActive ()) {
+    cursorBlinkTimer.stop ();
+    setCursorBlinkVisible (true);
+    cursorBlinkTimer.start ();
+  }
+}
+
+void
+QTMWidget::refreshAllCursorBlinking () {
+  const auto widgets= QApplication::allWidgets ();
+  for (QWidget* widget: widgets)
+    if (QTMWidget* canvas= qobject_cast<QTMWidget*> (widget))
+      canvas->refreshCursorBlinking (true);
+}
+
+void
+QTMWidget::refreshAllPerformanceMonitors () {
+  const auto widgets= QApplication::allWidgets ();
+  for (QWidget* widget: widgets)
+    if (QTMWidget* canvas= qobject_cast<QTMWidget*> (widget))
+      canvas->performanceMonitor.refresh ();
+}
+
+bool
+QTMWidget::isEmbedded () const {
+  return tm_widget() -> is_embedded_widget ();
+}
+
+qt_simple_widget_rep*
+QTMWidget::tm_widget () const { 
+  return concrete_simple_widget (tmwid); 
+}
+
+void
+QTMWidget::triggerNativeDrawingCanvasCommand (
+  native_drawing_canvas_command command) {
+  if (is_nil (tmwid)) return;
+  if (command == native_drawing_canvas_command::trim) {
+    clearNativeDrawingInsertSpace ();
+    tm_widget ()->handle_native_drawing_trim ();
+    return;
+  }
+  if (nativeInkActive) clearNativeInkPreview ();
+  if (nativeSelectionTransformActive) clearNativeDrawingSelectionTransform ();
+  nativeInsertSpaceArmed= true;
+  nativeInsertSpaceHorizontal=
+    command == native_drawing_canvas_command::insert_horizontal_space;
+  nativeInsertSpaceActive= false;
+  nativeInsertSpaceTablet= false;
+  if (surface () != nullptr)
+    surface ()->setCursor (
+      nativeInsertSpaceHorizontal ? Qt::SplitHCursor : Qt::SplitVCursor);
+}
+
+void
+QTMWidget::refreshEmbeddedBackingStore () {
+  if (athena_qt_is_closing () || is_nil (tmwid) || !isVisible ()) return;
+  if (!isEmbedded ()) return;
+
+  // A modal preview may be opened while qt_gui_rep::update() is processing
+  // the command which created it.  In that nested event loop, the outer
+  // update's interrupted flag cannot be cleared until the dialog closes.
+  // Embedded output is immutable and must complete its local repaint instead
+  // of inheriting that unrelated interruption state.
+  scoped_event_check_suppression suppress_event_checks (the_gui);
+  tm_widget ()->repaint_invalid_regions ();
+  if (surface () != nullptr) surface ()->update ();
+}
+
+void
+QTMWidget::notifyUserScroll () {
+  cancelTouchContextMenu ();
+  if (athena_qt_is_closing ()) return;
+  if (is_nil (tmwid)) return;
+  tm_widget ()->handle_user_scroll (texmacs_time ());
+}
+
+void
+QTMWidget::scrollContentsBy (int dx, int dy) {
+  QTMScrollView::scrollContentsBy (dx,dy);
+  updateInputMethodCursorRectangle ();
+  scheduleFractionalScrollSettle ();
+  if (athena_qt_is_closing ()) return;
+  if (internalScrollChange ()) return;
+  // Publish the user-scroll viewport only after Qt has changed the scrollbar
+  // origin.  Pre-scroll notifications leave the BufferActor with a stale
+  // viewport snapshot and can make a subsequent reflow resize preserve the
+  // wrong cursor-to-top distance.
+  notifyUserScroll ();
+  the_gui->force_update();
+  if (isEmbedded ()) scheduleEmbeddedScrollRefresh ();
+  // we force an update of the internal state to be in sync with the moving
+  // scrollbars
+}
+
+void
+QTMWidget::scheduleFractionalScrollSettle () {
+  qreal dpr= devicePixelRatioF ();
+  if (std::fabs (dpr - std::round (dpr)) <= 0.001) return;
+  fractionalScrollSettleTimer.start ();
+}
+
+void
+QTMWidget::scheduleEmbeddedScrollRefresh () {
+  if (embeddedScrollRefreshPending) return;
+  embeddedScrollRefreshPending= true;
+  QTimer::singleShot (0, this, [this] () {
+    embeddedScrollRefreshPending= false;
+    // Output widgets keep their document in a backing pixmap.  A scrollbar
+    // value change updates the logical origin immediately, but may occur while
+    // the global GUI update is already active.  Synchronize this widget after
+    // Qt has finished the scrollbar event so the backing pixmap follows the
+    // new origin before it is painted.
+    refreshEmbeddedBackingStore ();
+  });
+}
+
+bool
+QTMWidget::beginNativeInk (
+  const QPointF& previewPoint, SI x, SI y, double time, double pressure,
+  double rotation, double xTilt, double yTilt, double tangentialPressure,
+  bool tablet) {
+  if (is_nil (tmwid)) return false;
+  native_ink_preview_style style;
+  if (!tm_widget ()->handle_native_ink_hit (x, y, style)) return false;
+  if (nativeInkAwaitingCommit || !nativeInkPreviewPoints.empty ())
+    clearNativeInkPreview ();
+  nativeInkStyle= style;
+  nativeInkActive= true;
+  nativeInkTablet= tablet;
+  appendNativeInk (previewPoint, x, y, time, pressure, rotation, xTilt, yTilt,
+                   tangentialPressure);
+  return true;
+}
+
+void
+QTMWidget::appendNativeInk (
+  const QPointF& previewPoint, SI x, SI y, double time, double pressure,
+  double rotation, double xTilt, double yTilt, double tangentialPressure) {
+  if (!nativeInkActive) return;
+  double p= std::isfinite (pressure) ? std::clamp (pressure, 0.0, 1.0) : 1.0;
+  if (!nativeInkStyle.pressure_enabled) p= 1.0;
+  if (!nativeInkPreviewPoints.empty ()) {
+    QPointF delta= previewPoint - nativeInkPreviewPoints.back ();
+    double dp= std::fabs (p - nativeInkSamples.back ().pressure);
+    if (delta.x () * delta.x () + delta.y () * delta.y () < 0.0625 &&
+        dp < 0.01)
+      return;
+  }
+  native_ink_sample sample;
+  sample.x= x;
+  sample.y= y;
+  sample.time= time;
+  sample.pressure= p;
+  sample.rotation= rotation;
+  sample.x_tilt= xTilt;
+  sample.y_tilt= yTilt;
+  sample.tangential_pressure= tangentialPressure;
+  QPointF previous= nativeInkPreviewPoints.empty () ? previewPoint :
+                    nativeInkPreviewPoints.back ();
+  nativeInkSamples.push_back (sample);
+  nativeInkPreviewPoints.push_back (previewPoint);
+  double width= std::max (1.0, nativeInkStyle.line_width_pixels);
+  QRectF damage (previous, previewPoint);
+  damage= damage.normalized ().adjusted (-width - 3.0, -width - 3.0,
+                                         width + 3.0, width + 3.0);
+  surface ()->update (damage.toAlignedRect ());
+}
+
+void
+QTMWidget::finishNativeInk () {
+  if (!nativeInkActive) return;
+  nativeInkActive= false;
+  nativeInkTablet= false;
+  native_drawing_tool tool= nativeInkStyle.tool;
+  if (tool == native_drawing_tool::pen && nativeInkStyle.recognition_enabled &&
+      nativeInkSamples.size () >= 2) {
+    bool submitted= tm_widget ()->handle_native_drawing_recognition_request (
+      nativeInkSamples.data (), nativeInkSamples.size ());
+    if (!submitted) {
+      clearNativeInkPreview ();
+      return;
+    }
+    nativeInkAwaitingCommit= true;
+    nativeInkCommitBufferGeneration= renderedBufferGeneration;
+    nativeInkCommitFrameGeneration= renderedFrameGeneration;
+    return;
+  }
+  bool submitted= !nativeInkSamples.empty () &&
+    tm_widget ()->handle_native_drawing_gesture (
+      tool, nativeInkStyle.shape,
+      nativeInkSamples.data (), nativeInkSamples.size ());
+  if (!submitted) {
+    clearNativeInkPreview ();
+    return;
+  }
+  if (tool == native_drawing_tool::object_eraser ||
+      tool == native_drawing_tool::segment_eraser ||
+      tool == native_drawing_tool::lasso ||
+      tool == native_drawing_tool::text ||
+      tool == native_drawing_tool::math) {
+    clearNativeInkPreview ();
+    return;
+  }
+  nativeInkAwaitingCommit= true;
+  nativeInkCommitBufferGeneration= renderedBufferGeneration;
+  nativeInkCommitFrameGeneration= renderedFrameGeneration;
+}
+
+void
+QTMWidget::clearNativeInkPreview () {
+  nativeInkActive= false;
+  nativeInkTablet= false;
+  nativeInkAwaitingCommit= false;
+  nativeInkSamples.clear ();
+  nativeInkPreviewPoints.clear ();
+  if (surface () != nullptr) surface ()->update ();
+}
+
+void
+QTMWidget::drawNativeInkPreview (QPainter& p) const {
+  if (nativeInkPreviewPoints.empty ()) return;
+  p.save ();
+  p.setRenderHint (QPainter::Antialiasing, true);
+  QColor color= QColor::fromRgba (nativeInkStyle.rgba);
+  double baseWidth= std::max (1.0, nativeInkStyle.line_width_pixels);
+  if (nativeInkStyle.tool == native_drawing_tool::object_eraser ||
+      nativeInkStyle.tool == native_drawing_tool::segment_eraser) {
+    QPen pen (color);
+    pen.setWidthF (std::max (2.0, 2.0 * nativeInkStyle.eraser_radius_pixels));
+    pen.setCapStyle (Qt::RoundCap);
+    pen.setJoinStyle (Qt::RoundJoin);
+    p.setPen (pen);
+    for (std::size_t i=1; i<nativeInkPreviewPoints.size (); ++i)
+      p.drawLine (nativeInkPreviewPoints[i-1], nativeInkPreviewPoints[i]);
+    if (nativeInkPreviewPoints.size () == 1)
+      p.drawPoint (nativeInkPreviewPoints[0]);
+    p.restore ();
+    return;
+  }
+  if (nativeInkStyle.tool == native_drawing_tool::lasso) {
+    QPen pen (color);
+    pen.setWidthF (baseWidth);
+    pen.setStyle (Qt::DashLine);
+    pen.setCapStyle (Qt::RoundCap);
+    p.setPen (pen);
+    for (std::size_t i=1; i<nativeInkPreviewPoints.size (); ++i)
+      p.drawLine (nativeInkPreviewPoints[i-1], nativeInkPreviewPoints[i]);
+    if (nativeInkPreviewPoints.size () > 2)
+      p.drawLine (nativeInkPreviewPoints.back (), nativeInkPreviewPoints.front ());
+    p.restore ();
+    return;
+  }
+  if (nativeInkStyle.tool == native_drawing_tool::shape) {
+    QPen pen (color);
+    pen.setWidthF (baseWidth);
+    pen.setCapStyle (Qt::RoundCap);
+    pen.setJoinStyle (Qt::RoundJoin);
+    p.setPen (pen);
+    p.setBrush (Qt::NoBrush);
+    if (nativeInkPreviewPoints.size () == 1)
+      p.drawPoint (nativeInkPreviewPoints.front ());
+    else
+      native_draw_shape_preview (
+        p, nativeInkStyle.shape, nativeInkPreviewPoints.front (),
+        nativeInkPreviewPoints.back (), baseWidth);
+    p.restore ();
+    return;
+  }
+  if (nativeInkStyle.tool == native_drawing_tool::text ||
+      nativeInkStyle.tool == native_drawing_tool::math) {
+    p.restore ();
+    return;
+  }
+  auto width_for= [&] (double pressure) {
+    if (!nativeInkStyle.pressure_enabled) return baseWidth;
+    return baseWidth * (0.25 + 0.75 * std::clamp (pressure, 0.0, 1.0));
+  };
+  if (nativeInkPreviewPoints.size () == 1) {
+    QPen pen (color);
+    pen.setWidthF (width_for (nativeInkSamples[0].pressure));
+    pen.setCapStyle (Qt::RoundCap);
+    p.setPen (pen);
+    p.drawPoint (nativeInkPreviewPoints[0]);
+  }
+  else {
+    for (std::size_t i= 1; i < nativeInkPreviewPoints.size (); ++i) {
+      QPen pen (color);
+      double pressure= 0.5 * (nativeInkSamples[i-1].pressure +
+                              nativeInkSamples[i].pressure);
+      pen.setWidthF (width_for (pressure));
+      pen.setCapStyle (Qt::RoundCap);
+      pen.setJoinStyle (Qt::RoundJoin);
+      p.setPen (pen);
+      p.drawLine (nativeInkPreviewPoints[i-1], nativeInkPreviewPoints[i]);
+    }
+  }
+  p.restore ();
+}
+
+bool
+QTMWidget::beginNativeDrawingInsertSpace (
+  const QPointF& pos, SI x, SI y, bool tablet) {
+  if (!nativeInsertSpaceArmed || is_nil (tmwid)) return false;
+  native_ink_preview_style style;
+  if (!tm_widget ()->handle_native_ink_hit (x, y, style)) return false;
+  nativeInsertSpaceActive= true;
+  nativeInsertSpaceTablet= tablet;
+  nativeInsertSpaceStart= pos;
+  nativeInsertSpaceCurrent= pos;
+  nativeInsertSpaceStartSample= native_ink_sample ();
+  nativeInsertSpaceStartSample.x= x;
+  nativeInsertSpaceStartSample.y= y;
+  nativeInsertSpaceCurrentSample= nativeInsertSpaceStartSample;
+  if (surface () != nullptr) surface ()->update ();
+  return true;
+}
+
+void
+QTMWidget::updateNativeDrawingInsertSpace (const QPointF& pos, SI x, SI y) {
+  if (!nativeInsertSpaceActive) return;
+  nativeInsertSpaceCurrent= pos;
+  nativeInsertSpaceCurrentSample.x= x;
+  nativeInsertSpaceCurrentSample.y= y;
+  if (surface () != nullptr) surface ()->update ();
+}
+
+void
+QTMWidget::finishNativeDrawingInsertSpace (const QPointF& pos, SI x, SI y) {
+  if (!nativeInsertSpaceActive || is_nil (tmwid)) return;
+  updateNativeDrawingInsertSpace (pos, x, y);
+  native_ink_sample samples[2]= {
+    nativeInsertSpaceStartSample, nativeInsertSpaceCurrentSample
+  };
+  tm_widget ()->handle_native_drawing_insert_space (
+    nativeInsertSpaceHorizontal, samples, 2);
+  clearNativeDrawingInsertSpace ();
+}
+
+void
+QTMWidget::clearNativeDrawingInsertSpace () {
+  nativeInsertSpaceArmed= false;
+  nativeInsertSpaceActive= false;
+  nativeInsertSpaceTablet= false;
+  nativeInsertSpaceStart= QPointF ();
+  nativeInsertSpaceCurrent= QPointF ();
+  nativeInsertSpaceStartSample= native_ink_sample ();
+  nativeInsertSpaceCurrentSample= native_ink_sample ();
+  if (surface () != nullptr) {
+    surface ()->unsetCursor ();
+    surface ()->update ();
+  }
+}
+
+void
+QTMWidget::drawNativeDrawingInsertSpace (QPainter& p) const {
+  if (!nativeInsertSpaceActive) return;
+  p.save ();
+  p.setRenderHint (QPainter::Antialiasing, true);
+  QRectF viewport= p.viewport ();
+  QColor fill (74, 144, 226, 45);
+  QPen startPen (QColor (74, 144, 226, 150));
+  startPen.setWidthF (1.25);
+  startPen.setStyle (Qt::DashLine);
+  QPen currentPen (QColor (74, 144, 226, 230));
+  currentPen.setWidthF (1.75);
+  if (nativeInsertSpaceHorizontal) {
+    double x1= nativeInsertSpaceStart.x ();
+    double x2= nativeInsertSpaceCurrent.x ();
+    QRectF band (std::min (x1, x2), viewport.top (), std::fabs (x2-x1),
+                 viewport.height ());
+    p.fillRect (band, fill);
+    p.setPen (startPen);
+    p.drawLine (QPointF (x1, viewport.top ()), QPointF (x1, viewport.bottom ()));
+    p.setPen (currentPen);
+    p.drawLine (QPointF (x2, viewport.top ()), QPointF (x2, viewport.bottom ()));
+  }
+  else {
+    double y1= nativeInsertSpaceStart.y ();
+    double y2= nativeInsertSpaceCurrent.y ();
+    QRectF band (viewport.left (), std::min (y1, y2), viewport.width (),
+                 std::fabs (y2-y1));
+    p.fillRect (band, fill);
+    p.setPen (startPen);
+    p.drawLine (QPointF (viewport.left (), y1), QPointF (viewport.right (), y1));
+    p.setPen (currentPen);
+    p.drawLine (QPointF (viewport.left (), y2), QPointF (viewport.right (), y2));
+  }
+  p.restore ();
+}
+
+void
+QTMWidget::drawNativeDrawingSelection (QPainter& p) {
+  if (is_nil (tmwid)) return;
+  std::vector<native_drawing_selection_box> boxes=
+    tm_widget ()->handle_native_drawing_selection ();
+  if (boxes.empty ()) return;
+  p.save ();
+  p.setRenderHint (QPainter::Antialiasing, true);
+  QPen pen (QColor (74, 144, 226, 220));
+  pen.setWidthF (1.5);
+  pen.setStyle (Qt::DashLine);
+  p.setPen (pen);
+  QTransform preview;
+  bool transformed= nativeSelectionTransformActive ||
+                    nativeSelectionTransformAwaitingCommit;
+  if (transformed) preview= nativeDrawingSelectionPreviewTransform ();
+  QRectF unionRect;
+  bool haveUnion= false;
+  for (const auto& box: boxes) {
+    QPoint first= to_qpoint (coord2 (box.x1, box.y1)) - origin ();
+    QPoint second= to_qpoint (coord2 (box.x2, box.y2)) - origin ();
+    QRectF rawRect {QPointF (first), QPointF (second)};
+    rawRect= rawRect.normalized ();
+    QRectF rect= rawRect.adjusted (-3.0, -3.0, 3.0, 3.0);
+    unionRect= haveUnion ? unionRect.united (rawRect) : rawRect;
+    haveUnion= true;
+    if (transformed) {
+      QPolygonF poly;
+      poly << rect.topLeft () << rect.topRight () << rect.bottomRight ()
+           << rect.bottomLeft () << rect.topLeft ();
+      p.drawPolyline (preview.map (poly));
+    }
+    else p.drawRoundedRect (rect, 3, 3);
+  }
+  if (!haveUnion) {
+    p.restore ();
+    return;
+  }
+  if (!transformed) {
+    native_drawing_properties_snapshot props=
+      tm_widget ()->handle_native_drawing_properties ();
+    if (boxes.size () > 1) p.drawRoundedRect (unionRect, 4, 4);
+    p.setBrush (QColor (255, 255, 255, 235));
+    const qreal half= 4.0;
+    const QPointF corners[]= {
+      unionRect.topLeft (), unionRect.topRight (),
+      unionRect.bottomRight (), unionRect.bottomLeft ()
+    };
+    bool showScale= !props.group_edit_active ||
+      (props.selection_transform_enabled &&
+       props.selection_transform == native_drawing_transform::scale);
+    bool showRotate= !props.group_edit_active ||
+      (props.selection_transform_enabled &&
+       props.selection_transform == native_drawing_transform::rotate);
+    if (showScale)
+      for (const QPointF& c: corners)
+        p.drawRect (QRectF (c.x () - half, c.y () - half,
+                            2.0 * half, 2.0 * half));
+    if (showRotate) {
+      QPointF top= QPointF (unionRect.center ().x (), unionRect.top ());
+      QPointF rotate= top + QPointF (0.0, -24.0);
+      p.drawLine (top, rotate);
+      p.drawEllipse (rotate, 5.0, 5.0);
+    }
+  }
+  p.restore ();
+}
+
+QRectF
+QTMWidget::nativeDrawingSelectionRect () {
+  if (is_nil (tmwid)) return QRectF ();
+  std::vector<native_drawing_selection_box> boxes=
+    tm_widget ()->handle_native_drawing_selection ();
+  QRectF result;
+  bool found= false;
+  for (const auto& box: boxes) {
+    QPoint first= to_qpoint (coord2 (box.x1, box.y1)) - origin ();
+    QPoint second= to_qpoint (coord2 (box.x2, box.y2)) - origin ();
+    QRectF rect {QPointF (first), QPointF (second)};
+    rect= rect.normalized ();
+    result= found ? result.united (rect) : rect;
+    found= true;
+  }
+  return found ? result : QRectF ();
+}
+
+bool
+QTMWidget::nativeDrawingSelectionHitTest (
+  const QPointF& pos, native_drawing_transform& transform,
+  int& scaleCorner) {
+  scaleCorner= -1;
+  if (is_nil (tmwid)) return false;
+  native_drawing_properties_snapshot props=
+    tm_widget ()->handle_native_drawing_properties ();
+  bool lasso=
+    tm_widget ()->handle_native_drawing_tool () == native_drawing_tool::lasso;
+  if (!lasso && !props.selection_transform_enabled) return false;
+  QRectF rect= nativeDrawingSelectionRect ();
+  if (!rect.isValid () || rect.isEmpty ()) return false;
+
+  if (props.group_edit_active) {
+    transform= props.selection_transform;
+    if (transform == native_drawing_transform::move)
+      return rect.adjusted (-2.0, -2.0, 2.0, 2.0).contains (pos);
+    if (transform == native_drawing_transform::rotate)
+      return rect.adjusted (-8.0, -8.0, 8.0, 8.0).contains (pos);
+    const QPointF corners[]= {
+      rect.topLeft (), rect.topRight (), rect.bottomRight (), rect.bottomLeft ()
+    };
+    double best= std::numeric_limits<double>::infinity ();
+    for (int i=0; i<4; ++i) {
+      double d= QLineF (pos, corners[i]).length ();
+      if (d < best) { best= d; scaleCorner= i; }
+    }
+    return rect.adjusted (-8.0, -8.0, 8.0, 8.0).contains (pos);
+  }
+
+  QPointF rotate (rect.center ().x (), rect.top () - 24.0);
+  if (QLineF (pos, rotate).length () <= 9.0) {
+    transform= native_drawing_transform::rotate;
+    return true;
+  }
+
+  const QPointF corners[]= {
+    rect.topLeft (), rect.topRight (), rect.bottomRight (), rect.bottomLeft ()
+  };
+  for (int i=0; i<4; ++i) {
+    QRectF hit (corners[i].x () - 8.0, corners[i].y () - 8.0, 16.0, 16.0);
+    if (hit.contains (pos)) {
+      transform= native_drawing_transform::scale;
+      scaleCorner= i;
+      return true;
+    }
+  }
+  if (rect.adjusted (-2.0, -2.0, 2.0, 2.0).contains (pos)) {
+    transform= native_drawing_transform::move;
+    return true;
+  }
+  return false;
+}
+
+bool
+QTMWidget::beginNativeDrawingSelectionTransform (
+  const QPointF& pos, SI x, SI y, bool tablet) {
+  native_drawing_transform transform;
+  int corner= -1;
+  if (!nativeDrawingSelectionHitTest (pos, transform, corner)) return false;
+  nativeSelectionTransformActive= true;
+  nativeSelectionTransformTablet= tablet;
+  nativeSelectionTransformAwaitingCommit= false;
+  nativeSelectionTransformKind= transform;
+  nativeSelectionScaleCorner= corner;
+  nativeSelectionBaseRect= nativeDrawingSelectionRect ();
+  nativeSelectionTransformStart= pos;
+  nativeSelectionTransformCurrent= pos;
+  nativeSelectionTransformStartSample= native_ink_sample ();
+  nativeSelectionTransformStartSample.x= x;
+  nativeSelectionTransformStartSample.y= y;
+  nativeSelectionTransformCurrentSample= nativeSelectionTransformStartSample;
+  if (surface () != nullptr) surface ()->update ();
+  return true;
+}
+
+void
+QTMWidget::updateNativeDrawingSelectionTransform (
+  const QPointF& pos, SI x, SI y) {
+  if (!nativeSelectionTransformActive) return;
+  nativeSelectionTransformCurrent= pos;
+  nativeSelectionTransformCurrentSample.x= x;
+  nativeSelectionTransformCurrentSample.y= y;
+  if (surface () != nullptr) surface ()->update ();
+}
+
+void
+QTMWidget::finishNativeDrawingSelectionTransform (
+  const QPointF& pos, SI x, SI y) {
+  if (!nativeSelectionTransformActive) return;
+  updateNativeDrawingSelectionTransform (pos, x, y);
+  QPointF delta= nativeSelectionTransformCurrent - nativeSelectionTransformStart;
+  if (delta.x () * delta.x () + delta.y () * delta.y () < 0.25) {
+    clearNativeDrawingSelectionTransform ();
+    return;
+  }
+  native_ink_sample samples[2]= {
+    nativeSelectionTransformStartSample,
+    nativeSelectionTransformCurrentSample
+  };
+  bool submitted= tm_widget ()->handle_native_drawing_transform (
+    nativeSelectionTransformKind, samples, 2);
+  nativeSelectionTransformActive= false;
+  nativeSelectionTransformTablet= false;
+  if (!submitted) {
+    clearNativeDrawingSelectionTransform ();
+    return;
+  }
+  nativeSelectionTransformAwaitingCommit= true;
+  nativeSelectionCommitBufferGeneration= renderedBufferGeneration;
+  nativeSelectionCommitFrameGeneration= renderedFrameGeneration;
+  if (surface () != nullptr) surface ()->update ();
+}
+
+void
+QTMWidget::clearNativeDrawingSelectionTransform () {
+  nativeSelectionTransformActive= false;
+  nativeSelectionTransformTablet= false;
+  nativeSelectionTransformAwaitingCommit= false;
+  nativeSelectionScaleCorner= -1;
+  nativeSelectionBaseRect= QRectF ();
+  if (surface () != nullptr) surface ()->update ();
+}
+
+QTransform
+QTMWidget::nativeDrawingSelectionPreviewTransform () const {
+  QTransform result;
+  if (!nativeSelectionBaseRect.isValid () || nativeSelectionBaseRect.isEmpty ())
+    return result;
+  switch (nativeSelectionTransformKind) {
+  case native_drawing_transform::move: {
+    QPointF d= nativeSelectionTransformCurrent - nativeSelectionTransformStart;
+    result.translate (d.x (), d.y ());
+    break;
+  }
+  case native_drawing_transform::scale: {
+    const QPointF corners[]= {
+      nativeSelectionBaseRect.topLeft (), nativeSelectionBaseRect.topRight (),
+      nativeSelectionBaseRect.bottomRight (), nativeSelectionBaseRect.bottomLeft ()
+    };
+    int corner= std::clamp (nativeSelectionScaleCorner, 0, 3);
+    QPointF anchor= corners[(corner + 2) % 4];
+    double oldDistance= QLineF (anchor, nativeSelectionTransformStart).length ();
+    double newDistance= QLineF (anchor, nativeSelectionTransformCurrent).length ();
+    double factor= oldDistance > 1.0e-6 ? newDistance / oldDistance : 1.0;
+    factor= std::clamp (factor, 0.05, 20.0);
+    result.translate (anchor.x (), anchor.y ());
+    result.scale (factor, factor);
+    result.translate (-anchor.x (), -anchor.y ());
+    break;
+  }
+  case native_drawing_transform::rotate: {
+    QPointF center= nativeSelectionBaseRect.center ();
+    QPointF a= nativeSelectionTransformStart - center;
+    QPointF b= nativeSelectionTransformCurrent - center;
+    double angle= std::atan2 (b.y (), b.x ()) - std::atan2 (a.y (), a.x ());
+    result.translate (center.x (), center.y ());
+    result.rotateRadians (angle);
+    result.translate (-center.x (), -center.y ());
+    break;
+  }
+  }
+  return result;
+}
+
+void
+QTMWidget::showNativeDrawingContextMenu (const QPoint& globalPos) {
+  if (is_nil (tmwid)) return;
+  QMenu menu (this);
+  QActionGroup* tools= new QActionGroup (&menu);
+  tools->setExclusive (true);
+  native_drawing_tool current= tm_widget ()->handle_native_drawing_tool ();
+  for (const native_drawing_tool_descriptor& entry: native_drawing_tools) {
+    if (entry.tool == native_drawing_tool::shape) continue;
+    QAction* action= menu.addAction (tmapp ()->icon_manager ().getIcon (entry.icon),
+                                     tr (entry.text));
+    action->setCheckable (true);
+    action->setChecked (entry.tool == current);
+    tools->addAction (action);
+    connect (action, &QAction::triggered, this, [this, entry] {
+      if (!is_nil (tmwid))
+        tm_widget ()->handle_set_native_drawing_tool (entry.tool);
+    });
+  }
+
+  native_drawing_properties_snapshot props=
+    tm_widget ()->handle_native_drawing_properties ();
+  QMenu* shapeMenu= menu.addMenu (
+    tmapp ()->icon_manager ().getIcon ("tm_native_shape"), tr ("Shape"));
+  shapeMenu->menuAction ()->setCheckable (true);
+  shapeMenu->menuAction ()->setChecked (current == native_drawing_tool::shape);
+  tools->addAction (shapeMenu->menuAction ());
+  for (const native_drawing_shape_descriptor& entry: native_drawing_shapes) {
+    QAction* action= shapeMenu->addAction (
+      tmapp ()->icon_manager ().getIcon (entry.icon), tr (entry.text));
+    action->setCheckable (true);
+    action->setChecked (current == native_drawing_tool::shape &&
+                        props.shape == entry.shape);
+    connect (action, &QAction::triggered, this, [this, entry] {
+      if (is_nil (tmwid)) return;
+      tm_widget ()->handle_set_native_drawing_property (
+        native_drawing_property::shape,
+        static_cast<std::uint64_t> (entry.shape));
+      tm_widget ()->handle_set_native_drawing_tool (native_drawing_tool::shape);
+    });
+  }
+  menu.addSeparator ();
+  for (const native_drawing_canvas_command_descriptor& entry:
+       native_drawing_canvas_commands) {
+    QAction* action= menu.addAction (
+      tmapp ()->icon_manager ().getIcon (entry.icon), tr (entry.text));
+    connect (action, &QAction::triggered, this, [this, entry] {
+      triggerNativeDrawingCanvasCommand (entry.command);
+    });
+  }
+  menu.exec (globalPos);
+}
+
+void
+QTMWidget::showCommutativeDiagramContextMenu (bool arrow) {
+  if (is_nil (tmwid) || tm_widget () == nullptr) return;
+  QMenu menu (this);
+  if (arrow) {
+    QAction* properties= menu.addAction (tr ("Arrow style"));
+    connect (properties, &QAction::triggered, this, [this] {
+      commutative_diagram_arrow_pane_show (this);
+    });
+    menu.addSeparator ();
+  }
+  QAction* trim= menu.addAction (tr ("Trim"));
+  QAction* enlargeHorizontal= menu.addAction (tr ("Enlarge horizontally"));
+  QAction* enlargeVertical= menu.addAction (tr ("Enlarge vertically"));
+  connect (trim, &QAction::triggered, this, [this] {
+    if (!is_nil (tmwid))
+      tm_widget ()->handle_commutative_diagram_action (native_cd_action::trim);
+  });
+  connect (enlargeHorizontal, &QAction::triggered, this, [this] {
+    if (!is_nil (tmwid))
+      tm_widget ()->handle_commutative_diagram_action (
+        native_cd_action::enlarge_horizontal);
+  });
+  connect (enlargeVertical, &QAction::triggered, this, [this] {
+    if (!is_nil (tmwid))
+      tm_widget ()->handle_commutative_diagram_action (
+        native_cd_action::enlarge_vertical);
+  });
+  menu.exec (QCursor::pos ());
+}
+
+void 
+QTMWidget::resizeEvent (QResizeEvent* event) {
+  (void) event;
+  checkDprChange();
+  // Is this ok?
+  //coord2 s = from_qsize (event->size());
+  //the_gui -> process_resize (tm_widget(), s.x1, s.x2);
+
+  // the_gui->force_update();
+
+  //FIXME: I would like to have a force_update here but this causes a failed
+  //assertion in TeXmacs since the at the boot not every internal structure is
+  //initialized at this point. It seems not too difficult to fix but I
+  //postpone this to discuss with Joris. 
+  //
+  //Not having a force_update results in some lack of sync of the surface
+  //while the user is actively resizing with the mouse.
+}
+
+void
+QTMWidget::resizeEventBis () {
+  coord2 s = from_qsize (surface()->size());
+  the_gui -> process_resize (tm_widget(), s.x1, s.x2);
+  updateInputMethodCursorRectangle ();
+}
+
+/*!
+ In the current implementation repainting takes place during the call to
+ the widget's repaint_invalid_regions() method in the_gui::update. All
+ we have to do is to take the backing store and put it on screen according
+ to the QRegion marked invalid. 
+ CHECK: Maybe just putting onscreen all the region bounding rectangles might 
+ be less expensive.
+*/
+void
+QTMWidget::surfacePaintEvent (QPaintEvent *event, QWidget *surfaceWidget) {
+  (void) surfaceWidget;
+  if (checkDprChange()) return;
+  QPainter p (surface());
+  paintContent (p, event->region ());
+  performanceMonitor.finishPaint (event, p);
+}
+
+void
+QTMWidget::paintContent (QPainter& p, const QRegion& region) {
+  if (externallyPresented () && checkDprChange ()) return;
+  // Do not acquire a new render generation inside a potentially partial Qt
+  // paint event. That event can repaint only an exposed resize strip, leaving
+  // the rest of the surface with pixels from the previous layout generation.
+  // The GUI update pass switches frames and requests their full-frame damage.
+  if ((viewPinchActive || viewPinchCommitPending) &&
+      !viewPinchPreview.isNull()) {
+    drawViewPinchPreview (p);
+  }
+  else if (renderedFrame) {
+    p.drawImage (QPointF (0.0, 0.0), renderedFrame.image ());
+    profile_presented_frame (tm_widget ());
+  }
+  else {
+    qreal pixel_ratio= lastPixelRatio;
+    QRegion reg= region;
+    QRegion::const_iterator it;
+    QRectF qr;
+    for (it= reg.begin (); it != reg.end (); ++it) {
+      qr= *it;
+      p.drawPixmap (qr, *(tm_widget()->backingPixmap),
+		    QRectF (pixel_ratio * qr.x(),
+			    pixel_ratio * qr.y(),
+			    pixel_ratio * qr.width(),
+			    pixel_ratio * qr.height()));
+    }
+  }
+  drawNativeInkPreview (p);
+  drawNativeDrawingInsertSpace (p);
+  drawNativeDrawingSelection (p);
+  if (!externallyPresented () && !isEmbedded () &&
+      !viewPinchActive && !viewPinchCommitPending) {
+    // The RenderService presents completed frames asynchronously. Use the
+    // camera origin recorded WITH the visible image, not the live scrollbar
+    // origin (which may have advanced to the next frame already).
+    proofTrackDisplayedOrigin= renderedFrame
+      ? QPointF (to_qpoint (coord2 (
+          -renderedFrame.renderOriginX (), -renderedFrame.renderOriginY ())))
+      : QPointF (tm_widget ()->backing_pos);
+    auto endpoints= proofTrack->endpoints;
+    for (auto& endpoint: endpoints) {
+      endpoint.position-= proofTrackDisplayedOrigin;
+      endpoint.bounds.translate (-proofTrackDisplayedOrigin);
+    }
+    proofTrack->paint (p, std::move (endpoints));
+  }
+}
+
+void QTMWidget::setPresentationTarget (QWidget* target) {
+  presentationTarget= target;
+  setExternalCamera (target != nullptr);
+  performanceMonitor.refresh ();
+}
+
+void QTMWidget::setPresentationActive (bool active) {
+  presentationActive= active;
+}
+
+bool QTMWidget::presentationVisible () const {
+  return presentationTarget ? presentationActive && presentationTarget->isVisible () : isVisible ();
+}
+
+bool QTMWidget::editorHasFocus () const {
+  return presentationTarget ? presentationFocused : hasFocus ();
+}
+
+void QTMWidget::focusEditor (Qt::FocusReason reason) {
+  if (presentationTarget) presentationTarget->setFocus (reason);
+  else setFocus (reason);
+}
+
+void QTMWidget::setPresentationFocus (bool focused) {
+  if (presentationFocused == focused) return;
+  presentationFocused= focused;
+  QFocusEvent event (focused ? QEvent::FocusIn : QEvent::FocusOut);
+  if (focused) focusInEvent (&event);
+  else focusOutEvent (&event);
+}
+
+void QTMWidget::updatePresentation () {
+  if (presentationTarget) emit presentationChanged ();
+  else surface ()->update ();
+}
+
+void
+QTMWidget::presentLatestRenderedFrame (bool requestPaint) {
+  std::shared_ptr<QTMRenderConnection> connection;
+  {
+    std::lock_guard<std::mutex> guard (tm_widget ()->render_connection_lock);
+    connection= tm_widget ()->render_connection;
+  }
+  if (connection == nullptr) return;
+  QTMSharedFrame next= connection->acquireLatestFrame ();
+  if (!next) return;
+
+  // A resize may have overtaken the actor while it was recording this frame.
+  // Never composite an obsolete viewport-sized image into the new surface.
+  if (!externallyPresented ()) {
+    const qreal ratio= surface ()->devicePixelRatioF ();
+    const QSize expected (
+      qRound (surface ()->width () * ratio),
+      qRound (surface ()->height () * ratio));
+    if (next.image ().size () != expected) return;
+  }
+
+  std::uint64_t bufferGeneration= next.bufferGeneration ();
+  std::uint64_t frameGeneration= next.frameGeneration ();
+  if (bufferGeneration < renderedBufferGeneration ||
+      (bufferGeneration == renderedBufferGeneration &&
+       frameGeneration <= renderedFrameGeneration))
+    return;
+  render_damage damage= next.damage ();
+  renderedBufferGeneration= bufferGeneration;
+  renderedFrameGeneration= frameGeneration;
+  renderedFrame= std::move (next);
+  if (nativeInkAwaitingCommit &&
+      (bufferGeneration > nativeInkCommitBufferGeneration ||
+       (bufferGeneration == nativeInkCommitBufferGeneration &&
+        frameGeneration > nativeInkCommitFrameGeneration)))
+    clearNativeInkPreview ();
+  if (nativeSelectionTransformAwaitingCommit &&
+      (bufferGeneration > nativeSelectionCommitBufferGeneration ||
+       (bufferGeneration == nativeSelectionCommitBufferGeneration &&
+        frameGeneration > nativeSelectionCommitFrameGeneration)))
+    clearNativeDrawingSelectionTransform ();
+  if (!requestPaint) return;
+  if (presentationTarget) { emit presentationChanged (); return; }
+
+  double ratio= surface ()->devicePixelRatio ();
+  int x1= static_cast<int> (std::floor (damage.x1 / ratio));
+  int y1= static_cast<int> (std::floor (damage.y1 / ratio));
+  int x2= static_cast<int> (std::ceil (damage.x2 / ratio));
+  int y2= static_cast<int> (std::ceil (damage.y2 / ratio));
+  QRect damaged_rect (x1, y1, x2 - x1, y2 - y1);
+  damaged_rect= damaged_rect.intersected (surface ()->rect ());
+  if (damaged_rect.isEmpty ()) surface ()->update ();
+  else surface ()->update (damaged_rect);
+}
+
+bool
+QTMWidget::checkDprChange() {
+  double currentPixelRatio= surface()->devicePixelRatio();
+  if (lastPixelRatio == 0.0) {
+    lastPixelRatio = currentPixelRatio;;
+    return false;
+  }
+  if (lastPixelRatio == currentPixelRatio) {
+    return false;
+  }
+  lastPixelRatio = currentPixelRatio;
+  //cout << "QTMWidget " << (long) this
+  //     << ", device pixel ratio changed to " << lastPixelRatio << LF;
+  devicePixelRatioChanged();
+  return true;
+}
+
+void
+QTMWidget::devicePixelRatioChanged () {
+  tm_widget ()->handle_device_pixel_ratio_changed ();
+  tm_widget ()->invalidate_all ();
+  needs_update ();
+}
+
+static double
+athena_clamp_view_zoom (double zoom) {
+  if (zoom < 0.04) return 0.04;
+  if (zoom > 25.0) return 25.0;
+  return zoom;
+}
+
+bool
+QTMWidget::gesturesSupportedForViewZoom () const {
+#ifdef Q_OS_WIN
+  return true;
+#else
+  return QApplication::platformName().startsWith ("wayland");
+#endif
+}
+
+bool
+QTMWidget::activateOwningViewForGesture (const char* source) const {
+  if (is_nil (tmwid) || !tm_widget()->is_editor_widget ()) return false;
+  if (tm_widget ()->handle_activate_owning_view ()) {
+    if (gestureDebugEnabled ())
+      cout << "[gesture] activate-view route=" << source << LF;
+    return true;
+  }
+  if (gestureDebugEnabled ())
+    cout << "[gesture] activate-view route=" << source
+         << " view=(not-found)" << LF;
+  return false;
+}
+
+bool
+QTMWidget::inActiveGraphicsMode () const {
+  return !is_nil (tmwid) && tm_widget()->handle_wheel_capture ();
+}
+
+bool
+QTMWidget::gestureDebugEnabled () const {
+  QByteArray value= qgetenv ("ATHENA_GESTURE_DEBUG");
+  return !value.isEmpty () && value != "0";
+}
+
+void
+QTMWidget::logGesture (const char* phase, const char* route, double scale,
+                       const QPointF& focal) const {
+  if (!gestureDebugEnabled ()) return;
+  cout << "[gesture] " << phase << " route=" << route
+       << " platform=" << from_qstring (QApplication::platformName())
+       << " focal=(" << as_string ((double) focal.x()) << ","
+       << as_string ((double) focal.y()) << ") scale="
+       << as_string (scale) << " zoom0="
+       << as_string (viewPinchStartZoom) << LF;
+}
+
+void
+QTMWidget::beginViewPinchZoom (const QPointF& focal, const char* source) {
+  if (is_nil (tmwid) || tm_widget()->backingPixmap == NULL) return;
+  activateOwningViewForGesture (source);
+  viewPinchActive= true;
+  viewPinchCommitPending= false;
+  viewPinchStartZoom= athena_clamp_view_zoom (
+    tm_widget()->handle_get_zoom_factor ());
+  viewPinchScale= 1.0;
+  viewPinchCommittedScale= 1.0;
+  viewPinchPixelRatio= surface()->devicePixelRatio();
+  viewPinchFocal= focal;
+  viewPinchStartOrigin= origin();
+  viewPinchPreview= !renderedFrame
+    ? *(tm_widget()->backingPixmap)
+    : QPixmap::fromImage (renderedFrame.image ());
+  logGesture ("begin", source, viewPinchScale, viewPinchFocal);
+}
+
+void
+QTMWidget::updateViewPinchZoom (double scale, const QPointF& focal,
+                                const char* source) {
+  if (!viewPinchActive)
+    beginViewPinchZoom (focal, source);
+  if (!viewPinchActive) return;
+  double minScale= 0.04 / viewPinchStartZoom;
+  double maxScale= 25.0 / viewPinchStartZoom;
+  if (scale < minScale) scale= minScale;
+  if (scale > maxScale) scale= maxScale;
+  viewPinchScale= scale;
+  viewPinchFocal= focal;
+  logGesture ("update", source, viewPinchScale, viewPinchFocal);
+  surface()->update();
+}
+
+void
+QTMWidget::finishViewPinchZoom (bool commit, const char* source) {
+  if (!viewPinchActive) return;
+  double finalZoom= athena_clamp_view_zoom (
+    normal_zoom (athena_clamp_view_zoom (viewPinchStartZoom *
+                                         viewPinchScale)));
+  double appliedScale= finalZoom / viewPinchStartZoom;
+  bool shouldCommit= commit && std::fabs (appliedScale - 1.0) > 0.001;
+  logGesture (shouldCommit ? "commit" : "cancel", source, appliedScale,
+              viewPinchFocal);
+  viewPinchActive= false;
+  if (!shouldCommit) {
+    viewPinchCommitPending= false;
+    viewPinchPreview= QPixmap();
+    surface()->update();
+    return;
+  }
+
+  QPoint newOrigin (
+    qRound ((viewPinchStartOrigin.x() + viewPinchFocal.x()) *
+            appliedScale - viewPinchFocal.x()),
+    qRound ((viewPinchStartOrigin.y() + viewPinchFocal.y()) *
+            appliedScale - viewPinchFocal.y()));
+  viewPinchCommitPending= true;
+  viewPinchCommittedScale= appliedScale;
+  setPendingOriginAfterNextExtents (newOrigin);
+  activateOwningViewForGesture (source);
+  tm_widget()->handle_change_zoom_factor (finalZoom);
+}
+
+bool
+QTMWidget::handleNativeGestureEvent (QNativeGestureEvent* event) {
+  if (!gesturesSupportedForViewZoom () || is_nil (tmwid)) {
+    if (gestureDebugEnabled ()) {
+      cout << "[gesture] native-event route=dispatch ignored "
+           << "supported=" << (gesturesSupportedForViewZoom () ? "yes" : "no")
+           << " widget=" << (is_nil (tmwid) ? "nil" : "ok")
+           << LF;
+    }
+    return false;
+  }
+  QPointF focal= surface()->mapFromGlobal (
+    event->globalPosition().toPoint());
+  if (gestureDebugEnabled ()) {
+    cout << "[gesture] native-event route=dispatch type="
+         << gestureEventTypeName (static_cast<QEvent::Type> (event->gestureType ()))
+         << " value=" << as_string (event->value())
+         << " finger-count=" << event->fingerCount () << " focal=("
+         << as_string ((double) focal.x()) << ","
+         << as_string ((double) focal.y()) << ")" << LF;
+  }
+  activateOwningViewForGesture ("native-dispatch");
+  if (inActiveGraphicsMode ()) {
+    coord2 pt= from_qpoint (focal.toPoint() + origin());
+    array<double> data;
+    if (event->gestureType() == Qt::BeginNativeGesture) {
+      the_gui->process_mouse (tm_widget(), "pinch-start", pt.x1, pt.x2, 0,
+                              texmacs_time (), data);
+      nativeLegacyPinchActive= true;
+      nativeLegacyPinchScale= 1.0;
+      logGesture ("begin", "native-graphics", 1.0, focal);
+      event->accept();
+      return true;
+    }
+    if (event->gestureType() == Qt::ZoomNativeGesture) {
+      if (!nativeLegacyPinchActive) {
+        the_gui->process_mouse (tm_widget(), "pinch-start", pt.x1, pt.x2, 0,
+                                texmacs_time (), data);
+        nativeLegacyPinchActive= true;
+        nativeLegacyPinchScale= 1.0;
+      }
+      nativeLegacyPinchScale *= 1.0 + event->value();
+      data << nativeLegacyPinchScale;
+      the_gui->process_mouse (tm_widget(), "scale", pt.x1, pt.x2, 0,
+                              texmacs_time (), data);
+      logGesture ("update", "native-graphics", nativeLegacyPinchScale, focal);
+      event->accept();
+      return true;
+    }
+    if (event->gestureType() == Qt::EndNativeGesture &&
+        nativeLegacyPinchActive) {
+      the_gui->process_mouse (tm_widget(), "pinch-end", pt.x1, pt.x2, 0,
+                              texmacs_time (), data);
+      nativeLegacyPinchActive= false;
+      nativeLegacyPinchScale= 1.0;
+      logGesture ("end", "native-graphics", 1.0, focal);
+      event->accept();
+      return true;
+    }
+    return false;
+  }
+
+  switch (event->gestureType()) {
+    case Qt::SwipeNativeGesture: {
+      QPointF delta= event->delta();
+      double dx= delta.x();
+      if (std::fabs (dx) < 0.001) dx= event->value();
+      if (std::fabs (dx) < 0.001) {
+        logGesture ("native-swipe-ignored", "neighborhood", dx, focal);
+        event->accept();
+        return true;
+      }
+      int direction= dx < 0.0 ? -1 : 1;
+      logGesture (direction < 0 ? "swipe-left" : "swipe-right",
+                  "native-neighborhood", dx, focal);
+      neighborhoods_open_neighbor (direction);
+      event->accept();
+      return true;
+    }
+    case Qt::SmartZoomNativeGesture:
+      if (event->fingerCount() == 3) {
+        logGesture ("tap-cycle", "native-neighborhood", event->value(),
+                    focal);
+        neighborhoods_cycle_selected ();
+        event->accept();
+        return true;
+      }
+      if (gestureDebugEnabled ())
+        logGesture ("smart-zoom-ignored", "neighborhood", event->value(),
+                    focal);
+      return false;
+    case Qt::BeginNativeGesture:
+      logGesture ("native-begin", "native-view", event->value(), focal);
+      return false;
+    case Qt::ZoomNativeGesture:
+      if (!viewPinchActive)
+        beginViewPinchZoom (focal, "native-view");
+      updateViewPinchZoom (viewPinchScale * (1.0 + event->value()), focal,
+                           "native-view");
+      event->accept();
+      return true;
+    case Qt::EndNativeGesture:
+      finishViewPinchZoom (true, "native-view");
+      event->accept();
+      return true;
+    default:
+      if (gestureDebugEnabled ())
+        logGesture ("native-ignored", "native-unknown", 1.0, focal);
+      return false;
+  }
+}
+
+bool
+QTMWidget::handlePinchGestureForViewZoom (QPinchGesture* pinch) {
+  if (!gesturesSupportedForViewZoom ()) return false;
+  activateOwningViewForGesture ("qt-pinch-dispatch");
+  if (inActiveGraphicsMode ()) return false;
+  QPointF focal= pinch->hasHotSpot()
+    ? surface()->mapFromGlobal (pinch->hotSpot().toPoint())
+    : QPointF (surface()->width() / 2.0, surface()->height() / 2.0);
+  if (pinch->state() == Qt::GestureStarted) {
+    beginViewPinchZoom (focal, "qt-pinch-view");
+    return true;
+  }
+  if (pinch->state() == Qt::GestureCanceled) {
+    finishViewPinchZoom (false, "qt-pinch-view");
+    return true;
+  }
+  if (pinch->state() == Qt::GestureFinished) {
+    updateViewPinchZoom ((double) pinch->totalScaleFactor(), focal,
+                         "qt-pinch-view");
+    finishViewPinchZoom (true, "qt-pinch-view");
+    return true;
+  }
+  if (pinch->changeFlags() & QPinchGesture::ScaleFactorChanged) {
+    updateViewPinchZoom ((double) pinch->totalScaleFactor(), focal,
+                         "qt-pinch-view");
+    return true;
+  }
+  return false;
+}
+
+bool
+QTMWidget::handleNeighborhoodTouchTap (QEvent* event) {
+  if (!gesturesSupportedForViewZoom () || inActiveGraphicsMode ()) {
+    if (gestureDebugEnabled ()) {
+      cout << "[gesture] touch-ignored route=touch-neighborhood "
+           << "reason="
+           << (!gesturesSupportedForViewZoom () ? "unsupported-platform" : "active-graphics")
+           << LF;
+    }
+    return false;
+  }
+  QTouchEvent* touch= static_cast<QTouchEvent*> (event);
+  const QList<QEventPoint> points= touch->points ();
+  if (gestureDebugEnabled ()) {
+    cout << "[gesture] touch-input route=touch-neighborhood type="
+         << gestureEventTypeName (event->type())
+         << " points=" << points.size () << " candidate="
+         << (neighborhoodTapCandidate ? "true" : "false")
+         << " supported=" << (gesturesSupportedForViewZoom () ? "yes" : "no")
+         << " active-graphics=" << (inActiveGraphicsMode () ? "yes" : "no")
+         << LF;
+  }
+  if (event->type() == QEvent::TouchBegin) {
+    neighborhoodTapCandidate= points.size () == 3;
+    if (gestureDebugEnabled ()) {
+      logGesture (neighborhoodTapCandidate ? "touch-begin" : "touch-begin-ignored",
+                  "touch-neighborhood", 1.0,
+                  points.isEmpty () ? QPointF () : points.front ().position ());
+    }
+    if (!neighborhoodTapCandidate) return false;
+    QPointF center;
+    for (const QEventPoint& point: points) center += point.position ();
+    neighborhoodTapStartCenter= center / 3.0;
+    neighborhoodTapTimer.restart ();
+    event->accept ();
+    return true;
+  }
+
+  if (!neighborhoodTapCandidate) return false;
+  if (event->type() == QEvent::TouchUpdate) {
+    if (gestureDebugEnabled ()) {
+      logGesture ("touch-update", "touch-neighborhood", 1.0,
+                  points.isEmpty () ? QPointF () : points.front ().position ());
+    }
+    if (points.size () != 3) {
+      neighborhoodTapCandidate= false;
+      if (gestureDebugEnabled ())
+        logGesture ("touch-update-ignored", "touch-neighborhood", 1.0,
+                    points.isEmpty () ? QPointF () : points.front ().position ());
+      return false;
+    }
+    QPointF center;
+    for (const QEventPoint& point: points) center += point.position ();
+    center /= 3.0;
+    if ((center - neighborhoodTapStartCenter).manhattanLength () > 28.0)
+      neighborhoodTapCandidate= false;
+    event->accept ();
+    return true;
+  }
+
+  if (event->type() == QEvent::TouchEnd ||
+      event->type() == QEvent::TouchCancel) {
+    if (gestureDebugEnabled ()) {
+      logGesture ("touch-end", "touch-neighborhood", 1.0,
+                  neighborhoodTapStartCenter);
+    }
+    bool trigger= event->type() == QEvent::TouchEnd &&
+                  neighborhoodTapTimer.isValid () &&
+                  neighborhoodTapTimer.elapsed () < 650;
+    neighborhoodTapCandidate= false;
+    if (trigger) {
+      logGesture ("tap-cycle", "touch-neighborhood", 1.0,
+                  neighborhoodTapStartCenter);
+      neighborhoods_cycle_selected ();
+      event->accept ();
+      return true;
+    }
+  }
+  return false;
+}
+
+bool
+QTMWidget::handleNeighborhoodMiddleClick (QMouseEvent* event) {
+  if (!gesturesSupportedForViewZoom () || inActiveGraphicsMode ()) return false;
+  if (event->button () != Qt::MiddleButton) return false;
+  if (get_preference ("disable unix primary selection", "off") != "on")
+    return false;
+
+  QPointF focal= event->position ();
+  logGesture ("tap-cycle", "middle-click-neighborhood", 1.0, focal);
+  neighborhoods_cycle_selected ();
+  event->accept ();
+  return true;
+}
+
+bool
+QTMWidget::handleNeighborhoodKeyShortcut (QKeyEvent* event) {
+  if (is_nil (tmwid) || inActiveGraphicsMode ()) return false;
+  Qt::KeyboardModifiers mods= event->modifiers ();
+  Qt::KeyboardModifiers wanted= Qt::ControlModifier | Qt::AltModifier;
+  Qt::KeyboardModifiers extras= Qt::ShiftModifier | Qt::MetaModifier;
+  if ((mods & wanted) != wanted || (mods & extras) != Qt::NoModifier)
+    return false;
+
+  int direction= 0;
+  if (event->key () == Qt::Key_Left) direction= -1;
+  else if (event->key () == Qt::Key_Right) direction= 1;
+  else return false;
+
+  logGesture (direction < 0 ? "shortcut-left" : "shortcut-right",
+              "keyboard-neighborhood", direction, QPointF ());
+  neighborhoods_open_neighbor (direction);
+  event->accept ();
+  return true;
+}
+
+bool
+QTMWidget::handleNeighborhoodWheelSwipe (QWheelEvent* event) {
+  if (!gesturesSupportedForViewZoom () || inActiveGraphicsMode ()) return false;
+
+  Qt::KeyboardModifiers mods= event->modifiers ();
+  if ((mods & Qt::ShiftModifier) == 0 ||
+      (mods & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) != 0) {
+    neighborhoodWheelSwipeAccum= 0.0;
+    return false;
+  }
+
+  QPoint pixels= event->pixelDelta ();
+  QPoint angles= event->angleDelta ();
+  bool pixelBased= !pixels.isNull ();
+  double dx= pixelBased ? (double) pixels.x () : ((double) angles.x ()) / 8.0;
+  double dy= pixelBased ? (double) pixels.y () : ((double) angles.y ()) / 8.0;
+
+  if (std::fabs (dx) < 0.001) return false;
+  if (std::fabs (dx) < std::fabs (dy)) return false;
+
+  if (neighborhoodWheelSwipeCooldown.isValid () &&
+      neighborhoodWheelSwipeCooldown.elapsed () < 450) {
+    event->accept ();
+    return true;
+  }
+
+  neighborhoodWheelSwipeAccum += dx;
+  double threshold= pixelBased ? 80.0 : 15.0;
+  if (gestureDebugEnabled ()) {
+    cout << "[gesture] shift-wheel route=wheel-neighborhood dx="
+         << as_string (dx) << " dy=" << as_string (dy)
+         << " accum=" << as_string (neighborhoodWheelSwipeAccum)
+         << " threshold=" << as_string (threshold) << LF;
+  }
+
+  if (std::fabs (neighborhoodWheelSwipeAccum) >= threshold) {
+    int direction= neighborhoodWheelSwipeAccum < 0.0 ? -1 : 1;
+    logGesture (direction < 0 ? "swipe-left" : "swipe-right",
+                "shift-wheel-neighborhood", neighborhoodWheelSwipeAccum,
+                event->position ());
+    neighborhoods_open_neighbor (direction);
+    neighborhoodWheelSwipeAccum= 0.0;
+    neighborhoodWheelSwipeCooldown.restart ();
+  }
+
+  event->accept ();
+  return true;
+}
+
+void
+QTMWidget::drawViewPinchPreview (QPainter& p) const {
+  if (viewPinchPreview.isNull()) return;
+  p.save ();
+  double scale= viewPinchCommitPending
+    ? viewPinchCommittedScale : viewPinchScale;
+  p.fillRect (surface()->rect(), surface()->palette().brush (QPalette::Base));
+  p.setRenderHint (QPainter::SmoothPixmapTransform, true);
+  QRectF target (0.0, 0.0,
+                 viewPinchPreview.width() / viewPinchPixelRatio,
+                 viewPinchPreview.height() / viewPinchPixelRatio);
+  QRectF source (0.0, 0.0,
+                 viewPinchPreview.width(), viewPinchPreview.height());
+  p.translate (viewPinchFocal);
+  p.scale (scale, scale);
+  p.translate (-viewPinchFocal);
+  p.drawPixmap (target, viewPinchPreview, source);
+  p.restore ();
+}
+
+void
+QTMWidget::finishGestureZoomCommitPreview () {
+  if (!viewPinchCommitPending) return;
+  viewPinchCommitPending= false;
+  viewPinchPreview= QPixmap();
+  surface()->update();
+}
+
+
+void
+QTMWidget::setCursorPos (QPoint pos) {
+  if (cursor_pos == pos) return;
+  cursor_pos= pos;
+  refreshCursorBlinking (true);
+  updateInputMethodCursorRectangle ();
+}
+
+void
+QTMWidget::updateInputMethodCursorRectangle () const {
+  if (!editorHasFocus ()) return;
+  QInputMethod* im= QApplication::inputMethod ();
+  if (im == nullptr) return;
+  im->update (Qt::ImCursorRectangle);
+}
+
+void
+QTMWidget::keyPressEvent (QKeyEvent* event) {
+  refreshCursorBlinking (true);
+  if (event->key () == Qt::Key_Escape &&
+      (nativeInsertSpaceArmed || nativeInsertSpaceActive)) {
+    clearNativeDrawingInsertSpace ();
+    event->accept ();
+    return;
+  }
+  Qt::KeyboardModifiers commandModifiers=
+    event->modifiers () & (Qt::ControlModifier | Qt::ShiftModifier |
+                           Qt::AltModifier | Qt::MetaModifier);
+  if (event->key () == Qt::Key_F &&
+      commandModifiers == Qt::ControlModifier) {
+    document_search_open ();
+    return;
+  }
+  if (event->key () == Qt::Key_H &&
+      commandModifiers == Qt::ControlModifier) {
+    document_replace_open ();
+    return;
+  }
+  if (handleNeighborhoodKeyShortcut (event)) return;
+  QTMKeyboardEvent ke (tmapp()->keyboard(), *event);
+  string r = ke.texmacsKeyCombination();
+  if (r == "") {
+    if (DEBUG_QT && DEBUG_KEYBOARD) debug_qt << "key press: unhandled key" << LF;
+    return;
+  }
+  if (DEBUG_QT && DEBUG_KEYBOARD) debug_qt << "key press: " << r << LF;
+  if (!performanceMonitor.inputBatchActive ())
+    performanceMonitor.recordEditingInput ();
+  the_gui->process_keypress (tm_widget(), r, texmacs_time());
+
+}
+
+static unsigned int
+mouse_state (QMouseEvent* event, bool flag) {
+  unsigned int i= 0;
+  Qt::MouseButtons bstate= event->buttons ();
+  Qt::MouseButton  tstate= event->button ();
+  Qt::KeyboardModifiers kstate= event->modifiers ();
+  if (flag) bstate= bstate | tstate;
+  if ((bstate & Qt::LeftButton     ) != 0) i += 1;
+    if ((bstate & Qt::MiddleButton   ) != 0) i += 2;
+  if ((bstate & Qt::RightButton    ) != 0) i += 4;
+  if ((bstate & Qt::XButton1       ) != 0) i += 8;
+  if ((bstate & Qt::XButton2       ) != 0) i += 16;
+#ifdef Q_OS_MAC
+    // We emulate right and middle clicks with ctrl and option, but we pass the
+    // modifiers anyway: old code continues to work and new one can use them.
+  if ((kstate & Qt::MetaModifier   ) != 0) i = 1024+4; // control key
+  if ((kstate & Qt::AltModifier    ) != 0) i = 2048+2; // option key
+  if ((kstate & Qt::ShiftModifier  ) != 0) i += 256;
+  if ((kstate & Qt::ControlModifier) != 0) i += 4096;   // cmd key
+#else
+  if ((kstate & Qt::ShiftModifier  ) != 0) i += 256;
+  if ((kstate & Qt::ControlModifier) != 0) i += 1024;
+  if ((kstate & Qt::AltModifier    ) != 0) i += 2048;
+  if ((kstate & Qt::MetaModifier   ) != 0) i += 4096;
+#endif
+  return i;
+}
+
+static string
+mouse_decode (unsigned int mstate) {
+  if (mstate & 2) return "middle";
+  else if (mstate & 4) return "right";
+    // we check for left clicks after the others for macos (see ifdef in mouse_state)
+  else if (mstate & 1) return "left";
+  else if (mstate & 8) return "up";
+  else if (mstate & 16) return "down";
+  return "unknown";
+}
+
+void
+QTMWidget::kbdEvent (int key, Qt::KeyboardModifiers mods, const QString& s) {
+  QKeyEvent ev (QEvent::KeyPress, key, mods, s);
+  keyPressEvent (&ev);
+}
+
+void
+QTMWidget::inputMethodEvent (QInputMethodEvent* event) {
+  refreshCursorBlinking (true);
+  QString const & preedit_string = event->preeditString();
+  QString const & commit_string = event->commitString();
+  bool visibleInput= !commit_string.isEmpty () ||
+                     !preedit_string.isEmpty () || preediting;
+  if (visibleInput) performanceMonitor.recordEditingInput ();
+  performanceMonitor.setInputBatchActive (visibleInput);
+  
+  if (!commit_string.isEmpty()) {
+    bool done= false;
+#if ATHENA_PLATFORM_IPADOS
+    // UIKit sends ordinary soft-key presses as IM commits. Preserve command
+    // semantics without interpreting composed words or replacements as keys.
+    if (!preediting && preedit_string.isEmpty () &&
+        event->replacementStart () == 0 && event->replacementLength () == 0 &&
+        commit_string.size () == 1 && commit_string[0].unicode () >= 32 &&
+        commit_string[0].unicode () < 127) {
+      kbdEvent (commit_string[0].toUpper ().unicode (), Qt::NoModifier,
+                commit_string);
+      done= true;
+    }
+#endif
+    if (!done) {
+      if (DEBUG_QT)
+        debug_qt << "IM committing: " << commit_string.toUtf8().data() << LF;
+      if (!is_nil (tmwid))
+        the_gui->process_text_input (
+          tm_widget (), from_qstring_utf8 (commit_string), texmacs_time ());
+    }
+  }
+  
+  if (DEBUG_QT)
+    debug_qt << "IM preediting :" << preedit_string.toUtf8().data() << LF;
+  
+  string r = "pre-edit:";
+  if (!preedit_string.isEmpty())
+  {
+    
+    // find cursor position in the preedit string
+    QList<QInputMethodEvent::Attribute>  const & attrs = event->attributes();
+    //    int pos = preedit_string.count();
+    int pos = 0;
+    bool visible_cur = false;
+    for (int i=0; i< attrs.count(); i++) 
+      if (attrs[i].type == QInputMethodEvent::Cursor) {
+        pos = attrs[i].start;
+        visible_cur = (attrs[i].length != 0);
+      }
+    
+    // find selection in the preedit string
+    int sel_start = 0;
+    int sel_length = 0;
+    if (pos <  preedit_string.size()) {
+      for (int i=0; i< attrs.count(); i++)
+        if ((attrs[i].type == QInputMethodEvent::TextFormat) &&
+            (attrs[i].start <= pos) &&
+            (pos < attrs[i].start + attrs[i].length)) {
+          sel_start = attrs[i].start;
+          sel_length =  attrs[i].length;
+          if (!visible_cur) pos += attrs[i].length;
+        }
+    } else {
+      sel_start = pos;
+      sel_length = 0;
+    }
+    (void) sel_start; (void) sel_length;
+    
+    int utf16Pos= std::clamp (pos, 0, (int) preedit_string.size ());
+    if (utf16Pos > 0 && utf16Pos < preedit_string.size () &&
+        preedit_string[utf16Pos].isLowSurrogate () &&
+        preedit_string[utf16Pos - 1].isHighSurrogate ())
+      utf16Pos--;
+    // The event boundary converts Qt UTF-16 once; the actor receives bytes.
+    const int bytePos= preedit_string.left (utf16Pos).toUtf8 ().size ();
+    r = r * as_string (bytePos) * ":" * from_qstring_utf8 (preedit_string);
+  }
+
+  if (!is_nil (tmwid)) {
+    preediting = !preedit_string.isEmpty();
+    the_gui->process_keypress (tm_widget(), r, texmacs_time());
+  }
+
+  performanceMonitor.setInputBatchActive (false);
+  event->accept();
+}
+
+QVariant 
+QTMWidget::inputMethodQuery (Qt::InputMethodQuery query) const {
+  switch (query) {
+    case Qt::ImEnabled : {
+      return QVariant (true);
+    }
+    case Qt::ImEnterKeyType:
+      return QVariant (int (Qt::EnterKeyReturn));
+    case Qt::ImCursorRectangle : {
+      const QPoint &topleft= cursor_pos - tm_widget()->backing_pos + surface()->geometry().topLeft();
+      return QVariant (QRect (topleft, QSize (5, 5)));
+    }
+    default:
+      return QWidget::inputMethodQuery (query);
+  }
+}
+
+void
+QTMWidget::showTouchContextMenu (const QPoint& globalPosition) {
+  if (is_nil (tmwid)) return;
+  focusEditor (Qt::OtherFocusReason);
+  const QPoint local= surface ()->mapFromGlobal (globalPosition);
+  const coord2 point= from_qpoint (local + origin ());
+  native_ink_preview_style style;
+  if (tm_widget ()->handle_native_ink_hit (point.x1, point.x2, style)) {
+    showNativeDrawingContextMenu (globalPosition);
+    return;
+  }
+  array<double> data;
+  data << static_cast<double> (++touchContextRequest);
+  the_gui->process_mouse (tm_widget (), "touch-context", point.x1, point.x2,
+                          0, texmacs_time (), data);
+}
+
+void
+QTMWidget::endPencilHover () {
+  if (!is_nil (tmwid))
+    the_gui->process_mouse (tm_widget (), "peek-leave", 0, 0, 0, texmacs_time ());
+}
+
+void
+QTMWidget::pencilHover (const QPoint& globalPosition) {
+  if (is_nil (tmwid)) return;
+  const coord2 point= from_qpoint (surface ()->mapFromGlobal (globalPosition) + origin ());
+  native_ink_preview_style style;
+  if (tm_widget ()->handle_native_ink_hit (point.x1, point.x2, style)) {
+    endPencilHover ();
+    return;
+  }
+  the_gui->process_mouse (tm_widget (), "peek-modifier", point.x1, point.x2,
+                          256, texmacs_time ());
+}
+
+void
+QTMWidget::mousePressEvent (QMouseEvent* event) {
+  if (!externallyPresented () && proofTrack->mouse (event)) return;
+  cancelTouchContextMenu ();
+  if (is_nil (tmwid)) return;
+  refreshCursorBlinking (true);
+  if (focusPolicy () != Qt::NoFocus) {
+    if (!editorHasFocus ()) focusEditor (Qt::MouseFocusReason);
+  }
+  if (handleNeighborhoodMiddleClick (event)) return;
+  QPoint point = event->pos() + origin();
+  coord2 pt = from_qpoint(point);
+  unsigned int mstate= mouse_state (event, false);
+  if (event->button () == Qt::RightButton) {
+    native_ink_preview_style style;
+    if (tm_widget ()->handle_native_ink_hit (pt.x1, pt.x2, style)) {
+      nativeDrawingRightClickConsumed= true;
+      showNativeDrawingContextMenu (event->globalPosition ().toPoint ());
+      event->accept ();
+      return;
+    }
+  }
+  if (nativeInkActive && nativeInkTablet) {
+    event->accept ();
+    return;
+  }
+  if (nativeInsertSpaceActive && nativeInsertSpaceTablet) {
+    event->accept ();
+    return;
+  }
+  if (nativeSelectionTransformActive && nativeSelectionTransformTablet) {
+    event->accept ();
+    return;
+  }
+  if (event->button () == Qt::LeftButton &&
+      beginNativeDrawingInsertSpace (
+        event->position (), pt.x1, pt.x2, false)) {
+    event->accept ();
+    return;
+  }
+  if (event->button () == Qt::LeftButton &&
+      beginNativeDrawingSelectionTransform (
+        event->position (), pt.x1, pt.x2, false)) {
+    event->accept ();
+    return;
+  }
+  if (event->button () == Qt::LeftButton &&
+      beginNativeInk (event->position (), pt.x1, pt.x2,
+                      static_cast<double> (texmacs_time ()), 1.0,
+                      0.0, 0.0, 0.0, 0.0, false)) {
+    event->accept ();
+    return;
+  }
+  string s= "press-" * mouse_decode (mstate);
+  the_gui -> process_mouse (tm_widget(), s, pt.x1, pt.x2,  
+                            mstate, texmacs_time ());
+  event->accept();
+}
+
+void
+QTMWidget::mouseReleaseEvent (QMouseEvent* event) {
+  if (!externallyPresented () && proofTrack->mouse (event)) return;
+  if (is_nil (tmwid)) return;
+  QPoint point = event->pos() + origin();
+  coord2 pt = from_qpoint(point);
+  if (nativeDrawingRightClickConsumed && event->button () == Qt::RightButton) {
+    nativeDrawingRightClickConsumed= false;
+    event->accept ();
+    return;
+  }
+  if (nativeInkActive && nativeInkTablet) {
+    event->accept ();
+    return;
+  }
+  if (nativeInsertSpaceActive && nativeInsertSpaceTablet) {
+    event->accept ();
+    return;
+  }
+  if (nativeSelectionTransformActive && nativeSelectionTransformTablet) {
+    event->accept ();
+    return;
+  }
+  if (nativeInsertSpaceActive && event->button () == Qt::LeftButton) {
+    finishNativeDrawingInsertSpace (event->position (), pt.x1, pt.x2);
+    event->accept ();
+    return;
+  }
+  if (nativeSelectionTransformActive && event->button () == Qt::LeftButton) {
+    finishNativeDrawingSelectionTransform (
+      event->position (), pt.x1, pt.x2);
+    event->accept ();
+    return;
+  }
+  if (nativeInkActive && event->button () == Qt::LeftButton) {
+    appendNativeInk (event->position (), pt.x1, pt.x2,
+                     static_cast<double> (texmacs_time ()), 1.0,
+                     0.0, 0.0, 0.0, 0.0);
+    finishNativeInk ();
+    event->accept ();
+    return;
+  }
+  unsigned int mstate = mouse_state (event, true);
+  string s = "release-" * mouse_decode (mstate);
+  the_gui->process_mouse (tm_widget(), s, pt.x1, pt.x2,
+                            mstate, texmacs_time());
+  event->accept();
+}
+
+void
+QTMWidget::mouseMoveEvent (QMouseEvent* event) {
+  if (!externallyPresented () && proofTrack->mouse (event)) return;
+  if (is_nil (tmwid)) return;
+  if (event->buttons () == Qt::NoButton &&
+      !surface ()->rect ().contains (event->position ().toPoint ())) {
+    the_gui->process_mouse (tm_widget (), "peek-leave", 0, 0, 0, texmacs_time ());
+    return;
+  }
+  QPointF localPoint= event->position ();
+  QPoint point = event->pos() + origin();
+  coord2 pt = from_qpoint(point);
+  if (nativeInsertSpaceActive) {
+    if (!nativeInsertSpaceTablet)
+      updateNativeDrawingInsertSpace (localPoint, pt.x1, pt.x2);
+    event->accept ();
+    return;
+  }
+  if (nativeSelectionTransformActive) {
+    if (!nativeSelectionTransformTablet)
+      updateNativeDrawingSelectionTransform (localPoint, pt.x1, pt.x2);
+    event->accept ();
+    return;
+  }
+  if (nativeInkActive) {
+    if (!nativeInkTablet)
+      appendNativeInk (localPoint, pt.x1, pt.x2,
+                       static_cast<double> (texmacs_time ()), 1.0,
+                       0.0, 0.0, 0.0, 0.0);
+    event->accept ();
+    return;
+  }
+  if (event->buttons () == Qt::NoButton) {
+    if (nativeInsertSpaceArmed) {
+      surface ()->setCursor (
+        nativeInsertSpaceHorizontal ? Qt::SplitHCursor : Qt::SplitVCursor);
+      event->accept ();
+      return;
+    }
+    native_drawing_transform transform;
+    int scaleCorner= -1;
+    if (nativeDrawingSelectionHitTest (localPoint, transform, scaleCorner)) {
+      if (transform == native_drawing_transform::move)
+        surface ()->setCursor (Qt::SizeAllCursor);
+      else if (transform == native_drawing_transform::rotate)
+        surface ()->setCursor (Qt::CrossCursor);
+      else if (scaleCorner == 0 || scaleCorner == 2)
+        surface ()->setCursor (Qt::SizeFDiagCursor);
+      else
+        surface ()->setCursor (Qt::SizeBDiagCursor);
+      event->accept ();
+      return;
+    }
+    native_ink_preview_style hoverStyle;
+    if (tm_widget ()->handle_native_ink_hit (pt.x1, pt.x2, hoverStyle)) {
+      surface ()->setCursor (
+        hoverStyle.tool == native_drawing_tool::text ||
+        hoverStyle.tool == native_drawing_tool::math ?
+          Qt::IBeamCursor : Qt::CrossCursor);
+      event->accept ();
+      return;
+    }
+    surface ()->unsetCursor ();
+  }
+  unsigned int mstate = mouse_state (event, false);
+  string s = "move";
+  array<double> data;
+  data << localPoint.x () << localPoint.y ();
+  the_gui->process_mouse (tm_widget(), s, pt.x1, pt.x2, 
+                          mstate, texmacs_time (), data);
+  event->accept();
+}
+
+static unsigned int
+tablet_state (QTabletEvent* event, bool flag) {
+  unsigned int i= 0;
+  Qt::MouseButtons bstate= event->buttons ();
+  Qt::MouseButton  tstate= event->button ();
+  if (flag) bstate= bstate | tstate;
+  if ((bstate & Qt::LeftButton     ) != 0) i += 1;
+  if ((bstate & Qt::MiddleButton   ) != 0) i += 2;
+  if ((bstate & Qt::RightButton    ) != 0) i += 4;
+  if ((bstate & Qt::XButton1       ) != 0) i += 8;
+  if ((bstate & Qt::XButton2       ) != 0) i += 16;
+  return i;
+}
+
+QScrollBar*
+QTMWidget::scrollBarAtGlobalPosition (const QPoint& globalPos) const {
+  QScrollBar* h= horizontalScrollBar ();
+  QScrollBar* v= verticalScrollBar ();
+  if (v != nullptr && v->isVisible () && v->isEnabled () &&
+      QRect (v->mapToGlobal (QPoint (0, 0)), v->size ()).contains (globalPos))
+    return v;
+  if (h != nullptr && h->isVisible () && h->isEnabled () &&
+      QRect (h->mapToGlobal (QPoint (0, 0)), h->size ()).contains (globalPos))
+    return h;
+  return nullptr;
+}
+
+bool
+QTMWidget::forwardTabletEventToScrollBar (QTabletEvent* event) {
+  QPointF globalPosF= event->globalPosition ();
+  QPoint globalPos= globalPosF.toPoint ();
+  QScrollBar* target= tabletScrollBarTarget;
+  bool release= event->type () == QEvent::TabletRelease ||
+                (event->button () != Qt::NoButton && event->pressure () == 0);
+  if (target == nullptr)
+    target= scrollBarAtGlobalPosition (globalPos);
+  if (target == nullptr)
+    return false;
+
+  bool begin= event->type () == QEvent::TabletPress ||
+              (event->button () != Qt::NoButton && !release);
+  if (begin)
+    tabletScrollBarTarget= target;
+  else if (tabletScrollBarTarget == nullptr)
+    return false;
+
+  QEvent::Type type= QEvent::MouseMove;
+  if (begin) type= QEvent::MouseButtonPress;
+  else if (release) type= QEvent::MouseButtonRelease;
+
+  QPointF localPos= target->mapFromGlobal (globalPos);
+  Qt::MouseButton button= event->button ();
+  if (button == Qt::NoButton && (begin || release)) button= Qt::LeftButton;
+  Qt::MouseButtons buttons= event->buttons ();
+  if (begin) buttons |= button;
+  if (release) buttons &= ~button;
+
+  QMouseEvent mouseEvent (type, localPos, localPos, globalPosF, button,
+                          buttons, event->modifiers ());
+  QApplication::sendEvent (target, &mouseEvent);
+  event->accept ();
+  if (release)
+    tabletScrollBarTarget.clear ();
+  return true;
+}
+
+void
+QTMWidget::tabletEvent (QTabletEvent* event) {
+  if (event->type () == QEvent::TabletPress) endPencilHover ();
+  // for testing purposes
+  // cout << "tablet name= " << from_qstring(event->pointingDevice ()->name ()) << "\n";
+  if (forwardTabletEventToScrollBar (event)) return;
+  if (is_nil (tmwid)) return;
+  unsigned int mstate = tablet_state (event, true);
+  QPointF localPreview= event->position () - QPointF (surface ()->pos ());
+  QPoint point = event->position().toPoint() + origin() - surface()->pos();
+  double x= point.x();
+  double y= point.y();
+  coord2 pt= coord2 ((SI) (x * PIXEL), (SI) (-y * PIXEL));
+  bool release= event->type () == QEvent::TabletRelease ||
+                 event->pressure () <= 0.0;
+  if (!nativeInsertSpaceActive && !release &&
+      beginNativeDrawingInsertSpace (
+        localPreview, pt.x1, pt.x2, true)) {
+    event->accept ();
+    return;
+  }
+  if (nativeInsertSpaceActive && nativeInsertSpaceTablet) {
+    updateNativeDrawingInsertSpace (localPreview, pt.x1, pt.x2);
+    if (release)
+      finishNativeDrawingInsertSpace (localPreview, pt.x1, pt.x2);
+    event->accept ();
+    return;
+  }
+  if (nativeInsertSpaceArmed && release && event->buttons () == Qt::NoButton) {
+    event->accept ();
+    return;
+  }
+  if (!nativeSelectionTransformActive && !release &&
+      beginNativeDrawingSelectionTransform (
+        localPreview, pt.x1, pt.x2, true)) {
+    event->accept ();
+    return;
+  }
+  if (nativeSelectionTransformActive && nativeSelectionTransformTablet) {
+    updateNativeDrawingSelectionTransform (localPreview, pt.x1, pt.x2);
+    if (release)
+      finishNativeDrawingSelectionTransform (localPreview, pt.x1, pt.x2);
+    event->accept ();
+    return;
+  }
+  if (!nativeInkActive && release && event->buttons () == Qt::NoButton) {
+    native_ink_preview_style hoverStyle;
+    if (tm_widget ()->handle_native_ink_hit (pt.x1, pt.x2, hoverStyle)) {
+      event->accept ();
+      return;
+    }
+  }
+  if (!nativeInkActive && !release &&
+      beginNativeInk (localPreview, pt.x1, pt.x2,
+                      static_cast<double> (texmacs_time ()),
+                      event->pressure (), event->rotation (), event->xTilt (),
+                      event->yTilt (), event->tangentialPressure (), true)) {
+    event->accept ();
+    return;
+  }
+  if (nativeInkActive && nativeInkTablet) {
+    appendNativeInk (localPreview, pt.x1, pt.x2,
+                     static_cast<double> (texmacs_time ()),
+                     release && !nativeInkSamples.empty () ?
+                       nativeInkSamples.back ().pressure : event->pressure (),
+                     event->rotation (), event->xTilt (), event->yTilt (),
+                     event->tangentialPressure ());
+    if (release) finishNativeInk ();
+    event->accept ();
+    return;
+  }
+  string s= "move";
+  if (event->button() != 0) {
+    if (event->pressure () == 0) s= "release-" * mouse_decode (mstate);
+    else s= "press-" * mouse_decode (mstate);
+  }
+#ifdef Q_OS_IOS
+  // UIKit's hover recognizer owns peek enter/move/exit. Qt also synthesizes
+  // pressure-free moves (including on exit), but loses the hover phase.
+  if (event->type () == QEvent::TabletMove && event->buttons () == Qt::NoButton) {
+    event->accept ();
+    return;
+  }
+#endif
+  if ((mstate & 4) == 0 || s == "press-right") {
+    array<double> data;
+    data << ((double) event->pressure())
+         << ((double) event->rotation())
+         << ((double) event->xTilt())
+         << ((double) event->yTilt())
+         << ((double) event->z())
+         << ((double) event->tangentialPressure());
+    the_gui->process_mouse (tm_widget(), s, pt.x1, pt.x2, 
+                            mstate, texmacs_time (), data);
+  }
+  /*
+  cout << HRULE << LF;
+  cout << "button= " << event->button() << LF;
+  cout << "globalX= " << event->globalX() << LF;
+  cout << "globalY= " << event->globalY() << LF;
+  cout << "hiResGlobalX= " << event->hiResGlobalX() << LF;
+  cout << "hiResGlobalY= " << event->hiResGlobalY() << LF;
+  cout << "globalX= " << event->globalX() << LF;
+  cout << "globalY= " << event->globalY() << LF;
+  cout << "x= " << event->x() << LF;
+  cout << "y= " << event->y() << LF;
+  cout << "z= " << event->z() << LF;
+  cout << "xTilt= " << event->xTilt() << LF;
+  cout << "yTilt= " << event->yTilt() << LF;
+  cout << "pressure= " << event->pressure() << LF;
+  cout << "rotation= " << event->rotation() << LF;
+  cout << "tangentialPressure= " << event->tangentialPressure() << LF;
+  cout << "pointerType= " << event->pointerType() << LF;
+  cout << "uniqueId= " << event->uniqueId() << LF;
+  */
+  event->accept();
+}
+
+void
+QTMWidget::gestureEvent (QGestureEvent* event) {
+  if (is_nil (tmwid)) return;
+
+  string s= "gesture";
+  array<double> data;
+  QPointF hotspot;
+  if (QGesture *swipe_gesture = event->gesture(Qt::SwipeGesture)) {
+    QSwipeGesture *swipe= static_cast<QSwipeGesture *> (swipe_gesture);
+    if (gesturesSupportedForViewZoom () && !inActiveGraphicsMode ()) {
+      if (swipe->state() != Qt::GestureFinished) {
+        event->accept (swipe);
+        return;
+      }
+      int direction= 0;
+      if (swipe->horizontalDirection() == QSwipeGesture::Left)
+        direction= -1;
+      else if (swipe->horizontalDirection() == QSwipeGesture::Right)
+        direction= 1;
+      if (direction != 0) {
+        QPointF focal= swipe->hasHotSpot()
+          ? surface()->mapFromGlobal (swipe->hotSpot().toPoint())
+          : QPointF (surface()->width() / 2.0, surface()->height() / 2.0);
+        logGesture (direction < 0 ? "swipe-left" : "swipe-right",
+                    "qt-neighborhood", direction, focal);
+        neighborhoods_open_neighbor (direction);
+        event->accept (swipe);
+        return;
+      }
+      if (gestureDebugEnabled ())
+        logGesture ("swipe-ignored", "qt-neighborhood", 1.0,
+                    swipe->hasHotSpot () ? swipe->hotSpot().toPoint ()
+                                         : QPointF ());
+      event->accept (swipe);
+      return;
+    }
+    s= "swipe";
+    hotspot = swipe->hotSpot ();
+    if (swipe->state() == Qt::GestureFinished) {
+      if (swipe->horizontalDirection() == QSwipeGesture::Left)
+        s= "swipe-left";
+      else if (swipe->horizontalDirection() == QSwipeGesture::Right)
+        s= "swipe-right";
+      else if (swipe->verticalDirection() == QSwipeGesture::Up)
+        s= "swipe-up";
+      else if (swipe->verticalDirection() == QSwipeGesture::Down)
+        s= "swipe-down";
+    }
+    else {
+      event->accept ();
+      return;
+    }
+  }
+  else if (QGesture *pan_gesture = event->gesture(Qt::PanGesture)) {
+    QPanGesture *pan= static_cast<QPanGesture *> (pan_gesture);
+    string s= "pan";
+    hotspot = pan->hotSpot ();
+    //QPointF delta = pan->delta();
+    //cout << "Pan " << delta.x() << ", " << delta.y() << LF;
+  }
+  else if (QGesture *pinch_gesture = event->gesture(Qt::PinchGesture)) {
+    QPinchGesture *pinch= static_cast<QPinchGesture *> (pinch_gesture);
+    if (handlePinchGestureForViewZoom (pinch)) {
+      event->accept (pinch);
+      return;
+    }
+    s= "pinch";
+    hotspot = pinch->hotSpot ();
+    QPinchGesture::ChangeFlags changeFlags = pinch->changeFlags();
+    if (pinch->state() == Qt::GestureStarted) {
+      pinch->setRotationAngle (0.0);
+      pinch->setScaleFactor (1.0);
+      s= "pinch-start";
+    }
+    else if (pinch->state() == Qt::GestureFinished) {
+      pinch->setRotationAngle (0.0);
+      pinch->setScaleFactor (1.0);
+      s= "pinch-end";
+    }
+    else if (changeFlags & QPinchGesture::RotationAngleChanged) {
+      qreal angle = pinch->rotationAngle();
+      s= "rotate";
+      data << ((double) angle);
+    }
+    else if (changeFlags & QPinchGesture::ScaleFactorChanged) {
+      qreal scale = pinch->totalScaleFactor();
+      s= "scale";
+      data << ((double) scale);
+    }
+  }
+  else {
+    if (gestureDebugEnabled ())
+      cout << "[gesture] qt-gesture route=none platform="
+           << from_qstring (QApplication::platformName ()) << LF;
+    return;
+  }
+  QPoint point (hotspot.x(), hotspot.y());
+  coord2 pt = from_qpoint (point);
+  //cout << s << ", " << pt.x1 << ", " << pt.x2 << LF;
+  the_gui->process_mouse (tm_widget(), s, pt.x1, pt.x2, 
+                          0, texmacs_time (), data);
+  event->accept();
+}
+
+ 
+bool
+QTMWidget::event (QEvent* event) {
+  if (event->type () == QEvent::Leave) proofTrack->leave ();
+  if (event->type () == QEvent::Leave && !is_nil (tmwid))
+    the_gui->process_mouse (tm_widget (), "peek-leave", 0, 0, 0, texmacs_time ());
+  if ((event->type () == QEvent::KeyPress || event->type () == QEvent::KeyRelease) &&
+      static_cast<QKeyEvent*> (event)->key () == Qt::Key_Shift && !is_nil (tmwid)) {
+    const QPoint global= QCursor::pos ();
+    QPoint local= surface ()->mapFromGlobal (global);
+    if (QApplication::widgetAt (global) == surface () &&
+        surface ()->rect ().contains (local)) {
+      coord2 point= from_qpoint (local+origin ());
+      the_gui->process_mouse (tm_widget (), "peek-modifier", point.x1, point.x2,
+        event->type () == QEvent::KeyPress ? 256 : 0, texmacs_time ());
+    }
+    else
+      the_gui->process_mouse (tm_widget (), "peek-leave", 0, 0, 0, texmacs_time ());
+  }
+    // Catch Keypresses to avoid default handling of (Shift+)Tab keys
+  if (event->type() == QEvent::KeyPress) {
+    QKeyEvent *ke = static_cast<QKeyEvent*> (event);
+    keyPressEvent (ke);
+    return true;
+  } 
+  /* NOTE: we catch ShortcutOverride in order to disable the QKeySequences we
+   assigned to QActions while building menus, etc. In doing this, we keep the
+   shortcut text in the menus while relaying all keypresses through the editor*/
+  if (event->type() == QEvent::ShortcutOverride) {
+    QKeyEvent *ke = static_cast<QKeyEvent*> (event);
+    if (ke->modifiers() == Qt::AltModifier && ke->key() == Qt::Key_F) {
+      return false; // Let native Qt mnemonic handling take over for Alt+F
+    }
+    event->accept();
+    return true;
+  }
+  if (event->type() == QEvent::TouchBegin ||
+      event->type() == QEvent::TouchUpdate ||
+      event->type() == QEvent::TouchEnd ||
+      event->type() == QEvent::TouchCancel) {
+    QTouchEvent* touch_event= static_cast<QTouchEvent*> (event);
+    bool handled= handleNeighborhoodTouchTap (event);
+    if (gestureDebugEnabled ()) {
+      cout << "[gesture] event type="
+           << gestureEventTypeName (event->type())
+           << " route=touch handled=" << (handled ? "yes" : "no")
+           << " points=" << touch_event->points ().size () << " platform="
+           << from_qstring (QApplication::platformName ()) << LF;
+    }
+    if (handled) return true;
+  }
+  if (event->type() == QEvent::NativeGesture) {
+    QNativeGestureEvent* native_event= static_cast<QNativeGestureEvent*> (event);
+    bool handled= handleNativeGestureEvent (native_event);
+    if (gestureDebugEnabled ()) {
+      cout << "[gesture] event type=NativeGesture route=native captured="
+           << (handled ? "yes" : "no") << " gesture-type="
+           << gestureEventTypeName (static_cast<QEvent::Type> (native_event->gestureType()))
+           << " fingers=" << native_event->fingerCount () << " value="
+           << as_string (native_event->value ()) << LF;
+    }
+    if (handled) return true;
+  }
+  if (event->type() == QEvent::Gesture) {
+    gestureEvent(static_cast<QGestureEvent*>(event));
+    if (gestureDebugEnabled ())
+      cout << "[gesture] event type=Gesture route=qt accepted" << LF;
+    return true;
+  }
+  return QTMScrollView::event (event);
+}
+
+QTMWidget *last_focused_widget = nullptr;
+
+QTMWidget *QTMWidget::getLastFocusedWidget() {
+  return last_focused_widget;
+}
+
+void QTMWidget::setFocusToLast() {
+  if (!last_focused_widget) return;
+
+  last_focused_widget->focusEditor();
+  
+  if (is_nil (last_focused_widget->tmwid)) return;
+
+  if (DEBUG_QT)
+    debug_qt << "FOCUSIN: " 
+             << last_focused_widget->tm_widget()->type_as_string() 
+             << LF;
+
+  the_gui->process_keyboard_focus (last_focused_widget->tm_widget(),
+                                   true, texmacs_time());
+}
+
+void
+QTMWidget::focusInEvent (QFocusEvent * event) {
+  if (!is_nil (tmwid)) {
+    last_focused_widget = this;
+  }
+  if (!is_nil (tmwid)) {
+    if (DEBUG_QT) debug_qt << "FOCUSIN: " << tm_widget()->type_as_string() << LF;
+    the_gui->process_keyboard_focus (tm_widget(), true, texmacs_time());
+  }
+  QTMScrollView::focusInEvent (event);
+  refreshCursorBlinking (true);
+  updateInputMethodCursorRectangle ();
+  neighborhoods_pane_refresh ();
+  // part 2/2 of the fix for bug 43373.
+  if (!isEmbedded () && !externallyPresented ()) {
+    if (!isActiveWindow() && QApplication::platformName() != "wayland") activateWindow();
+    if (isActiveWindow() && !hasFocus()) setFocus (Qt::OtherFocusReason);
+    //=> this will send us back here...
+    //This redundancy is weird but definitely needed to properly get focus with Qt >= 5.15. Qt bug?
+  }
+}
+
+void
+QTMWidget::focusOutEvent (QFocusEvent * event) {
+  if (is_nil (tmwid)) return;
+  
+  if (DEBUG_QT)
+    debug_qt << "FOCUSOUT: " << tm_widget()->type_as_string() << LF;
+
+  cursorBlinkTimer.stop ();
+  setCursorBlinkVisible (true);
+  the_gui -> process_keyboard_focus (tm_widget(), false, texmacs_time());
+  
+  QTMScrollView::focusOutEvent (event);
+}
+
+QSize
+QTMWidget::sizeHint () const {
+  SI w = 0, h = 0;
+  if (!is_nil (tmwid)) tm_widget()->handle_get_size_hint (w, h);
+  return to_qsize (w, h);
+}
+
+void 
+QTMWidget::dragEnterEvent (QDragEnterEvent *event)
+{
+  if (is_nil (tmwid)) return;
+  const QMimeData *md = event->mimeData();
+
+  if (md->hasText() ||
+      md->hasUrls() ||
+      md->hasImage() ||
+      md->hasFormat("application/pdf") ||
+      md->hasFormat("application/postscript"))
+      event->acceptProposedAction();
+}
+
+
+// cache to transfer drop data to the editor
+// via standard mouse events, see dropEvent below
+
+int drop_payload_serial  =0;
+hashmap<int, tree> payloads;
+ 
+void
+QTMWidget::dropEvent (QDropEvent *event) {
+  if (is_nil (tmwid)) return;
+
+  QPoint point = event->position ().toPoint () + origin ();
+  coord2 pt= from_qpoint (point);
+
+  tree doc (CONCAT);
+  const QMimeData *md= event->mimeData ();
+  QByteArray buf;
+
+  if (DEBUG_QT) debug_qt << "DropEvent formats :" << from_qstring(md->formats().join(",")) << LF;
+
+  if (md->hasUrls ()) {
+    QList<QUrl> l= md->urls ();
+    for (int i=0; i<l.size (); i++) {
+
+      string url = from_qstring(l[i].toString ());
+      if (DEBUG_QT) debug_qt << "DropEvent URL [" << i << "] : " << url << LF;
+
+      if (l[i].isLocalFile()) {
+        string name;
+#ifdef OS_MACOS
+        name= from_qstring (fromNSUrl (l[i]));
+#else
+        name= from_qstring (l[i].toLocalFile ());
+#endif
+        string orig_name= name;
+#ifdef OS_MINGW
+        if (N(name) >=2 && is_alpha (name[0]) && name[1] == ':')
+          name= "/" * locase_all (name (0, 1)) * name (2, N(name));
+#endif
+        string extension = suffix (name);
+        if ((extension == "eps") || (extension == "ps")   ||
+            (extension == "svg") ||
+            (extension == "pdf") || (extension == "png")  ||
+            (extension == "jpg") || (extension == "jpeg")) {
+          string w, h;
+          qt_pretty_image_size (url_system (orig_name), w, h);
+          string ref, error;
+          bool prepared= vault_image_insertion_prepare_file (
+            get_current_buffer_safe (), url_system (orig_name), ref, error);
+          tree im (IMAGE, prepared && ref != "" ? ref : name, w, h, "", "");
+          doc << im;
+        } else {
+          doc << tree (make_tree_label ("cardlink"), "", name);
+        }
+      } else {
+        // not a local file, drop an slink to the document
+        string label= url;
+        if (md->hasText ()) {
+          // retrieve a meaningful string for the label if available
+          // and only the first line as it can be multiline
+          buf= md->text ().toUtf8 ().split('\n')[0];
+          label= string (buf.constData (), buf.size ());
+        }
+        tree ln (HLINK, label, url);
+        doc << ln;
+        //FIXME: this is still not very nice as clicking on HLINK only works for a limited group
+        //of schemas (http, https, ftp). For unrecognized schemas one would like to use the default OS behaviour
+        //(e.g. the "message:" schema identify local email messages)
+      }
+    }
+  } else if (md->hasImage ()) {
+    QBuffer qbuf (&buf);
+    QImage image= qvariant_cast<QImage> (md->imageData());
+    QSize size= image.size ();
+    qbuf.open (QIODevice::WriteOnly);
+    image.save (&qbuf, "PNG");
+    int ww= size.width (), hh= size.height ();
+    string w, h;
+    qt_pretty_image_size (ww, hh, w, h);
+    string raw (buf.constData (), buf.size ());
+    string ref, error;
+    bool prepared= vault_image_insertion_prepare_data (
+      get_current_buffer_safe (), raw, "png", ref, error);
+    tree t= prepared && ref != "" ?
+      tree (IMAGE, ref, w, h, "", "") :
+      tree (IMAGE, tree (RAW_DATA, raw, "png"), w, h, "", "");
+    doc << t;
+  } else if (md->hasFormat("application/postscript")) {
+    buf= md->data("application/postscript");
+    string raw (buf.constData (), buf.size ());
+    string ref, error;
+    bool prepared= vault_image_insertion_prepare_data (
+      get_current_buffer_safe (), raw, "ps", ref, error);
+    tree t= prepared && ref != "" ?
+      tree (IMAGE, ref, "", "", "", "") :
+      tree (IMAGE, tree (RAW_DATA, raw, "ps"), "", "", "", "");
+    doc << t;
+  } else if (md->hasFormat("application/pdf")) {
+    buf= md->data("application/pdf");
+    string raw (buf.constData (), buf.size ());
+    string ref, error;
+    bool prepared= vault_image_insertion_prepare_data (
+      get_current_buffer_safe (), raw, "pdf", ref, error);
+    tree t= prepared && ref != "" ?
+      tree (IMAGE, ref, "", "", "", "") :
+      tree (IMAGE, tree (RAW_DATA, raw, "pdf"), "", "", "", "");
+    doc << t;
+  } else if (md->hasText ()) {
+    buf= md->text ().toUtf8 ();
+    doc << string (buf.constData (), buf.size ());
+  }
+
+  if (N(doc)>0) {
+    if (N(doc) == 1)
+      doc= doc[0];
+    else {
+      tree sec (CONCAT, doc[0]);
+      for (int i=1; i<N(doc); i++)
+        sec << " " << doc[i];
+      doc= sec;
+    }
+    int ticket= drop_payload_serial++;
+    payloads (ticket)= doc;
+    the_gui->process_mouse (tm_widget(), "drop", pt.x1, pt.x2,
+                            ticket, texmacs_time ());
+    event->acceptProposedAction();
+  }
+}
+
+static unsigned int
+wheel_state (QWheelEvent* event) {
+  // TODO: factor mouse_state, tablet_state, wheel_state
+  // This should be easier on modern versions of Qt
+  unsigned int i= 0;
+  Qt::MouseButtons bstate= event->buttons ();
+  Qt::KeyboardModifiers kstate= event->modifiers ();
+  if ((bstate & Qt::LeftButton     ) != 0) i += 1;
+  if ((bstate & Qt::MiddleButton   ) != 0) i += 2;
+  if ((bstate & Qt::RightButton    ) != 0) i += 4;
+  if ((bstate & Qt::XButton1       ) != 0) i += 8;
+  if ((bstate & Qt::XButton2       ) != 0) i += 16;
+#ifdef Q_OS_MAC
+    // We emulate right and middle clicks with ctrl and option, but we pass the
+    // modifiers anyway: old code continues to work and new one can use them.
+  if ((kstate & Qt::MetaModifier   ) != 0) i = 1024+4; // control key
+  if ((kstate & Qt::AltModifier    ) != 0) i = 2048+2; // option key
+  if ((kstate & Qt::ShiftModifier  ) != 0) i += 256;
+  if ((kstate & Qt::ControlModifier) != 0) i += 4096;   // cmd key
+#else
+  if ((kstate & Qt::ShiftModifier  ) != 0) i += 256;
+  if ((kstate & Qt::ControlModifier) != 0) i += 1024;
+  if ((kstate & Qt::AltModifier    ) != 0) i += 2048;
+  if ((kstate & Qt::MetaModifier   ) != 0) i += 4096;
+#endif
+  return i;
+}
+
+void
+QTMWidget::wheelEvent(QWheelEvent *event) {
+  if (is_nil (tmwid)) return; 
+  qt_simple_widget_rep* widget= tm_widget ();
+  if (widget != nullptr && widget->handle_overlay_wheel_capture ()) {
+    scrollWheel (event, true);
+  }
+  else if (widget != nullptr && widget->handle_wheel_capture ()) {
+    QPointF pos  = event->position();
+    QPoint  point= QPointF (pos.x(), pos.y()).toPoint () + origin();
+    QPoint  wheel= event->pixelDelta();
+    if (wheel.isNull ()) wheel= event->angleDelta () / 3;
+    coord2 pt = from_qpoint (point);
+    coord2 wh = from_qpoint (wheel);
+    unsigned int mstate= wheel_state (event);
+    array<double> data; data << ((double) wh.x1) << ((double) wh.x2);
+    the_gui -> process_mouse (tm_widget(), "wheel", pt.x1, pt.x2,
+                              mstate, texmacs_time (), data);
+  }
+  else if (handleNeighborhoodWheelSwipe (event)) return;
+  else if (QApplication::keyboardModifiers() == Qt::ControlModifier) {
+    QPoint numPixels = event->pixelDelta();
+    QPoint numDegrees = event->angleDelta() / 8;
+    
+    // compute the zoom factor from numPixels or numDegrees
+    double zoomFactor = 0.0; (void) zoomFactor;
+    if (!numPixels.isNull()) {
+      if (numPixels.y() > 0) {
+        widget->handle_zoom_by (
+          true, sqrt (sqrt (sqrt (sqrt (numPixels.y ())))));
+      } else {
+        widget->handle_zoom_by (
+          false, sqrt (sqrt (sqrt (sqrt (-numPixels.y ())))));
+      }
+    } else if (!numDegrees.isNull()) {
+      if (numDegrees.y() > 0) {
+        widget->handle_zoom_by (
+          true, sqrt (sqrt (sqrt (sqrt (numDegrees.y ())))));
+      } else {
+        widget->handle_zoom_by (
+          false, sqrt (sqrt (sqrt (sqrt (-numDegrees.y ())))));
+      }
+    }
+  }
+  else {
+    scrollWheel (event, false);
+  }
+}
+
+void QTMWidget::applyScrollDelta (int dx, int dy) {
+  qt_simple_widget_rep* widget= is_nil (tmwid) ? nullptr : tm_widget ();
+  bool capture= widget != nullptr && widget->handle_overlay_wheel_capture ();
+  if (capture != inertiaOverlay || widget == nullptr) {
+    inertia.stop ();
+    return;
+  }
+  if (!inertiaOverlay) {
+    QTMScrollView::applyScrollDelta (dx, dy);
+    return;
+  }
+  coord2 pt= from_qpoint (inertiaOverlayPosition);
+  coord2 delta= from_qpoint (QPoint (dx, dy));
+  array<double> data;
+  data << (double) delta.x1 << (double) delta.x2;
+  the_gui->process_mouse (widget, "wheel", pt.x1, pt.x2,
+                          inertiaOverlayModifiers, texmacs_time (), data);
+}
+
+void QTMWidget::scrollWheel (QWheelEvent* event, bool overlay) {
+    if (inertiaOverlay != overlay) {
+      inertia.stop ();
+    }
+    inertiaOverlay= overlay;
+    if (overlay) {
+      inertiaOverlayPosition= event->position ().toPoint () + origin ();
+      inertiaOverlayModifiers= wheel_state (event);
+    }
+    if (!inertia.wheel (event)) {
+      if (overlay) {
+        QPoint delta= event->pixelDelta ();
+        if (delta.isNull ()) delta= event->angleDelta () / 3;
+        applyScrollDelta (delta.x (), delta.y ());
+        event->accept ();
+      }
+      else QAbstractScrollArea::wheelEvent (event);
+    }
+}
+
+void QTMWidget::showEvent (QShowEvent *event) {
+  the_gui->force_update();
+  QTMScrollView::showEvent (event);
+  performanceMonitor.refresh ();
+}
+
+void QTMWidget::closeEvent (QCloseEvent *event) {
+  if (DEBUG_QT_WIDGETS) debug_widgets << "Close QTMWidget" << LF;
+  event->ignore ();
+  emit closed ();
+}

@@ -8,15 +8,15 @@
 #include <QtTest/QtTest>
 #include <QFile>
 #include <QTemporaryDir>
-#include "ATHENA/Data/artifact_title_filter.hpp"
-#include "ATHENA/Data/hodarium_logical_database.hpp"
-#include "ATHENA/Data/vaultfile_json.hpp"
-#include "Data/Convert/Xml/document_file_codec.hpp"
-#include "Data/Convert/Xml/vault_format_upgrade.hpp"
-#include "Data/Convert/Xml/vault_xml_v3_indexes.hpp"
+#include "Domains/Artifacts/artifact_title_filter.hpp"
+#include "Sync/State/hodarium_logical_database.hpp"
+#include "Domains/Vault/vaultfile_json.hpp"
+#include "Document/Convert/Xml/document_file_codec.hpp"
+#include "Document/Convert/Xml/vault_format_upgrade.hpp"
+#include "Document/Convert/Xml/vault_xml_v3_indexes.hpp"
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }

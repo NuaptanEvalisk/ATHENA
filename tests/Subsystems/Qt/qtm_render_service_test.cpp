@@ -10,12 +10,12 @@
 #include <QtTest/QtTest>
 
 #include "QTMRenderService.hpp"
-#include "ATHENA/Math/native_shape_recognizer.hpp"
+#include "Math/Tools/native_shape_recognizer.hpp"
 #include "qt_font.hpp"
 #include "qt_renderer.hpp"
 #include "qt_simple_widget.hpp"
 #include "QTMWidget.hpp"
-#include "Typeset/Boxes/construct.hpp"
+#include "Typesetting/Boxes/construct.hpp"
 
 #include <QFile>
 #include <QFontDatabase>

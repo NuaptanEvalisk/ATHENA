@@ -10,12 +10,12 @@
 #include <QtTest/QtTest>
 #include <cstdlib>
 
-#include "ATHENA/server.hpp"
-#include "Editor/edit_main.hpp"
-#include "Graphics/Gui/gui.hpp"
-#include "Interface/table_commands.hpp"
+#include "App/Runtime/server.hpp"
+#include "Editor/Engine/edit_main.hpp"
+#include "UI/Abstract/gui.hpp"
+#include "Editor/Commands/table_commands.hpp"
 #include "boot.hpp"
-#include "buffer_state.hpp"
+#include "App/Runtime/buffer_state.hpp"
 #include "data_cache.hpp"
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"

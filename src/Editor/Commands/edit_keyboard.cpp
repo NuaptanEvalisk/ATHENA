@@ -1,0 +1,513 @@
+
+/******************************************************************************
+* MODULE     : edit_keyboard.cpp
+* DESCRIPTION: Keyboard handling
+* COPYRIGHT  : (C) 1999  Joris van der Hoeven
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#include "Editor/Commands/link_markup.hpp"
+#include "Editor/Commands/edit_interface.hpp"
+#include "boot.hpp"
+#include "analyze.hpp"
+#include "App/Runtime/tm_buffer.hpp"
+#include "archiver.hpp"
+#include "utf8_edit.hpp"
+#include "unicode_text.hpp"
+#include "Editor/Commands/native_math_keyboard.hpp"
+#include "Editor/Commands/native_latex_commands.hpp"
+#include "Editor/Commands/native_keyboard_registry.hpp"
+#include "Editor/Commands/native_input_events.hpp"
+#include "Domains/Knowledge/enunciation_slots.hpp"
+#include <algorithm>
+
+#ifdef Q_OS_MAC
+#include "UI/Qt/Shell/QTMApplication.hpp"
+#endif
+
+/******************************************************************************
+* Showing the keystrokes while typing
+******************************************************************************/
+
+bool          kbd_show_keys= false;
+array<string> kbd_shown_keys;
+array<string> kbd_last_keys;
+array<time_t> kbd_last_times;
+int           kbd_erase_delay= 1500;
+int           kbd_hide_delay = 3000;
+
+bool get_show_kbd () { return kbd_show_keys; }
+void set_show_kbd (bool flag) { kbd_show_keys= flag; }
+
+/******************************************************************************
+* Basic subroutines for keyboard handling
+******************************************************************************/
+
+int
+edit_interface_rep::get_input_mode () {
+  return input_mode;
+}
+
+void
+edit_interface_rep::set_input_mode (int mode) {
+  interrupt_shortcut ();
+  // avoids keyboard shortcuts when using the menu between two keystrokes
+
+  if ((mode == INPUT_NORMAL) && (input_mode != INPUT_NORMAL)) {
+    if (input_mode == INPUT_COMPLETE)
+      (void) publish_ui (actor_command_kind::ui_close_completion, completion_session);
+    selection_cancel ();
+    completions= array<string> ();
+    completion_cursor= path ();
+    completion_original= "";
+  }
+  input_mode= mode;
+}
+
+void
+edit_interface_rep::set_input_normal () {
+  pending_text_completion= path ();
+  set_input_mode (INPUT_NORMAL);
+}
+
+bool
+edit_interface_rep::in_normal_mode () {
+  return input_mode == INPUT_NORMAL;
+}
+
+bool
+edit_interface_rep::in_search_mode () {
+  return input_mode == INPUT_SEARCH;
+}
+
+bool
+edit_interface_rep::in_spell_mode () {
+  return input_mode == INPUT_SPELL;
+}
+
+bool
+edit_interface_rep::kbd_get_command (string which, string& help, command& c) {
+  return sv->kbd_get_command (which, help, c);
+}
+
+/******************************************************************************
+* Main keyboard routines
+******************************************************************************/
+
+void
+edit_interface_rep::interrupt_shortcut () {
+  if (sh_mark != 0) mark_end (sh_mark);
+  sh_s= "";
+  sh_mark= 0;
+  shortcut_environment.reset ();
+}
+
+bool
+edit_interface_rep::try_shortcut (string comb) {
+  int     status;
+  command cmd;
+  string  shorth;
+  string  help;
+
+  if (!native_math_keyboard_get_keycomb (comb, status, cmd, shorth, help))
+    sv->get_keycomb (comb, status, cmd, shorth, help);
+  //cout << "Try " << comb << " -> " << shorth << ", " << help
+  //<< "; " << sh_mark << ", " << status << "\n";
+  if (status != 0) {
+    const auto invocation= status >= 3 || sh_mark == 0 ?
+      editor_rep::cursor_context_at (tp) : shortcut_environment;
+    const int action_status= status >= 3 ? status - 3 : status;
+    if ((action_status & 1) != 0) {
+      cmd= native_math_prepare_command (cmd, invocation);
+      cmd= native_latex_prepare_command (cmd, invocation);
+    }
+    if (status >= 3) {
+      interrupt_shortcut ();
+      status -= 3;
+      if (status == 0) return false;
+    }
+    else {
+      if (sh_mark != 0) {
+        if (!mark_cancel (sh_mark)) {
+          sh_mark= 0;
+          shortcut_environment.reset ();
+          return false;
+        }
+        // Undo restores the source but invalidates its display context. Both
+        // native commands and kbd-insert may query the restored cursor mode.
+        apply_changes ();
+      }
+    }
+    sh_s= comb;
+    sh_mark= new_marker ();
+    shortcut_environment= invocation;
+    mark_start (sh_mark);
+    archive_state ();
+    string rew_s= sv->kbd_post_rewrite (sh_s);
+    tree rew= sv->kbd_system_rewrite (rew_s);
+    if (N(help)>0) set_message (help, rew);
+    tree rhs= (shorth == rew_s? tree (""): sv->kbd_system_rewrite (shorth));
+    //cout << "Shortcut: " << sh_s << " -> " << rew << "\n";
+    if ((search_forwards (" ", comb) >= 0 && comb != " ") ||
+        (search_forwards ("-", comb) >= 0 && comb != "-")) {
+      tree t= rhs;
+      if (is_compound (t, "render-key", 1)) t= t[0];
+      if (is_func (t, WITH)) t= t[N(t)-1];
+      set_status_hint (
+        tree (CONCAT, "keyboard shortcut: ", rew),
+        verbatim (rhs));
+    }
+    if ((status & 1) == 1) cmd ();
+    else if (N(shorth) > 0) native_keyboard_insert (tree (shorth));
+    //cout << "Mark= " << sh_mark << "\n";
+    return true;    
+  }
+
+  return false;
+}
+
+static string
+std_accent (string s) {
+  if (s == "\xcc\x80") return "`";
+  if (s == "\xcc\x81" || s == "\xc2\xb4") return "'";
+  if (s == "\xcc\x82") return "^";
+  if (s == "\xcc\x83" || s == "\xcc\xbe") return "~";
+  if (s == "\xcc\x88" || s == "\xc2\xa8") return "\"";
+  return s;
+}
+
+void
+edit_interface_rep::cancel_pre_edit () {
+  ++pre_edit_generation;
+  if (pre_edit_mark == 0) return;
+  ASSERT (sh_mark == 0, "invalid shortcut during pre-edit");
+  mark_cancel (pre_edit_mark);
+  pre_edit_s= "";
+  pre_edit_mark= 0;
+  // Undo restores source, not its admitted display context. Prepare that
+  // restored position before keyboard routing or Scheme insertion reads it.
+  apply_changes ();
+}
+
+void
+edit_interface_rep::key_press (string gkey) {
+  string key= gkey;
+  cancel_pre_edit ();
+  if (starts (key, "pre-edit:")) {
+    string s= key (9, N(key));
+    int i, n= N(s), pos= N(s);
+    for (i=0; i<n; i++)
+      if (s[i] == ':' && is_int (s (0, i))) {
+        int k= as_int (s (0, i));
+        s= s (i+1, n);
+        pos= utf8_grapheme_snap (s, std::clamp (k, 0, N(s)), false);
+        break;
+      }
+    const string accent= std_accent (s);
+    const bool disable_pre_edit= native_math_keyboard_context_active () ?
+      native_math_disable_pre_edit (accent) : false;
+    if (disable_pre_edit) {
+      pre_edit_skip= false;
+      if (s == "") return;
+      pre_edit_skip= true;
+      key= accent;
+    }
+    else if (pre_edit_skip) {
+      if (s == "") pre_edit_skip= false;
+      return;
+    }
+    else {
+      if (s == "") return;
+      interrupt_shortcut ();
+      pre_edit_s= s;
+      pre_edit_mark= new_marker ();
+      mark_start (pre_edit_mark);
+      archive_state ();
+      insert_tree (compound ("pre-edit", s), path (0, pos));
+      return;
+    }
+  }
+  else if (pre_edit_skip) {
+    string r= native_math_keyboard_context_active () ?
+      native_math_downgrade_pre_edit (key) : string ("");
+    if (r == "") return;
+    else key= r;
+  }
+
+  if (commutative_diagram_keypress (key)) {
+    interrupt_shortcut ();
+    return;
+  }
+  if (hybrid_keypress (key)) {
+    interrupt_shortcut ();
+    return;
+  }
+  
+  string new_sh= N(sh_s)==0? key: sh_s * " " * key;
+  if (try_shortcut (new_sh)) {
+    if (hybrid_name_context ()) (void) complete_try_realtime ();
+    return;
+  }
+  if (new_sh != key) {
+    interrupt_shortcut ();
+    if (try_shortcut (key)) {
+      if (hybrid_name_context ()) (void) complete_try_realtime ();
+      return;
+    }
+  }
+
+  string rew= sv->kbd_post_rewrite (key);
+  if (N(rew) == 1) {
+    int i ((unsigned char) rew[0]);
+    if ((i >= 1 && i <= 127) || (i == 25))
+      if (!inside_active_graphics ()) {
+        archive_state ();
+        native_keyboard_insert (tree (rew));
+        (void) complete_try_realtime ();
+      }
+    interrupt_shortcut ();
+  }
+  else if (N(rew) > 1 &&
+           athena::text::valid_utf8 (std::string_view (rew.data (), N(rew))) &&
+           utf8_grapheme_next (rew, 0) == N(rew) &&
+           !inside_active_graphics ()) {
+    archive_state ();
+    native_keyboard_insert (tree (rew));
+    (void) complete_try_realtime ();
+    interrupt_shortcut ();    
+  }
+#if defined(Q_OS_MAC)
+  else if (N(key) == 3 && starts (key, "A-") &&
+           tmapp()->keyboard().composemap()->contains ((int) (unsigned char) key[2])) {
+    string compose_key= tmapp()->keyboard().composemap()[(int) (unsigned char) key[2]];
+    key_press (compose_key);
+  }
+#endif
+  else if (DEBUG_KEYBOARD)
+    debug_keyboard
+      << "unrecognized key " << key << ". "
+      << "Undefined shortcut or key missing from the UTF-8 keyboard resources.\n";
+}
+
+void
+edit_interface_rep::emulate_keyboard (string keys, string action) {
+  string s= keys;
+  while (s != "") {
+    int i;
+    for (i=1; i<N(s); i++)
+      if (s[i]==' ') break;
+    native_keyboard_press (s (0, i), 0);
+    if (i<N(s)) i++;
+    s= s (i, N(s));
+  }
+  if (N (action) != 0)
+    set_message (concat ("You can also obtain ", action, " by typing ", keys),
+                 action);
+}
+
+/******************************************************************************
+* Retrieving keyboard shortcuts
+******************************************************************************/
+
+tree
+edit_interface_rep::kbd (string s) {
+  return sv->kbd_system_rewrite (s);
+}
+
+tree
+edit_interface_rep::kbd_shortcut (string cmd) {
+  string s= native_keyboard_inverse (cmd);
+  return kbd (s);
+}
+
+/******************************************************************************
+* Event handlers
+******************************************************************************/
+
+void
+edit_interface_rep::handle_keypress (string key, time_t t) {
+  if (buf == nullptr) return;
+  pending_text_completion= path ();
+  if (athena::enunciation::title_input_key (*this, key)) return;
+  if (image_resize_active) {
+    image_resize_finish ();
+    if (key == "escape" || key == "S-escape") return;
+  }
+  if (get_user_preference ("typewriter mode", "off") == "hanging") {
+    typewriter_manual_scroll_time= 0;
+    notify_change (THE_CURSOR);
+  }
+  if (t > last_event) last_event= t;
+  if ((key == "escape" || key == "S-escape") && dismiss_link_peek ()) return;
+  bool started= false;
+#ifdef USE_EXCEPTIONS
+  try {
+#endif
+    if (kbd_show_keys) {
+      if (N(kbd_last_times) > 0 &&
+          kbd_last_times[N(kbd_last_times)-1] + kbd_erase_delay < t) {
+        kbd_last_keys = array<string> ();
+        kbd_last_times= array<time_t> ();
+      }
+      if (!starts (key, "pre-edit:")) {
+        kbd_last_keys  << key;
+        kbd_last_times << t;
+      }
+    }
+    if (DEBUG_KEYBOARD) {
+      //for (int i=0; i<N(key); i++)
+      //  cout << ((int) (unsigned char) key[i]) << " ";
+      //cout << "\n";
+      debug_keyboard << "Pressed " << key << " at " << t << "\n";
+      debug_keyboard << "  Codes";
+      for (int i=0; i<N(key); i++)
+        debug_keyboard << " " << (unsigned int) (unsigned char) key[i];
+      debug_keyboard << "\n";      
+    }
+    //time_t t1= texmacs_time ();
+    if (is_nil (eb) ||
+        (env_change & (THE_TREE + THE_ENVIRONMENT)) != 0)
+      apply_changes ();
+    string zero= "a"; zero.set (0, '\0');
+    string gkey= replace (key, zero, "<#0>");
+    if (gkey == "<#3000>") gkey= "space";
+    if (!starts (gkey, "pre-edit:") && native_graphics_canvas_keypress (gkey)) {
+      notify_change (THE_DECORATIONS);
+      return;
+    }
+    start_editing ();
+    started= true;
+    if (starts (gkey, "pre-edit:"))
+      delay_pre_edit (gkey, t);
+    else {
+      ++pre_edit_generation;
+      native_keyboard_press (gkey, (double) t);
+    }
+    update_focus_loci ();
+    if (!is_nil (focus_ids) && got_focus)
+      native_link_follow_ids (focus_ids, "focus");
+    notify_change (THE_DECORATIONS);
+    end_editing ();
+    //time_t t2= texmacs_time ();
+    //if (t2 - t1 >= 10) cout << "handle_keypress took " << t2-t1 << "ms\n";
+#ifdef USE_EXCEPTIONS
+  }
+  catch (string msg) {
+    if (started) {
+      cancel_editing ();
+      interrupt_shortcut ();
+    }
+  }
+  handle_exceptions ();
+#endif
+}
+
+void
+edit_interface_rep::handle_text_input (string text, time_t t) {
+  if (buf == nullptr || text == "") return;
+  if (get_user_preference ("typewriter mode", "off") == "hanging") {
+    typewriter_manual_scroll_time= 0;
+    notify_change (THE_CURSOR);
+  }
+  if (t > last_event) last_event= t;
+  bool started= false;
+#ifdef USE_EXCEPTIONS
+  try {
+#endif
+    athena::text::require_utf8 (std::string_view (text.data (), N(text)));
+    if (is_nil (eb) ||
+        (env_change & (THE_TREE + THE_ENVIRONMENT)) != 0)
+      apply_changes ();
+    start_editing ();
+    started= true;
+    cancel_pre_edit ();
+    if (pre_edit_skip) {
+      string converted= native_math_keyboard_context_active () ?
+        native_math_downgrade_pre_edit (text) : string ("");
+      if (converted == "") {
+        end_editing ();
+        return;
+      }
+      text= converted;
+    }
+    interrupt_shortcut ();
+    archive_state ();
+    native_keyboard_insert (tree (text));
+    (void) complete_try_realtime ();
+    update_focus_loci ();
+    if (!is_nil (focus_ids) && got_focus)
+      native_link_follow_ids (focus_ids, "focus");
+    notify_change (THE_DECORATIONS);
+    end_editing ();
+#ifdef USE_EXCEPTIONS
+  }
+  catch (string msg) {
+    if (started) {
+      cancel_editing ();
+      interrupt_shortcut ();
+    }
+  }
+  handle_exceptions ();
+#endif
+}
+
+void drag_left_reset ();
+void drag_right_reset ();
+
+void
+edit_interface_rep::handle_keyboard_focus (bool has_focus, time_t t) {
+  if (!has_focus) clear_link_peek ();
+  if (!has_focus) image_resize_finish ();
+  if (buf == nullptr) return;
+  if (has_focus && !ui_viewport ().attached) {
+    // Qt may deliver either the synthetic constructor FocusIn or a real mouse
+    // FocusIn after the widget has a native window but before attach_view()
+    // has connected its tm_view to a tm_window.  Such a passive view must
+    // never become the global current view.
+    if (DEBUG_KEYBOARD)
+      debug_keyboard << "Ignoring focus for a view without a tm_window\n";
+    got_focus= false;
+    return;
+  }
+  if (DEBUG_KEYBOARD) {
+    if (has_focus)
+      debug_keyboard << "Got focus at " << t << ", "<< buf->name << "\n";
+    else
+      debug_keyboard << "Lost focus at " << t << ", "<< buf->name << "\n";
+  }
+  if (got_focus != has_focus) {
+    drag_left_reset ();
+    drag_right_reset ();
+  }
+  got_focus= has_focus; (void) t;
+  notify_change (THE_FREEZE);
+  notify_change (THE_FOCUS);
+  if (got_focus) {
+    focus_on_this_editor ();
+    notify_change (THE_DECORATIONS);
+  }
+}
+
+void
+edit_interface_rep::handle_cursor_blink (bool visible) {
+  if (cursor_blink_visible == visible) return;
+  cursor_blink_visible= visible;
+  if (is_nil (eb) || !got_focus || inside_active_graphics ()) return;
+
+  SI dw= 0;
+  if (tremble_count > 3)
+    dw= (1 + min (tremble_count - 3, 25)) * 2 * pixel;
+  SI p2= 2 * zpixel;
+  SI p3= 3 * zpixel;
+  cursor cu= get_cursor ();
+  rectangle region (
+    cu->ox + ((SI) ((cu->y1 - dw) * cu->slope)) - p3 - dw,
+    cu->oy + cu->y1 - dw - p3,
+    cu->ox + ((SI) ((cu->y2 + dw) * cu->slope)) + p2 + dw,
+    cu->oy + cu->y2 + dw + p3);
+  copy_always= rectangles (region, copy_always);
+  invalidate (region->x1, region->y1, region->x2, region->y2);
+}

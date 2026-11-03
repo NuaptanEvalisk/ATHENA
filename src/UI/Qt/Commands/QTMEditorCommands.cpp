@@ -1,0 +1,1138 @@
+/******************************************************************************
+* MODULE     : QTMCommandRegistry.cpp
+* DESCRIPTION: Native application command registry and work-context routing
+* COPYRIGHT  : (C) 2026 Felix
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+
+#include "UI/Qt/Commands/QTMCommandRegistry.hpp"
+#include "UI/Qt/Commands/QTMCommandRegistryInternal.hpp"
+
+#include "UI/Qt/Document/QTMDocumentSearchBar.hpp"
+#include "UI/Qt/Dialogs/QTMNativeDialogs.hpp"
+#include "boot.hpp"
+#include "document_persistence.hpp"
+#include "new_buffer.hpp"
+#include "Document/Convert/Generic/conversion_graph.hpp"
+#include "Document/Convert/Generic/conversion_registry.hpp"
+#include "Document/Convert/Generic/conversion_executor.hpp"
+#include "sys_utils.hpp"
+
+#include <KSyntaxHighlighting/Definition>
+#include <KSyntaxHighlighting/Repository>
+#include <QColor>
+#include <QFileDialog>
+#include <QFileInfo>
+#include <QInputDialog>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QLineEdit>
+#include <QMessageBox>
+#include <QSet>
+
+#include <algorithm>
+
+using namespace qtm_command_registry_detail;
+
+namespace qtm_command_registry_detail {
+QVector<QTMCommandDynamicItem>
+editor_color_items (const QTMCommandContext& context,
+                    std::uint32_t allowedModes) {
+  QVector<QTMCommandDynamicItem> out;
+  qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+  if (proxy == nullptr) return out;
+  actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+  if (!snapshot.valid () || (snapshot.flags & allowedModes) == 0) return out;
+
+  const bool enabled= !snapshot.read_only ();
+  QSet<QString> seen;
+  auto addColor= [&] (const QString& color) {
+    QColor qcolor (color);
+    if (!qcolor.isValid ()) return;
+    QString canonical= qcolor.name ();
+    if (seen.contains (canonical)) return;
+    seen.insert (canonical);
+    QTMCommandDynamicItem item=
+      enabled_dynamic_item (canonical, canonical, canonical);
+    item.icon= canonical;
+    item.state.enabled= enabled;
+    out.append (std::move (item));
+  };
+  static const char* standard[]= {
+    "#000000", "#434343", "#666666", "#999999",
+    "#b7b7b7", "#cccccc", "#d9d9d9", "#efefef",
+    "#f3f3f3", "#ffffff", "#980000", "#ff0000",
+    "#ff9900", "#ffff00", "#00ff00", "#00ffff",
+    "#4a86e8", "#0000ff", "#9900ff", "#ff00ff",
+    "#e6b8af", "#f4cccc", "#fce5cd", "#fff2cc",
+    "#d9ead3", "#d0e0e3", "#c9daf8", "#cfe2f3",
+    "#d9d2e9", "#ead1dc", "#85200c", "#a61c00",
+    "#bf9000", "#38761d"
+  };
+  for (const char* color: standard) addColor (QString::fromLatin1 (color));
+  array<string> recentColors= color_picker_recent_colors ();
+  for (int i= 0; i < N (recentColors); ++i)
+    addColor (to_qstring (recentColors[i]));
+  array<string> savedColors= color_picker_saved_colors ();
+  for (int i= 0; i < N (savedColors); ++i)
+    addColor (to_qstring (savedColors[i]));
+  QTMCommandDynamicItem other= enabled_dynamic_item (
+    QStringLiteral ("__other__"), QObject::tr ("Other color..."));
+  other.state.enabled= enabled;
+  out.append (std::move (other));
+  return out;
+}
+
+bool
+execute_editor_color (const QString& key,
+                      const QTMCommandContext& context) {
+  qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+  if (proxy == nullptr || key.isEmpty ()) return false;
+  QString color= key;
+  if (key == QStringLiteral ("__other__")) {
+    array<string> recent= color_picker_recent_colors ();
+    array<string> saved= color_picker_saved_colors ();
+    array<string> selected= qtm_color_dialog ("Choose color", recent, saved);
+    if (N(selected) == 0) return true;
+    color= to_qstring (selected[0]);
+    if (N(selected) > 1) {
+      array<string> updatedSaved;
+      for (int i= 1; i < N (selected); ++i) updatedSaved << selected[i];
+      color_picker_set_saved_colors (updatedSaved);
+    }
+  }
+  QColor qcolor (color);
+  if (!qcolor.isValid ()) return false;
+  color= qcolor.name ();
+  color_picker_remember_color (from_qstring (color));
+  QJsonObject action;
+  action.insert ("op", "make-with");
+  action.insert ("var", "color");
+  action.insert ("value", color);
+  return submit_inline_editor_action (
+    context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+}
+
+QTMCommandState
+editor_provider_state (
+  const QTMCommandContext& context, std::uint32_t allowedModes= 0,
+  bool writable= false, bool requireSelection= false) {
+  QTMCommandState state;
+  qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+  if (proxy == nullptr) return state;
+  actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+  if (!snapshot.valid ()) return state;
+  if (allowedModes != 0 && (snapshot.flags & allowedModes) == 0) return state;
+  if (requireSelection &&
+      !snapshot.selection_active () &&
+      !snapshot.graphics_selection_active ())
+    return state;
+  state.available= true;
+  state.enabled= !writable || !snapshot.read_only ();
+  return state;
+}
+
+enum class selection_menu_kind {
+  copy,
+  cut,
+  paste,
+  import_preference,
+  export_preference
+};
+
+tree
+selection_menu_formats (selection_menu_kind kind) {
+  switch (kind) {
+  case selection_menu_kind::copy:
+  case selection_menu_kind::cut:
+    return conversion_menu_formats ("texmacs-snippet", "-snippet", true, false);
+  case selection_menu_kind::paste:
+    return conversion_menu_formats ("texmacs-snippet", "-snippet", true, true);
+  case selection_menu_kind::import_preference:
+    return conversion_menu_formats ("texmacs-file", "-file", false, true);
+  case selection_menu_kind::export_preference:
+    return conversion_menu_formats ("texmacs-file", "-file", false, false);
+  }
+  return tree (TUPLE);
+}
+
+QTMCommandState
+selection_menu_state (
+  const QTMCommandContext& context, selection_menu_kind kind) {
+  const bool selection=
+    kind == selection_menu_kind::copy || kind == selection_menu_kind::cut;
+  const bool writable=
+    kind == selection_menu_kind::cut || kind == selection_menu_kind::paste;
+  return editor_provider_state (context, 0, writable, selection);
+}
+
+QVector<QTMCommandDynamicItem>
+selection_menu_items (
+  const QTMCommandContext& context, selection_menu_kind kind) {
+  QVector<QTMCommandDynamicItem> out;
+  QTMCommandState state= selection_menu_state (context, kind);
+  if (!state.available) return out;
+  tree formats= selection_menu_formats (kind);
+  for (int i=0; i<N(formats); ++i) {
+    string id= scm_unquote (formats[i]->label);
+    string name= scm_unquote (conversion_format_name (id)->label);
+    QTMCommandDynamicItem item= enabled_dynamic_item (
+      QStringLiteral ("format/") + to_qstring (id), to_qstring (name));
+    item.group= QObject::tr ("Formats");
+    item.state.enabled= state.enabled;
+    out.append (std::move (item));
+  }
+  if (kind == selection_menu_kind::copy ||
+      kind == selection_menu_kind::cut ||
+      kind == selection_menu_kind::paste) {
+    if (kind == selection_menu_kind::copy) {
+      QTMCommandDynamicItem image=
+        enabled_dynamic_item (
+          QStringLiteral ("image"), QObject::tr ("Image"));
+      image.group= QObject::tr ("Formats");
+      image.state.enabled= state.enabled;
+      out.append (std::move (image));
+    }
+    for (const char* key: {"primary", "secondary", "ternary"}) {
+      QString qkey= QString::fromLatin1 (key);
+      QTMCommandDynamicItem item=
+        enabled_dynamic_item (
+          QStringLiteral ("named/") + qkey,
+          qkey.left (1).toUpper () + qkey.mid (1));
+      item.group= QObject::tr ("Clipboards");
+      item.state.enabled= state.enabled;
+      out.append (std::move (item));
+    }
+    QTMCommandDynamicItem other=
+      enabled_dynamic_item (
+        QStringLiteral ("named/__other__"), QObject::tr ("Other..."));
+    other.group= QObject::tr ("Clipboards");
+    other.state.enabled= state.enabled;
+    out.append (std::move (other));
+  }
+  return out;
+}
+
+bool
+execute_selection_menu_item (
+  const QTMCommandContext& context, selection_menu_kind kind,
+  const QString& key) {
+  QTMCommandState state= selection_menu_state (context, kind);
+  if (!state.available || !state.enabled) return false;
+
+  QJsonObject action;
+  if (kind == selection_menu_kind::copy && key == QStringLiteral ("image")) {
+    action.insert ("op", "business");
+    action.insert ("id", "editor-copy-image");
+    return submit_inline_editor_action (context, action);
+  }
+  if (kind == selection_menu_kind::import_preference ||
+      kind == selection_menu_kind::export_preference) {
+    if (!key.startsWith (QStringLiteral ("format/"))) return false;
+    action.insert ("op", "selection-format-default");
+    action.insert (
+      "direction",
+      kind == selection_menu_kind::import_preference ? "import" : "export");
+    action.insert ("format", key.mid (7));
+    return submit_inline_editor_action (context, action);
+  }
+
+  QString operation=
+    kind == selection_menu_kind::copy ? QStringLiteral ("copy") :
+    kind == selection_menu_kind::cut ? QStringLiteral ("cut") :
+                                       QStringLiteral ("paste");
+  QString clipboard= QStringLiteral ("primary");
+  if (key.startsWith (QStringLiteral ("named/"))) {
+    clipboard= key.mid (6);
+    if (clipboard == QStringLiteral ("__other__")) {
+      bool ok= false;
+      clipboard= QInputDialog::getText (
+        context.shell.data (), QObject::tr ("Clipboard"),
+        QObject::tr ("Clipboard name:"), QLineEdit::Normal,
+        QStringLiteral ("primary"), &ok).trimmed ();
+      if (!ok || clipboard.isEmpty ()) return true;
+    }
+  }
+  else if (!key.startsWith (QStringLiteral ("format/")))
+    return false;
+
+  action.insert ("op", "selection-clipboard");
+  action.insert ("operation", operation);
+  action.insert ("key", clipboard);
+  if (key.startsWith (QStringLiteral ("format/")))
+    action.insert ("format", key.mid (7));
+  return submit_inline_editor_action (context, action);
+}
+
+native_editor_command_id
+editor_command_id (const QString& id) {
+  if (id == "editor.undo") return native_editor_command_id::undo;
+  if (id == "editor.redo") return native_editor_command_id::redo;
+  if (id == "editor.copy") return native_editor_command_id::copy;
+  if (id == "editor.cut") return native_editor_command_id::cut;
+  if (id == "editor.paste") return native_editor_command_id::paste;
+  if (id == "editor.node-properties")
+    return native_editor_command_id::node_properties;
+  if (id == "editor.save") return native_editor_command_id::save;
+  if (id == "editor.revert") return native_editor_command_id::revert;
+  if (id == "editor.update-all") return native_editor_command_id::update_all;
+  if (id == "editor.close-document")
+    return native_editor_command_id::close_document;
+  if (id == "editor.save-as") return native_editor_command_id::save_as;
+  if (id == "editor.preview") return native_editor_command_id::preview;
+  if (id == "editor.print") return native_editor_command_id::print;
+  if (id == "editor.close-window")
+    return native_editor_command_id::close_window;
+  if (id == "editor.history-back")
+    return native_editor_command_id::history_back;
+  if (id == "editor.history-forward")
+    return native_editor_command_id::history_forward;
+  if (id == "editor.presentation-first")
+    return native_editor_command_id::presentation_first;
+  if (id == "editor.presentation-previous-screen")
+    return native_editor_command_id::presentation_previous_screen;
+  if (id == "editor.presentation-previous")
+    return native_editor_command_id::presentation_previous;
+  if (id == "editor.presentation-next")
+    return native_editor_command_id::presentation_next;
+  if (id == "editor.presentation-next-screen")
+    return native_editor_command_id::presentation_next_screen;
+  if (id == "editor.presentation-last")
+    return native_editor_command_id::presentation_last;
+  if (id == "editor.print-to-file")
+    return native_editor_command_id::print_to_file;
+  if (id == "editor.print-page-selection")
+    return native_editor_command_id::print_page_selection;
+  if (id == "editor.print-page-selection-to-file")
+    return native_editor_command_id::print_page_selection_to_file;
+  if (id == "editor.export-pdf")
+    return native_editor_command_id::export_pdf;
+  if (id == "editor.focus.first-similar")
+    return native_editor_command_id::focus_traverse_first;
+  if (id == "editor.focus.previous-similar")
+    return native_editor_command_id::focus_traverse_previous;
+  if (id == "editor.focus.next-similar")
+    return native_editor_command_id::focus_traverse_next;
+  if (id == "editor.focus.last-similar")
+    return native_editor_command_id::focus_traverse_last;
+  if (id == "editor.focus.insert-left")
+    return native_editor_command_id::focus_insert_left;
+  if (id == "editor.focus.insert-right")
+    return native_editor_command_id::focus_insert_right;
+  if (id == "editor.focus.insert-up")
+    return native_editor_command_id::focus_insert_up;
+  if (id == "editor.focus.insert-down")
+    return native_editor_command_id::focus_insert_down;
+  if (id == "editor.focus.remove-left")
+    return native_editor_command_id::focus_remove_left;
+  if (id == "editor.focus.remove-right")
+    return native_editor_command_id::focus_remove_right;
+  if (id == "editor.focus.remove-up")
+    return native_editor_command_id::focus_remove_up;
+  if (id == "editor.focus.remove-down")
+    return native_editor_command_id::focus_remove_down;
+  if (id == "editor.focus.exit-left")
+    return native_editor_command_id::focus_exit_left;
+  if (id == "editor.focus.exit-right")
+    return native_editor_command_id::focus_exit_right;
+  if (id == "editor.focus.remove-tag")
+    return native_editor_command_id::focus_remove_tag;
+  return native_editor_command_id::none;
+}
+
+QTMCommandState
+native_editor_command_state (const QString& id,
+                             const QTMCommandContext& context) {
+  QTMCommandState result;
+  qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+  if (proxy == nullptr) return result;
+  actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+  if (!snapshot.valid ()) return result;
+
+  native_editor_command_id command= editor_command_id (id);
+  if (command == native_editor_command_id::none) return result;
+  result.available= true;
+  const bool localEdit=
+    (command == native_editor_command_id::undo ||
+     command == native_editor_command_id::redo ||
+     command == native_editor_command_id::copy ||
+     command == native_editor_command_id::cut ||
+     command == native_editor_command_id::paste) &&
+    local_text_input_owns_edit_command (context);
+  if (localEdit) return result;
+
+  const bool hasSelection=
+    snapshot.selection_active () || snapshot.graphics_selection_active ();
+  actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+  const bool genericFocus=
+    focus.valid () &&
+    !focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
+    !focus.has (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT) &&
+    !focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT);
+  switch (command) {
+  case native_editor_command_id::undo:
+    result.enabled= !snapshot.read_only () && snapshot.undo_count != 0;
+    break;
+  case native_editor_command_id::redo:
+    result.enabled= !snapshot.read_only () && snapshot.redo_count != 0;
+    break;
+  case native_editor_command_id::copy:
+    result.enabled= hasSelection;
+    break;
+  case native_editor_command_id::cut:
+    result.enabled= !snapshot.read_only () && hasSelection;
+    break;
+  case native_editor_command_id::paste:
+    result.enabled= !snapshot.read_only ();
+    break;
+  case native_editor_command_id::node_properties:
+    result.enabled= snapshot.focus_node_available ();
+    break;
+  case native_editor_command_id::save:
+  case native_editor_command_id::update_all:
+    result.enabled= !snapshot.read_only ();
+    break;
+  case native_editor_command_id::revert:
+  case native_editor_command_id::close_document:
+  case native_editor_command_id::save_as:
+  case native_editor_command_id::preview:
+  case native_editor_command_id::close_window:
+  case native_editor_command_id::history_back:
+  case native_editor_command_id::history_forward:
+    result.enabled= true;
+    break;
+  case native_editor_command_id::presentation_first:
+  case native_editor_command_id::presentation_previous:
+  case native_editor_command_id::presentation_next:
+  case native_editor_command_id::presentation_last:
+    result.available= snapshot.presentation_mode ();
+    result.enabled= result.available;
+    break;
+  case native_editor_command_id::presentation_previous_screen:
+  case native_editor_command_id::presentation_next_screen:
+    result.available= snapshot.presentation_mode () && snapshot.screens_mode ();
+    result.enabled= result.available;
+    break;
+  case native_editor_command_id::print:
+    result.available= has_printing_cmd ();
+    result.enabled= result.available;
+    break;
+  case native_editor_command_id::print_to_file: {
+    bool useDialog=
+      get_user_preference ("gui:print dialogue", "on") == "on";
+    result.available= !useDialog || !has_printing_cmd ();
+    result.enabled= result.available;
+    break;
+  }
+  case native_editor_command_id::print_page_selection: {
+    bool useDialog=
+      get_user_preference ("gui:print dialogue", "on") == "on";
+    result.available= !useDialog && !has_printing_cmd ();
+    result.enabled= result.available;
+    break;
+  }
+  case native_editor_command_id::print_page_selection_to_file:
+    result.available=
+      get_user_preference ("gui:print dialogue", "on") != "on";
+    result.enabled= result.available;
+    break;
+  case native_editor_command_id::export_pdf:
+    result.enabled= true;
+    break;
+  case native_editor_command_id::focus_traverse_first:
+  case native_editor_command_id::focus_traverse_previous:
+  case native_editor_command_id::focus_traverse_next:
+  case native_editor_command_id::focus_traverse_last:
+    result.available=
+      genericFocus && focus.has (ACTOR_FOCUS_TOOLBAR_CAN_MOVE);
+    result.enabled= result.available;
+    break;
+  case native_editor_command_id::focus_insert_left:
+  case native_editor_command_id::focus_insert_right:
+    result.available=
+      genericFocus &&
+      focus.has (ACTOR_FOCUS_TOOLBAR_CAN_INSERT_REMOVE) &&
+      (focus.has (ACTOR_FOCUS_TOOLBAR_VERTICAL) ||
+       (focus.has (ACTOR_FOCUS_TOOLBAR_HORIZONTAL) &&
+        focus.has (ACTOR_FOCUS_TOOLBAR_CAN_INSERT)));
+    result.enabled= result.available && !snapshot.read_only ();
+    break;
+  case native_editor_command_id::focus_remove_left:
+  case native_editor_command_id::focus_remove_right:
+    result.available=
+      genericFocus &&
+      focus.has (ACTOR_FOCUS_TOOLBAR_CAN_INSERT_REMOVE) &&
+      (focus.has (ACTOR_FOCUS_TOOLBAR_VERTICAL) ||
+       (focus.has (ACTOR_FOCUS_TOOLBAR_HORIZONTAL) &&
+        focus.has (ACTOR_FOCUS_TOOLBAR_CAN_REMOVE)));
+    result.enabled= result.available && !snapshot.read_only ();
+    break;
+  case native_editor_command_id::focus_insert_up:
+  case native_editor_command_id::focus_insert_down:
+  case native_editor_command_id::focus_remove_up:
+  case native_editor_command_id::focus_remove_down:
+    result.available=
+      genericFocus &&
+      focus.has (ACTOR_FOCUS_TOOLBAR_CAN_INSERT_REMOVE) &&
+      focus.has (ACTOR_FOCUS_TOOLBAR_VERTICAL);
+    result.enabled= result.available && !snapshot.read_only ();
+    break;
+  case native_editor_command_id::focus_exit_left:
+  case native_editor_command_id::focus_exit_right:
+  case native_editor_command_id::focus_remove_tag:
+    result.available=
+      genericFocus && focus.has (ACTOR_FOCUS_TOOLBAR_CURSOR_INSIDE);
+    result.enabled= result.available && !snapshot.read_only ();
+    break;
+  default:
+    break;
+  }
+  return result;
+}
+
+bool
+invoke_native_editor_command (const QString& id,
+                               const QTMCommandContext& context) {
+  qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+  if (proxy == nullptr) return false;
+  native_editor_command_id command= editor_command_id (id);
+  return command != native_editor_command_id::none &&
+         proxy->submit_editor_command (command);
+}
+
+QTMCommandState
+native_editor_view_command_state (const QTMCommandContext& context,
+                                  bool writable) {
+  QTMCommandState result;
+  qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+  if (proxy == nullptr) return result;
+  actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+  if (!snapshot.valid ()) return result;
+  result.available= true;
+  result.enabled= !writable || !snapshot.read_only ();
+  return result;
+}
+
+QTMCommandState
+math_mode_command_state (const QTMCommandContext& context, bool writable) {
+  QTMCommandState result;
+  qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+  if (proxy == nullptr) return result;
+  actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+  if (!snapshot.valid () || !snapshot.math_mode ()) return result;
+  result.available= true;
+  result.enabled= !writable || !snapshot.read_only ();
+  return result;
+}
+
+KSyntaxHighlighting::Repository&
+program_syntax_repository () {
+  static KSyntaxHighlighting::Repository repository;
+  return repository;
+}
+
+KSyntaxHighlighting::Definition
+program_definition (QString input) {
+  input= input.trimmed ();
+  if (input.compare (QStringLiteral ("cpp"), Qt::CaseInsensitive) == 0)
+    input= QStringLiteral ("C++");
+  else if (input.compare (QStringLiteral ("shell"), Qt::CaseInsensitive) == 0)
+    input= QStringLiteral ("Bash");
+  else if (input.compare (QStringLiteral ("scm"), Qt::CaseInsensitive) == 0)
+    input= QStringLiteral ("Scheme");
+
+  auto& repository= program_syntax_repository ();
+  auto definition= repository.definitionForName (input);
+  if (definition.isValid ()) return definition;
+  for (const auto& candidate: repository.definitions ())
+    if (candidate.name ().compare (input, Qt::CaseInsensitive) == 0)
+      return candidate;
+  return repository.definitionForFileName (QStringLiteral ("source.") + input);
+}
+
+QTMCommandState
+program_insert_state (const QTMCommandContext& context) {
+  QTMCommandState state;
+  qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+  if (proxy == nullptr) return state;
+  actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+  constexpr std::uint32_t required=
+    ACTOR_EDITOR_COMMAND_STATE_TEXT_MODE |
+    ACTOR_EDITOR_COMMAND_STATE_STD_MARKUP;
+  if (!snapshot.valid () || (snapshot.flags & required) != required) return state;
+  state.available= true;
+  state.enabled= !snapshot.read_only ();
+  return state;
+}
+
+QVector<QTMCommandDynamicItem>
+program_language_items (const QTMCommandContext& context) {
+  QVector<QTMCommandDynamicItem> out;
+  QTMCommandState state= program_insert_state (context);
+  if (!state.available) return out;
+
+  auto& repository= program_syntax_repository ();
+  QSet<QString> favorites;
+  const QString favoriteNames[]= {
+    QStringLiteral ("C++"), QStringLiteral ("Fortran"),
+    QStringLiteral ("Java"), QStringLiteral ("Python"),
+    QStringLiteral ("Scala"), QStringLiteral ("Scheme"),
+    QStringLiteral ("Bash")
+  };
+  for (const QString& name: favoriteNames) {
+    auto definition= repository.definitionForName (name);
+    if (!definition.isValid () || definition.isHidden ()) continue;
+    favorites.insert (definition.name ());
+    QTMCommandDynamicItem item= enabled_dynamic_item (
+      QStringLiteral ("language:") + definition.name (),
+      definition.translatedName (),
+      QObject::tr ("Insert a %1 program").arg (definition.translatedName ()));
+    item.state.enabled= state.enabled;
+    out.append (std::move (item));
+  }
+
+  QVector<KSyntaxHighlighting::Definition> definitions;
+  for (const auto& definition: repository.definitions ())
+    if (definition.isValid () && !definition.isHidden () &&
+        !favorites.contains (definition.name ()))
+      definitions.append (definition);
+  std::sort (
+    definitions.begin (), definitions.end (),
+    [] (const auto& a, const auto& b) {
+      int section= QString::localeAwareCompare (
+        a.translatedSection (), b.translatedSection ());
+      return section != 0 ? section < 0 :
+        QString::localeAwareCompare (a.translatedName (), b.translatedName ()) < 0;
+    });
+
+  for (const auto& definition: definitions) {
+    QTMCommandDynamicItem item= enabled_dynamic_item (
+      QStringLiteral ("language:") + definition.name (),
+      definition.translatedName (),
+      QObject::tr ("Insert a %1 program").arg (definition.translatedName ()));
+    item.group= definition.translatedSection ().trimmed ();
+    if (item.group.isEmpty ()) item.group= QObject::tr ("Other");
+    item.state.enabled= state.enabled;
+    out.append (std::move (item));
+  }
+
+  QTMCommandDynamicItem other= enabled_dynamic_item (
+    QStringLiteral ("__other__"), QObject::tr ("Other..."),
+    QObject::tr ("Enter another programming language"));
+  other.state.enabled= state.enabled;
+  out.append (std::move (other));
+  return out;
+}
+
+bool
+execute_program_language (const QString& key,
+                          const QTMCommandContext& context) {
+  QTMCommandState state= program_insert_state (context);
+  if (!state.available || !state.enabled) return false;
+
+  QString language;
+  if (key == QStringLiteral ("__other__")) {
+    bool ok= false;
+    language= QInputDialog::getText (
+      context.shell.data (), QObject::tr ("Insert program"),
+      QObject::tr ("Programming language:"), QLineEdit::Normal,
+      QString (), &ok).trimmed ();
+    if (!ok || language.isEmpty ()) return true;
+    const auto definition= program_definition (language);
+    if (definition.isValid ()) language= definition.name ();
+  }
+  else if (key.startsWith (QStringLiteral ("language:")))
+    language= key.mid (QStringLiteral ("language:").size ()).trimmed ();
+  else return false;
+
+  if (language.isEmpty ()) return false;
+  QJsonObject action;
+  action.insert ("op", "make-program");
+  action.insert ("language", language);
+  return submit_inline_editor_action (
+    context, action,
+    ACTOR_EDITOR_COMMAND_STATE_TEXT_MODE |
+      ACTOR_EDITOR_COMMAND_STATE_STD_MARKUP,
+    ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+}
+
+} // namespace qtm_command_registry_detail
+
+void
+QTMCommandRegistry::registerEditorCommands () {
+  registerProvider (
+    "editor-program-languages", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      return program_language_items (context);
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      return execute_program_language (key, context);
+    },
+    [] (const QTMCommandContext& context) {
+      return program_insert_state (context);
+    });
+  registerProvider (
+    "file-export-formats", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      if (is_none (frozen_document_url (context))) return out;
+      tree formats= conversion_menu_formats ("texmacs-file", "-file", false, false);
+      for (int i=0; i<N(formats); ++i) {
+        string id= scm_unquote (formats[i]->label);
+        string name= scm_unquote (conversion_format_name (id)->label);
+        QTMCommandDynamicItem item= enabled_dynamic_item (
+          to_qstring (id), QObject::tr ("Export as %1").arg (to_qstring (name)));
+        item.help= to_qstring (conversion_format_default_suffix (id));
+        out.append (std::move (item));
+      }
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      url source= frozen_document_url (context);
+      if (key.isEmpty () || is_none (source)) return false;
+      QString suffix= provider_format_suffix (key);
+      QString path= QFileDialog::getSaveFileName (
+        context.shell.data (), QObject::tr ("Export document"), QString (),
+        provider_file_filter (key, suffix));
+      if (path.isEmpty ()) return true;
+      if (!suffix.isEmpty () && QFileInfo (path).suffix ().isEmpty ())
+        path += QStringLiteral (".") + suffix;
+      bool failed= buffer_export (
+        source, url_system (from_qstring (path)), from_qstring (key));
+      if (failed)
+        QMessageBox::warning (
+          context.shell.data (), QObject::tr ("Export"),
+          QObject::tr ("Could not export the document to %1.").arg (path));
+      return !failed;
+    },
+    [] (const QTMCommandContext& context) {
+      QTMCommandState state;
+      if (is_none (frozen_document_url (context))) return state;
+      state.available= true;
+      state.enabled= true;
+      return state;
+    });
+  registerProvider (
+    "selection-image-formats", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return out;
+      actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+      if (!snapshot.valid () ||
+          (!snapshot.selection_active () &&
+           !snapshot.graphics_selection_active ()))
+        return out;
+      tree formats= conversion_image_formats ();
+      for (int i=0; i<N(formats); ++i) {
+        string id= scm_unquote (formats[i]->label);
+        string suffix= conversion_format_default_suffix (id);
+        if (suffix == "" || !conversion_file_available (
+              url ("x.pdf"), url ("y." * suffix))) continue;
+        out.append (enabled_dynamic_item (
+          to_qstring (id),
+          to_qstring (scm_unquote (conversion_format_name (id)->label)),
+          to_qstring (suffix)));
+      }
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      return proxy != nullptr && !key.isEmpty () &&
+             proxy->submit_editor_command (
+               native_editor_command_id::export_selection_image,
+               from_qstring (key));
+    },
+    [] (const QTMCommandContext& context) {
+      return editor_provider_state (context, 0, false, true);
+    });
+  registerProvider (
+    "realtime-save-toggle", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      url source= frozen_document_url (context);
+      if (is_none (source) ||
+          athena_current_document_save_mode () !=
+            athena_document_save_mode::realtime ||
+          !athena_realtime_save_eligible (source))
+        return out;
+      bool paused= athena_realtime_save_paused (source);
+      out.append (enabled_dynamic_item (
+        QStringLiteral ("toggle"),
+        paused ? QObject::tr ("Resume realtime save")
+               : QObject::tr ("Pause realtime save")));
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      if (key != QStringLiteral ("toggle")) return false;
+      url source= frozen_document_url (context);
+      if (is_none (source) || !athena_realtime_save_eligible (source))
+        return false;
+      return athena_set_realtime_save_paused (
+        source, !athena_realtime_save_paused (source));
+    },
+    [] (const QTMCommandContext& context) {
+      QTMCommandState state;
+      url source= frozen_document_url (context);
+      if (is_none (source) ||
+          athena_current_document_save_mode () !=
+            athena_document_save_mode::realtime ||
+          !athena_realtime_save_eligible (source))
+        return state;
+      state.available= true;
+      state.enabled= true;
+      return state;
+    });
+  registerProvider (
+    "editor-text-colors", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      return editor_color_items (
+        context,
+        ACTOR_EDITOR_COMMAND_STATE_TEXT_MODE |
+        ACTOR_EDITOR_COMMAND_STATE_SOURCE_MODE);
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      return execute_editor_color (key, context);
+    },
+    [] (const QTMCommandContext& context) {
+      return editor_provider_state (
+        context,
+        ACTOR_EDITOR_COMMAND_STATE_TEXT_MODE |
+        ACTOR_EDITOR_COMMAND_STATE_SOURCE_MODE,
+        true);
+    });
+  registerProvider (
+    "editor-prog-colors", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      return editor_color_items (
+        context, ACTOR_EDITOR_COMMAND_STATE_PROG_MODE);
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      return execute_editor_color (key, context);
+    },
+    [] (const QTMCommandContext& context) {
+      return editor_provider_state (
+        context, ACTOR_EDITOR_COMMAND_STATE_PROG_MODE, true);
+    });
+  registerProvider (
+    "editor-math-colors", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      return editor_color_items (
+        context, ACTOR_EDITOR_COMMAND_STATE_MATH_MODE);
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      return execute_editor_color (key, context);
+    },
+    [] (const QTMCommandContext& context) {
+      return editor_provider_state (
+        context, ACTOR_EDITOR_COMMAND_STATE_MATH_MODE, true);
+    });
+  registerProvider (
+    "editor-prominent-spacing", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return out;
+      actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+      const std::uint32_t required=
+        ACTOR_EDITOR_COMMAND_STATE_TEXT_MODE |
+        ACTOR_EDITOR_COMMAND_STATE_STD_MARKUP;
+      if (!snapshot.valid () ||
+          (snapshot.flags & required) != required ||
+          !proxy->prominent_spacing_available ())
+        return out;
+      const bool enabled= !snapshot.read_only ();
+      const struct { const char* key; const char* label; } values[]= {
+        {"compact", "Compact"},
+        {"compressed", "Compressed"},
+        {"amplified", "Amplified"}
+      };
+      for (const auto& value: values) {
+        QTMCommandDynamicItem item= enabled_dynamic_item (
+          QString::fromLatin1 (value.key), QObject::tr (value.label));
+        item.state.enabled= enabled;
+        out.append (std::move (item));
+      }
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      static const QSet<QString> allowed {
+        QStringLiteral ("compact"),
+        QStringLiteral ("compressed"),
+        QStringLiteral ("amplified")
+      };
+      if (!allowed.contains (key)) return false;
+      QJsonObject action;
+      action.insert ("op", "make");
+      action.insert ("tag", key);
+      return submit_inline_editor_action (
+        context, action,
+        ACTOR_EDITOR_COMMAND_STATE_TEXT_MODE |
+        ACTOR_EDITOR_COMMAND_STATE_STD_MARKUP,
+        ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+    },
+    [] (const QTMCommandContext& context) {
+      QTMCommandState state;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return state;
+      actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+      const std::uint32_t required=
+        ACTOR_EDITOR_COMMAND_STATE_TEXT_MODE |
+        ACTOR_EDITOR_COMMAND_STATE_STD_MARKUP;
+      if (!snapshot.valid () ||
+          (snapshot.flags & required) != required ||
+          !proxy->prominent_spacing_available ())
+        return state;
+      state.available= true;
+      state.enabled= !snapshot.read_only ();
+      return state;
+    });
+  registerProvider (
+    "editor-personal-macros", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return out;
+      actor_editor_command_snapshot commandState= proxy->editor_command_state ();
+      const std::uint32_t insertModes=
+        ACTOR_EDITOR_COMMAND_STATE_TEXT_MODE |
+        ACTOR_EDITOR_COMMAND_STATE_MATH_MODE |
+        ACTOR_EDITOR_COMMAND_STATE_PROG_MODE;
+      if (!commandState.valid () || (commandState.flags & insertModes) == 0)
+        return out;
+      actor_dynamic_menu_snapshot snapshot= proxy->personal_macro_items ();
+      if (!snapshot.ready) {
+        (void) proxy->request_personal_macro_items ();
+        QTMCommandDynamicItem loading= enabled_dynamic_item (
+          QStringLiteral ("__loading__"),
+          QObject::tr ("Loading personal macros..."));
+        loading.state.enabled= false;
+        out.append (std::move (loading));
+        return out;
+      }
+      for (const actor_dynamic_menu_item_snapshot& source: snapshot.items) {
+        QString group= QString::fromUtf8 (
+          source.group.data (), static_cast<int> (source.group.size ()));
+        QString label= QString::fromUtf8 (
+          source.label.data (), static_cast<int> (source.label.size ()));
+        QString key= QString::fromUtf8 (
+          source.key.data (), static_cast<int> (source.key.size ()));
+        if (key.isEmpty ()) continue;
+        QTMCommandDynamicItem item= enabled_dynamic_item (
+          key, label, QObject::tr ("Insert personal macro %1").arg (label));
+        item.group= group;
+        out.append (std::move (item));
+      }
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      if (key.isEmpty () || key == QStringLiteral ("__loading__"))
+        return false;
+      QJsonObject action;
+      action.insert ("op", "make");
+      action.insert ("tag", key);
+      return submit_inline_editor_action (
+        context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+    },
+    [] (const QTMCommandContext& context) {
+      return editor_provider_state (
+        context,
+        ACTOR_EDITOR_COMMAND_STATE_TEXT_MODE |
+        ACTOR_EDITOR_COMMAND_STATE_MATH_MODE |
+        ACTOR_EDITOR_COMMAND_STATE_PROG_MODE,
+        true);
+    });
+  registerBehavior (
+    "editor.search", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QTMWidget* canvas= editor_canvas_for_context (context);
+      if (canvas == nullptr) return false;
+      QTMDocumentSearchBar::showForCanvas (canvas, false);
+      return true;
+    },
+    [] (const QTMCommandContext& context) {
+      return native_editor_view_command_state (context, false);
+    });
+  registerBehavior (
+    "editor.replace", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QTMWidget* canvas= editor_canvas_for_context (context);
+      if (canvas == nullptr) return false;
+      QTMDocumentSearchBar::showForCanvas (canvas, true);
+      return true;
+    },
+    [] (const QTMCommandContext& context) {
+      return native_editor_view_command_state (context, true);
+    });
+  registerBehavior (
+    "editor.math-correct-all", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      return proxy != nullptr &&
+             proxy->submit_editor_command (
+               native_editor_command_id::math_correct_all);
+    },
+    [] (const QTMCommandContext& context) {
+      return math_mode_command_state (context, true);
+    });
+
+  auto registerMathPreference=
+    [this] (const QString& id, string preference) {
+      registerBehavior (
+        id, QTMCommandScope::Editor,
+        [preference] (const QTMCommandContext& context) {
+          QTMCommandState state= math_mode_command_state (context, false);
+          if (!state.available || !state.enabled) return false;
+          string current= get_user_preference (preference, "on");
+          set_user_preference (
+            preference, current == "on" ? string ("off") : string ("on"));
+          return true;
+        },
+        [preference] (const QTMCommandContext& context) {
+          QTMCommandState state= math_mode_command_state (context, false);
+          if (!state.available) return state;
+          state.checkable= true;
+          state.checked= get_user_preference (preference, "on") == "on";
+          return state;
+        });
+    };
+  registerMathPreference (
+    "editor.math-correct-remove-superfluous",
+    "manual remove superfluous invisible");
+  registerMathPreference (
+    "editor.math-correct-insert-missing",
+    "manual insert missing invisible");
+  registerMathPreference (
+    "editor.math-correct-homoglyph",
+    "manual homoglyph correct");
+
+  registerBehavior (
+    "editor.export-pdf-embedded", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return false;
+      QString path= QFileDialog::getSaveFileName (
+        context.shell.data (),
+        QObject::tr ("Export PDF with embedded document"),
+        QString (), QObject::tr ("PDF documents (*.pdf)"));
+      if (path.isEmpty ()) return true;
+      if (!path.endsWith (QStringLiteral (".pdf"), Qt::CaseInsensitive))
+        path += QStringLiteral (".pdf");
+      QJsonObject action;
+      action.insert ("op", "export-pdf-embedded");
+      action.insert ("path", path);
+      return submit_inline_editor_action (context, action);
+    },
+    [] (const QTMCommandContext& context) {
+      return editor_provider_state (context);
+    });
+
+  const struct {
+    const char* id;
+    selection_menu_kind kind;
+  } selectionProviders[]= {
+    {"editor-selection-copy-to", selection_menu_kind::copy},
+    {"editor-selection-cut-to", selection_menu_kind::cut},
+    {"editor-selection-paste-from", selection_menu_kind::paste},
+    {"editor-selection-import-preference",
+     selection_menu_kind::import_preference},
+    {"editor-selection-export-preference",
+     selection_menu_kind::export_preference}
+  };
+  for (const auto& provider: selectionProviders) {
+    selection_menu_kind kind= provider.kind;
+    registerProvider (
+      QString::fromLatin1 (provider.id), QTMCommandScope::Editor,
+      [kind] (const QTMCommandContext& context) {
+        return selection_menu_items (context, kind);
+      },
+      [kind] (const QString& key, const QTMCommandContext& context) {
+        return execute_selection_menu_item (context, kind, key);
+      },
+      [kind] (const QTMCommandContext& context) {
+        return selection_menu_state (context, kind);
+      });
+  }
+  registerProvider (
+    "editor-redo-menu", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QVector<QTMCommandDynamicItem> out;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return out;
+      actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+      if (!snapshot.valid () || snapshot.redo_count == 0) return out;
+      for (int i= 0; i < snapshot.redo_count; ++i) {
+        QTMCommandDynamicItem item= enabled_dynamic_item (
+          QString::number (i),
+          snapshot.redo_count == 1 ?
+            QObject::tr ("Redo") :
+            QObject::tr ("Branch %1").arg (i + 1));
+        if (snapshot.redo_count > 1) item.group= QObject::tr ("Redo");
+        item.state.enabled= !snapshot.read_only ();
+        out.append (std::move (item));
+      }
+      return out;
+    },
+    [] (const QString& key, const QTMCommandContext& context) {
+      bool ok= false;
+      int index= key.toInt (&ok);
+      if (!ok || index < 0) return false;
+      QJsonObject action;
+      action.insert ("op", "redo-branch");
+      action.insert ("index", index);
+      return submit_inline_editor_action (
+        context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
+    },
+    [] (const QTMCommandContext& context) {
+      QTMCommandState state;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return state;
+      actor_editor_command_snapshot snapshot= proxy->editor_command_state ();
+      if (!snapshot.valid () || snapshot.redo_count == 0) return state;
+      state.available= true;
+      state.enabled= !snapshot.read_only ();
+      return state;
+    });
+
+  const QString editorCommands[]= {
+    "editor.undo",
+    "editor.redo",
+    "editor.copy",
+    "editor.cut",
+    "editor.paste",
+    "editor.node-properties",
+    "editor.save",
+    "editor.revert",
+    "editor.update-all",
+    "editor.close-document",
+    "editor.save-as",
+    "editor.preview",
+    "editor.print",
+    "editor.close-window",
+    "editor.history-back",
+    "editor.history-forward",
+    "editor.presentation-first",
+    "editor.presentation-previous-screen",
+    "editor.presentation-previous",
+    "editor.presentation-next",
+    "editor.presentation-next-screen",
+    "editor.presentation-last",
+    "editor.print-to-file",
+    "editor.print-page-selection",
+    "editor.print-page-selection-to-file",
+    "editor.export-pdf"
+  };
+  for (const QString& id: editorCommands)
+    registerBehavior (
+      id, QTMCommandScope::Editor,
+      [id] (const QTMCommandContext& context) {
+        return invoke_native_editor_command (id, context);
+      },
+      [id] (const QTMCommandContext& context) {
+        return native_editor_command_state (id, context);
+      });
+}

@@ -22,9 +22,9 @@ with tempfile.TemporaryDirectory(prefix="athena-crash-report-") as temporary:
     binary = root / "probe"
     subprocess.run([
         args.compiler, "-std=c++17", "-O1", "-pthread", "-I", str(args.source_dir / "src"),
-        "-I", str(args.build_dir / "src/System"),
+        "-I", str(args.build_dir / "src/Infrastructure"),
         str(args.source_dir / "tests/runtime/crash-report-probe.cc"),
-        str(args.source_dir / "src/System/Misc/crash_report.cpp"), "-o", str(binary),
+        str(args.source_dir / "src/Infrastructure/Misc/crash_report.cpp"), "-o", str(binary),
     ], check=True, timeout=60)
     cases = [
         ("main", signal.SIGSEGV, "Main"),

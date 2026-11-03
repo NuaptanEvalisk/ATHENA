@@ -116,10 +116,10 @@ References: <https://github.com/lexbor/lexbor>,
 
 - `ATHENA/misc/convert/{formats,converters,options}.json`: declarative registry
   data, not executable Scheme initialization.
-- `src/Data/Convert/Generic/`: native registry, graph, options and executor.
-- `src/Data/Convert/Xml/`: HTML import/export, Lexbor syntax and document codecs.
-- `src/Data/Convert/Tex/`: native LaTeX conversion.
-- `src/ATHENA/Data/buffer_export.hpp` and `new_buffer.cpp`: document/actor
+- `src/Document/Convert/Generic/`: native registry, graph, options and executor.
+- `src/Document/Convert/Xml/`: HTML import/export, Lexbor syntax and document codecs.
+- `src/Document/Convert/Tex/`: native LaTeX conversion.
+- `src/Document/Model/buffer_export.hpp` and `new_buffer.cpp`: document/actor
   export boundary.
 
 Xmgrace, GeoGebra, PostScript conversion, Inkscape and tmdoc are not supported

@@ -52,7 +52,7 @@ is actually requested; no remote inspection was performed for this note refresh.
   bytecode. Native XML command interface changes must reach the compiled binary.
 - Relevant integration lives in `cmake/AthenaPlatform.cmake`,
   `cmake/AthenaIOS.cmake`, `cmake/AthenaCommands.cmake` and
-  `src/Subsystems/iOS/`.
+  `src/Platform/iOS/`.
 - A Linux build does not update an IPA. Compiling a device bundle, signing it,
   installing it and verifying actual device behavior are distinct milestones.
   Do not label an unsigned ZIP as an installable signed IPA.

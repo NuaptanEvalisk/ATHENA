@@ -6,7 +6,7 @@
 * This software falls under the GNU general public license version 3 or later.
 *******************************************************************************/
 
-#include "ATHENA/Math/handwriting_recognizer.hpp"
+#include "Math/Tools/handwriting_recognizer.hpp"
 
 #include <QtTest/QtTest>
 

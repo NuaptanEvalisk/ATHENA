@@ -64,7 +64,7 @@ available for future Lean integration.
 
 ## Manual correction pipeline
 
-`manual_correct` in `src/Data/Tree/tree_correct.cpp` applies these passes in
+`manual_correct` in `src/Document/Tree/tree_correct.cpp` applies these passes in
 order:
 
 1. `with_correct` normalizes adjacent and nested `with`-like structures and

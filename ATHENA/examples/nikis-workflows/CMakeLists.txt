@@ -19,9 +19,9 @@ endforeach()
 configure_file("${ATHENA_SOURCE}/LICENSE" "package/source/LICENSE" COPYONLY)
 file(COPY "${ATHENA_SOURCE}/clients/cpp" DESTINATION "${CMAKE_CURRENT_BINARY_DIR}/package/source/clients")
 foreach(resource codec.cpp codec.hpp identity.cpp identity.hpp protocol.hpp)
-  configure_file("${ATHENA_SOURCE}/src/Subsystems/AUDMAP/${resource}" "package/source/src/Subsystems/AUDMAP/${resource}" COPYONLY)
+  configure_file("${ATHENA_SOURCE}/src/Services/AUDMAP/${resource}" "package/source/src/Services/AUDMAP/${resource}" COPYONLY)
 endforeach()
-configure_file("${ATHENA_SOURCE}/src/ATHENA/Interop/value.hpp" "package/source/src/ATHENA/Interop/value.hpp" COPYONLY)
+configure_file("${ATHENA_SOURCE}/src/Interop/Engine/value.hpp" "package/source/src/Interop/Engine/value.hpp" COPYONLY)
 add_custom_target(nikis-workflows-package
   COMMAND ${CMAKE_COMMAND} -E tar cf "${CMAKE_CURRENT_BINARY_DIR}/nikis-workflows.zip" --format=zip .
   WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/package"

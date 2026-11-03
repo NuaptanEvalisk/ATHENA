@@ -1,16 +1,16 @@
 # Native UIKit integration. Qt retains ownership of UIApplicationMain and QPA.
 enable_language (OBJCXX)
 set (ATHENA_IOS_SOURCES
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/iOS/ios_paths.mm"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/iOS/ios_application.mm"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/iOS/ios_document_interactions.mm"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/iOS/ios_tls_trust.mm")
+  "${ATHENA_SOURCE_DIR}/src/Platform/iOS/ios_paths.mm"
+  "${ATHENA_SOURCE_DIR}/src/Platform/iOS/ios_application.mm"
+  "${ATHENA_SOURCE_DIR}/src/Platform/iOS/ios_document_interactions.mm"
+  "${ATHENA_SOURCE_DIR}/src/Platform/iOS/ios_tls_trust.mm")
 set_source_files_properties (${ATHENA_IOS_SOURCES} PROPERTIES
   COMPILE_OPTIONS "-fobjc-arc")
 target_sources (athena_body PRIVATE ${ATHENA_IOS_SOURCES})
 set_property (TARGET athena_body PROPERTY OBJCXX_STANDARD 17)
 set_property (TARGET athena_body PROPERTY OBJCXX_STANDARD_REQUIRED ON)
-configure_file ("${ATHENA_SOURCE_DIR}/src/Subsystems/iOS/Info.plist.in"
+configure_file ("${ATHENA_SOURCE_DIR}/src/Platform/iOS/Info.plist.in"
   "${ATHENA_BINARY_DIR}/ATHENA-Info.plist.in" @ONLY)
 set_target_properties (${ATHENA_binary_name} PROPERTIES
   MACOSX_BUNDLE_INFO_PLIST "${ATHENA_BINARY_DIR}/ATHENA-Info.plist.in"
@@ -21,7 +21,7 @@ set_target_properties (${ATHENA_binary_name} PROPERTIES
 # Explicit bundle icons keep device-only builds independent of the simulator
 # runtime required by actool. Info.plist owns the icon declarations.
 foreach (size 20 29 40 76 83.5)
-  set (icon "${ATHENA_SOURCE_DIR}/src/Subsystems/iOS/Icons/AppIcon${size}x${size}@2x.png")
+  set (icon "${ATHENA_SOURCE_DIR}/src/Platform/iOS/Icons/AppIcon${size}x${size}@2x.png")
   set_source_files_properties ("${icon}" PROPERTIES
     MACOSX_PACKAGE_LOCATION Resources)
   target_sources (${ATHENA_binary_name} PRIVATE "${icon}")

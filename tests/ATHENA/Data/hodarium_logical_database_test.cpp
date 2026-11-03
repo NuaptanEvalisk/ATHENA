@@ -3,12 +3,12 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QTemporaryDir>
-#include "ATHENA/Data/hodarium_logical_database.hpp"
-#include "ATHENA/Data/artifact_title_filter.hpp"
-#include "ATHENA/Data/hodarium_logical_sync.hpp"
-#include "ATHENA/Data/hodarium_materials_database.hpp"
-#include "ATHENA/Data/namespaces_schema.hpp"
-#include "ATHENA/Data/vaultfile_json.hpp"
+#include "Sync/State/hodarium_logical_database.hpp"
+#include "Domains/Artifacts/artifact_title_filter.hpp"
+#include "Sync/State/hodarium_logical_sync.hpp"
+#include "Sync/State/hodarium_materials_database.hpp"
+#include "Domains/Namespaces/namespaces_schema.hpp"
+#include "Domains/Vault/vaultfile_json.hpp"
 #include <sqlite3.h>
 
 bool headless_mode= true;

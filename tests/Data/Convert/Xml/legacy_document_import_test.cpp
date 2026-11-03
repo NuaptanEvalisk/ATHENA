@@ -11,7 +11,7 @@
 #include <QTemporaryDir>
 #include "Xml/document_file_codec.hpp"
 #include "Xml/legacy_document_import.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 #include "convert.hpp"
 #include <future>
 #include <filesystem>

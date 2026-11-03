@@ -10,7 +10,7 @@
 #include <iostream>
 #include <thread>
 #include "language.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 #include "modification.hpp"
 
 bool headless_mode= true;

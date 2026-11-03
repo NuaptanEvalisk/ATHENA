@@ -9,10 +9,10 @@
 ******************************************************************************/
 #include <QtTest/QtTest>
 #include <QTemporaryDir>
-#include "ATHENA/Data/node_location.hpp"
-#include "ATHENA/Data/node_reference.hpp"
-#include "ATHENA/Data/node_reference_export.hpp"
-#include "Data/Convert/Xml/athena_document_xml.hpp"
+#include "Domains/References/node_location.hpp"
+#include "Domains/References/node_reference.hpp"
+#include "Domains/References/node_reference_export.hpp"
+#include "Document/Convert/Xml/athena_document_xml.hpp"
 #include "node_metadata.hpp"
 #include <condition_variable>
 #include <fstream>

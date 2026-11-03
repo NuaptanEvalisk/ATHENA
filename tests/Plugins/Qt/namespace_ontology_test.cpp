@@ -13,8 +13,8 @@
 #include "namespace_sorter_migration.hpp"
 #include "namespaces.hpp"
 #include "namespaces_private.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
-#include "Data/Convert/Xml/athena_document_xml.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
+#include "Document/Convert/Xml/athena_document_xml.hpp"
 #include "vault.hpp"
 #include "vaultfile_json.hpp"
 

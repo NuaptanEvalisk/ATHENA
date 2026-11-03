@@ -1,0 +1,484 @@
+/******************************************************************************
+* MODULE     : auto_close.cpp
+* DESCRIPTION: Native smart quotes, apostrophes and paired delimiters
+* COPYRIGHT  : (C) 2001 Joris van der Hoeven, 2026 Nuaptan Felix Evalisk
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#include "Editor/Commands/auto_close.hpp"
+#include "boot.hpp"
+
+#include "analyze.hpp"
+#include "file.hpp"
+#include "utf8_edit.hpp"
+#include "Editor/Modify/edit_math.hpp"
+#include "math_tree_v3.hpp"
+
+#include <QByteArray>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
+
+#include <algorithm>
+
+namespace athena::auto_close {
+namespace {
+
+edit_math_rep*
+native_math_editor (editor_rep* ed) {
+  auto* math= dynamic_cast<edit_math_rep*> (ed);
+  return math != nullptr && math->native_math_editing () ? math : nullptr;
+}
+
+string
+native_string (const QString& value) {
+  QByteArray bytes= value.toUtf8 ();
+  return string (bytes.constData (), bytes.size ());
+}
+
+QString
+qstring (const string& value) {
+  return QString::fromUtf8 (value.data (), N(value));
+}
+
+struct quote_catalog {
+  quote_style base;
+  QJsonObject styles;
+
+  quote_catalog () {
+    string source;
+    ASSERT (!load_string (url ("$ATHENA_PATH/misc/input/auto-close.json"),
+                          source, false),
+            "cannot read auto-close.json");
+    c_string bytes (source);
+    QJsonParseError error;
+    QJsonDocument document=
+      QJsonDocument::fromJson (QByteArray (bytes, N(source)), &error);
+    ASSERT (error.error == QJsonParseError::NoError && document.isObject (),
+            "invalid auto-close.json");
+    QJsonObject root= document.object ();
+    ASSERT (root.value ("version").toInt () == 1 &&
+            root.value ("open_after").isArray () &&
+            root.value ("default").isObject () &&
+            root.value ("styles").isObject (),
+            "unsupported auto-close.json schema");
+
+    for (const QJsonValue& value: root.value ("open_after").toArray ()) {
+      ASSERT (value.isString (), "auto-close open_after must contain strings");
+      base.open_after << native_string (value.toString ());
+    }
+    QJsonObject fallback= root.value ("default").toObject ();
+    ASSERT (fallback.value ("open").isString () &&
+            fallback.value ("close").isString () &&
+            fallback.value ("open_suffix").isString () &&
+            fallback.value ("close_prefix").isString () &&
+            fallback.value ("apostrophe_opens").isBool () &&
+            fallback.value ("paired").isBool (),
+            "invalid auto-close default quote style");
+    base.open= native_string (fallback.value ("open").toString ());
+    base.close= native_string (fallback.value ("close").toString ());
+    base.open_suffix=
+      native_string (fallback.value ("open_suffix").toString ());
+    base.close_prefix=
+      native_string (fallback.value ("close_prefix").toString ());
+    base.apostrophe_opens= fallback.value ("apostrophe_opens").toBool ();
+    base.paired= fallback.value ("paired").toBool ();
+    styles= root.value ("styles").toObject ();
+
+    for (auto it= styles.begin (); it != styles.end (); ++it) {
+      ASSERT (it.value ().isObject (), "quote style must be an object");
+      const QJsonObject style= it.value ().toObject ();
+      for (auto field= style.begin (); field != style.end (); ++field)
+        ASSERT (field.key () == "open" || field.key () == "close" ||
+                field.key () == "open_suffix" ||
+                field.key () == "close_prefix" ||
+                field.key () == "apostrophe_opens" ||
+                field.key () == "paired",
+                "unknown auto-close quote style field");
+    }
+  }
+};
+
+quote_catalog&
+catalog () {
+  static quote_catalog result;
+  return result;
+}
+
+void
+apply_string_override (const QJsonObject& source, const char* name,
+                       string& target) {
+  QJsonValue value= source.value (name);
+  if (value.isUndefined ()) return;
+  ASSERT (value.isString (), "quote style string expected");
+  target= native_string (value.toString ());
+}
+
+void
+apply_bool_override (const QJsonObject& source, const char* name,
+                     bool& target) {
+  QJsonValue value= source.value (name);
+  if (value.isUndefined ()) return;
+  ASSERT (value.isBool (), "quote style boolean expected");
+  target= value.toBool ();
+}
+
+string
+open_text (const quote_style& style) {
+  return style.open * style.open_suffix;
+}
+
+string
+close_text (const quote_style& style) {
+  return style.close_prefix * style.close;
+}
+
+bool
+contains (const array<string>& values, const string& value) {
+  for (int i= 0; i < N(values); ++i)
+    if (values[i] == value) return true;
+  return false;
+}
+
+bool
+find_opening_quote_in_text (const string& text, int byte) {
+  const int limit= std::clamp (byte, 0, N(text));
+  const string open= "‘";
+  const string close= "’";
+  const int open_at= search_backwards (open, limit - N(open), text);
+  const int close_at= search_backwards (close, limit - N(close), text);
+  return open_at >= 0 && (close_at < 0 || close_at < open_at);
+}
+
+bool
+find_opening_quote_in_concat (const tree& concat, int child, int byte) {
+  if (!is_func (concat, CONCAT) || child < 0 || child >= N(concat)) return false;
+  const tree current= concat[child];
+  if (is_atomic (current)) {
+    const string text= as_string (current);
+    if (find_opening_quote_in_text (text, byte)) return true;
+    if (search_forwards ("’", 0, text) >= 0) return false;
+  }
+  if (child == 0) return false;
+  const tree previous= concat[child - 1];
+  const int previous_end= is_atomic (previous) ? N(as_string (previous)) : 0;
+  return find_opening_quote_in_concat (concat, child - 1, previous_end);
+}
+
+} // namespace
+
+void
+insert_long_arrow (editor_rep* ed, tree glyph, bool below) {
+  if (native_math_editor (ed)) {
+    tree descriptor= glyph;
+    if (is_func (glyph, NAMED_SYMBOL, 1) && is_atomic (glyph[0])) {
+      const string name= glyph[0]->label;
+      if (starts (name, "texmacs:")) {
+        string identity= name (8, N(name));
+        // The v3 model uses descriptive canonical IDs for the historical
+        // short renderer recipes. Never store those renderer aliases as v3
+        // semantic IDs, but retain the usable named-arrow key bindings.
+        if (identity == "backassign") identity= "backward-assignment";
+        else if (identity == "longhookrightarrow")
+          identity= "long-hookrightarrow";
+        if (athena::math_v3::symbol_registry_identity (identity) != "")
+          descriptor= tree (MATH_SYMBOL, identity);
+      }
+    }
+    const tree arrow (MATH_LONG_ARROW, descriptor, tree (""), tree (""));
+    if (!athena::math_v3::valid_native_math (arrow)) {
+      ed->set_message ("Error: unsupported native v3 long arrow", "long arrow");
+      return;
+    }
+    ed->insert_tree (arrow, path (below ? 1 : 2, 0));
+    return;
+  }
+  const tree arrow= below ? tree (LONG_ARROW, glyph, "", "") :
+                            tree (LONG_ARROW, glyph, "");
+  ed->insert_tree (arrow, below ? path (2, 0) : path (1, 0));
+}
+
+void
+insert_big_operator (editor_rep* ed, tree descriptor) {
+  if (ed == nullptr) return;
+  if (native_math_editor (ed)) {
+    tree glyph= descriptor;
+    bool upright= false, display_limits= false, known= true;
+    if (is_func (glyph, WITH)) {
+      if (N(glyph) < 3 || N(glyph) % 2 == 0) known= false;
+      else {
+        for (int i=0; i+1<N(glyph)-1; i+=2) {
+          if (!is_atomic (glyph[i]) || !is_atomic (glyph[i+1])) {
+            known= false;
+            break;
+          }
+          const bool flag= glyph[i+1] == "true";
+          if (glyph[i+1] != "true" && glyph[i+1] != "false") known= false;
+          else if (glyph[i] == "math-big-limits") display_limits= flag;
+          else if (glyph[i] == "math-big-upright") upright= flag;
+          else known= false;
+        }
+        glyph= glyph[N(glyph)-1];
+      }
+    }
+    if (!known || !is_atomic (glyph) ||
+        !athena::math_v3::glyph (glyph->label)) {
+      ed->set_message ("Error: unsupported native v3 big operator", "big operator");
+      return;
+    }
+    tree atom= athena::math_v3::big_operator (glyph->label, upright);
+    if (display_limits)
+      atom= athena::math_v3::scripts (atom, "", "", "", "", 'd');
+    if (ed->selection_active_normal ()) {
+      const tree wrapper (CONCAT, atom, ed->selection_get ());
+      const path destination= ed->command_tree_end (wrapper, path (1));
+      ed->selection_cut ("none");
+      ed->insert_tree (wrapper, destination);
+    }
+    else ed->insert_tree (atom, path (1));
+    return;
+  }
+  ed->insert_tree (tree (BIG, descriptor));
+}
+
+void
+insert_alphabet (editor_rep* ed, string tag, string value) {
+  if (ed == nullptr) return;
+  if (native_math_editor (ed)) {
+    string kind;
+    if (tag == "math-alpha-bold") kind= "mbf";
+    else if (tag == "math-alpha-bbb") kind= "bb";
+    else if (tag == "math-alpha-cal") kind= "cal";
+    else if (tag == "math-alpha-frak") kind= "frak";
+    else if (tag == "math-alpha-bold-up") kind= "mbfu";
+    else {
+      ed->set_message ("Error: unsupported native v3 alphabet variant", tag);
+      return;
+    }
+    if (value == "") return;
+    ed->insert_tree (tree (MATH_VARIANT, kind, value));
+    return;
+  }
+  ed->insert_tree (tree (as_tree_label (tag), value));
+}
+
+
+quote_style
+quote_style_for_language (string language) {
+  quote_catalog& data= catalog ();
+  quote_style result= data.base;
+  QJsonValue value= data.styles.value (qstring (language));
+  if (!value.isObject ()) return result;
+  const QJsonObject style= value.toObject ();
+  apply_string_override (style, "open", result.open);
+  apply_string_override (style, "close", result.close);
+  apply_string_override (style, "open_suffix", result.open_suffix);
+  apply_string_override (style, "close_prefix", result.close_prefix);
+  apply_bool_override (style, "apostrophe_opens", result.apostrophe_opens);
+  apply_bool_override (style, "paired", result.paired);
+  return result;
+}
+
+bool
+quote_should_close (tree root, path cursor, string language) {
+  if (is_nil (cursor)) return false;
+  path parent= path_up (cursor);
+  if (!has_subtree (root, parent)) return false;
+  const int position= last_item (cursor);
+  const tree current= subtree (root, parent);
+  if (!is_atomic (current)) return position > 0;
+  const string text= as_string (current);
+  if (text == "" || position <= 0 || position > N(text)) return false;
+  const int previous= utf8_grapheme_previous (text, position);
+  if (previous < 0 || previous >= position) return false;
+  const string grapheme= utf8_byte_slice (text, previous, position);
+  quote_style style= quote_style_for_language (language);
+  if (contains (style.open_after, grapheme)) return false;
+  if (style.apostrophe_opens && grapheme == "'") return false;
+  return true;
+}
+
+bool
+has_opening_single_quote (tree root, path cursor) {
+  if (is_nil (cursor)) return false;
+  const path atom_path= path_up (cursor);
+  if (!has_subtree (root, atom_path)) return false;
+  const tree atom= subtree (root, atom_path);
+  const int position= last_item (cursor);
+  const path parent_path= path_up (atom_path);
+  if (has_subtree (root, parent_path)) {
+    const tree parent= subtree (root, parent_path);
+    if (is_func (parent, CONCAT))
+      return find_opening_quote_in_concat (
+        parent, last_item (atom_path), position);
+  }
+  return is_atomic (atom) &&
+         find_opening_quote_in_text (as_string (atom), position);
+}
+
+void
+insert_quote (editor_rep* ed) {
+  if (ed == nullptr) return;
+  string language= get_preference ("automatic quotes", "default");
+  if (language == "default") language= ed->get_env_string ("language");
+  const quote_style style= quote_style_for_language (language);
+  if (get_preference ("automatic brackets", "mathematics") == "on") {
+    if (!style.paired) {
+      ed->insert_tree (tree (style.open));
+      return;
+    }
+    const string open= open_text (style);
+    ed->insert_tree (tree (open * close_text (style)), path (N(open)));
+    return;
+  }
+  if (quote_should_close (ed->the_root (), ed->the_path (), language))
+    ed->insert_tree (tree (close_text (style)));
+  else
+    ed->insert_tree (tree (open_text (style)));
+}
+
+void
+insert_apostrophe (editor_rep* ed, bool alternate) {
+  if (ed == nullptr) return;
+  const bool opening= has_opening_single_quote (ed->the_root (), ed->the_path ());
+  ed->insert_tree (tree ((alternate != opening) ? string ("’") : string ("'")));
+}
+
+void
+make_bracket_open (editor_rep* ed, string left, string right, bool large) {
+  if (ed == nullptr) return;
+  if (auto* math= native_math_editor (ed);
+      math != nullptr && ed->get_env_string (MODE) == "math") {
+    math->math_bracket_open (left, right, large ? 1 : 0);
+    return;
+  }
+  if (get_preference ("automatic brackets", "mathematics") != "on") {
+    ed->insert_tree (large ? tree (LEFT, left) : tree (left));
+    return;
+  }
+
+  const bool selected= ed->selection_active_normal ();
+  tree selection= "";
+  if (selected) selection= ed->selection_get_cut ();
+  if (large)
+    ed->insert_tree (
+      tree (CONCAT, tree (LEFT, left), tree (RIGHT, right)), path (1, 0));
+  else
+    ed->insert_tree (tree (left * right), path (N(left)));
+  if (selected) ed->insert_tree (selection);
+}
+
+void
+make_separator (editor_rep* ed, string separator, bool large) {
+  if (ed == nullptr) return;
+  if (auto* math= native_math_editor (ed);
+      math != nullptr && ed->get_env_string (MODE) == "math") {
+    math->math_separator (separator, large ? 1 : 0);
+    return;
+  }
+  ed->insert_tree (large ? tree (MID, separator) : tree (separator));
+}
+
+void
+make_bracket_close (editor_rep* ed, string right, string left, bool large) {
+  (void) left;
+  if (ed == nullptr) return;
+  if (auto* math= native_math_editor (ed);
+      math != nullptr && ed->get_env_string (MODE) == "math") {
+    math->math_bracket_close (right, left, large ? 1 : 0);
+    return;
+  }
+  ed->insert_tree (large ? tree (RIGHT, right) : tree (right));
+}
+
+bool
+test_matching_brackets () {
+  return get_preference ("automatic brackets", "mathematics") != "off";
+}
+
+void
+toggle_matching_brackets () {
+  set_preference (
+    "automatic brackets", test_matching_brackets () ? string ("off") :
+                                                       string ("mathematics"));
+}
+
+void
+make_big_operator (editor_rep* ed, string op) {
+  if (ed == nullptr) return;
+  if (auto* math= native_math_editor (ed)) {
+    math->make_native_big_operator (op);
+    return;
+  }
+  if (get_preference ("automatic brackets", "mathematics") == "on" &&
+      op != ".") {
+    const bool selected= ed->selection_active_normal ();
+    tree selection= "";
+    if (selected) selection= ed->selection_get_cut ();
+    ed->insert_tree (
+      tree (CONCAT, tree (BIG, op), tree (BIG, ".")), path (1, 0));
+    if (selected) ed->insert_tree (selection);
+    return;
+  }
+  ed->insert_tree (tree (BIG, op));
+}
+
+} // namespace athena::auto_close
+
+void
+native_insert_quote () {
+  editor ed= get_current_editor ();
+  athena::auto_close::insert_quote (is_nil (ed) ? nullptr : ed.operator-> ());
+}
+
+void
+native_insert_apostrophe (bool alternate) {
+  editor ed= get_current_editor ();
+  athena::auto_close::insert_apostrophe (
+    is_nil (ed) ? nullptr : ed.operator-> (), alternate);
+}
+
+void
+native_make_bracket_open (string left, string right, bool large) {
+  editor ed= get_current_editor ();
+  athena::auto_close::make_bracket_open (
+    is_nil (ed) ? nullptr : ed.operator-> (), left, right,
+    large);
+}
+
+void
+native_make_separator (string separator, bool large) {
+  editor ed= get_current_editor ();
+  athena::auto_close::make_separator (
+    is_nil (ed) ? nullptr : ed.operator-> (), separator,
+    large);
+}
+
+void
+native_make_bracket_close (string right, string left, bool large) {
+  editor ed= get_current_editor ();
+  athena::auto_close::make_bracket_close (
+    is_nil (ed) ? nullptr : ed.operator-> (), right, left,
+    large);
+}
+
+bool
+native_test_matching_brackets () {
+  return athena::auto_close::test_matching_brackets ();
+}
+
+void
+native_toggle_matching_brackets () {
+  athena::auto_close::toggle_matching_brackets ();
+}
+
+void
+native_make_big_operator (string op) {
+  editor ed= get_current_editor ();
+  athena::auto_close::make_big_operator (
+    is_nil (ed) ? nullptr : ed.operator-> (), op);
+}

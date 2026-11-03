@@ -3,7 +3,7 @@
 * DESCRIPTION: regression tests for native font selector previews
 *******************************************************************************/
 
-#include "Subsystems/Qt/QTMFontSelector.hpp"
+#include "UI/Qt/Editor/QTMFontSelector.hpp"
 
 #include <QtTest/QtTest>
 

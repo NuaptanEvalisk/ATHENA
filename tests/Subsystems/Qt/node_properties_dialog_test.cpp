@@ -16,13 +16,13 @@
 #include <QComboBox>
 #include <QTreeWidget>
 #include <memory>
-#include "Subsystems/Qt/QTMNodePropertiesDialog.hpp"
-#include "ATHENA/Data/document_node_model.hpp"
-#include "ATHENA/Data/enunciation_model.hpp"
-#include "Data/Convert/Xml/athena_document_xml.hpp"
-#include "Data/Convert/Xml/document_file_codec.hpp"
-#include "Data/Tree/math_tree_v3.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "UI/Qt/Knowledge/QTMNodePropertiesDialog.hpp"
+#include "Document/Model/document_node_model.hpp"
+#include "Domains/Knowledge/enunciation_model.hpp"
+#include "Document/Convert/Xml/athena_document_xml.hpp"
+#include "Document/Convert/Xml/document_file_codec.hpp"
+#include "Document/Tree/math_tree_v3.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 
 namespace node= athena::node;
 namespace model= athena::document_node;

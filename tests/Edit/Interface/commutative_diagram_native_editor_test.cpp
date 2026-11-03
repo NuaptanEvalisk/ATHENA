@@ -10,12 +10,12 @@
 #include <functional>
 #include <unistd.h>
 
-#include "ATHENA/Math/commutative_diagram_native.hpp"
-#include "ATHENA/server.hpp"
-#include "Editor/edit_main.hpp"
-#include "Graphics/Gui/gui.hpp"
+#include "Math/Tools/commutative_diagram_native.hpp"
+#include "App/Runtime/server.hpp"
+#include "Editor/Engine/edit_main.hpp"
+#include "UI/Abstract/gui.hpp"
 #include "boot.hpp"
-#include "buffer_state.hpp"
+#include "App/Runtime/buffer_state.hpp"
 #include "data_cache.hpp"
 #include "observer.hpp"
 #include "native_dispatch.hpp"

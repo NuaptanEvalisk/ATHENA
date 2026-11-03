@@ -12,7 +12,7 @@
 #include <QtTest/QtTest>
 
 #include "convert.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 
 class TestParseXML: public QObject {
   Q_OBJECT

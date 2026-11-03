@@ -12,12 +12,12 @@
 #include <KSyntaxHighlighting/Repository>
 #include <functional>
 
-#include "ATHENA/Data/program_model.hpp"
-#include "ATHENA/Data/document_node_model.hpp"
+#include "Document/Model/program_model.hpp"
+#include "Document/Model/document_node_model.hpp"
 #include "Xml/athena_document_xml.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 #include "native_editor_actions.hpp"
-#include "program_presentation.hpp"
+#include "Typesetting/program_presentation.hpp"
 
 namespace program= athena::program;
 namespace node= athena::node;

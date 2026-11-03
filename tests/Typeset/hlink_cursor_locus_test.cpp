@@ -8,7 +8,7 @@
 
 #include <QtTest/QtTest>
 
-#include "Typeset/Boxes/construct.hpp"
+#include "Typesetting/Boxes/construct.hpp"
 
 class HlinkCursorLocusTest: public QObject {
   Q_OBJECT

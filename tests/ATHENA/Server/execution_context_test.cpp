@@ -10,9 +10,9 @@
 #include <QtTest/QtTest>
 
 #include "convert.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
-#include "execution_context.hpp"
-#include "System/Misc/crash_report.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
+#include "App/Runtime/execution_context.hpp"
+#include "Infrastructure/Misc/crash_report.hpp"
 
 #include <atomic>
 #include <thread>

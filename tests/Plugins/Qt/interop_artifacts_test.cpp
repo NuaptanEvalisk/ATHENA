@@ -9,11 +9,11 @@
 ******************************************************************************/
 #include <QtTest/QtTest>
 #include <QTemporaryDir>
-#include "ATHENA/Data/artifacts.hpp"
-#include "ATHENA/Data/vault.hpp"
-#include "ATHENA/Data/vaultfile_json.hpp"
-#include "ATHENA/Interop/resources.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Domains/Artifacts/artifacts.hpp"
+#include "Domains/Vault/vault.hpp"
+#include "Domains/Vault/vaultfile_json.hpp"
+#include "Interop/Engine/resources.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 #include <sqlite3.h>
 #include <future>
 

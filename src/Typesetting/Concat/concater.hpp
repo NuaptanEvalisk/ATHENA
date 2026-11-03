@@ -1,0 +1,279 @@
+
+/******************************************************************************
+* MODULE     : concater.hpp
+* DESCRIPTION: Typesetting concatenations in two stages.
+*                - produce an array of line items
+*                - handle brackets and scripts
+* COPYRIGHT  : (C) 1999  Joris van der Hoeven
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#ifndef CONCATER_H
+#define CONCATER_H
+#include "Typesetting/typesetter.hpp"
+#include "Typesetting/Format/line_item.hpp"
+#include "Typesetting/Boxes/construct.hpp"
+#include "font_selection.hpp"
+#include <utility>
+#include <string_view>
+#include <vector>
+#include <cstdint>
+#include "Typesetting/Env/local_environment.hpp"
+
+#define MODE_JUSTIFY   0
+#define MODE_LEFT      1
+#define MODE_CENTER    2
+#define MODE_RIGHT     3
+
+// Kept by a source paragraph bridge, never shared across editors. A cached
+// fragment contains pre-glue items: finish() must receive fresh mutable items.
+struct inline_math_fragment {
+  bool valid= false;
+  tree source;
+  path address;
+  hashmap<string,tree> variables;
+  athena::contracts::evaluation_input_snapshot input_receipts;
+  font active_font;
+  pencil active_pen;
+  language active_language;
+  int mode= 0, mode_op= 0, index_level= 0;
+  bool display_style= false, math_condensed= false;
+  int alpha= 255;
+  int spacing_policy= 0, nesting_level= 0;
+  hashmap<string,path> sources;
+  list<hashmap<string,tree>> arguments;
+  list<hashmap<string,path>> argument_sources;
+  url source_file;
+  athena::contracts::package_inclusion_handle package;
+  bool secure= false;
+  std::uint64_t radioactive_revision= 0;
+  array<line_item> items;
+  athena::contracts::contract_event_log effects;
+  source_occurrence_log occurrences;
+};
+using inline_math_fragments= std::vector<inline_math_fragment>;
+
+class concater_rep {
+  edit_env              env;        // the environment
+  array<line_item>      a;          // the line items
+  std::vector<std::pair<line_item, tree>> export_items;
+  bool                  rigid;      // when surely not wrappable
+  std::shared_ptr<athena::text::font_paragraph> text_paragraph;
+  inline_math_fragments* fragment_cache= nullptr;
+  path fragment_owner;
+  bool fragment_root_started= false;
+  void typeset_cached_math_child (tree t, path ip, int index);
+
+  // useful subroutines
+  void print (box b);
+  void print (int type, int op_type, box b);
+  void control (tree t, path ip);
+  void marker (path ip);
+  void ghost (string s, path ip);
+  void ghost (string s, path ip, color col);
+  void flag_ok (string s, path ip, color col);
+  void flag (string s, path ip, color col);
+  void print (space spc);
+  void penalty_min (int p);
+  void penalty_max (int p);
+  void with_limits (int status);
+
+  // textual markup
+  void typeset_substring (string s, path ip, int pos);
+  void typeset_radioactive_substring (string s, path ip, int pos,
+                                      string destination);
+  void typeset_math_substring (string s, path ip, int pos, int op_type);
+  void typeset_math_macro (string s, tree_label m, path ip,
+                           int p1, int p2, int ot);
+  void typeset_colored_substring (string s, path ip, int pos, string col);
+  void typeset_text_string (tree t, path ip, int start, int end);
+  void typeset_math_string (tree t, path ip, int start, int end);
+  void typeset_named_symbol (tree t, path ip);
+  void typeset_native_symbol_identity (const std::string_view& identity,
+                                     tree semantic, path ip);
+  void typeset_v3_symbol (tree t, path ip);
+  void typeset_prog_string (tree t, path ip, int start, int end);
+  void typeset_document (tree t, path ip);
+  void typeset_paragraph (tree t, path ip);
+  void typeset_surround (tree t, path ip);
+  void typeset_concat (tree t, path ip);
+  void typeset_rigid (tree t, path ip);
+  void typeset_hgroup (tree t, path ip);
+  void typeset_hspace (tree t, path ip);
+  void typeset_space (tree t, path ip);
+  void typeset_move (tree t, path ip);
+  void typeset_shift (tree t, path ip);
+  void typeset_resize (tree t, path ip);
+  void typeset_clipped (tree t, path ip);
+  void typeset_float (tree t, path ip);
+  void typeset_repeat (tree t, path ip, bool under);
+  void typeset_formatting (tree t, path ip, string var);
+  void typeset_decorated_box (tree t, path ip);
+  void typeset_line_note (tree t, path ip);
+  void typeset_page_note (tree t, path ip);
+  void typeset_if_page_break (tree t, path ip);
+
+  // mathematical markup
+  void typeset_v3_delimited (tree t, path ip);
+  void typeset_v3_middle (tree t, path ip);
+  void typeset_v3_operator (tree t, path ip);
+  void typeset_v3_scripts (tree t, path ip);
+  void typeset_v3_accent (tree t, path ip);
+  void typeset_v3_annotation (tree t, path ip);
+  void typeset_v3_variant (tree t, path ip);
+  void typeset_v3_grid (tree t, path ip);
+  void typeset_v3_block (tree t, path ip);
+  void typeset_v3_long_arrow (tree t, path ip);
+  void typeset_around (tree t, path ip, bool colored);
+  void typeset_large (tree t, path ip, int type, int op_type, string prefix);
+  void typeset_wide_middle (tree t, path ip);
+  //void typeset_left (tree t, path ip);
+  //void typeset_middle (tree t, path ip);
+  //void typeset_right (tree t, path ip);
+  void typeset_bigop (tree t, path ip);
+  void typeset_long_arrow (tree t, path ip);
+  void typeset_lprime (tree t, path ip);
+  void typeset_rprime (tree t, path ip);
+  void typeset_below (tree t, path ip);
+  void typeset_above (tree t, path ip);
+  void typeset_script (tree t, path ip, bool right);
+  void typeset_wide_frac (tree t, path ip);
+  void typeset_frac (tree t, path ip);
+  void typeset_wide_sqrt (tree t, path ip);
+  void typeset_sqrt (tree t, path ip);
+  void typeset_wide (tree t, path ip, bool above);
+  void typeset_neg (tree t, path ip);
+  void typeset_tree (tree t, path ip);
+  void typeset_wide_table (tree t, path ip);
+  void typeset_table (tree t, path ip);
+  void print_semantic (box b, tree sem);
+  void typeset_syntax (tree t, path ip);
+
+  // deactivated markup
+  void typeset_blue (tree t, path ip);
+  void typeset_src_open (tree t, path ip, string extra);
+  void typeset_src_middle (tree t, path ip, int i);
+  void typeset_src_close (tree t, path ip);
+  void typeset_src_args (tree t, path ip);
+  void typeset_src_tag (tree t, path ip);
+  void typeset_inactive (tree t, path ip);
+  void typeset_error (tree t, path ip);
+
+  // active macro mechanisms
+  void typeset_assign (tree t, path ip);
+  void typeset_provide (tree t, path ip);
+  void typeset_with (tree t, path ip);
+  void typeset_with_package (tree t, path ip);
+  void typeset_compound (tree t, path ip);
+  void typeset_auto (tree t, path ip, tree macro);
+  void typeset_include (tree t, path ip);
+  void typeset_transclude (tree t, path ip);
+  void typeset_label (tree t, path ip);
+  void typeset_drd_props (tree t, path ip);
+  void typeset_eval (tree t, path ip);
+  void typeset_value (tree t, path ip);
+  void typeset_or_value (tree t, path ip);
+  void typeset_argument (tree t, path ip);
+  void typeset_eval_args (tree t, path ip);
+  void typeset_mark (tree t, path ip);
+  void typeset_expand_as (tree t, path ip);
+  void typeset_dynamic (tree t, path ip);
+  void typeset_executable (tree t, path ip);
+  void typeset_rewrite (tree t, path ip);
+
+  // miscellaneous active markup
+  void typeset_if (tree t, path ip);
+  void typeset_var_if (tree t, path ip);
+  void typeset_case (tree t, path ip);
+  void typeset_range (tree t, path ip);
+  void typeset_locus (tree t, path ip);
+  void typeset_set_binding (tree t, path ip);
+  void typeset_write (tree t, path ip);
+  void typeset_toc_notify (tree t, path ip);
+  void typeset_specific (tree t, path ip);
+  void typeset_flag (tree t, path ip);
+  void typeset_hyphenate_as (tree t, path ip);
+
+  // graphical markup
+  void typeset_commutative_diagram (tree t, path ip);
+  void typeset_graphical (array<box>& bs, tree t, path ip);
+  void typeset_graphics (tree t, path ip);
+  void typeset_superpose (tree t, path ip);
+  void typeset_gr_group (tree t, path ip);
+  void typeset_gr_transform (tree t, path ip);
+  void typeset_gr_effect (tree t, path ip);
+  void typeset_text_at (tree t, path ip);
+  void typeset_math_at (tree t, path ip);
+  void typeset_document_at (tree t, path ip);
+  void typeset_point (tree t, path ip);
+  array<box> typeset_line_arrows (path ip);
+  void typeset_line (tree t, path ip, bool close);
+  void typeset_arc (tree t, path ip, bool close);
+  void typeset_spline (tree t, path ip, bool close);
+  void typeset_var_spline (tree t, path ip);
+  void typeset_cspline (tree t, path ip);
+  void typeset_bezier (tree t, path ip);
+  void typeset_penscript (tree t, path ip);
+  void typeset_fill (tree t, path ip);
+  void typeset_image (tree t, path ip);
+  void typeset_graphics_3d (tree t, path ip);
+
+  // markup for graphical user interface
+  void typeset_canvas (tree t, path ip);
+  void typeset_ornament (tree t, path ip);
+  void typeset_art_box (tree t, path ip);
+
+  // postprocessing of brackets and scripts
+  int  prec (int i);
+  int  succ (int i);
+  void pre_glue ();
+  box  glue_left_markers (box b, int ref, int arg);
+  box  glue_right_markers (box b, int ref, int arg, bool flag);
+  void glue (box b, int ref, int arg);
+  void glue (box b, int ref, int arg1, int arg2);
+  void clean_and_correct ();
+  void handle_scripts (int start, int end);
+  void handle_matching (int start, int end);
+  void handle_brackets ();
+  void kill_spaces ();
+  void typeset_impl (tree t, path ip);
+  void finish_export_destinations ();
+
+public:
+  concater_rep (edit_env env, bool rigid= false,
+                inline_math_fragments* cache= nullptr, path owner= path ());
+  void typeset (tree t, path ip);
+  void finish ();
+
+  friend class liner_rep;
+  friend class par_line_rep;
+  friend class typesetter_rep;
+  friend class document_rep;
+
+  friend box              typeset_as_concat (edit_env env, tree t, path ip);
+  friend box              typeset_as_concat (edit_env env, tree t, path ip,
+                                             array<line_item>& a);
+  friend box              typeset_as_box (edit_env env, tree t, path ip);
+  friend box              typeset_as_atomic (edit_env env, tree t, path ip);
+  friend array<line_item> typeset_concat (edit_env env, tree t, path ip);
+  friend array<line_item> typeset_concat_cached (edit_env env, tree t, path ip,
+                                                 inline_math_fragments* cache);
+  friend array<line_item> typeset_concat_range (edit_env env, tree t, path ip,
+						int i1, int i2);
+  friend array<line_item> typeset_marker (edit_env env, path ip);
+};
+
+typedef concater_rep* concater;
+
+box typeset_as_concat (edit_env env, tree t, path ip);
+array<line_item> typeset_concat (edit_env env, tree t, path ip);
+array<line_item> typeset_concat_cached (edit_env env, tree t, path ip,
+                                       inline_math_fragments* cache);
+array<line_item> typeset_concat_range (edit_env env, tree t, path ip,
+				       int i1, int i2);
+array<line_item> typeset_marker (edit_env env, path ip);
+
+#endif // defined CONCATER_H

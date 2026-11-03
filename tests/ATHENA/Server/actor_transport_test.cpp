@@ -9,7 +9,7 @@
 
 #include <QtTest/QtTest>
 
-#include "actor_transport.hpp"
+#include "App/Runtime/actor_transport.hpp"
 
 #include <atomic>
 #include <chrono>

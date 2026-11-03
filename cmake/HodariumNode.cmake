@@ -26,7 +26,7 @@ else()
 endif()
 set(LIBSODIUM_LIBRARIES PkgConfig::LIBSODIUM)
 set(GNUTLS_LIBRARIES PkgConfig::GNUTLS)
-add_subdirectory(src/ATHENA/Hodarium)
+add_subdirectory(src/Sync/Hodarium)
 
 set(HODARIUM_CONFIG_DIR "${CMAKE_CURRENT_BINARY_DIR}/hodarium-config")
 math(EXPR HODARIUM_WORD_LENGTH_INC "${CMAKE_SIZEOF_VOID_P} - 1")
@@ -39,43 +39,43 @@ configure_file("${CMAKE_CURRENT_LIST_DIR}/HodariumNodeConfig.h.in"
 # Explicit source list: do not accidentally import editor or inference code.
 # This archive is also the integration boundary for the extracted disk adapters.
 add_library(athena_hodarium_node_core STATIC
-  src/System/Misc/fast_alloc.cpp
-  src/System/Boot/headless.cpp
-  src/System/Files/tm_ostream.cpp
-  src/Kernel/Abstractions/basic_runtime.cpp
-  src/Kernel/Types/string.cpp
-  src/Kernel/Types/tree.cpp
-  src/Kernel/Types/tree_label.cpp
-  src/Kernel/Types/node_metadata.cpp
-  src/Data/String/unicode_text.cpp
-  src/Kernel/Types/standard_tree_labels.cpp
-  src/Typeset/Env/vars.cpp
-  src/Data/Convert/Xml/athena_document_xml.cpp
-  src/Data/Convert/Xml/athena_document_xml_v3.cpp
-  src/Data/Convert/Xml/native_xml_codec.cpp
-  src/Data/Tree/math_tree_v3.cpp
-  src/System/Language/named_symbol.cpp
-  src/Data/Convert/Xml/document_upgrade_file.cpp
-  src/System/Files/confined_filesystem.cpp
-  src/ATHENA/Data/background_workers.cpp
-  src/ATHENA/Data/document_history_store.cpp
-  src/ATHENA/Data/fossil_delta.cpp
-  src/ATHENA/Data/hodarium_resources.cpp
-  src/ATHENA/Data/hodarium_application.cpp
-  src/ATHENA/Data/hodarium_worker.cpp
-  src/ATHENA/Data/hodarium_local_notifications.cpp
-  src/ATHENA/Data/hodarium_inventory.cpp
-  src/ATHENA/Data/hodarium_logical_database.cpp
-  src/ATHENA/Data/hodarium_artifact_database.cpp
-  src/ATHENA/Data/hodarium_logical_sync.cpp
-  src/ATHENA/Data/hodarium_rename_records.cpp
-  src/ATHENA/Data/namespaces_schema.cpp
-  src/ATHENA/Data/namespaces_template.cpp
-  src/ATHENA/Data/materials.cpp
-  src/ATHENA/Data/materials_schema.cpp
-  src/ATHENA/Data/vaultfile_json.cpp
-  src/ATHENA/Data/artifact_title_filter.cpp
-  src/ATHENA/Data/interop_document_validation.cpp)
+  src/Infrastructure/Misc/fast_alloc.cpp
+  src/App/Boot/headless.cpp
+  src/Infrastructure/Files/tm_ostream.cpp
+  src/Core/Abstractions/basic_runtime.cpp
+  src/Core/Types/string.cpp
+  src/Core/Types/tree.cpp
+  src/Core/Types/tree_label.cpp
+  src/Core/Types/node_metadata.cpp
+  src/Core/Text/unicode_text.cpp
+  src/Core/Types/standard_tree_labels.cpp
+  src/Typesetting/Env/vars.cpp
+  src/Document/Convert/Xml/athena_document_xml.cpp
+  src/Document/Convert/Xml/athena_document_xml_v3.cpp
+  src/Document/Convert/Xml/native_xml_codec.cpp
+  src/Document/Tree/math_tree_v3.cpp
+  src/Core/Language/named_symbol.cpp
+  src/Document/Convert/Xml/document_upgrade_file.cpp
+  src/Infrastructure/Files/confined_filesystem.cpp
+  src/App/Runtime/background_workers.cpp
+  src/Sync/State/document_history_store.cpp
+  src/Sync/State/fossil_delta.cpp
+  src/Sync/State/hodarium_resources.cpp
+  src/Sync/State/hodarium_application.cpp
+  src/Sync/State/hodarium_worker.cpp
+  src/Sync/State/hodarium_local_notifications.cpp
+  src/Sync/State/hodarium_inventory.cpp
+  src/Sync/State/hodarium_logical_database.cpp
+  src/Sync/State/hodarium_artifact_database.cpp
+  src/Sync/State/hodarium_logical_sync.cpp
+  src/Sync/State/hodarium_rename_records.cpp
+  src/Domains/Namespaces/namespaces_schema.cpp
+  src/Domains/Namespaces/namespaces_template.cpp
+  src/Materials/Model/materials.cpp
+  src/Materials/Model/materials_schema.cpp
+  src/Domains/Vault/vaultfile_json.cpp
+  src/Domains/Artifacts/artifact_title_filter.cpp
+  src/Interop/Adapters/interop_document_validation.cpp)
 target_compile_features(athena_hodarium_node_core PUBLIC cxx_std_17)
 target_compile_definitions(athena_hodarium_node_core PRIVATE ATHENA_HODARIUM_NODE_CORE=1)
 qt_add_resources(athena_hodarium_node_core athena_hodarium_symbols
@@ -87,12 +87,16 @@ target_include_directories(athena_hodarium_node_core PUBLIC
   "${HODARIUM_CONFIG_DIR}"
   "${ATHENA_SOURCE_DIR}/src")
 foreach(directory
-    Kernel/Abstractions Kernel/Containers Kernel/Types
-    System System/Misc System/Files System/Classes System/Boot System/Language
-    Graphics/Fonts
-    Data/String Data/Convert Data/Convert/Xml Data/NodeContracts Data/Tree Data/Document
-    Typeset/Env
-    ATHENA ATHENA/Data)
+    App/Boot App/Runtime Core/Abstractions
+    Core/Containers Core/Language Core/Text
+    Core/Types Core/Utilities Document/Convert
+    Document/Convert/Xml Document/Model Document/NodeContracts
+    Document/State Document/Tree Domains/Artifacts
+    Domains/Namespaces Domains/Vault Infrastructure
+    Infrastructure/Files Infrastructure/Misc Interop/Adapters
+    Interop/Engine Materials/Model Platform/Unix
+    Rendering/Fonts Sync/State Typesetting/Env
+)
   target_include_directories(athena_hodarium_node_core PUBLIC
     "${ATHENA_SOURCE_DIR}/src/${directory}")
 endforeach()
@@ -110,4 +114,4 @@ if(ATHENA_HODARIUM_NODE_TESTS)
 endif()
 
 # The executable is owned by the node implementation, not the desktop graph.
-add_subdirectory(src/ATHENA/HodariumNode)
+add_subdirectory(src/Sync/Node)

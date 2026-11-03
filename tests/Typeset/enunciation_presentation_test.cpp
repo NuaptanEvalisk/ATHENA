@@ -9,7 +9,7 @@
 ******************************************************************************/
 
 #include <QApplication>
-#include "Data/NodeContracts/editing_query.hpp"
+#include "Document/NodeContracts/editing_query.hpp"
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -20,28 +20,28 @@
 #include <QtTest/QtTest>
 #include "boot.hpp"
 #include "data_cache.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 #include "gui.hpp"
 #include "native_dispatch.hpp"
-#include "server.hpp"
-#include "typesetter.hpp"
-#include "Bridge/impl_typesetter.hpp"
+#include "App/Runtime/server.hpp"
+#include "Typesetting/typesetter.hpp"
+#include "Typesetting/Bridge/impl_typesetter.hpp"
 #include "analyze.hpp"
 #include "convert.hpp"
-#include "enunciation_presentation.hpp"
-#include "enunciation_surround.hpp"
-#include "Data/NodeContracts/contract_declaration.hpp"
+#include "Typesetting/enunciation_presentation.hpp"
+#include "Typesetting/enunciation_surround.hpp"
+#include "Document/NodeContracts/contract_declaration.hpp"
 #include "new_style.hpp"
-#include "Typeset/Env/local_environment.hpp"
-#include "formatter.hpp"
-#include "Format/format.hpp"
-#include "ATHENA/Data/vault.hpp"
-#include "ATHENA/Data/vaultfile_json.hpp"
+#include "Typesetting/Env/local_environment.hpp"
+#include "Typesetting/formatter.hpp"
+#include "Typesetting/Format/format.hpp"
+#include "Domains/Vault/vault.hpp"
+#include "Domains/Vault/vaultfile_json.hpp"
 #include "Xml/athena_document_xml.hpp"
-#include "ATHENA/Data/node_reference_export.hpp"
-#include "Line/lazy_vstream.hpp"
-#include "Concat/concater.hpp"
-#include "Pdf/pdf_hummus_renderer.hpp"
+#include "Domains/References/node_reference_export.hpp"
+#include "Typesetting/Line/lazy_vstream.hpp"
+#include "Typesetting/Concat/concater.hpp"
+#include "Rendering/Pdf/pdf_hummus_renderer.hpp"
 #include "printer.hpp"
 
 bool headless_mode= true;

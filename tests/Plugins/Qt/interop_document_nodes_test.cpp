@@ -8,10 +8,10 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include <QtTest/QtTest>
-#include "ATHENA/Data/interop_document_nodes.hpp"
-#include "ATHENA/Data/interop_document_codec.hpp"
+#include "Interop/Adapters/interop_document_nodes.hpp"
+#include "Interop/Adapters/interop_document_codec.hpp"
 #include "converter.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 #include "node_metadata.hpp"
 #include "tree.hpp"
 #include <cmath>

@@ -1,0 +1,227 @@
+/******************************************************************************
+* MODULE     : artifacts.hpp
+* DESCRIPTION: Semantic mathematical artifact index for ATHENA vaults
+* COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#ifndef ATHENA_ARTIFACTS_HPP
+#define ATHENA_ARTIFACTS_HPP
+
+#include "tree.hpp"
+#include "path.hpp"
+#include "Domains/Artifacts/artifact_range_llm.hpp"
+#include "Document/Convert/Xml/athena_document_xml.hpp"
+
+#include <filesystem>
+#include <functional>
+#include <map>
+#include <string>
+#include <vector>
+
+enum class AthenaArtifactRangeState { not_applicable, pending, resolved, failed };
+
+struct AthenaArtifactRecord {
+  AthenaArtifactRangeState range_state= AthenaArtifactRangeState::not_applicable;
+  std::string uuid;
+  std::string type;
+  std::string origin;
+  std::string content_uuid;
+  std::string proof_uuid;
+  std::string relative_path;
+  // Native node-model identity. For XML v2 this is the persistent source node
+  // UUID plus a stable extraction role; source_path is only the owner-local
+  // location used while applying/validating the binding and is never identity.
+  std::string source_uuid;
+  std::string source_role;
+  std::vector<int> source_path;
+  // User-facing and tree text is UTF-8. Bold keyword_tree, semantic_name_trees
+  // and definition_candidates use native XML tree fragments. Legacy decoding
+  // belongs exclusively to the offline vault upgrader.
+  std::string anchor_stem;
+  std::string display_text;
+  // Semantic names include explicit titles followed by derived attribution/kind
+  // matching aliases. They never rewrite the source's name field. anchor_stem is only
+  // a source navigation locator and must never be treated as a user-facing
+  // name.  Several artifacts may intentionally share the same name.
+  std::vector<std::string> semantic_names;
+  // Serialized native names, aligned with semantic_names (the display
+  // projection). Empty entries denote ordinary text, not mathematical markup.
+  std::vector<std::string> semantic_name_trees;
+  std::string keyword_tree;
+  int keyword_occurrence= 0;
+  std::vector<int> paragraph_offsets;
+  // Explicit ordered source objects; offsets are inference/legacy evidence only.
+  std::vector<std::string> source_nodes;
+  std::string identity_focus;
+  std::string identity_host;
+  std::string identity_before;
+  std::string identity_after;
+  std::string identity_decision;
+  std::string identity_evidence;
+  // Exact extraction/model input revision. This is intentionally distinct
+  // from document storage/content revisions.
+  std::string input_fingerprint;
+  // Native candidate-content fingerprint; background structural extraction
+  // can validate an existing range without invoking Scheme or the model.
+  std::string range_structure_fingerprint;
+  // Persisted document content revision used to validate database-only range
+  // offsets when the extraction-time paragraph snapshots are unavailable.
+  std::string source_content_fingerprint;
+  std::string keyword_latex;
+  std::vector<std::pair<int,std::string>> definition_candidates;
+  int document_order= 0;
+};
+
+struct AthenaArtifactParagraphLocation {
+  std::vector<path> nodes;
+  path parent;
+  int focus_child= -1;
+  int first_child= -1;
+  int last_child= -1;
+};
+
+struct AthenaArtifactsBuildResult {
+  size_t documents_seen= 0;
+  size_t documents_changed= 0;
+  size_t documents_deleted= 0;
+  size_t enunciations= 0;
+  size_t bold_texts= 0;
+  size_t artifacts= 0;
+};
+
+enum class AthenaArtifactsBuildPhase {
+  Preparing,
+  Extracting,
+  SelectingDefinitionRanges,
+  WritingDatabase,
+  Complete
+};
+
+struct AthenaArtifactsProgressEvent {
+  AthenaArtifactsBuildPhase phase= AthenaArtifactsBuildPhase::Preparing;
+  size_t current= 0;
+  size_t total= 0;
+  std::string path;
+  std::string detail;
+  size_t delegated_queued= 0;
+  size_t delegated_running= 0;
+};
+
+using AthenaArtifactsProgress=
+  std::function<bool(const AthenaArtifactsProgressEvent& event)>;
+
+using AthenaArtifactRangeSelectionProgress=
+  std::function<bool(size_t completed, size_t total,
+                     size_t queued, size_t running)>;
+using AthenaArtifactRangeSelector= std::function<bool (
+  const std::vector<AthenaArtifactRangeRequest>& requests,
+  std::vector<std::vector<int>>& results,
+  const AthenaArtifactRangeSelectionProgress& progress,
+  std::string& error)>;
+
+struct AthenaArtifactsBuildOptions {
+  AthenaArtifactRangeSelector range_selector;
+  bool structural_only= false;
+  // Background jobs must never mutate or save an open editor. Saved jobs only
+  // index this exact successfully published revision and require source bindings.
+  bool closed_sources_only= false;
+  std::string saved_sha256;
+};
+
+// Model-free extraction. Pending bold definitions deliberately have no selected
+// range; their source UUID still supports navigation to the defining keyword.
+// Callers with v3 storage must explicitly select v3 fragments. The legacy
+// default preserves existing index keys; this API never migrates a source AST.
+bool athena_artifacts_extract_structure (
+  const tree& document, const std::string& relative_path,
+  std::vector<AthenaArtifactRecord>& records, std::string& error,
+  athena::document::xml_format_version fragment_format=
+    athena::document::xml_format_version::v1);
+
+// Apply authoritative source bindings to an owner-local tree. Call within the
+// caller's edit transaction for live source; never pass a shared actor tree.
+bool athena_artifacts_bind_structure (
+  tree& document, std::vector<AthenaArtifactRecord>& records, std::string& error);
+// Identity-only actor work. Stops at semantic nodes; never extracts bodies,
+// computes fingerprints or serializes XML.
+bool athena_artifacts_ensure_bindings (
+  tree& body, const std::vector<int>& dirty,
+  const std::map<std::string, std::string>& previous, std::string& error);
+
+bool athena_artifacts_build (
+  const std::filesystem::path& vault_root,
+  const std::vector<std::filesystem::path>& requested_documents,
+  bool full_vault, const AthenaArtifactsProgress& progress,
+  AthenaArtifactsBuildResult& result, std::string& error,
+  const AthenaArtifactsBuildOptions& options= {});
+
+bool athena_artifacts_build_active_vault (
+  bool current_document_only, const AthenaArtifactsProgress& progress,
+  AthenaArtifactsBuildResult& result, std::string& error,
+  const AthenaArtifactsBuildOptions& options= {});
+
+bool athena_artifacts_query (const std::filesystem::path& vault_root,
+                             std::vector<AthenaArtifactRecord>& records,
+                             std::string& error, bool read_only= false,
+                             bool include_live= true);
+
+bool athena_artifact_query_uuid (const std::filesystem::path& vault_root,
+                                 const std::string& uuid,
+                                 AthenaArtifactRecord& record, bool& found,
+                                 std::string& error, bool read_only= false);
+
+bool athena_artifacts_mark_document_stale (
+  const std::filesystem::path& vault_root, const std::string& relative_path,
+  std::string& error);
+bool athena_artifacts_prune_missing (
+  const std::filesystem::path& vault_root, std::string& error);
+
+// Preserve artifact identity when ATHENA itself renames a Vault document or
+// directory.  External filesystem moves have no trustworthy lineage signal
+// and are intentionally handled as deletion plus insertion by the builder.
+bool athena_artifacts_apply_path_rename (
+  const std::filesystem::path& vault_root, const std::string& old_path,
+  const std::string& new_path, bool is_directory, std::string& error);
+
+// Exposed for focused extraction tests.  No database or vault state is needed.
+bool athena_artifacts_extract_document (const tree& document,
+                                        const std::string& relative_path,
+                                        std::vector<AthenaArtifactRecord>& records,
+                                        std::string& error,
+                                        athena::document::xml_format_version fragment_format=
+                                          athena::document::xml_format_version::v1);
+
+// Reconstruct the source paragraph span recorded for a bold-text artifact.
+// This deliberately shares the extractor's paragraph model so database
+// records cannot drift from inserter navigation.
+bool athena_artifact_locate_paragraph (
+  const tree& document, const AthenaArtifactRecord& record,
+  AthenaArtifactParagraphLocation& location, std::string& error);
+
+// Freeze an extraction/legacy range against its verified source revision.
+// Does not modify source content or invoke a model.
+bool athena_artifact_freeze_source_nodes (
+  const tree& document, AthenaArtifactRecord& record, std::string& error);
+
+bool athena_artifact_locate_source (
+  const tree& document, const AthenaArtifactRecord& record,
+  path& source_path, std::string& error);
+
+bool athena_artifact_is_defining_occurrence (
+  const tree& document, path source_path,
+  const AthenaArtifactRecord& record);
+
+// Exclude the entire definition, including titles and nested body content.
+bool athena_artifact_is_inside_definition (
+  const tree& document, path source_path);
+
+// Internal process worker used by the incremental parallel extractor.
+bool athena_artifacts_run_extract_worker (
+  const std::filesystem::path& manifest,
+  const std::filesystem::path& output, std::string& error);
+
+#endif // ATHENA_ARTIFACTS_HPP

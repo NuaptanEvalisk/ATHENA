@@ -12,8 +12,8 @@
 #include "archiver.hpp"
 #include "new_document.hpp"
 #include "node_metadata.hpp"
-#include "ATHENA/Data/document_node_model.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Document/Model/document_node_model.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }

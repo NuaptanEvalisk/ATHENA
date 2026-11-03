@@ -10,13 +10,13 @@ get_filename_component(AUDMAP_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../.." ABSOLUTE)
 
 if(NOT TARGET athena_audmap_wire)
   add_library(athena_audmap_wire STATIC
-    ${AUDMAP_ROOT}/src/Subsystems/AUDMAP/codec.cpp
-    ${AUDMAP_ROOT}/src/Subsystems/AUDMAP/identity.cpp)
+    ${AUDMAP_ROOT}/src/Services/AUDMAP/codec.cpp
+    ${AUDMAP_ROOT}/src/Services/AUDMAP/identity.cpp)
   set_target_properties(athena_audmap_wire PROPERTIES AUTOMOC OFF)
   target_compile_features(athena_audmap_wire PUBLIC cxx_std_17)
   target_include_directories(athena_audmap_wire PUBLIC
-    $<BUILD_INTERFACE:${AUDMAP_ROOT}/src/Subsystems/AUDMAP>
-    $<BUILD_INTERFACE:${AUDMAP_ROOT}/src/ATHENA/Interop>)
+    $<BUILD_INTERFACE:${AUDMAP_ROOT}/src/Services/AUDMAP>
+    $<BUILD_INTERFACE:${AUDMAP_ROOT}/src/Interop/Engine>)
   target_link_libraries(athena_audmap_wire PUBLIC nlohmann_json::nlohmann_json PRIVATE msgpack-cxx cppzmq)
 endif()
 

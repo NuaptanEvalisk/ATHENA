@@ -1,0 +1,2217 @@
+
+/******************************************************************************
+* MODULE     : texmacs.cpp
+* DESCRIPTION: main program
+* COPYRIGHT  : (C) 1999  Joris van der Hoeven
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+#include <sys/resource.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/wait.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <locale.h> // for setlocale
+#include <signal.h>
+#include "Infrastructure/Misc/crash_report.hpp"
+#include <algorithm>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <fstream>
+#include <filesystem>
+#include <exception>
+#include <iomanip>
+#include <optional>
+#include <random>
+#include <sstream>
+#include <stdexcept>
+#include <string>
+#include <vector>
+#ifndef OS_MINGW
+#include <dirent.h>
+#endif
+#ifdef STACK_SIZE
+// #include <sys/resource.h>
+#endif
+
+#include "tm_ostream.hpp"
+#include "athena_platform.hpp"
+#include "font.hpp"
+#include "boot.hpp"
+#include "file.hpp"
+#include "App/Runtime/server.hpp"
+#include "tm_timer.hpp"
+#include "data_cache.hpp"
+#include "new_buffer.hpp"
+#include "new_view.hpp"
+#include "Editor/editor.hpp"
+#include "new_document.hpp"
+#include "new_style.hpp"
+#include "App/Window/tm_window.hpp"
+#include "Editor/Commands/edit_interface.hpp"
+#include "App/Watchdog/watchdog_client.hpp"
+#include "convert.hpp"
+#include "Rendering/Fonts/Freetype/tt_file.hpp"
+#include "Domains/Vault/vault_maintenance.hpp"
+#include "Xml/vault_format_upgrade.hpp"
+#include "vault_directory_lease.hpp"
+#include "Domains/Artifacts/artifacts.hpp"
+#include "Domains/Artifacts/artifact_range_llm.hpp"
+#include "Domains/Vault/vaultfile_json.hpp"
+#include "Domains/Namespaces/namespace_sorter_migration.hpp"
+#include "Domains/Websites/websites.hpp"
+#include "Services/MCP/mcp_rag_server.hpp"
+#include "rag_delegation_crypto.hpp"
+#include "native_keyboard_loader.hpp"
+#include "native_interfaces.hpp"
+#include "application_lifecycle.hpp"
+#include "vault_frontend.hpp"
+#include "vault.hpp"
+#include "App/Runtime/buffer_actor.hpp"
+#include "App/Runtime/buffer_name_catalog.hpp"
+
+#ifdef QTTEXMACS
+#include "UI/Qt/Shell/QTMApplication.hpp"
+#include "UI/Qt/Toolkit/qt_gui.hpp"
+#include "UI/Qt/Toolkit/qt_font.hpp"
+#include "QTMGoogleTasksPane.hpp"
+#include "QTMAudmap.hpp"
+#include "UI/Qt/Toolkit/qt_utilities.hpp"
+#include <QApplication>
+#if ATHENA_PLATFORM_IPADOS
+#include <QDebug>
+#endif
+#include <QDir>
+#include <QProcess>
+#include <QFileInfo>
+#include <QTimer>
+#endif
+
+#ifdef MACOSX_EXTENSIONS
+#include "Platform/MacOS/mac_utilities.h"
+#endif
+
+extern bool   char_clip;
+
+extern string original_path;
+
+extern int geometry_w, geometry_h;
+extern int geometry_x, geometry_y;
+
+extern bool texmacs_started;
+
+extern void aofm_debug_dump(const std::string& file_path);
+extern bool aofm_import_vault(string source_dir, string destination_dir,
+                              bool ignore_nonempty, int parallelism,
+                              string model_vault);
+
+bool disable_error_recovery= false;
+bool start_server_flag= false;
+bool no_splash_screen= false;
+bool skip_fonts_cache= false;
+std::string aofm_convert_file;
+string aofm_convert_vault_source;
+string aofm_convert_vault_destination;
+string aofm_convert_vault_model_vault;
+string vault_maintenance_dir;
+bool   vault_maintenance_check_only = false;
+string rag_delegated_embedding_dir;
+string vault_maintenance_toc_worker_file;
+string vault_maintenance_toc_worker_marker;
+string artifact_extract_worker_manifest;
+string artifact_extract_worker_output;
+string rag_server_dir;
+string rag_embedding_model;
+string rag_embedding_device= "auto";
+int    rag_server_port = 8765;
+bool   rag_server_port_set = false;
+bool   rag_server_reindex = false;
+int    rag_index_jobs = 0;
+string rag_listen_address = "127.0.0.1";
+string delegation_key_dir;
+string delegation_accepted_clients;
+bool   rag_generate_server_keypair = false;
+string artifact_range_model;
+int    artifact_range_batch_size = 16;
+int    artifact_queue_limit = 4096;
+int    artifact_queue_bytes = 32 * 1024 * 1024;
+string website_generate_dir;
+string website_generate_id;
+string website_post_command_dir;
+string website_post_command_id;
+bool   aofm_ignore_nonempty_dest = false;
+int    aofm_convert_vault_parallelism = 0;
+namespace {
+enum class startup_operation { convert, quit };
+struct startup_task {
+  startup_operation operation;
+  std::string source, destination;
+};
+std::vector<startup_task> startup_tasks;
+std::string startup_vault;
+std::vector<std::string> startup_documents;
+
+void run_startup_task (size_t index, std::string document= {}) {
+  if (index == startup_tasks.size ()) {
+    startup_tasks.clear ();
+    return;
+  }
+  const auto task= startup_tasks[index];
+  switch (task.operation) {
+  case startup_operation::convert:
+    application_command_line_convert (string (task.source.c_str ()),
+      string (task.destination.c_str ()), [index, source= task.source] {
+        run_startup_task (index + 1, source);
+      });
+    return;
+  case startup_operation::quit:
+    get_server ()->quit ();
+    return;
+  }
+  qt_post_to_main_thread ([index, document] { run_startup_task (index + 1, document); });
+}
+
+
+#if !ATHENA_PLATFORM_IPADOS
+void profile_phase (const char* phase) {
+  const QString helper= qEnvironmentVariable ("ATHENA_PROFILE_CONTROL_HELPER");
+  if (QProcess::execute (helper, {QString::fromLatin1 (phase)}) != 0) {
+    cerr << "ATHENA: profiling control failed at " << phase << "\n";
+    std::exit (1);
+  }
+}
+int profile_delay (const char* name) {
+  return std::max (0, qEnvironmentVariableIntValue (name));
+}
+void finish_profile_after_paint () {
+  if (QFileInfo::exists (qEnvironmentVariable ("ATHENA_PROFILE_FIRST_PAINT_ARM_FILE"))) {
+    QTimer::singleShot (10, qApp, finish_profile_after_paint);
+    return;
+  }
+  QTimer::singleShot (profile_delay ("ATHENA_PROFILE_SETTLE_MS"), qApp, [] {
+    profile_phase ("finish");
+    get_server ()->quit ();
+  });
+}
+void start_profile_run () {
+  // Fixed native profiling workflow; paths and durations are data, not code.
+  set_preference ("check for updates", "off");
+  set_preference ("google oauth client id", "");
+  QTimer::singleShot (profile_delay ("ATHENA_PROFILE_STARTUP_DELAY_MS"), qApp, [] {
+    profile_phase ("start");
+    const QByteArray directory= qgetenv ("ATHENA_PROFILE_VAULT");
+    const url root= url_system (string (directory.constData (), directory.size ()));
+    vault_load_directory_native (root);
+    if (!vault_active () || vault_get_root () != root) {
+      cerr << "ATHENA: profiling Vault could not be activated\n";
+      std::exit (1);
+    }
+    profile_phase ("vault-loaded");
+    QTimer::singleShot (profile_delay ("ATHENA_PROFILE_VAULT_SETTLE_MS"), qApp, [] {
+      profile_phase ("vault-settled");
+      const QByteArray document= qgetenv ("ATHENA_PROFILE_DOCUMENT");
+      application_document_load_options options;
+      options.strict= true;
+      application_load_document (
+        url_system (string (document.constData (), document.size ())), options, [] (url loaded) {
+          const string name= as_string (loaded);
+          const auto actor= published_buffer_actor_id (std::string (name.data (), N(name)));
+          qputenv ("ATHENA_PROFILE_ACTOR", QByteArray::number (qulonglong (actor)));
+          profile_phase ("buffer-loaded");
+          QTimer::singleShot (10, qApp, finish_profile_after_paint);
+        });
+    });
+  });
+}
+#endif
+
+void open_startup_documents () {
+  if (!startup_vault.empty ()) {
+    const url root (startup_vault.c_str ());
+    const string path= concretize (root);
+    AthenaVaultfileInfo info;
+    std::string error;
+    if (!athena_vaultfile_read (
+          std::filesystem::u8path (std::string (path.data (), N(path))), info, error)) {
+      cerr << "ATHENA: could not open Vault: " << error.c_str () << "\n";
+      std::exit (1);
+    }
+    const string failure= vault_load (root, string (info.name.c_str ()),
+      string (info.map_path.c_str ()), string (info.namespace_db_path.c_str ()));
+    if (failure != "") {
+      cerr << "ATHENA: could not open Vault: " << failure << "\n";
+      std::exit (1);
+    }
+    startup_vault.clear ();
+  }
+  for (size_t index= 0; index < startup_documents.size (); ++index) {
+    application_document_load_options options;
+    options.new_window= index != 0;
+    application_load_document (url (startup_documents[index].c_str ()), options);
+  }
+  startup_documents.clear ();
+  qt_post_to_main_thread ([] { run_startup_task (0); });
+}
+}
+bool exec_exit= true;
+static std::string athena_to_std_string (const string& s);
+
+
+#ifdef OS_MINGW
+#ifndef CP_UTF8
+#define CP_UTF8 65001
+#endif
+extern "C" __declspec(dllimport) unsigned long __stdcall
+GetModuleFileNameW (void* hModule, wchar_t* lpFilename, unsigned long nSize);
+extern "C" __declspec(dllimport) int __stdcall
+WideCharToMultiByte (unsigned int CodePage, unsigned long dwFlags,
+                     const wchar_t* lpWideCharStr, int cchWideChar,
+                     char* lpMultiByteStr, int cbMultiByte,
+                     const char* lpDefaultChar, int* lpUsedDefaultChar);
+
+static string
+athena_windows_module_directory (bool strip_bin) {
+  std::vector<wchar_t> wide_path (32768);
+  unsigned long n=
+    GetModuleFileNameW (nullptr, wide_path.data (),
+                        (unsigned long) wide_path.size ());
+  if (n == 0 || n >= wide_path.size ()) return "";
+
+  std::wstring path (wide_path.data (), n);
+  for (wchar_t& c : path)
+    if (c == L'\\') c= L'/';
+
+  size_t slash= path.find_last_of (L'/');
+  if (slash == std::wstring::npos) return "";
+  path.resize (slash);
+
+  if (strip_bin) {
+    size_t parent= path.find_last_of (L'/');
+    if (parent != std::wstring::npos) {
+      std::wstring leaf= path.substr (parent + 1);
+      if (leaf == L"bin" || leaf == L"Bin" || leaf == L"BIN")
+        path.resize (parent);
+    }
+  }
+
+  int bytes= WideCharToMultiByte (CP_UTF8, 0, path.c_str (),
+                                  (int) path.size (), nullptr, 0,
+                                  nullptr, nullptr);
+  if (bytes <= 0) return "";
+  std::string utf8 ((size_t) bytes, '\0');
+  WideCharToMultiByte (CP_UTF8, 0, path.c_str (), (int) path.size (),
+                       utf8.data (), bytes, nullptr, nullptr);
+  return string (utf8.data (), utf8.size ());
+}
+#endif
+
+static bool
+std_ends_with (const std::string& s, const std::string& suffix) {
+  return s.size () >= suffix.size () &&
+         s.compare (s.size () - suffix.size (), suffix.size (), suffix) == 0;
+}
+
+static bool
+valid_vault_relative_path_for_boot (const std::string& rel) {
+  if (rel.empty ()) return true;
+  std::filesystem::path p (rel);
+  if (p.is_absolute ()) return false;
+  for (const std::filesystem::path& part: p)
+    if (part == "..") return false;
+  return true;
+}
+
+static std::string
+vault_preferences_json_path_for_boot (const std::string& rel) {
+  if (rel.empty ()) return "vprefs.json";
+  if (std_ends_with (rel, ".json")) return rel;
+  return {};
+}
+
+static void
+load_vault_preferences_if_enabled (const std::filesystem::path& vault_root,
+                                   const char* context)
+{
+  if (get_preference ("vault take preferences with vault", "off") != "on")
+    return;
+
+  std::string vaultfile_error;
+  AthenaVaultfileInfo info;
+  if (!athena_vaultfile_read (vault_root, info, vaultfile_error)) {
+    std_warning << context << ": vault preferences enabled, but "
+                << vaultfile_error.c_str ()
+                << "; using system preferences" << LF;
+    return;
+  }
+
+  std::string prefs_rel= info.preferences_path;
+  std::string json_rel= vault_preferences_json_path_for_boot (prefs_rel);
+  if (json_rel.empty ()) {
+    std_warning << context << ": Vaultfile.json preferences path must end in .json; "
+                << "using system preferences" << LF;
+    return;
+  }
+  if (!valid_vault_relative_path_for_boot (json_rel)) {
+    std_warning << context << ": Vaultfile.json preferences path is not "
+                << "vault-relative; using system preferences" << LF;
+    return;
+  }
+
+  if (prefs_rel.empty ()) {
+    info.preferences_path= json_rel;
+    if (!athena_vaultfile_write (vault_root, info, vaultfile_error))
+      std_warning << context << ": failed to normalize Vaultfile.json "
+                  << "preferences path: " << vaultfile_error.c_str () << LF;
+  }
+
+  std::filesystem::path prefs_path= vault_root / json_rel;
+  if (!std::filesystem::exists (prefs_path)) {
+    std_warning << context << ": vault preferences enabled, but "
+                << prefs_path.string ().c_str ()
+                << " does not exist; using system preferences" << LF;
+    return;
+  }
+  load_user_preferences (url (prefs_path.string ().c_str ()));
+}
+
+static bool
+is_positive_integer_arg (string s) {
+  if (N(s) == 0) return false;
+  for (int i=0; i<N(s); i++)
+    if (!is_numeric (s[i])) return false;
+  return as_int (s) > 0;
+}
+
+static string
+qt_platform_name (string value) {
+  int end= N(value);
+  for (int i=0; i<N(value); i++)
+    if (value[i] == ':' || value[i] == ';' || value[i] == ',') {
+      end= i;
+      break;
+    }
+  return value (0, end);
+}
+
+static bool
+unsupported_qt_platform (string value) {
+  string platform= qt_platform_name (locase_all (value));
+  return platform == "eglfs" ||
+         platform == "linuxfb" ||
+         platform == "minimal" ||
+         platform == "minimalegl" ||
+         platform == "vnc";
+}
+
+static bool
+supported_qt_platform (string value) {
+  string platform= qt_platform_name (locase_all (value));
+  return platform == "offscreen" ||
+         platform == "wayland-egl" ||
+         platform == "wayland" ||
+         platform == "wayland-xcomposite-egl" ||
+         platform == "wayland-xcomposite-glx" ||
+         platform == "xcb"
+#if defined (Q_OS_MAC)
+         || platform == "cocoa"
+#endif
+#if ATHENA_PLATFORM_IPADOS
+         || platform == "ios"
+#endif
+#if defined (Q_OS_WIN)
+         || platform == "windows"
+#endif
+         ;
+}
+
+static void
+print_available_qt_platforms () {
+  cerr << "Available platform plugins are: ";
+#if defined (Q_OS_MAC)
+  cerr << "cocoa, ";
+#endif
+  cerr << "offscreen, wayland-egl, wayland, wayland-xcomposite-egl, "
+       << "wayland-xcomposite-glx, xcb";
+#if defined (Q_OS_WIN)
+  cerr << ", windows";
+#endif
+  cerr << ".\n";
+}
+
+static void
+reject_qt_platform (string source, string value) {
+  if (value == "help" || value == "--help" || value == "-help") {
+    print_available_qt_platforms ();
+    exit (0);
+  }
+  if (unsupported_qt_platform (value) || !supported_qt_platform (value)) {
+    cerr << "unsupported Qt platform plugin in " << source << ": "
+         << value << "\n";
+    print_available_qt_platforms ();
+    exit (1);
+  }
+}
+
+static void
+reject_unsupported_qt_platforms (int argc, char** argv) {
+  string env_platform= get_env ("QT_QPA_PLATFORM");
+  if (!is_empty (env_platform))
+    reject_qt_platform ("QT_QPA_PLATFORM", env_platform);
+
+  for (int i=1; i<argc; i++) {
+    string arg= argv[i];
+    if (starts (arg, "--platform=") || starts (arg, "-platform=")) {
+      int start= starts (arg, "--platform=")? 11: 10;
+      string value= arg (start, N(arg));
+      reject_qt_platform ("--platform", value);
+    }
+    else if ((arg == "--platform" || arg == "-platform") && i+1 < argc) {
+      string value= argv[i+1];
+      reject_qt_platform ("--platform", value);
+      i++;
+    }
+  }
+}
+
+#ifdef QTTEXMACS
+static string
+qt_platform_from_arguments (int argc, char** argv) {
+  for (int i=1; i<argc; i++) {
+    string arg= argv[i];
+    if (starts (arg, "--platform=") || starts (arg, "-platform=")) {
+      int start= starts (arg, "--platform=")? 11: 10;
+      return arg (start, N(arg));
+    }
+    if ((arg == "--platform" || arg == "-platform") && i+1 < argc)
+      return argv[i+1];
+  }
+  return "";
+}
+
+static bool
+qt_platform_is_wayland (string value) {
+  string platform= qt_platform_name (locase_all (value));
+  return starts (platform, "wayland");
+}
+
+static bool
+requested_wayland_qt_platform (int argc, char** argv) {
+  string arg_platform= qt_platform_from_arguments (argc, argv);
+  if (!is_empty (arg_platform)) return qt_platform_is_wayland (arg_platform);
+
+  string env_platform= get_env ("QT_QPA_PLATFORM");
+  if (!is_empty (env_platform)) return qt_platform_is_wayland (env_platform);
+
+  string session_type= locase_all (get_env ("XDG_SESSION_TYPE"));
+  return session_type == "wayland" || get_env ("WAYLAND_DISPLAY") != "";
+}
+
+static void
+normalize_wayland_qt_scaling (int argc, char** argv) {
+  if (!requested_wayland_qt_platform (argc, argv)) return;
+
+  string value= get_env ("QT_AUTO_SCREEN_SCALE_FACTOR");
+  if (value != "" && value != "0")
+    set_env ("QT_AUTO_SCREEN_SCALE_FACTOR", "0");
+
+  // QtWayland already receives fractional scaling through wp_fractional_scale.
+  // A process-level QT_SCALE_FACTOR multiplies that again, leaving top-level
+  // widgets and xdg-popup positioners in different effective coordinate spaces.
+  if (get_env ("QT_SCALE_FACTOR") != "")
+    unsetenv ("QT_SCALE_FACTOR");
+  if (get_env ("QT_SCREEN_SCALE_FACTORS") != "")
+    unsetenv ("QT_SCREEN_SCALE_FACTORS");
+  if (get_env ("QT_FONT_DPI") != "")
+    unsetenv ("QT_FONT_DPI");
+  if (get_env ("QT_SCALE_FACTOR_ROUNDING_POLICY") != "")
+    unsetenv ("QT_SCALE_FACTOR_ROUNDING_POLICY");
+}
+#endif
+
+static int
+as_positive_integer_arg (string s) {
+  return is_positive_integer_arg (s) ? as_int (s) : 0;
+}
+
+static std::string
+random_hex_token (int bytes) {
+  static const char* hex= "0123456789abcdef";
+  std::random_device rd;
+  std::mt19937 gen (rd ());
+  std::uniform_int_distribution<int> dist (0, 255);
+  std::string out;
+  out.reserve (size_t (bytes) * 2);
+  for (int i=0; i<bytes; i++) {
+    int value= dist (gen);
+    out.push_back (hex[(value >> 4) & 15]);
+    out.push_back (hex[value & 15]);
+  }
+  return out;
+}
+
+#ifdef QTTEXMACS
+// Qt application infrastructure
+static QTMApplication* qtmapp= NULL;
+static QTMCoreApplication* qtmcoreapp= NULL;
+
+static void
+startup_progress (int progress, string message) {
+#if ATHENA_PLATFORM_IPADOS
+  qInfo ("ATHENA startup %d: %s", progress,
+         athena_to_std_string (message).c_str ());
+#endif
+  if (!headless_mode && qtmapp != NULL && !no_splash_screen)
+    qtmapp->set_splash_progress (progress, message);
+}
+
+static void
+startup_process_events () {
+  if (!headless_mode && qtmapp != NULL && !no_splash_screen)
+    qtmapp->processEvents (QEventLoop::ExcludeUserInputEvents, 25);
+}
+
+#else
+static void
+startup_progress (int progress, string message) {
+  (void) progress; (void) message;
+}
+
+static void
+startup_process_events () {}
+
+#endif
+
+#ifndef ATHENA_TSAN_BUILD
+#  include <mimalloc-override.h>
+#  include <mimalloc-new-delete.h>
+#endif
+
+
+/******************************************************************************
+* For testing
+******************************************************************************/
+
+//#define ENABLE_TESTS
+#ifdef ENABLE_TESTS
+void
+test_routines () {
+  extern void test_math ();
+  test_math ();
+}
+#endif
+
+static void
+install_crash_reporting () {
+#if !ATHENA_PLATFORM_IPADOS
+  // iPadOS owns crash reporting; this target does not install signal handlers.
+  string directory= concretize (url ("$ATHENA_HOME_PATH/system/crash"));
+  if (!athena_install_crash_handlers (as_charp (directory)))
+    std_warning << "Fatal crash reporting could not open its report file or install all handlers" << LF;
+#endif
+}
+
+void
+clean_exit_on_sigterm (int sig_num) {
+  (void) sig_num;
+  // SIGTERM can interrupt any thread or runtime. Do not run global destructors
+  // from a signal handler, including in interactive/developer builds.
+  _exit (0);
+}
+
+void ATHENA_init_font() {
+  tt_font_cache_set_warmup_disabled (skip_fonts_cache);
+  startup_progress (67, "Loading font database");
+  font_database_load ();
+#if defined(QTTEXMACS) && defined(qt_no_fontconfig)
+  string default_font_dir = get_env ("ATHENA_PATH") * "/fonts/truetype/stix";
+  string current_qt_qpa_fontdir = get_env ("QT_QPA_FONTDIR");
+  if (is_empty(current_qt_qpa_fontdir))
+    set_env("QT_QPA_FONTDIR", default_font_dir);
+#endif
+}
+
+void
+ATHENA_init_paths (int& argc, char** argv) {
+  (void) argc; (void) argv;
+#if ATHENA_PLATFORM_IPADOS
+  // ios_entrypoint resolves the bundle and container before entering ATHENA.
+  // UIKit may create the Scene and its menus during the first splash event.
+  init_athena_pixmap_path ();
+  return;
+#else
+  url exedir = texmacs_get_application_directory();
+
+  string current_athena_path = get_env ("ATHENA_PATH");
+
+#if defined(Q_OS_MACOS)
+  // the following line can inibith external plugin loading
+  // QCoreApplication::setLibraryPaths(QStringList());
+  // ideally we would like to control the external plugins
+  // and add the most useful (gif, jpeg, svg converters)
+  // to the bundle package. I still do not have a reliable solution
+  // so just allow everything that is reachable.
+
+  // Plugins need to be installed in ATHENA.app/Contents/Plugins.
+  string plugins_path = concretize (exedir * "../Plugins");
+  QCoreApplication::addLibraryPath(QString::fromUtf8(&plugins_path[0], N(plugins_path)));
+  // cout << from_qstring ( QCoreApplication::libraryPaths () .join("\n") ) << LF;
+  {
+    // ensure that private versions of the Qt frameworks have priority on
+    // other instances.
+    // in the event that we load qt plugins which could possibly link to
+    // other instances of the Qt libraries
+    string buf;
+    buf = as_string(exedir * "../Frameworks");
+    if (get_env("DYLD_FRAMEWORK_PATH") != "") buf = buf * ":" * get_env("DYLD_FRAMEWORK_PATH");    
+    set_env ("DYLD_FRAMEWORK_PATH", buf);    
+    buf = as_string(exedir * "../Resources/lib");
+    if (get_env("DYLD_LIBRARY_PATH") != "") buf = buf * ":" * get_env("DYLD_LIBRARY_PATH");    
+    if (get_env("TMLD_LIBRARY_PATH") != "") buf = buf * ":" * get_env("TMLD_LIBRARY_PATH");    
+    set_env ("DYLD_LIBRARY_PATH", buf);    
+  }
+#endif
+
+#ifdef Q_OS_MAC
+  // Mac bundle environment initialization
+  // We set some environment variables when the executable
+  // is in a .app bundle on MacOSX
+  if (is_empty (current_athena_path))
+    set_env ("ATHENA_PATH", as_string(exedir * "../Resources/share/ATHENA"));
+  //cout << get_env("PATH") * ":" * as_string(url("$PWD") * argv[0]
+  // * "../../Resources/share/ATHENA/bin") << LF;
+  if (exists("/bin/bash")) {
+    string shell_env = var_eval_system ("PATH='' /bin/bash -l -c 'echo $PATH'");
+    set_env ("PATH", get_env("PATH") * ":" * shell_env * ":" *
+             as_string (exedir * "../Resources/share/ATHENA/bin"));
+  } else {
+    set_env ("PATH", get_env("PATH") * ":" *
+             as_string (exedir * "../Resources/share/ATHENA/bin"));
+  }
+  // system("set");
+#endif
+
+#ifdef OS_MINGW
+  // Win bundle environment initialization
+  // ATHENA_PATH is set by assuming that the executable is in ATHENA/bin/
+  // HOME is set to USERPROFILE
+  // PWD is set to HOME
+  // if PWD is lacking, then the path resolution machinery may not work
+
+  if (is_empty (current_athena_path)) {
+    string module_root= athena_windows_module_directory (true);
+    if (!is_empty (module_root)) set_env ("ATHENA_PATH", module_root);
+    else set_env ("ATHENA_PATH", as_string (exedir * ".."));
+  }
+  // if (get_env ("HOME") == "") //now set in immediate_options otherwise --setup option fails
+  //   set_env ("HOME", get_env("USERPROFILE"));
+  // HACK
+  // In WINE the variable PWD is already in the outer Unix environment 
+  // so we need to override it to have a correct behaviour
+  if ((get_env ("PWD") == "") || (get_env ("PWD")[0] == '/'))  {
+    string module_bin= athena_windows_module_directory (false);
+    if (!is_empty (module_bin)) set_env ("PWD", module_bin);
+    else set_env ("PWD", as_string (exedir));
+    // set_env ("PWD", get_env("HOME"));
+  }
+  // system("set");
+#endif
+
+#ifdef OS_HAIKU
+  // Initialization inside the Haiku package management environment
+  // ATHENA_PATH is set relative to the executable which is in $prefix/app
+  // to $prefix/data/ATHENA
+
+  if (is_empty (current_athena_path))
+    set_env ("ATHENA_PATH", as_string (exedir * "../data/ATHENA"));
+
+  set_env ("PATH", get_env("PATH") * ":" *
+           as_string (exedir * "/system/lib/ATHENA/bin"));
+#endif
+
+  // check on the latest $ATHENA_PATH
+  current_athena_path = get_env ("ATHENA_PATH");
+  if (is_empty (current_athena_path) ||
+      !exists (url_system (current_athena_path))) {
+    cout << "The required ATHENA_PATH("
+         << current_athena_path
+         << ") does not exists" << LF;
+    exit(1);
+  }
+  // Native menus are constructed before init_athena() initializes the rest
+  // of the resource paths, and already need the bundled icon search path.
+  init_athena_pixmap_path ();
+#endif
+}
+
+/******************************************************************************
+* Parse command line options and set other global variables via preferences
+******************************************************************************/
+
+string the_default_font;
+
+#if ATHENA_ENABLE_CLI
+static void
+print_version () {
+  cout << "\n";
+  cout << "ATHENA (Advanced Typesetting and Hypertext Environment for Notes and Archives)\n";
+  cout << "Version " << ATHENA_APP_VERSION << "\n";
+  cout << ATHENA_COPYRIGHT << "\n";
+  cout << "\n";
+}
+
+static void
+print_command_line_help () {
+  cout << "\n";
+  cout << "Options for ATHENA:\n\n";
+  cout << "  -C [i] [o] Convert file 'i' into file 'o'\n";
+  cout << "  -d         For debugging purposes\n";
+  cout << "  -fn [font] Set the default TeX font\n";
+  cout << "  -g [geom]  Set geometry of window in pixels\n";
+  cout << "  -h         Display this help message\n";
+  cout << "  -H         Run ATHENA in headless mode\n";
+  cout << "  -p         Get the ATHENA path\n";
+  cout << "  -q         Quit after completing startup tasks\n";
+  cout << "  -r         Reverse video mode\n";
+  cout << "  -s         Suppress information messages\n";
+  cout << "  -S         Rerun ATHENA setup program before starting\n";
+  cout << "  -v         Display current ATHENA version\n";
+  cout << "  -V         Show some informative messages\n";
+  cout << "  --no-splash-screen       Start without the startup progress window\n";
+  cout << "  --vault [dir]            Activate a Vault before opening startup documents\n";
+  cout << "  --vault-maintenance [dir]  Maintain an ATHENA vault headlessly\n";
+  cout << "  --upgrade-vault-format [dir]  Offline transactional UTF-8/XML vault upgrade\n";
+  cout << "  --upgrade-vault-node-model [dir]  Offline UTF-8 XML v1 -> node-model XML v2 vault migration\n";
+  cout << "  --upgrade-vault-xml-v3 --check [--strict] [--hodarium-state DIR] [dir]  Read-only XML v3 preflight\n";
+  cout << "  --upgrade-vault-xml-v3 --stage NEW_DIR [--strict] [--hodarium-state DIR] [dir]  Disconnected v3 candidate\n";
+  cout << "  --upgrade-vault-xml-v3 --publish [--strict] [dir]  Offline atomic XML v3 upgrade\n";
+  cout << "  --upgrade-vault-sorters [dir] --sorter-map JSON  Offline explicit C-to-Luau namespace sorter migration\n";
+  cout << "  --convert-style [source.ts] [dest.ats]  Convert a legacy style to native UTF-8 XML\n";
+  cout << "  --rag-delegated-embedding [dir]  Run only delegated incremental embedding\n";
+  cout << "  --vault-maintenance-toc-worker [file] [marker]  Internal ToC maintenance worker\n";
+  cout << "  --generate-website [dir] [id]  Generate a vault website headlessly\n";
+  cout << "  --run-website-post-command [dir] [id]  Run only a website post-generation command\n";
+  cout << "  --check-only               With --vault-maintenance, run only the document health check\n";
+  cout << "  --aofm-convert-file [file]  Convert one AOFM Markdown file headlessly\n";
+  cout << "  --aofm-convert-vault [src] [dest] [jobs]  Convert an AOFM vault headlessly\n";
+  cout << "  --rag-server [dir]          Start a Continuous RAG MCP server\n";
+  cout << "  --rag-embedding-device [auto|cpu]  Select RAG embedding device mode\n";
+  cout << "  --rag-index-jobs [n]        Parallelize initial RAG indexing with n processes\n";
+  cout << "  --rag-listen-address [addr] Listen address for RAG server endpoints\n";
+  cout << "  --delegation-key-dir [dir]  ATHENA delegation server key directory\n";
+  cout << "  --delegation-accepted-clients [json]  Accepted delegation client keys\n";
+  cout << "  --artifact-range-model [gguf]  Artifact definition-span model\n";
+  cout << "  --artifact-range-batch-size [n]  Artifact model microbatch size\n";
+  cout << "  --artifact-queue-limit [n]  Maximum queued artifact requests\n";
+  cout << "  --artifact-queue-bytes [n]  Maximum artifact queue plaintext bytes\n";
+  cout << "  --generate-server-keypair   Generate an ATHENA delegation server keypair\n";
+  cout << "  --skip-fonts-cache         Skip the private font file cache\n";
+  cout << "  --insert-build-warning     Insert ATHENA experimental build warnings during AOFM conversion\n";
+  cout << "  --model-vault [dir]        Reuse a model vault for AOFM namespace/style conversion\n";
+  cout << "  -Oc        TeX characters bitmap clipping off\n";
+  cout << "  +Oc        TeX characters bitmap clipping on (default)\n";
+  cout << "\nPlease report bugs to <nuaptan@outlook.com>\n";
+  cout << "\n";
+}
+
+static void
+process_query_options (int argc, char** argv) {
+  for (int i=1; i<argc; i++) {
+    string s= argv[i];
+    if ((N(s)>=2) && (s(0,2)=="--")) s= s (1, N(s));
+    if ((s == "-v") || (s == "-version")) {
+      print_version ();
+      exit (0);
+    }
+    if ((s == "-p") || (s == "-path")) {
+      cout << get_env ("ATHENA_PATH") << "\n";
+      exit (0);
+    }
+    if ((s == "-hp") || (s == "-homepath")) {
+      cout << get_env ("ATHENA_HOME_PATH") << "\n";
+      exit (0);
+    }
+    if ((s == "-bp") || (s == "-binpath")) {
+      cout << get_env ("ATHENA_BIN_PATH") << "\n";
+      exit (0);
+    }
+    if ((s == "-h") || (s == "-help")) {
+      print_command_line_help ();
+      exit (0);
+    }
+  }
+}
+
+#endif
+
+void 
+set_global_options  (int argc, char** argv)  {
+
+#if ATHENA_ENABLE_CLI
+  // parse command line options
+  bool flag= true;
+
+  for (int i=1; i<argc; i++) {
+    if (argv[i][0] == '\0') argc= i;
+    else if ((argv[i][0] == '-') || (argv[i][0] == '+'))
+    {
+      if (argv[i][1] == '\0') continue;
+      // process -x, +x or --xxx option (with optional arguments)
+      string s= argv[i];
+      if ((N(s)>=2) && (s(0,2)=="--")) s= s (1, N(s));
+      if ((s == "-s") || (s == "-silent")) flag= false;
+      else if ((s == "-V") || (s == "-verbose")) 
+        debug (DEBUG_FLAG_VERBOSE, true);
+      else if ((s == "-d") || (s == "-debug")) debug (DEBUG_FLAG_STD, true);
+      else if (s == "-debug-events") debug (DEBUG_FLAG_EVENTS, true);
+      else if (s == "-debug-io") debug (DEBUG_FLAG_IO, true);
+      else if (s == "-debug-gnutls") debug (DEBUG_FLAG_GNUTLS, true);
+      else if (s == "-debug-bench") debug (DEBUG_FLAG_BENCH, true);
+      else if (s == "-debug-history") debug (DEBUG_FLAG_HISTORY, true);
+      else if (s == "-debug-qt") debug (DEBUG_FLAG_QT, true);
+      else if (s == "-debug-qt-widgets") debug (DEBUG_FLAG_QT_WIDGETS, true);
+      else if (s == "-debug-keyboard") debug (DEBUG_FLAG_KEYBOARD, true);
+      else if (s == "-debug-packrat") debug (DEBUG_FLAG_PACKRAT, true);
+      else if (s == "-debug-flatten") debug (DEBUG_FLAG_FLATTEN, true);
+      else if (s == "-debug-convert") debug (DEBUG_FLAG_CONVERT, true);
+      else if (s == "-debug-all") {
+        debug (DEBUG_FLAG_EVENTS, true);
+        debug (DEBUG_FLAG_STD, true);
+        debug (DEBUG_FLAG_IO, true);
+        debug (DEBUG_FLAG_HISTORY, true);
+        debug (DEBUG_FLAG_BENCH, true);
+        debug (DEBUG_FLAG_QT, true);
+        debug (DEBUG_FLAG_QT_WIDGETS, true);
+      }
+      else if (s == "-disable-error-recovery") disable_error_recovery= true;
+      else if ((s == "-fn") || (s == "-font")) {
+        i++;
+        if (i<argc) the_default_font= argv[i];
+      }
+      else if ((s == "-g") || (s == "-geometry")) {
+        i++;
+        if (i<argc) {
+          string g= argv[i];
+          int j=0, j1, j2, j3;
+          for (j=0; j<N(g); j++)
+            if (g[j] == 'x') break;
+          j1=j; if (j<N(g)) j++;
+          for (; j<N(g); j++)
+            if ((g[j] == '+') || (g[j] == '-')) break;
+          j2=j; if (j<N(g)) j++;
+          for (; j<N(g); j++)
+            if ((g[j] == '+') || (g[j] == '-')) break;
+          j3=j;
+          if (j1<N(g)) {
+            geometry_w= max (as_int (g (0, j1)), 320);
+            geometry_h= max (as_int (g (j1+1, j2)), 200);
+          }
+          if (j3<N(g)) {
+            if (g[j2] == '-') geometry_x= as_int (g (j2, j3)) - 1;
+            else geometry_x= as_int (g (j2+1, j3));
+            if (g[j3] == '-') geometry_y= as_int (g (j3, N(g))) - 1;
+            else geometry_y= as_int (g (j3+1, N(g)));
+          }
+        }
+      }
+      else if (s == "-vault") {
+        if (++i >= argc) {
+          cerr << "ATHENA: --vault requires a directory\n";
+          std::exit (2);
+        }
+        const string root= as_string (url_pwd () * url_system (argv[i]));
+        startup_vault.assign (root.data (), N(root));
+      }
+      else if (s == "-b" || s == "-initialize-buffer" || s == "-i" ||
+               s == "-initialize" || s == "-x" || s == "-execute") {
+        cerr << "ATHENA: embedded script execution is no longer supported\n";
+        exit (1);
+      }
+      else if (s == "-aofm-convert-file") {
+        i++;
+      }
+      else if (s == "-aofm-convert-vault") {
+        i += 2;
+        if (i+1 < argc && is_positive_integer_arg (string (argv[i+1]))) i++;
+      }
+      else if (s == "-model-vault") {
+        i++;
+      }
+      else if (s == "-vault-maintenance") {
+        i++;
+      }
+      else if (s == "-rag-delegated-embedding") {
+        i++;
+      }
+      else if (s == "-vault-maintenance-toc-worker") {
+        i += 2;
+      }
+      else if (s == "-generate-website") {
+        i += 2;
+      }
+      else if (s == "-run-website-post-command") {
+        i += 2;
+      }
+      else if (s == "-check-only") {
+        // Handled in texmacs_entrypoint
+      }
+      else if (s == "-rag-server") {
+        i++;
+      }
+      else if (s == "-rag-port") {
+        i++;
+      }
+      else if (s == "-rag-embedding-model") {
+        i++;
+      }
+      else if (s == "-rag-embedding-device") {
+        i++;
+      }
+      else if (s == "-rag-index-jobs") {
+        i++;
+      }
+      else if (s == "-rag-reindex") {
+        // Handled in texmacs_entrypoint
+      }
+      else if (s == "-rag-listen-address") {
+        i++;
+      }
+      else if (s == "-delegation-key-dir") {
+        i++;
+      }
+      else if (s == "-delegation-accepted-clients") {
+        i++;
+      }
+      else if (s == "-artifact-range-model" ||
+               s == "-artifact-range-batch-size" ||
+               s == "-artifact-queue-limit" ||
+               s == "-artifact-queue-bytes") i++;
+      else if (s == "-generate-server-keypair") {
+        // Handled in texmacs_entrypoint
+      }
+      else if (s == "-skip-fonts-cache") {
+        // Handled in texmacs_entrypoint
+      }
+      else if (s == "-ignore-nonempty-dest") {
+        // Handled in texmacs_entrypoint
+      }
+      else if (s == "-insert-build-warning") {
+        // Handled in texmacs_entrypoint
+      }
+      else if (s == "-no-splash-screen") {
+        no_splash_screen= true;
+      }
+      else if ((s == "-v") || (s == "-version")) {
+        print_version ();
+        exit (0);
+      }
+      else if ((s == "-p") || (s == "-path")) {
+        cout << get_env ("ATHENA_PATH") << "\n";
+        exit (0);
+      }
+      else if ((s == "-hp") || (s == "-homepath")) {
+        cout << get_env ("ATHENA_HOME_PATH") << "\n";
+        exit (0);
+      }
+      else if ((s == "-bp") || (s == "-binpath")) {
+        cout << get_env ("ATHENA_BIN_PATH") << "\n";
+        exit (0);
+      }
+      else if ((s == "-q") || (s == "-quit"))
+        startup_tasks.push_back ({startup_operation::quit, {}, {}});
+      else if ((s == "-r") || (s == "-reverse"))
+        set_reverse_colors (true);
+      else if ((s == "-c") || (s == "-convert") || (s == "-C")) {
+        i+=2;
+        if (i<argc) {
+          url in  ("$PWD", argv[i-1]);
+          url out ("$PWD", argv[ i ]);
+          const string source= as_string (in), target= as_string (out);
+          startup_tasks.push_back ({startup_operation::convert,
+            std::string (source.data (), N(source)),
+            std::string (target.data (), N(target))});
+        }
+      }
+      else if ((s == "-X")) {
+        exec_exit= false;
+      }
+      else if (s == "-log-file") i++;
+      else if ((s == "-Oc") || (s == "-no-char-clipping")) char_clip= false;
+      else if ((s == "+Oc") || (s == "-char-clipping")) char_clip= true;
+      else if ((s == "-S") || (s == "-setup") ||
+               (s == "-delete-cache") || (s == "-delete-font-cache") ||
+               (s == "-delete-style-cache") || (s == "-delete-file-cache") ||
+               (s == "-delete-databases") ||
+	       (s == "-headless") || (s == "-H"));
+      else if (starts (s, "-psn"));
+      else {
+        print_command_line_help ();
+        exit (0);
+      }
+    } else {
+      string s=argv[i];
+      if (DEBUG_STD) debug_boot << "Loading " << s << "...\n";
+      url u= url_system (s);
+      if (!is_rooted (u)) u= resolve (url_pwd (), "") * u;
+      const string name= as_string (u);
+      startup_documents.emplace_back (name.data (), N(name));
+    }
+  } // for (int i...)
+  if (flag) debug (DEBUG_FLAG_AUTO, true);
+  // End parse command line options
+
+  if (headless_mode && exec_exit)
+    startup_tasks.push_back ({startup_operation::quit, {}, {}});
+
+  // Further options via environment variables
+  // End options via environment variables
+
+  // Further user preferences
+#endif
+  string native= "off";
+  string unify = "off";
+  string mini  = (os_macos ()? string ("off"): string ("on"));
+  if (tm_style_sheet != "") mini= "off";
+#if defined(qt_no_fontconfig)
+  use_native_menubar = get_preference ("use native menubar", native) == "force";
+#else
+  use_native_menubar = get_preference ("use native menubar", native) == "on" || get_preference ("use native menubar", native) == "force";
+#endif
+  use_unified_toolbar= get_preference ("use unified toolbar", unify) == "on";
+  use_mini_bars      = get_preference ("use minibars",         mini) == "on";
+  if (!use_native_menubar) use_unified_toolbar= false;
+  // End user preferences
+}
+
+/******************************************************************************
+* Application main program
+******************************************************************************/
+
+void
+TeXmacs_main (int argc, char** argv) {
+
+  startup_progress (82, "Configuring session");
+  set_global_options (argc, argv);
+
+
+  if (DEBUG_STD) debug_boot << "Initializing system state...\n";
+  startup_progress (84, "Initializing system state");
+  bench_start ("initialize system state");
+  init_system_state ();
+  bench_cumul ("initialize system state");
+  if (DEBUG_STD) debug_boot << "Opening display...\n";
+
+  startup_progress (86, "Opening display");
+  gui_open (argc, argv);
+  startup_progress (88, "Display ready");
+  set_default_font (the_default_font);
+
+  { // opening scope for server sv
+    if (DEBUG_STD) debug_boot << "Starting server...\n";
+    startup_progress (90, "Starting server");
+    bench_start ("start server");
+    server sv;
+    bench_cumul ("start server");
+    startup_progress (92, "Server ready");
+
+
+#if ATHENA_ENABLE_CLI
+    if (rag_server_dir != "") {
+      athena::mcp::RagServerOptions options;
+      options.vault_root= std::filesystem::path (
+        athena_to_std_string (rag_server_dir));
+      load_vault_preferences_if_enabled (options.vault_root,
+                                         "Continuous RAG");
+      if (!rag_server_port_set) {
+        string port_pref= get_user_preference ("rag mcp port", "8765");
+        if (is_positive_integer_arg (port_pref))
+          rag_server_port= as_positive_integer_arg (port_pref);
+      }
+      options.port= rag_server_port;
+      if (rag_embedding_model != "")
+        options.embedding_model= std::filesystem::path (
+          athena_to_std_string (rag_embedding_model));
+      else {
+        string pref_model= get_user_preference ("rag embedding model", "");
+        if (get_user_preference ("rag realtime npu enabled", "off") == "on") {
+          string npu_tokenizer=
+            get_user_preference ("rag npu tokenizer gguf", "");
+          if (npu_tokenizer != "") pref_model= npu_tokenizer;
+        }
+        if (pref_model != "")
+          options.embedding_model= std::filesystem::path (
+            athena_to_std_string (pref_model));
+      }
+      string pref_device= get_user_preference ("rag embedding device", "auto");
+      if (rag_embedding_device == "auto" && pref_device != "")
+        rag_embedding_device= pref_device;
+      if (rag_embedding_device != "cpu") rag_embedding_device= "auto";
+      options.embedding_device= athena_to_std_string (rag_embedding_device);
+      options.index_jobs= rag_index_jobs;
+      options.force_reindex= rag_server_reindex;
+      options.listen_address= athena_to_std_string (rag_listen_address);
+      if (delegation_key_dir != "")
+        options.delegation_key_dir= std::filesystem::path (
+          athena_to_std_string (delegation_key_dir));
+      if (delegation_accepted_clients != "")
+        options.delegation_accepted_clients= std::filesystem::path (
+          athena_to_std_string (delegation_accepted_clients));
+      options.artifact_range_model= artifact_range_model == "" ?
+        std::filesystem::path (athena_artifact_range_model_path ()):
+        std::filesystem::path (athena_to_std_string (artifact_range_model));
+      options.artifact_range_batch_size= artifact_range_batch_size;
+      options.artifact_queue_limit= artifact_queue_limit;
+      options.artifact_queue_bytes= artifact_queue_bytes;
+      string token_pref= get_user_preference ("rag mcp bearer token", "");
+      if (token_pref == "") {
+        std::string token= random_hex_token (32);
+        set_user_preference ("rag mcp bearer token", string (token.c_str ()));
+        save_user_preferences ();
+        options.bearer_token= token;
+      }
+      else options.bearer_token= athena_to_std_string (token_pref);
+
+      bool ok= athena::mcp::start_rag_server (options);
+      if (!ok) exit (1);
+      texmacs_started= true;
+      if (!disable_error_recovery) install_crash_reporting ();
+      signal (SIGTERM, clean_exit_on_sigterm);
+      release_boot_lock ();
+      io_info << "rag mcp: bearer token "
+              << "configured" << "\n";
+#ifdef QTTEXMACS
+      QCoreApplication::exec ();
+#endif
+      exit (0);
+    }
+
+    if (rag_delegated_embedding_dir != "") {
+      release_boot_lock ();
+      bool ok= vault_rag_delegation_run (rag_delegated_embedding_dir);
+      exit (ok ? 0 : 1);
+    }
+
+#endif
+    bool needs_startup_buffer_policy= number_buffers () == 0;
+
+    if (!headless_mode) {
+      startup_progress (94, "Building application workspace");
+      bench_start ("show application shell");
+      qt_wait_for_font_fallback_warmup ();
+      // The math icon renderer uses the GUI helper to create a transient
+      // QAction. Prewarm after gui_open() has initialized that helper, but
+      // before showing menus or starting the normal event loop.
+      bench_start ("prewarm math icon cache");
+      qtmapp->prewarmMathIcons ();
+      bench_cumul ("prewarm math icon cache");
+      qtmapp->mainTabWindow ().showShell ();
+      bench_cumul ("show application shell");
+      bench_cumul ("startup to application shell");
+      startup_progress (96, "Application workspace ready");
+      QTimer::singleShot (1000, [] () {
+        cache_validate_font_directories ();
+      });
+    }
+
+#if ATHENA_ENABLE_CLI
+    if (!aofm_convert_file.empty ()) {
+      aofm_enable_converter_mode (true);
+      aofm_cache_preferences ();
+      aofm_debug_dump (aofm_convert_file);
+      exit (0);
+    }
+    if (aofm_convert_vault_source != "" &&
+        aofm_convert_vault_destination != "") {
+      aofm_enable_converter_mode (true);
+      aofm_cache_preferences ();
+      bool ok= aofm_import_vault (aofm_convert_vault_source,
+                                  aofm_convert_vault_destination,
+                                  aofm_ignore_nonempty_dest,
+                                  aofm_convert_vault_parallelism,
+                                  aofm_convert_vault_model_vault);
+      exit (ok ? 0 : 1);
+    }
+    if (vault_maintenance_dir != "") {
+      release_boot_lock ();
+      bool ok= vault_maintenance_run (vault_maintenance_dir,
+                                      vault_maintenance_check_only);
+      exit (ok ? 0 : 1);
+    }
+    if (vault_maintenance_toc_worker_file != "" &&
+        vault_maintenance_toc_worker_marker != "") {
+      application_document_load_options options;
+      options.strict= true;
+      application_load_document (url_system (vault_maintenance_toc_worker_file), options);
+      bool failed= true;
+      try {
+        url document= url_system (vault_maintenance_toc_worker_file);
+        bool generated= qt_with_buffer (document, [] {
+          get_current_editor ()->generate_aux ("table-of-contents");
+        });
+        failed= !generated || buffer_save (document);
+      }
+      catch (...) {
+        failed= true;
+      }
+      std::ofstream marker (athena_to_std_string (
+        vault_maintenance_toc_worker_marker), std::ios::binary);
+      if (marker) marker << (failed ? "save-failed" : "ok");
+      marker.close ();
+      exit (failed ? 1 : 0);
+    }
+    if (website_generate_dir != "" && website_generate_id != "") {
+      // Website export loads the converter modules it needs on demand.  Do not
+      // force editor-mode lazy initializers here: their context predicates
+      // inspect BufferActor-owned editor state and this headless entry point is
+      // intentionally running on the global owner.
+      load_vault_preferences_if_enabled (
+        std::filesystem::path (athena_to_std_string (website_generate_dir)),
+        "Website generation");
+      std::string error;
+      bool ok= athena_generate_website (
+        athena_to_std_string (website_generate_dir),
+        athena_to_std_string (website_generate_id), error);
+      if (!ok) std_error << "website generation failed: "
+                         << error.c_str () << LF;
+      exit (ok ? 0 : 1);
+    }
+    if (website_post_command_dir != "" && website_post_command_id != "") {
+      std::string error;
+      bool ok= athena_run_website_post_command (
+        athena_to_std_string (website_post_command_dir),
+        athena_to_std_string (website_post_command_id), error);
+      if (!ok) std_error << "website post-generation command failed: "
+                         << error.c_str () << LF;
+      exit (ok ? 0 : 1);
+    }
+
+#endif
+    bench_print ();
+    bench_reset ("initialize texmacs");
+    bench_reset ("initialize TeX resources");
+    bench_reset ("initialize scheme");
+
+    if (DEBUG_STD) debug_boot << "Starting event loop...\n";
+    texmacs_started= true;
+    if (!disable_error_recovery) install_crash_reporting ();
+
+    // allow docker stop to work
+    signal (SIGTERM, clean_exit_on_sigterm);
+    release_boot_lock ();
+
+    // Vault startup is process-global application work.  Do not put it in the
+    // ordinary ownerless delayed queue: that queue intentionally waits for a
+    // concrete BufferActor view, while this policy is responsible for creating
+    // the initial vault/welcome buffer in a zero-buffer shell.
+    if (needs_startup_buffer_policy) {
+      qt_post_to_main_thread (vault_startup_open_initial_buffer_native);
+      native_keyboard_start_warmup ();
+    }
+    qt_schedule_editor_idle (300, [] {
+      qt_post_to_main_thread (ads_restore_visible_panes);
+    });
+
+    if (!startup_vault.empty () || !startup_documents.empty () || !startup_tasks.empty ()) {
+      qt_post_to_main_thread (open_startup_documents);
+      startup_progress (97, "Scheduling startup tasks");
+    }
+#if !ATHENA_PLATFORM_IPADOS
+    if (!qEnvironmentVariable ("ATHENA_PROFILE_CONTROL_HELPER").isEmpty ())
+      qt_post_to_main_thread (start_profile_run);
+#endif
+    startup_progress (98, "Preparing workspace");
+#ifdef QTTEXMACS
+    google_tasks_schedule_background_refresh ();
+    if (!headless_mode) athena_watchdog_start_qt_heartbeat ();
+#endif
+    if (!headless_mode) {
+      try { qt_audmap_start (); }
+      catch (const std::exception& e) {
+        std_warning << "Could not start ATHENA Interop: " << e.what () << LF;
+      }
+    }
+    gui_start_loop ();
+    qt_audmap_stop ();
+
+    if (DEBUG_STD) debug_boot << "Stopping server...\n";
+  } // ending scope for server sv
+
+  if (DEBUG_STD) debug_boot << "Closing display...\n";
+  gui_close ();
+
+  if (DEBUG_STD) debug_boot << "Good bye...\n";
+}  
+
+/******************************************************************************
+* Main program
+******************************************************************************/
+
+#ifdef OS_MACOS
+#include <sys/resource.h>
+#endif
+
+void
+boot_hacks () {
+#ifdef OS_MACOS
+// NOTE: under MACOS, there is a limited number of open file descriptors,
+// by default 256.  Any open file descriptor can actually count several times
+// whenever the files is stored in various chunks on disk.  Hence, the limit
+// is easily exceeded, although this situation cannot easily be debugged.
+// Our current hack is to allow for at least 4096 open file descriptors.
+  rlimit lims;
+  getrlimit (RLIMIT_NOFILE, &lims);
+  lims.rlim_cur= max ((int) lims.rlim_cur, (int) 4096);
+  setrlimit (RLIMIT_NOFILE, &lims);
+  //getrlimit (RLIMIT_NOFILE, &lims);
+  //printf ("cur: %i\n", lims.rlim_cur);
+  //printf ("max: %i\n", lims.rlim_max);
+#ifdef MACOSX_EXTENSIONS
+  mac_fix_yosemite_bug();
+#endif
+
+#endif
+}
+
+/******************************************************************************
+* Main program
+******************************************************************************/
+
+void
+immediate_options (int argc, char** argv) {
+  if (get_env ("ATHENA_HOME_PATH") == "")
+#ifdef OS_MINGW
+  {
+    if (get_env ("HOME") == "")
+        set_env ("HOME", get_env("USERPROFILE"));
+    set_env ("ATHENA_HOME_PATH", get_env ("APPDATA") * "\\ATHENA");
+	}
+#elif defined(OS_HAIKU)
+    set_env ("ATHENA_HOME_PATH", get_env ("HOME") * "/config/settings/ATHENA");
+#else
+    set_env ("ATHENA_HOME_PATH", get_env ("HOME") * "/.ATHENA");
+#endif
+  if (get_env ("ATHENA_HOME_PATH") == "") return;
+#if ATHENA_ENABLE_CLI
+  for (int i=1; i<argc; i++) {
+    string s= argv[i];
+    if ((N(s)>=2) && (s(0,2)=="--")) s= s (1, N(s));
+    if ((s == "-S") || (s == "-setup")) {
+      remove (url ("$ATHENA_HOME_PATH/system/sys_state.json"));
+      remove (url ("$ATHENA_HOME_PATH/system/setup.scm"));
+      remove (url ("$ATHENA_HOME_PATH/system/cache") * url_wildcard ("*"));
+      remove (url ("$ATHENA_HOME_PATH/fonts/error") * url_wildcard ("*"));
+    }
+    else if (s == "-delete-cache")
+      remove (url ("$ATHENA_HOME_PATH/system/cache") * url_wildcard ("*"));
+    else if (s == "-delete-style-cache")
+      remove (url ("$ATHENA_HOME_PATH/system/cache") * url_wildcard ("__*"));
+    else if (s == "-delete-font-cache") {
+      remove (url ("$ATHENA_HOME_PATH/system/cache/font_cache.scm"));
+      remove (url ("$ATHENA_HOME_PATH/system/cache/font_path_cache_v2.scm"));
+      remove (url ("$ATHENA_HOME_PATH/system/cache/font_file_index_v2.scm"));
+      remove (url ("$ATHENA_HOME_PATH/system/cache/font-characteristics.json"));
+      remove (url ("$ATHENA_HOME_PATH/fonts/error") * url_wildcard ("*"));
+    }
+    else if (s == "-delete-file-cache") {
+      remove (url ("$ATHENA_HOME_PATH/system/cache/file_cache"));
+      remove (url ("$ATHENA_HOME_PATH/system/cache/dir_cache.scm"));
+      remove (url ("$ATHENA_HOME_PATH/system/cache/stat_cache.scm"));
+    }
+    else if (s == "-delete-databases") {
+      system ("rm -rf", url ("$ATHENA_HOME_PATH/system/database"));
+      system ("rm -rf", url ("$ATHENA_HOME_PATH/users"));
+    }
+#ifdef QTTEXMACS
+    else if (s == "-headless" || s == "-H" || s == "-C")
+      headless_mode= true;
+#endif
+    else if (s == "-log-file" && i + 1 < argc) {
+      i++;
+      char* log_file = argv[i];
+      tm_ostream logf (log_file);
+      if (!logf->is_writable ())
+        cerr << "Error: could not open " << log_file << "\n";
+      cout.redirect (logf);
+      cerr.redirect (logf);
+    }
+  }
+#endif
+}
+
+#if ATHENA_ENABLE_RUNTIME_SCHEME_REFRESH
+static const char* source_fingerprint_cache_name=
+  "source_fingerprint.txt";
+#endif
+
+static std::string
+athena_to_std_string (const string& s) {
+  char* c= as_charp (s);
+  std::string r (c, N(s));
+  tm_delete_array (c);
+  return r;
+}
+
+static std::filesystem::path
+athena_default_delegation_key_dir () {
+  const char* xdg= getenv ("XDG_CONFIG_HOME");
+  const char* home= getenv ("HOME");
+  std::filesystem::path base=
+    xdg != nullptr && xdg[0] != '\0' ? std::filesystem::path (xdg):
+    (home == nullptr || home[0] == '\0' ? std::filesystem::path ("."):
+      std::filesystem::path (home) / ".config");
+  return base / "ATHENA" / "delegation";
+}
+
+static void
+handle_rag_server_keypair_generation () {
+  if (!rag_generate_server_keypair) return;
+  std::filesystem::path key_dir=
+    delegation_key_dir == "" ?
+      athena_default_delegation_key_dir ():
+      std::filesystem::path (athena_to_std_string (delegation_key_dir));
+  athena::rag::delegation::KeyPair keypair;
+  bool generated= false;
+  std::string error;
+  if (!athena::rag::delegation::ensure_keypair (
+        key_dir, "server", keypair, &generated, error)) {
+    std::fprintf (stderr,
+                  "ATHENA delegation: failed to create server keypair: %s\n",
+                  error.c_str ());
+    exit (1);
+  }
+  std::printf ("ATHENA delegation server keypair %s in %s\n",
+               generated ? "generated": "already exists",
+               key_dir.generic_string ().c_str ());
+  std::printf ("Public key: %s\n",
+               athena::rag::delegation::base64_encode (
+                 keypair.public_key).c_str ());
+  std::printf ("Fingerprint: %s\n",
+               athena::rag::delegation::fingerprint_for_public_key (
+                 keypair.public_key).c_str ());
+  std::printf ("Accepted clients file: %s\n",
+               (key_dir / "accepted-clients.json").generic_string ().c_str ());
+  if (rag_server_dir == "") exit (0);
+}
+
+#if ATHENA_ENABLE_RUNTIME_SCHEME_REFRESH
+static void
+athena_fingerprint_feed (uint64_t& hash, const std::string& text) {
+  for (size_t i=0; i<text.size (); i++) {
+    hash ^= (unsigned char) text[i];
+    hash *= 1099511628211ULL;
+  }
+  hash ^= '\n';
+  hash *= 1099511628211ULL;
+}
+
+static long long
+athena_stat_mtime_nsec (const struct stat& st) {
+#if defined(__APPLE__)
+  return (long long) st.st_mtimespec.tv_nsec;
+#elif defined(__linux__) || defined(__FreeBSD__)
+  return (long long) st.st_mtim.tv_nsec;
+#else
+  (void) st;
+  return 0;
+#endif
+}
+
+static void
+athena_fingerprint_feed_stat (uint64_t& hash, const std::string& rel,
+                              const struct stat& st, char kind) {
+  athena_fingerprint_feed (hash, std::string (1, kind));
+  athena_fingerprint_feed (hash, rel);
+  athena_fingerprint_feed (hash, std::to_string ((long long) st.st_mode));
+  athena_fingerprint_feed (hash, std::to_string ((long long) st.st_size));
+  athena_fingerprint_feed (hash, std::to_string ((long long) st.st_mtime));
+  athena_fingerprint_feed (hash,
+    std::to_string (athena_stat_mtime_nsec (st)));
+}
+
+#ifndef OS_MINGW
+static void
+athena_fingerprint_walk (const std::string& root, const std::string& rel,
+                         uint64_t& hash, size_t& entries) {
+  std::string dir_name= rel.empty ()? root: root + "/" + rel;
+  DIR* dir= opendir (dir_name.c_str ());
+  if (dir == NULL) return;
+
+  std::vector<std::string> names;
+  while (true) {
+    struct dirent* ent= readdir (dir);
+    if (ent == NULL) break;
+    std::string name= ent->d_name;
+    if (name == "." || name == "..") continue;
+    names.push_back (name);
+  }
+  closedir (dir);
+  std::sort (names.begin (), names.end ());
+
+  for (size_t i=0; i<names.size (); i++) {
+    std::string child_rel= rel.empty ()? names[i]: rel + "/" + names[i];
+    std::string child_abs= root + "/" + child_rel;
+    struct stat st;
+    if (lstat (child_abs.c_str (), &st) != 0) continue;
+
+    char kind= S_ISDIR (st.st_mode)? 'd':
+      (S_ISLNK (st.st_mode)? 'l':
+       (S_ISREG (st.st_mode)? 'f': 'o'));
+    athena_fingerprint_feed_stat (hash, child_rel, st, kind);
+    entries++;
+
+    if (S_ISLNK (st.st_mode)) {
+      char target[4096];
+      ssize_t n= readlink (child_abs.c_str (), target, sizeof (target) - 1);
+      if (n >= 0) {
+        target[n]= '\0';
+        athena_fingerprint_feed (hash, target);
+      }
+    }
+    else if (S_ISDIR (st.st_mode))
+      athena_fingerprint_walk (root, child_rel, hash, entries);
+  }
+}
+#endif
+
+static void
+athena_source_fingerprint_for_subdir (uint64_t& hash, size_t& entries,
+                                      const std::string& root,
+                                      const char* subdir) {
+#ifndef OS_MINGW
+  std::string dir= root + "/" + subdir;
+  struct stat st;
+  if (stat (dir.c_str (), &st) != 0 || !S_ISDIR (st.st_mode))
+    return;
+  athena_fingerprint_feed (hash, subdir);
+  athena_fingerprint_walk (dir, "", hash, entries);
+#else
+  (void) hash; (void) entries; (void) root; (void) subdir;
+#endif
+}
+
+static std::string
+athena_source_fingerprint_for_root (const char* label, const string& root_s) {
+#ifdef OS_MINGW
+  (void) label; (void) root_s;
+  return "";
+#else
+  if (root_s == "") return "";
+  std::string root= athena_to_std_string (root_s);
+
+  uint64_t hash= 1469598103934665603ULL;
+  size_t entries= 0;
+  athena_fingerprint_feed (hash, "athena-source-fingerprint-v2");
+  athena_fingerprint_feed (hash, label);
+  athena_fingerprint_feed (hash, root);
+  athena_source_fingerprint_for_subdir (hash, entries, root, "packages");
+  if (entries == 0) return "";
+
+  char digest[64];
+  snprintf (digest, sizeof (digest), "%016llx",
+            (unsigned long long) hash);
+  return std::string (label) + "\n" + root + "\n" +
+    std::to_string (entries) + "\n" + digest + "\n";
+#endif
+}
+
+static std::string
+athena_current_source_fingerprint () {
+  std::string fp= "athena-source-fingerprint-v2\n";
+  fp += athena_source_fingerprint_for_root ("install", get_env ("ATHENA_PATH"));
+  fp += athena_source_fingerprint_for_root ("home", get_env ("ATHENA_HOME_PATH"));
+  return fp;
+}
+
+static bool
+athena_cache_has_payload (url cache_dir) {
+  bool err= false;
+  array<string> entries= read_directory (cache_dir, err);
+  if (err) return false;
+  for (int i=0; i<N(entries); i++)
+    if (entries[i] != "." && entries[i] != ".." &&
+        entries[i] != source_fingerprint_cache_name)
+      return true;
+  return false;
+}
+
+static bool
+athena_write_source_fingerprint (url fingerprint_file,
+                                 const std::string& fingerprint) {
+  return !save_string (fingerprint_file,
+                       string (fingerprint.data (), (int) fingerprint.size ()));
+}
+
+static void
+athena_restart_after_startup_refresh (int argc, char** argv,
+                                      const char* reason) {
+#ifdef OS_MINGW
+  (void) argc; (void) argv; (void) reason;
+#else
+  cout << "startup refresh: restarting after " << reason << LF;
+  auto watchdog_restart= athena_watchdog_request_restart ();
+  if (watchdog_restart == AthenaWatchdogRestartResult::Requested) _exit (0);
+  if (watchdog_restart == AthenaWatchdogRestartResult::Failed) {
+    cerr << "startup refresh: watchdog restart request failed" << LF;
+    return;
+  }
+  char** exec_argv= tm_new_array<char*> (argc + 1);
+  for (int i=0; i<argc; i++) exec_argv[i]= argv[i];
+  exec_argv[argc]= NULL;
+  execvp (argv[0], exec_argv);
+  tm_delete_array (exec_argv);
+  cerr << "startup refresh: restart failed; continuing current process"
+       << LF;
+#endif
+}
+
+static void
+athena_refresh_cache_if_sources_changed (int argc, char** argv) {
+  url home_dir= url_system (get_env ("ATHENA_HOME_PATH"));
+  if (!is_directory (home_dir)) mkdir (home_dir);
+
+  url cache_dir= home_dir * url ("system/cache");
+  if (!is_directory (cache_dir)) mkdir (cache_dir);
+
+  url fingerprint_file= cache_dir * url (source_fingerprint_cache_name);
+  std::string current= athena_current_source_fingerprint ();
+  if (current == "athena-source-fingerprint-v2\n") return;
+
+  string stored_s;
+  bool has_stored= !load_string (fingerprint_file, stored_s, false);
+  std::string stored;
+  if (has_stored) stored= athena_to_std_string (stored_s);
+
+  bool stale= has_stored? stored != current:
+    athena_cache_has_payload (cache_dir);
+  if (!stale) {
+    if (!has_stored)
+      (void) athena_write_source_fingerprint (fingerprint_file, current);
+    return;
+  }
+
+  cout << "cache refresh: source fingerprint changed; clearing cache"
+       << LF;
+  remove (cache_dir * url_wildcard ("*"));
+  if (!is_directory (cache_dir)) mkdir (cache_dir);
+  if (!athena_write_source_fingerprint (fingerprint_file, current)) {
+    cerr << "cache refresh: could not store source fingerprint; "
+         << "continuing without restart" << LF;
+    return;
+  }
+  athena_restart_after_startup_refresh (argc, argv, "cache cleanup");
+}
+
+#endif // ATHENA_ENABLE_RUNTIME_SCHEME_REFRESH
+
+int
+texmacs_entrypoint (int argc, char** argv) {
+  // Background services start with the Qt shell, before init_athena's DRD.
+  // Persisted tree tags must already have their standard numeric identities.
+  init_standard_tree_labels ();
+#if ATHENA_ENABLE_CLI
+  for (int i=1; i<argc; ++i) {
+    if (std::string (argv[i]) != "--upgrade-vault-sorters") continue;
+    if (i != 1) {
+      std::cerr << "--upgrade-vault-sorters must be the first option.\n";
+      return 1;
+    }
+    if (argc == 3 && std::string (argv[2]) == "--help") {
+      std::cerr
+        << "Usage: ATHENA.bin --upgrade-vault-sorters VAULT_DIRECTORY "
+           "(--sorter-map JSON | --sorter-map-file FILE) [--dry-run]\n"
+        << "The sorter map is a JSON array of explicit "
+           "{\"from\":\"old.c\",\"to\":\"new.luau\"} entries.\n";
+      return 0;
+    }
+    if (argc < 5) {
+      std::cerr
+        << "Usage: ATHENA.bin --upgrade-vault-sorters VAULT_DIRECTORY "
+           "(--sorter-map JSON | --sorter-map-file FILE) [--dry-run]\n";
+      return 1;
+    }
+    std::filesystem::path root (argv[2]);
+    std::optional<std::string> inline_map;
+    std::optional<std::filesystem::path> map_file;
+    bool dry_run= false;
+    for (int j=3; j<argc; ++j) {
+      std::string option= argv[j];
+      if (option == "--dry-run") {
+        if (dry_run) {
+          std::cerr << "--dry-run specified more than once.\n";
+          return 1;
+        }
+        dry_run= true;
+      }
+      else if (option == "--sorter-map" || option == "--sorter-map-file") {
+        if (j + 1 >= argc) {
+          std::cerr << option << " requires a value.\n";
+          return 1;
+        }
+        if (option == "--sorter-map") inline_map= std::string (argv[++j]);
+        else map_file= std::filesystem::path (argv[++j]);
+      }
+      else {
+        std::cerr << "Unknown --upgrade-vault-sorters option: " << option << "\n";
+        return 1;
+      }
+    }
+    return athena_upgrade_vault_sorters_cli (
+      root, inline_map, map_file, dry_run);
+  }
+  for (int i=1; i<argc; ++i) {
+    if (std::string (argv[i]) != "--upgrade-vault-node-model") continue;
+    const bool help= argc == 3 && i == 1 && std::string (argv[2]) == "--help";
+    const bool drop_all_labels=
+      argc == 4 && i == 1 && std::string (argv[2]) == "--drop-all-labels";
+    if ((!drop_all_labels && argc != 3) || i != 1 || help) {
+      std::cerr
+        << "Usage: ATHENA.bin --upgrade-vault-node-model "
+        << "[--drop-all-labels] VAULT_DIRECTORY\n";
+      return help ? 0 : 1;
+    }
+    // Unlike the legacy format upgrader, node-model migration consumes the
+    // enunciation registry and style DRDs from ATHENA_PATH.
+    immediate_options (argc, argv);
+    ATHENA_init_paths (argc, argv);
+    headless_mode= true;
+    QCoreApplication app (argc, argv);
+    init_athena_resource_paths ();
+    athena::document::vault_node_model_upgrade_options options;
+    options.drop_all_labels= drop_all_labels;
+    return athena::document::upgrade_vault_node_model_cli (
+      std::filesystem::path (argv[drop_all_labels ? 3 : 2]), options);
+  }
+  for (int i=1; i<argc; ++i) {
+    if (std::string (argv[i]) != "--upgrade-vault-xml-v3") continue;
+    if (i != 1 || argc < 3 || (argc == 3 && std::string (argv[2]) == "--help")) {
+      std::cerr << "Usage: ATHENA.bin --upgrade-vault-xml-v3 "
+                   "(--check | --stage NEW_DIRECTORY | --publish) [--strict] "
+                   "[--hodarium-state PRIVATE_STATE_DIR] VAULT_DIRECTORY\n";
+      return argc == 3 && i == 1 && std::string (argv[2]) == "--help" ? 0 : 1;
+    }
+    athena::document::vault_xml_v3_upgrade_options options;
+    std::optional<std::filesystem::path> stage_destination;
+    bool malformed= false, publish= false;
+    for (int j=2; j<argc-1; ++j) {
+      if (std::string (argv[j]) == "--check") options.check_only= true;
+      else if (std::string (argv[j]) == "--publish") publish= true;
+      else if (std::string (argv[j]) == "--strict") options.strict= true;
+      else if (std::string (argv[j]) == "--stage" && j+1<argc-1 &&
+               !stage_destination.has_value ())
+        stage_destination= std::filesystem::path (argv[++j]);
+      else if (std::string (argv[j]) == "--hodarium-state" &&
+               j+1<argc-1 && !options.hodarium_state.has_value ())
+        options.hodarium_state= std::filesystem::path (argv[++j]);
+      else malformed= true;
+    }
+    if (malformed || int (options.check_only) + int (stage_destination.has_value ()) + int (publish) != 1 ||
+        argv[argc-1][0] == '-') {
+      std::cerr << "Usage: ATHENA.bin --upgrade-vault-xml-v3 "
+                   "(--check | --stage NEW_DIRECTORY | --publish) [--strict] "
+                   "[--hodarium-state PRIVATE_STATE_DIR] VAULT_DIRECTORY\n";
+      return 1;
+    }
+    immediate_options (argc, argv);
+    ATHENA_init_paths (argc, argv);
+    headless_mode= true;
+    QCoreApplication app (argc, argv);
+    init_athena_resource_paths ();
+    if (stage_destination)
+      return athena::document::stage_vault_xml_v3_cli (
+        std::filesystem::path (argv[argc-1]), *stage_destination,
+        options.strict, options.hodarium_state);
+    return athena::document::upgrade_vault_xml_v3_cli (
+      std::filesystem::path (argv[argc-1]), options);
+  }
+  // Deliberately bypass Scheme, GUI startup, cache refresh, vault loading and
+  // model services. The converter owns detached trees on this one CLI thread.
+  for (int i=1; i<argc; ++i) {
+    if (std::string (argv[i]) != "--upgrade-vault-format") continue;
+    if (argc != 3 || i != 1 || std::string (argv[2]) == "--help") {
+      std::cerr << "Usage: ATHENA.bin --upgrade-vault-format VAULT_DIRECTORY\n";
+      return argc == 3 && std::string (argv[2]) == "--help" ? 0 : 1;
+    }
+    headless_mode= true;
+    QCoreApplication app (argc, argv);
+    return athena::document::upgrade_vault_format_cli (std::filesystem::path (argv[2]));
+  }
+  for (int i=1; i<argc; ++i) {
+    if (std::string (argv[i]) != "--convert-style") continue;
+    const bool help= argc == 3 && i == 1 && std::string (argv[2]) == "--help";
+    if (help) {
+      std::cerr << "Usage: ATHENA.bin --convert-style SOURCE.ts [DESTINATION.ats]\n";
+      return 0;
+    }
+    if (i != 1 || (argc != 3 && argc != 4)) {
+      std::cerr << "Usage: ATHENA.bin --convert-style SOURCE.ts [DESTINATION.ats]\n";
+      return 1;
+    }
+    ATHENA_init_paths (argc, argv);
+    std::filesystem::path source (argv[2]);
+    std::filesystem::path target;
+    if (argc == 4) target= std::filesystem::path (argv[3]);
+    else {
+      target= source;
+      target.replace_extension (".ats");
+    }
+    std::string error;
+    if (!convert_legacy_style_file (source, target, error)) {
+      std::cerr << "ATHENA style conversion failed: " << error << '\n';
+      return 1;
+    }
+    std::cout << source << " -> " << target << '\n';
+    return 0;
+  }
+  athena_watchdog_configure_from_argv (argc, argv);
+#endif
+  athena_crash_register_thread (AthenaCrashThreadRole::Main);
+  bench_start ("startup to editor shell");
+#if ATHENA_ENABLE_CLI
+  for (int i=1; i<argc; i++) {
+    string s= argv[i];
+    if ((N(s)>=2) && (s(0,2)=="--")) s= s (1, N(s));
+    if (s == "-aofm-convert-file") {
+      i++;
+      if (i < argc) {
+        aofm_convert_file= argv[i];
+        headless_mode= true;
+      }
+    }
+    if (s == "-aofm-convert-vault") {
+      if (i + 2 < argc) {
+        i++;
+        aofm_convert_vault_source= argv[i];
+        i++;
+        aofm_convert_vault_destination= argv[i];
+        if (i + 1 < argc && is_positive_integer_arg (string (argv[i+1]))) {
+          i++;
+          aofm_convert_vault_parallelism=
+            as_positive_integer_arg (string (argv[i]));
+        }
+        headless_mode= true;
+      }
+    }
+    if (s == "-model-vault") {
+      i++;
+      if (i < argc) aofm_convert_vault_model_vault= argv[i];
+    }
+    if (s == "-vault-maintenance") {
+      i++;
+      if (i < argc) {
+        vault_maintenance_dir= argv[i];
+        headless_mode= true;
+        // This mode owns its synchronous lifetime and exits after all passes.
+        // A queued Scheme quit would be consumed by nested Qt event loops,
+        // such as the RAG delegation network request, and end maintenance
+        // before the request completes.
+        exec_exit= false;
+      }
+    }
+    if (s == "-rag-delegated-embedding") {
+      i++;
+      if (i < argc) {
+        rag_delegated_embedding_dir= argv[i];
+        headless_mode= true;
+        exec_exit= false;
+      }
+    }
+    if (s == "-vault-maintenance-toc-worker") {
+      if (i + 2 < argc) {
+        i++;
+        vault_maintenance_toc_worker_file= argv[i];
+        i++;
+        vault_maintenance_toc_worker_marker= argv[i];
+        headless_mode= true;
+      }
+    }
+    if (s == "-artifact-extract-worker") {
+      if (i + 2 < argc) {
+        i++;
+        artifact_extract_worker_manifest= argv[i];
+        i++;
+        artifact_extract_worker_output= argv[i];
+        headless_mode= true;
+      }
+    }
+    if (s == "-generate-website") {
+      i++;
+      if (i < argc) website_generate_dir= argv[i];
+      i++;
+      if (i < argc) {
+        website_generate_id= argv[i];
+        headless_mode= true;
+      }
+    }
+    if (s == "-run-website-post-command") {
+      i++;
+      if (i < argc) website_post_command_dir= argv[i];
+      i++;
+      if (i < argc) {
+        website_post_command_id= argv[i];
+        headless_mode= true;
+      }
+    }
+    if (s == "-check-only") {
+      vault_maintenance_check_only= true;
+    }
+    if (s == "-rag-server") {
+      i++;
+      if (i < argc) {
+        rag_server_dir= argv[i];
+        headless_mode= true;
+        exec_exit= false;
+      }
+    }
+    if (s == "-rag-port") {
+      i++;
+      if (i < argc && is_positive_integer_arg (string (argv[i]))) {
+        rag_server_port= as_positive_integer_arg (string (argv[i]));
+        rag_server_port_set= true;
+      }
+    }
+    if (s == "-rag-embedding-model") {
+      i++;
+      if (i < argc) rag_embedding_model= argv[i];
+    }
+    if (s == "-rag-embedding-device") {
+      i++;
+      if (i < argc) {
+        string device= argv[i];
+        rag_embedding_device= device == "cpu"? "cpu": "auto";
+      }
+    }
+    if (s == "-rag-index-jobs") {
+      i++;
+      if (i < argc && is_positive_integer_arg (string (argv[i])))
+        rag_index_jobs= as_positive_integer_arg (string (argv[i]));
+    }
+    if (s == "-rag-reindex") {
+      rag_server_reindex= true;
+    }
+    if (s == "-rag-listen-address") {
+      i++;
+      if (i < argc) rag_listen_address= argv[i];
+    }
+    if (s == "-delegation-key-dir") {
+      i++;
+      if (i < argc) delegation_key_dir= argv[i];
+    }
+    if (s == "-delegation-accepted-clients") {
+      i++;
+      if (i < argc) delegation_accepted_clients= argv[i];
+    }
+    if (s == "-artifact-range-model") {
+      i++;
+      if (i < argc) artifact_range_model= argv[i];
+    }
+    if (s == "-artifact-range-batch-size") {
+      i++;
+      if (i < argc && is_positive_integer_arg (string (argv[i])))
+        artifact_range_batch_size= std::clamp (
+          as_positive_integer_arg (string (argv[i])), 1, 16);
+    }
+    if (s == "-artifact-queue-limit") {
+      i++;
+      if (i < argc && is_positive_integer_arg (string (argv[i])))
+        artifact_queue_limit= as_positive_integer_arg (string (argv[i]));
+    }
+    if (s == "-artifact-queue-bytes") {
+      i++;
+      if (i < argc && is_positive_integer_arg (string (argv[i])))
+        artifact_queue_bytes= as_positive_integer_arg (string (argv[i]));
+    }
+    if (s == "-generate-server-keypair") {
+      rag_generate_server_keypair= true;
+      headless_mode= true;
+    }
+    if (s == "-skip-fonts-cache") {
+      skip_fonts_cache= true;
+    }
+    if (s == "-ignore-nonempty-dest") {
+      aofm_ignore_nonempty_dest = true;
+    }
+    if (s == "-insert-build-warning") {
+      aofm_insert_build_warning = true;
+    }
+    if (s == "-no-splash-screen") {
+      no_splash_screen= true;
+    }
+    if (s == "-headless" || s == "-H" || s == "-C")
+      headless_mode= true;
+  }
+#endif
+  ATHENA_init_paths (argc, argv);
+#if ATHENA_ENABLE_CLI
+  process_query_options (argc, argv);
+  // Headless services do not necessarily call vault_load(), but must also
+  // exclude whole-directory upgrades for their entire synchronous lifetime.
+  std::vector<std::unique_ptr<athena::filesystem::vault_directory_lease>> vault_leases;
+  try {
+    for (const auto& directory: {vault_maintenance_dir, rag_server_dir,
+                                 rag_delegated_embedding_dir, website_generate_dir})
+      if (directory != "")
+        vault_leases.emplace_back (new athena::filesystem::vault_directory_lease (
+          std::filesystem::path (athena_to_std_string (directory))));
+  }
+  catch (const std::exception& e) {
+    std::cerr << e.what () << '\n';
+    return 1;
+  }
+  if (artifact_extract_worker_manifest != "" &&
+      artifact_extract_worker_output != "") {
+    std::string error;
+    bool ok= athena_artifacts_run_extract_worker (
+      std::filesystem::path (athena_to_std_string (
+        artifact_extract_worker_manifest)),
+      std::filesystem::path (athena_to_std_string (
+        artifact_extract_worker_output)), error);
+    if (!ok) std::cerr << "artifact extraction worker: " << error << '\n';
+    return ok ? 0 : 1;
+  }
+  handle_rag_server_keypair_generation ();
+#endif
+#ifdef QTTEXMACS
+  bench_start ("create qt application");
+  reject_unsupported_qt_platforms (argc, argv);
+  normalize_wayland_qt_scaling (argc, argv);
+  bool rag_server_mode= rag_server_dir != "";
+  bool website_generation_mode= website_generate_dir != "";
+  if (website_generation_mode &&
+      is_empty (qt_platform_from_arguments (argc, argv)) &&
+      get_env ("QT_QPA_PLATFORM") == "" &&
+      get_env ("WAYLAND_DISPLAY") == "" && get_env ("DISPLAY") == "")
+    qputenv ("QT_QPA_PLATFORM", "offscreen");
+  if (headless_mode && rag_server_mode) {
+    qtmcoreapp= new QTMCoreApplication (argc, argv);
+  }
+  else if (!headless_mode || website_generation_mode) {
+    QGuiApplication::setHighDpiScaleFactorRoundingPolicy
+      (requested_wayland_qt_platform (argc, argv) ?
+       Qt::HighDpiScaleFactorRoundingPolicy::PassThrough :
+       Qt::HighDpiScaleFactorRoundingPolicy::Round);
+#if defined(OS_GNULINUX) || defined(OS_FREEBSD)
+    if (!requested_wayland_qt_platform (argc, argv))
+      QApplication::setStyle("fusion");
+#endif
+    qtmapp= new QTMApplication (argc, argv);
+    if (!headless_mode && !no_splash_screen) tmapp()->show_splash ();
+    startup_progress (5, "Application created");
+  }
+  bench_cumul ("create qt application");
+#endif
+  startup_progress (8, "Reading startup options");
+  immediate_options (argc, argv);
+  startup_progress (10, "Startup options loaded");
+  startup_progress (12, "Checking caches");
+  bench_start ("check startup caches");
+#if ATHENA_ENABLE_RUNTIME_SCHEME_REFRESH
+  athena_refresh_cache_if_sources_changed (argc, argv);
+#endif
+  bench_cumul ("check startup caches");
+  startup_progress (20, "Caches ready");
+#ifdef STACK_SIZE
+  struct rlimit limit;
+
+  if (getrlimit(RLIMIT_STACK, &limit) == 0) {
+    if (limit.rlim_max < STACK_SIZE) {
+      cerr << "Max stack allowed value : " << limit.rlim_max << "\n";
+      limit.rlim_cur= limit.rlim_max;
+    } else limit.rlim_cur= STACK_SIZE;
+    if(setrlimit(RLIMIT_STACK, &limit)) cerr << "Cannot set stack value\n";
+  } else cerr << "Cannot get stack value\n";
+#endif
+
+  original_path= get_env ("PATH");
+  startup_progress (25, "Booting core");
+  boot_hacks ();
+  startup_progress (30, "Core booted");
+  windows_delayed_refresh (1000000000);
+  startup_progress (34, "Loading preferences");
+  bench_start ("load startup preferences");
+  load_user_preferences ();
+  bench_cumul ("load startup preferences");
+  startup_progress (38, "Preferences loaded");
+#ifndef OS_MINGW
+  set_env ("LC_NUMERIC", "POSIX");
+#endif
+#ifdef MACOSX_EXTENSIONS
+  // Reset TeXmacs if Alt is pressed during startup
+  if (mac_alternate_startup()) {
+    cout << "Performing setup (Alt on startup)" << LF;
+    remove (url ("$ATHENA_HOME_PATH/system/sys_state.json"));
+    remove (url ("$ATHENA_HOME_PATH/system/setup.scm"));
+    remove (url ("$ATHENA_HOME_PATH/system/cache") * url_wildcard ("*"));
+    remove (url ("$ATHENA_HOME_PATH/fonts/error") * url_wildcard ("*"));    
+  }
+#endif
+
+#ifdef QTTEXMACS
+  // initialize the Qt application infrastructure
+  if (headless_mode) {
+    if (qtmapp == NULL && qtmcoreapp == NULL)
+      qtmcoreapp= new QTMCoreApplication (argc, argv);
+  }
+  else {
+    startup_progress (42, "Initializing interface");
+    bench_start ("initialize qt interface");
+    athena_initialize_wayland_ui_scale ();
+    ((QTMApplication*)qtmapp)->load();
+    bench_cumul ("initialize qt interface");
+    startup_progress (50, "Interface initialized");
+  }
+#endif
+
+  startup_progress (56, "Initializing caches");
+  bench_start ("initialize data caches");
+  cache_initialize ();
+  bench_cumul ("initialize data caches");
+  startup_progress (60, "Caches initialized");
+  startup_progress (65, "Loading fonts");
+  bench_start ("initialize fonts");
+  ATHENA_init_font ();
+  bench_cumul ("initialize fonts");
+  startup_progress (70, "Fonts ready");
+#ifdef QTTEXMACS
+  if (!headless_mode) qt_start_font_fallback_warmup ();
+#endif
+#ifdef QTTEXMACS
+  if (!headless_mode) {
+#    ifndef OS_MACOS
+    tmapp()->set_window_icon("/misc/images/ATHENA.svg");
+#endif
+#endif
+  }
+  startup_progress (74, "Window icon ready");
+  //cout << "Bench  ] Started TeXmacs\n";
+  reset_document_tree (current_document_tree ());
+  startup_progress (78, "Initializing editor");
+  bench_start ("initialize texmacs");
+  init_athena ();
+  bench_cumul ("initialize texmacs");
+  startup_progress (82, "Editor initialized");
+#ifdef ENABLE_TESTS
+  test_routines ();
+#endif
+//#ifdef EXPERIMENTAL
+//  test_environments ();
+//#endif
+  startup_progress (83, "Starting native commands");
+  TeXmacs_main (argc, argv);
+#ifdef QTTEXMACS
+  if (headless_mode) {
+    if (qtmapp != NULL) delete qtmapp;
+    else delete qtmcoreapp;
+  }
+  else
+    delete qtmapp;
+#endif
+  return 0;
+}

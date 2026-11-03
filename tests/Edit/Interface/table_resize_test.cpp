@@ -9,11 +9,11 @@
 
 #include <QtTest/QtTest>
 #include "table_resize.hpp"
-#include "ATHENA/server.hpp"
-#include "Editor/edit_main.hpp"
-#include "Graphics/Gui/gui.hpp"
+#include "App/Runtime/server.hpp"
+#include "Editor/Engine/edit_main.hpp"
+#include "UI/Abstract/gui.hpp"
 #include "boot.hpp"
-#include "buffer_state.hpp"
+#include "App/Runtime/buffer_state.hpp"
 #include "data_cache.hpp"
 #include "native_dispatch.hpp"
 #include "sys_utils.hpp"

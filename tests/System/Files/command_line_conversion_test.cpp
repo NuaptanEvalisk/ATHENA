@@ -18,7 +18,7 @@
 
 #include <filesystem>
 
-#include "ATHENA/Data/vault_map_sqlite.hpp"
+#include "Domains/Vault/vault_map_sqlite.hpp"
 
 class TestCommandLineConversion: public QObject {
   Q_OBJECT

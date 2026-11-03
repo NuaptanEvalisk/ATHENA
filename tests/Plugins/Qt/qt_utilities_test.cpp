@@ -12,10 +12,10 @@
 #include <QFile>
 #include <QImage>
 #include <QTemporaryDir>
-#include "Qt/qt_utilities.hpp"
+#include "UI/Qt/Toolkit/qt_utilities.hpp"
 #include "Xml/clipboard_xml.hpp"
 #include "convert.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 #include <stdexcept>
 #include <atomic>
 #include <thread>

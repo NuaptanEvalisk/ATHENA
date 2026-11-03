@@ -5,8 +5,8 @@
 
 #include <QtTest/QtTest>
 
-#include "Boxes/construct.hpp"
-#include "Concat/commutative_diagram_geometry.hpp"
+#include "Typesetting/Boxes/construct.hpp"
+#include "Typesetting/Concat/commutative_diagram_geometry.hpp"
 #include "frame.hpp"
 
 class CommutativeDiagramLayoutTest: public QObject {

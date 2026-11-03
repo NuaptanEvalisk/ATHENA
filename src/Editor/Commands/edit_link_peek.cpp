@@ -1,0 +1,359 @@
+/******************************************************************************
+* MODULE     : edit_link_peek.cpp
+* DESCRIPTION: Actor-owned interactive link overlays in the document renderer
+* COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+******************************************************************************/
+
+#include "Editor/Commands/link_markup.hpp"
+#include "Editor/Commands/edit_interface.hpp"
+#include "Domains/References/link_peek.hpp"
+#include "Domains/References/node_reference.hpp"
+#include "App/Runtime/buffer_actor.hpp"
+#include "convert.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
+#include "Typesetting/formatter.hpp"
+#include "Typesetting/Format/format.hpp"
+#include "App/Runtime/actor_ui_bridge.hpp"
+#include "Typesetting/Bridge/impl_typesetter.hpp"
+#include <cmath>
+#include <QUrl>
+#include "UI/Qt/Rendering/qt_picture.hpp"
+#include <functional>
+
+void edit_interface_rep::mouse_touch_context (SI x, SI y,
+                                               std::uint64_t request) {
+  clear_link_peek ();
+  bool in_selection= false;
+  if (selection_active_any ()) {
+    selection selected;
+    selection_get (selected);
+    for (rectangles rs= selected->rs; !is_nil (rs); rs= rs->next) {
+      rectangle r= rs->item;
+      if (x >= r->x1 && x <= r->x2 && y >= r->y1 && y <= r->y2) {
+        in_selection= true;
+        break;
+      }
+    }
+  }
+  string target= in_selection ? string () : link_peek_hit (-1, x, y);
+  if (!in_selection) {
+    go_to (x, y);
+    select (tp, tp);
+  }
+  actor_popup_menu_snapshot popup= popup_menu_state_snapshot ();
+  popup.touch_request= request;
+  popup.touch_target.assign (target.data (), N(target));
+  SI width= min (560*pixel, vx2-vx1-40*pixel);
+  if (athena_link_peek_target (target) && width > 40*pixel) {
+    link_peek_layer peek;
+    peek.target= target;
+    if (prepare_link_peek (peek, width)) {
+      // Rasterize on the owning actor; Qt receives immutable pixels, never
+      // a live tree/box or a request to typeset on the UI thread.
+      SI pad= 10*pixel;
+      SI height= min (peek.content->h ()+2*pad,
+                      min (400*pixel, (vy2-vy1)/2));
+      double dpr= ui_viewport ().render_pixel_ratio;
+      int w= (int) std::ceil (width*dpr/pixel);
+      int h= (int) std::ceil (height*dpr/pixel);
+      if (w > 0 && h > 0) {
+        picture image= qt_picture (QImage (w, h, QImage::Format_ARGB32_Premultiplied), 0, 0);
+        renderer ren= picture_renderer (image, std_shrinkf*PIXEL*dpr/pixel);
+        ren->set_background (rgb_color (248, 250, 252));
+        ren->clear (0, -height, width, 0);
+        ren->clip (pad, -height+pad, width-pad, -pad);
+        rectangles painted;
+        peek.content->redraw (ren, path (), painted,
+                              pad-peek.content->x1, -pad-peek.content->y2);
+        ren->unclip ();
+        tm_delete (ren);
+        QImage rendered= static_cast<qt_picture_rep*> (image->get_handle ())->pict;
+        rendered.setDevicePixelRatio (dpr);
+        popup.touch_preview= std::make_shared<const QImage> (std::move (rendered));
+      }
+    }
+  }
+  if (popup_open) {
+    (void) publish_ui (actor_command_kind::ui_close_popup);
+    popup_open= false;
+  }
+  publish_context_menu (x, y, 0, std::move (popup));
+}
+
+void edit_interface_rep::refresh_node_references () {
+  // A derived-reference refresh is not a source edit and must neither enter
+  // undo history nor close an unrelated interactive hover stack.
+  auto overlays= std::move (link_peeks);
+  // Only native transclusions depend on the derived reference snapshots.
+  // Invalidating the entire environment discards every bridge and repeats
+  // page layout for each independent source resolution on cold open.
+  if (get_typesetter ()->screen_tree) typeset_invalidate_all ();
+  else {
+    const std::function<void (const tree&, path)> invalidate=
+      [&] (const tree& source, path relative) {
+        if (athena::node_reference::canonical (source)) {
+          typeset_invalidate_presentation (rp * relative);
+          return;
+        }
+        if (is_compound (source)) for (int i=0; i<N(source); ++i)
+          invalidate (source[i], relative * i);
+      };
+    invalidate (subtree (et, rp), path ());
+  }
+  link_peeks= std::move (overlays);
+  for (auto& peek: link_peeks) if (athena_link_peek_native_target (peek.target)) {
+    const rectangle old= peek.bounds;
+    if (!prepare_link_peek (peek, old->x2-old->x1)) continue;
+    const SI pad= 10*pixel;
+    const SI height= min (peek.content->h ()+2*pad, min (400*pixel, (vy2-vy1)/2));
+    const SI top= max (vy1+height+pad, min (old->y2, vy2-pad));
+    peek.bounds= rectangle (old->x1, top-height, old->x2, top);
+    peek.scroll_y= min (peek.scroll_y, max (0, peek.content->h ()-height+2*pad));
+  }
+  link_peek_pressed_target= "";
+  if (ui_endpoint && !link_peeks.empty ()) ui_endpoint->set_overlay_wheel_capture (true);
+  invalidate_all ();
+}
+
+void athena_refresh_node_reference_view () {
+  const auto* context= current_execution_context ();
+  if (!context || !context->actor || !context->editor) return;
+  if (auto* editor= dynamic_cast<edit_interface_rep*> (context->editor))
+    editor->refresh_node_references ();
+}
+
+void edit_interface_rep::clear_link_peek () {
+  if (link_peeks.empty ()) return;
+  link_peeks.clear ();
+  if (ui_endpoint) ui_endpoint->set_overlay_wheel_capture (false);
+  link_peek_pressed_target= "";
+  invalidate_all ();
+}
+
+bool edit_interface_rep::dismiss_link_peek () {
+  if (link_peeks.empty ()) return false;
+  link_peeks.pop_back ();
+  if (ui_endpoint && link_peeks.empty ())
+    ui_endpoint->set_overlay_wheel_capture (false);
+  link_peek_pressed_target= "";
+  invalidate_all ();
+  return true;
+}
+
+int edit_interface_rep::link_peek_at (SI x, SI y, SI margin) {
+  for (int i= (int) link_peeks.size ()-1; i>=0; --i) {
+    rectangle r= link_peeks[i].bounds;
+    if (x >= r->x1-margin && x < r->x2+margin &&
+        y >= r->y1-margin && y < r->y2+margin) return i;
+  }
+  return -1;
+}
+
+string edit_interface_rep::link_peek_hit (int layer, SI x, SI y) {
+  rectangles ignored;
+  tree hit;
+  if (layer < 0) hit= eb->message ("link-target", x, y, ignored);
+  else {
+    auto& peek= link_peeks[layer];
+    rectangle r= peek.bounds;
+    SI pad= 10*pixel;
+    // Only visible content can be clicked, not clipped text or padding.
+    if (x < r->x1+pad || x >= r->x2-pad ||
+        y < r->y1+pad || y >= r->y2-pad) return "";
+    hit= peek.content->message ("link-target",
+      x-r->x1-pad+peek.content->x1,
+      y-r->y2+pad+peek.content->y2-peek.scroll_y, ignored);
+  }
+  if (!is_tuple (hit, "link-target", 1) || !is_atomic (hit[1])) return "";
+  string target= hit[1]->label;
+  QUrl destination (QString::fromUtf8 (as_charp (target), N(target)));
+  if (layer >= 0 && destination.isRelative () &&
+      !is_none (link_peeks[layer].source)) {
+    string source= concretize (link_peeks[layer].source);
+    QUrl base= QUrl::fromLocalFile (QString::fromUtf8 (as_charp (source), N(source)));
+    QByteArray encoded= base.resolved (destination).toEncoded ();
+    target= string (encoded.constData (), encoded.size ());
+  }
+  return target;
+}
+
+bool edit_interface_rep::mouse_link_peek (string type, SI x, SI y, int modifiers,
+                                         array<double> data) {
+  if (type == "touch-context") {
+    if (N(data) == 1) mouse_touch_context (x, y, (std::uint64_t) data[0]);
+    return true;
+  }
+  if (type == "touch-open") {
+    auto popup= ui_endpoint->popup_menu_state ();
+    if (N(data) == 1 && popup.touch_request == (std::uint64_t) data[0] &&
+        !popup.touch_target.empty ())
+      native_link_go_to_url (string (popup.touch_target.data (), popup.touch_target.size ()));
+    return true;
+  }
+  if (type == "move" && !(modifiers & 1)) {
+    link_peek_pressed= false;
+    link_peek_pressed_target= "";
+  }
+  if (type == "peek-leave" || type == "leave") {
+    clear_link_peek ();
+    set_pointer ("XC_top_left_arrow");
+    return type == "peek-leave";
+  }
+  if (type == "move" || type == "peek-modifier")
+    update_link_peek (x, y, modifiers);
+  int layer= link_peek_at (x, y);
+  bool inside= link_peek_at (x, y, 24*pixel) >= 0;
+  if (ui_endpoint) ui_endpoint->set_overlay_wheel_capture (inside);
+  if (type == "wheel" && layer >= 0 && N(data) == 2) {
+    auto& peek= link_peeks[layer];
+    SI visible= peek.bounds->y2-peek.bounds->y1-20*pixel;
+    SI limit= max (0, peek.content->h ()-visible);
+    double offset= peek.scroll_y + data[1]/magf;
+    if (std::isfinite (offset))
+      peek.scroll_y= (SI) std::max (0.0, std::min ((double) limit, offset));
+    link_peek_pressed_target= "";
+    invalidate_all ();
+    return true;
+  }
+  string target= layer < 0 ? string ("") : link_peek_hit (layer, x, y);
+  if (type == "press-left" && inside) {
+    link_peek_pressed= true;
+    link_peek_pressed_target= target;
+  }
+  if (type == "release-left" && link_peek_pressed) {
+    link_peek_pressed= false;
+    bool follow= target != "" && target == link_peek_pressed_target;
+    link_peek_pressed_target= "";
+    if (follow) {
+      clear_link_peek ();
+      native_link_go_to_url (target);
+    }
+    return true;
+  }
+  if (inside) {
+    set_pointer (target == "" ? "XC_top_left_arrow" : "XC_hand2");
+    return true; // Overlay input must never edit the document underneath it.
+  }
+  if (type == "peek-modifier") return true;
+  if (link_peek_pressed) return true;
+  return false;
+}
+
+void edit_interface_rep::update_link_peek (SI x, SI y, int modifiers) {
+  if (is_nil (eb)) {
+    clear_link_peek ();
+    return;
+  }
+  // The halo also bridges the short gap from the initiating link to its peek.
+  if (link_peek_at (x, y, 24*pixel) < 0) {
+    // Remaining on the initiating link must not typeset the same preview on
+    // every Pencil/mouse hover sample.
+    if (!link_peeks.empty () && (modifiers & 256) && !(modifiers & 31) &&
+        link_peek_hit (-1, x, y) == link_peeks.front ().target) return;
+    clear_link_peek ();
+  }
+  if (!(modifiers & 256) || (modifiers & 31)) return;
+  int parent= link_peek_at (x, y);
+  string target= link_peek_hit (parent, x, y);
+  if (!athena_link_peek_target (target)) return;
+  size_t next= (size_t) (parent+1);
+  if (next < link_peeks.size () && link_peeks[next].target == target) return;
+  // Hovering another link replaces only that branch, never its ancestors.
+  link_peeks.resize (next);
+  invalidate_all ();
+  SI pad= 10*pixel;
+  SI width= min (560*pixel, vx2-vx1-4*pad);
+  if (width <= 4*pad || vy2-vy1 <= 8*pad) return;
+  link_peek_layer peek;
+  peek.target= copy (target);
+  if (parent >= 0) {
+    peek.ancestry= link_peeks[parent].ancestry;
+    if (athena_link_peek_native_target (link_peeks[parent].target))
+      peek.ancestry.push_back (athena::node_reference::target_id (link_peeks[parent].target));
+  }
+  if (!prepare_link_peek (peek, width)) return;
+  SI height= min (peek.content->h ()+2*pad, min (400*pixel, (vy2-vy1)/2));
+  SI left= max (vx1+pad, min (x+pad, vx2-width-pad));
+  SI top= y-2*pad;
+  if (top-height < vy1+pad) top= min (vy2-pad, y+height+2*pad);
+  top= max (vy1+height+pad, min (top, vy2-pad));
+  peek.bounds= rectangle (left, top-height, left+width, top);
+  link_peeks.push_back (std::move (peek));
+  notify_change (THE_DECORATIONS | THE_FREEZE);
+  invalidate_all ();
+}
+
+bool edit_interface_rep::prepare_link_peek (link_peek_layer& peek, SI width) {
+  url source;
+  tree document= athena_link_peek_document (peek.target, source, peek.ancestry);
+  if (document == tree (UNINIT)) return false;
+  const SI pad= 10*pixel;
+  // Independent environment and reference tables keep preview assignments,
+  // labels and page numbers out of the edited document's typesetter state.
+  athena::contracts::evaluation_state preview_state (athena::contracts::builtin_contracts ().snapshot ());
+  hashmap<string,tree> r1 (UNINIT), r2 (UNINIT), a1 (UNINIT), a2 (UNINIT);
+  hashmap<string,tree> t1 (UNINIT), t2 (UNINIT);
+  edit_env preview (preview_state, source, r1, r2, a1, a2, t1, t2);
+  preview->write_default_env ();
+  tree style= extract (document, "style");
+  tree packages (USE_PACKAGE);
+  if (is_tuple (style)) packages << A(style);
+  else if (is_atomic (style) && style != "") packages << style;
+  else packages << "generic";
+  preview->exec (packages);
+  tree initial= extract (document, "initial");
+  if (is_func (initial, COLLECTION))
+    preview->patch_env (hashmap<string,tree> (UNINIT, initial));
+  preview->write (MODE, "text");
+  preview->write (PAR_WIDTH, as_string (width-2*pad) * "tmpt");
+  preview->write (PAR_LEFT, "0tmpt");
+  preview->write (PAR_RIGHT, "0tmpt");
+  preview->write (PAGE_MEDIUM, "papyrus");
+  preview->write (INFO_FLAG, "none");
+  preview->read_only= true;
+  preview->update ();
+  lazy content= make_lazy (preview, extract (document, "body"), path ());
+  lazy lines= content->produce (LAZY_VSTREAM,
+                               make_format_vstream (width-2*pad, 0, 0));
+  box rendered= (box) lines->produce (LAZY_BOX, make_format_none ());
+  if (is_nil (rendered)) return false;
+  peek.content= rendered;
+  peek.source= source;
+  return true;
+}
+
+void edit_interface_rep::draw_link_peek (renderer ren) {
+  if (link_peeks.empty ()) return;
+  brush background= ren->get_background ();
+  pencil pen= ren->get_pencil ();
+  for (auto& peek: link_peeks) {
+    rectangle r= peek.bounds;
+    ren->set_background (rgb_color (248, 250, 252));
+    ren->clear (r->x1, r->y1, r->x2, r->y2);
+    ren->set_pencil (pencil (rgb_color (100, 110, 120), pixel));
+    ren->line (r->x1, r->y1, r->x2, r->y1);
+    ren->line (r->x2, r->y1, r->x2, r->y2);
+    ren->line (r->x2, r->y2, r->x1, r->y2);
+    ren->line (r->x1, r->y2, r->x1, r->y1);
+    SI pad= 10*pixel;
+    ren->clip (r->x1+pad, r->y1+pad, r->x2-pad, r->y2-pad);
+    rectangles painted;
+    peek.content->redraw (ren, path (), painted,
+      r->x1+pad-peek.content->x1,
+      r->y2-pad-peek.content->y2+peek.scroll_y);
+    ren->unclip ();
+    SI visible= r->y2-r->y1-2*pad;
+    if (peek.content->h () > visible) {
+      SI thumb= max (8*pixel,
+        (SI) ((double) visible*visible/peek.content->h ()));
+      SI top= r->y2-pad-(SI) ((double) peek.scroll_y*(visible-thumb)/
+                            (peek.content->h ()-visible));
+      ren->set_pencil (pencil (rgb_color (100, 110, 120), 3*pixel));
+      ren->line (r->x2-pad/2, top, r->x2-pad/2, top-thumb);
+    }
+  }
+  ren->set_background (background);
+  ren->set_pencil (pen);
+}

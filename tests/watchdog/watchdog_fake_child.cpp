@@ -1,5 +1,5 @@
-#include "ATHENA/Watchdog/watchdog_protocol.hpp"
-#include "ATHENA/Watchdog/watchdog_client.hpp"
+#include "App/Watchdog/watchdog_protocol.hpp"
+#include "App/Watchdog/watchdog_client.hpp"
 
 #include <chrono>
 #include <csignal>

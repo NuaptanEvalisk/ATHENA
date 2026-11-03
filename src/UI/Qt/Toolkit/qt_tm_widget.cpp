@@ -1,0 +1,1390 @@
+
+/******************************************************************************
+ * MODULE     : qt_tm_widget.cpp
+ * DESCRIPTION: The main TeXmacs input widget and its embedded counterpart.
+ * COPYRIGHT  : (C) 2008  Massimiliano Gubinelli
+ *******************************************************************************
+ * This software falls under the GNU general public license version 3 or later.
+ * It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+ * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+ ******************************************************************************/
+
+#include "UI/Qt/Editor/QTMEditorToolbarPresenter.hpp"
+#include "boot.hpp"
+#include <QToolButton>
+#include <QToolBar>
+#include <QPushButton>
+#include <QApplication>
+#include <QActionGroup>
+#include <QColorDialog>
+#include <QDialog>
+#include <QComboBox>
+#include <QTimer>
+#include <algorithm>
+#include <climits>
+#include <QSizePolicy>
+#include <QDockWidget>
+#include <QFile>
+#include <QLayout>
+#include <QTextStream>
+#include <QMainWindow>
+#include <QMenuBar>
+#include <QIcon>
+#include <QMenu>
+#include <QPainter>
+#include <QPixmap>
+#include <QLayoutItem>
+#include "UI/Qt/Shell/QTMApplication.hpp"
+#include "Domains/References/node_location_cache.hpp"
+
+#include "config.h"
+#include "analyze.hpp"
+
+#include "UI/Qt/Toolkit/qt_tm_widget.hpp"
+#include "athena_platform.hpp"
+#include "UI/Qt/Toolkit/qt_utilities.hpp"
+#include "UI/Qt/Rendering/qt_renderer.hpp"
+#include "UI/Qt/Toolkit/qt_gui.hpp"
+#include "UI/Qt/Rendering/qt_picture.hpp"
+
+#include "UI/Qt/Toolkit/qt_simple_widget.hpp"
+#include "UI/Qt/Toolkit/qt_ui_element.hpp"
+#include "UI/Qt/Toolkit/qt_window_widget.hpp"
+#include "UI/Qt/Toolkit/qt_menu.hpp"
+#include "UI/Qt/Shell/QTMWindow.hpp"
+#include "UI/Qt/Shell/QTMStyle.hpp"      // qtstyle()
+#include "UI/Qt/Shell/QTMGuiHelper.hpp"  // needed to connect()
+#include "UI/Qt/Vault/QTMVaultExplorer.hpp"
+#include "UI/Qt/Shell/QTMToolbarController.hpp"
+#include "UI/Qt/Editor/native_drawing_ui.hpp"
+
+#include <QSet>
+
+static QSet<qt_tm_widget_rep*> all_tm_widgets;
+
+void
+refresh_native_drawing_focus_actions (widget w) {
+  if (is_nil (w)) return;
+  qt_widget qtw= concrete (w);
+  auto* rep= dynamic_cast<qt_tm_widget_rep*> (qtw.rep);
+  if (rep != nullptr) {
+    rep->append_native_drawing_mode_actions ();
+    rep->append_native_drawing_focus_actions ();
+  }
+}
+
+static QSize
+athena_toolbar_icon_size () {
+  return QSize (32, 32);
+}
+
+static int
+athena_toolbar_height () {
+  return ATHENA_PLATFORM_IPADOS ? 48 : athena_toolbar_icon_size ().height ();
+}
+
+static bool
+athena_text_toolbar_enabled () {
+  return get_preference ("text toolbar", "off") == "on";
+}
+
+static QString
+athena_toolbar_button_text (QToolButton* button, QAction* action) {
+  QString text= action ? action->text () : QString ();
+  if (text.isEmpty () && action) text= action->toolTip ();
+  if (text.isEmpty () && button) text= button->text ();
+  return text;
+}
+
+static void
+athena_configure_toolbar (QToolBar* toolbar, const QSize& iconSize) {
+  if (!toolbar || !iconSize.isValid ()) return;
+
+  toolbar->setFocusPolicy (Qt::NoFocus);
+  toolbar->setIconSize (iconSize);
+  toolbar->setToolButtonStyle (athena_text_toolbar_enabled () ?
+                               Qt::ToolButtonTextOnly :
+                               Qt::ToolButtonIconOnly);
+  toolbar->setContentsMargins (0, 0, 0, 0);
+  toolbar->setFixedHeight (athena_toolbar_height ());
+  if (QLayout* layout= toolbar->layout ()) {
+    layout->setContentsMargins (0, 0, 0, 0);
+    layout->setSpacing (0);
+  }
+}
+
+static bool
+athena_toolbar_icon_debug_enabled () {
+  static bool enabled= qEnvironmentVariableIsSet ("ATHENA_TOOLBAR_ICON_DEBUG");
+  return enabled;
+}
+
+static void
+athena_toolbar_icon_debug (const QString& line) {
+  if (!athena_toolbar_icon_debug_enabled ()) return;
+  QFile file (QStringLiteral ("/tmp/athena-toolbar-icon-debug.log"));
+  if (!file.open (QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text))
+    return;
+  QTextStream out (&file);
+  out << line << Qt::endl;
+}
+
+static void
+athena_configure_toolbar_button (QToolBar* toolbar, QToolButton* button,
+                                 const QSize& iconSize) {
+  if (!button) return;
+
+  button->setFocusPolicy (Qt::NoFocus);
+  QAction* action= button->defaultAction ();
+  if (!action && button->icon ().isNull ()) return;
+
+  if (action && action->menu ()) {
+    QMenu* menu= action->menu ();
+    QObject::connect (menu, &QMenu::aboutToHide, button, [] () {
+      QTMWidget::setFocusToLast ();
+    });
+  }
+  else {
+    QObject::connect (button, &QToolButton::clicked, button, [] () {
+      QTMWidget::setFocusToLast ();
+    });
+  }
+
+  button->setPopupMode (QToolButton::InstantPopup);
+
+  QString text= athena_toolbar_button_text (button, action);
+  if (athena_text_toolbar_enabled () && !text.isEmpty ()) {
+    button->setText (text);
+    button->setToolButtonStyle (Qt::ToolButtonTextOnly);
+    button->setAutoRaise (true);
+    button->setContentsMargins (4, 0, 4, 0);
+    button->setIconSize (iconSize);
+    button->setSizePolicy (QSizePolicy::Minimum, QSizePolicy::Fixed);
+    const int height= ATHENA_PLATFORM_IPADOS ? 44 : iconSize.height ();
+    button->setMinimumSize (0, height);
+    button->setMaximumSize (QWIDGETSIZE_MAX, height);
+    button->updateGeometry ();
+  }
+
+  else if (action && action->icon ().isNull () &&
+           !action->text ().isEmpty ()) {
+    button->setToolButtonStyle (Qt::ToolButtonTextOnly);
+    button->setSizePolicy (QSizePolicy::Minimum, QSizePolicy::Preferred);
+    button->setMinimumWidth (button->sizeHint ().width ());
+  }
+  else if (iconSize.isValid ()) {
+    button->setToolButtonStyle (Qt::ToolButtonIconOnly);
+    button->setAutoRaise (true);
+    button->setContentsMargins (0, 0, 0, 0);
+    button->setIconSize (iconSize);
+    button->setSizePolicy (QSizePolicy::Fixed, QSizePolicy::Fixed);
+    button->setFixedSize (ATHENA_PLATFORM_IPADOS ? QSize (44, 44) : iconSize);
+    button->updateGeometry ();
+  }
+
+  if (tm_style_sheet == "")
+    button->setStyle (qtmstyle());
+
+  if (athena_toolbar_icon_debug_enabled ()) {
+    QSize actual= button->icon ().actualSize (iconSize);
+    athena_toolbar_icon_debug (
+      QStringLiteral ("legacy-toolbar toolbar=%1 toolbarIcon=%2x%3 "
+                      "buttonIcon=%4x%5 actual=%6x%7 "
+                      "sizeHint=%8x%9 size=%10x%11 min=%12x%13 "
+                      "max=%14x%15 text='%16'")
+        .arg (toolbar ? toolbar->objectName () : QString ())
+        .arg (iconSize.width ()).arg (iconSize.height ())
+        .arg (button->iconSize ().width ()).arg (button->iconSize ().height ())
+        .arg (actual.width ()).arg (actual.height ())
+        .arg (button->sizeHint ().width ()).arg (button->sizeHint ().height ())
+        .arg (button->size ().width ()).arg (button->size ().height ())
+        .arg (button->minimumSize ().width ()).arg (button->minimumSize ().height ())
+        .arg (button->maximumSize ().width ()).arg (button->maximumSize ().height ())
+        .arg (button->text ()));
+  }
+}
+
+static void
+replaceActions (QWidget* dest,  QList<QAction*>* src) {
+  //NOTE: the parent hierarchy of the actions is not modified while installing
+  //      the menu in the GUI (see qt_menu.hpp for this memory management
+  //      policy)
+  if (src == NULL || dest == NULL)
+    FAILED ("replaceActions expects valid objects");
+  dest->setUpdatesEnabled (false);
+  QList<QAction *> list = dest->actions();
+  for (int i = 0; i < list.count(); i++) {
+    QAction* a = list[i];
+    dest->removeAction (a);
+  }
+  for (int i = 0; i < src->count(); i++) {
+    QAction* a = (*src)[i];
+    dest->addAction(a);
+  }
+  dest->setUpdatesEnabled (true);
+}
+
+static void
+retire_toolbar_actions (QList<QAction*>& actions) {
+  while (!actions.isEmpty ())
+    qt_schedule_action_destruction (actions.takeFirst ());
+}
+
+static void
+replaceButtons (QToolBar* dest, QList<QAction*>* src,
+                QList<QAction*>& owned) {
+  if (src == NULL || dest == NULL)
+    FAILED ("replaceButtons expects valid objects");
+
+  const QSize iconSize= athena_toolbar_icon_size ();
+  athena_configure_toolbar (dest, iconSize);
+  dest->setUpdatesEnabled (false);
+  bool visible = dest->isVisible();
+  if (visible) dest->hide(); //TRICK: to avoid flicker of the dest widget
+  QList<QAction *> old= dest->actions();
+  for (int i=0; i<old.count(); i++) {
+    dest->removeAction (old[i]);
+    if (old[i]->parent () == dest) old[i]->deleteLater ();
+  }
+  retire_toolbar_actions (owned);
+  owned= *src;
+  for (int i=0; i<src->count(); i++) {
+    QAction* a= (*src)[i];
+    if (a->isSeparator()) {
+      dest->addSeparator ();
+    }
+    else if (a->icon().isNull() && !a->text().isEmpty()) {
+      QPushButton* button= new QPushButton (dest);
+      button->setFocusPolicy (Qt::NoFocus);
+      button->setText (a->text ());
+      button->setMenu (a->menu ());
+      button->setToolTip (a->toolTip ());
+      button->setEnabled (a->isEnabled ());
+      button->setSizePolicy (QSizePolicy::Fixed, QSizePolicy::Preferred);
+      int w= button->fontMetrics().horizontalAdvance (a->text()) + 24;
+      button->setFixedWidth (max (w, 44));
+      dest->addWidget (button);
+      if (a->menu () == NULL) {
+        QObject::connect (button, SIGNAL (clicked ()), a, SLOT (trigger ()));
+        QObject::connect (button, &QPushButton::clicked, button, [] () {
+          QTMWidget::setFocusToLast ();
+        });
+      }
+      else {
+        QObject::connect (a->menu (), &QMenu::aboutToHide, button, [] () {
+          QTMWidget::setFocusToLast ();
+        });
+      }
+    }
+    else {
+      dest->addAction (a);
+    }
+  }
+
+  athena_configure_toolbar (dest, iconSize);
+  for (QToolButton* button: dest->findChildren<QToolButton*> ())
+    athena_configure_toolbar_button (dest, button, iconSize);
+
+  if (visible) dest->show(); //TRICK: see above
+  dest->setUpdatesEnabled (true);
+}
+
+/******************************************************************************
+* qt_tm_widget_rep
+******************************************************************************/
+
+qt_tm_widget_rep::qt_tm_widget_rep(int mask, command _quit)
+ : qt_window_widget_rep (new QTMWindow (0), "popup", _quit),
+   toolbarController (nullptr),
+   full_screen (false)
+{
+  type = texmacs_widget;
+
+  main_widget = concrete (::glue_widget (true, true, 1, 1));
+  
+  // decode mask
+  visibility[0] = (mask & 1)   == 1;   // header
+  visibility[1] = (mask & 2)   == 2;   // main
+  visibility[2] = (mask & 4)   == 4;   // mode
+  visibility[3] = (mask & 8)   == 8;   // focus
+  visibility[4] = (mask & 32)  == 32;  // footer
+
+  // general setup for main window
+
+  QMainWindow* mw= mainwindow ();
+  if (tm_style_sheet == "") {
+    mw->setStyle (qtmstyle ());
+  }
+
+#if !defined(OS_MACOS)
+  mw->setWindowIcon(tmapp()->icon_manager().getDocumentIcon("document.ath"));
+#endif
+ 
+  mw->setIconSize (athena_toolbar_icon_size ());
+  mw->setFocusPolicy (Qt::NoFocus);
+  
+  static_cast<QTMWindow*> (mw)->editorStatus.visible= visibility[4];
+ 
+  mainToolBar   = new QToolBar ("main toolbar", mw);
+  modeToolBar   = new QToolBar ("mode toolbar", mw);
+  focusToolBar  = new QToolBar ("focus toolbar", mw);
+
+#if ATHENA_PLATFORM_IPADOS
+  for (QToolBar* bar: {mainToolBar, modeToolBar, focusToolBar}) {
+    bar->setProperty ("athenaTouchUi", true);
+    bar->setMovable (false);
+    bar->setFocusPolicy (Qt::NoFocus);
+  }
+#endif
+
+    
+  {
+    // Toolbar icon size is a UI metric, not an input-pixmap metric.
+    QSize sz= athena_toolbar_icon_size ();
+    mainToolBar->setIconSize (sz);
+    modeToolBar->setIconSize (sz);
+    focusToolBar->setIconSize (sz);
+  }
+
+  // Why we need fixed height:
+  // The height of the toolbar is actually determined by the font height.
+  // And the font height is not fixed. If the height of the toolbar is not
+  // fixed, the stretching of it will make the document area floating and
+  // triggers the re-rendering of the full document.
+  //
+  // NOTICE: setFixedHeight must be after setIconSize
+  // TODO: the size of the toolbar should be calculated dynamically
+  int toolbarHeight= athena_toolbar_height ();
+  mainToolBar->setFixedHeight (toolbarHeight);
+  modeToolBar->setFixedHeight (toolbarHeight);
+  focusToolBar->setFixedHeight (toolbarHeight);
+  
+  QWidget *cw= new QWidget(mw);
+  cw->setObjectName("centralWidget");  // this is important for styling toolbars.
+  
+    // The main layout
+  
+  QVBoxLayout *bl = new QVBoxLayout (cw);
+  bl->setContentsMargins (0, 1, 0, 0);
+  bl->setSpacing (0);
+  cw->setLayout (bl);
+  QWidget* q = main_widget->as_qwidget(mw); // force creation of QWidget
+  q->setParent (qwid); // q->layout()->removeWidget(q) will reset the parent to this
+  bl->addWidget (q);
+  {
+    QTMWidget* editorCanvas= qobject_cast<QTMWidget*> (q);
+    nativeMainToolbarPresenter= std::make_unique<QTMEditorToolbarPresenter> (
+      editorCanvas, mainToolBar, QStringLiteral ("editor-main"));
+    nativeModeToolbarPresenter= std::make_unique<QTMEditorToolbarPresenter> (
+      editorCanvas, modeToolBar, QStringLiteral ("editor-mode"), mainToolBar);
+    nativeFocusToolbarPresenter= std::make_unique<QTMEditorToolbarPresenter> (
+      editorCanvas, focusToolBar, QStringLiteral ("editor-focus"));
+  }
+  if (nativeMainToolbarPresenter)
+    (void) nativeMainToolbarPresenter->activate ();
+  if (nativeModeToolbarPresenter) {
+    (void) nativeModeToolbarPresenter->activate ();
+    append_native_drawing_mode_actions ();
+  }
+  if (nativeFocusToolbarPresenter) {
+    (void) nativeFocusToolbarPresenter->activate ();
+    append_native_drawing_focus_actions ();
+  }
+  
+  mw->setCentralWidget (cw);
+
+  mainToolBar->setObjectName ("mainToolBar");
+  modeToolBar->setObjectName ("modeToolBar");
+  focusToolBar->setObjectName ("focusToolBar");
+#ifdef UNIFIED_TOOLBAR
+
+  if (use_unified_toolbar) {
+    mw->setUnifiedTitleAndToolBarOnMac(true);
+    
+    //WARNING: dumbToolBar is the toolbar installed on the top area of the
+    //main widget which is  then unified in the title bar. 
+    //to overcome some limitations of the unified toolbar implementation we
+    //install the real toolbars as widgets in this toolbar.
+  
+    dumbToolBar = mw->addToolBar("dumb toolbar");
+    dumbToolBar->setMinimumHeight(30);
+
+    //these are the actions related to the various toolbars to be installed in
+    //the dumb toolbar.
+  
+    mainToolBarAction = dumbToolBar->addWidget(mainToolBar);
+    modeToolBarAction = NULL;
+
+  
+    // A ruler
+    rulerWidget = new QWidget(cw);
+    rulerWidget->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+    rulerWidget->setMinimumHeight(1);
+    rulerWidget->setBackgroundRole(QPalette::Mid);
+    // FIXME: how to use 112 (active) and 146 (passive)
+    rulerWidget->setVisible(false);
+    rulerWidget->setAutoFillBackground(true);
+    // rulerWidget = new QLabel("pippo", cw);
+  
+    // A second ruler (this one always visible) to separate from the canvas.
+    QWidget* r2 = new QWidget(mw);
+    r2->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
+    r2->setMinimumHeight(1);
+    r2->setBackgroundRole(QPalette::Mid);
+    r2->setVisible(true);
+    r2->setAutoFillBackground(true);
+
+    bl->insertWidget(0, modeToolBar);
+    bl->insertWidget(1, rulerWidget);
+    bl->insertWidget(2, focusToolBar);
+    bl->insertWidget(4, r2);
+
+    //mw->setContentsMargins (-2, -2, -2, -2);  // Why this?
+    bl->setContentsMargins (0, 1, 0, 1);
+  }
+  else {
+    mw->addToolBar (mainToolBar);
+    mw->addToolBarBreak ();
+    mw->addToolBar (modeToolBar);
+    mw->addToolBarBreak ();
+    mw->addToolBar (focusToolBar);
+    mw->addToolBarBreak ();
+  }
+
+#else
+  mw->addToolBar (mainToolBar);
+  mw->addToolBarBreak ();
+  mw->addToolBar (modeToolBar);
+  mw->addToolBarBreak ();
+  mw->addToolBar (focusToolBar);
+  mw->addToolBarBreak ();
+#endif
+
+#ifdef Q_OS_MAC
+  if (!use_unified_toolbar)
+#endif
+    toolbarController= new QTMToolbarController (
+      mw, mainToolBar, modeToolBar, focusToolBar);
+  all_tm_widgets.insert (this);
+
+  // handles visibility
+  // at this point all the toolbars are empty so we avoid showing them
+  // same for the menu bar if we are not on the Mac (where we do not have
+  // other options)
+  
+  mainToolBar->setVisible (false);
+  modeToolBar->setVisible (false);
+  focusToolBar->setVisible (false);
+  if (toolbarController != nullptr)
+    toolbarController->setRequestedVisibility (
+      visibility[1] && visibility[0], false, false);
+  else
+    mainToolBar->setVisible (visibility[1] && visibility[0]);
+#if !defined(Q_OS_MAC)
+  mainwindow()->menuBar()->setVisible (visibility[0]);
+#endif
+  QPalette pal;
+  QColor bgcol= to_qcolor (tm_background);
+  pal.setColor (QPalette::Mid, bgcol);
+  mainwindow()->setPalette(pal);
+}
+
+qt_tm_widget_rep::~qt_tm_widget_rep () {
+  if (DEBUG_QT_WIDGETS)
+    debug_widgets << "qt_tm_widget_rep::~qt_tm_widget_rep of widget "
+                  << type_as_string() << LF;
+  
+  all_tm_widgets.remove (this);
+}
+
+void
+qt_tm_widget_rep::refreshAllToolbarPreferences () {
+  for (qt_tm_widget_rep* widget: all_tm_widgets)
+    if (widget != nullptr && widget->toolbarController != nullptr)
+      widget->toolbarController->refreshPreference ();
+}
+
+void
+qt_tm_widget_rep::append_native_drawing_mode_actions () {
+  const char* marker= "athenaNativeDrawingMode";
+  for (QAction* action: modeToolBar->actions ())
+    if (action != nullptr && action->property (marker).toBool ()) {
+      modeToolBar->removeAction (action);
+      action->deleteLater ();
+    }
+  QTMWidget* c= canvas ();
+  if (c == nullptr || c->tm_widget () == nullptr ||
+      !c->tm_widget ()->handle_native_drawing_available ())
+    return;
+  const auto oldGroups= modeToolBar->findChildren<QActionGroup*> (
+    QStringLiteral ("athenaNativeDrawingTools"), Qt::FindDirectChildrenOnly);
+  for (QActionGroup* oldGroup: oldGroups)
+    if (oldGroup != nullptr) oldGroup->deleteLater ();
+  native_drawing_tool current=
+    c->tm_widget ()->handle_native_drawing_tool ();
+  QActionGroup* group= new QActionGroup (modeToolBar);
+  group->setObjectName (QStringLiteral ("athenaNativeDrawingTools"));
+  group->setExclusive (true);
+  QPointer<QTMWidget> canvasRef (c);
+  QAction* separator= modeToolBar->addSeparator ();
+  separator->setProperty (marker, true);
+  for (const native_drawing_tool_descriptor& entry: native_drawing_tools) {
+    QAction* action= new QAction (tmapp ()->icon_manager ().getIcon (entry.icon),
+                                   QObject::tr (entry.text), modeToolBar);
+    action->setToolTip (QObject::tr (entry.text));
+    action->setProperty (marker, true);
+    action->setCheckable (true);
+    action->setChecked (entry.tool == current);
+    group->addAction (action);
+    modeToolBar->addAction (action);
+    QObject::connect (action, &QAction::triggered, modeToolBar,
+      [canvasRef, entry, group, action] (bool checked) {
+        (void) group;
+        QTMWidget* canvas= canvasRef.data ();
+        if (!checked || canvas == nullptr || canvas->tm_widget () == nullptr)
+          return;
+        canvas->tm_widget ()->handle_set_native_drawing_tool (entry.tool);
+        action->setChecked (true);
+      });
+  }
+  QAction* canvasSeparator= modeToolBar->addSeparator ();
+  canvasSeparator->setProperty (marker, true);
+  for (const native_drawing_canvas_command_descriptor& entry:
+       native_drawing_canvas_commands) {
+    QAction* action= new QAction (tmapp ()->icon_manager ().getIcon (entry.icon),
+                                   QObject::tr (entry.text), modeToolBar);
+    action->setToolTip (QObject::tr (entry.text));
+    action->setProperty (marker, true);
+    modeToolBar->addAction (action);
+    QObject::connect (action, &QAction::triggered, modeToolBar,
+      [canvasRef, entry] {
+        QTMWidget* canvas= canvasRef.data ();
+        if (canvas == nullptr) return;
+        canvas->triggerNativeDrawingCanvasCommand (entry.command);
+      });
+  }
+}
+
+namespace {
+
+QIcon
+native_drawing_color_icon (std::uint32_t rgba) {
+  QPixmap pixmap (18, 18);
+  pixmap.fill (Qt::transparent);
+  QPainter painter (&pixmap);
+  painter.setRenderHint (QPainter::Antialiasing, true);
+  painter.setPen (QPen (QColor (90, 90, 90), 1.0));
+  painter.setBrush (QColor::fromRgba (rgba));
+  painter.drawRoundedRect (QRectF (1.5, 1.5, 15.0, 15.0), 3.0, 3.0);
+  return QIcon (pixmap);
+}
+
+QIcon
+native_drawing_toggle_icon (const char* key, bool enabled) {
+  QIcon base= tmapp ()->icon_manager ().getIcon (key);
+  QPixmap pixmap= base.pixmap (24, 24);
+  if (pixmap.isNull ()) {
+    pixmap= QPixmap (24, 24);
+    pixmap.fill (Qt::transparent);
+  }
+  QPainter painter (&pixmap);
+  painter.setRenderHint (QPainter::Antialiasing, true);
+  const QColor badge= enabled ? QColor (31, 157, 85) : QColor (105, 105, 105);
+  painter.setPen (QPen (QColor (255, 255, 255, 230), 1.0));
+  painter.setBrush (badge);
+  painter.drawEllipse (QRectF (13.0, 13.0, 10.0, 10.0));
+  painter.setPen (QPen (Qt::white, 1.8, Qt::SolidLine, Qt::RoundCap,
+                        Qt::RoundJoin));
+  if (enabled) {
+    painter.drawLine (QPointF (15.5, 18.0), QPointF (17.4, 20.0));
+    painter.drawLine (QPointF (17.4, 20.0), QPointF (21.1, 15.8));
+  }
+  else
+    painter.drawLine (QPointF (15.7, 18.0), QPointF (20.4, 18.0));
+  return QIcon (pixmap);
+}
+
+} // namespace
+
+void
+qt_tm_widget_rep::append_native_drawing_focus_actions () {
+  const char* marker= "athenaNativeDrawingFocus";
+  for (QAction* action: focusToolBar->actions ())
+    if (action != nullptr && action->property (marker).toBool ()) {
+      focusToolBar->removeAction (action);
+      action->deleteLater ();
+    }
+
+  QTMWidget* c= canvas ();
+  if (c == nullptr || c->tm_widget () == nullptr ||
+      !c->tm_widget ()->handle_native_drawing_available ())
+    return;
+  QPointer<QTMWidget> canvasRef (c);
+  native_drawing_properties_snapshot props=
+    c->tm_widget ()->handle_native_drawing_properties ();
+
+  auto mark= [marker] (QAction* action) {
+    if (action != nullptr) action->setProperty (marker, true);
+    return action;
+  };
+
+  focusToolBar->addSeparator ()->setProperty (marker, true);
+
+  bool styleEditable= props.selection_active ||
+    props.tool == native_drawing_tool::pen ||
+    props.tool == native_drawing_tool::highlighter ||
+    props.tool == native_drawing_tool::shape;
+
+  if (!props.selection_active && props.tool == native_drawing_tool::shape) {
+    QAction* shapeAction= mark (new QAction (
+      tmapp ()->icon_manager ().getIcon ("tm_native_shape"),
+      QObject::tr ("Shape"), focusToolBar));
+    shapeAction->setToolTip (QObject::tr ("Shape type"));
+    QMenu* shapeMenu= new QMenu (focusToolBar);
+    shapeMenu->setProperty (marker, true);
+    for (const native_drawing_shape_descriptor& entry: native_drawing_shapes) {
+      QAction* item= shapeMenu->addAction (
+        tmapp ()->icon_manager ().getIcon (entry.icon), QObject::tr (entry.text));
+      item->setCheckable (true);
+      item->setChecked (entry.shape == props.shape);
+      QObject::connect (item, &QAction::triggered, shapeMenu,
+        [canvasRef, entry] {
+          QTMWidget* canvas= canvasRef.data ();
+          if (canvas == nullptr || canvas->tm_widget () == nullptr) return;
+          canvas->tm_widget ()->handle_set_native_drawing_property (
+            native_drawing_property::shape,
+            static_cast<std::uint64_t> (entry.shape));
+        });
+    }
+    shapeAction->setMenu (shapeMenu);
+    focusToolBar->addAction (shapeAction);
+  }
+
+  QAction* colorAction= mark (new QAction (
+    native_drawing_color_icon (props.rgba), QObject::tr ("Color"),
+    focusToolBar));
+  colorAction->setToolTip (props.selection_active ?
+    QObject::tr ("Selected object color") : QObject::tr ("Drawing color"));
+  colorAction->setEnabled (styleEditable);
+  focusToolBar->addAction (colorAction);
+  QObject::connect (colorAction, &QAction::triggered, focusToolBar,
+    [canvasRef, colorAction] {
+      QTMWidget* canvas= canvasRef.data ();
+      if (canvas == nullptr || canvas->tm_widget () == nullptr) return;
+      native_drawing_properties_snapshot current=
+        canvas->tm_widget ()->handle_native_drawing_properties ();
+      QColor color= QColorDialog::getColor (
+        QColor::fromRgba (current.rgba), canvas,
+        QObject::tr ("Drawing color"), QColorDialog::ShowAlphaChannel);
+      if (!color.isValid ()) return;
+      if (canvas->tm_widget ()->handle_set_native_drawing_property (
+            native_drawing_property::color,
+            static_cast<std::uint64_t> (color.rgba ())))
+        colorAction->setIcon (native_drawing_color_icon (color.rgba ()));
+    });
+
+  QAction* widthAction= mark (new QAction (
+    tmapp ()->icon_manager ().getIcon ("tm_native_width"),
+    QObject::tr ("Width"), focusToolBar));
+  widthAction->setToolTip (props.selection_active ?
+    QObject::tr ("Selected object line width") : QObject::tr ("Drawing width"));
+  widthAction->setEnabled (styleEditable);
+  QMenu* widthMenu= new QMenu (focusToolBar);
+  widthMenu->setProperty (marker, true);
+  const double widths[]= {1.0, 2.0, 4.0, 6.0, 10.0, 16.0, 24.0};
+  for (double width: widths) {
+    QAction* item= widthMenu->addAction (
+      QString::number (width, 'g', 3) + QStringLiteral (" px"));
+    item->setCheckable (true);
+    item->setChecked (std::fabs (props.line_width_pixels - width) < 0.25);
+    QObject::connect (item, &QAction::triggered, widthMenu,
+      [canvasRef, width] {
+        QTMWidget* canvas= canvasRef.data ();
+        if (canvas == nullptr || canvas->tm_widget () == nullptr) return;
+        canvas->tm_widget ()->handle_set_native_drawing_property (
+          native_drawing_property::line_width,
+          native_drawing_double_bits (width));
+      });
+  }
+  widthAction->setMenu (widthMenu);
+  focusToolBar->addAction (widthAction);
+
+  QAction* pressureAction= mark (new QAction (
+    native_drawing_toggle_icon ("tm_native_pressure", props.pressure_enabled),
+    QObject::tr ("Pressure"), focusToolBar));
+  pressureAction->setCheckable (true);
+  pressureAction->setChecked (props.pressure_enabled);
+  pressureAction->setEnabled (!props.selection_active &&
+                              props.tool == native_drawing_tool::pen);
+  pressureAction->setToolTip (props.pressure_enabled ?
+    QObject::tr ("Pressure-sensitive width — On") :
+    QObject::tr ("Pressure-sensitive width — Off"));
+  focusToolBar->addAction (pressureAction);
+  QObject::connect (pressureAction, &QAction::toggled, focusToolBar,
+    [canvasRef, pressureAction] (bool enabled) {
+      pressureAction->setIcon (
+        native_drawing_toggle_icon ("tm_native_pressure", enabled));
+      pressureAction->setToolTip (enabled ?
+        QObject::tr ("Pressure-sensitive width — On") :
+        QObject::tr ("Pressure-sensitive width — Off"));
+      QTMWidget* canvas= canvasRef.data ();
+      if (canvas == nullptr || canvas->tm_widget () == nullptr) return;
+      canvas->tm_widget ()->handle_set_native_drawing_property (
+        native_drawing_property::pressure, enabled ? 1U : 0U);
+    });
+
+  QAction* recognitionAction= mark (new QAction (
+    native_drawing_toggle_icon ("tm_native_recognize",
+                                props.recognition_enabled),
+    QObject::tr ("Recognize"), focusToolBar));
+  recognitionAction->setCheckable (true);
+  recognitionAction->setChecked (props.recognition_enabled);
+  recognitionAction->setEnabled (!props.selection_active &&
+                                  props.tool == native_drawing_tool::pen);
+  recognitionAction->setToolTip (props.recognition_enabled ?
+    QObject::tr ("Recognize deliberate lines, circles, and rectangles — On") :
+    QObject::tr ("Recognize deliberate lines, circles, and rectangles — Off"));
+  focusToolBar->addAction (recognitionAction);
+  QObject::connect (recognitionAction, &QAction::toggled, focusToolBar,
+    [canvasRef, recognitionAction] (bool enabled) {
+      recognitionAction->setIcon (
+        native_drawing_toggle_icon ("tm_native_recognize", enabled));
+      recognitionAction->setToolTip (enabled ?
+        QObject::tr ("Recognize deliberate lines, circles, and rectangles — On") :
+        QObject::tr ("Recognize deliberate lines, circles, and rectangles — Off"));
+      QTMWidget* canvas= canvasRef.data ();
+      if (canvas == nullptr || canvas->tm_widget () == nullptr) return;
+      canvas->tm_widget ()->handle_set_native_drawing_property (
+        native_drawing_property::recognition, enabled ? 1U : 0U);
+    });
+
+  QAction* snapAction= mark (new QAction (
+    native_drawing_toggle_icon ("tm_native_snap", props.snap_enabled),
+    QObject::tr ("Snap"), focusToolBar));
+  snapAction->setCheckable (true);
+  snapAction->setChecked (props.snap_enabled);
+  snapAction->setToolTip (props.snap_enabled ?
+    QObject::tr ("Snap new drawing geometry — On") :
+    QObject::tr ("Snap new drawing geometry — Off"));
+  focusToolBar->addAction (snapAction);
+  QObject::connect (snapAction, &QAction::toggled, focusToolBar,
+    [canvasRef, snapAction] (bool enabled) {
+      snapAction->setIcon (
+        native_drawing_toggle_icon ("tm_native_snap", enabled));
+      snapAction->setToolTip (enabled ?
+        QObject::tr ("Snap new drawing geometry — On") :
+        QObject::tr ("Snap new drawing geometry — Off"));
+      QTMWidget* canvas= canvasRef.data ();
+      if (canvas == nullptr || canvas->tm_widget () == nullptr) return;
+      canvas->tm_widget ()->handle_set_native_drawing_property (
+        native_drawing_property::snap, enabled ? 1U : 0U);
+    });
+
+  QAction* gridAction= mark (new QAction (
+    native_drawing_toggle_icon ("tm_native_grid", props.grid_enabled),
+    QObject::tr ("Grid"), focusToolBar));
+  gridAction->setCheckable (true);
+  gridAction->setChecked (props.grid_enabled);
+  gridAction->setToolTip (props.grid_enabled ?
+    QObject::tr ("Show drawing grid — On") :
+    QObject::tr ("Show drawing grid — Off"));
+  focusToolBar->addAction (gridAction);
+  QObject::connect (gridAction, &QAction::toggled, focusToolBar,
+    [canvasRef, gridAction] (bool enabled) {
+      gridAction->setIcon (
+        native_drawing_toggle_icon ("tm_native_grid", enabled));
+      gridAction->setToolTip (enabled ?
+        QObject::tr ("Show drawing grid — On") :
+        QObject::tr ("Show drawing grid — Off"));
+      QTMWidget* canvas= canvasRef.data ();
+      if (canvas == nullptr || canvas->tm_widget () == nullptr) return;
+      canvas->tm_widget ()->handle_set_native_drawing_property (
+        native_drawing_property::grid, enabled ? 1U : 0U);
+    });
+}
+
+void
+qt_tm_widget_rep::tweak_iconbar_size (QSize& sz) {
+#ifdef Q_OS_LINUX
+  if (sz.height () >= 24) {
+    sz.setWidth (sz.width () + 2);
+    sz.setHeight (sz.height () + 8);
+  }
+  else if (sz.height () >= 20) {
+    sz.setWidth (sz.width () + 1);
+    sz.setHeight (sz.height () + 4);
+  }
+  else if (sz.height () >= 16) {
+    sz.setHeight (sz.height () + 4);
+  }
+#else
+  if (sz.height () >= 24) {
+    sz.setWidth (sz.width () + 2);
+    sz.setHeight (sz.height () + 6);
+  }
+  else if (sz.height () >= 20) {
+    sz.setHeight (sz.height () + 2);
+  }
+  else if (sz.height () >= 16) {
+    sz.setHeight (sz.height () + 2);
+  }
+#endif
+}
+
+
+/*! Return ourselves as a window widget.
+ \param name A unique identifier for the window (e.g. "TeXmacs:3")
+ */
+widget
+qt_tm_widget_rep::plain_window_widget (string name, command _quit, int b) {
+  (void) b;
+  (void) _quit; // The widget already has a command. Don't overwrite. 
+  orig_name = name;
+  return this;
+}
+
+void
+qt_tm_widget_rep::update_visibility () {
+#define XOR(exp1,exp2) (((!exp1) && (exp2)) || ((exp1) && (!exp2)))
+
+  bool old_mainVisibility = mainToolBar->isVisible();
+  bool old_modeVisibility = modeToolBar->isVisible();
+  bool old_focusVisibility = focusToolBar->isVisible();
+
+  bool new_mainVisibility = visibility[1] && visibility[0];
+  bool new_modeVisibility = visibility[2] && visibility[0];
+  bool new_focusVisibility = visibility[3] && visibility[0];
+  static_cast<QTMWindow*> (mainwindow ())->editorStatus.visible= visibility[4];
+  
+  if (toolbarController != nullptr)
+    toolbarController->setRequestedVisibility (
+      new_mainVisibility, new_modeVisibility,
+      new_focusVisibility);
+  else {
+    if ( XOR(old_mainVisibility,  new_mainVisibility) )
+      mainToolBar->setVisible (new_mainVisibility);
+    if ( XOR(old_modeVisibility,  new_modeVisibility) )
+      modeToolBar->setVisible (new_modeVisibility);
+    if ( XOR(old_focusVisibility,  new_focusVisibility) )
+      focusToolBar->setVisible (new_focusVisibility);
+  }
+
+#if !defined(Q_OS_MAC)
+  bool old_menuVisibility = mainwindow()->menuBar()->isVisible();
+  bool new_menuVisibility = visibility[0];
+  if ( XOR(old_menuVisibility,  new_menuVisibility) )
+    mainwindow()->menuBar()->setVisible (new_menuVisibility);
+#endif
+
+#ifdef UNIFIED_TOOLBAR
+
+  // do modifications only if needed to reduce flicker
+  if (use_unified_toolbar &&
+      (XOR(old_mainVisibility,  new_mainVisibility) ||
+       XOR(old_modeVisibility,  new_modeVisibility) ))
+  {
+    // ensure that the topmost visible toolbar is always unified on Mac
+    // (actually only for main and mode toolbars, unifying focus is not
+    // appropriate)
+    
+    QBoxLayout *bl = qobject_cast<QBoxLayout*>(mainwindow()->centralWidget()->layout());
+    
+    if (modeToolBarAction)
+      modeToolBarAction->setVisible(modeToolBar->isVisible());
+    mainToolBarAction->setVisible(mainToolBar->isVisible());
+    
+    //WARNING: jugglying around bugs in Qt unified toolbar implementation
+    //do not try to change the order of the following operations....
+    
+    if (mainToolBar->isVisible()) {       
+      bool tmp = modeToolBar->isVisible();
+      dumbToolBar->removeAction(modeToolBarAction);
+      dumbToolBar->addAction(mainToolBarAction);
+      bl->insertWidget(0, rulerWidget);
+      bl->insertWidget(0, modeToolBar);
+      mainToolBarAction->setVisible(true);
+      rulerWidget->setVisible(true);
+      modeToolBar->setVisible(tmp);
+      if (modeToolBarAction)
+        modeToolBarAction->setVisible(tmp);
+      dumbToolBar->setVisible(true);
+    } else { 
+      dumbToolBar->removeAction(mainToolBarAction);
+      if (modeToolBar->isVisible()) {
+        bl->removeWidget(rulerWidget);
+        rulerWidget->setVisible(false);
+        bl->removeWidget(modeToolBar);
+        if (modeToolBarAction == NULL) {
+          modeToolBarAction = dumbToolBar->addWidget(modeToolBar);
+        } else {
+          dumbToolBar->addAction(modeToolBarAction);
+        }
+        dumbToolBar->setVisible(true);
+      } else {
+        dumbToolBar->setVisible(false);
+        dumbToolBar->removeAction(modeToolBarAction);
+      }
+    }
+  }
+#endif // UNIFIED_TOOLBAR
+#undef XOR
+}
+
+widget
+qt_tm_widget_rep::read(slot s, blackbox index) {
+  widget ret;
+  
+  switch (s) {
+    case SLOT_CANVAS:
+      check_type_void (index, s);
+      ret = abstract (main_widget);
+      break;
+      
+    default:
+      return qt_window_widget_rep::read(s, index);
+  }
+  
+  if (DEBUG_QT_WIDGETS)
+    debug_widgets << "qt_tm_widget_rep::read " << slot_name (s)
+                  << "\t\tfor widget\t" << type_as_string() << LF;
+  
+  return ret;
+}
+
+void
+qt_tm_widget_rep::send (slot s, blackbox val) {
+  switch (s) {
+    case SLOT_INVALIDATE:
+    case SLOT_INVALIDATE_ALL:
+    case SLOT_EXTENTS:
+    case SLOT_SCROLL_POSITION:
+    case SLOT_ZOOM_FACTOR:
+    case SLOT_MOUSE_GRAB:
+      main_widget->send(s, val);
+      return;
+    case SLOT_KEYBOARD_FOCUS:
+    {
+      check_type<bool> (val, s);
+      bool focus = open_box<bool> (val);
+      if (focus && canvas() && !canvas()->hasFocus())
+        canvas()->setFocus (Qt::OtherFocusReason);
+    }
+      break;
+    case SLOT_HEADER_VISIBILITY:
+    {
+      check_type<bool>(val, s);
+      visibility[0] = open_box<bool> (val);
+      update_visibility();
+    }
+      break;
+    case SLOT_MAIN_ICONS_VISIBILITY:
+    {
+      check_type<bool>(val, s);
+      visibility[1] = open_box<bool> (val);
+      update_visibility();
+    }
+      break;
+    case SLOT_MODE_ICONS_VISIBILITY:
+    {
+      check_type<bool>(val, s);
+      visibility[2] = open_box<bool> (val);
+      update_visibility();
+    }
+      break;
+    case SLOT_FOCUS_ICONS_VISIBILITY:
+    {
+      check_type<bool>(val, s);
+      visibility[3] = open_box<bool> (val);
+      update_visibility();
+    }
+      break;
+
+    case SLOT_FOOTER_VISIBILITY:
+    {
+      check_type<bool>(val, s);
+      visibility[4] = open_box<bool> (val);
+      update_visibility();
+    }
+      break;
+    case SLOT_LEFT_FOOTER:
+    {
+      check_type<string>(val, s);
+      string msg = open_box<string> (val);
+      static_cast<QTMWindow*> (mainwindow ())->editorStatus.left= to_qstring (msg);
+    }
+      break;
+    case SLOT_CENTER_FOOTER:
+    {
+      check_type<string>(val, s);
+      string msg = open_box<string> (val);
+      static_cast<QTMWindow*> (mainwindow ())->editorStatus.center= to_qstring (msg);
+    }
+      break;
+    case SLOT_RIGHT_FOOTER:
+    {
+      check_type<string>(val, s);
+      string msg= open_box<string> (val);
+      static_cast<QTMWindow*> (mainwindow ())->editorStatus.right= to_qstring (msg);
+    }
+      break;
+    case SLOT_SCROLLBARS_VISIBILITY:
+        // ignore this: qt handles scrollbars independently
+        //                send_int (THIS, "scrollbars", val);
+      break;
+    case SLOT_FILE:
+    {
+      check_type<string>(val, s);
+      string file = open_box<string> (val);
+      if (DEBUG_QT_WIDGETS) debug_widgets << "\tFile: " << file << LF;
+      mainwindow()->setWindowFilePath (utf8_to_qstring (file));
+      const url source (file);
+      const bool disambiguation= is_rooted_tmfs (source, "artifact-disambiguation") ||
+        is_rooted_tmfs (source, "artifact-name-query");
+      QIcon icon= is_rooted_tmfs (source) ?
+        tmapp ()->icon_manager ().getPresentationIcon (
+          disambiguation ? "artifact-disambiguation" : "applications-internet") :
+        tmapp ()->icon_manager ().getDocumentIcon (utf8_to_qstring (file));
+      if (icon.isNull ())
+        icon= tmapp ()->icon_manager ().getDocumentIcon ("document.ath");
+      mainwindow()->setWindowIcon (icon);
+      vault_explorer_track_file (url (file));
+    }
+      break;
+    case SLOT_POSITION:
+    {
+      check_type<coord2>(val, s);
+      if (get_user_preference("disable texmacs window positioning") == "on") {
+        break;
+      }
+      coord2 p= open_box<coord2> (val);
+      mainwindow()->move (to_qpoint (p));
+    }
+      break;
+    case SLOT_SIZE:
+    {
+      check_type<coord2>(val, s);
+      coord2 p= open_box<coord2> (val);
+      mainwindow()->resize (to_qsize (p));
+    }
+      break;
+    case SLOT_DESTROY:
+    {
+      ASSERT (is_nil (val), "type mismatch");
+      if (!is_nil (quit))
+        quit ();
+      the_gui->need_update ();
+    }
+      break;
+    case SLOT_FULL_SCREEN:
+    {
+      check_type<bool> (val, s);
+      set_full_screen(open_box<bool> (val));
+    }
+      break;
+    default:
+      qt_window_widget_rep::send (s, val);
+      return;
+  }
+  
+  if (DEBUG_QT_WIDGETS)
+    debug_widgets << "qt_tm_widget_rep: sent " << slot_name (s) 
+                  << "\t\tto widget\t"      << type_as_string() << LF;
+}
+
+blackbox
+qt_tm_widget_rep::query (slot s, int type_id) {
+  if (DEBUG_QT_WIDGETS)
+    debug_widgets << "qt_tm_widget_rep: queried " << slot_name(s)
+                  << "\t\tto widget\t" << type_as_string() << LF;
+  
+  switch (s) {
+    case SLOT_SCROLL_POSITION:
+    case SLOT_EXTENTS:
+    case SLOT_VISIBLE_PART:
+    case SLOT_ZOOM_FACTOR:
+      return main_widget->query(s, type_id);
+
+    case SLOT_HEADER_VISIBILITY:
+      check_type_id<bool> (type_id, s);
+      return close_box<bool> (visibility[0]);
+      
+    case SLOT_MAIN_ICONS_VISIBILITY:
+      check_type_id<bool> (type_id, s);
+      return close_box<bool> (visibility[1]);
+    
+    case SLOT_MODE_ICONS_VISIBILITY:
+      check_type_id<bool> (type_id, s);
+      return close_box<bool> (visibility[2]);
+
+    case SLOT_FOCUS_ICONS_VISIBILITY:
+      check_type_id<bool> (type_id, s);
+      return close_box<bool> (visibility[3]);      
+
+      
+    case SLOT_FOOTER_VISIBILITY:
+      check_type_id<bool> (type_id, s);
+      return close_box<bool> (visibility[4]);
+
+    case SLOT_POSITION:
+    {
+      check_type_id<coord2> (type_id, s);
+      return close_box<coord2> (from_qpoint (mainwindow()->pos()));
+    }
+      
+    case SLOT_SIZE:
+    {
+      check_type_id<coord2> (type_id, s);
+      return close_box<coord2> (from_qsize (mainwindow()->size()));
+    }
+
+    default:
+      return qt_window_widget_rep::query (s, type_id);
+  }
+}
+
+void
+qt_tm_widget_rep::write (slot s, blackbox index, widget w) {
+  if (DEBUG_QT_WIDGETS)
+    debug_widgets << "qt_tm_widget_rep::write " << slot_name (s) << LF;
+  
+  switch (s) {
+        // Widget w is usually a qt_simple_widget_rep, with a QTMWidget as
+        // underlying widget. We must discard the current main_widget and
+        // display the new. But while switching buffers the widget w is a
+        // glue_widget, so we may not just use canvas() everywhere.
+    case SLOT_SCROLLABLE:
+    {
+      check_type_void (index, s);
+      
+      QWidget* q = main_widget->qwid;
+      q->hide();
+      QLayout* l = centralwidget()->layout();
+      l->removeWidget(q);
+      // A detached source view still owns its canvas. The old window must not
+      // destroy it when the view is retained for later reuse and undo history.
+      q->setParent(nullptr);
+
+      q = concrete(w)->as_qwidget(mainwindow());   // force creation of the new QWidget
+      l->addWidget(q);
+      /* " When you use a layout, you do not need to pass a parent when
+       constructing the child widgets. The layout will automatically reparent
+       the widgets (using QWidget::setParent()) so that they are children of 
+       the widget on which the layout is installed " */
+      main_widget = concrete (w);
+        // canvas() now returns the new QTMWidget (or 0)
+      static_cast<QTMWindow*> (mainwindow ())->setEditorCanvas (canvas ());
+      nativeMainToolbarPresenter->setCanvas (canvas ());
+      nativeModeToolbarPresenter->setCanvas (canvas ());
+      nativeFocusToolbarPresenter->setCanvas (canvas ());
+      append_native_drawing_mode_actions ();
+      append_native_drawing_focus_actions ();
+      update_visibility ();
+      
+      if (scrollarea())   // Fix size to draw margins around.
+        scrollarea()->surface()->setSizePolicy (QSizePolicy::Fixed,
+                                                QSizePolicy::Fixed);
+      send_keyboard_focus (abstract (main_widget));
+    }
+      break;
+      
+    default:
+      qt_window_widget_rep::write (s, index, w);
+  }
+}
+
+void set_standard_style_sheet (QWidget* w);
+
+void
+qt_tm_widget_rep::set_full_screen(bool flag) {
+  full_screen = flag;
+  QWidget *win = mainwindow()->window();  
+  if (win) {
+    if (flag ) {
+#ifdef UNIFIED_TOOLBAR
+      if (use_unified_toolbar) {
+        //HACK: we disable unified toolbar since otherwise
+        //  the application will crash when we return to normal mode
+        // (bug in Qt? present at least with 4.7.1)
+        mainwindow()->setUnifiedTitleAndToolBarOnMac(false);
+        mainwindow()->centralWidget()->layout()->setContentsMargins(0,0,0,0);
+      }
+#endif
+//      mainwindow()->window()->setContentsMargins(0,0,0,0);
+      //win->showFullScreen();
+       win->setWindowState(win->windowState() | Qt::WindowFullScreen);
+    }
+    else {
+      QPalette pal;
+      QColor bgcol= to_qcolor (tm_background);
+      pal.setColor (QPalette::Mid, bgcol);
+      mainwindow()->setPalette(pal);
+      set_standard_style_sheet (mainwindow());
+      bool cache = visibility[0];
+      visibility[0] = false;
+      update_visibility();
+//      win->showNormal();
+      win->setWindowState(win->windowState() & ~Qt::WindowFullScreen);
+
+      visibility[0] = cache;
+      update_visibility();
+#ifdef UNIFIED_TOOLBAR
+      if (use_unified_toolbar) {
+        mainwindow()->centralWidget()->layout()->setContentsMargins (0,1,0,0);
+        //HACK: we reenable unified toolbar (see above HACK) 
+        //  the application will crash when we return to normal mode
+        mainwindow()->setUnifiedTitleAndToolBarOnMac(true);
+      }
+#endif
+    }
+  }
+  
+  scrollarea()->setHorizontalScrollBarPolicy(flag ? Qt::ScrollBarAlwaysOff : Qt::ScrollBarAsNeeded);
+  scrollarea()->setVerticalScrollBarPolicy(flag ? Qt::ScrollBarAlwaysOff : Qt::ScrollBarAsNeeded);
+}
+
+
+/******************************************************************************
+ * qt_tm_embedded_widget_rep
+ ******************************************************************************/
+
+qt_tm_embedded_widget_rep::qt_tm_embedded_widget_rep (command _quit) 
+ : qt_widget_rep (embedded_tm_widget), quit (_quit) {
+  main_widget = ::glue_widget (true, true, 1, 1);
+}
+
+void
+qt_tm_embedded_widget_rep::send (slot s, blackbox val) {
+
+  switch (s) {
+    case SLOT_INVALIDATE:
+    case SLOT_INVALIDATE_ALL:
+    case SLOT_EXTENTS:
+    case SLOT_SCROLL_POSITION:
+    case SLOT_ZOOM_FACTOR:
+    case SLOT_MOUSE_GRAB:
+      main_widget->send(s, val);
+      return;
+
+       /// FIXME: decide what to do with these for embedded widgets
+    case SLOT_HEADER_VISIBILITY:
+    case SLOT_MAIN_ICONS_VISIBILITY:    
+    case SLOT_MODE_ICONS_VISIBILITY:
+    case SLOT_FOCUS_ICONS_VISIBILITY:
+    case SLOT_FOOTER_VISIBILITY:
+    case SLOT_LEFT_FOOTER:
+    case SLOT_RIGHT_FOOTER:
+    case SLOT_SCROLLBARS_VISIBILITY:
+    case SLOT_FILE:
+      break;
+ 
+    case SLOT_DESTROY:
+    {
+      ASSERT (is_nil (val), "type mismatch");
+      if (!is_nil (quit))
+        quit ();
+      the_gui->need_update ();
+    }
+      break;
+      
+    default:
+      qt_widget_rep::send (s, val);
+      return;
+  }
+  if (DEBUG_QT_WIDGETS)
+    debug_widgets << "qt_tm_embedded_widget_rep: sent " << slot_name (s) 
+                  << "\t\tto widget\t" << type_as_string() << LF;  
+}
+
+blackbox
+qt_tm_embedded_widget_rep::query (slot s, int type_id) {
+  if (DEBUG_QT_WIDGETS)
+    debug_widgets << "qt_tm_embedded_widget_rep::query " << slot_name (s) << LF;
+  
+  switch (s) {
+    case SLOT_IDENTIFIER:
+    {
+      if (qwid) {
+        widget_rep* wid = qt_window_widget_rep::widget_from_qwidget(qwid);
+        if (wid) return wid->query (s, type_id);
+      }
+      return close_box<int>(0);
+    }
+
+    case SLOT_SCROLL_POSITION:
+    case SLOT_EXTENTS:
+    case SLOT_VISIBLE_PART:
+    case SLOT_ZOOM_FACTOR:
+    case SLOT_POSITION:
+    case SLOT_SIZE:
+      if (!is_nil (main_widget))
+        return main_widget->query (s, type_id);
+      else
+        return qt_widget_rep::query (s, type_id);
+        /// FIXME: decide what to do with these for embedded widgets
+    case SLOT_HEADER_VISIBILITY:
+    case SLOT_MAIN_ICONS_VISIBILITY:
+    case SLOT_MODE_ICONS_VISIBILITY:
+    case SLOT_FOCUS_ICONS_VISIBILITY:
+    case SLOT_FOOTER_VISIBILITY:
+      check_type_id<bool> (type_id, s);
+      return close_box<bool> (false);
+
+    default:
+      return qt_widget_rep::query (s, type_id);
+  }
+}
+
+widget
+qt_tm_embedded_widget_rep::read (slot s, blackbox index) {
+  widget ret;
+  
+  switch (s) {
+    case SLOT_CANVAS:
+      check_type_void (index, s);
+      ret = main_widget;
+      break;
+    default:
+      return qt_widget_rep::read(s, index);
+  }
+  
+  if (DEBUG_QT_WIDGETS)
+    debug_widgets << "qt_tm_widget_rep::read " << slot_name (s) 
+                  << "\t\tfor widget\t" << type_as_string() << LF;
+  
+  return ret;
+}
+
+void
+qt_tm_embedded_widget_rep::write (slot s, blackbox index, widget w) {
+  if (DEBUG_QT_WIDGETS)
+    debug_widgets << "qt_tm_embedded_widget_rep::write " << slot_name (s) << LF;
+
+  switch (s) {
+      // Widget w is a qt_simple_widget_rep, with a QTMWidget as underlying
+      // widget. We must discard the current QTMWidget and display the new.
+      // see qt_tm_widget_rep::write()
+    case SLOT_SCROLLABLE:
+    {
+      check_type_void (index, s);
+      main_widget = w;
+    }
+      break;
+    default:
+      qt_widget_rep::write (s, index, w);
+  }
+}
+
+QWidget*
+qt_tm_embedded_widget_rep::as_qwidget(QWidget* parent_widget) {
+  qwid = new QWidget(parent_widget);
+  QVBoxLayout* l = new QVBoxLayout();
+  l->setContentsMargins (0,0,0,0);
+  qwid->setLayout (l);
+  l->addWidget (concrete(main_widget)->as_qwidget(qwid));
+  return qwid;
+}
+
+QLayoutItem*
+qt_tm_embedded_widget_rep::as_qlayoutitem (QWidget* parent_widget) {
+  return new QWidgetItem(as_qwidget(parent_widget));
+}

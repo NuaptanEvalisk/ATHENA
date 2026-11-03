@@ -7,7 +7,7 @@
 #include <QtTest/QtTest>
 #include <cmath>
 
-#include "ATHENA/Math/commutative_diagram_native.hpp"
+#include "Math/Tools/commutative_diagram_native.hpp"
 
 namespace {
 

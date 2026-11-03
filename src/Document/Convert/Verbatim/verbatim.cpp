@@ -1,0 +1,411 @@
+
+/******************************************************************************
+* MODULE     : verbatim.cpp
+* DESCRIPTION: routines for converting between TeXmacs trees and text
+* COPYRIGHT  : (C) 1999  Joris van der Hoeven
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#include "convert.hpp"
+#include "converter.hpp"
+#include "locale.hpp"
+#include "wencoding.hpp"
+#include "vars.hpp"
+#include "Document/Convert/Verbatim/verbatim.hpp"
+#include "Document/NodeContracts/builtin_contracts.hpp"
+#include "analyze.hpp"
+#include "utf8_edit.hpp"
+#include <unicode/ucnv.h>
+#include <memory>
+#include <stdexcept>
+
+/******************************************************************************
+* TeXmacs to verbatim
+******************************************************************************/
+
+namespace {
+class verbatim_writer {
+  const athena::contracts::source_contract_preparation* contexts;
+  bool excerpt;
+  void print (string&, tree, bool, path);
+  void argument (string&, tree, bool, path);
+  void table (string&, tree, bool, path);
+public:
+  bool complete= true;
+  explicit verbatim_writer (
+      const athena::contracts::source_contract_preparation* contexts= nullptr,
+      bool excerpt= false): contexts (contexts), excerpt (excerpt) {}
+  string text (tree, bool, path= path ());
+};
+
+void
+verbatim_writer::argument (string& buf, tree t, bool wrap, path source) {
+  string s;
+  print (s, t, wrap, source);
+  if (utf8_grapheme_count (s) <= 1 || is_numeric (s) || is_iso_alpha (s))
+    buf << s;
+  else {
+    buf << "(";
+    buf << s;
+    buf << ")";
+  }
+}
+
+static int
+get_width (string s) {
+  if (occurs ("\n", s)) return 0;
+  else return utf8_grapheme_count (s);
+}
+
+void
+verbatim_writer::table (string& buf, tree t, bool wrap, path source) {
+  if (N(buf)>0 && buf[N(buf)-1] != '\n') buf << "\n";
+  int i, nr= N(t), j, nc= 0;
+  tree tab (TUPLE, nr);
+  for (i=0; i<nr; i++) {
+    tree row= t[i];
+    path row_source= source * i;
+    if (is_func (row, CWITH)) {
+      row_source= row_source * (N(row)-1);
+      row= row[N(row)-1];
+    }
+    if (!is_func (row, ROW)) tab[i]= tree (TUPLE);
+    else {
+      nc= max (nc, N(row));
+      tab[i]= tree (TUPLE, N(row));
+      for (j=0; j<N(row); j++)
+        tab[i][j]= text (row[j], wrap, row_source * j);
+    }
+  }
+  array<int> w (nc);
+  for (j=0; j<nc; j++) w[j]= 0;
+  for (i=0; i<nr; i++) {
+    for (j=0; j<N(tab[i]); j++)
+      w[j]= max (w[j], get_width(tab[i][j]->label));
+  }
+  for (i=0; i<nr; i++) {
+    for (j=0; j<N(tab[i]); j++) {
+      int spc= w[j] - get_width(tab[i][j]->label) + 1;
+      buf << tab[i][j]->label;
+      if (j != N(tab[i]) - 1)
+        for (int k=0; k<spc; k++) buf << " ";
+    }
+    buf << "\n";
+  }
+}
+
+void
+verbatim_writer::print (string& buf, tree t, bool wrap, path source) {
+  if (is_atomic (t)) buf << t->label;
+  else switch (L(t)) {
+    case SURROUND:
+      print (buf, t[0], wrap, source * 0);
+      print (buf, t[2], wrap, source * 2);
+      print (buf, t[1], wrap, source * 1);
+      break;
+    case HSPACE:
+    case SPACE:
+      if (is_atomic (t[0]) && starts (t[0]->label, "-")) break;
+    case HTAB:
+      if (N(buf)>0 && buf[N(buf)-1] != '\n') buf << " ";
+      break;
+    case AROUND:
+    case VAR_AROUND:
+      print (buf, t[0], wrap, source * 0);
+      print (buf, t[1], wrap, source * 1);
+      print (buf, t[2], wrap, source * 2);
+      break;
+    case BIG_AROUND:
+      print (buf, t[0], wrap, source * 0);
+      print (buf, t[1], wrap, source * 1);
+      break;
+    case LEFT:
+    case MID:
+    case RIGHT:
+    case BIG:
+    case LPRIME:
+    case RPRIME:
+      print (buf, t[0], wrap, source * 0);
+      break;
+    case RSUB:
+      buf << "_";
+      argument (buf, t[0], wrap, source * 0);
+      break;
+    case RSUP:
+      buf << "^";
+      argument (buf, t[0], wrap, source * 0);
+      break;
+    case FRAC:
+      argument (buf, t[0], wrap, source * 0);
+      buf << "/";
+      argument (buf, t[1], wrap, source * 1);
+      break;
+    case SQRT:
+      if (N(t) == 1) {
+        buf << "sqrt(";
+        print (buf, t[0], wrap, source * 0);
+        buf << ")";
+      }
+      else {
+        argument (buf, t[0], wrap, source * 0);
+        // Keep the degree's source address instead of formatting a synthetic
+        // RSUP/FRAC tree under an unrelated source position.
+        buf << "(^(1/";
+        argument (buf, t[1], wrap, source * 1);
+        buf << "))";
+      }
+      break;
+    case WIDE:
+      argument (buf, t[0], wrap, source * 0);
+      print (buf, t[1], wrap, source * 1);
+      break;
+    case SYNTAX:
+      argument (buf, t[0], wrap, source * 0);
+      break;
+    case TABLE:
+      table (buf, t, wrap, source);
+      break;
+    default:
+      if (is_compound (t, "TeXmacs", 0))
+        buf << "TeXmacs";
+      else {
+        using namespace athena::contracts;
+        const bool native= builtin_label (as_string (L(t)));
+        const auto entry= !native && N(t) && contexts ? (*contexts) (source) : nullptr;
+        if (!native && N(t) && contexts && !entry) { complete= false; return; }
+        const editing_query query {entry ? *entry : builtin_contracts (),
+          excerpt && !native ? access_policy::source : access_policy::normal};
+        int i, n= N(t);
+        for (i=0; i<n; i++)
+          if (query.accessible (t, i)) {
+            if (is_document (t) && (i>0)) {
+              if (wrap && N(buf)>0 && buf[N(buf)-1] != '\n') buf << "\n";
+              buf << "\n";
+            }
+            tree w= query.environment (t, i, tree (ATTR));
+            if (athena::contracts::field_environment_read (w, MODE, "text") == "prog" ||
+                athena::contracts::field_environment_read (w, FONT_FAMILY, "rm") == "tt")
+              print (buf, t[i], false, source * i);
+            else print (buf, t[i], wrap, source * i);
+          }
+      }
+      break;
+    }
+}
+
+string
+verbatim_writer::text (tree t, bool wrap, path source) {
+  if (!is_snippet (t)) {
+    tree init= extract (t, "initial");
+    hashmap<string,tree> h (UNINIT, init);
+    if (h[MODE] == "prog" || h[FONT_FAMILY] == "tt") wrap= false;
+    t= extract (t, "body");
+  }
+  string buf;
+  print (buf, t, wrap, source);
+  if (wrap) {
+    int i= 0, n= N(buf);
+    while (i<n) {
+      int pos= i;
+      while (i<n && buf[i]!='\n') i++;
+      array<string> a= utf8_graphemes (buf (pos, i));
+      int start= 0;
+      //cout << "a= " << a << "\n";
+      //cout << "l= " << N(a) << "\n";
+      while (N(a)-start > 78) {
+        //cout << "  start= " << start << "\n";
+        int mid= start+78;
+        while (mid>start && a[mid] != " ") mid--;
+        if (mid <= start) break;
+        if (mid<N(a)) {
+          //cout << "  mid= " << mid << "\n";
+          pos += N(tm_recompose (range (a, start, mid)));
+          ASSERT (buf[pos] == ' ', "error in space synchronization");
+          buf.set (pos, '\n');
+          start= mid+1;
+          pos++;
+        }
+        else break;
+      }
+      if (i<n) i++;
+    }
+  }
+  return buf;
+}
+} // namespace
+
+string
+unix_to_dos (string s) {
+  int i, n= N(s);
+  string r;
+  for (i=0; i<n; i++)
+    if (s[i] == '\n') r << "\r\n";
+    else r << s[i];
+  return r;
+}
+
+static string
+external_text_encoding (string s, string enc, bool importing) {
+  // Default/auto no longer guesses from bytes or depends on the process locale.
+  if (enc == "default" || enc == "auto" || enc == "SourceCode" ||
+      enc == "utf-8" || enc == "UTF-8") return utf8_text (s);
+  if (!importing) (void) utf8_text (s);
+  UErrorCode status= U_ZERO_ERROR;
+  c_string encoding (enc);
+  std::unique_ptr<UConverter, decltype (&ucnv_close)> converter (
+    ucnv_open (encoding, &status), ucnv_close);
+  if (U_FAILURE (status))
+    throw std::invalid_argument ("Unsupported external text encoding");
+  ucnv_setToUCallBack (converter.get (), UCNV_TO_U_CALLBACK_STOP,
+                      nullptr, nullptr, nullptr, &status);
+  ucnv_setFromUCallBack (converter.get (), UCNV_FROM_U_CALLBACK_STOP,
+                        nullptr, nullptr, nullptr, &status);
+  auto convert_bytes= [&] (char* output, int capacity) {
+    return importing ?
+      ucnv_toAlgorithmic (UCNV_UTF8, converter.get (), output, capacity,
+                          s.data (), N(s), &status) :
+      ucnv_fromAlgorithmic (converter.get (), UCNV_UTF8, output, capacity,
+                            s.data (), N(s), &status);
+  };
+  int length= convert_bytes (nullptr, 0);
+  if (status != U_BUFFER_OVERFLOW_ERROR && U_FAILURE (status))
+    throw std::invalid_argument ("External text cannot be converted losslessly");
+  status= U_ZERO_ERROR;
+  string output (length);
+  convert_bytes (output.mutable_data (), length);
+  if (U_FAILURE (status))
+    throw std::invalid_argument ("External text cannot be converted losslessly");
+  return importing ? utf8_text (output) : output;
+}
+
+string
+tree_to_verbatim (tree t, bool wrap, string enc) {
+  string buf= verbatim_writer ().text (t, wrap);
+#ifdef OS_WIN32
+  buf= unix_to_dos (buf);
+#endif
+  return external_text_encoding (buf, enc, false);
+}
+
+std::optional<string>
+source_to_verbatim (tree t, bool wrap, string enc,
+    const athena::contracts::source_contract_preparation& contexts, path source) {
+  verbatim_writer writer (&contexts);
+  string buf= writer.text (t, wrap, source);
+  if (!writer.complete) return {};
+#ifdef OS_WIN32
+  buf= unix_to_dos (buf);
+#endif
+  return external_text_encoding (buf, enc, false);
+}
+
+string source_text_excerpt (tree t) {
+  return verbatim_writer (nullptr, true).text (t, false);
+}
+
+/******************************************************************************
+* Verbatim to TeXmacs
+******************************************************************************/
+
+static string
+un_special (string s) {
+  int i= 0, j= 0;
+  string r;
+  while (i<N(s)) {
+    if (s[i] == '\t') {
+      do {
+        r << " "; j++;
+      } while ((j&7) != 0);
+      i++;
+    }
+    else if (s[i] == '\b') {
+      if (N(r)>0 && r[N(r)-1]!='\n') {
+        r.resize (utf8_grapheme_previous (r, N(r)));
+        if (j > 0) j--;
+      }
+      i++;
+    }
+    else {
+      int next= utf8_grapheme_next (s, i);
+      r << s (i, next);
+      i= next;
+      j++;
+    }
+  }
+  return r;
+}
+
+static tree
+parse_verbatim_utf8 (string s) {
+  int i, j;
+  for (i=0; i<N(s); i++)
+    if (s[i]=='\n') {
+      tree t (DOCUMENT);
+      for (i=0, j=0; i<N(s); i++)
+        if (s[i]=='\n') {
+          t << un_special (s (j, i));
+          j= i+1;
+        }
+      t << un_special (s (j, i));
+      return t;
+    }
+  return un_special (s);
+}
+
+string
+dos_to_unix (string s) {
+  int i, n= N(s);
+  string r;
+  for (i=0; i<n; i++)
+    if (s[i] == '\r' && i+1<n && s[i+1] == '\n') { r << "\n"; i++; }
+    else r << s[i];
+  return r;
+}
+
+string
+mac_to_unix (string s) {
+  int i, n= N(s);
+  string r;
+  for (i=0; i<n; i++)
+    if (s[i] == '\r') r << "\n";
+    else r << s[i];
+  return r;
+}
+
+tree
+verbatim_to_tree (string s, bool wrap, string enc) {
+  s= external_text_encoding (s, enc, true);
+  s= mac_to_unix (dos_to_unix (s));
+  if (wrap) {
+    string r;
+    int i, n= N(s);
+    for (i=0; i<n; ) {
+      if (s[i] == '\n' || s[i] == ' ' || s[i] == '\t') {
+        int lf= 0;
+        while (i<n && (s[i] == '\n' || s[i] == ' ' || s[i] == '\t')) {
+          if (s[i] == '\n') lf++;
+          i++;
+        }
+        if (lf <= 1) r << " ";
+        else r << "\n";
+      }
+      else r << s[i++];
+    }
+    s= r;
+  }
+  return parse_verbatim_utf8 (s);
+}
+
+tree
+verbatim_document_to_tree (string s, bool wrap, string enc) {
+  if (enc == "default") enc= "auto";
+  tree t    = verbatim_to_tree (s, wrap, enc);
+  tree init = tree (COLLECTION,
+                    tree (ASSOCIATE, LANGUAGE, "verbatim"),
+                    tree (ASSOCIATE, FONT_FAMILY, "tt"),
+                    tree (ASSOCIATE, PAR_FIRST, "0cm"));
+  return tree (DOCUMENT, compound ("body", t), compound ("initial", init));
+}

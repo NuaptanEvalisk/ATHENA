@@ -12,14 +12,14 @@
 #include <QTemporaryDir>
 #include <chrono>
 
-#include "Subsystems/RAG/rag_index.hpp"
-#include "Subsystems/RAG/rag_delegation_patch.hpp"
-#include "Data/Convert/Xml/document_file_codec.hpp"
-#include "Data/Convert/Xml/document_upgrade_file.hpp"
-#include "Data/Tree/math_tree_v3.hpp"
-#include "ATHENA/Data/vaultfile_json.hpp"
+#include "Services/RAG/rag_index.hpp"
+#include "Services/RAG/rag_delegation_patch.hpp"
+#include "Document/Convert/Xml/document_file_codec.hpp"
+#include "Document/Convert/Xml/document_upgrade_file.hpp"
+#include "Document/Tree/math_tree_v3.hpp"
+#include "Domains/Vault/vaultfile_json.hpp"
 #include "node_metadata.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }

@@ -1,0 +1,69 @@
+/******************************************************************************
+* MODULE     : document_file_codec.hpp
+* DESCRIPTION: Unified read-only document format dispatch and semantic import
+* COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+******************************************************************************/
+#pragma once
+
+#include "Document/Convert/Xml/legacy_document_import.hpp"
+
+namespace athena::document {
+
+struct native_xml_read_result {
+  xml_format_version version;
+  tree document;
+};
+
+// Native XML only: inspect the envelope, then invoke exactly one strict codec.
+// Neither API imports legacy content, migrates trees, nor infers format from
+// metadata. Carry the read version through any derived fragments or rewrites.
+native_xml_read_result decode_native_xml_bytes (
+  std::string_view, xml_kind = xml_kind::document, codec_limits = {});
+std::string encode_native_xml_bytes (
+  const tree&, xml_format_version, xml_kind = xml_kind::document, codec_limits = {});
+
+enum class document_source_format { xml_v1, xml_v2, xml_v3, legacy_markup, legacy_scheme };
+
+struct document_read_result {
+  document_source_format format;
+  tree document;
+  // Empty for native XML. Legacy source paths/bytes can be relocated exactly
+  // through the same mappings returned by the semantic importer.
+  std::vector<legacy_node_mapping> mappings;
+
+  bool legacy () const {
+    return format == document_source_format::legacy_markup ||
+           format == document_source_format::legacy_scheme;
+  }
+  std::optional<document_path> relocate_node (const document_path&) const;
+  std::optional<document_position> relocate (
+    const document_path&, std::size_t byte, boundary_affinity) const;
+};
+
+// Format dispatch is signature based. This is a read-only operation: legacy
+// input is migrated in memory and is never rewritten by this API.
+document_read_result decode_document_bytes (
+  std::string_view, const legacy_cork_table&, legacy_import_limits = {},
+  const legacy_slot_policy& = {});
+document_read_result decode_document_bytes (
+  std::string_view, legacy_import_limits = {}, const legacy_slot_policy& = {});
+document_read_result decode_document_bytes (
+  std::string_view, const std::filesystem::path& source_path,
+  legacy_import_limits = {}, const legacy_slot_policy& = {});
+
+// Application-wide immutable canonical Cork import table. It is only used by
+// the legacy branch above; native XML never passes through Cork.
+const legacy_cork_table& standard_legacy_cork_table ();
+
+// Stable logical revision for persistence/index caches. The fingerprint is
+// computed from canonical XML serialization of the migrated tree, never from
+// the source file bytes, so legacy<->XML rewrites preserve the revision.
+std::string semantic_document_fingerprint (const tree&, codec_limits = {});
+// v1/v2 retain the historical digest above (including metadata-free v2 trees).
+// v3 always hashes canonical v3 bytes, even for a plain tree without metadata.
+std::string semantic_document_fingerprint (
+  const tree&, xml_format_version, codec_limits = {});
+
+} // namespace athena::document

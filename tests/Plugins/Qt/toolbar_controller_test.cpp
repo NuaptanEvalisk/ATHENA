@@ -8,14 +8,14 @@
 
 #include <QtTest/QtTest>
 
-#include "Qt/QTMToolbarController.hpp"
-#include "Qt/QTMMainTabWindow.hpp"
-#include "Qt/QTMApplication.hpp"
+#include "UI/Qt/Shell/QTMToolbarController.hpp"
+#include "UI/Qt/Shell/QTMMainTabWindow.hpp"
+#include "UI/Qt/Shell/QTMApplication.hpp"
 #include "boot.hpp"
 #include "data_cache.hpp"
 #include "gui.hpp"
 #include "native_dispatch.hpp"
-#include "server.hpp"
+#include "App/Runtime/server.hpp"
 
 #include <DockAreaWidget.h>
 #include <DockWidgetTab.h>

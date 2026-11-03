@@ -7,7 +7,7 @@
 * It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
-#include "../../src/System/Files/confined_filesystem.hpp"
+#include "../../src/Infrastructure/Files/confined_filesystem.hpp"
 #include <atomic>
 #include <cstdlib>
 #include <filesystem>

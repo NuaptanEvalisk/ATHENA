@@ -1,0 +1,890 @@
+/******************************************************************************
+* MODULE     : format_commands.cpp
+* DESCRIPTION: Observer-preserving formatting wrappers and editing commands
+* COPYRIGHT  : (C) 2001 Joris van der Hoeven, 2026 Nuaptan Felix Evalisk
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#include "Editor/Commands/insertion_commands.hpp"
+#include "Editor/Commands/editing_utilities.hpp"
+#include "Editor/Commands/format_commands.hpp"
+#include "Editor/Commands/source_commands.hpp"
+#include "Editor/Commands/generic_editor_commands.hpp"
+#include "Editor/Commands/generic_keyboard_commands.hpp"
+#include "Editor/editor.hpp"
+#include "new_view.hpp"
+#include "native_interfaces.hpp"
+#include "tree_analyze.hpp"
+#include "tree_cursor.hpp"
+#include "file.hpp"
+#include "App/Runtime/buffer_actor.hpp"
+#include "QTMNativeDialogs.hpp"
+#include "gui_text.hpp"
+#include "node_metadata.hpp"
+#include "Document/NodeContracts/node_groups.hpp"
+
+#include <QCoreApplication>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
+#include <QTimer>
+#include <array>
+
+namespace {
+
+QString json_key (string value) {
+  c_string bytes (value);
+  return QString::fromUtf8 (bytes, N (value));
+}
+
+string native_string (const QString& value) {
+  QByteArray bytes= value.toUtf8 ();
+  return string (bytes.constData (), bytes.size ());
+}
+
+void require_strings (QJsonValue value) {
+  ASSERT (value.isArray (), "format parameter list must be an array");
+  for (QJsonValue item: value.toArray ())
+    ASSERT (item.isString (), "format parameter list must contain strings");
+}
+
+tree parameter_tree (QJsonValue value) {
+  if (value.isString ()) return tree (native_string (value.toString ()));
+  ASSERT (value.isArray (), "parameter tree must be a string or tagged array");
+  const QJsonArray parts= value.toArray ();
+  ASSERT (!parts.isEmpty () && parts[0].isString (), "parameter tree needs a tag");
+  tree result (as_tree_label (native_string (parts[0].toString ())));
+  for (int i=1; i<parts.size (); ++i) result << parameter_tree (parts[i]);
+  return result;
+}
+
+struct format_parameter_data {
+  QJsonObject definitions;
+  QJsonObject customizable;
+  QJsonObject effect_families;
+  QJsonObject effect_pens;
+
+  format_parameter_data () {
+    string source;
+    bool failed= load_string (url ("$ATHENA_PATH/misc/input/format-parameters.json"),
+                              source, false);
+    ASSERT (!failed, "cannot read format-parameters.json");
+    c_string bytes (source);
+    QJsonParseError error;
+    QJsonDocument document= QJsonDocument::fromJson (QByteArray (bytes, N (source)), &error);
+    ASSERT (error.error == QJsonParseError::NoError && document.isObject (),
+            "invalid format-parameters.json");
+    definitions= document.object ();
+    ASSERT (definitions.value ("version").toInt () == 1,
+            "unsupported format parameter schema");
+    require_strings (definitions.value ("focus_preferences"));
+    ASSERT (definitions.value ("standard").isObject () &&
+            definitions.value ("customizable").isArray () &&
+            definitions.value ("choices").isArray () &&
+            definitions.value ("pen_effects").isObject (),
+            "missing format parameter definitions");
+    QJsonObject standard= definitions.value ("standard").toObject ();
+    for (auto i= standard.begin (); i != standard.end (); ++i) {
+      if (i.value ().isArray ()) require_strings (i.value ());
+      else {
+        const QJsonObject rule= i.value ().toObject ();
+        require_strings (rule.value ("prepend"));
+        require_strings (rule.value ("exclude"));
+        ASSERT (rule.value ("inherit").isString (), "standard parameters need an inherited tag");
+      }
+    }
+    for (QJsonValue item: definitions.value ("customizable").toArray ()) {
+      ASSERT (item.isObject (), "invalid customizable parameter group");
+      QJsonObject group= item.toObject ();
+      require_strings (group.value ("tags"));
+      ASSERT (group.value ("parameters").isArray (), "missing customizable parameters");
+      for (QJsonValue parameter: group.value ("parameters").toArray ()) {
+        require_strings (parameter);
+        ASSERT (parameter.toArray ().size () == 2, "parameter requires name and label");
+      }
+      for (QJsonValue tag: group.value ("tags").toArray ()) {
+        ASSERT (!customizable.contains (tag.toString ()), "duplicate customizable tag");
+        customizable.insert (tag.toString (), group);
+      }
+    }
+    for (QJsonValue item: definitions.value ("choices").toArray ()) {
+      ASSERT (item.isObject (), "invalid parameter choice rule");
+      QJsonObject rule= item.toObject ();
+      ASSERT (rule.contains ("names") || rule.contains ("suffixes"), "choice rule needs a match");
+      if (rule.contains ("names")) require_strings (rule.value ("names"));
+      if (rule.contains ("suffixes")) require_strings (rule.value ("suffixes"));
+      ASSERT (rule.value ("values").isArray (), "parameter choices must be an array");
+      for (QJsonValue choice: rule.value ("values").toArray ())
+        ASSERT (choice.isString () || (choice.isObject () &&
+                choice.toObject ().value ("label").isString () &&
+                choice.toObject ().value ("tree").isArray ()), "invalid parameter choice");
+      ASSERT (!rule.contains ("other") || rule.value ("other").isBool (), "invalid other choice");
+    }
+    require_strings (definitions.value ("pens"));
+    QJsonArray pens= definitions.value ("pens").toArray ();
+    QJsonObject families= definitions.value ("pen_effects").toObject ();
+    for (auto i= families.begin (); i != families.end (); ++i) {
+      ASSERT (i.value ().isString () && pens.contains (i.value ()), "unknown default effect pen");
+      effect_families.insert (i.key (), i.key ());
+      effect_pens.insert (i.key (), i.value ());
+      for (QJsonValue pen: pens) {
+        QString tag= pen.toString () + "-" + i.key ();
+        effect_families.insert (tag, i.key ());
+        effect_pens.insert (tag, pen);
+      }
+    }
+  }
+};
+
+const format_parameter_data& parameter_data () {
+  // Publish immutable Qt values, never actor-owned trees or rooted Scheme lists.
+  static const format_parameter_data data;
+  return data;
+}
+
+bool parent_tree (tree t, tree& parent) {
+  path ip= obtain_ip (t);
+  if (!ip_attached (ip) || is_nil (ip)) return false;
+  tree root= get_current_editor ()->the_root ();
+  parent= subtree (root, reverse (ip->next));
+  return true;
+}
+
+int property_index (tree t, tree variable, bool last= false) {
+  int found= -1;
+  if (is_func (t, WITH))
+    for (int i= 0; i + 2 < N (t); i+= 2)
+      if (t[i] == variable) {
+        found= i;
+        if (!last) break;
+      }
+  return found;
+}
+
+struct tracked_tree {
+  observer pointer;
+  explicit tracked_tree (tree t): pointer (tree_pointer_new (t)) {}
+  ~tracked_tree () { tree_pointer_delete (pointer); }
+  tree get () { return obtain_tree (pointer); }
+};
+
+void simplify_outer (tree t, tree variable) {
+  if (admits_edit_observer (t)) return;
+  tree parent;
+  if (is_func (t, DOCUMENT, 1)) {
+    if (parent_tree (t, parent)) simplify_outer (parent, variable);
+  }
+  else if (is_func (t, WITH) && N (t) > 0) {
+    for (int i= (N (t) - 3) / 2 * 2; i >= 0 && i + 2 < N (t); i-= 2)
+      if (t[i] == variable) t= tree_remove (t, i, 2);
+    tree body= t[N (t) - 1];
+    if (is_func (body, DOCUMENT, 1) && is_func (body[0], WITH) &&
+        !athena::node::get (body))
+      tree_remove_node (body, 0);
+    if (N (t) == 1 && !athena::node::get (t)) t= tree_remove_node (t, 0);
+    if (parent_tree (t, parent)) simplify_outer (parent, variable);
+  }
+}
+
+bool enclosing_property_scope (tree t, tree& parent) {
+  tree grandparent;
+  return parent_tree (t, parent) && parent_tree (parent, grandparent);
+}
+
+bool with_like_search (tree t, tree& result) {
+  while (true) {
+    if (get_current_editor ()->command_tree_with_like (t)) { result= t; return true; }
+    if (!is_atomic (t) && !is_func (t, CONCAT) && !is_func (t, DOCUMENT))
+      return false;
+    if (admits_edit_observer (t) || !parent_tree (t, t)) return false;
+  }
+}
+
+tree cursor_tree (bool shifted= false) {
+  editor ed= get_current_editor ();
+  path p= shifted ? ed->the_shifted_path () : ed->the_path ();
+  tree root= ed->the_root ();
+  return subtree (root, path_up (p));
+}
+
+void go_body (tree t, bool at_end) {
+  path p= reverse (obtain_ip (t)) * (N (t) - 1);
+  get_current_editor ()->go_to_border (p, !at_end);
+}
+
+bool at_body_border (tree t, bool at_end) {
+  editor ed= get_current_editor ();
+  path cursor= ed->the_path ();
+  const path source= reverse (obtain_ip (t));
+  const auto at_boundary= [&] (path p) {
+    const auto result= at_end ? ed->source_tree_end (ed->the_root (), p) :
+                           ed->source_tree_start (ed->the_root (), p);
+    return result && cursor == *result;
+  };
+  if (at_boundary (source)) return true;
+  int i= at_end ? 1 : 0;
+  return is_compound (t) && N (t) > i &&
+    at_boundary (source * i);
+}
+
+bool innermost_with (tree& t) {
+  t= cursor_tree ();
+  while (true) {
+    if (is_func (t, WITH)) return true;
+    if (admits_edit_observer (t) || !parent_tree (t, t)) return false;
+  }
+}
+
+void select_tree (tree t) {
+  path p= reverse (obtain_ip (t));
+  get_current_editor ()->selection_set_paths (p * 0, p * right_index (t));
+}
+
+tree add_with (tree properties, tree body, path& destination) {
+  if (is_func (body, WITH) && N (body) > 0) {
+    int last= N (body) - 1;
+    tree wrapper (WITH, N (body));
+    athena::node::copy_metadata (body, wrapper);
+    for (int i= 0; i < last; ++i) wrapper[i]= body[i];
+    wrapper[last]= add_with (properties, body[last], destination);
+    destination= path (last) * destination;
+    return wrapper;
+  }
+  destination= path (N (properties));
+  properties << body;
+  return properties;
+}
+
+void restore_cells (const std::array<int, 4>& cells) {
+  editor ed= get_current_editor ();
+  path first= ed->table_search_cell (cells[0], cells[2]);
+  path last= ed->table_search_cell (cells[1], cells[3]);
+  if (!is_nil (first) && !is_nil (last))
+    ed->selection_set_paths (path_up (first) * 0, path_up (last) * 1);
+}
+
+void restore_cells_after_command (array<int> cells) {
+  if (N (cells) != 4 || (cells[0] == cells[1] && cells[2] == cells[3])) return;
+  const std::array<int, 4> selected {cells[0], cells[1], cells[2], cells[3]};
+  const ExecutionContext* context= current_execution_context ();
+  if (context == nullptr || context->actor_id == ATHENA_NO_ACTOR ||
+      QCoreApplication::instance () == nullptr) {
+    restore_cells (selected);
+    return;
+  }
+  athena_actor_id actor= context->actor_id;
+  athena_view_id view= context->view_id;
+  // Match keep-table-selection's post-command restoration, without moving
+  // Scheme closures or document objects through the GUI timer queue.
+  QTimer::singleShot (10, QCoreApplication::instance (), [actor, view, selected] {
+    auto id= actor_continuation_registry::instance ().store ([selected] { restore_cells (selected); });
+    if (!buffer_actor::submit_to (actor, actor_command_kind::run_native_continuation,
+          view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, id))
+      actor_continuation_registry::instance ().discard (id);
+  });
+}
+
+enum class format_prompt_action {
+  inline_with, line_with, wrapper, hspace, rigid_space, tab,
+  vspace_before, vspace_after, hyphenate
+};
+
+void format_prompt (string prompt, std::optional<string> proposal,
+                    format_prompt_action action, string variable,
+                    tree_label tag= WITH) {
+  const ExecutionContext* context= current_execution_context ();
+  ASSERT (context != nullptr && context->actor_id != ATHENA_NO_ACTOR,
+          "interactive formatting requires a BufferActor");
+  get_current_editor ();
+  auto actor= context->actor_id;
+  auto view= context->view_id;
+  auto capabilities= context->capabilities;
+  std::string target= json_key (variable).toUtf8 ().toStdString ();
+  QTMInteractiveField field;
+  field.prompt= ui_text (prompt);
+  field.type= "string";
+  if (proposal) field.proposals << *proposal;
+  qtm_interactive_form_async (ends (field.prompt, "?") ? "Question" : "Enter data", {field},
+    [actor, view, capabilities, action, target, tag]
+    (std::vector<std::string> answers) {
+      if (answers.size () != 1) return;
+      // Only detached values cross the GUI queue. Reacquire the editor in the
+      // original actor/view rather than applying to whichever buffer has focus.
+      auto id= actor_continuation_registry::instance ().store (
+        [action, target, tag, answer= std::move (answers[0])] {
+          const auto* context= current_execution_context ();
+          if (context == nullptr || context->editor == nullptr) return;
+          string variable (target.data (), target.size ());
+          string value (answer.data (), answer.size ());
+          switch (action) {
+          case format_prompt_action::inline_with:
+            get_current_editor ()->make_with (variable, value);
+            break;
+          case format_prompt_action::line_with:
+            format_make_line_with (variable, tree (value));
+            break;
+          case format_prompt_action::wrapper:
+            format_make_with_like (tree (tag, value, ""));
+            break;
+          case format_prompt_action::hspace:
+            get_current_editor ()->make_hspace (value);
+            break;
+          case format_prompt_action::rigid_space:
+            get_current_editor ()->make_space (value);
+            break;
+          case format_prompt_action::tab:
+            get_current_editor ()->make_htab (value);
+            break;
+          case format_prompt_action::vspace_before:
+            get_current_editor ()->make_vspace_before (value);
+            break;
+          case format_prompt_action::vspace_after:
+            get_current_editor ()->make_vspace_after (value);
+            break;
+          case format_prompt_action::hyphenate: {
+            editor ed= get_current_editor ();
+            if (!ed->selection_active_small ()) break;
+            tree selected= ed->selection_get ();
+            if (!is_atomic (selected)) break;
+            tree content= ed->selection_get_cut ();
+            ed->insert_tree (tree (as_tree_label ("hyphenate-as"),
+                                   tree (value), content));
+            break;
+          }
+          }
+        });
+      if (!buffer_actor::submit_to (actor, actor_command_kind::run_native_continuation,
+            view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, capabilities, id))
+        actor_continuation_registry::instance ().discard (id);
+    });
+}
+
+void format_environment_prompt (string variable, format_prompt_action action) {
+  static const struct { const char* variable; const char* label; } labels[] = {
+    {"color", "Foreground color"},
+    {"bg-color", "Background color"},
+    {"locus-color", "Color of loci"},
+    {"visited-color", "Color of visited loci"},
+    {"radioactive-link-color", "Color of automatic artifact links"},
+    {"magnification", "Magnification"},
+    {"font-base-size", "Font size"},
+    {"dpi", "Dots per inch"},
+    {"par-width", "Paragraph width"},
+    {"par-mode", "Paragraph mode"},
+    {"par-flexibility", "Paragraph extensibility"},
+    {"par-hyphen", "Paragraph hyphenation algorithm"},
+    {"par-left", "Left margin"},
+    {"par-right", "Right margin"},
+    {"par-first", "First indentation"},
+    {"par-sep", "Separation between lines"},
+    {"par-line-sep", "Space between lines"},
+    {"par-par-sep", "Space between paragraphs"},
+    {"par-columns", "Number of columns"},
+    {"page-odd", "Odd page left margin"},
+    {"page-right", "Odd page right margin"},
+    {"page-even", "Even page left margin"},
+    {"page-top", "Top margin"},
+    {"page-bot", "Bottom margin"},
+    {"page-odd-shift", "Odd page shift"},
+    {"page-even-shift", "Even page shift"},
+    {"page-shrink", "How much shorter may pages become?"},
+    {"page-extend", "How much longer may pages become?"},
+    {"page-flexibility", "Flexibility factor for vertical spacing"},
+    {"page-screen-left", "Left margin"},
+    {"page-screen-right", "Right margin"},
+    {"page-screen-top", "Top margin"},
+    {"page-screen-bot", "Bottom margin"},
+    {"table-width", "Table width"},
+    {"table-height", "Table height"},
+    {"table-lsep", "Left table padding"},
+    {"table-rsep", "Right table padding"},
+    {"table-bsep", "Bottom table padding"},
+    {"table-tsep", "Top table padding"},
+    {"table-lborder", "Left table border"},
+    {"table-rborder", "Right table border"},
+    {"table-bborder", "Bottom table border"},
+    {"table-tborder", "Top table border"},
+    {"table-row-origin", "Origin row"},
+    {"table-col-origin", "Origin column"},
+    {"table-min-rows", "Minimal number of rows"},
+    {"table-max-rows", "Maximal number of rows"},
+    {"table-min-cols", "Minimal number of columns"},
+    {"table-max-cols", "Maximal number of columns"},
+    {"cell-width", "Cell width"},
+    {"cell-height", "Cell height"},
+    {"cell-hpart", "Part in unused horizontal space"},
+    {"cell-vpart", "Part in unused vertical space"},
+    {"cell-lsep", "Left cell padding"},
+    {"cell-rsep", "Right cell padding"},
+    {"cell-bsep", "Bottom cell padding"},
+    {"cell-tsep", "Top cell padding"},
+    {"cell-lborder", "Left cell border"},
+    {"cell-rborder", "Right cell border"},
+    {"cell-bborder", "Bottom cell border"},
+    {"cell-tborder", "Top cell border"}
+  };
+  string prompt= variable;
+  for (const auto& entry: labels)
+    if (variable == entry.variable) {
+      prompt= entry.label;
+      break;
+    }
+  format_prompt (prompt, get_current_editor ()->get_env_string (variable),
+                 action, variable);
+}
+
+} // namespace
+
+void format_make_interactive_with (string variable) {
+  format_environment_prompt (variable, format_prompt_action::inline_with);
+}
+
+void format_make_interactive_line_with (string variable) {
+  format_environment_prompt (variable, format_prompt_action::line_with);
+}
+
+void format_make_interactive_with_opacity () {
+  format_prompt ("opacity", std::nullopt, format_prompt_action::wrapper,
+                 "", as_tree_label ("with-opacity"));
+}
+
+void format_make_interactive_space (string kind) {
+  format_prompt_action action;
+  string proposal= "1em";
+  if (kind == "hspace") action= format_prompt_action::hspace;
+  else if (kind == "space") action= format_prompt_action::rigid_space;
+  else if (kind == "tab") action= format_prompt_action::tab;
+  else if (kind == "vspace-before") {
+    action= format_prompt_action::vspace_before;
+    proposal= "1fn";
+  }
+  else if (kind == "vspace-after") {
+    action= format_prompt_action::vspace_after;
+    proposal= "1fn";
+  }
+  else FAILED ("invalid interactive spacing kind");
+  format_prompt ("Length", proposal, action, "");
+}
+
+void format_make_interactive_box () {
+  const ExecutionContext* context= current_execution_context ();
+  ASSERT (context != nullptr && context->actor_id != ATHENA_NO_ACTOR,
+          "interactive rigid box requires a BufferActor");
+  const auto actor= context->actor_id;
+  const auto view= context->view_id;
+  const auto capabilities= context->capabilities;
+  QTMInteractiveField width, above, below;
+  width.prompt= "Width";
+  above.prompt= "Height above baseline";
+  below.prompt= "Depth below baseline";
+  width.type= above.type= below.type= "string";
+  width.proposals << string ("1em");
+  above.proposals << string ("0ex");
+  below.proposals << string ("0ex");
+  qtm_interactive_form_async (
+    "Rigid box", {width, above, below},
+    [actor, view, capabilities] (std::vector<std::string> answers) {
+      if (answers.size () != 3) return;
+      auto id= actor_continuation_registry::instance ().store (
+        [values= std::move (answers)] {
+          const ExecutionContext* context= current_execution_context ();
+          if (context == nullptr || context->editor == nullptr) return;
+          auto from= [] (const std::string& value) {
+            return string (value.data (), static_cast<int> (value.size ()));
+          };
+          get_current_editor ()->make_space (
+            from (values[0]), from (values[1]), from (values[2]));
+        });
+      if (!buffer_actor::submit_to (
+            actor, actor_command_kind::run_native_continuation,
+            view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, capabilities, id))
+        actor_continuation_registry::instance ().discard (id);
+    });
+}
+
+void format_hyphenate_selection () {
+  editor ed= get_current_editor ();
+  if (!ed->selection_active_small ()) return;
+  tree selected= ed->selection_get ();
+  if (!is_atomic (selected)) return;
+  format_prompt ("Hyphenate as", selected->label,
+                 format_prompt_action::hyphenate, "");
+}
+
+void format_make_alternate (string prompt, string proposal, tree_label tag) {
+  format_prompt (prompt, proposal, format_prompt_action::wrapper, "", tag);
+}
+
+tree format_with_set (tree t, tree variable, tree value) {
+  int i= property_index (t, variable);
+  if (i >= 0) {
+    // The shared diff helper preserves cursors inside an edited property value.
+    value= copy (value);
+    athena::node::copy_metadata (t[i + 1], value);
+    if (tree_active (t[i + 1]))
+      tree_set_diff (t[i + 1], value);
+    else tree_set (t, i + 1, copy (value));
+  }
+  else if (is_func (t, WITH) && N (t) > 0)
+    t= tree_insert (t, N (t) - 1, tree (TUPLE, variable, value));
+  else t= tree_insert_node (t, 2, tree (WITH, variable, value));
+  return t;
+}
+
+void format_with_simplify (tree t) {
+  if (admits_edit_observer (t) || !tree_active (t)) return;
+  tree parent;
+  if (!parent_tree (t, parent)) return;
+  tracked_tree current (t);
+  format_with_simplify (parent);
+  t= current.get ();
+  if (!is_func (t, WITH)) return;
+  for (int i= 0; i + 2 < N (t); i+= 2)
+    if (parent_tree (t, parent)) simplify_outer (parent, t[i]);
+}
+
+void format_with_merge (tree t) {
+  tree parent;
+  if (!is_func (t, WITH) || N (t) == 0 || athena::node::get (t) ||
+      !parent_tree (t, parent) || !is_func (parent, WITH)) return;
+  tree properties (TUPLE, N (t) - 1);
+  for (int i= 0; i < N (properties); ++i) properties[i]= copy (t[i]);
+  tree_remove_node (t, N (t) - 1);
+  tree_insert (parent, N (parent) - 1, properties);
+}
+
+bool format_test_env (string variable, string value) {
+  return get_current_editor ()->get_env_string (variable) == value;
+}
+
+void format_tree_with_set (tree t, tree wrapper) {
+  ASSERT (is_func (wrapper, WITH) && N(wrapper) % 2 == 0,
+          "format wrapper must contain variable/value pairs without a body");
+  t= tree_insert_node (t, N (wrapper), wrapper);
+  tracked_tree current (t);
+  format_with_simplify (t);
+  format_with_merge (current.get ());
+}
+
+std::optional<tree> format_tree_with_get (tree t, tree variable) {
+  do {
+    int i= property_index (t, variable, true);
+    if (i >= 0) return t[i + 1];
+  } while (enclosing_property_scope (t, t));
+  return std::nullopt;
+}
+
+void format_tree_with_reset (tree t, tree variable) {
+  if (!tree_active (t)) return;
+  do {
+    int i= property_index (t, variable, true);
+    if (i >= 0) {
+      t= tree_remove (t, i, 2);
+      if (N (t) == 1 && !athena::node::get (t)) tree_remove_node (t, 0);
+      return;
+    }
+  } while (enclosing_property_scope (t, t));
+}
+
+bool format_with_like_check_insert (tree t) {
+  editor ed= get_current_editor ();
+  tree u= cursor_tree ();
+  if (ed->command_tree_with_same_type (t, u)) {
+    go_body (u, last_item (get_current_editor ()->the_path ()) != 0);
+    return true;
+  }
+  u= cursor_tree (true);
+  if (ed->command_tree_with_same_type (t, u)) {
+    go_body (u, false);
+    return true;
+  }
+  if (with_like_search (cursor_tree (), u) && ed->command_tree_with_same_type (t, u)) {
+    string tag= as_string (L (t));
+    get_current_editor ()->set_message (
+      tree (CONCAT, "Warning: already inside '", tag, "'"),
+      tree (CONCAT, "make '", tag, "'"));
+    return true;
+  }
+  return false;
+}
+
+void format_make_with_like (tree t) {
+  editor ed= get_current_editor ();
+  if (is_func (t, WITH, 3)) {
+    if (ed->selection_active_table ()) ed->cell_set_format (as_string (t[0]), t[1]);
+    else if (is_atomic (t[1])) ed->make_with (as_string (t[0]), t[1]->label);
+    else ed->var_insert_tree (t, path (2, 0));
+  }
+  else if (is_compound (t) && N (t) == 1)
+    // The public constructor includes mode-dependent inline/block wrapping.
+    insertion_make (L (t));
+  else if (is_compound (t) && N (t) > 0) {
+    t= copy (t);
+    path destination (N (t) - 1, 0);
+    if (ed->selection_active_any ()) {
+      tree selected= copy (ed->selection_get ());
+      t[N (t) - 1]= selected;
+      destination= ed->command_tree_end (t, path (N (t) - 1));
+      ed->selection_cut ("nowhere");
+    }
+    ed->var_insert_tree (t, destination);
+  }
+}
+
+void format_toggle_with_like (tree wrapper, std::optional<tree> back) {
+  editor ed= get_current_editor ();
+  tree t, root= ed->the_root ();
+  bool found= false;
+  if (ed->selection_active_any ()) {
+    t= subtree (root, ed->selection_get_path ());
+    found= ed->selection_get () == t;
+  }
+  if (!found) {
+    tree parent;
+    found= parent_tree (cursor_tree (), parent) && with_like_search (parent, t);
+  }
+  if (!found || !ed->command_tree_with_same_type (t, wrapper))
+    format_make_with_like (wrapper);
+  else if (!back || is_empty (t[N (t) - 1])) {
+    t= tree_remove_node (t, N (t) - 1);
+    tree parent;
+    if (parent_tree (t, parent)) ed->correct_tree_node (parent);
+  }
+  else if (at_body_border (t[N (t) - 1], false))
+    ed->go_to (reverse (obtain_ip (t)) * 0);
+  else if (at_body_border (t[N (t) - 1], true))
+    ed->go_to (reverse (obtain_ip (t)) * 1);
+  else format_make_with_like (*back);
+}
+
+void format_toggle_bold () {
+  format_toggle_with_like (tree (WITH, "font-series", "bold", ""),
+    tree (WITH, "font-series", "medium", ""));
+}
+
+void format_toggle_italic () {
+  format_toggle_with_like (tree (WITH, "font-shape", "italic", ""),
+    tree (WITH, "font-shape", "right", ""));
+}
+
+void format_toggle_small_caps () {
+  format_toggle_with_like (tree (WITH, "font-shape", "small-caps", ""),
+    tree (WITH, "font-shape", "right", ""));
+}
+
+void format_toggle_underlined () {
+  format_toggle_with_like (tree (as_tree_label ("underline"), ""), std::nullopt);
+}
+
+bool format_focus_has_preferences (tree t) {
+  if (parameter_data ().definitions.value ("focus_no_preferences")
+        .toArray ().contains (json_key (as_string (L(t))))) return false;
+  return is_extension (t) || parameter_data ().definitions.value ("focus_preferences")
+    .toArray ().contains (json_key (as_string (L (t))));
+}
+
+std::optional<array<string>> format_standard_parameters (string tag) {
+  QJsonValue values= parameter_data ().definitions.value ("standard").toObject ().value (json_key (tag));
+  if (values.isObject ()) {
+    const QJsonObject rule= values.toObject ();
+    array<string> result;
+    for (const auto& value: rule.value ("prepend").toArray ())
+      result << native_string (value.toString ());
+    const auto inherited= source_search_parameters (
+      native_string (rule.value ("inherit").toString ()));
+    for (int i=0; i<N(inherited); ++i)
+      if (!rule.value ("exclude").toArray ().contains (json_key (inherited[i])))
+        result << inherited[i];
+    return result;
+  }
+  if (!values.isArray ()) return std::nullopt;
+  array<string> result;
+  for (const auto& value: values.toArray ()) result << native_string (value.toString ());
+  return result;
+}
+
+bool format_parameter_inhibited (string name, bool global) {
+  return parameter_data ().definitions.value (global ? "inhibit_global" : "inhibit_local")
+    .toArray ().contains (json_key (name));
+}
+
+string format_focus_name (string tag) {
+  const QByteArray value= parameter_data ().definitions.value ("focus_names")
+    .toObject ().value (json_key (tag)).toString ().toUtf8 ();
+  return string (value.constData (), value.size ());
+}
+
+std::optional<array<string>> format_focus_variants (string tag) {
+  QJsonValue values= parameter_data ().definitions.value ("focus_variants")
+    .toObject ().value (json_key (tag));
+  if (!values.isArray ()) return std::nullopt;
+  array<string> result;
+  for (QJsonValue value: values.toArray ()) {
+    QByteArray bytes= value.toString ().toUtf8 ();
+    result << string (bytes.constData (), bytes.size ());
+  }
+  return result;
+}
+
+format_style_options format_standard_options (string name) {
+  QJsonValue rule= parameter_data ().definitions.value ("standard_options")
+    .toObject ().value (json_key (name));
+  if (!rule.isObject ()) {
+    for (QJsonValue candidate: parameter_data ().definitions.value ("standard_option_rules").toArray ()) {
+      const QJsonObject entry= candidate.toObject ();
+      string base= name;
+      if (entry.value ("numbered_variants").toBool () && ends (base, "*"))
+        base= base (0, N(base)-1);
+      bool matches= entry.value ("tags").toArray ().contains (json_key (base));
+      for (QJsonValue group: entry.value ("groups").toArray ())
+        matches= matches || athena::contracts::standard_node_groups ().contains (
+          group.toString ().toStdString (), std::string (base.data (), N(base)));
+      if (matches) { rule= entry; break; }
+    }
+  }
+  if (!rule.isObject ()) return {};
+  format_style_options result;
+  result.recurse= rule.toObject ().value ("recurse").toBool ();
+  for (const auto& package: rule.toObject ().value ("packages").toArray ())
+    result.packages.push_back (native_string (package.toString ()));
+  return result;
+}
+
+std::vector<format_parameter_choice> format_parameter_choices (string variable) {
+  QString key= json_key (variable);
+  for (QJsonValue item: parameter_data ().definitions.value ("choices").toArray ()) {
+    QJsonObject rule= item.toObject ();
+    bool matches= rule.value ("names").toArray ().contains (key);
+    for (QJsonValue suffix: rule.value ("suffixes").toArray ())
+      matches= matches || key.endsWith (suffix.toString ());
+    if (matches) {
+      std::vector<format_parameter_choice> choices;
+      for (QJsonValue value: rule.value ("values").toArray ()) {
+        if (value.isString ()) {
+          string text= native_string (value.toString ());
+          choices.push_back ({text, tree (text)});
+        }
+        else {
+          const QJsonObject choice= value.toObject ();
+          choices.push_back ({native_string (choice.value ("label").toString ()),
+                              parameter_tree (choice.value ("tree"))});
+        }
+      }
+      return choices;
+    }
+  }
+  return {};
+}
+
+std::vector<format_customizable_parameter> format_customizable_parameters (tree t) {
+  QJsonObject group= parameter_data ().customizable.value (json_key (as_string (L (t)))).toObject ();
+  QJsonObject by_arity= group.value ("parameters_by_arity").toObject ();
+  QJsonArray values= by_arity.value (QString::number (N(t))).toArray ();
+  if (!by_arity.contains (QString::number (N(t))))
+    values= group.value ("parameters").toArray ();
+  std::vector<format_customizable_parameter> result;
+  for (const auto& value: values) {
+    const QJsonArray parameter= value.toArray ();
+    result.push_back ({native_string (parameter[0].toString ()),
+                      native_string (parameter[1].toString ())});
+  }
+  return result;
+}
+
+bool format_pen_effect_context (tree t) {
+  return parameter_data ().effect_families.contains (json_key (as_string (L (t))));
+}
+
+std::optional<string> format_get_effect_pen (tree t) {
+  QJsonValue pen= parameter_data ().effect_pens.value (json_key (as_string (L (t))));
+  if (!pen.isString ()) return std::nullopt;
+  return native_string (pen.toString ());
+}
+
+void format_set_effect_pen (tree t, string pen) {
+  const format_parameter_data& data= parameter_data ();
+  QJsonValue family= data.effect_families.value (json_key (as_string (L (t))));
+  if (!family.isString () || !data.definitions.value ("pens").toArray ().contains (json_key (pen))) return;
+  editing_variant_set (t, as_tree_label (pen * "-" * native_string (family.toString ())));
+}
+
+void format_make_multi_with (tree wrapper) {
+  ASSERT (is_func (wrapper, WITH) && N(wrapper) % 2 == 0,
+          "format wrapper must contain variable/value pairs without a body");
+  if (N (wrapper) == 0) return;
+  editor ed= get_current_editor ();
+  if (ed->selection_active_table ()) {
+    ed->with_table_context ([&] {
+      array<int> cells= ed->table_which_cells ();
+      bool multiple= N (cells) == 4 &&
+        (cells[0] != cells[1] || cells[2] != cells[3]);
+      std::array<int, 4> selected {};
+      if (multiple)
+        for (int i= 0; i < 4; ++i) selected[i]= cells[i];
+      for (int i= 0; i < N (wrapper); i+= 2) {
+        // Re-establish the range after each property's structure correction.
+        if (i > 0 && multiple) restore_cells (selected);
+        ed->cell_set_format (as_string (wrapper[i]), wrapper[i + 1]);
+      }
+      restore_cells_after_command (cells);
+    });
+  }
+  else if (ed->selection_active_any ()) {
+    tree selected= ed->selection_get ();
+    path destination;
+    wrapper= add_with (wrapper, selected, destination);
+    destination= ed->command_tree_end (wrapper, destination);
+    ed->selection_cut ("null");
+    ed->var_insert_tree (wrapper, destination);
+    format_with_simplify (cursor_tree ());
+    tree t;
+    if (innermost_with (t)) select_tree (t);
+  }
+  else {
+    path destination (N (wrapper), 0);
+    wrapper << tree ("");
+    ed->var_insert_tree (wrapper, destination);
+    format_with_simplify (cursor_tree ());
+  }
+}
+
+void format_make_line_with (string variable, tree value) {
+  editor ed= get_current_editor ();
+  if (!ed->selection_active_normal ()) ed->select_line ();
+  format_make_with_like (tree (WITH, variable, value, ""));
+  generic_insert_return ();
+  ed->remove_text (false);
+}
+
+void format_make_multi_line_with (tree properties) {
+  ASSERT (is_func (properties, WITH) && N(properties) % 2 == 0,
+          "format wrapper must contain variable/value pairs without a body");
+  if (N (properties) == 0) return;
+  editor ed= get_current_editor ();
+  if (ed->selection_active_table ()) { format_make_multi_with (properties); return; }
+  if (!ed->selection_active_normal ()) ed->select_line ();
+  format_make_multi_with (properties);
+  generic_insert_return ();
+  ed->remove_text (false);
+  tree t;
+  if (innermost_with (t)) {
+    format_with_simplify (t);
+    if (innermost_with (t)) {
+      format_with_merge (t);
+      if (innermost_with (t)) select_tree (t);
+    }
+  }
+}
+
+static void page_break (const char* tag) {
+  insertion_make (as_tree_label (tag));
+  generic_insert_return ();
+}
+
+void format_make_page_break () { page_break ("page-break"); }
+void format_make_new_page () { page_break ("new-page"); }
+void format_make_new_dpage () { page_break ("new-dpage"); }

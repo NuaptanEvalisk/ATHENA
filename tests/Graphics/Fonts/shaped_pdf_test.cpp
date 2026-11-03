@@ -7,20 +7,20 @@
  * It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
  * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
  ******************************************************************************/
-#include "Pdf/pdf_hummus_renderer.hpp"
+#include "Rendering/Pdf/pdf_hummus_renderer.hpp"
 #include "boot.hpp"
 #include "data_cache.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 #include "font.hpp"
-#include "Boxes/construct.hpp"
-#include "Boxes/utf8_line.hpp"
+#include "Typesetting/Boxes/construct.hpp"
+#include "Typesetting/Boxes/utf8_line.hpp"
 #include "unicode_text.hpp"
 #include "shaped_line.hpp"
 #include "font_selection.hpp"
 #include "font_database.hpp"
 #include "pdf_text_string.hpp"
 #include "printer.hpp"
-#include "Ghostscript/gs_utilities.hpp"
+#include "Integrations/Ghostscript/gs_utilities.hpp"
 #include "native_dispatch.hpp"
 #include <QCoreApplication>
 #include <QFile>

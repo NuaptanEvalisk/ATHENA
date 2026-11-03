@@ -1,6 +1,6 @@
 #include <QtTest/QtTest>
 
-#include "Edit/Interface/resize_viewport_restore.hpp"
+#include "Editor/Commands/resize_viewport_restore.hpp"
 
 class ResizeViewportRestoreTest: public QObject {
   Q_OBJECT

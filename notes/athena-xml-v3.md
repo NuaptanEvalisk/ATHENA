@@ -37,9 +37,9 @@ migration assignment. Source code and `AGENTS.md` govern implementation details.
 ## Strict native XML v3 format
 
 The authoritative implementations are
-`src/Data/Convert/Xml/athena_document_xml_v3.cpp`,
-`src/Data/Convert/Xml/athena_document_xml.hpp`, and
-`src/Data/Tree/math_tree_v3.{hpp,cpp}`.
+`src/Document/Convert/Xml/athena_document_xml_v3.cpp`,
+`src/Document/Convert/Xml/athena_document_xml.hpp`, and
+`src/Document/Tree/math_tree_v3.{hpp,cpp}`.
 
 | Concept | Canonical XML |
 | --- | --- |
@@ -106,19 +106,19 @@ same structural and identity contracts.
 
 ## Implementation entry points and remaining maintenance
 
-- XML v3 codec: `src/Data/Convert/Xml/athena_document_xml_v3.cpp`;
+- XML v3 codec: `src/Document/Convert/Xml/athena_document_xml_v3.cpp`;
   version dispatch: `native_xml_codec.cpp` and `document_file_codec.cpp`.
-- Math grammar: `src/Data/Tree/math_tree_v3.{hpp,cpp}`, tree labels and
-  `src/Data/NodeContracts/`.
-- Editing: `src/Edit/Modify/edit_math.cpp` and `src/Edit/Interface/`.
+- Math grammar: `src/Document/Tree/math_tree_v3.{hpp,cpp}`, tree labels and
+  `src/Document/NodeContracts/`.
+- Editing: `src/Editor/Modify/edit_math.cpp` and `src/Editor/Commands/`.
   Recent 2026-10-19/20 commits repaired native scripts, delimiters, formula
   focus, MathBlock/MathGrid insertion, and grid row editing. Read HEAD rather
   than redoing earlier handoff TODOs.
-- Typesetting: `src/Typeset/Concat/concat_math.cpp`,
-  `src/Typeset/Table/`; export/import: `src/Data/Convert/Tex/`,
-  native MathML/HTML conversion in `src/Data/Convert/Xml/`.
-- Vault lifecycle: `src/ATHENA/Data/vault.cpp`; Hodarium descriptors and
-  transport: `src/ATHENA/Hodarium/revisions.hpp`,
+- Typesetting: `src/Typesetting/Concat/concat_math.cpp`,
+  `src/Typesetting/Table/`; export/import: `src/Document/Convert/Tex/`,
+  native MathML/HTML conversion in `src/Document/Convert/Xml/`.
+- Vault lifecycle: `src/Domains/Vault/vault.cpp`; Hodarium descriptors and
+  transport: `src/Sync/Hodarium/revisions.hpp`,
   `peer_replication.cpp`, `revision_transfer.cpp`.
 - Tests: `tests/Data/Convert/Xml/xml_v3_test.cpp`,
   `tests/Edit/Modify/native_v3_math_editor_test.cpp`,

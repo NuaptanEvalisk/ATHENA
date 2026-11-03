@@ -8,7 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-#include "ATHENA/Data/websites_internal.hpp"
+#include "Domains/Websites/websites_internal.hpp"
 
 #include <QFile>
 #include <QTemporaryDir>

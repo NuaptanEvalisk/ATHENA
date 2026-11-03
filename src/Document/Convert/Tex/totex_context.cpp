@@ -1,0 +1,4191 @@
+/******************************************************************************
+* MODULE     : totex_context.cpp
+* DESCRIPTION: Native mutable state for LaTeX export
+* COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+*******************************************************************************/
+
+#include "convert.hpp"
+#include "boot.hpp"
+#include "Document/Convert/Tex/totex_internal.hpp"
+#include "Document/Convert/Tex/latex_preprocess.hpp"
+#include "converter.hpp"
+#include "analyze.hpp"
+#include "colors.hpp"
+#include "base64.hpp"
+#include "hashmap.hpp"
+#include "iterator.hpp"
+#include "new_style.hpp"
+#include "Document/NodeContracts/builtin_contracts.hpp"
+#include "Document/NodeContracts/editing_query.hpp"
+#include "file.hpp"
+#include "new_view.hpp"
+#include "unicode_text.hpp"
+#include "math_tree_v3.hpp"
+#include "node_metadata.hpp"
+#include <stdexcept>
+
+namespace {
+
+using latex_export_internal::empty_string_stree;
+using latex_export_internal::one_of;
+
+struct LatexExportContext {
+  hashmap<string,array<scheme_tree>> env;
+  hashmap<string,string> dynamic;
+  hashmap<string,int> command_text_uses;
+  hashmap<string,int> command_math_uses;
+  array<string> languages;
+  array<string> colors;
+  array<string> colormaps;
+  hashmap<string,string> portable_image_copies;
+  hashmap<string,bool> portable_image_used;
+  hashmap<string,scheme_tree> placeholders;
+  url image_root_url;
+  string image_root_string;
+  url save_source_url;
+  url save_target_url;
+  string latex_language;
+  string latex_style;
+  array<string> latex_packages;
+  array<string> latex_extra_packages;
+  array<string> latex_virtual_packages;
+  array<string> latex_all_packages;
+  string latex_texmacs_style;
+  array<string> latex_dependencies;
+  int serial;
+  int ref_count;
+  int auto_produce;
+  int auto_consume;
+  int athena_data_serial;
+  int placeholder_serial;
+  int export_depth;
+  int native_v3_delimiter_depth;
+  int native_v3_block_numbered;
+  bool appendices;
+  bool mathjax;
+  bool replace_style;
+  bool portable;
+  bool cjk_document;
+  bool use_catcodes;
+  bool use_unicode;
+  bool use_ascii;
+  bool use_macros;
+
+  LatexExportContext ():
+    env (array<scheme_tree> ()), dynamic (""), command_text_uses (0),
+    command_math_uses (0), portable_image_copies (""),
+    portable_image_used (false), placeholders (tree ("#f")),
+    latex_language ("english"), latex_style ("generic"),
+    latex_texmacs_style ("generic"), serial (0),
+    ref_count (1), auto_produce (0), auto_consume (0), athena_data_serial (0),
+    placeholder_serial (0), export_depth (0), native_v3_delimiter_depth (0),
+    native_v3_block_numbered (-1),
+    appendices (false),
+    mathjax (false), replace_style (true), portable (false),
+    cjk_document (false), use_catcodes (false), use_unicode (false),
+    use_ascii (false), use_macros (false) {
+    latex_dependencies << string ("generic");
+  }
+
+  void reset () {
+    env= hashmap<string,array<scheme_tree>> (array<scheme_tree> ());
+    dynamic= hashmap<string,string> ("");
+    command_text_uses= hashmap<string,int> (0);
+    command_math_uses= hashmap<string,int> (0);
+    portable_image_copies= hashmap<string,string> ("");
+    portable_image_used= hashmap<string,bool> (false);
+    serial= 0;
+    ref_count= 1;
+    auto_produce= 0;
+    auto_consume= 0;
+    native_v3_delimiter_depth= 0;
+    native_v3_block_numbered= -1;
+    athena_data_serial= 0;
+    appendices= false;
+    mathjax= false;
+    portable= false;
+  }
+};
+
+// Export runs on the owning Scheme/BufferActor thread.  The native top-level
+// driver resets this thread-local context for each conversion; thread-local
+// storage also prevents simultaneous BufferActors from sharing exporter state.
+thread_local LatexExportContext latex_export_context;
+// This is the original document, not the rewritten exporter syntax tree.
+// Its lifetime is scoped by latex_export_convert_top on the owning thread.
+thread_local const tree* native_mode_stats_source= nullptr;
+
+array<scheme_tree>
+env_values (string var) {
+  return latex_export_context.env[var];
+}
+
+void
+prepend_unique_string (array<string>& values, string value) {
+  for (int i=0; i<N(values); ++i)
+    if (values[i] == value) return;
+  array<string> next;
+  next << value;
+  for (int i=0; i<N(values); ++i) next << values[i];
+  values= next;
+}
+
+bool
+contains_string (const array<string>& values, string value) {
+  for (int i=0; i<N(values); ++i)
+    if (values[i] == value) return true;
+  return false;
+}
+
+bool
+stree_list (scheme_tree t) {
+  return is_tuple (t);
+}
+
+bool
+string_atom (scheme_tree t) {
+  return is_atomic (t) && is_quoted (t->label);
+}
+
+string
+atom_text (scheme_tree t) {
+  if (!is_atomic (t)) return "";
+  return is_quoted (t->label) ? scm_unquote (t->label) : t->label;
+}
+
+bool
+head_is (scheme_tree t, string head) {
+  return stree_list (t) && N(t) > 0 && is_atomic (t[0]) &&
+         t[0]->label == head;
+}
+
+bool
+func_is (scheme_tree t, string head, int arity= -1) {
+  return head_is (t, head) && (arity < 0 || N(t) == arity + 1);
+}
+
+scheme_tree
+stree_list_new () {
+  return scheme_tree (TUPLE);
+}
+
+scheme_tree
+stree_string (string value) {
+  return tree (scm_quote (value));
+}
+
+scheme_tree
+stree_apply (string head) {
+  scheme_tree r (TUPLE);
+  r << tree (head);
+  return r;
+}
+
+scheme_tree
+tmtex_convert (scheme_tree t) {
+  return latex_export_convert_node (t);
+}
+
+scheme_tree
+tmtex_convert_list (scheme_tree l) {
+  scheme_tree r (TUPLE);
+  if (!stree_list (l)) return r;
+  for (int i=0; i<N(l); ++i) r << tmtex_convert (l[i]);
+  return r;
+}
+
+scheme_tree
+source_apply (string head, scheme_tree args) {
+  scheme_tree r= stree_apply (head);
+  if (stree_list (args))
+    for (int i=0; i<N(args); ++i) r << args[i];
+  return r;
+}
+
+string tmtex_var_name_native (string var);
+scheme_tree with_one_native (string var, string val, scheme_tree arg);
+scheme_tree decode_color_native (string color, bool force_html);
+
+bool
+contains_text (string s, string needle) {
+  return search_forwards (needle, 0, s) >= 0;
+}
+
+bool
+experimental_warning_name (scheme_tree x) {
+  return is_atomic (x) && atom_text (x) == "experimental-build-warning";
+}
+
+bool
+tree_contains_string (scheme_tree t, string what) {
+  if (string_atom (t)) return contains_text (atom_text (t), what);
+  if (!stree_list (t)) return false;
+  for (int i=0; i<N(t); ++i)
+    if (tree_contains_string (t[i], what)) return true;
+  return false;
+}
+
+bool
+experimental_warning (scheme_tree t) {
+  return head_is (t, "experimental-build-warning") ||
+         (head_is (t, "compound") && N(t) > 1 && experimental_warning_name (t[1])) ||
+         (head_is (t, "error") &&
+          tree_contains_string (t, "compound experimental-build-warning")) ||
+         (head_is (t, "note") &&
+          tree_contains_string (t, "This document was typeset") &&
+          tree_contains_string (t, "currently experimental") &&
+          tree_contains_string (t, "GitHub Issues"));
+}
+
+string
+athena_data_record (string cmd, const array<string>& vals) {
+  string r= "ATHENA-DATA cmd=\"" * cmd * "\" val=(";
+  for (int i=0; i<N(vals); ++i) {
+    if (i) r << ", ";
+    r << "\"" << vals[i] << "\"";
+  }
+  return r * ")";
+}
+
+string
+athena_data_object (scheme_tree st) {
+  if (experimental_warning (st)) st= stree_apply ("experimental-build-warning");
+  string payload= replace (
+    encode_base64 (tree_to_texmacs (scheme_tree_to_tree (st))), "\n", "");
+  array<string> vals;
+  vals << as_string (N(payload)) << payload;
+  return athena_data_record ("object", vals);
+}
+
+scheme_tree
+athena_data_inline (scheme_tree records) {
+  scheme_tree r= stree_apply ("!athena-data-inline");
+  r << records;
+  return r;
+}
+
+bool
+latex_empty (scheme_tree x) {
+  if (empty_string_stree (x)) return true;
+  if (head_is (x, "!concat") || head_is (x, "!document")) {
+    for (int i=1; i<N(x); ++i)
+      if (!latex_empty (x[i])) return false;
+    return true;
+  }
+  return false;
+}
+
+scheme_tree
+trim_latex_empties (scheme_tree body) {
+  if (!stree_list (body)) return body;
+  int first= 0;
+  while (first < N(body) && latex_empty (body[first])) ++first;
+  int last= N(body);
+  while (last > first && latex_empty (body[last-1])) --last;
+  scheme_tree r (TUPLE);
+  for (int i=first; i<last; ++i) r << body[i];
+  return r;
+}
+
+scheme_tree
+clean_athena_fallback (scheme_tree fallback) {
+  if (!head_is (fallback, "!document") && !head_is (fallback, "!concat"))
+    return fallback;
+  scheme_tree body (TUPLE);
+  for (int i=1; i<N(fallback); ++i) body << fallback[i];
+  body= trim_latex_empties (body);
+  if (N(body) == 0) return stree_string ("");
+  scheme_tree r= stree_apply (fallback[0]->label);
+  for (int i=0; i<N(body); ++i) r << body[i];
+  return r;
+}
+
+scheme_tree
+placeholder_object (scheme_tree st) {
+  string marker= "ATHENAEXPORTOBJECT" *
+                 as_string (latex_export_context.placeholder_serial++) * "X";
+  scheme_tree records (TUPLE);
+  records << stree_string (athena_data_object (st));
+  latex_export_context.placeholders (marker)= athena_data_inline (records);
+  return stree_string (marker);
+}
+
+bool
+drop_marker (scheme_tree x) {
+  return func_is (x, "!athena-drop", 0);
+}
+
+scheme_tree
+discard_experimental_warning (scheme_tree t) {
+  if (experimental_warning (t)) {
+    scheme_tree st= head_is (t, "experimental-build-warning") ?
+                    t : stree_apply ("experimental-build-warning");
+    return placeholder_object (st);
+  }
+  if (head_is (t, "!athena-data-inline") || head_is (t, "athena-preserved-object"))
+    return t;
+  if (!stree_list (t)) return t;
+  scheme_tree r (TUPLE);
+  for (int i=0; i<N(t); ++i) {
+    scheme_tree child= discard_experimental_warning (t[i]);
+    if (!drop_marker (child)) r << child;
+  }
+  return r;
+}
+
+scheme_tree
+athena_data_wrap_with_records (scheme_tree st, scheme_tree records,
+                               scheme_tree fallback) {
+  string id= as_string (++latex_export_context.athena_data_serial);
+  fallback= clean_athena_fallback (fallback);
+
+  scheme_tree begin_records (TUPLE);
+  begin_records << stree_string (athena_data_object (st));
+  if (stree_list (records))
+    for (int i=0; i<N(records); ++i) begin_records << records[i];
+  array<string> begin_id; begin_id << id;
+  begin_records << stree_string (athena_data_record ("skip_begin", begin_id));
+
+  scheme_tree end_records (TUPLE);
+  array<string> end_id; end_id << id;
+  end_records << stree_string (athena_data_record ("skip_end", end_id));
+
+  scheme_tree r= stree_apply ("!concat");
+  r << athena_data_inline (begin_records) << fallback << athena_data_inline (end_records);
+  return r;
+}
+
+bool
+export_math_mode () {
+  array<scheme_tree> values= env_values ("mode");
+  return N(values) > 0 && string_atom (values[0]) && atom_text (values[0]) == "math";
+}
+
+scheme_tree
+preserve_object (scheme_tree st) {
+  scheme_tree records (TUPLE);
+  records << stree_string (athena_data_object (st));
+  return athena_data_inline (records);
+}
+
+scheme_tree
+preserve_lossy (scheme_tree st, scheme_tree fallback) {
+  return latex_empty (fallback) ? preserve_object (st)
+                                : athena_data_wrap_with_records (
+                                    st, scheme_tree (TUPLE), fallback);
+}
+
+scheme_tree
+converted_child (scheme_tree args, int index) {
+  if (!stree_list (args) || index < 0 || index >= N(args))
+    return stree_string ("");
+  return tmtex_convert (args[index]);
+}
+
+scheme_tree
+tex_apply_fixed (string command) {
+  scheme_tree application= stree_apply (command);
+  if (export_math_mode ()) return application;
+  scheme_tree group= stree_apply ("!group");
+  group << application;
+  return group;
+}
+
+string
+decode_length_string (string s) {
+  if (ends (s, "fn"))  return replace (s, "fn", "em");
+  if (ends (s, "tab")) return replace (s, "tab", "em");
+  if (ends (s, "spc")) return replace (s, "spc", "em");
+  if (ends (s, "sep")) return replace (s, "sep", "ex");
+  if (ends (s, "par")) return replace (s, "par", "\\columnwidth");
+  if (ends (s, "pag")) return replace (s, "pag", "\\textheight");
+
+  string parsed= s;
+  while (starts (parsed, "--")) parsed= parsed (2, N(parsed));
+  int i=0;
+  while (i < N(parsed) &&
+         (is_digit (parsed[i]) || parsed[i] == '-' || parsed[i] == '.')) ++i;
+  if (i > 0 && parsed (i, N(parsed)) == "px" && is_double (parsed (0, i)))
+    return as_string (0.75 * as_double (parsed (0, i))) * "pt";
+  return s;
+}
+
+bool
+px_length_string (string s) {
+  while (starts (s, "--")) s= s (2, N(s));
+  int i=0;
+  while (i < N(s) && (is_digit (s[i]) || s[i] == '-' || s[i] == '.')) ++i;
+  return i > 0 && s (i, N(s)) == "px" && is_double (s (0, i));
+}
+
+scheme_tree
+tex_apply_one (string command, scheme_tree arg) {
+  scheme_tree application= stree_apply (command);
+  application << arg;
+  if (export_math_mode ()) return application;
+  scheme_tree group= stree_apply ("!group");
+  group << application;
+  return group;
+}
+
+scheme_tree
+hspace_command (scheme_tree args) {
+  if (!stree_list (args) || N(args) == 0) return stree_string ("");
+  scheme_tree raw= N(args) == 1 ? args[0] : args[1];
+  string s= string_atom (raw) ? atom_text (raw) : "";
+  if (s == "0.5fn" || s == "0.5em") return stree_apply ("enspace");
+  if (s == "1fn" || s == "1em") return stree_apply ("quad");
+  if (s == "2fn" || s == "2em") return stree_apply ("qquad");
+  if (s == "0.2spc") return stree_apply (",");
+  if (!export_math_mode ()) {
+    if (s == "0.4spc" || s == "0.6spc" || s == "0.16667em")
+      return stree_apply (",");
+    return tex_apply_one ("hspace", stree_string (decode_length_string (s)));
+  }
+  if (s == "0.4spc") return stree_apply (":");
+  if (s == "0.6spc") return stree_apply (";");
+  if (s == "-0.6spc" || s == "-0.4spc" || s == "-0.2spc") {
+    int count= s == "-0.6spc" ? 3 : (s == "-0.4spc" ? 2 : 1);
+    scheme_tree out= stree_apply ("!concat");
+    for (int i=0; i<count; ++i) out << stree_apply ("!");
+    return out;
+  }
+  return tex_apply_one ("hspace", stree_string (decode_length_string (s)));
+}
+
+scheme_tree
+vspace_command (scheme_tree args) {
+  if (!stree_list (args) || N(args) == 0) return stree_string ("");
+  scheme_tree raw= N(args) == 1 ? args[0] : args[1];
+  string s= string_atom (raw) ? atom_text (raw) : "";
+  if (s == "0.5fn") return tex_apply_fixed ("smallskip");
+  if (s == "1fn") return tex_apply_fixed ("medskip");
+  if (s == "2fn") return tex_apply_fixed ("bigskip");
+  return tex_apply_one ("vspace", stree_string (decode_length_string (s)));
+}
+
+bool
+sectional_command (string command) {
+  static const char* names[]= {
+    "part", "chapter", "appendix", "section", "subsection", "subsubsection",
+    "paragraph", "subparagraph", "part*", "chapter*", "appendix*", "section*",
+    "subsection*", "subsubsection*", "paragraph*", "subparagraph*"
+  };
+  return one_of (command, names, sizeof (names) / sizeof (names[0]));
+}
+
+scheme_tree
+tex_apply_converted (string command, scheme_tree converted_args) {
+  scheme_tree application= stree_apply (command);
+  if (stree_list (converted_args))
+    for (int i=0; i<N(converted_args); ++i) application << converted_args[i];
+  if (export_math_mode () || sectional_command (command)) return application;
+  scheme_tree group= stree_apply ("!group");
+  group << application;
+  return group;
+}
+
+scheme_tree
+tex_math_apply_one (string command, scheme_tree arg) {
+  scheme_tree application= stree_apply (command);
+  application << arg;
+  if (export_math_mode ()) return application;
+  scheme_tree ensure= stree_apply ("ensuremath");
+  ensure << application;
+  return ensure;
+}
+
+
+scheme_tree
+escape_verbatim_tree_native (scheme_tree value, bool backslashes, bool braces) {
+  if (string_atom (value)) {
+    string s= atom_text (value);
+    if (backslashes) s= replace (s, "\\", "\\textbackslash ");
+    if (braces) {
+      s= replace (s, "{", "\\{");
+      s= replace (s, "}", "\\}");
+    }
+    return stree_string (s);
+  }
+  if (!stree_list (value)) return value;
+  scheme_tree out (TUPLE);
+  for (int i=0; i<N(value); ++i)
+    out << escape_verbatim_tree_native (value[i], backslashes, braces);
+  return out;
+}
+
+scheme_tree
+verbatim_output_native (scheme_tree args, bool starred) {
+  if (!stree_list (args) || N(args) == 0) return stree_string ("");
+  scheme_tree value= args[0];
+  if (head_is (value, "document")) {
+    scheme_tree source= starred ? value
+      : escape_verbatim_tree_native (value, true, true);
+    string text= latex_export_tt (source);
+    if (starred && starts (text, "#")) text= "\\" * text;
+    scheme_tree out= stree_apply (starred ? "!verbatim*" : "!verbatim");
+    out << stree_string (text);
+    return out;
+  }
+  scheme_tree out= stree_apply ("tmverbatim");
+  out << tmtex_convert (value);
+  return out;
+}
+
+scheme_tree
+code_inline_output_native (string key, scheme_tree args) {
+  scheme_tree option= stree_apply ("!option");
+  option << stree_string (key);
+  scheme_tree out= stree_apply ("tmcodeinline");
+  out << option << converted_child (args, 0);
+  return out;
+}
+
+scheme_tree
+code_block_output_native (string key, scheme_tree args) {
+  scheme_tree escaped (TUPLE);
+  if (stree_list (args))
+    for (int i=0; i<N(args); ++i)
+      escaped << escape_verbatim_tree_native (args[i], true, true);
+
+  string language= key;
+  int dash= search_forwards ("-", 0, language);
+  if (dash >= 0) language= language (0, dash);
+
+  scheme_tree begin= stree_apply ("!begin*");
+  begin << stree_string ("tmcode");
+  if (language != "verbatim" && language != "code") {
+    scheme_tree option= stree_apply ("!option");
+    option << stree_string (language);
+    begin << option;
+  }
+  scheme_tree out (TUPLE);
+  out << begin << verbatim_output_native (escaped, true);
+  return out;
+}
+
+scheme_tree
+mixed_source_output_native (scheme_tree args) {
+  if (!stree_list (args) || N(args) < 2) return stree_string ("");
+  scheme_tree value= args[1];
+  if (func_is (value, "text", 1)) value= value[1];
+
+  array<scheme_tree> previous= env_values ("mode");
+  array<scheme_tree> scoped;
+  scoped << stree_string ("text");
+  for (int i=0; i<N(previous); ++i) scoped << previous[i];
+  latex_export_context.env ("mode")= scoped;
+  string text= latex_export_tt (value);
+  latex_export_context.env ("mode")= previous;
+
+  if (search_forwards ("tikzpicture", 0, text) >= 0)
+    latex_export_add_latex_extra_package ("tikz");
+  scheme_tree verb= stree_apply ("!verbatim*");
+  verb << stree_string (text);
+  scheme_tree out= stree_apply ("!unindent");
+  out << verb;
+  return out;
+}
+
+scheme_tree
+convert_concat (scheme_tree args) {
+  if (!stree_list (args)) return stree_string ("");
+  if (N(args) > 50) {
+    int split= N(args) / 2;
+    scheme_tree left= stree_apply ("concat");
+    scheme_tree right= stree_apply ("concat");
+    for (int i=0; i<split; ++i) left << args[i];
+    for (int i=split; i<N(args); ++i) right << args[i];
+    scheme_tree halves (TUPLE);
+    halves << left << right;
+    return convert_concat (halves);
+  }
+  if (export_math_mode ()) {
+    scheme_tree normalized= latex_tmtex_pre_brackets_recurse (latex_tmtex_pre_scripts (args));
+    return latex_tex_concat (latex_tmtex_math_concat_spaces (tmtex_convert_list (normalized)));
+  }
+  return latex_tex_concat (tmtex_convert_list (latex_tmtex_rewrite_no_break (args)));
+}
+
+scheme_tree
+convert_surround (scheme_tree args) {
+  if (!stree_list (args) || N(args) < 3) return stree_string ("");
+  scheme_tree converted= tmtex_convert_list (args);
+  scheme_tree x= converted[0];
+  scheme_tree z= converted[1];
+  scheme_tree y= converted[2];
+  if (!head_is (y, "!document")) {
+    scheme_tree parts (TUPLE);
+    parts << x << y << z;
+    return latex_tex_concat (parts);
+  }
+
+  scheme_tree body (TUPLE);
+  scheme_tree first_parts (TUPLE);
+  first_parts << x;
+  if (N(y) > 1) first_parts << y[1];
+  body << latex_tex_concat (first_parts);
+  for (int i=2; i<N(y); ++i) body << y[i];
+  if (N(body) > 0) {
+    scheme_tree last_parts (TUPLE);
+    last_parts << body[N(body)-1] << z;
+    scheme_tree rebuilt (TUPLE);
+    for (int i=0; i<N(body)-1; ++i) rebuilt << body[i];
+    rebuilt << latex_tex_concat (last_parts);
+    body= rebuilt;
+  }
+  scheme_tree out= stree_apply ("!document");
+  for (int i=0; i<N(body); ++i) out << body[i];
+  return out;
+}
+
+scheme_tree
+replace_float_equations (scheme_tree t) {
+  if (!stree_list (t) || N(t) == 0) return t;
+  if (head_is (t, "equation") || head_is (t, "equation*")) {
+    scheme_tree out= stree_apply ("math");
+    if (N(t) == 2 && func_is (t[1], "document", 1)) out << t[1][1];
+    else for (int i=1; i<N(t); ++i) out << t[i];
+    return out;
+  }
+  scheme_tree out (TUPLE);
+  for (int i=0; i<N(t); ++i) out << replace_float_equations (t[i]);
+  return out;
+}
+
+scheme_tree
+replace_float_documents (scheme_tree t) {
+  if (!stree_list (t) || N(t) == 0) return t;
+  if (head_is (t, "document")) {
+    scheme_tree out= stree_apply ("para");
+    for (int i=1; i<N(t); ++i) out << replace_float_documents (t[i]);
+    return out;
+  }
+  scheme_tree out (TUPLE);
+  for (int i=0; i<N(t); ++i) out << replace_float_documents (t[i]);
+  return out;
+}
+
+scheme_tree
+float_single_paragraph (scheme_tree t) {
+  return replace_float_documents (replace_float_equations (t));
+}
+
+bool
+float_figure (scheme_tree t) {
+  return func_is (t, "small-figure", 2) || func_is (t, "big-figure", 2);
+}
+
+bool
+float_table (scheme_tree t) {
+  return func_is (t, "small-table", 2) || func_is (t, "big-table", 2);
+}
+
+string
+float_size (scheme_tree t) {
+  return head_is (t, "small-table") || head_is (t, "small-figure") ?
+         "small" : "big";
+}
+
+scheme_tree
+float_make (bool wide, string size, string type, string position,
+            scheme_tree content, scheme_tree caption_source) {
+  string pos= replace (position, "f", "");
+  string type_star= wide ? type * "*" : type;
+  scheme_tree body= tmtex_convert (content);
+  scheme_tree caption= tmtex_convert (float_single_paragraph (caption_source));
+
+  scheme_tree caption_cmd= stree_apply ("caption");
+  caption_cmd << caption;
+  scheme_tree paragraph= stree_apply ("!paragraph");
+  if (size == "big" && type == "figure") paragraph << stree_apply ("centering");
+  paragraph << body << caption_cmd;
+
+  if (size == "big" && (type == "figure" || type == "table")) {
+    scheme_tree begin= stree_apply ("!begin");
+    begin << stree_string (pos == "" ? type : type_star);
+    if (pos != "") {
+      scheme_tree option= stree_apply ("!option");
+      option << stree_string (pos);
+      begin << option;
+    }
+    scheme_tree out (TUPLE);
+    out << begin << paragraph;
+    return out;
+  }
+
+  scheme_tree out= stree_apply ("tmfloat");
+  out << stree_string (pos) << stree_string (size) << stree_string (type_star)
+      << body << caption;
+  return out;
+}
+
+scheme_tree
+float_sub (bool wide, string position, scheme_tree body) {
+  string pos= replace (position, "f", "");
+  if (func_is (body, "document", 1)) return float_sub (wide, pos, body[1]);
+  if (float_figure (body))
+    return float_make (wide, float_size (body), "figure", pos, body[1], body[2]);
+  if (float_table (body))
+    return float_make (wide, float_size (body), "table", pos, body[1], body[2]);
+  return float_make (wide, "big", "figure", pos, body, stree_string (""));
+}
+
+scheme_tree
+with_convert_native (scheme_tree args) {
+  if (!stree_list (args) || N(args) == 0) return stree_string ("");
+  if (N(args) == 1) return tmtex_convert (args[0]);
+
+  string var= string_atom (args[0]) ? atom_text (args[0]) : "";
+  string val= string_atom (args[1]) ? atom_text (args[1]) : "";
+  scheme_tree rest (TUPLE);
+  for (int i=2; i<N(args); ++i) rest << args[i];
+
+  array<scheme_tree> previous= env_values (var);
+  array<scheme_tree> scoped;
+  scoped << stree_string (val);
+  for (int i=0; i<N(previous); ++i) scoped << previous[i];
+  latex_export_context.env (var)= scoped;
+
+  scheme_tree inner= with_convert_native (rest);
+  scheme_tree result= with_one_native (var, val, inner);
+  latex_export_context.env (var)= previous;
+  return result;
+}
+
+scheme_tree
+convert_in_mode (scheme_tree value, string mode) {
+  array<scheme_tree> previous= env_values ("mode");
+  array<scheme_tree> scoped;
+  scoped << stree_string (mode);
+  for (int i=0; i<N(previous); ++i) scoped << previous[i];
+  latex_export_context.env ("mode")= scoped;
+  scheme_tree result= tmtex_convert (value);
+  latex_export_context.env ("mode")= previous;
+  return result;
+}
+
+scheme_tree
+post_process_math_text_native (string command, scheme_tree arg) {
+  if (string_atom (arg) && is_alpha (atom_text (arg))) {
+    scheme_tree out= stree_apply (command);
+    out << arg;
+    return out;
+  }
+  string text_command= command;
+  if      (command == "mathrm" || command == "tmop") text_command= "textrm";
+  else if (command == "mathbf") text_command= "textbf";
+  else if (command == "mathsf") text_command= "textsf";
+  else if (command == "mathit") text_command= "textit";
+  else if (command == "mathsl") text_command= "textsl";
+  else if (command == "mathtt") text_command= "texttt";
+  scheme_tree out= stree_apply (text_command);
+  out << arg;
+  return out;
+}
+
+scheme_tree
+textual_wrapper_output (string key, scheme_tree args) {
+  scheme_tree arg= N(args) > 0 ? convert_in_mode (args[0], "text")
+                               : stree_string ("");
+  if (key == "text") {
+    scheme_tree out= stree_apply ("text");
+    out << arg;
+    return out;
+  }
+  string command= "mathrm";
+  if      (key == "math-ss") command= "mathsf";
+  else if (key == "math-tt") command= "mathtt";
+  else if (key == "math-bf") command= "mathbf";
+  else if (key == "math-sl") command= "mathsl";
+  else if (key == "math-it") command= "mathit";
+  return post_process_math_text_native (command, arg);
+}
+
+scheme_tree
+math_output_native (scheme_tree args) {
+  if (!stree_list (args) || N(args) == 0) return stree_string ("");
+  scheme_tree value= args[0];
+  if (head_is (value, "equation") || head_is (value, "equation*") ||
+      head_is (value, "eqnarray") || head_is (value, "eqnarray*"))
+    return tmtex_convert (value);
+
+  if (!head_is (value, "document")) {
+    scheme_tree scoped (TUPLE);
+    scoped << stree_string ("mode") << stree_string ("math") << value;
+    return with_convert_native (scoped);
+  }
+
+  if (func_is (value, "document", 1)) {
+    scheme_tree one (TUPLE);
+    one << value[1];
+    return math_output_native (one);
+  }
+
+  scheme_tree out= stree_apply ("!document");
+  for (int i=1; i<N(value); ++i) {
+    scheme_tree one (TUPLE);
+    one << value[i];
+    out << math_output_native (one);
+  }
+  return out;
+}
+
+bool
+sectional_key (string key) {
+  static const char* names[]= {
+    "section", "subsection", "subsubsection", "paragraph", "subparagraph",
+    "part", "chapter"
+  };
+  return one_of (key, names, sizeof (names) / sizeof (names[0]));
+}
+
+bool
+find_first_label_native (scheme_tree value, scheme_tree& label) {
+  if (head_is (value, "label")) {
+    label= value;
+    return true;
+  }
+  if (!stree_list (value)) return false;
+  for (int i=0; i<N(value); ++i)
+    if (find_first_label_native (value[i], label)) return true;
+  return false;
+}
+
+scheme_tree
+remove_labels_native (scheme_tree value) {
+  if (head_is (value, "label")) return stree_string ("");
+  if (!stree_list (value)) return value;
+  scheme_tree out (TUPLE);
+  for (int i=0; i<N(value); ++i) out << remove_labels_native (value[i]);
+  return out;
+}
+
+scheme_tree
+sectional_output_native (string key, scheme_tree args) {
+  if (!stree_list (args) || N(args) == 0) return stree_string ("");
+  scheme_tree label;
+  bool has_label= find_first_label_native (args[0], label);
+  scheme_tree title= has_label ? remove_labels_native (args[0]) : args[0];
+  scheme_tree section= stree_apply (key);
+  section << tmtex_convert (title);
+  if (!has_label) return section;
+  scheme_tree out= stree_apply ("!concat");
+  out << section << tmtex_convert (label);
+  return out;
+}
+
+bool
+book_style_native () {
+  return latex_export_context.latex_style == "book" ||
+         latex_export_context.latex_style == "svmono";
+}
+
+scheme_tree
+appendix_output_native (string key, scheme_tree args) {
+  string command= book_style_native () ? "chapter" : "section";
+  if (key == "appendix*") command << "*";
+  scheme_tree heading= stree_apply (command);
+  heading << converted_child (args, 0);
+  if (!latex_export_first_appendix ()) return heading;
+  scheme_tree out= stree_apply ("!concat");
+  out << stree_apply ("appendix") << heading;
+  return out;
+}
+
+bool
+enunciation_key (string key) {
+  static const char* names[]= {
+    "theorem", "proposition", "lemma", "corollary", "proof", "axiom",
+    "definition", "notation", "conjecture", "remark", "note", "example",
+    "convention", "warning", "acknowledgments", "exercise", "problem",
+    "question", "solution", "answer", "quote-env", "quotation", "verse",
+    "theorem*", "proposition*", "lemma*", "corollary*", "axiom*",
+    "definition*", "notation*", "conjecture*", "remark*", "note*",
+    "example*", "convention*", "warning*", "acknowledgments*", "exercise*",
+    "problem*", "question*", "solution*", "answer*"
+  };
+  return one_of (key, names, sizeof (names) / sizeof (names[0]));
+}
+
+scheme_tree
+enunciation_output_native (string key, scheme_tree args) {
+  if (!stree_list (args) || N(args) == 0) return stree_string ("");
+  scheme_tree begin= stree_apply ("!begin");
+  begin << stree_string (key);
+  scheme_tree out (TUPLE);
+  out << begin << tmtex_convert (args[0]);
+  return out;
+}
+
+scheme_tree
+simple_environment_output_native (string environment, scheme_tree args) {
+  scheme_tree begin= stree_apply ("!begin");
+  begin << stree_string (environment);
+  scheme_tree out (TUPLE);
+  out << begin << converted_child (args, 0);
+  return out;
+}
+
+bool
+list_environment_key (string key) {
+  static const char* names[]= {
+    "description", "description-compact", "description-aligned",
+    "description-dash", "description-long", "description-paragraphs",
+    "itemize", "itemize-minus", "itemize-dot", "itemize-arrow",
+    "enumerate", "enumerate-numeric", "enumerate-roman", "enumerate-Roman",
+    "enumerate-alpha", "enumerate-Alpha"
+  };
+  return one_of (key, names, sizeof (names) / sizeof (names[0]));
+}
+
+scheme_tree
+list_environment_output_native (string key, scheme_tree args) {
+  string environment= replace (key, "-", "");
+  if (environment == "enumerateRoman") environment= "enumerateromancap";
+  else if (environment == "enumerateAlpha") environment= "enumeratealphacap";
+  return simple_environment_output_native (environment, args);
+}
+
+bool
+simple_layout_environment (string key, string& environment) {
+  if (key == "center" || key == "padded-center") environment= "center";
+  else if (key == "padded-left-aligned") environment= "flushleft";
+  else if (key == "padded-right-aligned") environment= "flushright";
+  else if (key == "compact") environment= "tmcompact";
+  else if (key == "compressed") environment= "tmcompressed";
+  else if (key == "amplified") environment= "tmamplified";
+  else if (key == "indent" || key == "algorithm-indent") environment= "tmindent";
+  else if (key == "jump-in") environment= "tmjumpin";
+  else return false;
+  return true;
+}
+
+bool
+size_wrapper_command (string key, string& command, bool& grouped) {
+  grouped= true;
+  if (key == "really-tiny" || key == "very-tiny" || key == "tiny") command= "tiny";
+  else if (key == "really-small" || key == "very-small") command= "scriptsize";
+  else if (key == "smaller") command= "footnotesize";
+  else if (key == "small" || key == "flat-size") command= "small";
+  else if (key == "normal-size") command= "normalsize";
+  else if (key == "sharp-size" || key == "large") command= "large";
+  else if (key == "larger") command= "Large";
+  else if (key == "very-large" || key == "really-large") command= "LARGE";
+  else if (key == "really-huge") { command= "Huge"; grouped= false; }
+  else return false;
+  return true;
+}
+
+scheme_tree
+size_wrapper_output_native (string command, bool grouped, scheme_tree args) {
+  scheme_tree converted (TUPLE);
+  converted << converted_child (args, 0);
+  if (grouped) return tex_apply_converted (command, converted);
+  scheme_tree out= stree_apply (command);
+  out << converted[0];
+  return out;
+}
+
+bool
+language_wrapper_key (string key) {
+  static const char* names[]= {
+    "british", "bulgarian", "chinese", "croatian", "czech", "danish", "dutch",
+    "english", "esperanto", "finnish", "french", "german", "greek", "hungarian",
+    "italian", "japanese", "korean", "polish", "portuguese", "romanian", "russian",
+    "slovak", "slovene", "spanish", "swedish", "chineset", "ukrainian"
+  };
+  return one_of (key, names, sizeof (names) / sizeof (names[0]));
+}
+
+scheme_tree
+language_wrapper_output_native (string key, scheme_tree args) {
+  scheme_tree scoped (TUPLE);
+  scoped << stree_string ("language") << stree_string (key);
+  if (N(args) > 0) scoped << args[0];
+  return with_convert_native (scoped);
+}
+
+scheme_tree
+equation_output_native (string key, scheme_tree args) {
+  scheme_tree body= N(args) > 0 ? convert_in_mode (args[0], "math") : stree_string ("");
+  if (key == "equation") {
+    scheme_tree begin= stree_apply ("!begin");
+    begin << stree_string ("equation");
+    scheme_tree out (TUPLE);
+    out << begin << body;
+    return out;
+  }
+  scheme_tree out= stree_apply ("!eqn");
+  out << body;
+  return out;
+}
+
+scheme_tree
+frame_output_native (scheme_tree args) {
+  string command= export_math_mode () ? "boxed" : "fbox";
+  if (export_math_mode ()) latex_export_add_latex_extra_package ("amsmath");
+  scheme_tree out= stree_apply (command);
+  out << converted_child (args, 0);
+  return out;
+}
+
+scheme_tree
+colored_frame_output_native (scheme_tree args) {
+  string color= N(args) > 0 && string_atom (args[0]) ? atom_text (args[0]) : "";
+  scheme_tree out= stree_apply ("colorbox");
+  out << decode_color_native (color, false) << converted_child (args, 1);
+  return out;
+}
+
+scheme_tree
+fcolorbox_output_native (scheme_tree args) {
+  scheme_tree out= stree_apply ("fcolorbox");
+  if (N(args) > 1) {
+    for (int i=0; i<N(args)-1; ++i) {
+      string color= string_atom (args[i]) ? atom_text (args[i]) : "";
+      out << decode_color_native (color, false);
+    }
+    out << converted_child (args, N(args)-1);
+  }
+  return out;
+}
+
+scheme_tree
+rotate_output_native (scheme_tree args) {
+  scheme_tree option= stree_apply ("!option");
+  option << stree_string ("origin=c");
+  scheme_tree body= converted_child (args, 1);
+  if (export_math_mode ()) {
+    scheme_tree ensured= stree_apply ("ensuremath");
+    ensured << body;
+    body= ensured;
+  }
+  scheme_tree out= stree_apply ("rotatebox");
+  out << option << converted_child (args, 0) << body;
+  return out;
+}
+
+scheme_tree
+href_output_native (scheme_tree args) {
+  scheme_tree out= stree_apply ("url");
+  string value= N(args) > 0 && string_atom (args[0]) ? atom_text (args[0]) : "";
+  out << latex_export_verb_string (value);
+  return out;
+}
+
+bool
+modifier_key (string key) {
+  static const char* names[]= {
+    "strong", "em", "name", "samp", "abbr", "dfn", "kbd", "var",
+    "acronym", "person"
+  };
+  return one_of (key, names, sizeof (names) / sizeof (names[0]));
+}
+
+scheme_tree
+modifier_output_native (string key, scheme_tree args) {
+  scheme_tree converted (TUPLE);
+  converted << converted_child (args, 0);
+  return tex_apply_converted ("tm" * key, converted);
+}
+
+scheme_tree
+text_tt_output_native (scheme_tree args) {
+  if (export_math_mode ()) return textual_wrapper_output ("math-tt", args);
+  return modifier_output_native ("tt", args);
+}
+
+scheme_tree
+render_key_output_native (scheme_tree args) {
+  scheme_tree body= converted_child (args, 0);
+  if (head_is (body, "!concat")) {
+    scheme_tree append= stree_apply ("!append");
+    for (int i=1; i<N(body); ++i) append << body[i];
+    body= append;
+  }
+  scheme_tree out= stree_apply ("key");
+  out << body;
+  return out;
+}
+
+bool
+builtin_theorem_environment (string name) {
+  static const char* names[]= {
+    "theorem", "proposition", "lemma", "corollary", "axiom", "definition",
+    "notation", "conjecture", "remark", "note", "example", "convention",
+    "warning", "acknowledgments", "answer", "question", "exercise", "problem",
+    "solution", "theorem*", "proposition*", "lemma*", "corollary*", "axiom*",
+    "definition*", "notation*", "conjecture*", "remark*", "note*", "example*",
+    "convention*", "warning*", "acknowledgments*", "answer*", "question*",
+    "exercise*", "problem*", "solution*"
+  };
+  return one_of (name, names, sizeof (names) / sizeof (names[0]));
+}
+
+scheme_tree
+new_theorem_output_native (scheme_tree args) {
+  if (!stree_list (args) || N(args) == 0 || !string_atom (args[0]))
+    return stree_string ("");
+  string original= atom_text (args[0]);
+  string name= tmtex_var_name_native (original);
+  latex_export_context.dynamic (original)= "environment";
+  latex_export_context.dynamic (name)= "environment";
+  if (builtin_theorem_environment (name)) return stree_string ("");
+
+  scheme_tree title (TUPLE);
+  for (int i=1; i<N(args); ++i) title << args[i];
+  scheme_tree out= stree_apply ("newtheorem");
+  out << stree_string (name) << title;
+  return out;
+}
+
+bool
+tm_wrapper_key (string key) {
+  static const char* names[]= {
+    "folded", "unfolded", "folded-plain", "unfolded-plain", "folded-std",
+    "unfolded-std", "folded-explain", "unfolded-explain", "folded-env",
+    "unfolded-env", "folded-documentation", "unfolded-documentation",
+    "folded-grouped", "unfolded-grouped", "summarized", "detailed",
+    "summarized-plain", "summarized-std", "summarized-env",
+    "summarized-documentation", "summarized-grouped", "summarized-raw",
+    "summarized-tiny", "detailed-plain", "detailed-std", "detailed-env",
+    "detailed-documentation", "detailed-grouped", "detailed-raw", "detailed-tiny"
+  };
+  return one_of (key, names, sizeof (names) / sizeof (names[0]));
+}
+
+scheme_tree
+tm_wrapper_output_native (string key, scheme_tree args) {
+  string command= "tm" * replace (key, "-", "");
+  scheme_tree out= stree_apply (command);
+  scheme_tree converted= tmtex_convert_list (args);
+  for (int i=0; i<N(converted); ++i) out << converted[i];
+  return out;
+}
+
+scheme_tree
+transform_style_native (scheme_tree style) {
+  scheme_tree publisher;
+  if (latex_export_internal::publisher_transform_style (style, publisher))
+    return publisher;
+  if (!string_atom (style))
+    return latex_export_context.replace_style ? tree ("#f") : style;
+  string name= atom_text (style);
+  if (name == "tmdoc" || name == "tmmanual")
+    throw std::runtime_error ("LaTeX export does not support the tmdoc document style");
+  if (name == "generic" || name == "tmarticle")
+    return stree_string ("article");
+  if (name == "book" || name == "tmbook")
+    return stree_string ("book");
+  if (name == "letter") return stree_string ("letter");
+  if (name == "beamer") return stree_string ("beamer");
+  if (name == "seminar") return stree_string ("slides");
+  if (!latex_export_context.replace_style) return style;
+  return tree ("#f");
+}
+
+scheme_tree
+filter_styles_native (scheme_tree styles) {
+  scheme_tree out (TUPLE);
+  if (!stree_list (styles)) return out;
+  for (int i=0; i<N(styles); ++i) {
+    scheme_tree next= transform_style_native (styles[i]);
+    if (!(is_atomic (next) && next->label == "#f")) out << next;
+  }
+  return out;
+}
+
+scheme_tree
+convert_charset_native (scheme_tree value) {
+  if (string_atom (value)) return stree_string (atom_text (value));
+  if (!stree_list (value) || N(value) == 0) return value;
+  scheme_tree out (TUPLE);
+  out << value[0];
+  for (int i=1; i<N(value); ++i) out << convert_charset_native (value[i]);
+  return out;
+}
+
+void
+compute_mode_stats_native (tree t, string mode,
+    const document_source_contract_preparation& prepare,
+    std::vector<int>& source) {
+  if (!is_compound (t)) return;
+  // Definitions affect subsequent source entries, but their unexpanded bodies
+  // are not uses. Traverse the original tree so local rules keep their address.
+  if (is_func (t, ASSIGN) || is_func (t, MACRO) || is_func (t, XMACRO) ||
+      is_compound (t, "hide-preamble") || is_compound (t, "show-preamble"))
+    return;
+  string tag= as_string (L(t));
+  if (mode == "math")
+    latex_export_context.command_math_uses (tag)=
+      latex_export_context.command_math_uses[tag] + 1;
+  else
+    latex_export_context.command_text_uses (tag)=
+      latex_export_context.command_text_uses[tag] + 1;
+  if (N(t) == 0) return;
+  using namespace athena::contracts;
+  const bool native= builtin_label (tag);
+  const auto entry= native ? nullptr : prepare (source);
+  if (!native && !entry)
+    throw std::runtime_error ("LaTeX mode statistics: source context unavailable for " +
+                              std::string (tag.data (), N(tag)));
+  const editing_query query {native ? builtin_contracts () : *entry};
+  for (int i=0; i<N(t); ++i) {
+    tree nmode= query.value (t, i, "mode", tree (mode));
+    string child_mode= is_atomic (nmode) ? nmode->label : mode;
+    source.push_back (i);
+    compute_mode_stats_native (t[i], child_mode, prepare, source);
+    source.pop_back ();
+  }
+}
+
+void
+init_mode_stats_native (scheme_tree value, scheme_tree styles, scheme_tree initial) {
+  latex_export_context.command_text_uses= hashmap<string,int> (0);
+  latex_export_context.command_math_uses= hashmap<string,int> (0);
+  // Native v3 export inserts synthetic MathGrid policy/format slots into the
+  // serialized syntax. They have no original source paths or style contexts.
+  // Mode analysis must walk the unmodified source instead of those slots.
+  const tree* original= native_mode_stats_source;
+  tree body= original && is_document (*original)
+    ? extract (*original, "body") : scheme_tree_to_tree (value);
+  if (!is_document (body)) body= tree (DOCUMENT, body);
+  tree init= scheme_tree_to_tree (initial);
+  tree style (TUPLE);
+  for (int i=0; i<N(styles); ++i) style << scheme_tree_to_tree (styles[i]);
+  tree doc (DOCUMENT, compound ("style", style),
+            compound ("initial", init), compound ("body", body));
+  const url source_name= is_none (latex_export_context.save_source_url) ?
+    url ("$PWD/none") : latex_export_context.save_source_url;
+  const auto prepare= prepare_document_source_contracts (doc, source_name);
+  hashmap<string,tree> values (UNINIT, init);
+  tree initial_mode= values["mode"];
+  string mode= is_atomic (initial_mode) ? initial_mode->label : string ("text");
+  std::vector<int> source;
+  compute_mode_stats_native (body, mode, prepare, source);
+}
+
+scheme_tree
+mode_protect_native (scheme_tree value) {
+  if (!stree_list (value) || N(value) == 0 || !is_atomic (value[0]))
+    return value;
+  string head= value[0]->label;
+  if (starts (head, "tmtext")) {
+    scheme_tree out= stree_apply ("text");
+    out << value;
+    return out;
+  }
+  if (starts (head, "tmmath") || starts (head, "math")) {
+    scheme_tree out= stree_apply ("ensuremath");
+    out << value;
+    return out;
+  }
+  if (head == "!concat") {
+    scheme_tree out= stree_apply ("!concat");
+    for (int i=1; i<N(value); ++i) out << mode_protect_native (value[i]);
+    return out;
+  }
+  return value;
+}
+
+scheme_tree
+preprocess_preamble_native (scheme_tree value) {
+  if (func_is (value, "para") || func_is (value, "concat")) {
+    scheme_tree out= stree_apply ("!paragraph");
+    for (int i=1; i<N(value); ++i) out << preprocess_preamble_native (value[i]);
+    return out;
+  }
+  if (func_is (value, "mtm", 2)) {
+    scheme_tree out= stree_apply ("mtm");
+    out << value[1] << preprocess_preamble_native (value[2]);
+    return out;
+  }
+  if (func_is (value, "assign", 2) && string_atom (value[1])) {
+    string name= atom_text (value[1]);
+    int text_uses= latex_export_context.command_text_uses[name];
+    int math_uses= latex_export_context.command_math_uses[name];
+    if (ends (name, "*") &&
+        (starts (name, "itemize") || starts (name, "enumerate") ||
+         starts (name, "description")))
+      return stree_string ("");
+
+    scheme_tree result= text_uses >= math_uses
+      ? tmtex_convert (value)
+      : convert_in_mode (value, "math");
+    int opposite_uses= text_uses >= math_uses ? math_uses : text_uses;
+    if (opposite_uses > 0 && func_is (result, "newcommand", 2)) {
+      scheme_tree rebuilt= stree_apply ("newcommand");
+      rebuilt << result[1] << mode_protect_native (result[2]);
+      return rebuilt;
+    }
+    return result;
+  }
+  return tmtex_convert (value);
+}
+
+scheme_tree
+preprocess_preamble_list_native (scheme_tree values) {
+  scheme_tree out (TUPLE);
+  if (!stree_list (values)) return out;
+  for (int i=0; i<N(values); ++i) out << preprocess_preamble_native (values[i]);
+  return out;
+}
+
+scheme_tree
+context_string_list (const array<string>& values) {
+  scheme_tree out (TUPLE);
+  for (int i=0; i<N(values); ++i) out << stree_string (values[i]);
+  return out;
+}
+
+bool
+list_contains_stree (scheme_tree values, scheme_tree needle) {
+  if (!stree_list (values)) return false;
+  for (int i=0; i<N(values); ++i)
+    if (values[i] == needle) return true;
+  return false;
+}
+
+scheme_tree
+file_output_native (scheme_tree args) {
+  if (!stree_list (args) || N(args) < 4) return stree_string ("");
+  scheme_tree doc= args[0];
+  scheme_tree styles= args[1];
+  scheme_tree init_raw= args[3];
+  bool missing_init= (is_atomic (init_raw) &&
+                      ((!is_quoted (init_raw->label) && init_raw->label == "#f") ||
+                       (string_atom (init_raw) && atom_text (init_raw) == "#f")));
+  scheme_tree init= init_raw;
+  if (missing_init) init= stree_apply ("collection");
+
+  scheme_tree style_meta;
+  if (N(args) > 6) style_meta= args[6];
+  else if (stree_list (styles) && N(styles) == 1) style_meta= styles[0];
+  else {
+    style_meta= stree_apply ("tuple");
+    if (stree_list (styles))
+      for (int i=0; i<N(styles); ++i) style_meta << styles[i];
+  }
+  scheme_tree init_meta= N(args) > 7 ? args[7] : init;
+
+  scheme_tree filtered_style_doc= latex_export_internal::filter_known_style_macros (doc);
+  scheme_tree doc_pre= latex_export_filter_preamble (filtered_style_doc);
+  scheme_tree doc_preamble= latex_export_filter_duplicates (doc_pre);
+  scheme_tree doc_body_pre= latex_export_filter_body (doc);
+  scheme_tree doc_body= latex_export_apply_init (doc_body_pre, init);
+
+  init_mode_stats_native (doc, styles, init);
+  latex_export_context.latex_texmacs_style=
+    stree_list (styles) && N(styles) > 0 && string_atom (styles[0])
+      ? atom_text (styles[0]) : string ("none");
+
+  if (get_preference ("texmacs->latex:expand-user-macros", "off") == "on")
+    doc_preamble= scheme_tree (TUPLE);
+
+  if (!stree_list (styles) || N(styles) == 0) return tmtex_convert (doc);
+
+  scheme_tree filtered_styles= filter_styles_native (styles);
+  scheme_tree output_styles= filtered_styles;
+  scheme_tree par_columns= stree_apply ("associate");
+  par_columns << stree_string ("par-columns") << stree_string ("2");
+  if (stree_list (filtered_styles) && N(filtered_styles) == 1 &&
+      string_atom (filtered_styles[0]) && atom_text (filtered_styles[0]) == "article" &&
+      list_contains_stree (init, par_columns)) {
+    scheme_tree two_column (TUPLE);
+    two_column << stree_string ("twocolumn") << stree_string ("article");
+    output_styles= scheme_tree (TUPLE);
+    output_styles << two_column;
+  }
+
+  array<scheme_tree> previous_preamble= env_values (":preamble");
+  array<scheme_tree> scoped_preamble;
+  scoped_preamble << scheme_tree ("#t");
+  for (int i=0; i<N(previous_preamble); ++i) scoped_preamble << previous_preamble[i];
+  latex_export_context.env (":preamble")= scoped_preamble;
+  scheme_tree preamble= preprocess_preamble_list_native (doc_preamble);
+  latex_export_context.env (":preamble")= previous_preamble;
+
+  scheme_tree body= tmtex_convert (doc_body);
+  scheme_tree publisher_body;
+  if (latex_export_internal::publisher_postprocess_body (body, publisher_body))
+    body= publisher_body;
+  body= latex_export_clean_body (body);
+
+  scheme_tree needs (TUPLE);
+  needs << context_string_list (latex_export_context.languages)
+        << context_string_list (latex_export_context.colors)
+        << context_string_list (latex_export_context.colormaps);
+
+  scheme_tree metadata= stree_apply ("!athena-file-metadata");
+  metadata << style_meta << init_meta;
+  scheme_tree out= stree_apply ("!file");
+  out << body << output_styles << needs << init << preamble << metadata;
+  return out;
+}
+
+scheme_tree
+convert_nonfile_native (scheme_tree value, const conversion_options& options) {
+  scheme_tree filtered= discard_experimental_warning (value);
+  tree normalized= eqnumber_to_nonumber (scheme_tree_to_tree (filtered));
+  scheme_tree rewritten= tree_to_scheme_tree (latex_preprocess_source (normalized));
+  rewritten= discard_experimental_warning (rewritten);
+
+  latex_export_initialize (options);
+  scheme_tree result= tmtex_convert (rewritten);
+  if (latex_export_context.mathjax)
+    result= latex_export_mathjax_pre (result);
+  if (!latex_export_context.use_macros)
+    result= latex_export_expand_macros (result);
+  if (latex_export_context.mathjax)
+    result= latex_export_mathjax (result);
+  return result;
+}
+
+scheme_tree
+latex_id_native (scheme_tree value) {
+  // A reference key is not mathematical prose, even inside an equation.
+  return convert_in_mode (string_atom (value) ? value : stree_string (""), "text");
+}
+
+bool
+athena_anchor_label (string s) {
+  int n= N(s);
+  if (n >= 3 && s[0] == 'H' && is_digit (s[1])) {
+    for (int i=2; i<n; ++i) {
+      if (s[i] == ' ') return true;
+      if (!is_digit (s[i])) break;
+    }
+  }
+  return n >= 3 && (ends (s, " {") || ends (s, " }"));
+}
+
+scheme_tree
+simple_converted_apply (string head, scheme_tree args) {
+  scheme_tree out= stree_apply (head);
+  if (stree_list (args))
+    for (int i=0; i<N(args); ++i) out << tmtex_convert (args[i]);
+  return out;
+}
+
+scheme_tree
+convert_mtm (scheme_tree args) {
+  if (!stree_list (args) || N(args) == 0) return stree_string ("");
+  if (N(args) == 1) return tmtex_convert (args[0]);
+  scheme_tree label= args[0];
+  if (func_is (label, "mtm", 1)) label= label[1];
+  scheme_tree out= stree_apply ("!concat");
+  scheme_tree begin= stree_apply ("!marker");
+  begin << tree ("btm") << label;
+  scheme_tree end= stree_apply ("!marker");
+  end << tree ("etm") << label;
+  out << begin << tmtex_convert (args[1]) << end;
+  return out;
+}
+
+bool
+core_noop_key (string key) {
+  static const char* names[]= {
+    "hidden", "vspace*", "repeat", "dlines", "dpages", "dbox",
+    "with-limits", "yes-indent", "no-indent*", "yes-indent*", "page-break*",
+    "no-page-break*", "no-break-here*", "no-break-end", "new-page*",
+    "new-dpage*", "new-dpage",
+    "twith", "cwith", "tmarker", "row", "cell", "subtable", "provides",
+    "quote-value", "drd-props", "arg", "quote-arg", "experimental-build-warning",
+    "xmacro", "get-label", "get-arity", "map-args", "eval-args", "mark", "eval",
+    "quasi", "unquote*", "copy", "if", "if*", "case", "while", "for-each",
+    "extern", "include", "use-package", "or", "xor", "and", "not", "plus",
+    "minus", "times", "over", "div", "mod", "merge", "length", "range",
+    "find-file", "is-tuple", "look-up", "equal", "unequal", "less", "lesseq",
+    "greater", "greatereq", "cm-length", "mm-length", "in-length", "pt-length",
+    "bp-length", "dd-length", "pc-length", "cc-length", "fs-length", "fbs-length",
+    "em-length", "ln-length", "sep-length", "yfrac-length", "ex-length",
+    "fn-length", "fns-length", "bls-length", "spc-length", "xspc-length",
+    "par-length", "pag-length", "gm-length", "gh-length", "style-with",
+    "style-with*", "style-only", "style-only*", "active", "active*", "inactive",
+    "inactive*", "rewrite-inactive", "inline-tag", "open-tag", "middle-tag",
+    "close-tag", "symbol", "latex", "hybrid", "tuple", "attr", "tmlen",
+    "collection", "associate", "backup", "set-binding", "get-binding", "write",
+    "tag", "meaning", "flag", "superpose", "gr-group", "gr-transform", "text-at",
+    "cline", "arc", "carc", "spline", "spine*", "cspline", "fill", "box-info",
+    "frame-direct", "frame-inverse", "format", "set", "reset", "expand", "expand*",
+    "hide-expand", "display-baloon", "apply", "begin", "end", "func", "env",
+    "phantom-float", "set-header", "set-footer", "set-this-page-header",
+    "set-this-page-footer"
+  };
+  return one_of (key, names, sizeof (names) / sizeof (names[0]));
+}
+
+double
+numeric_arg (scheme_tree args, int index) {
+  if (!stree_list (args) || index < 0 || index >= N(args) ||
+      !string_atom (args[index])) return 0.0;
+  string s= atom_text (args[index]);
+  return is_double (s) ? as_double (s) : 0.0;
+}
+
+scheme_tree
+delimiter_output (string key, scheme_tree args) {
+  if (!stree_list (args) || N(args) == 0) return tree ("#f");
+  bool math= export_math_mode ();
+  if (!math) return stree_string (latex_tmtex_large_decode_text (args[0]));
+  string decoded= latex_tmtex_large_decode (args[0]);
+  double n= N(args) == 2 ? numeric_arg (args, 1) : 0.0;
+  string prefix;
+  if (key == "left") {
+    if (n == 1.0) prefix= "bigl";
+    else if (n == 2.0) prefix= "Bigl";
+    else if (n == 3.0) prefix= "biggl";
+    else if (n == 4.0) prefix= "Biggl";
+    else prefix= "left";
+  }
+  else if (key == "right") {
+    if (n == 1.0) prefix= "bigr";
+    else if (n == 2.0) prefix= "Bigr";
+    else if (n == 3.0) prefix= "biggr";
+    else if (n == 4.0) prefix= "Biggr";
+    else prefix= "right";
+  }
+  else {
+    if (n == 1.0) prefix= "bigm";
+    else if (n == 2.0) prefix= "Bigm";
+    else if (n == 3.0) prefix= "biggm";
+    else if (n == 4.0) prefix= "Biggm";
+    else if (key == "!middle") prefix= "middle";
+    else if (decoded == ".") return stree_string ("");
+    else return stree_string (decoded);
+  }
+  return stree_apply (prefix * decoded);
+}
+
+bool
+contains_table (scheme_tree x) {
+  if (!stree_list (x)) return false;
+  if (N(x) >= 2 && head_is (x, "!table")) return true;
+  for (int i=1; i<N(x); ++i)
+    if (contains_table (x[i])) return true;
+  return false;
+}
+
+scheme_tree
+script_output (string which, scheme_tree script) {
+  scheme_tree converted= tmtex_convert (script);
+  if (contains_table (converted)) {
+    scheme_tree wrapped= stree_apply ("tmscript");
+    wrapped << converted;
+    scheme_tree out= stree_apply (which);
+    out << wrapped;
+    return out;
+  }
+  scheme_tree out= stree_apply (which);
+  out << converted;
+  return out;
+}
+
+scheme_tree
+right_script_output (string key, scheme_tree args) {
+  if (!stree_list (args) || N(args) == 0) return tree ("#f");
+  if (empty_string_stree (args[0])) return stree_string ("");
+  bool sub= key == "rsub";
+  if (export_math_mode ()) return script_output (sub ? "!sub" : "!sup", args[0]);
+  scheme_tree out= stree_apply (sub ? "tmrsub" : "tmrsup");
+  out << tmtex_convert (args[0]);
+  return out;
+}
+
+scheme_tree
+left_script_output (bool sub, scheme_tree args) {
+  if (!stree_list (args) || N(args) == 0) return tree ("#f");
+  if (empty_string_stree (args[0])) return stree_string ("");
+  scheme_tree script= stree_apply (sub ? "rsub" : "rsup");
+  script << args[0];
+  if (!export_math_mode ()) return tmtex_convert (script);
+  scheme_tree empty_group= stree_apply ("!group");
+  scheme_tree concat= stree_apply ("concat");
+  concat << empty_group << script;
+  return tmtex_convert (concat);
+}
+
+scheme_tree
+long_arrow_output (scheme_tree args) {
+  if (!stree_list (args) || N(args) < 2) return tree ("#f");
+  scheme_tree cmd= latex_tmtex_decode_long_arrow (args[0]);
+  bool symbol= is_atomic (cmd) && !string_atom (cmd) && cmd->label != "#f";
+  if (symbol && N(args) == 2) {
+    scheme_tree out= stree_apply (cmd->label);
+    out << tmtex_convert (args[1]);
+    return out;
+  }
+  if (symbol && N(args) >= 3) {
+    scheme_tree option= stree_apply ("!option");
+    option << tmtex_convert (args[2]);
+    scheme_tree out= stree_apply (cmd->label);
+    out << option << tmtex_convert (args[1]);
+    return out;
+  }
+  scheme_tree converted_cmd= tmtex_convert (cmd);
+  if (N(args) == 2) {
+    scheme_tree out= stree_apply ("overset");
+    out << tmtex_convert (args[1]) << converted_cmd;
+    return out;
+  }
+  if (empty_string_stree (args[1])) {
+    scheme_tree out= stree_apply ("underset");
+    out << tmtex_convert (args[2]) << converted_cmd;
+    return out;
+  }
+  scheme_tree over= stree_apply ("overset");
+  over << tmtex_convert (args[1]) << converted_cmd;
+  scheme_tree out= stree_apply ("underset");
+  out << tmtex_convert (args[2]) << over;
+  return out;
+}
+
+bool
+tmtex_token_string (string s) {
+  std::string_view bytes (s.data (), static_cast<std::size_t> (N(s)));
+  if (!bytes.empty () && athena::text::valid_utf8 (bytes) &&
+      athena::text::next_scalar (bytes, 0) == bytes.size ()) return true;
+  if (N(s) == 0 || s[0] != '<') return false;
+  return search_forwards (">", 0, s) == N(s) - 1;
+}
+
+bool
+wide_source (scheme_tree x, bool below) {
+  string head= below ? "wide*" : "wide";
+  if (func_is (x, head, 1)) return wide_source (x[1], below);
+  if (!string_atom (x)) return true;
+  return !tmtex_token_string (atom_text (x));
+}
+
+struct wide_accent_spec {
+  scheme_tree value;
+  bool stretch= false;
+};
+
+wide_accent_spec
+decode_wide_accent (scheme_tree value) {
+  if (func_is (value, "with", 3) && string_atom (value[1]) &&
+      string_atom (value[2]) && atom_text (value[1]) == "math-accent-stretch" &&
+      atom_text (value[2]) == "true")
+    return {value[3], true};
+  return {value, false};
+}
+
+string
+normalize_wide_accent (scheme_tree value) {
+  if (!string_atom (value)) return "";
+  string acc= atom_text (value);
+  if (N(acc) >= 6 && acc (0, 6) == "<wide-") acc= "<" * acc (6, N(acc));
+  if (acc == "^" || acc == "<hat>") return "̂";
+  if (acc == "~" || acc == "<tilde>") return "̃";
+  if (acc == "<bar>") return "̅";
+  if (acc == "<vect>" || acc == "<rightarrow>" || acc == "<varrightarrow>") return "⃗";
+  if (acc == "<leftarrow>" || acc == "<varleftarrow>") return "⃖";
+  if (acc == "<leftrightarrow>" || acc == "<varleftrightarrow>") return "⃡";
+  if (acc == "<breve>") return "̆";
+  if (acc == "<invbreve>") return "̑";
+  if (acc == "<check>") return "̌";
+  if (acc == "<abovering>") return "̊";
+  if (acc == "<acute>") return "́";
+  if (acc == "<grave>") return "̀";
+  if (acc == "<dot>") return "̇";
+  if (acc == "<ddot>") return "̈";
+  if (acc == "<dddot>") return "⃛";
+  if (acc == "<ddddot>") return "⃜";
+  if (acc == "<overbrace>" || acc == "<overbrace*>") return "⏞";
+  if (acc == "<underbrace>" || acc == "<underbrace*>") return "⏟";
+  if (acc == "<poverbrace>" || acc == "<poverbrace*>") return "⏜";
+  if (acc == "<punderbrace>" || acc == "<punderbrace*>") return "⏝";
+  if (acc == "<sqoverbrace>" || acc == "<sqoverbrace*>") return "⎴";
+  if (acc == "<squnderbrace>" || acc == "<squnderbrace*>") return "⎵";
+  return acc;
+}
+
+scheme_tree
+one_arg_command (string command, scheme_tree arg) {
+  scheme_tree out= stree_apply (command);
+  out << arg;
+  return out;
+}
+
+scheme_tree
+brace_fill_output (scheme_tree source, bool below) {
+  scheme_tree fill= stree_apply ("text");
+  fill << stree_apply (below ? "downbracefill" : "upbracefill");
+  scheme_tree out= stree_apply (below ? "underset" : "overset");
+  out << tmtex_convert (fill) << tmtex_convert (source);
+  return out;
+}
+
+scheme_tree
+wide_accent_output (scheme_tree args, bool below) {
+  if (!stree_list (args) || N(args) < 2) return tree ("#f");
+  wide_accent_spec spec= decode_wide_accent (args[1]);
+  bool wide= spec.stretch || wide_source (args[0], below);
+  scheme_tree arg= tmtex_convert (args[0]);
+  if (!string_atom (spec.value)) return arg;
+  string acc= normalize_wide_accent (spec.value);
+
+  if (below) {
+    if (acc == "̂")
+      return one_arg_command (wide ? "uwidehat" : "uhat", arg);
+    if (acc == "̃")
+      return one_arg_command (wide ? "uwidetilde" : "utilde", arg);
+    if (acc == "̅") return one_arg_command ("underline", arg);
+    if (acc == "⃗")
+      return one_arg_command (wide ? "underrightarrow" : "uvec", arg);
+    if (acc == "̆") return one_arg_command ("ubreve", arg);
+    if (acc == "̑") return one_arg_command ("uinvbreve", arg);
+    if (acc == "̌") return one_arg_command ("ucheck", arg);
+    if (acc == "̊") return one_arg_command ("uring", arg);
+    if (acc == "́") return one_arg_command ("uacute", arg);
+    if (acc == "̀") return one_arg_command ("ugrave", arg);
+    if (acc == "̇") return one_arg_command ("underdot", arg);
+    if (acc == "̈") return one_arg_command ("uddot", arg);
+    if (acc == "⃛") return one_arg_command ("udddot", arg);
+    if (acc == "⃜") return one_arg_command ("uddddot", arg);
+    if (acc == "⃗")
+      return one_arg_command ("underrightarrow", arg);
+    if (acc == "⃖")
+      return one_arg_command ("underleftarrow", arg);
+    if (acc == "⃡")
+      return one_arg_command ("underleftrightarrow", arg);
+    if (acc == "⏟" || acc == "⏝" || acc == "⎵")
+      return one_arg_command ("underbrace", arg);
+    if (acc == "⏞" || acc == "⏜" || acc == "⎴")
+      return brace_fill_output (args[0], true);
+    convert_warning << "non converted accent below: " << acc << "\n";
+    return arg;
+  }
+
+  bool text= !export_math_mode ();
+  if (acc == "̂")
+    return one_arg_command (text ? "^" : (wide ? "widehat" : "hat"), arg);
+  if (acc == "̃")
+    return one_arg_command (text ? "~" : (wide ? "widetilde" : "tilde"), arg);
+  if (acc == "̅")
+    return one_arg_command (text ? "=" : (wide ? "overline" : "bar"), arg);
+  if (acc == "⃗") return one_arg_command (wide ? "overrightarrow" : "vec", arg);
+  if (acc == "̆") return one_arg_command (text ? "u" : "breve", arg);
+  if (acc == "̑") return one_arg_command ("invbreve", arg);
+  if (acc == "̌") return one_arg_command (text ? "v" : "check", arg);
+  if (acc == "̊") return one_arg_command (text ? "r" : "ring", arg);
+  if (acc == "́") return one_arg_command (text ? "'" : "acute", arg);
+  if (acc == "̀") return one_arg_command (text ? "`" : "grave", arg);
+  if (acc == "̇") return one_arg_command (text ? "." : "dot", arg);
+  if (acc == "̈") return one_arg_command (text ? "\"" : "ddot", arg);
+  if (acc == "⃛") return one_arg_command ("dddot", arg);
+  if (acc == "⃜") return one_arg_command ("ddddot", arg);
+  if (acc == "⃗")
+    return one_arg_command ("overrightarrow", arg);
+  if (acc == "⃖")
+    return one_arg_command ("overleftarrow", arg);
+  if (acc == "⃡")
+    return one_arg_command ("overleftrightarrow", arg);
+  if (acc == "⏞" || acc == "⏜" || acc == "⎴")
+    return one_arg_command ("overbrace", arg);
+  if (acc == "⏟" || acc == "⏝" || acc == "⎵")
+    return brace_fill_output (args[0], false);
+  convert_warning << "non converted accent: " << acc << "\n";
+  return arg;
+}
+
+bool
+tmtex_protected_name (string name) {
+  static const char* names[]= {
+    "a", "b", "c", "d", "i", "j", "k", "l", "o", "r", "t", "u", "v",
+    "H", "L", "O", "P", "S", "aa", "ae", "bf", "cr", "dh", "dj", "dp",
+    "em", "fi", "ge", "gg", "ht", "if", "in", "it", "le", "lg", "ll",
+    "lu", "lq", "mp", "mu", "ne", "ng", "ni", "nu", "oe", "or", "pi",
+    "pm", "rm", "rq", "sb", "sc", "sf", "sl", "sp", "ss", "th", "to",
+    "tt", "wd", "wp", "wr", "xi", "AA", "AE", "DH", "DJ", "Im", "NG",
+    "OE", "Pi", "Pr", "Re", "SS", "TH", "Xi"
+  };
+  return one_of (name, names, sizeof (names) / sizeof (names[0]));
+}
+
+string
+digit_word (char c) {
+  switch (c) {
+  case '0': return "zero";
+  case '1': return "one";
+  case '2': return "two";
+  case '3': return "three";
+  case '4': return "four";
+  case '5': return "five";
+  case '6': return "six";
+  case '7': return "seven";
+  case '8': return "eight";
+  case '9': return "nine";
+  default: return "";
+  }
+}
+
+string
+tmtex_var_name_native (string var) {
+  if (tmtex_protected_name (var)) return "tm" * var;
+  if (N(var) <= 1) return var;
+  string r;
+  for (int i=0; i<N(var); ++i) {
+    char c= var[i];
+    if (is_alpha (c)) r << c;
+    else if (is_digit (c)) r << digit_word (c);
+    else if (c == '*' && i + 1 == N(var)) r << c;
+  }
+  if (search_forwards ("*", 0, r) >= 0) {
+    if (!latex_export_internal::registry_latex_name_known (r))
+      r= replace (r, "*", "star");
+  }
+  return r;
+}
+
+int
+macro_arg_index (scheme_tree value, scheme_tree args) {
+  if (!stree_list (args)) return 0;
+  for (int i=0; i<N(args); ++i)
+    if (value == args[i]) return i + 1;
+  return 0;
+}
+
+scheme_tree
+rewrite_macro_args (scheme_tree x, scheme_tree args) {
+  if (!stree_list (x)) return x;
+  if ((head_is (x, "arg") || head_is (x, "value")) && N(x) > 1) {
+    int n= macro_arg_index (x[1], args);
+    if (n != 0) {
+      scheme_tree out= stree_apply ("!arg");
+      out << stree_string (as_string (n));
+      return out;
+    }
+  }
+  scheme_tree out (TUPLE);
+  for (int i=0; i<N(x); ++i) out << rewrite_macro_args (x[i], args);
+  return out;
+}
+
+void
+assign_env_value (string var, scheme_tree value) {
+  array<scheme_tree> old= env_values (var);
+  array<scheme_tree> next;
+  next << copy (value);
+  for (int i=1; i<N(old); ++i) next << old[i];
+  latex_export_context.env (var)= next;
+}
+
+string
+assign_command_native (string var, string val) {
+  if (var == "font-size") {
+    double x= as_double (val) * 10.0;
+    if (x < 1.0) return "";
+    if (x < 5.5) return "tiny";
+    if (x < 6.5) return "scriptsize";
+    if (x < 7.5) return "footnotesize";
+    if (x < 9.5) return "small";
+    if (x < 11.5) return "normalsize";
+    if (x < 13.5) return "large";
+    if (x < 15.5) return "Large";
+    if (x < 18.5) return "LARGE";
+    if (x < 22.5) return "huge";
+    if (x < 50.0) return "Huge";
+    return "";
+  }
+  if (var == "font-family") {
+    if (val == "rm") return "rmfamily";
+    if (val == "ss") return "ssfamily";
+    if (val == "tt") return "ttfamily";
+  }
+  if (var == "font-series") {
+    if (val == "medium") return "mdseries";
+    if (val == "bold") return "bfseries";
+  }
+  if (var == "font-shape") {
+    if (val == "right") return "upshape";
+    if (val == "slanted") return "slshape";
+    if (val == "italic") return "itshape";
+    if (val == "small-caps") return "scshape";
+  }
+  return "";
+}
+
+struct NativeWithCommand {
+  bool found;
+  bool environment;
+  string name;
+  string argument;
+
+  NativeWithCommand ():
+    found (false), environment (false), name (""), argument ("") {}
+  NativeWithCommand (string command):
+    found (true), environment (false), name (command), argument ("") {}
+  NativeWithCommand (string env, string arg, bool):
+    found (true), environment (true), name (env), argument (arg) {}
+};
+
+NativeWithCommand
+text_with_command_native (string var, string val) {
+  if (var == "font-family") {
+    if (val == "rm") return NativeWithCommand ("tmtextrm");
+    if (val == "ss") return NativeWithCommand ("tmtextsf");
+    if (val == "tt") return NativeWithCommand ("tmtexttt");
+  }
+  if (var == "font-series") {
+    if (val == "medium") return NativeWithCommand ("tmtextmd");
+    if (val == "bold") return NativeWithCommand ("tmtextbf");
+  }
+  if (var == "font-shape") {
+    if (val == "right") return NativeWithCommand ("tmtextup");
+    if (val == "slanted") return NativeWithCommand ("tmtextsl");
+    if (val == "italic") return NativeWithCommand ("tmtextit");
+    if (val == "small-caps") return NativeWithCommand ("tmtextsc");
+  }
+  if (var == "par-columns" && (val == "2" || val == "3"))
+    return NativeWithCommand ("multicols", val, true);
+  if (var == "par-mode") {
+    if (val == "center") return NativeWithCommand ("center", "", true);
+    if (val == "left") return NativeWithCommand ("flushleft", "", true);
+    if (val == "right") return NativeWithCommand ("flushright", "", true);
+  }
+  return NativeWithCommand ();
+}
+
+NativeWithCommand
+math_with_command_native (string var, string val) {
+  if (var == "font" || var == "math-font") {
+    if (val == "cal") return NativeWithCommand ("mathcal");
+    if (val == "cal*") return NativeWithCommand ("mathscr");
+    if (val == "cal**") return NativeWithCommand ("EuScript");
+    if (val == "Euler") return NativeWithCommand ("mathfrak");
+    if (val == "Bbb") return NativeWithCommand ("mathbb");
+    if (val == "Bbb*") return NativeWithCommand ("mathbbm");
+    if (val == "Bbb**") return NativeWithCommand ("mathbbmss");
+    if (val == "Bbb***") return NativeWithCommand ("mathbb");
+    if (val == "Bbb****") return NativeWithCommand ("mathds");
+  }
+  if (var == "font-family") {
+    if (val == "rm") return NativeWithCommand ("mathrm");
+    if (val == "ss") return NativeWithCommand ("mathsf");
+    if (val == "tt") return NativeWithCommand ("mathtt");
+  }
+  if (var == "font-series") {
+    if (val == "medium") return NativeWithCommand ("tmmathmd");
+    if (val == "bold") return NativeWithCommand ("tmmathbf");
+  }
+  if (var == "font-shape") {
+    if (val == "right" || val == "small-caps") return NativeWithCommand ("mathrm");
+    if (val == "slanted" || val == "italic") return NativeWithCommand ("mathit");
+  }
+  if (var == "math-font-family") {
+    if (val == "mr" || val == "rm") return NativeWithCommand ("mathrm");
+    if (val == "ms" || val == "ss") return NativeWithCommand ("mathsf");
+    if (val == "mt" || val == "tt") return NativeWithCommand ("mathtt");
+    if (val == "normal") return NativeWithCommand ("mathnormal");
+    if (val == "bf") return NativeWithCommand ("mathbf");
+    if (val == "it") return NativeWithCommand ("mathit");
+  }
+  if (var == "math-font-series" && val == "bold")
+    return NativeWithCommand ("tmmathbf");
+  return NativeWithCommand ();
+}
+
+NativeWithCommand
+with_command_native (string var, string val) {
+  if (export_math_mode ()) {
+    NativeWithCommand math= math_with_command_native (var, val);
+    if (math.found) return math;
+  }
+  return text_with_command_native (var, val);
+}
+
+string
+length_number_prefix (string s) {
+  while (starts (s, "--")) s= s (2, N(s));
+  int i=0;
+  while (i < N(s) && (is_digit (s[i]) || s[i] == '-' || s[i] == '.')) ++i;
+  return i > 0 ? s (0, i) : string ("");
+}
+
+string
+tex_length_native (string s) {
+  if (s == "") return "0pt";
+  string parsed= s;
+  while (starts (parsed, "--")) parsed= parsed (2, N(parsed));
+  int i=0;
+  while (i < N(parsed) && (is_digit (parsed[i]) || parsed[i] == '-' || parsed[i] == '.')) ++i;
+  string number= i > 0 ? parsed (0, i) : string ("");
+  string unit= parsed (i, N(parsed));
+  if (unit == "" && number != "" && is_double (number) && as_double (number) == 0.0)
+    return "0pt";
+  if (unit == "fn" && number != "" && is_double (number))
+    return as_string (as_double (number)) * "em";
+  return s;
+}
+
+bool
+zero_tex_length (string s) {
+  if (s == "") return true;
+  string number= length_number_prefix (s);
+  return number != "" && is_double (number) && as_double (number) == 0.0;
+}
+
+scheme_tree
+parmod_output_native (string left, string right, string first,
+                      scheme_tree arg, bool omit_zero) {
+  left = tex_length_native (left);
+  right= tex_length_native (right);
+  first= tex_length_native (first);
+  if (omit_zero && zero_tex_length (left) && zero_tex_length (right) &&
+      zero_tex_length (first)) return arg;
+  scheme_tree begin= stree_apply ("!begin");
+  begin << stree_string ("tmparmod") << stree_string (left)
+        << stree_string (right) << stree_string (first);
+  scheme_tree out (TUPLE);
+  out << begin << arg;
+  return out;
+}
+
+scheme_tree
+parsep_output_native (string amount, scheme_tree arg) {
+  scheme_tree begin= stree_apply ("!begin");
+  begin << stree_string ("tmparsep") << stree_string (tex_length_native (amount));
+  scheme_tree out (TUPLE);
+  out << begin << arg;
+  return out;
+}
+
+scheme_tree
+language_output_native (string language, scheme_tree arg) {
+  if (language == "verbatim") {
+    scheme_tree out= stree_apply ("tt");
+    out << arg;
+    return out;
+  }
+  latex_export_add_language (language);
+  if (latex_stree_multiline (arg)) {
+    scheme_tree begin= stree_apply ("!begin");
+    begin << stree_string ("otherlanguage") << stree_string (language);
+    scheme_tree out (TUPLE);
+    out << begin << arg;
+    return out;
+  }
+  scheme_tree out= stree_apply ("foreignlanguage");
+  out << stree_string (language) << arg;
+  return out;
+}
+
+scheme_tree
+decode_color_native (string color, bool force_html) {
+  string map= starts (color, "#") ? string ("HTML")
+                                   : named_color_to_xcolormap (color);
+  if (map == "none" && force_html)
+    return decode_color_native (get_hex_color (color), true);
+  if (map == "HTML" && force_html) {
+    scheme_tree option= stree_apply ("!option");
+    option << stree_string ("HTML");
+    scheme_tree out (TUPLE);
+    out << option << stree_string (latex_export_internal::html_xcolor (color));
+    return out;
+  }
+  if (map == "texmacs") {
+    latex_export_add_color (color);
+    return stree_string (replace (color, " ", ""));
+  }
+  if (map == "x11names")
+    return decode_color_native (get_hex_color (color), true);
+  if (map != "xcolor" && map != "none") latex_export_add_colormap (map);
+  return stree_string (replace (color, " ", ""));
+}
+
+scheme_tree
+color_output_native (string color, scheme_tree arg) {
+  scheme_tree decoded= decode_color_native (color, true);
+  if (stree_list (decoded)) {
+    scheme_tree command= stree_apply ("color");
+    for (int i=0; i<N(decoded); ++i) command << decoded[i];
+    scheme_tree append= stree_apply ("!append");
+    append << command << arg;
+    scheme_tree group= stree_apply ("!group");
+    group << append;
+    return group;
+  }
+  scheme_tree out= stree_apply ("tmcolor");
+  out << decoded << arg;
+  return out;
+}
+
+scheme_tree
+wrap_with_command_native (NativeWithCommand command, scheme_tree arg) {
+  if (!command.environment) {
+    scheme_tree out= stree_apply (command.name);
+    out << arg;
+    return out;
+  }
+  scheme_tree begin= stree_apply ("!begin");
+  begin << stree_string (command.name);
+  if (command.argument != "") begin << stree_string (command.argument);
+  scheme_tree out (TUPLE);
+  out << begin << arg;
+  return out;
+}
+
+scheme_tree
+with_one_native (string var, string val, scheme_tree arg) {
+  if (var == "mode") {
+    array<scheme_tree> values= env_values ("mode");
+    string old= N(values) > 1 && string_atom (values[1]) ? atom_text (values[1]) : "";
+    if (val == "text" && old != "text") {
+      scheme_tree out= stree_apply ("text"); out << arg; return out;
+    }
+    if (val == "math" && old != "math") {
+      scheme_tree out= stree_apply (N(env_values (":preamble")) > 0 ? "ensuremath" : "!math");
+      out << arg; return out;
+    }
+    if (val == "prog" && old == "text") {
+      scheme_tree out= stree_apply ("tt"); out << arg; return out;
+    }
+    if (val == "prog" && old == "math") {
+      scheme_tree tt= stree_apply ("tt"); tt << arg;
+      scheme_tree out= stree_apply ("text"); out << tt; return out;
+    }
+    return arg;
+  }
+
+  NativeWithCommand command= with_command_native (var, val);
+  string assignment= assign_command_native (var, val);
+  if (command.found && !command.environment && func_is (arg, command.name, 1))
+    return arg;
+  if (command.found && !command.environment &&
+      (command.name == "mathrm" || command.name == "mathbf" ||
+       command.name == "mathsf" || command.name == "mathit" ||
+       command.name == "mathtt" || command.name == "mathsl"))
+    return post_process_math_text_native (command.name, arg);
+  if (!export_math_mode () && command.found && assignment != "" &&
+      latex_stree_multiline (arg)) {
+    scheme_tree parts (TUPLE);
+    parts << stree_apply (assignment) << stree_string (" ") << arg;
+    scheme_tree group= stree_apply ("!group");
+    group << latex_tex_concat (parts);
+    return group;
+  }
+  if (command.found) return wrap_with_command_native (command, arg);
+  if (assignment != "") {
+    scheme_tree parts (TUPLE);
+    parts << stree_apply (assignment) << stree_string (" ") << arg;
+    scheme_tree group= stree_apply ("!group");
+    group << latex_tex_concat (parts);
+    return group;
+  }
+  if (var == "par-left")  return parmod_output_native (val, "0pt", "0pt", arg, true);
+  if (var == "par-right") return parmod_output_native ("0pt", val, "0pt", arg, true);
+  if (var == "par-first") return parmod_output_native ("0pt", "0pt", val, arg, false);
+  if (var == "par-par-sep") return parsep_output_native (val, arg);
+  if (var == "language") return language_output_native (val, arg);
+  if (var == "color") return color_output_native (val, arg);
+  return arg;
+}
+
+scheme_tree
+assign_output (scheme_tree args) {
+  if (!stree_list (args) || N(args) < 2 || !string_atom (args[0]))
+    return stree_string ("");
+
+  string var= tmtex_var_name_native (atom_text (args[0]));
+  if (var == "") return stree_string ("");
+
+  string bsvar= "\\" * var;
+  string def= latex_export_internal::registry_latex_name_known (var) ?
+              "providecommand" : "newcommand";
+
+  scheme_tree val= args[1];
+  while (func_is (val, "quote", 1)) val= val[1];
+  assign_env_value (var, val);
+
+  if (string_atom (val)) {
+    string command= assign_command_native (var, atom_text (val));
+    if (command != "") return stree_apply (command);
+    scheme_tree out= stree_apply (def);
+    out << stree_string (bsvar) << tmtex_convert (val);
+    return out;
+  }
+
+  if (head_is (val, "macro") || head_is (val, "func")) {
+    scheme_tree out= stree_apply (def);
+    out << stree_string (bsvar);
+    if (N(val) <= 2) {
+      if (N(val) > 1) out << tmtex_convert (val[N(val)-1]);
+      return out;
+    }
+
+    int argc= N(val) - 2;
+    scheme_tree option= stree_apply ("!option");
+    option << stree_string (as_string (argc));
+    out << option;
+
+    scheme_tree parameters (TUPLE);
+    for (int i=1; i<N(val)-1; ++i) parameters << val[i];
+    scheme_tree rewritten= rewrite_macro_args (val[N(val)-1], parameters);
+    out << tmtex_convert (rewritten);
+    return out;
+  }
+
+  scheme_tree out= stree_apply (def);
+  out << stree_string (bsvar) << tmtex_convert (val);
+  return out;
+}
+
+string
+number_renderer_native (scheme_tree value) {
+  scheme_tree cur= value;
+  while (stree_list (cur) && N(cur) > 0) cur= cur[0];
+  string r= is_atomic (cur) ? atom_text (cur) : "";
+  if (r == "alpha") return "alph";
+  if (r == "Alpha") return "Alph";
+  return r;
+}
+
+string
+number_counter_native (scheme_tree value) {
+  scheme_tree cur= value;
+  if (head_is (cur, "value")) {
+    scheme_tree tail (TUPLE);
+    for (int i=1; i<N(cur); ++i) tail << cur[i];
+    cur= tail;
+  }
+  while (stree_list (cur) && N(cur) == 1) cur= cur[0];
+  if (!is_atomic (cur)) return "";
+  string r= atom_text (cur);
+  if (ends (r, "-nr")) r= r (0, N(r)-3);
+  return r;
+}
+
+scheme_tree
+number_output (scheme_tree args) {
+  if (!stree_list (args) || N(args) == 0) return stree_string ("");
+  scheme_tree renderer_args (TUPLE);
+  for (int i=1; i<N(args); ++i) renderer_args << args[i];
+  string renderer= number_renderer_native (renderer_args);
+  string counter= number_counter_native (args[0]);
+  scheme_tree out= stree_apply (renderer);
+  out << tmtex_convert (stree_string (counter));
+  return out;
+}
+
+scheme_tree
+change_case_output (scheme_tree args) {
+  if (!stree_list (args) || N(args) == 0) return stree_string ("");
+  if (N(args) > 1 && string_atom (args[1])) {
+    string mode= atom_text (args[1]);
+    if (mode == "UPCASE")
+      return tex_apply_one ("MakeUppercase", converted_child (args, 0));
+    if (mode == "locase")
+      return tex_apply_one ("MakeLowercase", converted_child (args, 0));
+  }
+  return converted_child (args, 0);
+}
+
+scheme_tree
+line_note_output (scheme_tree args) {
+  scheme_tree out= stree_apply ("tmlinenote");
+  out << converted_child (args, 0);
+  string first= N(args) > 1 && string_atom (args[1]) ? atom_text (args[1]) : "";
+  string second= N(args) > 2 && string_atom (args[2]) ? atom_text (args[2]) : "";
+  out << stree_string (decode_length_string (first));
+  out << stree_string (decode_length_string (second));
+  return out;
+}
+
+scheme_tree
+listing_output (scheme_tree args) {
+  scheme_tree begin= stree_apply ("!begin");
+  begin << stree_string ("tmlisting");
+  scheme_tree out (TUPLE);
+  out << begin << converted_child (args, 0);
+  return out;
+}
+
+scheme_tree
+minipage_output (scheme_tree args) {
+  if (!stree_list (args) || N(args) < 3) return stree_string ("");
+  string position= string_atom (args[0]) ? atom_text (args[0]) : "";
+  string size= string_atom (args[1]) ? atom_text (args[1]) : "";
+  scheme_tree begin= stree_apply ("!begin");
+  begin << stree_string ("minipage");
+  if (position != "f") {
+    scheme_tree option= stree_apply ("!option");
+    option << stree_string (position);
+    begin << option;
+  }
+  begin << stree_string (decode_length_string (size));
+  scheme_tree out (TUPLE);
+  out << begin << tmtex_convert (args[2]);
+  return out;
+}
+
+scheme_tree
+math_class_output (string command, scheme_tree args) {
+  scheme_tree out= stree_apply (command);
+  out << converted_child (args, 0);
+  return out;
+}
+
+scheme_tree
+item_output (scheme_tree args, bool with_option) {
+  scheme_tree item= stree_apply ("item");
+  if (with_option) {
+    scheme_tree option= stree_apply ("!option");
+    option << converted_child (args, 0);
+    item << option;
+  }
+  scheme_tree parts (TUPLE);
+  parts << item << stree_string (" ");
+  return latex_tex_concat (parts);
+}
+
+scheme_tree
+marginal_note_output (string key, scheme_tree args) {
+  scheme_tree out= stree_apply ("marginpar");
+  scheme_tree last= stree_string ("");
+  if (stree_list (args) && N(args) > 0) last= tmtex_convert (args[N(args)-1]);
+  if (key == "marginal-left-note" || key == "marginal-even-left-note") {
+    scheme_tree option= stree_apply ("!option");
+    option << last;
+    out << option << stree_string ("");
+  }
+  else if (key == "marginal-right-note" || key == "marginal-even-right-note") {
+    scheme_tree option= stree_apply ("!option");
+    option << stree_string ("");
+    out << option << last;
+  }
+  else out << last;
+  return out;
+}
+
+scheme_tree
+menu_output (scheme_tree args) {
+  if (!stree_list (args) || N(args) == 0) return stree_string ("");
+  scheme_tree parts (TUPLE);
+  for (int i=0; i<N(args); ++i) {
+    if (i > 0) {
+      scheme_tree math= stree_apply ("!math");
+      math << stree_apply ("rightarrow");
+      parts << math;
+    }
+    scheme_tree one (TUPLE);
+    one << args[i];
+    parts << tmtex_convert (source_apply ("samp", one));
+  }
+  return latex_tex_concat (parts);
+}
+
+scheme_tree
+proof_pair (scheme_tree title, scheme_tree body) {
+  scheme_tree begin= stree_apply ("!begin");
+  begin << stree_string ("proof*") << title;
+  scheme_tree out (TUPLE);
+  out << begin << body;
+  return out;
+}
+
+scheme_tree
+proof_wrapped_output (string key, scheme_tree args) {
+  scheme_tree original= source_apply (key, args);
+  if (key == "proof-alternative")
+    return athena_data_wrap_with_records (
+      original, scheme_tree (TUPLE),
+      proof_pair (stree_string ("Proof (Alternative)"), converted_child (args, 0)));
+  if (key == "proof-standard")
+    return athena_data_wrap_with_records (
+      original, scheme_tree (TUPLE),
+      proof_pair (stree_string ("Proof (Standard)"), converted_child (args, 0)));
+  if (key == "proof-of") {
+    scheme_tree title= stree_apply ("!concat");
+    title << stree_string ("Proof ") << converted_child (args, 0);
+    return athena_data_wrap_with_records (
+      original, scheme_tree (TUPLE),
+      proof_pair (title, converted_child (args, 1)));
+  }
+  return athena_data_wrap_with_records (
+    original, scheme_tree (TUPLE),
+    proof_pair (converted_child (args, 0), converted_child (args, 1)));
+}
+
+scheme_tree
+render_proof_output (scheme_tree args) {
+  return proof_pair (converted_child (args, 0), converted_child (args, 1));
+}
+
+scheme_tree
+glossary_label_output (bool consume) {
+  int nr= consume ? ++latex_export_context.auto_consume
+                  : ++latex_export_context.auto_produce;
+  scheme_tree out= stree_apply ("label");
+  out << stree_string ("autolab" * as_string (nr));
+  return out;
+}
+
+scheme_tree
+glossary_entry_output (scheme_tree args) {
+  int nr= ++latex_export_context.auto_consume;
+  scheme_tree page= stree_apply ("pageref");
+  page << stree_string ("autolab" * as_string (nr));
+  scheme_tree out= stree_apply ("glossaryentry");
+  out << converted_child (args, 0) << converted_child (args, 1) << page;
+  return out;
+}
+
+scheme_tree
+glossary_line_output (scheme_tree t) {
+  scheme_tree converted= tmtex_convert (t);
+  if (head_is (converted, "glossaryentry")) return converted;
+  scheme_tree out= stree_apply ("listpart");
+  out << converted;
+  return out;
+}
+
+scheme_tree
+glossary_body_output (scheme_tree body) {
+  if (!head_is (body, "document")) return tmtex_convert (body);
+  scheme_tree out= stree_apply ("!document");
+  for (int i=1; i<N(body); ++i) out << glossary_line_output (body[i]);
+  return out;
+}
+
+scheme_tree
+the_glossary_output (scheme_tree args) {
+  string style= latex_export_latex_style ();
+  bool book= style == "book" || style == "svmono";
+  scheme_tree heading= stree_apply (book ? "chapter*" : "section*");
+  heading << stree_string ("Glossary");
+
+  scheme_tree begin= stree_apply ("!begin");
+  begin << stree_string ("theglossary");
+  if (stree_list (args) && N(args) > 0) begin << args[0];
+  scheme_tree env (TUPLE);
+  env << begin << (N(args) > 1 ? glossary_body_output (args[1]) : stree_string (""));
+
+  scheme_tree out= stree_apply ("!document");
+  out << heading << env;
+  return out;
+}
+
+scheme_tree
+render_line_number_output (scheme_tree args) {
+  scheme_tree out= stree_apply ("tmlinenumber");
+  out << converted_child (args, 0);
+  scheme_tree len= converted_child (args, 1);
+  string value= string_atom (len) ? atom_text (len) : "";
+  out << stree_string (decode_length_string (value));
+  return out;
+}
+
+scheme_tree
+generic_function_output (string key, scheme_tree args) {
+  if (N(key) > 0 && key[0] == '!') {
+    scheme_tree out= stree_apply (key);
+    scheme_tree converted= tmtex_convert_list (args);
+    for (int i=0; i<N(converted); ++i) out << converted[i];
+    return out;
+  }
+  string name= tmtex_var_name_native (key);
+  if (name == "") return preserve_object (source_apply (key, args));
+  return tex_apply_converted (name, tmtex_convert_list (args));
+}
+
+scheme_tree
+compound_output (scheme_tree args) {
+  if (!stree_list (args) || N(args) == 0)
+    return preserve_object (stree_apply ("compound"));
+  if (experimental_warning_name (args[0]))
+    return preserve_object (stree_apply ("experimental-build-warning"));
+  if (string_atom (args[0])) {
+    string name= atom_text (args[0]);
+    scheme_tree call_args (TUPLE);
+    for (int i=1; i<N(args); ++i) call_args << args[i];
+    return tmtex_convert (source_apply (name, call_args));
+  }
+  return preserve_object (source_apply ("compound", args));
+}
+
+bool false_stree (scheme_tree value);
+
+// XML v3 primitives are decoded as native mathematical nodes here, not as
+// historical TeXmacs AROUND/BIG/RSUP or macro-expansion adapter trees. The
+// canonical l/r/s fields remain independent: pairing is never inferred from
+// the glyph. LaTeX delimiter *commands*, unlike XML, require glyph-specific
+// names (e.g. \lceil), so translate that alphabet at the TeX boundary only.
+bool
+native_v3_tex_delimiter (string glyph, string& result) {
+  if (glyph == "") { result= "."; return true; }
+  static const std::pair<const char*,const char*> names[]= {
+    {"(", "("}, {")", ")"}, {"[", "["}, {"]", "]"},
+    {"{", "\\{"}, {"}", "\\}"}, {"|", "|"}, {"‖", "\\|"},
+    {"/", "/"}, {"\\", "\\backslash"},
+    {"⟨", "\\langle"}, {"⟩", "\\rangle"},
+    {"⌈", "\\lceil"}, {"⌉", "\\rceil"},
+    {"⌊", "\\lfloor"}, {"⌋", "\\rfloor"},
+    {"⟦", "\\llbracket"}, {"⟧", "\\rrbracket"},
+    {"↑", "\\uparrow"}, {"↓", "\\downarrow"},
+    {"↕", "\\updownarrow"}, {"⇑", "\\Uparrow"},
+    {"⇓", "\\Downarrow"}, {"⇕", "\\Updownarrow"},
+    {"⎰", "\\lmoustache"}, {"⎱", "\\rmoustache"}
+  };
+  for (const auto& entry: names)
+    if (glyph == entry.first) { result= entry.second; return true; }
+  return false;
+}
+
+scheme_tree
+native_v3_tex_delimiter_command (string role, string glyph, int manual_size) {
+  // A null endpoint is TeX's dot only after \left/\right. At natural or
+  // manual size it contributes no glyph (and no artificial null space).
+  if (manual_size >= 0 && glyph == "") return stree_string ("");
+  if (latex_export_mathjax () && (glyph == "⟦" || glyph == "⟧"))
+    throw std::runtime_error ("MathJax cannot export stmaryrd delimiters");
+  if (glyph == "⟦" || glyph == "⟧")
+    latex_export_add_latex_extra_package ("stmaryrd");
+  string latex_glyph;
+  if (!native_v3_tex_delimiter (glyph, latex_glyph)) return tree ("#f");
+  if (manual_size < 0) return stree_apply (role * latex_glyph);
+  if (manual_size == 0) {
+    scheme_tree token= starts (latex_glyph, "\\") ?
+      stree_apply (latex_glyph (1, N (latex_glyph))) : stree_string (latex_glyph);
+    scheme_tree classified= stree_apply (
+      role == "left" ? "mathopen" : role == "right" ? "mathclose" : "mathrel");
+    classified << token;
+    return classified;
+  }
+  static const char* prefix[]= {"", "big", "Big", "bigg", "Bigg"};
+  if (manual_size > 4)
+    throw std::runtime_error ("LaTeX manual delimiter sizes above 4 are unsupported");
+  const string side= role == "left" ? "l" : role == "right" ? "r" : "m";
+  return stree_apply (string (prefix[manual_size]) * side * latex_glyph);
+}
+
+bool
+native_v3_failed_symbol (scheme_tree value) {
+  if (head_is (value, "nonconverted") ||
+      head_is (value, "!athena-data-inline")) return true;
+  if (is_compound (value))
+    for (int i=0; i<N(value); ++i)
+      if (native_v3_failed_symbol (value[i])) return true;
+  return false;
+}
+
+void
+native_v3_check_mathjax_symbol (scheme_tree value) {
+  if (!is_compound (value) || N(value) == 0) return;
+  if (is_atomic (value[0]) && !string_atom (value[0])) {
+    const auto packages= latex_export_internal::registry_command_needs (
+      value[0]->label);
+    for (int i=0; i<N(packages); ++i)
+      if (packages[i] != "amsmath" && packages[i] != "amsfonts" &&
+          packages[i] != "amssymb")
+        throw std::runtime_error (
+          "Native mathematical symbol requires a LaTeX-only package: " +
+          std::string (packages[i].data (), std::size_t (N(packages[i]))));
+  }
+  for (int i=0; i<N(value); ++i) native_v3_check_mathjax_symbol (value[i]);
+}
+
+scheme_tree
+native_v3_cell (scheme_tree cell, string& alignment, string& color) {
+  alignment= color= "";
+  if (func_is (cell, "cell", 1)) return cell[1];
+  if (!func_is (cell, "cell", 2) ||
+      !head_is (cell[1], "!math-cell-format") || N(cell[1]) % 2 != 1)
+    throw std::runtime_error ("Malformed prepared MathGrid cell");
+  for (int i=1; i<N(cell[1]); i+=2) {
+    if (!string_atom (cell[1][i]) || !string_atom (cell[1][i+1]))
+      throw std::runtime_error ("Malformed prepared MathGrid cell property");
+    const string name= atom_text (cell[1][i]);
+    const string value= atom_text (cell[1][i+1]);
+    if (name == "align" && (value == "l" || value == "c" || value == "r"))
+      alignment= value;
+    else if (name == "color") {
+      bool hex= N(value) == 7 && value[0] == '#';
+      for (int j=1; hex && j<N(value); ++j)
+        hex= (value[j] >= '0' && value[j] <= '9') ||
+             (value[j] >= 'a' && value[j] <= 'f') ||
+             (value[j] >= 'A' && value[j] <= 'F');
+      if (!hex && named_color_to_xcolormap (value) != "xcolor")
+        throw std::runtime_error ("Unsupported MathGrid foreground color");
+      color= value;
+    }
+    else throw std::runtime_error ("Unsupported MathGrid cell formatting");
+  }
+  return cell[2];
+}
+
+scheme_tree
+native_v3_row_policy (scheme_tree row, int& first_cell) {
+  if (!head_is (row, "row"))
+    throw std::runtime_error ("Malformed prepared MathGrid row");
+  first_cell= 1;
+  if (N(row) > 1 && head_is (row[1], "!math-row-policy")) {
+    if (N(row[1]) != 4 || !string_atom (row[1][1]) ||
+        !string_atom (row[1][3]) ||
+        (!empty_string_stree (row[1][2]) &&
+         !func_is (row[1][2], "!math-row-tag", 1)))
+      throw std::runtime_error ("Malformed prepared MathGrid row policy");
+    const string policy= atom_text (row[1][1]);
+    if (policy != "inherit" && policy != "numbered" && policy != "unnumbered")
+      throw std::runtime_error ("Unknown MathGrid row numbering policy");
+    first_cell= 2;
+    return row[1];
+  }
+  scheme_tree inherited= stree_apply ("!math-row-policy");
+  inherited << stree_string ("inherit") << stree_string ("") << stree_string ("");
+  return inherited;
+}
+
+bool
+native_v3_row_has_label (scheme_tree source) {
+  if (is_atomic (source)) return false;
+  if (head_is (source, "label")) return true;
+  if (head_is (source, "math-grid") || head_is (source, "math-block"))
+    return false;
+  for (int i=1; i<N(source); ++i)
+    if (native_v3_row_has_label (source[i])) return true;
+  return false;
+}
+
+scheme_tree
+native_v3_tex_math (string key, scheme_tree args) {
+  const scheme_tree original= source_apply (key, args);
+  if (key == "delimited") {
+    if (N(args) != 6 || !string_atom (args[0]) ||
+        !string_atom (args[1]) || !string_atom (args[2]) ||
+        !string_atom (args[3]) || !string_atom (args[4]))
+      return preserve_object (original);
+    const string sizing= atom_text (args[2]);
+    if (sizing != "a" && sizing != "f" && sizing != "m")
+      return preserve_object (original);
+    int left_size= -1, right_size= -1;
+    if (sizing == "f") left_size= right_size= 0;
+    if (sizing == "m") {
+      const string l= atom_text (args[3]);
+      const string r= atom_text (args[4]);
+      if (!athena::math_v3::size_level (l) ||
+          !athena::math_v3::size_level (r)) return preserve_object (original);
+      left_size= as_int (l);
+      right_size= as_int (r);
+    }
+    else if (!empty_string_stree (args[3]) || !empty_string_stree (args[4]))
+      return preserve_object (original);
+    scheme_tree left= native_v3_tex_delimiter_command (
+      "left", atom_text (args[0]), left_size);
+    scheme_tree right= native_v3_tex_delimiter_command (
+      "right", atom_text (args[1]), right_size);
+    if (false_stree (left) || false_stree (right))
+      return preserve_object (original);
+    // The innermost delimiter owns its sizing semantics. In particular,
+    // a fixed/manual pair nested inside an automatic pair must NOT inherit
+    // the outer pair's \middle policy: that would stretch its middle glyph
+    // against unrelated outside material. Conversely, an automatic inner
+    // pair must enable \middle even inside a fixed/manual outer pair.
+    const int previous_depth= latex_export_context.native_v3_delimiter_depth;
+    latex_export_context.native_v3_delimiter_depth=
+      sizing == "a" ? previous_depth + 1 : 0;
+    scheme_tree body;
+    try { body= tmtex_convert (args[5]); }
+    catch (...) {
+      latex_export_context.native_v3_delimiter_depth= previous_depth;
+      throw;
+    }
+    latex_export_context.native_v3_delimiter_depth= previous_depth;
+    scheme_tree fragments (TUPLE);
+    fragments << left << body << right;
+    return latex_tex_concat (fragments);
+  }
+  if (key == "math-middle") {
+    if (N(args) != 1 || !string_atom (args[0]))
+      return preserve_object (original);
+    const string glyph= atom_text (args[0]);
+    if (latex_export_context.native_v3_delimiter_depth > 0) {
+      const auto sized= native_v3_tex_delimiter_command ("middle", glyph, -1);
+      return false_stree (sized) ? preserve_object (original) : sized;
+    }
+    // A lone \middle is invalid TeX. Standalone mathematical bars are
+    // relation-class separators, not an unmatched pair of delimiters.
+    if (glyph == "|") return stree_apply ("mid");
+    if (glyph == "‖") return stree_apply ("parallel");
+    return preserve_object (original);
+  }
+  if (key == "big-operator") {
+    if (N(args) != 2 || !string_atom (args[0]) ||
+        !string_atom (args[1]) ||
+        (atom_text (args[1]) != "0" && atom_text (args[1]) != "1"))
+      return preserve_object (original);
+    // Upright integral rendering is font-specific. Never silently flatten it
+    // to a slanted LaTeX integral when the source explicitly requests upright.
+    if (atom_text (args[1]) == "1") return preserve_object (original);
+    static const std::pair<const char*,const char*> operators[]= {
+      {"∑", "sum"}, {"∏", "prod"}, {"∐", "coprod"},
+      {"∫", "int"}, {"∬", "iint"}, {"∭", "iiint"}, {"⨌", "iiiint"},
+      {"∮", "oint"}, {"∯", "oiint"}, {"∰", "oiiint"}, {"⨍", "fint"},
+      {"⋃", "bigcup"}, {"⋂", "bigcap"}, {"⋁", "bigvee"},
+      {"⋀", "bigwedge"}, {"⨁", "bigoplus"}, {"⨂", "bigotimes"},
+      {"⨀", "bigodot"}, {"⨄", "biguplus"}, {"⨆", "bigsqcup"},
+      {"⨅", "bigsqcap"}
+    };
+    string command;
+    for (const auto& entry: operators)
+      if (atom_text (args[0]) == entry.first) { command= entry.second; break; }
+    if (command == "") return preserve_object (original);
+    const bool esint= command == "oiint" || command == "oiiint" || command == "fint";
+    if (latex_export_mathjax () && (esint || command == "bigsqcap"))
+      throw std::runtime_error ("MathJax cannot export this native big operator");
+    if (esint) latex_export_add_latex_extra_package ("esint");
+    return stree_apply (command);
+  }
+  if (key == "math-symbol") {
+    if (N(args) != 1 || !string_atom (args[0]))
+      return preserve_object (original);
+    const string identifier= atom_text (args[0]);
+    const auto identity= athena::math_v3::symbol_registry_identity (identifier);
+    if (identity.empty ()) return preserve_object (original);
+    if (identifier == "multiple-integral-with-dots") return stree_apply ("idotsint");
+    const string source (identity.data (), int (identity.size ()));
+    scheme_tree result= latex_export_named_symbol (source, true);
+    if (native_v3_failed_symbol (result)) return preserve_object (original);
+    if (latex_export_mathjax ()) {
+      native_v3_check_mathjax_symbol (result);
+      native_v3_check_mathjax_symbol (latex_export_expand_macros (result));
+    }
+    return result;
+  }
+  if (key == "math-annotation") {
+    if (N(args) != 3) return preserve_object (original);
+    scheme_tree expression= tmtex_convert (args[0]);
+    if (!empty_string_stree (args[2])) {
+      scheme_tree over= stree_apply ("overset");
+      over << tmtex_convert (args[2]) << expression;
+      expression= over;
+    }
+    if (!empty_string_stree (args[1])) {
+      scheme_tree under= stree_apply ("underset");
+      under << tmtex_convert (args[1]) << expression;
+      expression= under;
+    }
+    return expression;
+  }
+  if (key == "math-variant") {
+    if (N(args) != 2 || !string_atom (args[0]))
+      return preserve_object (original);
+    const string kind= atom_text (args[0]);
+    string command;
+    if (kind == "bb") command= "mathbb";
+    else if (kind == "cal") command= "mathcal";
+    else if (kind == "frak") command= "mathfrak";
+    else if (kind == "mbf") command= "boldsymbol";
+    else if (kind == "mbfu") command= "mathbf";
+    else if (kind == "rm") command= "mathrm";
+    else if (kind == "bf") command= "mathbf";
+    else if (kind == "it") command= "mathit";
+    else if (kind == "ss") command= "mathsf";
+    else if (kind == "tt") command= "mathtt";
+    else if (kind == "sl") command= "textsl";
+    else return preserve_object (original);
+    // These mathematical alphabet commands are not defined by plain LaTeX:
+    // boldsymbol requires amsmath/amsbsy, and mathfrak/mathbb need AMS fonts.
+    // Register the dependencies on the actual native source conversion path,
+    // not by smuggling a legacy WITH wrapper through the v3 AST.
+    if (!latex_export_mathjax ()) {
+      if (kind == "mbf") latex_export_add_latex_extra_package ("amsmath");
+      if (kind == "frak" || kind == "bb")
+        latex_export_add_latex_extra_package ("amsfonts");
+    }
+    if (kind != "bb" && kind != "cal" && kind != "frak" &&
+        kind != "mbf" && kind != "mbfu") {
+      if (kind == "sl" && latex_export_mathjax ())
+        throw std::runtime_error ("MathJax cannot preserve the slanted math variant");
+      latex_export_env_set ("mode", stree_string ("text"));
+      scheme_tree body;
+      try { body= tmtex_convert (args[1]); }
+      catch (...) { latex_export_env_reset ("mode"); throw; }
+      latex_export_env_reset ("mode");
+      return post_process_math_text_native (command, body);
+    }
+    scheme_tree out= stree_apply (command);
+    out << tmtex_convert (args[1]);
+    return out;
+  }
+  if (key == "scripts") {
+    // A prepared native source carries its typed policy as the first field.
+    // Generic tree->stree contains only five slots; it MUST NOT be exported
+    // by assuming policy 'a', because that silently changes explicit limits.
+    if (N(args) != 6 || !string_atom (args[0]))
+      return preserve_object (original);
+    const string policy= atom_text (args[0]);
+    if (policy != "a" && policy != "d" &&
+        policy != "o" && policy != "r") return preserve_object (original);
+    const bool left_sub= !empty_string_stree (args[2]);
+    const bool left_sup= !empty_string_stree (args[3]);
+    const bool right_sub= !empty_string_stree (args[4]);
+    const bool right_sup= !empty_string_stree (args[5]);
+    scheme_tree pieces (TUPLE);
+    if (left_sub || left_sup) {
+      pieces << stree_apply ("!group"); // exactly {}_{p}^{q}, not an AST RSUB
+      if (left_sub) pieces << script_output ("!sub", args[2]);
+      if (left_sup) pieces << script_output ("!sup", args[3]);
+    }
+    scheme_tree base;
+    if (empty_string_stree (args[1])) {
+      // Standalone ^{op}/^{-1} is a legitimate v3 MathScripts with an empty
+      // base. TeX requires an explicit {} nucleus: emitting a bare ^ token
+      // would be an ill-formed math expression.
+      base= stree_apply ("!group");
+    }
+    else {
+      base= tmtex_convert (args[1]);
+      if (head_is (args[1], "concat")) {
+        // The five-slot AST attaches to the *whole* base, not simply the
+        // last token in a horizontal concat (e.g. (x+y)_i versus x+y_i).
+        scheme_tree scoped= stree_apply ("!group");
+        scoped << base;
+        base= scoped;
+      }
+    }
+    if (policy != "a") {
+      if (!head_is (args[1], "big-operator")) {
+        scheme_tree op= stree_apply ("mathop");
+        op << base;
+        base= op;
+      }
+      pieces << base;
+      pieces << stree_apply (
+        policy == "o" ? "limits" : policy == "r" ?
+        "nolimits" : "displaylimits");
+    }
+    else pieces << base;
+    if (right_sub) pieces << script_output ("!sub", args[4]);
+    if (right_sup) pieces << script_output ("!sup", args[5]);
+    return latex_tex_concat (pieces);
+  }
+  if (key == "math-accent") {
+    if (N(args) != 4 || !string_atom (args[0]) ||
+        !string_atom (args[1]) || !string_atom (args[2]))
+      return preserve_object (original);
+    const string glyph= atom_text (args[0]);
+    const bool above= atom_text (args[1]) == "o";
+    const bool under= atom_text (args[1]) == "u";
+    if (!above && !under) return preserve_object (original);
+    const string stretch= atom_text (args[2]);
+    if (stretch != "0" && stretch != "1")
+      return preserve_object (original);
+    const bool wide= stretch == "1";
+    string command;
+    if (glyph == "̂" && above) command= wide ? "widehat" : "hat";
+    else if (glyph == "̃" && above) command= wide ? "widetilde" : "tilde";
+    else if (glyph == "̅" && above) command= wide ? "overline" : "bar";
+    else if (glyph == "̅" && under && wide) command= "underline";
+    else if (glyph == "⃗" && above) command= wide ? "overrightarrow" : "vec";
+    else if (glyph == "⃗" && under && wide) command= "underrightarrow";
+    else if (glyph == "⃖" && wide) command= above ? "overleftarrow" : "underleftarrow";
+    else if (glyph == "⃡" && wide) command= above ? "overleftrightarrow" : "underleftrightarrow";
+    else if (glyph == "⏞" && above && wide) command= "overbrace";
+    else if (glyph == "⏟" && under && wide) command= "underbrace";
+    else if (above && !wide && glyph == "̊") command= "mathring";
+    else if (above && !wide && glyph == "̇") command= "dot";
+    else if (above && !wide && glyph == "̈") command= "ddot";
+    else if (above && !wide && glyph == "⃛") command= "dddot";
+    else if (above && !wide && glyph == "⃜") command= "ddddot";
+    else if (above && !wide && glyph == "́") command= "acute";
+    else if (above && !wide && glyph == "̀") command= "grave";
+    else if (above && !wide && glyph == "̆") command= "breve";
+    else if (above && !wide && glyph == "̌") command= "check";
+    if (command == "") return preserve_object (original);
+    scheme_tree output= stree_apply (command);
+    output << tmtex_convert (args[3]);
+    return output;
+  }
+  if (key == "math-long-arrow") {
+    if (N(args) != 3) return preserve_object (original);
+    string glyph;
+    if (string_atom (args[0])) glyph= atom_text (args[0]);
+    else if (func_is (args[0], "math-symbol", 1) &&
+             string_atom (args[0][1]) &&
+             atom_text (args[0][1]) == "long-hookrightarrow")
+      glyph= "↪";
+    string command;
+    if (glyph == "→") command= "xrightarrow";
+    else if (glyph == "←") command= "xleftarrow";
+    else if (glyph == "↔") command= "xleftrightarrow";
+    else if (glyph == "↪") command= "xhookrightarrow";
+    else if (glyph == "↩") command= "xhookleftarrow";
+    else if (glyph == "↦") command= "xmapsto";
+    else if (glyph == "⇒") command= "xRightarrow";
+    else if (glyph == "⇐") command= "xLeftarrow";
+    else if (glyph == "⇔") command= "xLeftrightarrow";
+    if (command == "") return preserve_object (original);
+    scheme_tree output= stree_apply (command);
+    if (!empty_string_stree (args[1])) {
+      scheme_tree option= stree_apply ("!option");
+      option << tmtex_convert (args[1]);
+      output << option;
+    }
+    output << (empty_string_stree (args[2]) ? stree_string ("") :
+               tmtex_convert (args[2]));
+    if (command != "xrightarrow" && command != "xleftarrow") {
+      if (latex_export_mathjax ()) {
+        scheme_tree require= stree_apply ("require");
+        require << stree_string ("mathtools");
+        scheme_tree pieces (TUPLE);
+        pieces << require << output;
+        return latex_tex_concat (pieces);
+      }
+      latex_export_add_latex_extra_package ("mathtools");
+    }
+    return output;
+  }
+  if (key == "math-grid") {
+    if (N(args) < 2 || !string_atom (args[0]))
+      return preserve_object (original);
+    const string kind= atom_text (args[0]);
+    const int block_numbered= latex_export_context.native_v3_block_numbered;
+    const bool display= block_numbered >= 0;
+    const bool display_kind= kind == "eqnarray" || kind == "align" || kind == "stack";
+    string environment;
+    if (kind == "eqnarray") environment= display ? "eqnarray*" : "array";
+    else if (kind == "align") environment= display ? "align*" : "aligned";
+    else if (kind == "stack") environment= display ? "gather*" : "gathered";
+    else if (kind == "matrix") environment= "matrix";
+    else if (kind == "cases") environment= "cases";
+    else if (kind == "generic") environment= "array";
+    else return preserve_object (original);
+    int first_cell;
+    native_v3_row_policy (args[1], first_cell);
+    const int columns= N(args[1])-first_cell;
+    if (columns < 1) return preserve_object (original);
+    if ((kind == "eqnarray" && columns != 3) ||
+        (kind == "align" && columns % 2 != 0) ||
+        (kind == "stack" && columns != 1) ||
+        (kind == "cases" && columns != 2)) return preserve_object (original);
+    array<string> alignments (columns);
+    bool custom_alignment= false;
+    bool automatic_numbers= false;
+    for (int i=1; i<N(args); ++i) {
+      int first;
+      const scheme_tree row_policy= native_v3_row_policy (args[i], first);
+      const string policy= atom_text (row_policy[1]);
+      const bool tagged= !empty_string_stree (row_policy[2]);
+      if ((!display || !display_kind) && (policy != "inherit" || tagged))
+        throw std::runtime_error (
+          "MathGrid row numbering requires a direct display eqnarray, align or stack");
+      if (tagged && kind == "eqnarray")
+        throw std::runtime_error (
+          "Custom MathGrid row tags cannot be represented by the LaTeX eqnarray environment");
+      if (display && display_kind && !tagged &&
+          !(policy == "numbered" || (policy == "inherit" && block_numbered == 1)))
+        for (int j=first; j<N(args[i]); ++j)
+          if (native_v3_row_has_label (args[i][j]))
+            throw std::runtime_error (
+              "A label on an unnumbered MathGrid row has no LaTeX equation reference value");
+      automatic_numbers= automatic_numbers || (display && display_kind && !tagged &&
+        (policy == "numbered" || (policy == "inherit" && block_numbered == 1)));
+      if (N(args[i]) != columns+first)
+        throw std::runtime_error ("Nonrectangular MathGrid cannot be exported");
+      for (int j=0; j<columns; ++j) {
+        string alignment, color;
+        native_v3_cell (args[i][j+first], alignment, color);
+        const string inherited= athena::math_v3::grid_column_alignment (kind, j);
+        if (alignment == "") alignment= inherited;
+        if (alignment == "")
+          throw std::runtime_error ("Generic MathGrid needs explicit column alignment");
+        if (alignment != inherited) custom_alignment= true;
+        if (i == 1) alignments[j]= alignment;
+        else if (alignments[j] != alignment)
+          throw std::runtime_error ("MathGrid cell alignment varies within a column");
+      }
+    }
+    if (automatic_numbers)
+      environment= environment (0, N (environment)-1); // remove '*'
+    if (custom_alignment) {
+      if (kind != "matrix" && kind != "generic")
+        throw std::runtime_error ("Custom alignment is unsupported for this MathGrid kind");
+      environment= "array";
+    }
+    scheme_tree table= stree_apply ("!table");
+    // A block's numbering belongs only to its direct grid. Neither nested
+    // cell grids nor aligned expressions inside cells are display environments.
+    latex_export_context.native_v3_block_numbered= -1;
+    try {
+      for (int i=1; i<N(args); ++i) {
+        const scheme_tree& input_row= args[i];
+        int first;
+        const scheme_tree policy= native_v3_row_policy (input_row, first);
+        const bool tagged= !empty_string_stree (policy[2]);
+        const string numbering= atom_text (policy[1]);
+        const bool numbered= numbering == "numbered" ||
+          (numbering == "inherit" && block_numbered == 1);
+        scheme_tree row= stree_apply ("!row");
+        for (int j=first; j<N (input_row); ++j) {
+          string alignment, color;
+          scheme_tree body= tmtex_convert (
+            native_v3_cell (input_row[j], alignment, color));
+          if (color != "") {
+            scheme_tree command= stree_apply ("color");
+            // The existing MathJax prepass removes xcolor's optional model.
+            // Its color extension instead accepts a CSS hex color directly.
+            const scheme_tree decoded= latex_export_mathjax () ?
+              stree_string (color) : decode_color_native (color, true);
+            if (stree_list (decoded))
+              for (int k=0; k<N(decoded); ++k) command << decoded[k];
+            else command << decoded;
+            scheme_tree scoped= stree_apply ("!group");
+            scoped << command << body;
+            body= scoped;
+          }
+          row << body;
+        }
+        scheme_tree suffix (TUPLE);
+        suffix << row[N(row)-1];
+        if (tagged) {
+          latex_export_env_set ("mode", stree_string ("text"));
+          scheme_tree tag= stree_apply ("tag");
+          try { tag << tmtex_convert (policy[2][1]); }
+          catch (...) { latex_export_env_reset ("mode"); throw; }
+          latex_export_env_reset ("mode");
+          suffix << tag;
+        }
+        else if (automatic_numbers && !numbered)
+          suffix << stree_apply ("nonumber");
+        if (display && display_kind && (tagged || numbered) &&
+            !empty_string_stree (policy[3])) {
+          scheme_tree label= stree_apply ("label");
+          label << stree_string ("athena-node-" * atom_text (policy[3]));
+          suffix << label;
+        }
+        row[N(row)-1]= latex_tex_concat (suffix);
+        table << row;
+      }
+    }
+    catch (...) {
+      latex_export_context.native_v3_block_numbered= block_numbered;
+      throw;
+    }
+    latex_export_context.native_v3_block_numbered= block_numbered;
+    scheme_tree begin= stree_apply ("!begin");
+    begin << stree_string (environment);
+    if (environment == "array") {
+      string specification= "@{}";
+      for (int j=0; j<columns; ++j) specification << alignments[j];
+      begin << stree_string (specification * "@{}");
+    }
+    scheme_tree output (TUPLE);
+    output << begin << table;
+    return output;
+  }
+  if (key == "math-block") {
+    if (N(args) != 2 || !string_atom (args[0]) ||
+        (atom_text (args[0]) != "0" && atom_text (args[0]) != "1"))
+      return preserve_object (original);
+    const bool numbered= atom_text (args[0]) == "1";
+    const bool grid= head_is (args[1], "math-grid");
+    string grid_kind;
+    if (grid) {
+      if (N(args[1]) < 3 || !string_atom (args[1][1]))
+        return preserve_object (original);
+      grid_kind= atom_text (args[1][1]);
+    }
+    const int previous= latex_export_context.native_v3_block_numbered;
+    latex_export_context.native_v3_block_numbered= grid ? (numbered ? 1 : 0) : -1;
+    latex_export_env_set ("mode", stree_string ("math"));
+    scheme_tree body;
+    try { body= tmtex_convert (args[1]); }
+    catch (...) {
+      latex_export_env_reset ("mode");
+      latex_export_context.native_v3_block_numbered= previous;
+      throw;
+    }
+    latex_export_env_reset ("mode");
+    latex_export_context.native_v3_block_numbered= previous;
+    // eqnarray/align/gather encode display mode and numbering in their own
+    // TeX environments. Matrix and cases are *inner* math environments;
+    // dropping the MathBlock around them would silently lose an equation
+    // number (or the fact that the expression was a display block).
+    if (grid && (grid_kind == "eqnarray" || grid_kind == "align" ||
+                 grid_kind == "stack")) return body;
+    scheme_tree begin= stree_apply ("!begin");
+    begin << stree_string (numbered ? "equation" : "equation*");
+    scheme_tree output (TUPLE);
+    output << begin << body;
+    return output;
+  }
+  return tree ("#f");
+}
+
+scheme_tree
+core_dispatch (string key, scheme_tree args) {
+  scheme_tree original= source_apply (key, args);
+  if (key == "delimited" || key == "math-middle" ||
+      key == "big-operator" || key == "math-symbol" ||
+      key == "math-annotation" || key == "math-variant" ||
+      key == "scripts" || key == "math-accent" ||
+      key == "math-grid" || key == "math-block" ||
+      key == "math-long-arrow") {
+    // Native mathematical subtrees also occur in rich-text row tags. Their
+    // semantics do not depend on an extra historical math wrapper, whereas
+    // LaTeX scripts/delimiters require a mathematical environment.
+    const bool ensure_math= key != "math-block" && !export_math_mode ();
+    if (ensure_math) latex_export_env_set ("mode", stree_string ("math"));
+    scheme_tree result;
+    try { result= native_v3_tex_math (key, args); }
+    catch (...) {
+      if (ensure_math) latex_export_env_reset ("mode");
+      throw;
+    }
+    if (ensure_math) latex_export_env_reset ("mode");
+    // The ordinary TeXmacs preservation escape encodes a Scheme tree, not
+    // the UUID/properties of its original native v3 AST. On these new nodes
+    // claiming that fallback is lossless would be false: a MathGrid can
+    // silently lose cell-format, a script can lose its limits policy, etc.
+    // Abort the export instead of writing a partially valid .tex artifact.
+    if (head_is (result, "!athena-data-inline"))
+      throw std::runtime_error (
+        "Unsupported XML v3 mathematical structure in LaTeX export: " +
+        std::string (key.data (), std::size_t (N (key))));
+    if (ensure_math) {
+      scheme_tree wrapped= stree_apply ("!math");
+      wrapped << result;
+      return wrapped;
+    }
+    return result;
+  }
+  if (key == "!file") return file_output_native (args);
+  if (key == "tformat" || key == "table") {
+    scheme_tree source= stree_apply (key);
+    for (int i=0; i<N(args); ++i) source << args[i];
+    return latex_export_table_apply ("tabular", scheme_tree (TUPLE), source);
+  }
+  if (key == "eqnarray" || key == "eqnarray*" || key == "leqnarray*" ||
+      key == "gather" || key == "multline" || key == "gather*" ||
+      key == "multline*" || key == "align" || key == "flalign" ||
+      key == "alignat" || key == "align*" || key == "flalign*" ||
+      key == "alignat*") {
+    if (N(args) == 0) return stree_string ("");
+    array<scheme_tree> previous= env_values ("mode");
+    array<scheme_tree> scoped;
+    scoped << stree_string ("math");
+    for (int i=0; i<N(previous); ++i) scoped << previous[i];
+    latex_export_context.env ("mode")= scoped;
+    scheme_tree out= latex_export_table_apply (key, scheme_tree (TUPLE), args[0]);
+    latex_export_context.env ("mode")= previous;
+    return out;
+  }
+  if (key == "document" || key == "para") {
+    scheme_tree out= stree_apply (key == "document" ? "!document" : "!paragraph");
+    scheme_tree converted= tmtex_convert_list (args);
+    for (int i=0; i<N(converted); ++i) out << converted[i];
+    return out;
+  }
+  if (key == "date") return simple_converted_apply ("tmdate", args);
+  if (key == "assign") return assign_output (args);
+  if (key == "with") {
+    if (N(args) == 3 && string_atom (args[0]) && string_atom (args[1]) &&
+        atom_text (args[0]) == "par-columns" && atom_text (args[1]) == "1" &&
+        stree_list (args[2]) && N(args[2]) > 0 && is_atomic (args[2][0])) {
+      string child= args[2][0]->label;
+      if (child == "small-figure" || child == "big-figure" ||
+          child == "small-table" || child == "big-table")
+        return float_sub (true, "h", args[2]);
+    }
+    if (N(args) > 0 && head_is (args[N(args)-1], "graphics"))
+      return latex_export_render_image (original);
+    return with_convert_native (args);
+  }
+  if (key == "tree" || key == "graphics")
+    return latex_export_render_image (original);
+  if (key == "image") return latex_export_image (args);
+  if (key == "commutative-diagram") return latex_export_commutative_diagram (args);
+  if (key == "framed" || key == "ornamented" || key == "padded" ||
+      key == "underlined" || key == "overlined" || key == "bothlined" ||
+      key == "leftlined" || key == "rightlined" || key == "verticallined")
+    return latex_export_ornament (key, args);
+  if (key == "hlink" || key == "cardlink" || key == "transclude" ||
+      key == "material-citation" || key == "referenced-materials")
+    return latex_export_link_dispatch (key, args);
+  if (key == "around" || key == "around*" || key == "big-around" ||
+      key == "specific" || key == "translate" || key == "localize")
+    return latex_export_misc_handler (key, args);
+  if (key == "compound" || key == "value") return compound_output (args);
+  if (key == "number") return number_output (args);
+  if (key == "change-case") return change_case_output (args);
+  if (key == "text" || key == "math-up" || key == "math-ss" ||
+      key == "math-tt" || key == "math-bf" || key == "math-sl" ||
+      key == "math-it")
+    return textual_wrapper_output (key, args);
+  if (key == "math") return math_output_native (args);
+  if (sectional_key (key)) return sectional_output_native (key, args);
+  if (key == "appendix" || key == "appendix*")
+    return appendix_output_native (key, args);
+  if (enunciation_key (key)) return enunciation_output_native (key, args);
+  if (key == "footnote" || key == "wide-footnote") {
+    scheme_tree out= stree_apply ("footnote");
+    out << converted_child (args, 0);
+    return out;
+  }
+  if (key == "footnotemark*") {
+    scheme_tree option= stree_apply ("!option");
+    option << converted_child (args, 0);
+    scheme_tree out= stree_apply ("footnotemark");
+    out << option;
+    return out;
+  }
+  if (list_environment_key (key)) return list_environment_output_native (key, args);
+  string layout_environment;
+  if (simple_layout_environment (key, layout_environment))
+    return simple_environment_output_native (layout_environment, args);
+  string size_command;
+  bool size_grouped= true;
+  if (size_wrapper_command (key, size_command, size_grouped))
+    return size_wrapper_output_native (size_command, size_grouped, args);
+  if (language_wrapper_key (key)) return language_wrapper_output_native (key, args);
+  if (key == "equation" || key == "equation*")
+    return equation_output_native (key, args);
+  if (key == "frame") return frame_output_native (args);
+  if (key == "colored-frame") return colored_frame_output_native (args);
+  if (key == "fcolorbox") return fcolorbox_output_native (args);
+  if (key == "rotate") return rotate_output_native (args);
+  if (key == "hrule") return stree_apply ("hrulefill");
+  if (key == "verbatim") return verbatim_output_native (args, false);
+  if (key == "verbatim*") return verbatim_output_native (args, true);
+  if (key == "code" || key == "cpp-code" || key == "scm-code" ||
+      key == "shell-code" || key == "scilab-code" || key == "verbatim-code")
+    return code_block_output_native (key, args);
+  if (key == "cpp" || key == "scm" || key == "shell" || key == "scilab")
+    return code_inline_output_native (key, args);
+  if (key == "latex-picture-fallback" || key == "latex_preview" ||
+      key == "picture-mixed" || key == "source-mixed")
+    return mixed_source_output_native (args);
+  if (key == "href" || key == "slink") return href_output_native (args);
+  if (modifier_key (key)) return modifier_output_native (key, args);
+  if (key == "tt") return text_tt_output_native (args);
+  if (key == "render-key") return render_key_output_native (args);
+  if (key == "new-theorem" || key == "new-remark" || key == "new-exercise")
+    return new_theorem_output_native (args);
+  if (key == "small-figure" || key == "big-figure" ||
+      key == "small-table" || key == "big-table")
+    return float_sub (false, "h", original);
+  if (tm_wrapper_key (key)) return tm_wrapper_output_native (key, args);
+  if (key == "hide-part") return preserve_object (original);
+  if (key == "show-part") return preserve_lossy (original, converted_child (args, 1));
+  if (key == "condensed") return preserve_lossy (original, converted_child (args, 0));
+  if (key == "line-note") return line_note_output (args);
+  if (key == "syntax") return converted_child (args, 0);
+  if (key == "listing") return listing_output (args);
+  if (key == "minipage") return minipage_output (args);
+  if (key == "the-index") return stree_apply ("printindex");
+  if (key == "table-of-contents") return tex_apply_fixed ("tableofcontents");
+  if (key == "item") return item_output (args, false);
+  if (key == "item*") return item_output (args, true);
+  if (key == "menu") return menu_output (args);
+  if (key == "proof-alternative" || key == "proof-standard" || key == "proof-of" ||
+      key == "render-proof-alternative" || key == "render-proof-standard")
+    return proof_wrapped_output (key, args);
+  if (key == "render-proof") return render_proof_output (args);
+  if (key == "nbsp") return stree_apply ("!nbsp");
+  if (key == "nbhyph") return stree_apply ("!nbhyph");
+  if (key == "frac*") {
+    scheme_tree out= stree_apply ("sfrac");
+    out << converted_child (args, 0) << converted_child (args, 1);
+    return out;
+  }
+  if (key == "glossary" || key == "glossary-explain")
+    return glossary_label_output (false);
+  if (key == "glossary-2") return glossary_entry_output (args);
+  if (key == "the-glossary") return the_glossary_output (args);
+  if (key == "marginal-note" || key == "marginal-normal-note" ||
+      key == "marginal-left-note" || key == "marginal-even-left-note" ||
+      key == "marginal-right-note" || key == "marginal-even-right-note")
+    return marginal_note_output (key, args);
+  if (key == "math-separator") return math_class_output ("mathpunct", args);
+  if (key == "math-quantifier" || key == "math-not" || key == "math-prefix" ||
+      key == "math-postfix" || key == "math-ordinary" || key == "math-ignore")
+    return math_class_output ("mathord", args);
+  if (key == "math-imply" || key == "math-or" || key == "math-and" ||
+      key == "math-union" || key == "math-intersection" || key == "math-exclude" ||
+      key == "math-plus" || key == "math-minus" || key == "math-times" ||
+      key == "math-over")
+    return math_class_output ("mathbin", args);
+  if (key == "math-relation") return math_class_output ("mathrel", args);
+  if (key == "math-big") return math_class_output ("mathop", args);
+  if (key == "math-open") return math_class_output ("mathopen", args);
+  if (key == "math-close") return math_class_output ("mathclose", args);
+  if (key == "render-line-number") return render_line_number_output (args);
+  if (key == "!ilx") {
+    scheme_tree out= stree_apply ("!invariant");
+    if (N(args) > 0) out << args[0];
+    return out;
+  }
+  if (key == "mtm") return convert_mtm (args);
+  if (key == "surround") return convert_surround (args);
+  if (key == "concat") return convert_concat (args);
+  if (key == "float" || key == "wide-float") {
+    if (N(args) < 3) return stree_string ("");
+    string position= string_atom (args[1]) ? atom_text (args[1]) : "";
+    return float_sub (key == "wide-float", position, args[2]);
+  }
+  if (key == "hspace") return hspace_command (args);
+  if (key == "separating-space" || key == "application-space")
+    return hspace_command (args);
+  if (key == "vspace") return vspace_command (args);
+  if (key == "space") {
+    scheme_tree one (TUPLE);
+    if (N(args) > 0) one << args[0];
+    return hspace_command (one);
+  }
+  if (key == "rigid" || key == "hgroup") {
+    scheme_tree out= stree_apply ("!group");
+    scheme_tree converted= tmtex_convert_list (args);
+    for (int i=0; i<N(converted); ++i) out << converted[i];
+    return out;
+  }
+  if (key == "athena-preserved-object")
+    return N(args) > 0 ? preserve_object (args[0]) : stree_string ("");
+  if (key == "!athena-data-inline") {
+    scheme_tree out= stree_apply ("!athena-data-inline");
+    if (N(args) > 0) out << args[0];
+    return out;
+  }
+  if (key == "vgroup" || key == "move" || key == "shift" ||
+      key == "resize" || key == "clipped")
+    return preserve_lossy (original, converted_child (args, 0));
+  if (key == "shown")
+    return preserve_lossy (original, converted_child (args, 0));
+  if (key == "datoms")
+    return preserve_lossy (original, converted_child (args, 1));
+  if (key == "hidden-binding") {
+    if (N(args) == 2 && string_atom (args[1]) && is_double (atom_text (args[1]))) {
+      scheme_tree out= stree_apply ("custombinding");
+      out << args[1];
+      return out;
+    }
+    return preserve_object (original);
+  }
+  if (key == "label") {
+    string id= N(args) > 0 && string_atom (args[0]) ? atom_text (args[0]) : "";
+    if (athena_anchor_label (id)) return preserve_object (original);
+    scheme_tree out= stree_apply ("label");
+    out << latex_id_native (N(args) > 0 ? args[0] : stree_string (""));
+    return out;
+  }
+  if (key == "reference" || key == "pageref" || key == "eqref") {
+    scheme_tree out= stree_apply (key == "reference" ? "ref" : key);
+    out << latex_id_native (N(args) > 0 ? args[0] : stree_string (""));
+    return out;
+  }
+  if (key == "smart-ref") {
+    string joined;
+    for (int i=0; i<N(args); ++i) {
+      if (i) joined << ",";
+      joined << atom_text (latex_id_native (args[i]));
+    }
+    scheme_tree out= stree_apply ("Cref");
+    out << stree_string (joined);
+    return out;
+  }
+  if (key == "action") {
+    scheme_tree out= stree_apply ("tmaction");
+    if (N(args) > 0) out << tmtex_convert (args[0]);
+    if (N(args) > 1) out << tmtex_convert (args[1]);
+    return out;
+  }
+  if (key == "choose") {
+    scheme_tree out= stree_apply ("binom");
+    if (N(args) > 0) out << tmtex_convert (args[0]);
+    if (N(args) > 1) out << tmtex_convert (args[1]);
+    return out;
+  }
+  if (key == "!arg") return original;
+  if (key == "unknown" || key == "uninit" || key == "error" ||
+      key == "raw-data")
+    return preserve_object (original);
+  if (key == "hide-preamble" || key == "show-preamble" ||
+      key == "doc-title-options" || key == "author-data" ||
+      key == "eq-number") {
+    scheme_tree out= stree_apply (key);
+    scheme_tree converted= tmtex_convert_list (args);
+    for (int i=0; i<N(converted); ++i) out << converted[i];
+    return out;
+  }
+  if (core_noop_key (key)) return preserve_object (original);
+
+  if (key == "line-break") return tex_apply_fixed ("linebreak");
+  if (key == "page-break") return tex_apply_fixed ("pagebreak");
+  if (key == "no-page-break" || key == "no-break-here" ||
+      key == "no-break-start")
+    return tex_apply_fixed ("nopagebreak");
+  if (key == "new-page") return tex_apply_fixed ("newpage");
+  if (key == "no-indent") return tex_apply_fixed ("noindent");
+  if (key == "htab") {
+    scheme_tree args1 (TUPLE);
+    args1 << stree_apply ("fill");
+    return tex_apply_converted ("hspace*", args1);
+  }
+  if (key == "next-line") return stree_apply ("!nextline");
+  if (key == "new-line")
+    return export_math_mode () ? stree_apply ("!nextline")
+                               : tex_apply_fixed ("!newline");
+  if (key == "emdash") return stree_string ("---");
+  if (key == "no-break") {
+    scheme_tree group= stree_apply ("!group");
+    group << stree_apply ("nobreak");
+    return group;
+  }
+  if (key == "left" || key == "mid" || key == "!middle" || key == "right")
+    return delimiter_output (key, args);
+  if (key == "big") {
+    if (N(args) == 0) return tree ("#f");
+    return stree_apply (latex_tmtex_big_decode (args[0]));
+  }
+  if (key == "long-arrow") return long_arrow_output (args);
+  if (key == "below" || key == "above") {
+    if (N(args) < 2) return tree ("#f");
+    scheme_tree out= stree_apply (key == "below" ? "underset" : "overset");
+    out << tmtex_convert (args[1]) << tmtex_convert (args[0]);
+    return out;
+  }
+  if (key == "lsub") return left_script_output (true, args);
+  if (key == "lsup" || key == "lprime") return left_script_output (false, args);
+  if (key == "rsub") return right_script_output ("rsub", args);
+  if (key == "rsup" || key == "rprime") return right_script_output ("rsup", args);
+  if (key == "modulo") {
+    if (N(args) == 0) return tree ("#f");
+    return script_output ("mod", args[0]);
+  }
+  if (key == "frac" || key == "neg")
+    return tex_apply_converted (key == "frac" ? "frac" : "not",
+                                tmtex_convert_list (args));
+  if (key == "sqrt") {
+    if (N(args) == 0) return tree ("#f");
+    if (N(args) == 1)
+      return tex_apply_converted ("sqrt", tmtex_convert_list (args));
+    scheme_tree option= stree_apply ("!option");
+    option << tmtex_convert (args[1]);
+    scheme_tree out= stree_apply ("sqrt");
+    out << option << tmtex_convert (args[0]);
+    return out;
+  }
+  if (key == "wide") return wide_accent_output (args, false);
+  if (key == "wide*") return wide_accent_output (args, true);
+  return tree ("#f");
+}
+
+bool
+false_stree (scheme_tree value) {
+  return is_atomic (value) && !is_quoted (value->label) &&
+         value->label == "#f";
+}
+
+bool
+style_dependent_key (string key) {
+  static const char* names[]= {
+    "doc-data", "abstract-data",
+    "abstract", "abstract-acm", "abstract-arxiv", "abstract-msc",
+    "abstract-pacs", "abstract-keywords",
+    "doc-title", "doc-running-title", "doc-subtitle", "doc-note",
+    "doc-misc", "doc-date", "doc-running-author", "doc-author",
+    "author-name", "author-affiliation", "author-misc", "author-note",
+    "author-email", "author-homepage",
+    "doc-subtitle-ref", "doc-date-ref", "doc-note-ref", "doc-misc-ref",
+    "author-affiliation-ref", "author-email-ref", "author-homepage-ref",
+    "author-note-ref", "author-misc-ref",
+    "doc-subtitle-label", "doc-date-label", "doc-note-label",
+    "doc-misc-label", "author-affiliation-label", "author-email-label",
+    "author-homepage-label", "author-note-label", "author-misc-label",
+    "equation", "equation*", "elsevier-frontmatter", "conferenceinfo",
+    "CopyrightYear", "slide", "tit", "crdata"
+  };
+  return one_of (key, names, sizeof (names) / sizeof (names[0]));
+}
+
+scheme_tree
+style_dependent_default_native (string key, scheme_tree args) {
+  scheme_tree source= stree_apply (key);
+  for (int i=0; i<N(args); ++i) source << args[i];
+
+  if (key == "doc-data" || key == "abstract-data") {
+    scheme_tree wrapper (TUPLE); wrapper << args;
+    return latex_export_metadata_default (key, wrapper);
+  }
+  if (key == "abstract" || key == "abstract-acm" ||
+      key == "abstract-arxiv" || key == "abstract-msc" ||
+      key == "abstract-pacs" || key == "abstract-keywords") {
+    scheme_tree wrapper (TUPLE); wrapper << source;
+    return latex_export_metadata_default (key, wrapper);
+  }
+  if (key == "doc-title" || key == "doc-running-title" ||
+      key == "doc-subtitle" || key == "doc-note" || key == "doc-misc" ||
+      key == "doc-date" || key == "doc-running-author" ||
+      key == "author-name" || key == "author-affiliation" ||
+      key == "author-misc" || key == "author-note" ||
+      key == "author-email" || key == "author-homepage")
+    return latex_export_metadata_field (key, source);
+  if (key == "doc-author") {
+    scheme_tree wrapper (TUPLE); wrapper << source;
+    return latex_export_metadata_default (key, wrapper);
+  }
+  if (key == "equation" || key == "equation*")
+    return core_dispatch (key, args);
+  return generic_function_output (key, args);
+}
+
+scheme_tree
+convert_node_native (scheme_tree value) {
+  if (is_atomic (value)) {
+    if (!string_atom (value)) return stree_string ("");
+    string text= atom_text (value);
+    scheme_tree placeholder= latex_export_context.placeholders[text];
+    if (!false_stree (placeholder)) return placeholder;
+    return latex_export_string (text);
+  }
+  if (!stree_list (value) || N(value) == 0 || !is_atomic (value[0]))
+    return stree_string ("");
+
+  string key= value[0]->label;
+  if (starts (key, "tmdoc-") || key == "key" || key == "key*")
+    throw std::runtime_error ("LaTeX export does not support tmdoc markup: " +
+                              std::string (key.data (), N(key)));
+  scheme_tree args (TUPLE);
+  for (int i=1; i<N(value); ++i) args << value[i];
+
+  if (key == "named-symbol" && N(args) == 1 && string_atom (args[0]))
+    return latex_export_named_symbol (atom_text (args[0]), export_math_mode ());
+
+  string dynamic= latex_export_context.dynamic[key];
+  if (dynamic == "environment") {
+    string environment= key == "quote-env" ? string ("quote") : key;
+    scheme_tree begin= stree_apply ("!begin");
+    begin << stree_string (environment);
+    scheme_tree out (TUPLE);
+    out << begin
+        << (N(args) > 0 ? convert_node_native (args[0]) : stree_string (""));
+    return out;
+  }
+
+  if (style_dependent_key (key)) {
+    scheme_tree publisher;
+    if (latex_export_internal::publisher_dispatch (key, args, publisher))
+      return publisher;
+    return style_dependent_default_native (key, args);
+  }
+
+  if (key == "quote" || key == "quasiquote" || key == "unquote")
+    return preserve_object (value);
+
+  scheme_tree converted= core_dispatch (key, args);
+  if (!false_stree (converted)) return converted;
+
+  // Legacy tmtex-tmstyle% also treated table-shaped custom tags as table
+  // environments before falling back to generic LaTeX command construction.
+  if (N(args) >= 1 && (head_is (args[0], "tformat") || head_is (args[0], "table"))) {
+    scheme_tree table_args (TUPLE);
+    for (int i=1; i<N(args); ++i) table_args << args[i];
+    return latex_export_table_apply (key, table_args, args[0]);
+  }
+
+  // No external modules register generic tmtex-methods% entries.  Truly
+  // unknown/custom tags therefore end at the generic LaTeX function path.
+  return generic_function_output (key, args);
+}
+
+scheme_tree
+prepare_native_v3_source (const tree& source) {
+  if (is_atomic (source)) return tree_to_scheme_tree (source);
+  if (!athena::math_v3::valid_native_math (source))
+    throw std::runtime_error (
+      "Cannot export malformed XML v3 mathematical source node");
+  if (L (source) == MATH_SCRIPTS) {
+    if (!athena::math_v3::valid_scripts (source))
+      throw std::runtime_error ("Cannot export invalid native MathScripts");
+    const auto* meta= athena::node::get (source);
+    const std::string& policy= std::get<std::string> (
+      meta->properties.at (athena::math_v3::scripts_policy_key).data);
+    scheme_tree output= stree_apply ("scripts");
+    output << stree_string (string (policy.data (), int (policy.size ())));
+    for (int i=0; i<5; ++i) output << prepare_native_v3_source (source[i]);
+    return output;
+  }
+  if (L (source) == MATH_ACCENT) {
+    if (!athena::math_v3::valid_native_math (source))
+      throw std::runtime_error ("Cannot export invalid native MathAccent");
+    const auto* meta= athena::node::get (source);
+    const bool stretch= std::get<bool> (
+      meta->properties.at ("math:accent-stretch").data);
+    scheme_tree output= stree_apply ("math-accent");
+    output << prepare_native_v3_source (source[0]);
+    output << prepare_native_v3_source (source[1]);
+    output << stree_string (stretch ? "1" : "0");
+    output << prepare_native_v3_source (source[2]);
+    return output;
+  }
+  if (L (source) == MATH_BLOCK || L (source) == MATH_GRID) {
+    if (!athena::math_v3::valid_native_math (source))
+      throw std::runtime_error ("Cannot export malformed native MathBlock/MathGrid");
+    const auto* meta= athena::node::get (source);
+    scheme_tree output= stree_apply (
+      L (source) == MATH_BLOCK ? "math-block" : "math-grid");
+    if (L (source) == MATH_BLOCK) {
+      const bool numbered= std::get<bool> (
+        meta->properties.at ("math:block-numbered").data);
+      output << stree_string (numbered ? "1" : "0");
+    }
+    else {
+      const auto& kind= std::get<std::string> (
+        meta->properties.at ("math:grid-kind").data);
+      output << stree_string (string (kind.data (), int (kind.size ())));
+      for (int i=0; i<N(source); ++i) {
+        scheme_tree row= stree_apply ("row");
+        scheme_tree row_policy= stree_apply ("!math-row-policy");
+        const auto row_numbering= athena::math_v3::get_row_numbering (source[i]);
+        const string numbering=
+          row_numbering == athena::math_v3::row_numbering::numbered ? "numbered" :
+          row_numbering == athena::math_v3::row_numbering::unnumbered ? "unnumbered" :
+          "inherit";
+        scheme_tree tag= stree_string ("");
+        if (const auto custom= athena::math_v3::get_row_tag (source[i])) {
+          tag= stree_apply ("!math-row-tag");
+          tag << prepare_native_v3_source (*custom);
+        }
+        const auto id= athena::node::id (source[i]);
+        row_policy << stree_string (numbering) << tag
+                   << stree_string (string (id.data (), int (id.size ())));
+        row << row_policy;
+        for (int j=0; j<N(source[i]); ++j) {
+          const tree& input= source[i][j];
+          scheme_tree cell= stree_apply ("cell");
+          if (const auto* cell_meta= athena::node::get (input)) {
+            const auto found= cell_meta->properties.find ("math:cell-format");
+            if (found != cell_meta->properties.end ()) {
+              const auto& fields= std::get<athena::node::property::dictionary> (
+                found->second.data);
+              scheme_tree format= stree_apply ("!math-cell-format");
+              for (const auto& [name, property]: fields) {
+                if (name != "align" && name != "color")
+                  throw std::runtime_error (
+                    "Unsupported MathGrid cell formatting in LaTeX export: " + name);
+                const auto& value= std::get<std::string> (property.data);
+                format << stree_string (string (name.data (), int (name.size ())));
+                format << stree_string (string (value.data (), int (value.size ())));
+              }
+              cell << format;
+            }
+          }
+          cell << prepare_native_v3_source (input[0]);
+          row << cell;
+        }
+        output << row;
+      }
+      return output;
+    }
+    for (int i=0; i<N (source); ++i)
+      output << prepare_native_v3_source (source[i]);
+    return output;
+  }
+  // Construct each source node exactly once. Converting the complete subtree
+  // with tree_to_scheme_tree and then recursively replacing each child is
+  // quadratic in deeply nested documents. Preserve the *same* historic
+  // expansion and numeric-label serialization for non-v3 tree nodes.
+  if (is_func (source, EXPAND) && N (source) > 0 && is_atomic (source[0])) {
+    scheme_tree output (TUPLE, N (source));
+    output[0]= copy (source[0]);
+    for (int i=1; i<N (source); ++i)
+      output[i]= prepare_native_v3_source (source[i]);
+    return output;
+  }
+  scheme_tree output (TUPLE, N (source) + 1);
+  string name= as_string (L (source));
+  if (N (name) > 0 && is_digit (name[0]) && is_int (name))
+    name= "'" * name;
+  output[0]= copy (name);
+  for (int i=0; i<N (source); ++i)
+    output[i+1]= prepare_native_v3_source (source[i]);
+  return output;
+}
+
+} // namespace
+
+scheme_tree
+latex_export_prepare_v3_source (tree source) {
+  return prepare_native_v3_source (source);
+}
+
+namespace latex_export_internal {
+
+const tree*
+mode_stats_source () {
+  return native_mode_stats_source;
+}
+
+void
+set_mode_stats_source (const tree* source) {
+  native_mode_stats_source= source;
+}
+
+url
+save_source_url () {
+  return latex_export_context.save_source_url;
+}
+
+url
+save_target_url () {
+  return latex_export_context.save_target_url;
+}
+
+} // namespace latex_export_internal
+
+void
+latex_export_context_reset () {
+  latex_export_context.reset ();
+}
+
+void
+latex_export_document_reset (string language) {
+  latex_export_context.languages= array<string> ();
+  latex_export_context.colors= array<string> ();
+  latex_export_context.colormaps= array<string> ();
+  latex_export_context.languages << language;
+  latex_export_context.cjk_document=
+    language == "chinese" || language == "chineset" ||
+    language == "japanese" || language == "korean";
+}
+
+bool
+latex_export_cjk_document () {
+  return latex_export_context.cjk_document;
+}
+
+void
+latex_export_set_encoding (bool catcodes, bool ascii, bool unicode) {
+  latex_export_context.use_catcodes= catcodes;
+  latex_export_context.use_ascii= ascii;
+  latex_export_context.use_unicode= unicode;
+}
+
+bool
+latex_export_use_catcodes () {
+  return latex_export_context.use_catcodes;
+}
+
+bool
+latex_export_use_ascii () {
+  return latex_export_context.use_ascii;
+}
+
+bool
+latex_export_use_unicode () {
+  return latex_export_context.use_unicode;
+}
+
+void
+latex_export_set_use_macros (bool value) {
+  latex_export_context.use_macros= value;
+}
+
+bool
+latex_export_use_macros () {
+  return latex_export_context.use_macros;
+}
+
+void
+latex_export_set_latex_language (string language) {
+  latex_export_context.latex_language= language;
+}
+
+string
+latex_export_latex_language () {
+  return latex_export_context.latex_language;
+}
+
+void
+latex_export_set_latex_style (string style) {
+  latex_export_context.latex_style= style;
+}
+
+string
+latex_export_latex_style () {
+  return latex_export_context.latex_style;
+}
+
+void
+latex_export_set_latex_packages (const array<string>& packages) {
+  latex_export_context.latex_packages= copy (packages);
+}
+
+array<string>
+latex_export_latex_packages () {
+  return copy (latex_export_context.latex_packages);
+}
+
+void
+latex_export_set_latex_extra_packages (const array<string>& packages) {
+  latex_export_context.latex_extra_packages= copy (packages);
+}
+
+array<string>
+latex_export_latex_extra_packages () {
+  return copy (latex_export_context.latex_extra_packages);
+}
+
+bool
+latex_export_add_latex_extra_package (string package) {
+  if (contains_string (latex_export_context.latex_extra_packages, package))
+    return false;
+  array<string> next;
+  next << package << latex_export_context.latex_extra_packages;
+  latex_export_context.latex_extra_packages= next;
+  return true;
+}
+
+void
+latex_export_set_latex_virtual_packages (const array<string>& packages) {
+  latex_export_context.latex_virtual_packages= copy (packages);
+}
+
+array<string>
+latex_export_latex_virtual_packages () {
+  return copy (latex_export_context.latex_virtual_packages);
+}
+
+void
+latex_export_set_latex_all_packages (const array<string>& packages) {
+  latex_export_context.latex_all_packages= copy (packages);
+}
+
+array<string>
+latex_export_latex_all_packages () {
+  return copy (latex_export_context.latex_all_packages);
+}
+
+void
+latex_export_set_latex_texmacs_style (string style) {
+  latex_export_context.latex_texmacs_style= style;
+}
+
+string
+latex_export_latex_texmacs_style () {
+  return latex_export_context.latex_texmacs_style;
+}
+
+void
+latex_export_set_latex_dependencies (const array<string>& dependencies) {
+  latex_export_context.latex_dependencies= copy (dependencies);
+}
+
+array<string>
+latex_export_latex_dependencies () {
+  return copy (latex_export_context.latex_dependencies);
+}
+
+void
+latex_export_enter () {
+  if (latex_export_context.export_depth == 0) latex_export_reset_placeholders ();
+  ++latex_export_context.export_depth;
+}
+
+void
+latex_export_leave () {
+  if (latex_export_context.export_depth > 0) --latex_export_context.export_depth;
+}
+
+void
+latex_export_reset_placeholders () {
+  latex_export_context.placeholders= hashmap<string,scheme_tree> (tree ("#f"));
+  latex_export_context.placeholder_serial= 0;
+}
+
+scheme_tree
+latex_export_placeholder (scheme_tree st) {
+  return placeholder_object (st);
+}
+
+scheme_tree
+latex_export_placeholder_ref (string marker) {
+  return latex_export_context.placeholders[marker];
+}
+
+bool
+latex_export_experimental_warning_name (scheme_tree x) {
+  return experimental_warning_name (x);
+}
+
+bool
+latex_export_experimental_warning (scheme_tree t) {
+  return experimental_warning (t);
+}
+
+scheme_tree
+latex_export_discard_experimental_warning (scheme_tree t) {
+  return discard_experimental_warning (t);
+}
+
+string
+latex_export_athena_data_record (string cmd, scheme_tree values) {
+  array<string> vals;
+  if (stree_list (values))
+    for (int i=0; i<N(values); ++i) vals << atom_text (values[i]);
+  return athena_data_record (cmd, vals);
+}
+
+scheme_tree
+latex_export_athena_data_inline (scheme_tree records) {
+  return athena_data_inline (records);
+}
+
+string
+latex_export_athena_data_object (scheme_tree st) {
+  return athena_data_object (st);
+}
+
+bool
+latex_export_latex_empty (scheme_tree t) {
+  return latex_empty (t);
+}
+
+scheme_tree
+latex_export_athena_data_wrap_records (scheme_tree st, scheme_tree records,
+                                       scheme_tree fallback) {
+  return athena_data_wrap_with_records (st, records, fallback);
+}
+
+scheme_tree
+latex_export_athena_data_wrap (scheme_tree st, scheme_tree fallback) {
+  return athena_data_wrap_with_records (st, scheme_tree (TUPLE), fallback);
+}
+
+array<string>
+latex_export_languages () {
+  return copy (latex_export_context.languages);
+}
+
+void
+latex_export_add_language (string language) {
+  prepend_unique_string (latex_export_context.languages, language);
+}
+
+void
+latex_export_add_color (string color) {
+  prepend_unique_string (latex_export_context.colors, color);
+}
+
+void
+latex_export_add_colormap (string colormap) {
+  prepend_unique_string (latex_export_context.colormaps, colormap);
+}
+
+bool
+latex_export_mathjax () {
+  return latex_export_context.mathjax;
+}
+
+void
+latex_export_set_mathjax (bool value) {
+  latex_export_context.mathjax= value;
+}
+
+bool
+latex_export_replace_style () {
+  return latex_export_context.replace_style;
+}
+
+void
+latex_export_set_replace_style (bool value) {
+  latex_export_context.replace_style= value;
+}
+
+void
+latex_export_dynamic_set (string name, string kind) {
+  latex_export_context.dynamic (name)= kind;
+}
+
+void
+latex_export_set_portable (bool value) {
+  latex_export_context.portable= value;
+}
+
+bool
+latex_export_portable () {
+  return latex_export_context.portable;
+}
+
+bool
+latex_export_portable_image_used (string name) {
+  return latex_export_context.portable_image_used[name];
+}
+
+string
+latex_export_portable_image_copy_get (string source) {
+  return latex_export_context.portable_image_copies[source];
+}
+
+void
+latex_export_portable_image_record (string source, string copied) {
+  latex_export_context.portable_image_copies (source)= copied;
+  latex_export_context.portable_image_used (copied)= true;
+}
+
+void
+latex_export_set_image_root (url root, string root_string) {
+  latex_export_context.image_root_url= root;
+  latex_export_context.image_root_string= root_string;
+}
+
+void
+latex_export_set_save_urls (url source, url target) {
+  latex_export_context.save_source_url= source;
+  latex_export_context.save_target_url= target;
+}
+
+url
+latex_export_image_root_url () {
+  return latex_export_context.image_root_url;
+}
+
+string
+latex_export_image_root_string () {
+  return latex_export_context.image_root_string;
+}
+
+scheme_tree
+latex_export_env_get (string var) {
+  array<scheme_tree> values= env_values (var);
+  return N(values) == 0 ? scheme_tree ("#f") : copy (values[0]);
+}
+
+void
+latex_export_env_set (string var, scheme_tree value) {
+  array<scheme_tree> old= env_values (var);
+  array<scheme_tree> next;
+  next << copy (value);
+  for (int i=0; i<N(old); ++i) next << old[i];
+  latex_export_context.env (var)= next;
+}
+
+void
+latex_export_env_reset (string var) {
+  array<scheme_tree> old= env_values (var);
+  array<scheme_tree> next;
+  for (int i=1; i<N(old); ++i) next << old[i];
+  latex_export_context.env (var)= next;
+}
+
+array<string>
+latex_export_env_keys () {
+  array<string> keys;
+  iterator<string> it= iterate (latex_export_context.env);
+  while (it->busy ()) {
+    string key= it->next ();
+    if (N(latex_export_context.env[key]) != 0) keys << key;
+  }
+  return keys;
+}
+
+int
+latex_export_next_serial () {
+  return ++latex_export_context.serial;
+}
+
+int
+latex_export_ref_count_get () {
+  return latex_export_context.ref_count;
+}
+
+void
+latex_export_ref_count_set (int value) {
+  latex_export_context.ref_count= value;
+}
+
+int
+latex_export_next_auto_produce () {
+  return ++latex_export_context.auto_produce;
+}
+
+int
+latex_export_next_auto_consume () {
+  return ++latex_export_context.auto_consume;
+}
+
+int
+latex_export_next_athena_data_serial () {
+  return ++latex_export_context.athena_data_serial;
+}
+
+bool
+latex_export_first_appendix () {
+  if (latex_export_context.appendices) return false;
+  latex_export_context.appendices= true;
+  return true;
+}
+
+scheme_tree
+latex_export_core_dispatch (string key, scheme_tree args) {
+  return core_dispatch (key, args);
+}
+
+scheme_tree
+latex_export_convert_node (scheme_tree value) {
+  return convert_node_native (value);
+}
+
+scheme_tree
+latex_export_generic_function (string key, scheme_tree args) {
+  return generic_function_output (key, args);
+}
+
+scheme_tree
+latex_export_transform_style (scheme_tree style) {
+  return transform_style_native (style);
+}
+
+scheme_tree
+latex_export_filter_styles (scheme_tree styles) {
+  return filter_styles_native (styles);
+}
+
+scheme_tree
+latex_export_convert_charset (scheme_tree value) {
+  return convert_charset_native (value);
+}
+
+scheme_tree
+latex_export_convert_tree (scheme_tree value, const conversion_options& options) {
+  return convert_nonfile_native (value, options);
+}
+
+scheme_tree
+latex_export_preprocess_preamble_list (scheme_tree values) {
+  return preprocess_preamble_list_native (values);
+}
+
+string
+latex_export_var_name (string name) {
+  return tmtex_var_name_native (name);
+}
+
+string
+latex_tmtex_decode_length (string value) {
+  return decode_length_string (value);
+}
+
+bool
+latex_tmtex_px_length (string value) {
+  return px_length_string (value);
+}
+
+scheme_tree
+latex_export_float_sub (bool wide, string position, scheme_tree body) {
+  return float_sub (wide, position, body);
+}
+
+scheme_tree
+latex_export_with (scheme_tree args) {
+  return with_convert_native (args);
+}
+
+scheme_tree
+latex_export_decode_color (string color, bool force_html) {
+  return decode_color_native (color, force_html);
+}

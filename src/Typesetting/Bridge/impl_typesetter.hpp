@@ -1,0 +1,67 @@
+
+/******************************************************************************
+* MODULE     : impl_typesetter.hpp
+* DESCRIPTION: Implementation of the main TeXmacs typesetting routines
+* COPYRIGHT  : (C) 1999  Joris van der Hoeven
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#ifndef IMPL_TYPESETTER_H
+#define IMPL_TYPESETTER_H
+#include "Typesetting/Bridge/bridge.hpp"
+#include "Typesetting/Env/local_environment.hpp"
+
+class evaluation_environment_checkpoint;
+
+class typesetter_rep {
+public:
+  edit_env&    env;
+  bridge       br;
+  std::shared_ptr<const evaluation_environment_checkpoint> execution_base;
+  prepared_context_index execution_contexts;
+  rectangles   change_log;
+  array<brush> old_bgs;
+
+  array<page_item> l;      // current lines
+  stack_border     sb;     // border properties
+  array<line_item> a;      // left surroundings
+  array<line_item> b;      // right surroundings
+
+  SI x1, y1, x2, y2;
+  hashmap<string,tree> old_patch;
+  bool paper;
+  bool screen_tree;          // typeset a transient tree, not the active document
+  bool progressive;          // incrementally typeset a long screen document
+  bool progressive_pending;  // root bridge has more work to do
+  bool progressive_initial;  // this pass started a new progressive layout
+  bool progressive_advance;  // extend the laid-out prefix during this pass
+  bool progressive_root_active;
+  int  progressive_required; // root child that must be available immediately
+  int  progressive_budget_ms;
+  time_t progressive_deadline_ms;
+  int  progressive_pending_generation;
+  std::uint64_t radioactive_refresh_revision= 0;
+
+public:
+  typesetter_rep (edit_env& env, tree et, path ip);
+
+  void insert_stack     (array<page_item> l, stack_border sb);
+  void insert_parunit   (tree t, path ip);
+  void insert_paragraph (tree t, path ip);
+  void insert_surround  (array<line_item> a, array<line_item> b);
+  void insert_marker    (tree st, path ip);
+
+  void local_start   (array<page_item>& l, stack_border& sb);
+  void local_end     (array<page_item>& l, stack_border& sb);
+
+  void determine_page_references (box b);
+  box  typeset ();
+  box  typeset (SI& x1, SI& y1, SI& x2, SI& y2);
+private:
+  box typeset_pass ();
+};
+
+#endif // defined IMPL_TYPESETTER_H

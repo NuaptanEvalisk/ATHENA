@@ -11,9 +11,9 @@
 #include <QtTest/QtTest>
 #include <stdexcept>
 
-#include "ATHENA/Data/enunciation_model.hpp"
-#include "ATHENA/Data/heading_word_count.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Domains/Knowledge/enunciation_model.hpp"
+#include "Document/Model/heading_word_count.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 
 namespace en= athena::enunciation;
 namespace node= athena::node;

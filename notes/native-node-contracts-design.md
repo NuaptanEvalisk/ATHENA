@@ -2,12 +2,12 @@
 
 Updated: 2026-11-01. The bounded DRD replacement is complete. This is a current
 architecture entry point, not another migration assignment. Detailed protocols
-and dated evidence are in [the implementation README](../src/Data/NodeContracts/README.md);
+and dated evidence are in [the implementation README](../src/Document/NodeContracts/README.md);
 historical remaining-work lists there describe their original checkpoints.
 
 ## Completed Boundary
 
-- `src/Data/NodeContracts/` is the native authority for fields, declarations,
+- `src/Document/NodeContracts/` is the native authority for fields, declarations,
   bindings, inference and groups. Static declarations belong in
   `node-fields.json` and `node-groups.json`.
 - The old DRD directory, `drd_info`, `std_drd`, `drd_update`,

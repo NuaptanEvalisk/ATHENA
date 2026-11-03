@@ -1,0 +1,439 @@
+/******************************************************************************
+* MODULE     : QTMEditorToolbarPresenter.cpp
+* DESCRIPTION: View-owned native editor toolbar presentation
+* COPYRIGHT  : (C) 2026 Felix
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#include "UI/Qt/Editor/QTMEditorToolbarPresenter.hpp"
+#include "athena_platform.hpp"
+
+#include "UI/Qt/Shell/QTMApplication.hpp"
+#include "UI/Qt/Document/QTMDocumentIdentity.hpp"
+#include "UI/Qt/Shell/QTMMainTabWindow.hpp"
+#include "UI/Qt/Widgets/QTMWidget.hpp"
+#include "UI/Qt/Toolkit/qt_utilities.hpp"
+#include "UI/Qt/Toolkit/qt_actor_widget.hpp"
+#include "UI/Qt/Commands/QTMCommandRegistryInternal.hpp"
+
+#include <QAction>
+#include <QIcon>
+#include <QMenu>
+#include <QTimer>
+#include <QToolBar>
+#include <QToolButton>
+
+QTMEditorToolbarPresenter::QTMEditorToolbarPresenter (
+  QTMWidget* canvas, QToolBar* toolbar, QString definitionId,
+  QToolBar* visibilityReference):
+  canvas_ (canvas), toolbar_ (toolbar),
+  visibilityReference_ (visibilityReference),
+  definitionId_ (std::move (definitionId)) {}
+
+QTMEditorToolbarPresenter::~QTMEditorToolbarPresenter () {
+  deactivate ();
+}
+
+QTMCommandContext
+QTMEditorToolbarPresenter::context () const {
+  QTMCommandContext result;
+  result.shell= QTMMainTabWindow::topTabWindow ();
+  result.workPane= canvas_;
+  result.lastDocument= qtm_document_identity (canvas_);
+  return result;
+}
+
+QAction*
+QTMEditorToolbarPresenter::makeCommandAction (
+  const QString& commandId, QObject* parent) {
+  const QTMCommandDefinition* command=
+    QTMCommandRegistry::instance ().command (commandId);
+  if (command == nullptr) return nullptr;
+  QIcon icon= tmapp ()->icon_manager ().getPresentationIcon (command->icon);
+  QAction* action= new QAction (icon, command->actionLabel (), parent);
+  if (command->icon.startsWith (QStringLiteral ("math:"))) {
+    action->setIconVisibleInMenu (true);
+    if (auto* menu= qobject_cast<QMenu*> (parent))
+      menu->setToolTipsVisible (true);
+  }
+  action->setToolTip (command->help);
+  action->setStatusTip (command->help);
+  action->setWhatsThis (command->help);
+  QObject::connect (action, &QAction::triggered, action,
+                    [this, commandId] {
+    QTMCommandContext target= context ();
+    (void) QTMCommandRegistry::instance ().execute (commandId, target);
+  });
+  return action;
+}
+
+std::unique_ptr<QTMEditorToolbarPresenter::node>
+QTMEditorToolbarPresenter::buildItem (
+  const QTMCommandMenuItem& item, QMenu* menuParent) {
+  auto result= std::make_unique<node> ();
+  result->kind= item.kind;
+  result->commandId= item.commandId;
+  result->providerId= item.providerId;
+  result->requiredFlags= item.requiredFlags;
+  result->forbiddenFlags= item.forbiddenFlags;
+  result->anyFlags= item.anyFlags;
+  result->focusRequiredFlags= item.focusRequiredFlags;
+  result->focusForbiddenFlags= item.focusForbiddenFlags;
+  result->focusAnyFlags= item.focusAnyFlags;
+  result->whenMainToolbarHidden= item.whenMainToolbarHidden;
+
+  if (item.kind == QTMCommandMenuItem::Kind::Separator) {
+    QAction* action= new QAction (menuParent != nullptr ?
+                                  static_cast<QObject*> (menuParent):
+                                  static_cast<QObject*> (toolbar_.data ()));
+    action->setSeparator (true);
+    result->action= action;
+    return result;
+  }
+
+  if (item.kind == QTMCommandMenuItem::Kind::Command) {
+    result->action= makeCommandAction (
+      item.commandId, menuParent != nullptr ?
+                      static_cast<QObject*> (menuParent):
+                      static_cast<QObject*> (toolbar_.data ()));
+    return result;
+  }
+
+  if (item.kind == QTMCommandMenuItem::Kind::Provider) {
+    if (item.providerId.isEmpty ()) return {};
+    QObject* parent= menuParent != nullptr ?
+      static_cast<QObject*> (menuParent):
+      static_cast<QObject*> (toolbar_.data ());
+    QAction* anchor= new QAction (parent);
+    anchor->setVisible (false);
+    anchor->setEnabled (false);
+    result->action= anchor;
+    result->providerMenu= menuParent;
+    return result;
+  }
+
+  QIcon icon= tmapp ()->icon_manager ().getPresentationIcon (item.icon);
+  QAction* action= new QAction (icon, item.label, toolbar_);
+  QMenu* menu= new QMenu (item.label, toolbar_);
+  action->setMenu (menu);
+  result->action= action;
+  for (const QTMCommandMenuItem& child: item.items) {
+    std::unique_ptr<node> built= buildItem (child, menu);
+    if (!built || built->action == nullptr) continue;
+    menu->addAction (built->action);
+    result->children.push_back (std::move (built));
+  }
+  node* submenuNode= result.get ();
+  QObject::connect (
+    menu, &QMenu::aboutToShow, menu, [this, submenuNode, menu] {
+      QTMCommandContext target= context ();
+      refreshProviders (*submenuNode, target);
+      (void) refreshNode (*submenuNode, target);
+      QPointer<QMenu> menuRef= submenuNode->action == nullptr ?
+        nullptr : submenuNode->action->menu ();
+      for (int delay: {120, 350})
+        QTimer::singleShot (delay, menu, [this, submenuNode, menuRef] {
+          if (menuRef == nullptr || !menuRef->isVisible ()) return;
+          QTMCommandContext refreshed= context ();
+          refreshProviders (*submenuNode, refreshed);
+          (void) refreshNode (*submenuNode, refreshed);
+        });
+    });
+  return result;
+}
+
+void
+QTMEditorToolbarPresenter::repopulateProvider (
+  node& item, const QTMCommandContext& target) {
+  if (item.kind != QTMCommandMenuItem::Kind::Provider ||
+      item.action == nullptr)
+    return;
+
+  QMenu* menu= item.providerMenu.data ();
+  QVector<QTMCommandDynamicItem> values=
+    QTMCommandRegistry::instance ().providerItems (item.providerId, target);
+  QString signature;
+  for (const QTMCommandDynamicItem& value: values) {
+    if (!value.state.available) continue;
+    signature += value.key;
+    signature += QChar (0x1f);
+    signature += value.group;
+    signature += QChar (0x1f);
+    signature += value.label;
+    signature += QChar (0x1f);
+    signature += value.help;
+    signature += QChar (0x1f);
+    signature += value.icon;
+    signature += QChar (value.state.enabled ? '1' : '0');
+    signature += QChar (value.state.checkable ? '1' : '0');
+    signature += QChar (value.state.checked ? '1' : '0');
+    signature += QChar (0x1e);
+  }
+  if (signature == item.dynamicSignature) return;
+  item.dynamicSignature= signature;
+
+  for (const QPointer<QAction>& action: item.dynamicActions) {
+    if (action == nullptr) continue;
+    if (menu != nullptr) menu->removeAction (action);
+    else if (toolbar_ != nullptr) toolbar_->removeAction (action);
+    action->deleteLater ();
+  }
+  item.dynamicActions.clear ();
+  for (const QPointer<QMenu>& dynamicMenu: item.dynamicMenus)
+    if (dynamicMenu != nullptr) dynamicMenu->deleteLater ();
+  item.dynamicMenus.clear ();
+
+  QHash<QString, QMenu*> groups;
+  for (const QTMCommandDynamicItem& value: values) {
+    if (!value.state.available) continue;
+    QMenu* targetMenu= menu;
+    if (menu != nullptr && !value.group.isEmpty ()) {
+      QMenu* groupMenu= groups.value (value.group, nullptr);
+      if (groupMenu == nullptr) {
+        groupMenu= new QMenu (value.group, menu);
+        menu->insertAction (item.action, groupMenu->menuAction ());
+        groups.insert (value.group, groupMenu);
+        item.dynamicMenus.push_back (groupMenu);
+      }
+      targetMenu= groupMenu;
+    }
+    QIcon icon= tmapp ()->icon_manager ().getPresentationIcon (value.icon);
+    QObject* parent= targetMenu != nullptr ?
+      static_cast<QObject*> (targetMenu):
+      static_cast<QObject*> (toolbar_.data ());
+    QAction* action= new QAction (icon, value.label, parent);
+    action->setToolTip (value.help);
+    action->setStatusTip (value.help);
+    action->setWhatsThis (value.help);
+    action->setEnabled (value.state.enabled);
+    action->setCheckable (value.state.checkable);
+    if (value.state.checkable) action->setChecked (value.state.checked);
+    const QString providerId= item.providerId;
+    const QString key= value.key;
+    QObject::connect (action, &QAction::triggered, action,
+                      [this, providerId, key] {
+      QTMCommandContext target= context ();
+      (void) QTMCommandRegistry::instance ().executeProviderItem (
+        providerId, key, target);
+      refresh ();
+    });
+    if (menu == nullptr) {
+      if (toolbar_ != nullptr) toolbar_->insertAction (item.action, action);
+    }
+    else if (targetMenu == menu) menu->insertAction (item.action, action);
+    else targetMenu->addAction (action);
+    item.dynamicActions.push_back (action);
+  }
+}
+
+void
+QTMEditorToolbarPresenter::refreshProviders (
+  node& item, const QTMCommandContext& target) {
+  if (item.kind == QTMCommandMenuItem::Kind::Provider) {
+    repopulateProvider (item, target);
+    return;
+  }
+  for (const std::unique_ptr<node>& child: item.children)
+    if (child) refreshProviders (*child, target);
+}
+
+bool
+QTMEditorToolbarPresenter::presentationConditionSatisfied (
+  const node& item, const QTMCommandContext&) const {
+  if (item.whenMainToolbarHidden &&
+      (visibilityReference_ == nullptr || visibilityReference_->isVisible ()))
+    return false;
+
+  qt_actor_widget_rep* proxy= canvas_ != nullptr &&
+      canvas_->tm_widget () != nullptr ?
+      dynamic_cast<qt_actor_widget_rep*> (canvas_->tm_widget ()) : nullptr;
+  return qtm_command_registry_detail::presentation_flags_satisfied (
+    proxy, item.requiredFlags, item.forbiddenFlags, item.anyFlags,
+    item.focusRequiredFlags, item.focusForbiddenFlags, item.focusAnyFlags);
+}
+
+bool
+QTMEditorToolbarPresenter::refreshNode (
+  node& item, const QTMCommandContext& target) {
+  if (item.action == nullptr) return false;
+  if (!presentationConditionSatisfied (item, target)) {
+    item.action->setVisible (false);
+    item.action->setEnabled (false);
+    for (const QPointer<QAction>& action: item.dynamicActions)
+      if (action != nullptr) action->setVisible (false);
+    for (const QPointer<QMenu>& menu: item.dynamicMenus)
+      if (menu != nullptr) menu->menuAction ()->setVisible (false);
+    return false;
+  }
+  if (item.kind == QTMCommandMenuItem::Kind::Separator) return false;
+
+  if (item.kind == QTMCommandMenuItem::Kind::Command) {
+    QTMCommandState state=
+      QTMCommandRegistry::instance ().state (item.commandId, target);
+    item.action->setVisible (state.available);
+    item.action->setEnabled (state.available && state.enabled);
+    item.action->setCheckable (state.checkable);
+    if (state.checkable) item.action->setChecked (state.checked);
+    return state.available;
+  }
+
+  if (item.kind == QTMCommandMenuItem::Kind::Provider) {
+    QTMCommandState state=
+      QTMCommandRegistry::instance ().providerState (item.providerId, target);
+    if (item.providerMenu == nullptr) {
+      item.action->setVisible (false);
+      item.action->setEnabled (false);
+      if (!state.available) {
+        for (const QPointer<QAction>& action: item.dynamicActions)
+          if (action != nullptr) action->setVisible (false);
+        return false;
+      }
+      repopulateProvider (item, target);
+      for (const QPointer<QAction>& action: item.dynamicActions)
+        if (action != nullptr) action->setVisible (true);
+      for (const QPointer<QMenu>& menu: item.dynamicMenus)
+        if (menu != nullptr) menu->menuAction ()->setVisible (true);
+      return !item.dynamicActions.empty ();
+    }
+    item.action->setVisible (state.available);
+    item.action->setEnabled (state.available && state.enabled);
+    return state.available;
+  }
+
+  bool any= false;
+  std::vector<bool> visible (item.children.size (), false);
+  for (std::size_t i= 0; i < item.children.size (); ++i) {
+    const std::unique_ptr<node>& child= item.children[i];
+    if (child && child->kind != QTMCommandMenuItem::Kind::Separator) {
+      visible[i]= refreshNode (*child, target);
+      if (visible[i]) any= true;
+    }
+  }
+  bool before= false;
+  for (std::size_t i= 0; i < item.children.size (); ++i) {
+    node* child= item.children[i].get ();
+    if (child == nullptr || child->action == nullptr) continue;
+    if (child->kind != QTMCommandMenuItem::Kind::Separator) {
+      if (visible[i]) before= true;
+      continue;
+    }
+    bool after= false;
+    for (std::size_t j= i + 1; j < item.children.size (); ++j) {
+      if (item.children[j] != nullptr &&
+          item.children[j]->kind != QTMCommandMenuItem::Kind::Separator &&
+          visible[j]) {
+        after= true;
+        break;
+      }
+    }
+    child->action->setVisible (before && after);
+    if (child->action->isVisible ()) before= false;
+  }
+  item.action->setVisible (any);
+  item.action->setEnabled (any);
+  return any;
+}
+
+void
+QTMEditorToolbarPresenter::addToolbarAction (QAction* action) {
+  if (toolbar_ == nullptr || action == nullptr) return;
+  toolbar_->addAction (action);
+#if ATHENA_PLATFORM_IPADOS
+  if (auto* button= qobject_cast<QToolButton*> (toolbar_->widgetForAction (action))) {
+    button->setFocusPolicy (Qt::NoFocus);
+    if (action->menu ()) button->setPopupMode (QToolButton::InstantPopup);
+  }
+#endif
+}
+
+void
+QTMEditorToolbarPresenter::clearToolbar () {
+  if (toolbar_ == nullptr) return;
+  toolbar_->clear ();
+}
+
+bool
+QTMEditorToolbarPresenter::activate () {
+  if (active_) return true;
+  if (canvas_ == nullptr || toolbar_ == nullptr) return false;
+  QTMCommandRegistry& registry= QTMCommandRegistry::instance ();
+  if (!registry.initialize ()) return false;
+  const QTMCommandToolbarDefinition* definition=
+    registry.toolbar (definitionId_);
+  if (definition == nullptr) return false;
+
+  clearToolbar ();
+  roots_.clear ();
+  for (const QTMCommandMenuItem& item: definition->items) {
+    std::unique_ptr<node> built= buildItem (item, nullptr);
+    if (!built || built->action == nullptr) continue;
+    addToolbarAction (built->action);
+    roots_.push_back (std::move (built));
+  }
+
+  refreshTimer_= new QTimer (toolbar_);
+  refreshTimer_->setInterval (150);
+  QObject::connect (refreshTimer_, &QTimer::timeout, toolbar_,
+                    [this] { refresh (); });
+  refreshTimer_->start ();
+  active_= true;
+  refresh ();
+  return true;
+}
+
+void
+QTMEditorToolbarPresenter::setCanvas (QTMWidget* canvas) {
+  canvas_= canvas;
+  toolbar_->setEnabled (canvas != nullptr);
+  if (canvas != nullptr) {
+    (void) activate ();
+    refresh ();
+  }
+}
+
+void
+QTMEditorToolbarPresenter::deactivate () {
+  if (!active_) return;
+  active_= false;
+  if (refreshTimer_ != nullptr) {
+    refreshTimer_->stop ();
+    refreshTimer_->deleteLater ();
+  }
+  refreshTimer_= nullptr;
+  roots_.clear ();
+  clearToolbar ();
+}
+
+void
+QTMEditorToolbarPresenter::refresh () {
+  if (!active_ || canvas_ == nullptr) return;
+  QTMCommandContext target= context ();
+  std::vector<bool> visible (roots_.size (), false);
+  for (std::size_t i= 0; i < roots_.size (); ++i)
+    if (roots_[i] != nullptr &&
+        roots_[i]->kind != QTMCommandMenuItem::Kind::Separator)
+      visible[i]= refreshNode (*roots_[i], target);
+  bool before= false;
+  for (std::size_t i= 0; i < roots_.size (); ++i) {
+    node* root= roots_[i].get ();
+    if (root == nullptr || root->action == nullptr) continue;
+    if (root->kind != QTMCommandMenuItem::Kind::Separator) {
+      if (visible[i]) before= true;
+      continue;
+    }
+    bool after= false;
+    for (std::size_t j= i + 1; j < roots_.size (); ++j) {
+      if (roots_[j] != nullptr &&
+          roots_[j]->kind != QTMCommandMenuItem::Kind::Separator &&
+          visible[j]) {
+        after= true;
+        break;
+      }
+    }
+    root->action->setVisible (before && after);
+    if (root->action->isVisible ()) before= false;
+  }
+}

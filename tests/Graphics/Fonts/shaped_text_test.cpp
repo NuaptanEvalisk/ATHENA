@@ -9,17 +9,17 @@
 ******************************************************************************/
 #include "font.hpp"
 #include "data_cache.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 #include "unicode_text.hpp"
 #include "shaped_line.hpp"
 #include "font_selection.hpp"
 #include "font_database.hpp"
 #include "math_font.hpp"
-#include "Boxes/construct.hpp"
-#include "Boxes/utf8_line.hpp"
-#include "Freetype/tt_face.hpp"
-#include "Qt/QTMRenderService.hpp"
-#include "Qt/qt_renderer.hpp"
+#include "Typesetting/Boxes/construct.hpp"
+#include "Typesetting/Boxes/utf8_line.hpp"
+#include "Rendering/Fonts/Freetype/tt_face.hpp"
+#include "UI/Qt/Editor/QTMRenderService.hpp"
+#include "UI/Qt/Rendering/qt_renderer.hpp"
 #include <harfbuzz/hb-ot.h>
 #include <QTemporaryDir>
 #include <QPicture>

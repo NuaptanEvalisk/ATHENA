@@ -1010,8 +1010,8 @@ generated native entries and remain on the secure-function list.
 ## Remaining Reader And Callback Consumers
 
 - `string_to_object` has two business callers: atomic selectors in
-  `src/Typeset/Env/utility_markup.cpp` and non-string preference retrieval in
-  `src/Edit/Interface/application_preferences.cpp`.
+  `src/Typesetting/Env/utility_markup.cpp` and non-string preference retrieval in
+  `src/Editor/Commands/application_preferences.cpp`.
 - The preference catalog has exactly one `scheme-object` entry:
   `editor:verbatim:tabstop`, default `4`. Its active program editor consumer
   already reads the native string preference as an integer. Replace the
@@ -2130,7 +2130,7 @@ generated native entries and remain on the secure-function list.
   syntax remain explicit distinct types. The value model has no procedures,
   arbitrary pairs, recursive heterogeneous lists or evaluation operation.
 - Moved the XML interfaces and retained native implementations to
-  `src/ATHENA/Commands`. The four XML files remain the sole command signature
+  `src/App/Commands`. The four XML files remain the sole command signature
   and registration authority. Their generator emits direct native adapters,
   validates arity/types and permits only explicit native UI routing.
 - Keyboard JSON, document actions, style extern functions, interactive defaults,
@@ -2336,7 +2336,7 @@ closure follows removal of the complete runtime boundary, not just `progs`.
   tests, tools, runtime resources, clients, and CMake source directories found
   no remaining empty directories.
 - Updated active development references to use
-  `src/ATHENA/Commands/Interfaces/native.xml`, the owner-local native tree
+  `src/App/Commands/Interfaces/native.xml`, the owner-local native tree
   diff, and native C++ test locations, rather than deleted Scheme paths.
   Generated `build*` trees and their nested VCS/CMake metadata were intentionally
   preserved: those are build outputs, not source directories.

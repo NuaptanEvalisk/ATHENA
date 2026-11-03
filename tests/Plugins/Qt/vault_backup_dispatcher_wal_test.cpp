@@ -8,8 +8,8 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-#include "ATHENA/Data/vault_backup_dispatcher.hpp"
-#include "ATHENA/Data/vaultfile_json.hpp"
+#include "Domains/Vault/vault_backup_dispatcher.hpp"
+#include "Domains/Vault/vaultfile_json.hpp"
 #include <QCoreApplication>
 #include <QTemporaryDir>
 #include <sqlite3.h>

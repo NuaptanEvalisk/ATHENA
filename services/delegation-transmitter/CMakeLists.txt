@@ -1,10 +1,10 @@
 add_executable (athena-transmitter
   athena_transmitter.cpp
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/RAG/rag_delegation_crypto.cpp
+  ${ATHENA_SOURCE_DIR}/src/Services/RAG/rag_delegation_crypto.cpp
 )
 
 target_include_directories (athena-transmitter PRIVATE
-  ${ATHENA_SOURCE_DIR}/src/Subsystems/RAG
+  ${ATHENA_SOURCE_DIR}/src/Services/RAG
   ${LIBSODIUM_INCLUDE_DIRS}
   ${Boost_INCLUDE_DIRS}
 )

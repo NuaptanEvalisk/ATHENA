@@ -1,0 +1,243 @@
+/******************************************************************************
+* MODULE     : document_upgrade_file.cpp
+* DESCRIPTION: Verified original-byte backups and revision-checked XML upgrades
+* COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+#include "Document/Convert/Xml/document_upgrade_file.hpp"
+#include <QCryptographicHash>
+#include <cerrno>
+#include <fstream>
+#include <system_error>
+
+namespace athena::document {
+namespace {
+std::string sha256 (std::string_view bytes) {
+  const auto digest= QCryptographicHash::hash (
+    QByteArrayView (bytes.data (), qsizetype (bytes.size ())), QCryptographicHash::Sha256).toHex ();
+  return {digest.constData (), std::size_t (digest.size ())};
+}
+bool starts (std::string_view value, std::string_view prefix) {
+  return value.substr (0, prefix.size ()) == prefix;
+}
+legacy_format identify_legacy (std::string_view bytes) {
+  // Match the established reader signatures, never infer the text encoding
+  // from UTF-8 validity. The import layer is responsible for syntax validation.
+  if (starts (bytes, "<TeXmacs|")) return legacy_format::texmacs;
+  if (starts (bytes, "(document (TeXmacs ") ||
+      starts (bytes, "(document (apply \"TeXmacs\" ") ||
+      starts (bytes, "(document (expand \"TeXmacs\" "))
+    return legacy_format::scheme;
+  throw codec_exception (codec_error::invalid_structure, "Not a supported legacy document signature");
+}
+
+xml_storage_version identify_xml (std::string_view bytes, codec_limits limits) {
+  const auto version= inspect_xml_version (bytes, limits);
+  switch (version) {
+    case xml_storage_version::v1: (void) read_xml (bytes, xml_kind::document, limits); break;
+    case xml_storage_version::v2: (void) read_xml_v2 (bytes, xml_kind::document, limits); break;
+    case xml_storage_version::v3: (void) read_xml_v3 (bytes, xml_kind::document, limits); break;
+  }
+  return version;
+}
+
+std::string serialize_xml (const tree& document, xml_storage_version version,
+                           codec_limits limits) {
+  if (version == xml_storage_version::v3)
+    return write_xml_v3 (document, xml_kind::document, limits);
+  return version == xml_storage_version::v2 ?
+    write_xml_v2 (document, xml_kind::document, limits) :
+    write_xml (document, xml_kind::document, limits);
+}
+
+tree parse_xml (std::string_view bytes, xml_storage_version version,
+                codec_limits limits) {
+  if (version == xml_storage_version::v3)
+    return read_xml_v3 (bytes, xml_kind::document, limits);
+  return version == xml_storage_version::v2 ?
+    read_xml_v2 (bytes, xml_kind::document, limits) :
+    read_xml (bytes, xml_kind::document, limits);
+}
+} // namespace
+
+std::string
+storage_bytes_fingerprint (std::string_view bytes) { return sha256 (bytes); }
+
+legacy_file::legacy_file (filesystem::confined_root root, std::filesystem::path relative,
+    bool in_vault, filesystem::entry file, filesystem::metadata revision,
+    std::string original, legacy_format format):
+  root_ (std::move (root)), relative_ (std::move (relative)), file_ (std::move (file)),
+  revision_ (revision), original_ (std::move (original)), digest_ (sha256 (original_)), format_ (format) {
+  if (in_vault)
+    backup_= std::filesystem::path (".backup/format-migration/v1") / digest_ / relative_;
+  else backup_= relative_.filename ().string () + ".pre-utf8-" + digest_;
+}
+
+legacy_file legacy_file::capture (const std::filesystem::path& source,
+    const std::optional<std::filesystem::path>& vault, codec_limits limits) {
+  const auto absolute= std::filesystem::canonical (source);
+  auto root_path= absolute.parent_path ();
+  bool in_vault= false;
+  if (vault) {
+    const auto candidate= std::filesystem::canonical (*vault);
+    const auto relative= absolute.lexically_relative (candidate);
+    in_vault= !relative.empty () && !relative.is_absolute () && *relative.begin () != "..";
+    if (in_vault) root_path= candidate;
+  }
+  filesystem::confined_root root (root_path);
+  const auto relative= absolute.lexically_relative (root_path);
+  auto file= root.open (relative);
+  const auto revision= file.stat ();
+  auto original= file.read (limits.input_bytes);
+  if (!filesystem::same_revision (revision, file.stat ()))
+    throw std::system_error (EAGAIN, std::generic_category (), "Document changed during migration capture");
+  const auto format= identify_legacy (original);
+  return legacy_file (std::move (root), relative, in_vault, std::move (file), revision,
+                      std::move (original), format);
+}
+
+upgrade_result legacy_file::commit (const tree& utf8_document, codec_limits limits) const {
+  const auto current= root_.open (relative_);
+  if (!current.same_object (file_) || !filesystem::same_revision (revision_, current.stat ()))
+    throw std::system_error (ESTALE, std::generic_category (), "Legacy document changed since it was opened");
+  std::vector<int> root_child_map;
+  const auto document= strip_legacy_document_version (utf8_document, &root_child_map);
+  const auto bytes= std::make_shared<const std::string> (write_xml (document, xml_kind::document, limits));
+  const auto& xml= *bytes;
+  // Never produce a document which the configured reader cannot load.
+  if (read_xml (xml, xml_kind::document, limits) != document)
+    throw codec_exception (codec_error::invalid_structure, "XML upgrade round-trip verification failed");
+  const auto backup= root_.preserve (backup_, original_);
+  if (sha256 (backup.read (limits.input_bytes)) != digest_)
+    throw std::runtime_error ("Original document backup checksum mismatch");
+  auto backup_path= backup.path ();
+  auto original_digest= digest_;
+  auto xml_digest= sha256 (xml);
+  // Finish fallible result preparation before the irreversible rename.
+  const auto replaced= root_.replace (relative_, file_, revision_, xml);
+  return {std::move (backup_path), std::move (original_digest), std::move (xml_digest), replaced.file,
+    replaced.directory_synced ? upgrade_durability::durable : upgrade_durability::replaced_not_durable,
+    std::move (root_child_map), bytes};
+}
+
+xml_file::xml_file (filesystem::confined_root root,
+                    std::filesystem::path relative,
+                    filesystem::entry file,
+                    filesystem::metadata revision, std::string digest,
+                    xml_storage_version version):
+  root_ (std::move (root)), relative_ (std::move (relative)),
+  file_ (std::move (file)), revision_ (revision), digest_ (std::move (digest)),
+  version_ (version) {}
+
+xml_file
+xml_file::capture (const std::filesystem::path& source, codec_limits limits) {
+  const auto absolute= std::filesystem::canonical (source);
+  filesystem::confined_root root (absolute.parent_path ());
+  const auto relative= absolute.filename ();
+  auto file= root.open (relative);
+  const auto revision= file.stat ();
+  const auto bytes= file.read (limits.input_bytes);
+  if (!filesystem::same_revision (revision, file.stat ()))
+    throw std::system_error (EAGAIN, std::generic_category (),
+                             "Document changed during XML capture");
+  const auto version= identify_xml (bytes, limits);
+  return xml_file (
+    std::move (root), relative, std::move (file), revision, sha256 (bytes), version);
+}
+
+xml_file
+xml_file::create (const std::filesystem::path& source, const tree& document,
+                   xml_save_result& result, xml_storage_version version,
+                   codec_limits limits) {
+  const auto parent= std::filesystem::canonical (source.parent_path ());
+  filesystem::confined_root root (parent);
+  const auto relative= source.filename ();
+  const auto clean= strip_legacy_document_version (document);
+  const auto bytes= std::make_shared<const std::string> (serialize_xml (clean, version, limits));
+  const auto& xml= *bytes;
+  if (parse_xml (xml, version, limits) != clean)
+    throw codec_exception (codec_error::invalid_structure,
+                           "XML create round-trip verification failed");
+  auto created= root.create (relative, xml);
+  auto file= created.file;
+  if (file.read (limits.input_bytes) != xml)
+    throw std::system_error (ESTALE, std::generic_category (),
+                             "New XML document changed before capture");
+  const auto revision= file.stat ();
+  result= {sha256 (xml), created.directory_synced ? upgrade_durability::durable :
+                                                  upgrade_durability::replaced_not_durable, bytes};
+  return xml_file (
+    std::move (root), relative, std::move (file), revision, result.xml_sha256,
+    version);
+}
+
+xml_save_result
+xml_file::commit (const tree& document, codec_limits limits) {
+  const auto current= root_.open (relative_);
+  if (!current.same_object (file_) ||
+      !filesystem::same_revision (revision_, current.stat ()))
+    throw std::system_error (ESTALE, std::generic_category (),
+                             "XML document changed since it was opened");
+  const auto clean= strip_legacy_document_version (document);
+  const auto bytes= std::make_shared<const std::string> (serialize_xml (clean, version_, limits));
+  const auto& xml= *bytes;
+  if (parse_xml (xml, version_, limits) != clean)
+    throw codec_exception (codec_error::invalid_structure,
+                           "XML save round-trip verification failed");
+  auto replaced= root_.replace (relative_, file_, revision_, xml);
+  file_= replaced.file;
+  revision_= file_.stat ();
+  digest_= sha256 (xml);
+  return {digest_, replaced.directory_synced ? upgrade_durability::durable :
+                                              upgrade_durability::replaced_not_durable, bytes};
+}
+
+document_file
+document_file::capture (const std::filesystem::path& source,
+                        const std::optional<std::filesystem::path>& vault,
+                        codec_limits limits) {
+  const auto absolute= std::filesystem::canonical (source);
+  std::ifstream input (absolute, std::ios::binary);
+  if (!input)
+    throw std::system_error (errno ? errno : EIO, std::generic_category (),
+                             "Could not inspect document storage format");
+  char prefix[32]= {};
+  input.read (prefix, sizeof (prefix));
+  const std::string_view head (prefix, std::size_t (input.gcount ()));
+  if (starts (head, "<TeXmacs|") || starts (head, "(document (TeXmacs ") ||
+      starts (head, "(document (apply \"TeXmacs\"") ||
+      starts (head, "(document (expand \"TeXmacs\""))
+    return document_file (legacy_file::capture (absolute, vault, limits));
+  return document_file (xml_file::capture (absolute, limits));
+}
+
+document_file
+document_file::create (const std::filesystem::path& source,
+                       const tree& document, document_save_result& result,
+                       xml_storage_version version, codec_limits limits) {
+  xml_save_result saved;
+  document_file file (xml_file::create (source, document, saved, version, limits));
+  result= {{}, std::move (saved.xml_sha256), saved.durability, false, std::move (saved.committed_bytes)};
+  return file;
+}
+
+document_save_result
+document_file::save (const tree& document, codec_limits limits) {
+  if (legacy_) {
+    upgrade_result upgraded= legacy_->commit (document, limits);
+    xml_file next (
+      legacy_->root_, legacy_->relative_, upgraded.file, upgraded.file.stat (),
+      upgraded.xml_sha256, xml_storage_version::v1);
+    legacy_.reset ();
+    xml_= std::move (next);
+    return {upgraded.backup, upgraded.xml_sha256, upgraded.durability, true, std::move (upgraded.committed_bytes)};
+  }
+  if (!xml_)
+    throw std::logic_error ("Document file has no captured storage state");
+  auto saved= xml_->commit (document, limits);
+  return {{}, std::move (saved.xml_sha256), saved.durability, false, std::move (saved.committed_bytes)};
+}
+} // namespace athena::document

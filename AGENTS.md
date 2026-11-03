@@ -200,13 +200,13 @@ boundaries, do not patch from intuition. Debug from evidence.
 
 - Do not write or edit per-command C++ adapters, registration calls or a second
   command registry manually. Define native signatures in XML under
-  `src/ATHENA/Commands/Interfaces/` and let the CMake `athena_commands` target
+  `src/App/Commands/Interfaces/` and let the CMake `athena_commands` target
   generate direct C++ adapters.
 - Do not restore the retired Scheme interpreter, glue or VM interfaces. Native
   implementations belong in separately compiled C++ files, not in generated
   adapters or XML code fragments. The generator must not gain command-specific
   exceptions.
-- Read `src/ATHENA/Commands/Interfaces/README.md` before changing command
+- Read `src/App/Commands/Interfaces/README.md` before changing command
   bindings. Generated files belong in the build directory, not source control.
 - Keep native implementation and thread/actor ownership outside the XML.
   Generated marshalling does not authorize GUI access or editor-state access.

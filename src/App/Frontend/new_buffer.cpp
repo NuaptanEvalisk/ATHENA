@@ -1,0 +1,1410 @@
+
+/******************************************************************************
+* MODULE     : new_buffer.cpp
+* DESCRIPTION: Buffer management
+* COPYRIGHT  : (C) 1999-2022  Joris van der Hoeven
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#include "App/Runtime/tm_data.hpp"
+#include "boot.hpp"
+#include "Infrastructure/VirtualFS/tmfs.hpp"
+#include "App/Runtime/tm_server.hpp"
+#include "App/Runtime/buffer_actor.hpp"
+#include "Document/Model/buffer_export.hpp"
+#include "Document/Convert/Generic/conversion_executor.hpp"
+#include "App/Runtime/buffer_state.hpp"
+#include "App/Runtime/buffer_name_catalog.hpp"
+#include "App/Runtime/execution_context.hpp"
+#include "convert.hpp"
+#include "path.hpp"
+#include "file.hpp"
+#include "web_files.hpp"
+#include "tm_link.hpp"
+#include "link_markup.hpp"
+#include "message.hpp"
+#include "new_document.hpp"
+#include "new_style.hpp"
+#include "Document/NodeContracts/builtin_contracts.hpp"
+#include "merge_sort.hpp"
+#include "Materials/Model/materials_document.hpp"
+#include "Domains/References/node_reference_export.hpp"
+#include "Domains/References/node_reference.hpp"
+#include "App/Boot/boot.hpp"
+#include "Document/Convert/Xml/document_file_codec.hpp"
+#include "Document/Model/source_document_creation.hpp"
+#include "Domains/Vault/vault.hpp"
+#include "data_cache.hpp"
+#include <QSaveFile>
+#include <filesystem>
+#include <algorithm>
+#include <functional>
+#include <optional>
+#include <stdexcept>
+
+array<tm_buffer> bufs;
+
+namespace {
+
+buffer_name_catalog published_buffer_names;
+std::atomic<std::uint64_t> active_buffer_id {0};
+
+tree
+new_source_document () {
+  tree body (DOCUMENT, tree (""));
+  new_data data;
+  auto identities= athena::document_node::assign_detached_source_ids (
+    body, athena::contracts::builtin_contracts (),
+    athena::document_node::standard_source_role,
+    [] (const athena::document_node::identity_request&) {
+      return athena::node::new_id ();
+    });
+  if (!identities.ok ()) {
+    const std::string detail= identities.diagnostics.empty () ?
+      "Unknown source identity error" : identities.diagnostics.front ().detail;
+    throw std::runtime_error (
+      "Could not initialize a new source document: " + detail);
+  }
+  return attach_data (std::move (*identities.body), data);
+}
+
+std::string
+catalog_text (string text) {
+  return std::string (text.data (), N (text));
+}
+
+static athena_view_id
+source_view (tm_buffer buf) {
+  tm_view view= concrete_view (get_current_view_safe ());
+  if (view != nullptr && view->buf == buf) return view->runtime_id;
+  view= concrete_view (get_recent_view (buf->buf->name, true, false, false, false));
+  if (view != nullptr) return view->runtime_id;
+  return N (buf->vws) == 0 ? ATHENA_NO_VIEW : buf->vws[0]->runtime_id;
+}
+
+void
+publish_buffer_metadata () {
+  buffer_name_catalog::records records;
+  for (int i= 0; i < N (bufs); ++i)
+    records.emplace (catalog_text (as_string (bufs[i]->buf->name)),
+      buffer_name_catalog::metadata {
+        catalog_text (bufs[i]->buf->title),
+        static_cast<double> (bufs[i]->buf->last_visit),
+        bufs[i]->buf->menu_modified,
+        bufs[i]->buf->realtime_save_paused,
+        bufs[i]->actor ? bufs[i]->actor->id () : ATHENA_NO_ACTOR,
+        source_view (bufs[i])});
+  published_buffer_names.publish_metadata (std::move (records));
+}
+
+// Called only by the UI owner after membership/name changes. No native URL,
+// string, array or tree representation is retained in the published snapshot.
+void
+publish_buffer_names () {
+  publish_buffer_metadata ();
+  buffer_name_catalog::names names;
+  names.reserve (N (bufs));
+  for (int i= N (bufs) - 1; i >= 0; --i) {
+    string text= as_string (bufs[i]->buf->name);
+    std::string encoded;
+    encoded.reserve (N (text));
+    for (int j= 0; j < N (text); ++j) encoded.push_back (text[j]);
+    names.push_back (std::move (encoded));
+  }
+  published_buffer_names.publish (std::move (names));
+}
+
+} // namespace
+
+buffer_name_catalog::records
+published_buffer_metadata () { return published_buffer_names.read_metadata (); }
+
+std::uint64_t
+published_active_buffer () { return active_buffer_id.load (std::memory_order_acquire); }
+
+void
+publish_active_buffer (std::uint64_t id) {
+  ASSERT (current_execution_context () == nullptr,
+          "active buffer publication requires the GUI owner");
+  active_buffer_id.store (id, std::memory_order_release);
+}
+
+std::vector<std::uint64_t>
+published_file_buffers (const std::string& native_url_name) {
+  const auto canonical= [] (const std::string& name) {
+    url native (string (name.data (), name.size ()));
+    if (!is_rooted (native, "default") && !is_rooted (native, "file")) return std::filesystem::path {};
+    std::error_code error;
+    auto result= std::filesystem::weakly_canonical (
+      std::filesystem::path (catalog_text (as_system_string (native))), error);
+    return error ? std::filesystem::path {} : result;
+  };
+  const auto expected= canonical (native_url_name);
+  std::vector<std::uint64_t> result;
+  if (expected.empty ()) return result;
+  for (const auto& entry: published_buffer_metadata ())
+    if (entry.second.actor_id && canonical (entry.first) == expected)
+      result.push_back (entry.second.actor_id);
+  std::sort (result.begin (), result.end ());
+  result.erase (std::unique (result.begin (), result.end ()), result.end ());
+  return result;
+}
+
+std::uint64_t
+published_buffer_actor_id (const std::string& native_url_name) {
+  buffer_name_catalog::metadata metadata;
+  return published_buffer_names.lookup (native_url_name, metadata)
+    ? metadata.actor_id : ATHENA_NO_ACTOR;
+}
+
+std::pair<std::uint64_t, std::uint64_t>
+published_buffer_source (const std::string& native_url_name) {
+  buffer_name_catalog::metadata metadata;
+  if (published_buffer_names.lookup (native_url_name, metadata))
+    return {metadata.actor_id, metadata.source_view};
+  const auto canonical_path= [] (const std::string& name) {
+    url native (string (name.data (), name.size ()));
+    if (!is_rooted (native, "default") && !is_rooted (native, "file")) return std::filesystem::path {};
+    const auto path= std::filesystem::path (catalog_text (as_system_string (native)));
+    std::error_code error;
+    auto canonical= std::filesystem::weakly_canonical (path, error);
+    return error ? std::filesystem::path {} : canonical;
+  };
+  const auto expected= canonical_path (native_url_name);
+  if (expected.empty ()) return {};
+  std::pair<std::uint64_t, std::uint64_t> result;
+  for (const auto& name: *published_buffer_names.read ()) {
+    if (canonical_path (name) != expected || !published_buffer_names.lookup (name, metadata)) continue;
+    if (result.first != ATHENA_NO_ACTOR && result.first != metadata.actor_id)
+      throw std::runtime_error ("Multiple open buffer aliases refer to this document");
+    result= {metadata.actor_id, metadata.source_view};
+  }
+  return result;
+}
+
+void
+publish_buffer_source_view (tm_buffer buf) {
+  ASSERT (current_execution_context () == nullptr,
+          "source view publication requires the GUI owner");
+  if (!is_nil (buf))
+    published_buffer_names.set_source_view (catalog_text (as_string (buf->buf->name)), source_view (buf));
+}
+
+
+string propose_title (string old_title, url u);
+
+static bool
+invoke_buffer_actor (
+  buffer_actor* actor, actor_command_kind kind,
+  athena_view_id view_id= ATHENA_NO_VIEW,
+  athena_blob_id payload0= ATHENA_NO_BLOB,
+  athena_blob_id payload1= ATHENA_NO_BLOB,
+  actor_command_record* result= nullptr,
+  std::uint64_t argument0= 0,
+  std::uint64_t argument1= 0) {
+  return actor != nullptr && actor->invoke (
+    kind, view_id, payload0, payload1, result, EXECUTION_CAPABILITY_BUFFER,
+    argument0, argument1);
+}
+
+static bool
+invoke_buffer_actor (
+  tm_buffer buf, actor_command_kind kind,
+  athena_view_id view_id= ATHENA_NO_VIEW,
+  athena_blob_id payload0= ATHENA_NO_BLOB,
+  athena_blob_id payload1= ATHENA_NO_BLOB,
+  actor_command_record* result= nullptr,
+  std::uint64_t argument0= 0,
+  std::uint64_t argument1= 0) {
+  return !is_nil (buf) && invoke_buffer_actor (
+    buf->actor, kind, view_id, payload0, payload1, result, argument0, argument1);
+}
+
+static buffer_actor*
+current_buffer_actor (url name, athena_view_id& view_id) {
+  const ExecutionContext* context= current_execution_context ();
+  if (context == nullptr || context->actor == nullptr ||
+      context->actor->current_buffer_url () != name)
+    return nullptr;
+  view_id= context->view_id;
+  return context->actor;
+}
+
+static void
+discard_tree_payload (athena_blob_id payload) {
+  if (payload != ATHENA_NO_BLOB)
+    (void) actor_tree_registry::instance ().discard (payload);
+}
+
+static void
+discard_text_payload (athena_blob_id payload) {
+  if (payload != ATHENA_NO_BLOB)
+    (void) actor_text_registry::instance ().discard (payload);
+}
+
+static athena_view_id
+buffer_command_view (tm_buffer buf, url name) {
+  const ExecutionContext* context= current_execution_context ();
+  if (context != nullptr)
+    return context->actor == buf->actor ? context->view_id : ATHENA_NO_VIEW;
+  tm_view view= concrete_view (get_recent_view (name));
+  return view == nullptr ? ATHENA_NO_VIEW : view->runtime_id;
+}
+
+tm_buffer_rep::tm_buffer_rep (url name):
+  buf (name), vws (0), rp (0), actor (tm_new<buffer_actor> (this)) {}
+
+tm_buffer_rep::~tm_buffer_rep () {
+  tm_delete (actor);
+}
+
+/******************************************************************************
+* Check for changes in the buffer
+******************************************************************************/
+
+bool
+tm_buffer_rep::needs_to_be_saved () {
+  if (buf->read_only) return false;
+  actor_command_record result;
+  return invoke_buffer_actor (
+           this, actor_command_kind::query_modified, ATHENA_NO_VIEW,
+           ATHENA_NO_BLOB, ATHENA_NO_BLOB, &result) &&
+         result.argument[0] != 0;
+}
+
+bool
+tm_buffer_rep::needs_to_be_autosaved () {
+  if (buf->read_only) return false;
+  actor_command_record result;
+  return invoke_buffer_actor (
+           this, actor_command_kind::query_autosaved, ATHENA_NO_VIEW,
+           ATHENA_NO_BLOB, ATHENA_NO_BLOB, &result) &&
+         result.argument[0] != 0;
+}
+
+/******************************************************************************
+* Manipulation of buffer list
+******************************************************************************/
+
+void
+insert_buffer (url name) {
+  if (is_none (name)) return;
+  if (!is_nil (concrete_buffer (name))) return;
+  tm_buffer buf= tm_new<tm_buffer_rep> (name);
+  bufs << buf;
+  publish_buffer_names ();
+}
+
+void
+remove_buffer (tm_buffer buf) {
+  int nr, n= N(bufs);
+  for (nr=0; nr<n; nr++)
+    if (bufs[nr] == buf) {
+      while (N(buf->vws) != 0)
+        delete_view (abstract_view (buf->vws[0]));
+      buf->actor->shutdown ();
+      for (int i=nr; i<n-1; i++)
+        bufs[i]= bufs[i+1];
+      bufs->resize (n-1);
+      publish_buffer_names ();
+      tm_delete (buf);
+      return;
+    }
+}
+
+void
+remove_buffer (url name) {
+  tm_buffer buf= concrete_buffer (name);
+  if (!is_nil (buf)) remove_buffer (buf);
+}
+
+int
+number_buffers () {
+  return N(bufs);
+}
+
+array<url>
+get_all_buffers () {
+  array<url> r;
+  if (current_execution_context () != nullptr) {
+    // Decode only when membership changes. Native URL representations remain
+    // local to this reader thread; each result gets its own array container.
+    static thread_local buffer_name_catalog::snapshot observed;
+    static thread_local array<url> decoded;
+    auto names= published_buffer_names.read ();
+    if (names != observed) {
+      array<url> fresh;
+      for (const std::string& name: *names)
+        fresh << url (string (name.data (), static_cast<int> (name.size ())));
+      decoded= fresh;
+      observed= std::move (names);
+    }
+    for (int i= 0; i < N (decoded); ++i) r << decoded[i];
+    return r;
+  }
+  for (int i=N(bufs)-1; i>=0; i--)
+    r << bufs[i]->buf->name;
+  return r;
+}
+
+tm_buffer
+concrete_buffer (url name) {
+  ASSERT (current_execution_context () == nullptr,
+          "GUI buffer registry accessed from a BufferActor");
+  int i, n= N(bufs);
+  for (i=0; i<n; i++)
+    if (bufs[i]->buf->name == name)
+      return bufs[i];
+  return nil_buffer ();
+}
+
+tm_buffer
+concrete_buffer_insist (url u) {
+  tm_buffer buf= concrete_buffer (u);
+  if (!is_nil (buf)) return buf;
+  buffer_load (u);
+  return concrete_buffer (u);
+}
+
+/******************************************************************************
+* Buffer names
+******************************************************************************/
+
+url
+get_current_buffer () {
+  const ExecutionContext* context= current_execution_context ();
+  if (context != nullptr) {
+    ASSERT (context->actor_id != ATHENA_NO_ACTOR,
+            "no active buffer in Scheme execution context");
+    return context->actor->current_buffer_url ();
+  }
+  tm_view vw= concrete_view (get_current_view ());
+  return vw->buf->buf->name;
+}
+
+url
+get_current_buffer_safe () {
+  const ExecutionContext* context= current_execution_context ();
+  if (context != nullptr) return context->actor->current_buffer_url ();
+  url v= get_current_view_safe ();
+  if (is_none (v)) return v;
+  return concrete_view (v)->buf->buf->name;
+}
+
+url
+path_to_buffer (path p) {
+  const ExecutionContext* context= current_execution_context ();
+  if (context != nullptr && context->actor != nullptr) {
+    buffer_document_state* state= context->actor->current_state ();
+    return state != nullptr && state->root_path <= p ? state->name : url_none ();
+  }
+  url current= get_current_buffer_safe ();
+  tm_buffer buf= concrete_buffer (current);
+  if (!is_nil (buf) && buf->rp <= p) return current;
+  return url_none ();
+}
+
+void
+rename_buffer (url name, url new_name) {
+  const ExecutionContext* context= current_execution_context ();
+  if (context != nullptr && context->actor != nullptr &&
+      context->actor->current_buffer_url () == name) {
+    if (new_name == name) return;
+    athena_blob_id renamed= actor_text_from_string (as_string (new_name));
+    if (!context->actor->invoke (
+          actor_command_kind::rename_buffer, context->view_id, renamed)) {
+      discard_text_payload (renamed);
+      return;
+    }
+    if (context->editor != nullptr)
+      (void) context->editor->publish_ui_text (
+        actor_command_kind::ui_rename_buffer, as_string (new_name));
+    return;
+  }
+
+  if (new_name == name || is_nil (concrete_buffer (name))) return;
+  kill_buffer (new_name);
+  tm_buffer buf= concrete_buffer (name);
+  if (is_nil (buf)) return;
+  notify_rename_before (name);
+  buf->buf->name= new_name;
+  buf->buf->master= new_name;
+  publish_buffer_names ();
+  athena_blob_id renamed= actor_text_from_string (as_string (new_name));
+  if (!buf->actor->invoke (
+        actor_command_kind::rename_buffer, ATHENA_NO_VIEW, renamed))
+    (void) actor_text_registry::instance ().discard (renamed);
+  notify_rename_after (new_name);
+  string title= propose_title (buf->buf->title, new_name);
+  set_title_buffer (new_name, title);
+}
+
+void
+rename_buffer_from_actor (tm_buffer buf, url new_name) {
+  ASSERT (current_execution_context () == nullptr,
+          "actor buffer rename publication requires the GUI owner");
+  if (is_nil (buf) || new_name == buf->buf->name) return;
+
+  url old_name= buf->buf->name;
+  tm_buffer existing= concrete_buffer (new_name);
+  if (!is_nil (existing) && existing != buf) kill_buffer (new_name);
+
+  notify_rename_before (old_name);
+  buf->buf->name= new_name;
+  buf->buf->master= new_name;
+  publish_buffer_names ();
+  notify_rename_after (new_name);
+
+  string title= propose_title (buf->buf->title, new_name);
+  if (buf->buf->title != title) {
+    buf->buf->title= title;
+    publish_buffer_metadata ();
+    athena_blob_id title_payload= actor_text_from_string (copy (title));
+    actor_command_ticket ticket= buf->actor->try_submit (
+      actor_command_kind::set_buffer_title, ATHENA_NO_VIEW, title_payload);
+    if (!ticket) discard_text_payload (title_payload);
+  }
+
+  array<url> vs= buffer_to_views (new_name);
+  for (int i= 0; i < N (vs); ++i) {
+    tm_window win= concrete_window (view_to_window (vs[i]));
+    if (win != NULL) {
+      win->set_window_name (title);
+      win->set_window_url (new_name);
+    }
+  }
+}
+
+url
+make_new_buffer () {
+  int i=1;
+  while (true) {
+    url name= url_scratch ("no_name_", ".tm", i);
+    if (is_nil (concrete_buffer (name))) {
+      set_buffer_tree (name, tree (DOCUMENT));
+      return name;
+    }
+    else i++;
+  }
+}
+
+bool
+buffer_has_name (url name) {
+  return !is_scratch (name);
+}
+
+/******************************************************************************
+* Buffer title
+******************************************************************************/
+
+static string
+unique_title (string old_title, string name) {
+  int i, j;
+  for (j=1; true; j++) {
+    bool flag= true;
+    string ret (name);
+    if (j>1) ret= name * " (" * as_string (j) * ")";
+    if (ret == old_title) return ret;
+    for (i=0; i<N(bufs); i++)
+      if (bufs[i]->buf->title == ret) flag= false;
+    if (flag) return ret;
+  }
+}
+
+string
+propose_title (string old_title, url u) {
+  string name= as_string (tail (u));
+  if (starts (name, "no_name_") && ends (name, ".tm")) {
+    string no_name= "No name";
+    for (int i=0; i<N(no_name); i++)
+      if (((unsigned char) (no_name[i])) >= (unsigned char) 128)
+        { no_name= "No name"; break; }
+    name= no_name * " [" * name (8, N(name) - 3) * "]";
+  }
+  if ((name == "") || (name == "."))
+    name= as_string (tail (u * url_parent ()));
+  if ((name == "") || (name == "."))
+    name= as_string (u);
+  return unique_title (old_title, name);
+}
+
+string
+get_title_buffer (url name) {
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  if (buffer_actor* actor= current_buffer_actor (name, view_id))
+    return actor->current_state ()->title;
+  if (current_execution_context () != nullptr) {
+    buffer_name_catalog::metadata entry;
+    if (!published_buffer_names.lookup (catalog_text (as_string (name)), entry))
+      return "";
+    return string (entry.title.data (), static_cast<int> (entry.title.size ()));
+  }
+  tm_buffer buf= concrete_buffer (name);
+  if (is_nil (buf)) return "";
+  return buf->buf->title;
+}
+
+void
+set_title_buffer (url name, string title) {
+  tm_buffer buf= concrete_buffer (name);
+  if (is_nil (buf)) return;
+  if (buf->buf->title == title) return;
+  buf->buf->title= title;
+  publish_buffer_metadata ();
+  athena_blob_id title_payload= actor_text_from_string (copy (title));
+  if (!invoke_buffer_actor (
+        buf, actor_command_kind::set_buffer_title, ATHENA_NO_VIEW,
+        title_payload))
+    discard_text_payload (title_payload);
+  array<url> vs= buffer_to_views (name);
+  for (int i=0; i<N(vs); i++) {
+    tm_window win= concrete_window (view_to_window (vs[i]));
+    if (win != NULL) {
+      win->set_window_name (title);
+      win->set_window_url (name);
+    }
+  }
+}
+
+void
+set_proposed_title_buffer (url name, string title) {
+  tm_buffer buf= concrete_buffer (name);
+  if (is_nil (buf)) return;
+  set_title_buffer (name, unique_title (buf->buf->title, std::move (title)));
+}
+
+/******************************************************************************
+* Setting and getting the buffer tree contents
+******************************************************************************/
+
+static bool
+try_set_buffer_tree (
+    url name, tree doc,
+    std::optional<athena::document::document_source_format> source_format= {}) {
+  tm_buffer buf= concrete_buffer (name);
+  bool inserted= is_nil (buf);
+  if (inserted) {
+    insert_buffer (name);
+    buf= concrete_buffer (name);
+  }
+  string old_title= buf->buf->title;
+
+  string proposed_title= propose_title (old_title, name);
+  athena_blob_id document_payload=
+    actor_tree_registry::instance ().store (std::move (doc));
+  athena_view_id view_id= source_view (buf);
+  actor_command_record replacement;
+  const std::uint64_t persistence_mode= !source_format ? 0 :
+    (*source_format == athena::document::document_source_format::xml_v3 ? 3 :
+     *source_format == athena::document::document_source_format::xml_v2 ? 2 : 1);
+  if (!invoke_buffer_actor (
+        buf, actor_command_kind::replace_document, view_id,
+        document_payload, ATHENA_NO_BLOB, &replacement, 0, persistence_mode)) {
+    discard_tree_payload (document_payload);
+    return false;
+  }
+  if (replacement.argument[0] != 0)
+    return false;
+  buf->buf->title= std::move (proposed_title);
+  if (is_rooted_tmfs (name)) {
+    buf->buf->read_only=
+      !tmfs_permission (name, "write");
+    (void) invoke_buffer_actor (
+      buf, actor_command_kind::set_buffer_read_only, ATHENA_NO_VIEW,
+      ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
+      buf->buf->read_only ? 1 : 0);
+  }
+  athena_blob_id title_payload=
+    actor_text_from_string (copy (buf->buf->title));
+  if (!invoke_buffer_actor (
+        buf, actor_command_kind::set_buffer_title, ATHENA_NO_VIEW,
+        title_payload))
+    discard_text_payload (title_payload);
+  pretend_buffer_saved (name);
+  return true;
+}
+
+void
+set_buffer_tree (url name, tree doc) {
+  if (!try_set_buffer_tree (name, std::move (doc)))
+    std_warning << "Document replacement rejected for " << name << LF;
+}
+
+static athena::document::document_source_format
+buffer_source_format (athena::document::xml_format_version version) {
+  using namespace athena::document;
+  switch (version) {
+  case xml_format_version::v1: return document_source_format::xml_v1;
+  case xml_format_version::v2: return document_source_format::xml_v2;
+  case xml_format_version::v3: return document_source_format::xml_v3;
+  default: throw std::invalid_argument ("Unknown buffer storage version");
+  }
+}
+
+bool
+replace_buffer_tree (url name, tree doc,
+                     athena::document::xml_format_version version) {
+  if (is_nil (concrete_buffer (name))) return false;
+  const auto format= buffer_source_format (version);
+  athena::document::encode_native_xml_bytes (doc, version);
+  return try_set_buffer_tree (name, std::move (doc), format);
+}
+
+bool
+initialize_buffer_tree (url name, tree doc,
+                        athena::document::xml_format_version version,
+                        std::shared_ptr<const athena::contracts::detached_environment> field_environment) {
+  if (!is_nil (concrete_buffer (name))) return false;
+  const auto format= buffer_source_format (version);
+  if (field_environment) {
+    insert_buffer (name);
+    const auto install= actor_continuation_registry::instance ().store ([field_environment] {
+      const auto* context= current_execution_context ();
+      context->actor->current_state ()->field_environment= field_environment;
+    });
+    if (!invoke_buffer_actor (concrete_buffer (name), actor_command_kind::run_native_continuation,
+          ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, install)) {
+      actor_continuation_registry::instance ().discard (install);
+      remove_buffer (name);
+      return false;
+    }
+  }
+  if (try_set_buffer_tree (name, std::move (doc), format)) return true;
+  remove_buffer (name);
+  return false;
+}
+
+bool
+buffer_create_source (url name) {
+  if (!is_nil (concrete_buffer (name))) return true;
+  try {
+    using namespace athena::document;
+    xml_format_version version= xml_format_version::v2;
+    if (is_scratch (name)) {
+      // New, unsaved documents have no persisted format to preserve.
+      // An owning Vault still selects its own model version.
+      version= xml_format_version::v3;
+      if (const auto context= vault_capture_context ())
+        version= new_source_version_for_model (context->node_model_version);
+    }
+    else if (!is_rooted_tmfs (name) && !is_rooted_web (name)) {
+      if (exists (name)) return true;
+      version= new_source_version_for_target (
+        std::filesystem::path (catalog_text (concretize (name))));
+    }
+    return !try_set_buffer_tree (
+      name, new_source_document (),
+      version == xml_format_version::v3 ? document_source_format::xml_v3 :
+                                         document_source_format::xml_v2);
+  }
+  catch (const std::exception& error) {
+    std_warning << "Could not create source buffer " << name << ": "
+                << error.what () << LF;
+    return true;
+  }
+}
+
+url
+make_new_source_buffer () {
+  int i= 1;
+  while (true) {
+    url name= url_scratch ("no_name_", ".tm", i);
+    if (is_nil (concrete_buffer (name))) {
+      if (buffer_create_source (name))
+        FAILED ("could not create source buffer");
+      return name;
+    }
+    ++i;
+  }
+}
+
+tree
+get_buffer_tree (url name) {
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  buffer_actor* actor= current_buffer_actor (name, view_id);
+  if (actor == nullptr) {
+    tm_buffer buf= concrete_buffer (name);
+    if (is_nil (buf)) return "";
+    actor= buf->actor;
+  }
+  actor_command_record result;
+  if (!invoke_buffer_actor (
+        actor, actor_command_kind::snapshot_document, view_id,
+        ATHENA_NO_BLOB, ATHENA_NO_BLOB, &result))
+    return "";
+  return actor_tree_registry::instance ().take (result.payload0);
+}
+
+void
+set_buffer_body (url name, tree body) {
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  if (buffer_actor* actor= current_buffer_actor (name, view_id)) {
+    athena_blob_id body_payload=
+      actor_tree_registry::instance ().store (std::move (body));
+    actor_command_record replacement;
+    if (!invoke_buffer_actor (
+          actor, actor_command_kind::replace_body, view_id, body_payload,
+          ATHENA_NO_BLOB, &replacement)) {
+      discard_tree_payload (body_payload);
+      return;
+    }
+    if (replacement.argument[0] != 0)
+      return;
+    pretend_buffer_saved (name);
+    return;
+  }
+  tm_buffer buf= concrete_buffer (name);
+  if (is_nil (buf)) {
+    new_data data;
+    set_buffer_tree (name, attach_data (body, data));
+  }
+  else {
+    athena_blob_id body_payload=
+      actor_tree_registry::instance ().store (std::move (body));
+    athena_view_id view_id= source_view (buf);
+    actor_command_record replacement;
+    if (!invoke_buffer_actor (
+          buf, actor_command_kind::replace_body, view_id,
+          body_payload, ATHENA_NO_BLOB, &replacement)) {
+      discard_tree_payload (body_payload);
+      return;
+    }
+    if (replacement.argument[0] != 0)
+      return;
+    pretend_buffer_saved (name);
+  }
+}
+
+tree
+get_buffer_body (url name) {
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  buffer_actor* actor= current_buffer_actor (name, view_id);
+  if (actor == nullptr) {
+    tm_buffer buf= concrete_buffer (name);
+    if (is_nil (buf)) return "";
+    actor= buf->actor;
+  }
+  actor_command_record result;
+  if (!invoke_buffer_actor (
+        actor, actor_command_kind::snapshot_body, view_id,
+        ATHENA_NO_BLOB, ATHENA_NO_BLOB, &result))
+    return "";
+  return actor_tree_registry::instance ().take (result.payload0);
+}
+
+/******************************************************************************
+* Further information attached to buffers
+******************************************************************************/
+
+url
+get_master_buffer (url name) {
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  if (buffer_actor* actor= current_buffer_actor (name, view_id))
+    return actor->current_state ()->master;
+  tm_buffer buf= concrete_buffer (name);
+  if (is_nil (buf)) return url_none ();
+  return buf->buf->master;
+}
+
+void
+set_master_buffer (url name, url master) {
+  tm_buffer buf= concrete_buffer (name);
+  if (is_nil (buf)) return;
+  if (buf->buf->master == master) return;
+  buf->buf->master= master;
+  athena_blob_id master_payload= actor_text_from_string (as_string (master));
+  if (!invoke_buffer_actor (
+        buf, actor_command_kind::set_master_buffer, ATHENA_NO_VIEW,
+        master_payload))
+    discard_text_payload (master_payload);
+}
+
+void
+set_last_save_buffer (url name, int t) {
+  tm_buffer buf= concrete_buffer (name);
+  if (!is_nil (buf)) buf->buf->last_save= t;
+  //cout << "Set last save " << name << " -> " << t << "\n";
+}
+
+int
+get_last_save_buffer (url name) {
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  if (buffer_actor* actor= current_buffer_actor (name, view_id))
+    return actor->current_state ()->last_save;
+  tm_buffer buf= concrete_buffer (name);
+  if (is_nil (buf)) {
+    //cout << "Get last save " << name << " -> *\n";
+    return - (int) (((unsigned int) (-1)) >> 1);
+  }
+  //cout << "Get last save " << name << " -> " << buf->buf->last_save << "\n";
+  return (int) buf->buf->last_save;
+}
+
+bool
+is_aux_buffer (url name) {
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  if (buffer_actor* actor= current_buffer_actor (name, view_id)) {
+    buffer_document_state* state= actor->current_state ();
+    return state->master != state->name;
+  }
+  tm_buffer buf= concrete_buffer (name);
+  if (is_nil (buf)) return false;
+  return buf->buf->master != buf->buf->name;
+}
+
+double
+last_visited (url name) {
+  if (current_execution_context () != nullptr) {
+    buffer_name_catalog::metadata entry;
+    if (published_buffer_names.lookup (catalog_text (as_string (name)), entry))
+      return entry.last_visit;
+    return (double) texmacs_time ();
+  }
+  tm_buffer buf= concrete_buffer (name);
+  if (is_nil (buf)) return (double) texmacs_time ();
+  return (double) buf->buf->last_visit;
+}
+
+void
+visit_buffer (tm_buffer buf) {
+  ASSERT (current_execution_context () == nullptr,
+          "buffer visits require the GUI owner");
+  buf->buf->last_visit= texmacs_time ();
+  published_buffer_names.visit (catalog_text (as_string (buf->buf->name)),
+                               (double) buf->buf->last_visit);
+  publish_buffer_source_view (buf);
+}
+
+bool
+buffer_modified (url name) {
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  if (buffer_actor* actor= current_buffer_actor (name, view_id)) {
+    actor_command_record result;
+    return invoke_buffer_actor (
+      actor, actor_command_kind::query_modified, view_id,
+      ATHENA_NO_BLOB, ATHENA_NO_BLOB, &result) && result.argument[0] != 0;
+  }
+  tm_buffer buf= concrete_buffer (name);
+  if (is_nil (buf)) return false;
+  return buf->needs_to_be_saved ();
+}
+
+bool
+buffer_menu_modified (url name) {
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  if (current_buffer_actor (name, view_id) != nullptr)
+    return buffer_modified (name);
+  // Menus must not wait for an actor that may be busy typesetting. The GUI
+  // publishes this presentation state when it receives ui_set_modified.
+  buffer_name_catalog::metadata entry;
+  return published_buffer_names.lookup (catalog_text (as_string (name)), entry)
+         && entry.modified;
+}
+
+void
+publish_buffer_menu_modified (tm_buffer buf, bool modified) {
+  ASSERT (current_execution_context () == nullptr,
+          "buffer menu publication requires the GUI owner");
+  buf->buf->menu_modified= modified;
+  published_buffer_names.set_modified (
+    catalog_text (as_string (buf->buf->name)), modified);
+}
+
+void
+publish_buffer_realtime_save_paused (tm_buffer buf, bool paused) {
+  ASSERT (current_execution_context () == nullptr,
+          "realtime save publication requires the GUI owner");
+  if (buf == nullptr) return;
+  buf->buf->realtime_save_paused= paused;
+  published_buffer_names.set_realtime_save_paused (
+    catalog_text (as_string (buf->buf->name)), paused);
+}
+
+bool
+buffer_modified_since_autosave (url name) {
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  if (buffer_actor* actor= current_buffer_actor (name, view_id)) {
+    actor_command_record result;
+    return invoke_buffer_actor (
+      actor, actor_command_kind::query_autosaved, view_id,
+      ATHENA_NO_BLOB, ATHENA_NO_BLOB, &result) && result.argument[0] != 0;
+  }
+  tm_buffer buf= concrete_buffer (name);
+  if (is_nil (buf)) return false;
+  return buf->needs_to_be_autosaved ();
+}
+
+void
+pretend_buffer_modified (url name) {
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  if (buffer_actor* actor= current_buffer_actor (name, view_id)) {
+    (void) invoke_buffer_actor (actor, actor_command_kind::mark_modified, view_id);
+    return;
+  }
+  tm_buffer buf= concrete_buffer (name);
+  if (is_nil (buf)) return;
+  (void) invoke_buffer_actor (buf, actor_command_kind::mark_modified);
+}
+
+void
+pretend_buffer_saved (url name) {
+  const ExecutionContext* context= current_execution_context ();
+  if (context != nullptr && context->actor != nullptr &&
+      context->actor->current_buffer_url () == name) {
+    actor_command_record result;
+    if (!context->actor->invoke (
+          actor_command_kind::mark_saved, context->view_id,
+          ATHENA_NO_BLOB, ATHENA_NO_BLOB, &result))
+      return;
+    if (context->editor != nullptr)
+      (void) context->editor->publish_ui (
+        actor_command_kind::ui_mark_buffer_saved, result.argument[0]);
+    return;
+  }
+  tm_buffer buf= concrete_buffer (name);
+  if (is_nil (buf)) return;
+  actor_command_record result;
+  if (invoke_buffer_actor (
+        buf, actor_command_kind::mark_saved, ATHENA_NO_VIEW,
+        ATHENA_NO_BLOB, ATHENA_NO_BLOB, &result))
+    set_last_save_buffer (name, static_cast<int> (result.argument[0]));
+}
+
+void
+pretend_buffer_autosaved (url name) {
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  if (buffer_actor* actor= current_buffer_actor (name, view_id)) {
+    (void) invoke_buffer_actor (actor, actor_command_kind::mark_autosaved, view_id);
+    return;
+  }
+  tm_buffer buf= concrete_buffer (name);
+  if (is_nil (buf)) return;
+  (void) invoke_buffer_actor (buf, actor_command_kind::mark_autosaved);
+}
+
+/******************************************************************************
+* Loading
+******************************************************************************/
+
+static tree
+import_loaded_tree_with_format (
+    string s, url u, string fm,
+    std::optional<athena::document::document_source_format>* format) {
+  if (s == "" && suffix (u) == "ath") {
+    tree doc (DOCUMENT);
+    doc << compound ("style", "generic")
+        << compound ("body", tree (DOCUMENT, ""));
+    return doc;
+  }
+  if (fm == "generic" && suffix (u) == "txt") fm= "verbatim";
+  if (fm == "generic") fm= get_format (s, suffix (u));
+  std::string_view bytes (as_charp (s), (std::size_t) N(s));
+  const bool legacy_scheme= starts (s, "(document (TeXmacs");
+  const bool document_input=
+    fm == "texmacs" || starts (s, "<TeXmacs|") || legacy_scheme ||
+    starts (s, "<?xml") || starts (s, "<athena-document") || starts (s, "<a ") ||
+    (N(s) >= 3 && (unsigned char) s[0] == 0xef &&
+     (unsigned char) s[1] == 0xbb && (unsigned char) s[2] == 0xbf);
+  tree t;
+  if (suffix (u) == "ts") {
+    t= load_style_document (u);
+  }
+  else if (document_input) {
+    try {
+      string local= concretize (u);
+      auto decoded= N(local) != 0 ?
+        athena::document::decode_document_bytes (
+          bytes, std::filesystem::path (as_charp (local))) :
+        athena::document::decode_document_bytes (bytes);
+      if (format) *format= decoded.format;
+      t= std::move (decoded.document);
+    }
+    catch (const std::exception& e) { return tree (_ERROR, string (e.what ())); }
+  }
+  else {
+    auto result= conversion_execute (s, fm * "-document", "texmacs-tree",
+                                      conversion_options {}, u, url_none ());
+    const auto* document= std::get_if<tree> (&result);
+    t= document ? *document : tree (_ERROR, "Unsupported import format");
+  }
+  tree links= extract (t, "links");
+  if (N (links) != 0)
+    native_register_link_locations (u, links);
+  return t;
+}
+
+tree
+import_loaded_tree (string s, url u, string fm) {
+  return import_loaded_tree_with_format (
+    std::move (s), std::move (u), std::move (fm), nullptr);
+}
+
+tree
+import_tree (url u, string fm, std::string* storage_sha256) {
+  url r= resolve (u, "fr");
+  if (is_none (r)) {
+    url b= get_current_buffer ();
+    r= resolve (b * url_parent () * u);
+  }
+  string s;
+  if (is_none (r) || load_string (r, s, false)) return "error";
+  if (storage_sha256 != nullptr)
+    *storage_sha256= athena::document::storage_bytes_fingerprint (
+      std::string_view (as_charp (s), (std::size_t) N(s)));
+  return import_loaded_tree (s, r, fm);
+}
+
+static tree
+import_tree_with_format (
+    url u, string fm, std::string* storage_sha256,
+    std::optional<athena::document::document_source_format>& format) {
+  url r= resolve (u, "fr");
+  if (is_none (r)) {
+    url b= get_current_buffer ();
+    r= resolve (b * url_parent () * u);
+  }
+  string s;
+  if (is_none (r) || load_string (r, s, false)) return "error";
+  if (storage_sha256 != nullptr)
+    *storage_sha256= athena::document::storage_bytes_fingerprint (
+      std::string_view (as_charp (s), (std::size_t) N(s)));
+  return import_loaded_tree_with_format (s, r, fm, &format);
+}
+
+void
+capture_buffer_document_storage (
+  tm_buffer buf, url name, url source, const std::string& expected_sha256) {
+  if (is_nil (buf)) return;
+  string extension= suffix (name);
+  if (extension != "ath" && extension != "tm") return;
+  url resolved_source= resolve (source, "fr");
+  url resolved_name= resolve (name, "fr");
+  if (is_none (resolved_source) || is_none (resolved_name) ||
+      is_rooted_tmfs (resolved_source) || is_rooted_web (resolved_source))
+    return;
+  string source_path= as_string (concretize (resolved_source), URL_SYSTEM);
+  string name_path= as_string (concretize (resolved_name), URL_SYSTEM);
+  if (N(source_path) == 0 || source_path != name_path) return;
+  string vault_path;
+  if (vault_active ())
+    vault_path= as_string (concretize (vault_get_root ()), URL_SYSTEM);
+  tree capture (TUPLE, source_path, vault_path,
+                string (expected_sha256.data (), (int) expected_sha256.size ()));
+  athena_blob_id payload= actor_tree_registry::instance ().store (std::move (capture));
+  actor_command_record result;
+  const bool invoked= invoke_buffer_actor (
+    buf, actor_command_kind::capture_document_storage, ATHENA_NO_VIEW,
+    payload, ATHENA_NO_BLOB, &result);
+  if (!invoked) discard_tree_payload (payload);
+  if (!invoked || result.argument[0] != 0)
+    std_warning << "Could not pin document storage revision for " << source << LF;
+}
+
+bool
+buffer_import (url name, url src, string fm) {
+  std::lock_guard<std::recursive_mutex> publication (document_publication_mutex ());
+  std::string storage_sha256;
+  std::optional<athena::document::document_source_format> source_format;
+  tree t= import_tree_with_format (src, fm, &storage_sha256, source_format);
+  if (t == "error" || is_func (t, _ERROR)) return true;
+  if (vault_active () && source_format &&
+      *source_format == athena::document::document_source_format::xml_v3) {
+    // Resolve saved native references while the imported document is being
+    // handed to its actor and its initial editor is being constructed.
+    // Waiting for the typesetter to encounter each TRANSCLUDE first causes a
+    // visible placeholder frame followed by an expensive second layout.
+    const std::function<void (const tree&)> prefetch= [&] (const tree& source) {
+      if (athena::node_reference::canonical (source)) {
+        (void) athena::node_reference::get (athena::node_reference::targets (source));
+        return;
+      }
+      if (is_compound (source))
+        for (int i=0; i<N(source); ++i) prefetch (source[i]);
+    };
+    prefetch (t);
+  }
+  if (vault_active () && suffix (name) == "ath") {
+    string preference= get_preference ("materials csl style", "springer-mathphys");
+    std::string style= athena_materials_document_citation_style (
+      t, std::string (preference.data (), N(preference)));
+    std::string error;
+    tree updated= athena_materials_update_for_file (t, name, style, error);
+    if (error.empty ()) t= std::move (updated);
+    else std_warning << "Could not refresh document Materials: " << string (error.c_str ()) << LF;
+  }
+  if (!try_set_buffer_tree (name, std::move (t), source_format)) return true;
+  capture_buffer_document_storage (
+    concrete_buffer (name), name, src, storage_sha256);
+  return false;
+}
+
+bool
+buffer_load (url name) {
+  string fm= file_format (name);
+  return buffer_import (name, name, fm);
+}
+
+std::recursive_mutex&
+document_publication_mutex () {
+  static std::recursive_mutex gate;
+  return gate;
+}
+
+// Source inspection for the Scheme macro editor. Evaluated package state is
+// prepared by the environment and is not derived from this syntax cache.
+thread_local hashmap<string,tree> style_tree_cache ("");
+static thread_local std::uint64_t style_tree_generation= 0;
+
+tree
+load_style_tree (string package) {
+  const std::uint64_t generation= style_cache_generation ();
+  if (style_tree_generation != generation) {
+    style_tree_cache= hashmap<string,tree> ("");
+    style_tree_generation= generation;
+  }
+  if (style_tree_cache->contains (package))
+    return style_tree_cache[package];
+  url name= resolve_style_file (package, "$ATHENA_STYLE_PATH", true);
+  if (is_none (name)) {
+    style_tree_cache (package)= "";
+    return "";
+  }
+  tree document= load_style_body (name);
+  if (is_func (document, _ERROR)) std_warning << document[0] << LF;
+  style_tree_cache (package)= document;
+  return document;
+}
+
+/******************************************************************************
+* Saving
+******************************************************************************/
+
+bool
+save_autosave_string (url dest, string contents) {
+  if (is_rooted_web (dest) || is_rooted_tmfs (dest)) return true;
+  string native= concretize (dest);
+  if (N(native) == 0) return true;
+
+  QSaveFile file (QString::fromUtf8 (native.data (), N(native)));
+  // Autosave is only useful as crash recovery when an interrupted write leaves
+  // the previous complete snapshot intact. Never fall back to direct truncate.
+  file.setDirectWriteFallback (false);
+  if (!file.open (QIODevice::WriteOnly)) return true;
+  const qint64 expected= N(contents);
+  const qint64 written= file.write (contents.data (), expected);
+  if (written != expected) {
+    file.cancelWriting ();
+    return true;
+  }
+  if (!file.commit ()) return true;
+  declare_out_of_date (url_parent (dest));
+  return false;
+}
+
+bool
+export_tree (tree doc, url u, string fm) {
+  return export_tree (doc, u, fm, url_none ());
+}
+
+bool
+export_tree (tree doc, url u, string fm, url source) {
+  return export_tree_with_options (doc, u, fm, source, conversion_options_snapshot ());
+}
+
+bool
+export_tree_with_options (tree doc, url u, string fm, url source,
+                          const conversion_options& options,
+                          editor_rep* rendering_editor) {
+  if (fm == "generic") fm= "verbatim";
+  auto converted= conversion_execute (doc, "texmacs-tree", fm * "-document",
+    options, source, u, rendering_editor);
+  const auto* text= std::get_if<string> (&converted);
+  if (!text) return true;
+  string serialized= *text;
+  return ends (as_string (u), "~") ?
+    save_autosave_string (u, serialized) : save_string (u, serialized);
+}
+
+bool
+buffer_export_request (url name, url dest, string fm, const conversion_options& options) {
+  athena_view_id view_id= ATHENA_NO_VIEW;
+  buffer_actor* actor= current_buffer_actor (name, view_id);
+  if (actor == nullptr) {
+    tm_buffer buf= concrete_buffer (name);
+    if (is_nil (buf)) return true;
+    actor= buf->actor;
+    view_id= buffer_command_view (buf, name);
+  }
+  std::unique_ptr<athena::node_reference::export_reference_scope> headless_references;
+  const auto* context= current_execution_context ();
+  if (is_headless () && (!context || !context->actor) &&
+      !athena::node_reference::current_export_references ()) {
+    try {
+      headless_references= std::make_unique<athena::node_reference::export_reference_scope> (
+        athena::node_reference::prepare_headless_export (actor->id (), view_id));
+    }
+    catch (const std::exception& e) {
+      std_error << "Export reference preparation failed: " << e.what () << LF;
+      return true;
+    }
+  }
+  athena_blob_id destination= actor_text_from_string (as_string (dest));
+  athena_blob_id format= actor_text_from_string (encode_conversion_export_request ({fm, options}));
+  if (auto frozen= athena::node_reference::current_export_references ();
+      frozen && !actor->is_owner_thread ()) {
+    // DataArt and slide exports use another actor. Transfer only the immutable
+    // prepared wire snapshot, never the initiating editor or its native trees.
+    auto failed= std::make_shared<bool> (true);
+    auto continuation= actor_continuation_registry::instance ().store (
+      [frozen, failed, destination, format, view_id] {
+        athena::node_reference::export_reference_scope references (frozen);
+        athena::node_reference::verify_export_origin ();
+        actor_command_record result;
+        auto* owner= current_execution_context ()->actor;
+        if (owner->invoke (actor_command_kind::export_buffer, view_id,
+            destination, format, &result, EXECUTION_CAPABILITY_BUFFER, 1))
+          *failed= result.argument[0] != 0;
+      });
+    const bool completed= actor->invoke (actor_command_kind::run_native_continuation, view_id,
+      ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER, continuation);
+    if (!completed) {
+      actor_continuation_registry::instance ().discard (continuation);
+      discard_text_payload (destination); discard_text_payload (format);
+    }
+    return !completed || *failed;
+  }
+  actor_command_record result;
+  bool completed= actor->invoke (
+    actor_command_kind::export_buffer, view_id,
+    destination, format, &result, EXECUTION_CAPABILITY_BUFFER, 1);
+  if (!completed) {
+    discard_text_payload (destination);
+    discard_text_payload (format);
+    return true;
+  }
+  return result.argument[0] != 0;
+}
+
+bool
+buffer_export (url name, url dest, string fm) {
+  return buffer_export_request (name, dest, fm, conversion_options_snapshot ());
+}
+
+tree
+latex_expand (tree doc, url name) {
+  tm_buffer buf= concrete_buffer (name);
+  if (is_nil (buf)) return doc;
+  athena_blob_id payload=
+    actor_tree_registry::instance ().store (std::move (doc));
+  actor_command_record result;
+  if (!buf->actor->invoke (
+        actor_command_kind::latex_expand_buffer,
+        buffer_command_view (buf, name), payload, ATHENA_NO_BLOB, &result)) {
+    discard_tree_payload (payload);
+    return tree ();
+  }
+  return actor_tree_registry::instance ().take (result.payload0);
+}
+
+tree
+latex_expand (tree doc) {
+  const ExecutionContext* context= current_execution_context ();
+  if (context != nullptr) {
+    if (context->editor != nullptr && context->has (EXECUTION_CAPABILITY_BUFFER)) {
+      tree body= context->editor->exec_latex (extract (doc, "body"));
+      doc= change_doc_attr (doc, "body", body);
+    }
+    return remove_doc_attr (doc, "view");
+  }
+
+  url view_url (as_string (extract (doc, "view")));
+  tm_view view= concrete_view (view_url);
+  if (view == nullptr) return remove_doc_attr (doc, "view");
+  athena_blob_id payload=
+    actor_tree_registry::instance ().store (std::move (doc));
+  actor_command_record result;
+  if (!view->buf->actor->invoke (
+        actor_command_kind::latex_expand_buffer, view->runtime_id,
+        payload, ATHENA_NO_BLOB, &result)) {
+    discard_tree_payload (payload);
+    return tree ();
+  }
+  tree expanded= actor_tree_registry::instance ().take (result.payload0);
+  return remove_doc_attr (expanded, "view");
+}
+
+bool
+buffer_save (url name) {
+  if (suffix (name) == "ts") {
+    std_warning << "Legacy .ts styles are read-only compatibility input; "
+                << "convert or Save As .ats before editing: " << name << LF;
+    return true;
+  }
+  string fm= file_format (name);
+  if (fm == "generic") fm= "verbatim";
+  bool r;
+  if (fm == "texmacs" && !is_rooted_tmfs (name) && !is_rooted_web (name)) {
+    athena_view_id view_id= ATHENA_NO_VIEW;
+    buffer_actor* actor= current_buffer_actor (name, view_id);
+    if (actor == nullptr) {
+      tm_buffer buf= concrete_buffer (name);
+      if (is_nil (buf)) return true;
+      actor= buf->actor;
+      view_id= buffer_command_view (buf, name);
+    }
+    string vault_path;
+    if (vault_active ())
+      vault_path= as_string (concretize (vault_get_root ()), URL_SYSTEM);
+    athena_blob_id vault_payload= vault_path == "" ? ATHENA_NO_BLOB :
+      actor_text_from_string (vault_path);
+    actor_command_record result;
+    const bool invoked= actor->invoke (
+      actor_command_kind::save_buffer, view_id, vault_payload,
+      ATHENA_NO_BLOB, &result, EXECUTION_CAPABILITY_BUFFER);
+    if (!invoked && vault_payload != ATHENA_NO_BLOB)
+      discard_text_payload (vault_payload);
+    r= !invoked || result.argument[0] != 0;
+  }
+  else r= buffer_export (name, name, fm);
+  if (!r) {
+    pretend_buffer_saved (name);
+    athena_view_id view_id= ATHENA_NO_VIEW;
+    if (current_buffer_actor (name, view_id) == nullptr) {
+      array<url> ws = buffer_to_windows (name);
+      for (int i=0; i<N(ws); i++)
+        concrete_window (ws[i])->set_modified (false);
+    }
+  }
+  return r;
+}
+
+/******************************************************************************
+* Loading inclusions
+******************************************************************************/
+
+static hashmap<string,tree> document_inclusions ("");
+
+void
+reset_inclusions () {
+  document_inclusions = hashmap<string,tree> ("");
+}
+
+void
+reset_inclusion (url name) {
+  string name_s= as_string (name);
+  document_inclusions -> reset (name_s);
+}
+
+tree
+load_inclusion (url name) {
+  // url name= relative (base_file_name, file_name);
+  string name_s= as_string (name);
+  if (document_inclusions->contains (name_s))
+    return document_inclusions [name_s];
+  tree doc= extract_document (import_tree (name, "generic"));
+  if (!is_func (doc, _ERROR)) document_inclusions (name_s)= doc;
+  return doc;
+}

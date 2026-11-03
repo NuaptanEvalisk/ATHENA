@@ -70,18 +70,18 @@ source headings, captions, index and glossary markers
 
 Relevant implementation:
 
-- `src/Typeset/Concat/concat_active.cpp`: `typeset_write` evaluates and collects
+- `src/Typesetting/Concat/concat_active.cpp`: `typeset_write` evaluates and collects
   channel entries only when `env->complete` is true.
-- `src/Typeset/Bridge/typesetter.cpp`: a complete pass clears `local_aux` before
+- `src/Typesetting/Bridge/typesetter.cpp`: a complete pass clears `local_aux` before
   collecting it again. Partial passes do not incrementally replace contributions.
-- `src/Edit/Process/edit_process.cpp`: generates contents, indexes, and glossaries
+- `src/Editor/Process/edit_process.cpp`: generates contents, indexes, and glossaries
   by clearing generated bodies, moving the cursor, and inserting rebuilt trees.
-- `src/Data/Document/new_data.cpp`: attaches and detaches persisted collections.
-- `src/ATHENA/Data/interop_document_source.cpp`: refreshes the source envelope
+- `src/Document/State/new_data.cpp`: attaches and detaches persisted collections.
+- `src/Interop/Adapters/interop_document_source.cpp`: refreshes the source envelope
   from the live auxiliary and reference maps.
-- `src/ATHENA/Server/buffer_actor.cpp`: normal source saving and document-history
+- `src/App/Runtime/buffer_actor.cpp`: normal source saving and document-history
   snapshots serialize that envelope, so invalid auxiliary data blocks them too.
-- `src/ATHENA/Data/hodarium_worker.cpp`: document revisions carry saved source
+- `src/Sync/State/hodarium_worker.cpp`: document revisions carry saved source
   bytes, including these derived values. Cache-only differences can therefore
   create source revision differences.
 
@@ -124,8 +124,8 @@ when implementing this plan; intervening native migrations changed some owners:
 
 ## 3. Document Update Inventory
 
-The menu is authored in `src/Subsystems/Qt/QTMDocumentMenuCommands.cpp`; native
-actions dispatch through `src/Edit/Interface/native_editor_actions.cpp` to
+The menu is authored in `src/UI/Qt/Commands/QTMDocumentMenuCommands.cpp`; native
+actions dispatch through `src/Editor/Commands/native_editor_actions.cpp` to
 `ATHENA/progs/generic/document-edit.scm`.
 
 | Current command | Actual work | Replacement |
@@ -147,11 +147,11 @@ Other surfaces that must change:
   the native editor command provider and actor dispatch.
 - `ATHENA/misc/preferences/catalog.json`: `document update times`, currently a
   choice of repeated passes, with the `doc-update-times` callback.
-- `src/Subsystems/Qt/QTMFocusSpecialCommands.cpp`: Materials update action.
-- `src/Subsystems/Qt/QTMNamespaceExport.cpp`: finalization calls Update All and
+- `src/UI/Qt/Commands/QTMFocusSpecialCommands.cpp`: Materials update action.
+- `src/UI/Qt/Vault/QTMNamespaceExport.cpp`: finalization calls Update All and
   uses delayed work rather than a derived-state completion contract.
-- `src/ATHENA/Data/vault_maintenance_pass_health.cpp` and
-  `src/ATHENA/ATHENA/athena.cpp`: ToC maintenance workers load documents, generate
+- `src/Domains/Vault/vault_maintenance_pass_health.cpp` and
+  `src/App/Entry/athena.cpp`: ToC maintenance workers load documents, generate
   their contents, and save source files.
 - Remaining Scheme documentation utilities and some runtime checks call
   `generate-all-aux`, `generate-aux`, and `update-current-buffer` directly.
@@ -242,9 +242,9 @@ fonts and other owner-local resources when materializing a result for an owner.
 | Pagination | Output-profile-specific pages and continuation checkpoints, including pending floats/notes |
 
 Current useful boundaries are `bridge_rep::l`, `sb`, and `changes`, plus
-`line_item`, `page_item`, and the box graph. See `src/Typeset/Bridge/bridge.hpp`,
-`src/Typeset/Format/line_item.hpp`, `src/Typeset/Format/page_item.hpp`, and
-`src/Typeset/boxes.hpp`.
+`line_item`, `page_item`, and the box graph. See `src/Typesetting/Bridge/bridge.hpp`,
+`src/Typesetting/Format/line_item.hpp`, `src/Typesetting/Format/page_item.hpp`, and
+`src/Typesetting/boxes.hpp`.
 
 Do not cache mutable lazy closures carrying `edit_env`, arbitrary plugin runtime
 state, or external side effects as if they were pure values. Represent known
@@ -299,7 +299,7 @@ recent geometry variants rather than storing every intermediate drag width.
 
 Existing boxes are mutable (`position_at`, relocation, geometry adjustment),
 their reference counts are not generally atomic, and fonts belong to an owner
-domain. See `src/Kernel/Abstractions/basic.hpp` and
+domain. See `src/Core/Abstractions/basic.hpp` and
 `notes/font-domain-ownership.md`. Wrapping an existing box in `shared_ptr` does
 not make its descendants or resource handles safe to traverse on a worker.
 
@@ -455,7 +455,7 @@ pieces of the complete design, not a proposal to stop after the first cache laye
    validation. Do not claim completion from successful serialization alone.
 
 Native command binding changes must follow
-`src/ATHENA/Commands/Interfaces/README.md`: edit the XML declarations and
+`src/App/Commands/Interfaces/README.md`: edit the XML declarations and
 generate the C++ adapters, never hand-write per-command wrapper glue.
 
 ## 14. Acceptance Criteria

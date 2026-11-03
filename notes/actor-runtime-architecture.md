@@ -129,7 +129,7 @@ the ring.
 ## Native command execution
 
 Named application commands are declared once in XML under
-`src/ATHENA/Commands/Interfaces/`. The `athena_commands` build target generates
+`src/App/Commands/Interfaces/`. The `athena_commands` build target generates
 typed C++ dispatch. XML controls names, parameter/result types and UI routing;
 there is no interpreter, dynamic procedure registry or handwritten duplicate
 per-command adapter.

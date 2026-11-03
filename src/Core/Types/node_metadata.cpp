@@ -1,0 +1,456 @@
+/******************************************************************************
+* MODULE     : node_metadata.cpp
+* DESCRIPTION: Validated owner-local node metadata and explicit identity copies
+* COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+#include "Core/Types/node_metadata.hpp"
+#include "unicode_text.hpp"
+#include <QUuid>
+#include <cmath>
+#include <functional>
+#include <memory>
+#include <set>
+#include <stdexcept>
+#include <type_traits>
+
+namespace athena::node {
+namespace {
+template<class... F> struct visitor: F... { using F::operator()...; };
+template<class... F> visitor(F...) -> visitor<F...>;
+
+// tree's ordinary equality/hash use A(t), which copies a non-atomic array
+// handle. Immutable properties can be read by different actors concurrently,
+// so traverse by const reference without touching legacy reference counts.
+bool frozen_equal (const tree& a, const tree& b) {
+  if (strong_equal (a, b)) return true;
+  if (L(a) != L(b) || !equal_metadata (a, b)) return false;
+  if (is_atomic (a)) return a->label == b->label;
+  if (N(a) != N(b)) return false;
+  for (int i=0; i<N(a); ++i)
+    if (!frozen_equal (a[i], b[i])) return false;
+  return true;
+}
+
+int frozen_hash (const tree& value) {
+  const int attributes= hash_metadata (value);
+  if (is_atomic (value)) return ::hash (value->label) ^ attributes;
+  int children= 0;
+  for (int i=0; i<N(value); ++i)
+    children= (children << 7) + (children >> 25) + frozen_hash (value[i]);
+  return int (L(value)) ^ children ^ attributes;
+}
+
+struct validation {
+  std::size_t nodes= 0, bytes= 0;
+  std::set<const tree_rep*> active;
+  void enter (std::size_t depth) {
+    if (depth > 256 || ++nodes > 1000000)
+      throw std::length_error ("Node metadata exceeds its structural budget");
+  }
+  void text (const std::string& s) {
+    if (s.size () > 64 * 1024 * 1024 - bytes)
+      throw std::length_error ("Node metadata exceeds its text budget");
+    bytes+= s.size ();
+    if (!athena::text::valid_utf8 (s))
+      throw std::invalid_argument ("Node metadata text must be UTF-8");
+  }
+  void properties (const property::dictionary& a, std::size_t depth) {
+    for (const auto& item: a) {
+      if (item.first.empty ())
+        throw std::invalid_argument ("Node property name must not be empty");
+      text (item.first);
+      value (item.second, depth);
+    }
+  }
+  void attributes (const metadata& m, std::size_t depth) {
+    if (!m.id.empty () && !valid_id (m.id))
+      throw std::invalid_argument ("Node identity must be a canonical UUID");
+    text (m.id);
+    properties (m.properties, depth);
+  }
+  void document (const tree& t, std::size_t depth) {
+    enter (depth);
+    if (is_generic (t) || L(t) == UNINIT || L(t) == RAW_DATA)
+      throw std::invalid_argument ("Structured metadata must be text, not opaque data");
+    if (!active.insert (inside (t)).second)
+      throw std::invalid_argument ("Cyclic structured node metadata");
+    if (const auto* m= get (t)) attributes (*m, depth + 1);
+    if (is_atomic (t)) text (std::string (t->label.data (), N(t->label)));
+    else {
+      const string tag= as_string (L(t));
+      text (std::string (tag.data (), N(tag)));
+      for (int i=0; i<N(t); ++i) document (t[i], depth + 1);
+    }
+    active.erase (inside (t));
+  }
+  void value (const property& p, std::size_t depth) {
+    enter (depth);
+    std::visit (visitor {
+      [&] (const std::string& s) { text (s); },
+      [] (bool) {}, [] (std::int64_t) {},
+      [] (double n) {
+        if (!std::isfinite (n))
+          throw std::invalid_argument ("Node numeric property must be finite");
+      },
+      [&] (const property::list& a) {
+        for (const auto& item: a) value (item, depth + 1);
+      },
+      [&] (const property::dictionary& a) { properties (a, depth + 1); },
+      [&] (const reference& r) {
+        if (!valid_id (r.id))
+          throw std::invalid_argument ("Node reference must contain a canonical UUID");
+        text (r.id);
+      },
+      [&] (const rich_text& r) { document (r.content, depth + 1); }
+    }, p.data);
+  }
+};
+
+metadata clone (const metadata& source) {
+  metadata result;
+  result.id= source.id;
+  for (const auto& item: source.properties)
+    result.properties.emplace (item.first, copy_property (item.second));
+  return result;
+}
+
+metadata_rep* make_storage (const metadata& value) {
+  metadata copied= clone (value);
+  return tm_new<metadata_rep> (std::move (copied), true);
+}
+
+bool equal_property_content (const property& a, const property& b);
+bool equal_properties (const property::dictionary& a,
+                       const property::dictionary& b, bool content= false) {
+  if (a.size () != b.size ()) return false;
+  auto j= b.begin ();
+  for (auto i= a.begin (); i != a.end (); ++i, ++j) {
+    if (i->first != j->first) return false;
+    if (!(content ? equal_property_content (i->second, j->second) :
+                    equal (i->second, j->second))) return false;
+  }
+  return true;
+}
+
+bool equal_property_content (const property& a, const property& b) {
+  if (a.data.index () != b.data.index ()) return false;
+  return std::visit ([&] (const auto& value) {
+    using T= std::decay_t<decltype (value)>;
+    const auto& other= std::get<T> (b.data);
+    if constexpr (std::is_same_v<T, rich_text>)
+      return content_equal (value.content, other.content);
+    else if constexpr (std::is_same_v<T, property::dictionary>)
+      return equal_properties (value, other, true);
+    else if constexpr (std::is_same_v<T, property::list>) {
+      if (value.size () != other.size ()) return false;
+      for (std::size_t i=0; i<value.size (); ++i)
+        if (!equal_property_content (value[i], other[i])) return false;
+      return true;
+    }
+    else return equal (a, b);
+  }, a.data);
+}
+
+std::uint32_t mix (std::uint32_t a, std::uint32_t b) {
+  return (a ^ b) * 16777619U;
+}
+std::uint32_t hash_text (const std::string& s) {
+  std::uint32_t h= 2166136261U;
+  for (unsigned char c: s) h= mix (h, c);
+  return h;
+}
+std::uint32_t hash_property (const property& p) {
+  auto value= std::visit (visitor {
+    [] (const std::string& s) { return hash_text (s); },
+    [] (bool b) { return std::uint32_t (b); },
+    [] (std::int64_t n) {
+      auto bits= static_cast<std::uint64_t> (n);
+      return mix (std::uint32_t (bits), std::uint32_t (bits >> 32));
+    },
+    [] (double n) { return std::uint32_t (std::hash<double> {} (n)); },
+    [] (const property::list& a) {
+      std::uint32_t h= 0;
+      for (const auto& item: a) h= mix (h, hash_property (item));
+      return h;
+    },
+    [] (const property::dictionary& a) {
+      std::uint32_t h= 0;
+      for (const auto& item: a)
+        h= mix (mix (h, hash_text (item.first)), hash_property (item.second));
+      return h;
+    },
+    [] (const reference& r) { return hash_text (r.id); },
+    [] (const rich_text& r) { return std::uint32_t (r.content.hash ()); }
+  }, p.data);
+  return mix (std::uint32_t (p.data.index ()), value);
+}
+
+template<class F> void walk (tree& t, F& fn);
+template<class F> void walk_property (property& p, F& fn) {
+  if (auto* a= std::get_if<property::list> (&p.data))
+    for (auto& item: *a) walk_property (item, fn);
+  else if (auto* a= std::get_if<property::dictionary> (&p.data))
+    for (auto& item: *a) walk_property (item.second, fn);
+  else if (auto* r= std::get_if<rich_text> (&p.data)) {
+    tree detached= r->content;
+    walk (detached, fn);
+    r->content= detached;
+  }
+}
+template<class F> void walk (tree& t, F& fn) {
+  metadata* m= edit (t);
+  fn (t, m);
+  if (m != nullptr)
+    for (auto& item: m->properties) walk_property (item.second, fn);
+  if (is_compound (t))
+    for (int i=0; i<N(t); ++i) walk (t[i], fn);
+}
+void remap_property (property& p, const identity_map& replacements) {
+  if (auto* r= std::get_if<reference> (&p.data)) {
+    auto found= replacements.find (r->id);
+    if (found != replacements.end ()) r->id= found->second;
+  }
+  else if (auto* a= std::get_if<property::list> (&p.data))
+    for (auto& item: *a) remap_property (item, replacements);
+  else if (auto* a= std::get_if<property::dictionary> (&p.data))
+    for (auto& item: *a) remap_property (item.second, replacements);
+}
+} // namespace
+
+bool frozen_tree::operator == (const frozen_tree& other) const {
+  return value == other.value || frozen_equal (*value, *other.value);
+}
+bool frozen_tree::matches (const tree& source) const {
+  return frozen_equal (*value, source);
+}
+int frozen_tree::hash () const { return frozen_hash (*value); }
+
+frozen_tree_builder::frozen_tree_builder (tree source) {
+  pending.push_back ({std::move (source), tree ()});
+}
+
+bool frozen_tree_builder::advance (unsigned budget) {
+  while (!pending.empty () && budget-- != 0) {
+    auto& current= pending.back ();
+    if (current.child == -1) {
+      current.output= is_atomic (current.source) ?
+        tree (copy (current.source->label)) : tree (L(current.source), N(current.source));
+      copy_metadata (current.source, current.output);
+      current.child= 0;
+    }
+    else if (is_compound (current.source) && current.child < N(current.source)) {
+      const tree child= current.source[current.child++];
+      pending.push_back ({child, tree ()});
+    }
+    else {
+      tree result= std::move (current.output);
+      pending.pop_back ();
+      if (pending.empty ()) {
+        output= std::move (result);
+        ready= true;
+      }
+      else {
+        auto& parent= pending.back ();
+        parent.output[parent.child-1]= std::move (result);
+      }
+    }
+  }
+  return ready;
+}
+
+frozen_tree frozen_tree_builder::finish () {
+  if (!ready) throw std::logic_error ("Cannot publish an incomplete frozen tree");
+  ready= false;
+  return frozen_tree (std::make_shared<const tree> (std::move (output)));
+}
+
+bool valid_id (const std::string& value) {
+  if (value.size () != 36) return false;
+  bool nonzero= false;
+  for (std::size_t i=0; i<value.size (); ++i) {
+    const char c= value[i];
+    if (i == 8 || i == 13 || i == 18 || i == 23) {
+      if (c != '-') return false;
+    }
+    else {
+      if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) return false;
+      nonzero|= c != '0';
+    }
+  }
+  return nonzero;
+}
+
+std::string new_id () {
+  return QUuid::createUuid ().toString (QUuid::WithoutBraces).toStdString ();
+}
+const metadata* get (const tree& node) {
+  const auto* storage= inside (node)->attributes;
+  return storage == nullptr ? nullptr : &storage->value;
+}
+metadata* edit (tree& node) {
+  auto*& storage= inside (node)->attributes;
+  if (storage == nullptr) return nullptr;
+  metadata_rep* replacement= make_storage (storage->value);
+  replacement->shareable= false;
+  storage->release ();
+  storage= replacement;
+  return &storage->value;
+}
+std::string id (const tree& node) {
+  const metadata* m= get (node);
+  return m == nullptr ? std::string () : m->id;
+}
+void set (tree& node, const metadata& value) {
+  if (is_generic (node) || L(node) == UNINIT)
+    throw std::invalid_argument ("Cannot annotate an opaque or uninitialized tree");
+  validation checked;
+  checked.attributes (value, 0);
+  metadata_rep* replacement= value.empty () ? nullptr : make_storage (value);
+  if (inside (node)->attributes != nullptr)
+    inside (node)->attributes->release ();
+  inside (node)->attributes= replacement;
+}
+void clear (tree& node) {
+  if (inside (node)->attributes != nullptr)
+    inside (node)->attributes->release ();
+  inside (node)->attributes= nullptr;
+}
+void copy_metadata (const tree& source, tree& target) {
+  if (strong_equal (source, target)) return;
+  metadata_rep* source_storage= inside (source)->attributes;
+  metadata_rep*& target_storage= inside (target)->attributes;
+  if (source_storage == target_storage) return;
+  metadata_rep* replacement= nullptr;
+  if (source_storage != nullptr) {
+    if (source_storage->shareable) {
+      replacement= source_storage;
+      replacement->retain ();
+    }
+    else replacement= make_storage (source_storage->value);
+  }
+  if (target_storage != nullptr) target_storage->release ();
+  target_storage= replacement;
+}
+property copy_property (const property& p) {
+  return std::visit (visitor {
+    [] (const property::list& a) {
+      property::list out;
+      out.reserve (a.size ());
+      for (const auto& item: a) out.push_back (copy_property (item));
+      return property (std::move (out));
+    },
+    [] (const property::dictionary& a) {
+      property::dictionary out;
+      for (const auto& item: a) out.emplace (item.first, copy_property (item.second));
+      return property (std::move (out));
+    },
+    [] (const rich_text& r) { return property (r); },
+    [] (const auto& value) { return property (value); }
+  }, p.data);
+}
+bool equal (const property& a, const property& b) {
+  if (a.data.index () != b.data.index ()) return false;
+  return std::visit ([&] (const auto& value) {
+    using T= std::decay_t<decltype (value)>;
+    const auto& other= std::get<T> (b.data);
+    if constexpr (std::is_same_v<T, reference>) return value.id == other.id;
+    else if constexpr (std::is_same_v<T, rich_text>) return value.content == other.content;
+    else if constexpr (std::is_same_v<T, property::dictionary>)
+      return equal_properties (value, other);
+    else if constexpr (std::is_same_v<T, property::list>) {
+      if (value.size () != other.size ()) return false;
+      for (std::size_t i=0; i<value.size (); ++i)
+        if (!equal (value[i], other[i])) return false;
+      return true;
+    }
+    else return value == other;
+  }, a.data);
+}
+bool equal_metadata (const tree& a, const tree& b) {
+  const auto* x= inside (a)->attributes;
+  const auto* y= inside (b)->attributes;
+  if (x == y) return true;
+  if (x == nullptr || y == nullptr) return false;
+  return x->value.id == y->value.id &&
+    equal_properties (x->value.properties, y->value.properties);
+}
+int hash_metadata (const tree& node) {
+  auto* storage= inside (node)->attributes;
+  if (storage == nullptr) return 0;
+  if (storage->shareable) {
+    std::uint64_t cached= storage->hash_state.load (std::memory_order_relaxed);
+    if (cached != 0) return static_cast<int> (static_cast<std::uint32_t> (cached));
+  }
+  const metadata& m= storage->value;
+  std::uint32_t h= hash_text (m.id);
+  for (const auto& item: m.properties)
+    h= mix (mix (h, hash_text (item.first)), hash_property (item.second));
+  int result= static_cast<int> (h);
+  if (storage->shareable)
+    storage->hash_state.store (
+      (std::uint64_t (1) << 32) | static_cast<std::uint32_t> (result),
+      std::memory_order_relaxed);
+  return result;
+}
+bool content_equal (const tree& a, const tree& b) {
+  if (strong_equal (a, b)) return true;
+  if (L(a) != L(b)) return false;
+  const auto* x= get (a);
+  const auto* y= get (b);
+  static const property::dictionary empty;
+  if (!equal_properties (x ? x->properties : empty, y ? y->properties : empty, true))
+    return false;
+  if (is_atomic (a)) return a->label == b->label;
+  if (N(a) != N(b)) return false;
+  for (int i=0; i<N(a); ++i) if (!content_equal (a[i], b[i])) return false;
+  return true;
+}
+bool contains_metadata (const tree& source) {
+  if (get (source)) return true;
+  if (is_compound (source))
+    for (int i=0; i<N(source); ++i)
+      if (contains_metadata (source[i])) return true;
+  return false;
+}
+
+tree duplicate (const tree& source, identity_map* result) {
+  tree target= copy (source);
+  identity_map replacements;
+  auto allocate= [&] (tree& t, metadata* m) {
+    if (m == nullptr || m->id.empty ()) return;
+    const std::string fresh= new_id ();
+    if (!replacements.emplace (m->id, fresh).second)
+      throw std::invalid_argument ("Cannot duplicate a source with conflicting identities");
+    m->id= fresh;
+  };
+  walk (target, allocate);
+  auto remap= [&] (tree& t, metadata* m) {
+    (void) t;
+    if (m != nullptr)
+      for (auto& item: m->properties) remap_property (item.second, replacements);
+  };
+  walk (target, remap);
+  if (result != nullptr) *result= std::move (replacements);
+  return target;
+}
+tree content_projection (const tree& source) {
+  tree result= copy (source);
+  auto strip= [] (tree& t, metadata*& m) {
+    if (m != nullptr) {
+      m->id.clear ();
+      if (m->empty ()) {
+        clear (t);
+        // clear() releases the storage containing m. The walker must not
+        // inspect the freed property dictionary after this callback returns.
+        m= nullptr;
+      }
+    }
+  };
+  walk (result, strip);
+  return result;
+}
+} // namespace athena::node

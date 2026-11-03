@@ -8,7 +8,7 @@ import sys
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[3]
-INTERFACES = ROOT / "src/ATHENA/Commands/Interfaces"
+INTERFACES = ROOT / "src/App/Commands/Interfaces"
 spec = importlib.util.spec_from_file_location("native_commands", INTERFACES / "generate-commands.py")
 module = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = module

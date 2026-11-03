@@ -9,7 +9,7 @@
 
 #include <QtTest/QtTest>
 #include <QPainterPathStroker>
-#include "Typeset/Concat/commutative_diagram_geometry.hpp"
+#include "Typesetting/Concat/commutative_diagram_geometry.hpp"
 
 class DiagramGeometryTest: public QObject {
   Q_OBJECT

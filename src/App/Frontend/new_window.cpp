@@ -1,0 +1,495 @@
+
+/******************************************************************************
+* MODULE     : new_window.cpp
+* DESCRIPTION: Global window management
+* COPYRIGHT  : (C) 1999-2012  Joris van der Hoeven
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#include "App/Runtime/tm_data.hpp"
+#include "App/Frontend/application_lifecycle.hpp"
+#include "convert.hpp"
+#include "file.hpp"
+#include "web_files.hpp"
+#include "tm_link.hpp"
+#include "message.hpp"
+#include "new_document.hpp"
+#include "boot.hpp"
+#include "App/Runtime/buffer_actor.hpp"
+#include "Editor/editor.hpp"
+#include "App/Runtime/execution_context.hpp"
+#include "Document/Persistence/document_persistence.hpp"
+#include <memory>
+#include <vector>
+#include <string>
+
+/******************************************************************************
+* Manage global list of windows
+******************************************************************************/
+
+static int last_window= 1;
+static array<url> all_windows;
+static url initial_view= url_none ();
+extern int nr_windows;
+
+namespace {
+struct window_catalog_entry {
+  std::string window, view, buffer;
+};
+using window_catalog= std::vector<window_catalog_entry>;
+std::shared_ptr<const window_catalog> published_windows=
+  std::make_shared<const window_catalog> ();
+
+std::string window_catalog_key (url value) {
+  string text= as_string (value);
+  return std::string (text.data (), N (text));
+}
+
+url window_catalog_url (const std::string& value) {
+  if (value.empty ()) return url_none ();
+  return url (string (value.data (), static_cast<int> (value.size ())));
+}
+}
+
+void
+publish_window_catalog () {
+  ASSERT (current_execution_context () == nullptr,
+          "window catalog publication requires the GUI owner");
+  window_catalog entries;
+  for (int i= 0; i < N (all_windows); ++i) {
+    url view= window_to_view (all_windows[i]);
+    entries.push_back ({window_catalog_key (all_windows[i]),
+      is_none (view) ? std::string () : window_catalog_key (view),
+      is_none (view) ? std::string () : window_catalog_key (view_to_buffer (view))});
+  }
+  std::shared_ptr<const window_catalog> next=
+    std::make_shared<const window_catalog> (std::move (entries));
+  std::atomic_store_explicit (&published_windows, std::move (next),
+                              std::memory_order_release);
+}
+
+/*
+static path
+reset (path p, int i) {
+  if (is_nil (p)) return p;
+  else if (p->item == i) return p->next;
+  else return path (p->item, reset (p->next, i));
+}
+*/
+
+url
+create_window_id () {
+  url r= "tmfs://window/" * as_string (last_window);
+  all_windows << r;
+  publish_window_catalog ();
+  last_window++;
+  return r;
+}
+
+void
+destroy_window_id (url win) {
+  for (int i=0; i<N(all_windows); i++)
+    if (all_windows[i] == win) {
+      all_windows= append (range (all_windows, 0, i),
+                           range (all_windows, i+1, N(all_windows)));
+      publish_window_catalog ();
+      return;
+    }
+}
+
+url
+abstract_window (tm_window win) {
+  if (win == NULL) return url_none ();
+  return win->id;
+}
+
+/******************************************************************************
+* Low level creation and destruction of windows
+******************************************************************************/
+
+static hashmap<url,tm_window> tm_window_table (NULL);
+
+class kill_window_command_rep: public command_rep {
+  url* id;
+public:
+  inline kill_window_command_rep (url* id2): id (id2) {}
+  inline ~kill_window_command_rep () { tm_delete (id); }
+  inline void apply () {
+    application_close_window (std::optional<url> (*id)); }
+  tm_ostream& print (tm_ostream& out) {
+    return out << "<command kill_window>"; }
+};
+
+url
+new_window (bool map_flag, tree geom) {
+  int mask= 0;
+  if (get_preference ("header") == "on") mask += 1;
+  if (get_preference ("main icon bar") == "on") mask += 2;
+  if (get_preference ("mode dependent icons") == "on") mask += 4;
+  if (get_preference ("focus dependent icons") == "on") mask += 8;
+  if (get_preference ("status bar") == "on") mask += 32;
+  url* id= tm_new<url> (url_none ());
+  command quit= tm_new<kill_window_command_rep> (id);
+  bench_start ("construct qt editor shell");
+  tm_window win= tm_new<tm_window_rep> (texmacs_widget (mask, quit), geom);
+  bench_cumul ("construct qt editor shell");
+  tm_window_table (win->id)= win;
+  if (map_flag) {
+    bench_start ("map editor window");
+    win->map ();
+    bench_cumul ("map editor window");
+  }
+  *id= abstract_window (win);
+  return abstract_window (win);
+}
+
+static bool
+delete_view_from_window (url win) {
+  array<url> vs= get_all_views ();
+  for (int i=0; i<N(vs); i++)
+    if (view_to_window (vs[i]) == win) {
+      detach_view (vs[i]);
+      // delete_view (vs[i]);
+      // Don't delete view alltogether, because at least one view is needed
+      // for making the 'buffer_modified' predicate function appropriately
+      return true;
+    }
+  return false;
+}
+
+void
+delete_window (url win_u) {
+  ASSERT (current_execution_context () == nullptr,
+          "window teardown entered from a BufferActor");
+  tm_window win= concrete_window (win_u);
+  if (win == NULL) return;
+  while (delete_view_from_window (win_u)) {}
+  win->unmap ();
+  tm_window_table->reset (win->id);
+  destroy_window_widget (win->win);
+  tm_delete (win);
+}
+
+tm_window
+concrete_window (url win) {
+  return tm_window_table [win];
+}
+
+/******************************************************************************
+* Manage global list of windows
+******************************************************************************/
+
+array<url>
+windows_list () {
+  if (current_execution_context () != nullptr) {
+    array<url> result;
+    auto catalog= std::atomic_load_explicit (&published_windows,
+                                            std::memory_order_acquire);
+    for (const auto& entry: *catalog)
+      result << window_catalog_url (entry.window);
+    return result;
+  }
+  return all_windows;
+}
+
+int
+get_nr_windows () {
+  return nr_windows;
+}
+
+bool
+has_current_window () {
+  const ExecutionContext* context= current_execution_context ();
+  if (context != nullptr)
+    return context->editor != nullptr &&
+      context->editor->ui_viewport ().window_id != 0;
+  tm_view vw= concrete_view (get_current_view_safe ());
+  return vw != NULL && vw->win != NULL;
+}
+
+tm_window
+concrete_window () {
+  tm_view vw= concrete_view (get_current_view ());
+  ASSERT (vw->win != NULL, "no window attached to view");
+  return vw->win;
+}
+
+url
+get_current_window () {
+  const ExecutionContext* context= current_execution_context ();
+  if (context != nullptr) {
+    if (context->editor == nullptr) return url_none ();
+    std::uint64_t id= context->editor->ui_viewport ().window_id;
+    if (id == 0) return url_none ();
+    return url ("tmfs://window/" * as_string (static_cast<int> (id)));
+  }
+  if (!has_current_window ()) return url_none ();
+  tm_window win= concrete_window ();
+  return abstract_window (win);
+}
+
+array<url>
+buffer_to_windows (url name) {
+  if (current_execution_context () != nullptr) {
+    array<url> result;
+    auto catalog= std::atomic_load_explicit (&published_windows,
+                                            std::memory_order_acquire);
+    auto key= window_catalog_key (name);
+    for (const auto& entry: *catalog)
+      if (entry.buffer == key) result << window_catalog_url (entry.window);
+    return result;
+  }
+  array<url> r, vs= buffer_to_views (name);
+  for (int i=0; i<N(vs); i++) {
+    url win= view_to_window (vs[i]);
+    if (!is_none (win)) r << win;
+  }
+  return r;
+}
+
+url
+window_to_buffer (url win) {
+  if (current_execution_context () != nullptr) {
+    auto catalog= std::atomic_load_explicit (&published_windows,
+                                            std::memory_order_acquire);
+    auto key= window_catalog_key (win);
+    for (const auto& entry: *catalog)
+      if (entry.window == key) return window_catalog_url (entry.buffer);
+    return url_none ();
+  }
+  return view_to_buffer (window_to_view (win));
+}
+
+url
+window_to_view (url win) {
+  if (current_execution_context () != nullptr) {
+    auto catalog= std::atomic_load_explicit (&published_windows,
+                                            std::memory_order_acquire);
+    auto key= window_catalog_key (win);
+    for (const auto& entry: *catalog)
+      if (entry.window == key) return window_catalog_url (entry.view);
+    return url_none ();
+  }
+  array<url> vs= get_all_views ();
+  for (int i=0; i<N(vs); i++)
+    if (view_to_window (vs[i]) == win)
+      return vs[i];
+  return url_none ();
+}
+
+void
+window_set_buffer (url win, url name) {
+  url old= window_to_view (win);
+  if (is_none (old) || view_to_buffer (old) == name) return;
+  switch_to_buffer (name);
+}
+
+void
+window_focus (url win) {
+  if (win == get_current_window ()) return;
+  url old= window_to_view (win);
+  if (is_none (old)) return;
+  set_current_view (old);
+}
+
+void
+switch_to_window (url new_w) {
+  url old_w= get_current_window ();
+  if (new_w == old_w) return;
+  url old_u= window_to_view (old_w);
+  url new_u= window_to_view (new_w);
+  if (!is_none (old_u) && !is_none (new_u)) {
+    tm_view old_vw = concrete_view (old_u);
+    if (old_vw != NULL) {
+      //old_vw->ed->end_editing ();
+      (void) old_vw->buf->actor->submit (
+        actor_command_kind::suspend_view, old_vw->runtime_id);
+    }
+  }
+  if (!is_none (new_u)) {
+    tm_view new_vw = concrete_view (new_u);
+    //attach_view (new_w, new_u);
+    //set_current_view (new_u);
+    tm_window win= concrete_window (new_w);
+    if (win != NULL) win->map ();
+    if (new_vw != NULL) {
+      // Callers may immediately dispatch a continuation to the current
+      // buffer; do not rely on a later Qt focus event to select its owner.
+      set_current_view (new_u);
+      //new_vw->ed->start_editing ();
+      (void) new_vw->buf->actor->submit (
+        actor_command_kind::resume_view, new_vw->runtime_id);
+      send_keyboard_focus (new_vw->canvas);
+    }
+  }
+}
+
+/******************************************************************************
+* Other subroutines
+******************************************************************************/
+
+void
+create_buffer (url name, tree doc) {
+  if (!is_nil (concrete_buffer (name))) return;
+  set_buffer_tree (name, doc);
+}
+
+void
+new_buffer_in_this_window (url name, tree doc) {
+  if (is_nil (concrete_buffer (name)))
+    create_buffer (name, doc);
+  switch_to_buffer (name);
+}
+
+url
+new_buffer_in_new_window (url name, tree doc, tree geom) {
+  url existing= get_recent_view (name, true, false, true, false);
+  if (!is_none (existing)) {
+    url win= view_to_window (existing);
+    switch_to_window (win);
+    return win;
+  }
+  if (is_nil (concrete_buffer (name))) {
+    bench_start ("create initial buffer");
+    create_buffer (name, doc);
+    bench_cumul ("create initial buffer");
+  }
+  // Only the bootstrap scratch view is disposable. Explicit New tab buffers
+  // and edited/renamed startup documents must retain their own tabs.
+  url placeholder= initial_view;
+  initial_view= url_none ();
+  url old_name= view_to_buffer (placeholder);
+  url win= view_to_window (placeholder);
+  bool replace_initial= !is_none (win) && is_scratch (old_name) &&
+    placeholder == get_current_view_safe () && old_name != name &&
+    !buffer_modified (old_name) && is_empty (get_buffer_body (old_name));
+  if (!replace_initial) win= new_window (true, geom);
+  bench_start ("create initial view");
+  window_set_view (win, get_passive_view (name), true);
+  bench_cumul ("create initial view");
+  if (replace_initial) remove_buffer (old_name);
+  return win;
+}
+
+/******************************************************************************
+* Exported routines
+******************************************************************************/
+
+url
+create_buffer () {
+  initial_view= url_none ();
+  url name= make_new_source_buffer ();
+  switch_to_buffer (name);
+  return name;
+}
+
+void
+new_document_buffer () {
+  const ExecutionContext* context= current_execution_context ();
+  if (context != nullptr && context->editor != nullptr) {
+    (void) context->editor->publish_ui (actor_command_kind::ui_new_buffer);
+    return;
+  }
+  (void) create_buffer ();
+}
+
+url
+open_window (tree geom) {
+  initial_view= url_none ();
+  url name= make_new_source_buffer ();
+  return new_buffer_in_new_window (name, tree (DOCUMENT), geom);
+}
+
+void
+open_initial_window () {
+  (void) open_window ();
+  initial_view= get_current_view_safe ();
+}
+
+void
+open_document_window (bool floating) {
+  const ExecutionContext* context= current_execution_context ();
+  if (context != nullptr && context->editor != nullptr) {
+    (void) context->editor->publish_ui (
+      actor_command_kind::ui_open_document_window, floating ? 1 : 0);
+    return;
+  }
+  if (floating) get_server ()->ads_prepare_floating ();
+  (void) open_window ();
+}
+
+void
+clone_window () {
+  url win= new_window ();
+  window_set_view (win, get_passive_view (get_current_buffer ()), true);
+}
+
+void
+kill_buffer (url name) {
+  const ExecutionContext* context= current_execution_context ();
+  if (context != nullptr && context->editor != nullptr) {
+    athena_actor_id actor_id= context->actor_id;
+    if (name != context->actor->current_buffer_url ()) {
+      tm_buffer target= concrete_buffer (name);
+      if (is_nil (target)) return;
+      actor_id= target->actor->id ();
+    }
+    (void) context->editor->publish_ui (
+      actor_command_kind::ui_close_buffer, actor_id);
+    return;
+  }
+  if (!athena_flush_realtime_buffer (name)) {
+    std_warning << "Could not close realtime-saved buffer because its latest "
+                << "changes could not be persisted: " << name << LF;
+    return;
+  }
+  // Closing a document closes its tabs, never fills them with another buffer.
+  // Passive buffers (conversion/preview work) have no windows to tear down.
+  array<url> windows= buffer_to_windows (name);
+  for (int i=0; i<N(windows); i++) kill_window (windows[i]);
+  remove_buffer (name);
+}
+
+void
+kill_buffer_by_actor_id (athena_actor_id actor_id) {
+  if (actor_id == ATHENA_NO_ACTOR) return;
+  array<url> buffers= get_all_buffers ();
+  for (int i= 0; i < N (buffers); ++i) {
+    tm_buffer buffer= concrete_buffer (buffers[i]);
+    if (!is_nil (buffer) && buffer->actor->id () == actor_id) {
+      kill_buffer (buffers[i]);
+      return;
+    }
+  }
+}
+
+void
+kill_window (url wname) {
+  ASSERT (current_execution_context () == nullptr,
+          "window teardown entered from a BufferActor");
+  array<url> vs= get_all_views ();
+  for (int i=0; i<N(vs); i++) {
+    url win= view_to_window (vs[i]);
+    if (!is_none (win) && win != wname) {
+      if (get_current_window () == wname) switch_to_window (win);
+      break;
+    }
+  }
+  delete_window (wname);
+}
+
+void
+kill_current_window_and_buffer () {
+  url name= get_current_buffer ();
+  array<url> vs= buffer_to_views (get_current_buffer ());
+  url win= get_current_window ();
+  bool kill= true;
+  for (int i=0; i<N(vs); i++)
+    if (view_to_window (vs[i]) != win)
+      kill= false;
+  kill_window (win);
+  if (kill) remove_buffer (name);
+}

@@ -13,13 +13,13 @@
 #if defined(__linux__) || defined(__APPLE__)
 #include <sys/resource.h>
 #endif
-#include "ATHENA/Data/enunciation_model.hpp"
-#include "ATHENA/Data/redundant_wikilinks.hpp"
-#include "ATHENA/Data/vault_file_references.hpp"
-#include "ATHENA/Data/vault_maintenance_internal.hpp"
-#include "ATHENA/Data/vaultfile_json.hpp"
+#include "Domains/Knowledge/enunciation_model.hpp"
+#include "Domains/References/redundant_wikilinks.hpp"
+#include "Domains/Vault/vault_file_references.hpp"
+#include "Domains/Vault/vault_maintenance_internal.hpp"
+#include "Domains/Vault/vaultfile_json.hpp"
 #include "convert.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 #include "math_tree_v3.hpp"
 #include "node_metadata.hpp"
 

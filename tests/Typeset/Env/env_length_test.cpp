@@ -8,7 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-#include "env.hpp"
+#include "Typesetting/env.hpp"
 #include <QtTest/QtTest>
 
 class TestEnvLength: public QObject {

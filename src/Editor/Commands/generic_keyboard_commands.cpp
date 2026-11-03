@@ -1,0 +1,862 @@
+/******************************************************************************
+* MODULE     : generic_keyboard_commands.cpp
+* DESCRIPTION: Actor-owned generic keyboard editing fallbacks
+* COPYRIGHT  : (C) 2001 Joris van der Hoeven, 2026 Nuaptan Felix Evalisk
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+*******************************************************************************/
+
+#include "Editor/Commands/native_math_edit.hpp"
+#include "Editor/Commands/generic_keyboard_commands.hpp"
+#include "Editor/Commands/presentation_commands.hpp"
+#include "Editor/Commands/source_commands.hpp"
+#include "native_interfaces.hpp"
+#include "Editor/Commands/document_commands.hpp"
+#include "Editor/Commands/native_program_edit.hpp"
+#include "Editor/Commands/native_text_edit.hpp"
+#include "Editor/Commands/reference_markup.hpp"
+#include "native_node_groups.hpp"
+#include "Editor/Commands/native_keyboard_registry.hpp"
+#include "native_dispatch.hpp"
+#include "Editor/editor.hpp"
+#include "file.hpp"
+#include "hashset.hpp"
+#include "Editor/Commands/native_latex_commands.hpp"
+#include "Editor/Commands/auto_close.hpp"
+#include "Editor/Commands/structured_commands.hpp"
+#include "new_view.hpp"
+#include "App/Runtime/server.hpp"
+#include "math_tree_v3.hpp"
+#include "node_metadata.hpp"
+#include "UI/Qt/Editor/QTMESCSymbolPicker.hpp"
+
+#include <QByteArray>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
+#include <QJsonValue>
+#include <stdexcept>
+
+namespace {
+
+QString keyboard_json_key (string value) {
+  c_string bytes (value);
+  return QString::fromUtf8 (bytes, N (value));
+}
+
+string keyboard_native_string (const QString& value) {
+  QByteArray bytes= value.toUtf8 ();
+  return string (bytes.constData (), bytes.size ());
+}
+
+struct generic_keyboard_action_data {
+  QJsonObject escape_actions;
+  QJsonArray escape_rules;
+  QJsonObject handwriting;
+
+  generic_keyboard_action_data () {
+    string source;
+    bool failed= load_string (
+      url ("$ATHENA_PATH/misc/input/generic-keyboard-actions.json"), source, false);
+    ASSERT (!failed, "cannot read generic-keyboard-actions.json");
+    c_string bytes (source);
+    QJsonParseError error;
+    QJsonDocument document=
+      QJsonDocument::fromJson (QByteArray (bytes, N (source)), &error);
+    ASSERT (error.error == QJsonParseError::NoError && document.isObject (),
+            "invalid generic-keyboard-actions.json");
+    QJsonObject root= document.object ();
+    ASSERT (root.value ("version").toInt () == 1,
+            "unsupported generic keyboard action schema");
+    ASSERT (root.value ("escape_actions").isObject () &&
+            root.value ("escape_rules").isArray () &&
+            root.value ("handwriting").isObject (),
+            "missing generic keyboard action definitions");
+    escape_actions= root.value ("escape_actions").toObject ();
+    escape_rules= root.value ("escape_rules").toArray ();
+    handwriting= root.value ("handwriting").toObject ();
+    ASSERT (handwriting.value ("command_prefix").isString () &&
+            handwriting.value ("description_suffix").isString () &&
+            handwriting.value ("direct_unprefixed").isBool () &&
+            handwriting.value ("direct_text").isObject (),
+            "invalid handwriting keyboard action definitions");
+  }
+};
+
+generic_keyboard_action_data& keyboard_action_data () {
+  static generic_keyboard_action_data data;
+  return data;
+}
+
+bool json_keyboard_string (QJsonValue value, string capture, string& result) {
+  if (value.isString ()) {
+    result= keyboard_native_string (value.toString ());
+    return true;
+  }
+  if (!value.isObject ()) return false;
+  QJsonObject command_value= value.toObject ();
+  if (command_value.value ("capture").toString () != "suffix") return false;
+  result= capture;
+  return true;
+}
+
+bool json_keyboard_tree (QJsonValue value, string capture, tree& result) {
+  string atomic;
+  if (json_keyboard_string (value, capture, atomic)) {
+    if (N(atomic) >= 3 && atomic[0] == '<' && atomic[N(atomic)-1] == '>')
+      return false;
+    result= tree (atomic);
+    return true;
+  }
+  if (!value.isArray ()) return false;
+  QJsonArray items= value.toArray ();
+  if (items.isEmpty () || !items[0].isString ()) return false;
+  array<tree> children;
+  for (int i= 1; i < items.size (); ++i) {
+    tree child;
+    if (!json_keyboard_tree (items[i], capture, child)) return false;
+    children << child;
+  }
+  result= tree (as_tree_label (keyboard_native_string (items[0].toString ())),
+                children);
+  return true;
+}
+
+bool json_keyboard_argument (QJsonValue value, string capture, command_value& result) {
+  string text;
+  if (json_keyboard_string (value, capture, text)) {
+    result= command_value (text);
+    return true;
+  }
+  if (value.isBool ()) {
+    result= command_value (value.toBool ());
+    return true;
+  }
+  if (!value.isObject ()) return false;
+  QJsonObject obj= value.toObject ();
+  QJsonValue symbol= obj.value ("symbol");
+  if (!symbol.isString ()) return false;
+  result= as_tree_label (keyboard_native_string (symbol.toString ()));
+  return true;
+}
+
+bool execute_json_keyboard_action (QJsonObject descriptor, string capture= "") {
+  string kind= keyboard_native_string (descriptor.value ("kind").toString ());
+  if (kind == "tree" || kind == "scripts" || kind == "accent") {
+    tree inserted;
+    ASSERT (json_keyboard_tree (descriptor.value ("value"), capture, inserted),
+            "invalid tree keyboard action descriptor");
+    if (kind == "scripts") {
+      const string placement= keyboard_native_string (
+        descriptor.value ("placement").toString ());
+      ASSERT (is_func (inserted, MATH_SCRIPTS, 5) &&
+              athena::math_v3::valid_scripts_policy (placement),
+              "invalid scripts keyboard action descriptor");
+      inserted= athena::math_v3::scripts (
+        inserted[0], inserted[1], inserted[2], inserted[3], inserted[4],
+        placement[0]);
+    }
+    else if (kind == "accent") {
+      ASSERT (is_func (inserted, MATH_ACCENT, 3) &&
+              descriptor.value ("stretch").isBool (),
+              "invalid accent keyboard action descriptor");
+      athena::node::metadata meta;
+      meta.properties["math:accent-stretch"]= athena::node::property (
+        descriptor.value ("stretch").toBool ());
+      athena::node::set (inserted, meta);
+    }
+    get_current_editor ()->insert_tree (inserted);
+    return true;
+  }
+  if (kind == "superscript") {
+    tree content;
+    ASSERT (json_keyboard_tree (descriptor.value ("value"), capture, content),
+            "invalid superscript keyboard action descriptor");
+    editor ed= get_current_editor ();
+    if (ed->selection_active_small ()) {
+      const tree base= ed->selection_get_cut ();
+      ed->insert_tree (athena::math_v3::scripts (base, "", "", "", content));
+    }
+    else {
+      ed->make_script (true, true);
+      const path script= ed->search_upwards (MATH_SCRIPTS);
+      ed->insert_tree (content);
+      ed->go_to (script * 1);
+    }
+    return true;
+  }
+  if (kind == "variant") {
+    editor ed= get_current_editor ();
+    const bool selected= ed->selection_active_small ();
+    const tree body= selected ? ed->selection_get () : tree ("");
+    tree value (MATH_VARIANT,
+      keyboard_native_string (descriptor.value ("value").toString ()), body);
+    ASSERT (athena::math_v3::valid_native_math (value),
+            "invalid variant keyboard action descriptor");
+    const path destination= ed->command_tree_end (value, path (1));
+    if (selected) ed->selection_cut ("none");
+    ed->insert_tree (value, destination);
+    return true;
+  }
+  if (kind == "text") {
+    QJsonValue value= descriptor.value ("value");
+    string text;
+    ASSERT (json_keyboard_string (value, capture, text),
+            "invalid text keyboard action descriptor");
+    get_current_editor ()->insert_tree (tree (text));
+    return true;
+  }
+  if (kind == "alphabet") {
+    string tag, value;
+    ASSERT (json_keyboard_string (descriptor.value ("tag"), capture, tag) &&
+            json_keyboard_string (descriptor.value ("value"), capture, value),
+            "invalid alphabet keyboard action descriptor");
+    editor ed= get_current_editor ();
+    // The same owner interprets toolbar alphabets as native XML v3 variants.
+    // Never insert their historical macro AST through a generic tree action.
+    athena::auto_close::insert_alphabet (ed.operator-> (), tag, value);
+    return true;
+  }
+  return false;
+}
+
+bool dispatch_json_keyboard_action (QJsonObject descriptor,
+                                   string capture= "") {
+  if (execute_json_keyboard_action (descriptor, capture)) return true;
+  string kind= keyboard_native_string (descriptor.value ("kind").toString ());
+  if (kind != "native-call") return false;
+
+  QJsonValue function_value= descriptor.value ("function");
+  QJsonValue args_value= descriptor.value ("args");
+  ASSERT (function_value.isString () && args_value.isArray (),
+          "invalid native keyboard action descriptor");
+  command_arguments args;
+  for (QJsonValue value: args_value.toArray ()) {
+    command_value arg;
+    ASSERT (json_keyboard_argument (value, capture, arg),
+            "invalid keyboard action call argument");
+    args << arg;
+  }
+  command_value result;
+  if (!native_dispatch_call (keyboard_native_string (function_value.toString ()),
+                             args, result))
+    throw std::invalid_argument ("Unknown native keyboard action: " +
+                                 function_value.toString ().toStdString ());
+  return true;
+}
+
+tree focus_tree () {
+  editor ed= get_current_editor ();
+  path p= ed->focus_get ();
+  return ed->test_subtree (p) ? ed->the_subtree (p) : tree ();
+}
+
+bool parent_tree (tree t, tree& parent) {
+  if (admits_edit_observer (t)) return false;
+  path ip= obtain_ip (t);
+  if (!ip_attached (ip) || is_nil (ip)) return false;
+  tree root= get_current_editor ()->the_root ();
+  parent= subtree (root, reverse (ip->next));
+  return true;
+}
+
+bool
+table_enter_inside_document (editor ed) {
+  if (is_nil (ed)) return false;
+  tree root= ed->the_root ();
+  path p= path_up (ed->the_path ());
+  while (!is_nil (p)) {
+    if (!has_subtree (root, p)) break;
+    tree current= subtree (root, p);
+    if (is_func (current, DOCUMENT)) return true;
+    if (is_func (current, TABLE)) return false;
+    p= path_up (p);
+  }
+  return false;
+}
+
+bool
+native_grid_enter (editor ed) {
+  if (is_nil (ed)) return false;
+  const path root_path= ed->the_buffer_path ();
+  tree root= ed->the_root ();
+  for (path p= path_up (ed->the_path ()); root_path < p; p= path_up (p)) {
+    tree grid= subtree (root, p);
+    // A nested text paragraph or ordinary table owns its own Enter behavior.
+    if (is_func (grid, DOCUMENT) || is_func (grid, TABLE)) return false;
+    if (!is_func (grid, MATH_GRID)) continue;
+    if (!athena::math_v3::valid_native_math (grid)) return false;
+    const path local= tail (ed->the_path (), N(p));
+    if (N(local) < 4 || local->item >= N(grid)) return false;
+    const int row= local->item;
+    tree added (ROW, N(grid[row]));
+    for (int col= 0; col < N(added); ++col) added[col]= tree (CELL, "");
+    insert (grid, row + 1, tree (TUPLE, added));
+    ed->go_to_start (p * path (row + 1, 0, 0));
+    return true;
+  }
+  return false;
+}
+
+void outward (tree t, void (*command) (tree, bool), bool flag) {
+  tree parent;
+  if (parent_tree (t, parent)) command (parent, flag);
+}
+
+bool completion_context (tree t) {
+  if (!(is_compound (t, "label") || is_compound (t, "reference") ||
+        is_compound (t, "pageref") || is_compound (t, "eqref") ||
+        is_compound (t, "smart-ref")))
+    return false;
+  return tree_command_cursor_inside (t);
+}
+
+bool hybrid_command (path& hybrid_path, string& command, bool& atomic) {
+  editor ed= get_current_editor ();
+  hybrid_path= ed->search_upwards (HYBRID);
+  if (is_nil (hybrid_path)) return false;
+  tree root= ed->the_root ();
+  tree hybrid= subtree (root, hybrid_path);
+  if (N (hybrid) < 1) return false;
+  atomic= is_atomic (hybrid[0]);
+  command= atomic ? as_string (hybrid[0]) : string ("");
+  return true;
+}
+
+void dispatch_focus (void (*command) (tree, bool), bool flag) {
+  command (focus_tree (), flag);
+}
+
+bool generic_context_at_cursor () {
+  editor ed= get_current_editor ();
+  if (ed->inside_graphics ()) return false;
+  path p= ed->the_path ();
+  if (is_nil (p)) return false;
+  p= path_up (p);
+  if (!ed->test_subtree (p)) return false;
+  return generic_context (ed->the_subtree (p));
+}
+
+bool graphical_text_context (tree t) {
+  return is_graphical_text (t);
+}
+
+bool cursor_inside_graphical_text_context () {
+  editor ed= get_current_editor ();
+  if (is_nil (ed) || !ed->inside_graphics (false)) return false;
+  path p= ed->the_path ();
+  while (!is_nil (p)) {
+    if (ed->test_subtree (p) && is_graphical_text (ed->the_subtree (p)))
+      return true;
+    p= path_up (p);
+  }
+  return false;
+}
+
+enum generic_move_kind {
+  MOVE_HORIZONTAL,
+  MOVE_VERTICAL,
+  MOVE_EXTREMAL,
+  MOVE_INCREMENTAL
+};
+
+void move_once (generic_move_kind kind, bool forwards) {
+  editor ed= get_current_editor ();
+  switch (kind) {
+  case MOVE_HORIZONTAL:
+    if (forwards) ed->go_right ();
+    else ed->go_left ();
+    break;
+  case MOVE_VERTICAL:
+    if (forwards) ed->go_down ();
+    else ed->go_up ();
+    break;
+  case MOVE_EXTREMAL:
+    if (forwards) ed->go_end_line ();
+    else ed->go_start_line ();
+    break;
+  case MOVE_INCREMENTAL:
+    if (forwards) ed->go_page_down ();
+    else ed->go_page_up ();
+    break;
+  }
+}
+
+void generic_move_until_context (generic_move_kind kind, bool forwards) {
+  editor ed= get_current_editor ();
+  path original= copy (ed->the_path ());
+  hashset<path> visited;
+  while (true) {
+    path before= copy (ed->the_path ());
+    move_once (kind, forwards);
+    path after= copy (ed->the_path ());
+    if (after == before || visited->contains (after) || generic_context_at_cursor ())
+      break;
+    visited->insert (after);
+  }
+  if (!generic_context_at_cursor ()) ed->go_to (original);
+}
+
+void graphical_text_move (generic_move_kind kind, bool forwards) {
+  editor ed= get_current_editor ();
+  path original= copy (ed->the_path ());
+  hashset<path> visited;
+  while (true) {
+    path before= copy (ed->the_path ());
+    move_once (kind, forwards);
+    path after= copy (ed->the_path ());
+    if (after == before || visited->contains (after) ||
+        cursor_inside_graphical_text_context ())
+      break;
+    visited->insert (after);
+  }
+  if (!cursor_inside_graphical_text_context ()) ed->go_to (original);
+}
+
+} // namespace
+
+void generic_kbd_horizontal (tree t, bool forwards) {
+  if (graphical_text_context (t)) {
+    graphical_text_move (MOVE_HORIZONTAL, forwards);
+    return;
+  }
+  if (!admits_edit_observer (t)) {
+    outward (t, generic_kbd_horizontal, forwards);
+    return;
+  }
+  generic_move_until_context (MOVE_HORIZONTAL, forwards);
+}
+
+void generic_kbd_vertical (tree t, bool downwards) {
+  if (graphical_text_context (t)) {
+    graphical_text_move (MOVE_VERTICAL, downwards);
+    return;
+  }
+  if (!admits_edit_observer (t)) {
+    outward (t, generic_kbd_vertical, downwards);
+    return;
+  }
+  generic_move_until_context (MOVE_VERTICAL, downwards);
+}
+
+void generic_kbd_extremal (tree t, bool forwards) {
+  if (graphical_text_context (t)) {
+    if (auto child= tree_command_down (t)) {
+      editor ed= get_current_editor ();
+      const path p= reverse (obtain_ip (*child));
+      ed->go_to (forwards ? ed->command_tree_end (ed->the_root (), p) :
+                            ed->command_tree_start (ed->the_root (), p));
+    }
+    return;
+  }
+  if (!admits_edit_observer (t)) {
+    outward (t, generic_kbd_extremal, forwards);
+    return;
+  }
+  generic_move_until_context (MOVE_EXTREMAL, forwards);
+}
+
+void generic_kbd_incremental (tree t, bool downwards) {
+  if (!admits_edit_observer (t)) {
+    outward (t, generic_kbd_incremental, downwards);
+    return;
+  }
+  generic_move_until_context (MOVE_INCREMENTAL, downwards);
+}
+
+void generic_kbd_left_raw () { dispatch_focus (generic_kbd_horizontal, false); }
+void generic_kbd_right_raw () { dispatch_focus (generic_kbd_horizontal, true); }
+void generic_kbd_up_raw () { dispatch_focus (generic_kbd_vertical, false); }
+void generic_kbd_down_raw () { dispatch_focus (generic_kbd_vertical, true); }
+void generic_kbd_start_line_raw () { dispatch_focus (generic_kbd_extremal, false); }
+void generic_kbd_end_line_raw () { dispatch_focus (generic_kbd_extremal, true); }
+void generic_kbd_page_up_raw () { dispatch_focus (generic_kbd_incremental, false); }
+void generic_kbd_page_down_raw () { dispatch_focus (generic_kbd_incremental, true); }
+
+static void dispatch_keyboard_move (string move) {
+  command_value result;
+  if (!native_dispatch_call (move, command_arguments (), result))
+    throw std::invalid_argument ("Unknown native movement command: " +
+                                 std::string (move.data (), N(move)));
+}
+
+void generic_kbd_plain_move (string move) {
+  get_current_editor ()->select_from_keyboard (false);
+  dispatch_keyboard_move (move);
+}
+
+void generic_kbd_left () {
+  get_current_editor ()->select_from_keyboard (false);
+  generic_kbd_left_raw ();
+}
+
+void generic_kbd_right () {
+  get_current_editor ()->select_from_keyboard (false);
+  generic_kbd_right_raw ();
+}
+
+void generic_kbd_up () {
+  get_current_editor ()->select_from_keyboard (false);
+  generic_kbd_up_raw ();
+}
+
+void generic_kbd_down () {
+  get_current_editor ()->select_from_keyboard (false);
+  generic_kbd_down_raw ();
+}
+
+void generic_kbd_start_line () {
+  get_current_editor ()->select_from_keyboard (false);
+  generic_kbd_start_line_raw ();
+}
+
+void generic_kbd_end_line () {
+  get_current_editor ()->select_from_keyboard (false);
+  generic_kbd_end_line_raw ();
+}
+
+void generic_kbd_page_up () {
+  get_current_editor ()->select_from_keyboard (false);
+  generic_kbd_page_up_raw ();
+}
+
+void generic_kbd_page_down () {
+  get_current_editor ()->select_from_keyboard (false);
+  generic_kbd_page_down_raw ();
+}
+
+void generic_kbd_select (string move) {
+  editor ed= get_current_editor ();
+  ed->select_from_shift_keyboard ();
+  dispatch_keyboard_move (move);
+  ed->select_from_cursor ();
+}
+
+void generic_kbd_select_if_active (string move) {
+  editor ed= get_current_editor ();
+  dispatch_keyboard_move (move);
+  ed->select_from_cursor_if_active ();
+}
+
+void generic_insert_return () {
+  editor ed= get_current_editor ();
+  if (!program_return (ed.operator-> ())) (void) ed->insert_return ();
+}
+void generic_kbd_space () { dispatch_focus (generic_kbd_space_bar, false); }
+void generic_kbd_shift_space () { dispatch_focus (generic_kbd_space_bar, true); }
+void generic_kbd_return () {
+  reference_resolve_at_cursor ();
+  dispatch_focus (generic_kbd_enter, false);
+}
+void generic_kbd_shift_return () { dispatch_focus (generic_kbd_enter, true); }
+void generic_kbd_control_return () { dispatch_focus (generic_kbd_control_enter, false); }
+void generic_kbd_shift_control_return () { dispatch_focus (generic_kbd_control_enter, true); }
+void generic_kbd_alternate_return () { dispatch_focus (generic_kbd_alternate_enter, false); }
+void generic_kbd_shift_alternate_return () { dispatch_focus (generic_kbd_alternate_enter, true); }
+void generic_kbd_backspace () { dispatch_focus (generic_kbd_remove, false); }
+void generic_kbd_delete () { dispatch_focus (generic_kbd_remove, true); }
+void generic_kbd_tab () { dispatch_focus (generic_kbd_variant, true); }
+void generic_kbd_shift_tab () { dispatch_focus (generic_kbd_variant, false); }
+void generic_kbd_alternate_tab () { dispatch_focus (generic_kbd_alternate_variant, true); }
+void generic_kbd_shift_alternate_tab () { dispatch_focus (generic_kbd_alternate_variant, false); }
+void generic_kbd_copy () { get_current_editor ()->selection_copy ("primary"); }
+void generic_kbd_cut () {
+  editor ed= get_current_editor ();
+  if (!program_clipboard (ed.operator-> (), false)) ed->selection_cut ("primary");
+}
+void generic_kbd_paste () {
+  editor ed= get_current_editor ();
+  if (!program_clipboard (ed.operator-> (), true)) ed->selection_paste ("primary");
+}
+void generic_kbd_cancel () { get_current_editor ()->selection_clear ("primary"); }
+
+void generic_kbd_space_bar (tree t, bool shift) {
+  (void) shift;
+  if (!admits_edit_observer (t)) { outward (t, generic_kbd_space_bar, shift); return; }
+  editor ed= get_current_editor ();
+  if (ed->get_env_string ("mode") == "text" && ed->get_env_string ("language") != "verbatim")
+    text_space_bar ();
+  else ed->insert_tree (tree (" "));
+}
+
+void generic_kbd_enter (tree t, bool shift) {
+  if (source_enter (t) || presentation_enter (t, shift)) return;
+  if (text_enter (t, shift)) return;
+  if (is_compound (t, "math")) {
+    get_current_editor ()->go_to_end (reverse (obtain_ip (t)));
+    generic_insert_return ();
+    return;
+  }
+  if (program_return (get_current_editor ().operator-> ())) return;
+  if (native_grid_enter (get_current_editor ())) return;
+  if (generic_table_markup_context (t)) {
+    (void) shift;
+    editor ed= get_current_editor ();
+    if (is_nil (ed)) return;
+    if (table_enter_inside_document (ed))
+      (void) ed->insert_return ();
+    else {
+      ed->table_insert_row (true);
+      ed->table_go_to (ed->table_which_row (), 1);
+    }
+    return;
+  }
+  (void) shift;
+  if (!admits_edit_observer (t)) { outward (t, generic_kbd_enter, shift); return; }
+  (void) get_current_editor ()->insert_return ();
+}
+
+void generic_kbd_control_enter (tree t, bool shift) {
+  if (!admits_edit_observer (t)) outward (t, generic_kbd_control_enter, shift);
+}
+
+void generic_kbd_alternate_enter (tree t, bool shift) {
+  if (!admits_edit_observer (t)) outward (t, generic_kbd_alternate_enter, shift);
+}
+
+void generic_kbd_remove (tree t, bool forwards) {
+  if (is_compound (t, "show-preamble", 1) && is_empty (t[0])) {
+    document_buffer_hide_preamble ();
+    if (document_buffer_has_preamble ()) tree_remove (get_current_editor ()->the_buffer (), 0, 1);
+    get_current_editor ()->typeset_invalidate_all ();
+    return;
+  }
+  if (!admits_edit_observer (t)) { outward (t, generic_kbd_remove, forwards); return; }
+  editor ed= get_current_editor ();
+  const path title= ed->search_upwards ("doc-data");
+  if (ed->selection_active_any ()) {
+    ed->selection_cut ("none");
+  }
+  else ed->remove_text (forwards);
+  if (!is_nil (title) && ed->test_subtree (title) &&
+      is_compound (ed->the_subtree (title), "doc-data"))
+    text_doc_data_clean (ed->the_subtree (title));
+}
+
+void generic_kbd_variant (tree t, bool forwards) {
+  if (source_variant (t, forwards)) return;
+  if (native_node_group_contains ("combinatorial-number-tag", as_string (L(t)))) {
+    native_variant_circulate (t, forwards);
+    return;
+  }
+  editor ed= get_current_editor ();
+  if (completion_context (t)) {
+    (void) ed->complete_try ();
+    return;
+  }
+  if (!admits_edit_observer (t)) { outward (t, generic_kbd_variant, forwards); return; }
+  if (!ed->complete_try () && forwards) {
+    string binding= native_keyboard_inverse (string ("(kbd-alternate-tab)"));
+    tree shortcut= get_server ()->kbd_system_rewrite (binding);
+    ed->set_message (
+      tree (CONCAT, "Use ", shortcut, " in order to insert a tab"), "tab");
+  }
+}
+
+void generic_kbd_alternate_variant (tree t, bool forwards) {
+  (void) forwards;
+  if (!admits_edit_observer (t)) {
+    outward (t, generic_kbd_alternate_variant, forwards);
+    return;
+  }
+  get_current_editor ()->make_htab ("5mm");
+}
+
+void generic_hybrid_kbd_space () {
+  editor ed= get_current_editor ();
+  ed->activate_hybrid (false);
+  ed->insert_tree (tree (" "));
+}
+
+void generic_hybrid_kbd_formula_open (string bracket) {
+  path p;
+  string command;
+  bool atomic;
+  if (!hybrid_command (p, command, atomic)) return;
+  editor ed= get_current_editor ();
+  if (atomic && command == "") {
+    if (bracket == "[") ed->make_native_math_block (false);
+    else {
+      assign (p * 0, tree (bracket));
+      ed->activate_hybrid (false);
+    }
+  }
+  else ed->insert_tree (tree (bracket));
+}
+
+void generic_hybrid_kbd_curly_left () {
+  path p;
+  string command;
+  bool atomic;
+  if (!hybrid_command (p, command, atomic)) return;
+  editor ed= get_current_editor ();
+  if (atomic && command == "") {
+    ed->make_native_math_block (true);
+  }
+  else if (!atomic || command == "begin") ed->insert_tree (tree ("{"));
+  else if (command == "left\\" || command == "right\\") {
+    ed->insert_tree (tree ("{"));
+    ed->activate_hybrid (false);
+  }
+  else ed->activate_hybrid (false);
+}
+
+void generic_insert_native_math_block () {
+  get_current_editor ()->make_native_math_block (false);
+}
+
+void generic_insert_native_math_grid () {
+  get_current_editor ()->make_native_math_block (true);
+}
+
+void generic_hybrid_kbd_curly_right () {
+  path p;
+  string command;
+  bool atomic;
+  if (!hybrid_command (p, command, atomic)) return;
+  editor ed= get_current_editor ();
+  if (!atomic) ed->activate_hybrid (false);
+  else if (starts (command, "begin{")) {
+    remove (p * 0 * 0, 6);
+    ed->activate_hybrid (false);
+  }
+  else if (command == "left\\" || command == "right\\") {
+    ed->insert_tree (tree ("}"));
+    ed->activate_hybrid (false);
+  }
+  else ed->activate_hybrid (false);
+}
+
+void generic_hybrid_kbd_backslash () {
+  path p;
+  string command;
+  bool atomic;
+  if (!hybrid_command (p, command, atomic)) return;
+  editor ed= get_current_editor ();
+  if (atomic && (command == "left" || command == "right"))
+    ed->insert_tree (tree ("\\"));
+  else {
+    ed->activate_hybrid (false);
+    ed->make_hybrid ();
+  }
+}
+
+void generic_hybrid_kbd_sub () {
+  editor ed= get_current_editor ();
+  ed->activate_hybrid (false);
+  ed->make_script (false, true);
+}
+
+void generic_hybrid_kbd_sup () {
+  editor ed= get_current_editor ();
+  ed->activate_hybrid (false);
+  ed->make_script (true, true);
+}
+
+static bool
+generic_escape_symbol_dispatch (string action) {
+  generic_keyboard_action_data& data= keyboard_action_data ();
+  QJsonValue descriptor= data.escape_actions.value (keyboard_json_key (action));
+  if (descriptor.isObject ())
+    return dispatch_json_keyboard_action (descriptor.toObject ());
+
+  for (QJsonValue value: data.escape_rules) {
+    if (!value.isObject ()) continue;
+    QJsonObject rule= value.toObject ();
+    QJsonValue prefix_value= rule.value ("prefix");
+    QJsonValue action_value= rule.value ("action");
+    if (!prefix_value.isString () || !action_value.isObject ()) continue;
+    string prefix= keyboard_native_string (prefix_value.toString ());
+    if (!starts (action, prefix)) continue;
+    string capture= action (N (prefix), N (action));
+    return dispatch_json_keyboard_action (action_value.toObject (), capture);
+  }
+
+  string help;
+  command cmd;
+  if (native_latex_get_command (action, help, cmd)) {
+    cmd ();
+    return true;
+  }
+  return false;
+}
+
+void
+generic_escape_symbol_insert (string action) {
+  if (generic_escape_symbol_dispatch (action)) return;
+  get_current_editor ()->key_press (action);
+}
+
+void
+generic_open_escape_symbol_picker () {
+  string action= escape_symbol_picker_dialog ();
+  if (action != "") generic_escape_symbol_insert (action);
+}
+
+namespace {
+
+string handwriting_symbol_command_key (string command) {
+  QJsonObject config= keyboard_action_data ().handwriting;
+  string prefix= keyboard_native_string (config.value ("command_prefix").toString ());
+  if (prefix != "" && starts (command, prefix))
+    return command (N (prefix), N (command));
+  return command;
+}
+
+bool handwriting_symbol_direct_text (string command, string& direct) {
+  QJsonObject config= keyboard_action_data ().handwriting;
+  QJsonObject direct_text= config.value ("direct_text").toObject ();
+  QJsonValue mapped= direct_text.value (keyboard_json_key (command));
+  if (mapped.isString ()) {
+    direct= keyboard_native_string (mapped.toString ());
+    return true;
+  }
+  string prefix= keyboard_native_string (config.value ("command_prefix").toString ());
+  if (config.value ("direct_unprefixed").toBool () &&
+      (prefix == "" || !starts (command, prefix))) {
+    direct= command;
+    return true;
+  }
+  return false;
+}
+
+} // namespace
+
+string
+generic_handwriting_symbol_input_description (string command) {
+  string direct;
+  if (handwriting_symbol_direct_text (command, direct)) return direct;
+  const string key= handwriting_symbol_command_key (command);
+  string help;
+  class command native_cmd;
+  if (native_latex_get_command (key, help, native_cmd)) {
+    QJsonObject config= keyboard_action_data ().handwriting;
+    return keyboard_native_string (config.value ("command_prefix").toString ()) *
+           key * keyboard_native_string (config.value ("description_suffix").toString ());
+  }
+  return "";
+}
+
+void
+generic_handwriting_symbol_insert (string command) {
+  string direct;
+  if (handwriting_symbol_direct_text (command, direct)) {
+    get_current_editor ()->insert_tree (tree (direct));
+    return;
+  }
+
+  string help;
+  class command native_cmd;
+  if (native_latex_get_command (handwriting_symbol_command_key (command),
+                                help, native_cmd)) {
+    native_cmd ();
+    return;
+  }
+
+  get_current_editor ()->set_message (
+    tree ("Unsupported symbol command: " * command),
+    tree ("Handwritten Symbol"));
+}

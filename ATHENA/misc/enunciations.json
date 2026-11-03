@@ -13,8 +13,7 @@
     "ATHENA/packages/environment/env-enunciation.ats",
     "ATHENA/packages/environment/env-theorem.ats",
     "ATHENA/packages/standard/std-markup.ats",
-    "src/ATHENA/Data/vault_anchors.cpp",
-    "src/ATHENA/Data/artifacts.cpp"
+    "src/Domains/Artifacts/artifacts.cpp"
   ],
   "semantics": {
     "numbered": "Whether the source environment requests automatic numbering; a render title is retained verbatim and never re-numbered.",

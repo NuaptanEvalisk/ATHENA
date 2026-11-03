@@ -1,0 +1,646 @@
+
+/******************************************************************************
+* MODULE     : fromtm.cpp
+* DESCRIPTION: conversion from the current TeXmacs file format to trees
+* COPYRIGHT  : (C) 1999  Joris van der Hoeven
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#include "convert.hpp"
+#include "path.hpp"
+#include "vars.hpp"
+#include "Document/NodeContracts/builtin_contracts.hpp"
+#include "node_metadata.hpp"
+#include "Xml/legacy_document_reader.hpp"
+#include "Verbatim/verbatim.hpp"
+#include <limits>
+
+/******************************************************************************
+* Conversion of TeXmacs strings of the present format to TeXmacs trees
+******************************************************************************/
+
+struct tm_reader {
+  hashmap<string,int> codes;
+  tree_label EXPAND_APPLY;
+  bool    backslash_ok;
+  bool    with_extensions;
+  string  buf;                // the string being read from
+  int     pos;                // the current position of the reader
+  string  last;               // last read string
+  bool    malformed;          // malformed input was encountered
+  int     error_pos;          // byte position of the first parse error
+  string  error_message;      // description of the first parse error
+  const athena::document::codec_limits* limits= nullptr;
+  std::size_t depth= 0, steps= 0;
+  string closing_name;
+
+  tm_reader (string buf2):
+    codes (athena::contracts::builtin_codes ()),
+    EXPAND_APPLY (EXPAND),
+    backslash_ok (true),
+    with_extensions (true),
+    buf (buf2), pos (0), last (""),
+    malformed (false), error_pos (-1), error_message ("") {}
+
+  int    skip_blank ();
+  void   fail (int at, string message);
+  string decode (string s);
+  string read_char ();
+  string read_next ();
+  string read_function_name ();
+  tree   read_apply (string s, bool skip_flag);
+  tree   read (bool skip_flag);
+};
+
+void
+tm_reader::fail (int at, string message) {
+  if (limits) {
+    int line= 1, column= 1;
+    for (int i= 0; i < at && i < N (buf); ++i)
+      if (buf[i] == '\n') { ++line; column= 1; } else ++column;
+    throw athena::document::codec_exception (athena::document::codec_error::invalid_structure,
+      std::string (as_charp (message), N (message)), line, column, at);
+  }
+  if (malformed) return;
+  malformed= true;
+  error_pos= at;
+  error_message= message;
+}
+
+int
+tm_reader::skip_blank () {
+  int n=0;
+  for (; pos < N(buf); pos++) {
+    if (buf[pos]==' ') continue;
+    if (buf[pos]=='\t') continue;
+    if (buf[pos]=='\r') continue;
+    if (buf[pos]=='\n') { n++; continue; }
+    break;
+  }
+  return n;
+}
+
+string
+tm_reader::decode (string s) {
+  int i, n=N(s);
+  string r;
+  for (i=0; i<n; i++)
+    if (((i+1)<n) && (s[i]=='\\')) {
+      i++;
+      if (s[i] == ';');
+      else if (s[i] == '0') r << '\0';
+      else if (s[i] == 't') r << '\t';
+      else if (s[i] == 'r') r << '\r';
+      else if (s[i] == 'n') r << '\n';
+      else if (s[i] == '\\') r << '\\';
+      else if ((s[i] >= '@') && (s[i] < '`')) r << (s[i] - '@');
+      else r << s[i];
+    }
+    else r << s[i];
+  return r;
+}
+
+string
+tm_reader::read_char () {
+  while (((pos+1) < N(buf)) && (buf[pos] == '\\') && (buf[pos+1] == '\n')) {
+    pos += 2;
+    skip_spaces (buf, pos);
+  }
+  if (pos >= N(buf)) return "";
+  pos++;
+  return buf (pos-1, pos);
+}
+
+string
+tm_reader::read_next () {
+  if (limits && steps++ / 8 >= limits->nodes)
+    throw athena::document::codec_exception (athena::document::codec_error::resource_limit,
+                                           "Legacy markup exceeds parse budget");
+  int old_pos= pos;
+  string c= read_char ();
+  if (c == "") return c;
+  switch (c[0]) {
+  case '\t':
+  case '\n':
+  case '\r':
+  case ' ': 
+    pos--;
+    if (skip_blank () <= 1) return " ";
+    else return "\n";
+  case '<':
+    {
+      old_pos= pos;
+      c= read_char ();
+      if (c == "") return "";
+      if (c == "#") return "<#";
+      if ((c == "\\") || (c == "|") || (c == "/")) return "<" * c;
+      if (is_iso_alpha (c[0]) || (c == ">")) {
+        pos= old_pos;
+        return "<";
+      }
+      pos= old_pos;
+      return "<";
+      /*
+      string d= read_char ();
+      if ((d == "\\") || (d == "|") || (d == "/")) return "<" * c * d;
+      pos= old_pos;
+      return "<" * c;
+      */
+    }
+  case '|':
+  case '>':
+    return c;
+  }
+
+  string r;
+  pos= old_pos;
+  while (true) {
+    old_pos= pos;
+    c= read_char ();
+    if (c == "") return r;
+    else if (c == "\\") {
+      if ((pos < N(buf)) && (buf[pos] == '\\') && backslash_ok) {
+        r << c << "\\";
+        pos++;
+      }
+      else r << c << read_char ();
+    }
+    else if (c == "\t") break;
+    else if (c == "\r") break;
+    else if (c == "\n") break;
+    else if (c == " ") break;
+    else if (c == "<") break;
+    else if (c == "|") break;
+    else if (c == ">") break;
+    else r << c;
+  }
+  pos= old_pos;
+  return r;
+}
+
+string
+tm_reader::read_function_name () {
+  string name= decode (read_next ());
+  // cout << "==> " << name << "\n";
+  while (true) {
+    last= read_next ();
+    // cout << "~~> " << last << "\n";
+    if ((last == "") || (last == "|") || (last == ">")) break;
+  }
+  return name;
+}
+
+static void
+get_collection (tree& u, tree t) {
+  if (is_func (t, COLLECTION) ||
+           is_func (t, DOCUMENT) ||
+           is_func (t, CONCAT)) {
+    int i;
+    for (i=0; i<N(t); i++)
+      get_collection (u, t[i]);
+  }
+  else if (is_compound (t)) u << t;
+}
+
+tree
+tm_reader::read_apply (string name, bool skip_flag) {
+  // cout << "Read apply " << name << INDENT << LF;
+  tree t (make_tree_label (name));
+  if (!with_extensions)
+    t= tree (EXPAND_APPLY, name);
+  if (codes->contains (name)) {
+    // cout << "  " << name << " -> " << as_string ((tree_label) codes [name]) << "\n";
+    t= tree ((tree_label) codes [name]);
+  }
+
+  bool closed= !skip_flag;
+  bool terminated= false;
+  bool block_header_ended= !skip_flag || last == "\\>";
+  while (pos < N(buf)) {
+    // cout << "last= " << last << LF;
+    bool sub_flag= (skip_flag) && ((last == "") || (last[N(last)-1] != '|'));
+    if (sub_flag) (void) skip_blank ();
+    t << read (sub_flag);
+    if (limits && ((last == "/>") || (last == "/|") || (last == "|>") || (last == "||")) &&
+        closing_name != name)
+      fail (pos, "Mismatched legacy block delimiter");
+    if ((last == "/>") || (last == "/|")) closed= true;
+    if (skip_flag && !closed && last == ">") {
+      if (!block_header_ended)
+        block_header_ended= true;
+      else {
+        fail (pos > 0? pos - 1: pos, "unexpected closing delimiter");
+        break;
+      }
+    }
+    if (closed && ((last == ">") || (last == "/>"))) {
+      terminated= true;
+      break;
+    }
+  }
+  if (!terminated && !malformed)
+    fail (pos, "unterminated <" * name * "|...> construct");
+  // cout << "last= " << last << UNINDENT << LF;
+  // cout << "Done" << LF;
+
+  if (is_func (t, COLLECTION)) {
+    tree u (COLLECTION);
+    get_collection (u, t);
+    return u;
+  }
+  return t;
+}
+
+static void
+flush (tree& D, tree& C, string& S, bool& spc_flag, bool& ret_flag) {
+  if (spc_flag) S << " ";
+  if (S != "") {
+    if ((N(C) == 0) || (!is_atomic (C[N(C)-1]))) C << S;
+    else C[N(C)-1]->label << S;
+    S= "";
+    spc_flag= false;
+  }
+
+  if (ret_flag) {
+    if (N(C) == 0) D << "";
+    else if (N(C) == 1) D << C[0];
+    else D << C;
+    C= tree (CONCAT);
+    ret_flag= false;
+  }
+}
+
+tree
+tm_reader::read (bool skip_flag) {
+  if (limits && depth > limits->depth)
+    throw athena::document::codec_exception (athena::document::codec_error::resource_limit,
+                                           "Legacy markup exceeds nesting budget");
+  struct nesting_guard {
+    std::size_t& value;
+    explicit nesting_guard (std::size_t& v): value (v) { ++value; }
+    ~nesting_guard () { --value; }
+  } guard (depth);
+  tree   D (DOCUMENT);
+  tree   C (CONCAT);
+  string S ("");
+  bool   spc_flag= false;
+  bool   ret_flag= false;
+
+  while (true) {
+    last= read_next ();
+    // cout << "--> " << last << "\n";
+    if (last == "") break;
+    if (last == "|") break;
+    if (last == ">") break;
+    
+    if (last[0] == '<') {
+      if (last[N(last)-1] == '\\') {
+        flush (D, C, S, spc_flag, ret_flag);
+        string name= read_function_name ();
+        if (last == ">") last= "\\>";
+        else last= "\\|";
+        C << read_apply (name, true);
+      }
+      else if (last[N(last)-1] == '|') {
+        closing_name= read_function_name ();
+        if (last == ">") last= "|>";
+        else last= "||";
+        break;
+      }
+      else if (last[N(last)-1] == '/') {
+        closing_name= read_function_name ();
+        if (last == ">") last= "/>";
+        else last= "/|";
+        break;
+      }
+      else if (last[N(last)-1] == '#') {
+        string r;
+        while (pos < N(buf) && buf[pos] != '>') {
+          if (pos + 1 >= N(buf) || !is_hex_digit (buf[pos]) || !is_hex_digit (buf[pos+1])) {
+            fail (pos, "Invalid binary payload hex pair");
+            return tree (_ERROR, error_message);
+          }
+          r << ((char) from_hexadecimal (buf (pos, pos+2)));
+          pos += 2;
+        }
+        if (pos == N(buf)) {
+          fail (pos, "Unterminated binary payload");
+          return tree (_ERROR, error_message);
+        }
+        if (buf[pos] == '>') pos++;
+        flush (D, C, S, spc_flag, ret_flag);
+        C << tree (RAW_DATA, r);
+      }
+      else {
+        flush (D, C, S, spc_flag, ret_flag);
+        string name= decode (read_next ());
+        string sep = ">";
+        if (name == ">") name= "";
+        else sep = read_next ();
+        if (limits && sep != "|" && sep != ">") fail (pos, "Invalid legacy tag delimiter");
+        // cout << "==> " << name << "\n";
+        // cout << "~~> " << sep << "\n";
+        if (sep == '|') {
+          last= "|";
+          C << read_apply (name, false);
+        }
+        else {
+          tree t (make_tree_label (name));
+          if (!with_extensions)
+            t= tree (EXPAND_APPLY, name);
+          if (codes->contains (name)) {
+            // cout << name << " -> " << as_string ((tree_label) codes [name]) << "\n";
+            t= tree ((tree_label) codes [name]);
+          }
+          C << t;
+        }
+      }
+    }
+    else if (last == " ") spc_flag= true;
+    else if (last == "\n") ret_flag= true;
+    else {
+      flush (D, C, S, spc_flag, ret_flag);
+      // cout << "<<< " << last << "\n";
+      // cout << ">>> " << decode (last) << "\n";
+      S << decode (last);
+      if ((S == "") && (N(C) == 0)) C << "";
+    }
+  }
+
+  if (skip_flag) spc_flag= ret_flag= false;
+  flush (D, C, S, spc_flag, ret_flag);
+  if (N(C) == 1) D << C[0];
+  else if (N(C)>1) D << C;
+  // cout << "*** " << D << "\n";
+  if (N(D)==0) return "";
+  if (N(D)==1) {
+    if (!skip_flag) return D[0];
+    if (is_func (D[0], COLLECTION)) return D[0];
+  }
+  return D;
+}
+
+static tree
+finish_read (tm_reader& tmr) {
+  tree result= tmr.read (true);
+  if (tmr.limits && tmr.last != "") tmr.fail (tmr.pos, "Unexpected closing delimiter at document root");
+  if (!tmr.malformed) {
+    int parsed_end= tmr.pos;
+    tmr.skip_blank ();
+    if (tmr.pos < N(tmr.buf))
+      tmr.fail (parsed_end > 0? parsed_end - 1: parsed_end,
+                "unexpected closing delimiter");
+  }
+  if (!tmr.malformed) return result;
+
+  int line= 1;
+  int column= 1;
+  int limit= min (max (tmr.error_pos, 0), N(tmr.buf));
+  for (int i=0; i<limit; i++) {
+    if (tmr.buf[i] == '\n') {
+      line++;
+      column= 1;
+    }
+    else column++;
+  }
+  return tree (_ERROR,
+               "TeXmacs parse error at line " * as_string (line) *
+               ", column " * as_string (column) * ": " *
+               tmr.error_message);
+}
+
+tree
+texmacs_to_tree (string s) {
+  tm_reader tmr (s);
+  return finish_read (tmr);
+}
+
+namespace athena::document {
+tree read_legacy_markup_fragment (std::string_view input, codec_limits limits) {
+  athena::contracts::initialize_builtins ();
+  if (input.size () > limits.input_bytes || input.size () > std::numeric_limits<int>::max ())
+    throw codec_exception (codec_error::resource_limit, "Legacy fragment exceeds size budget");
+  tm_reader reader (string (input.data (), static_cast<int> (input.size ())));
+  reader.limits= &limits;
+  tree result= finish_read (reader);
+  if (is_func (result, _ERROR))
+    throw codec_exception (codec_error::invalid_structure, "Malformed legacy index tree");
+  return result;
+}
+
+tree read_legacy_markup (std::string_view input, codec_limits limits) {
+  athena::contracts::initialize_builtins ();
+  if (input.size () > limits.input_bytes || input.size () > std::numeric_limits<int>::max ())
+    throw codec_exception (codec_error::resource_limit, "Legacy markup input exceeds size budget");
+  string source (input.data (), static_cast<int> (input.size ()));
+  if (!starts (source, "<TeXmacs|"))
+    throw codec_exception (codec_error::invalid_structure, "Missing legacy markup document signature");
+  tm_reader reader (source);
+  reader.limits= &limits;
+  auto result= finish_read (reader);
+  if (is_compound (result, "TeXmacs", 1)) result= tree (DOCUMENT, result);
+  if (!is_func (result, DOCUMENT) || N (result) == 0 ||
+      !is_compound (result[0], "TeXmacs", 1) || !is_atomic (result[0][0]))
+    throw codec_exception (codec_error::invalid_structure, "Invalid legacy document envelope");
+  return result;
+}
+} // namespace athena::document
+
+/******************************************************************************
+* Conversion of TeXmacs strings to TeXmacs trees
+******************************************************************************/
+
+inline bool is_apply (tree t, string s, int n) {
+  return (L(t) == APPLY) && (N(t) == (n+1)) && (t[0] == s); }
+
+static bool
+is_expand (tree t, string s, int n) {
+  return (L(t) == EXPAND) && (N(t) == n+1) && (t[0] == s);
+}
+
+tree
+texmacs_document_to_tree (string s) {
+  tree error (_ERROR, "bad format or data");
+  if (starts (s, "<TeXmacs|")) {
+    int i;
+    for (i=9; i<N(s); i++)
+      if (s[i] == '>') break;
+    string version= s (9, i);
+    tree doc= texmacs_to_tree (s);
+    if (is_func (doc, _ERROR)) {
+      convert_error << doc[0] << LF;
+      return doc;
+    }
+    if (is_compound (doc, "TeXmacs", 1) ||
+        is_expand (doc, "TeXmacs", 1) ||
+        is_apply (doc, "TeXmacs", 1))
+      doc= tree (DOCUMENT, doc);
+    if (!is_document (doc)) return error;
+    if (N(doc) == 0 || !is_compound (doc[0], "TeXmacs", 1)) {
+      tree d (DOCUMENT);
+      d << compound ("TeXmacs", version);
+      d << A(doc);
+      doc= d;
+    }
+    return doc;
+  }
+  return error;
+}
+
+/******************************************************************************
+* Extracting attributes from a TeXmacs document tree
+******************************************************************************/
+
+tree
+extract (tree doc, string attr) {
+  int i, n= arity (doc);
+  for (i=0; i<n; i++)
+    if (is_compound (doc[i], attr, 1) ||
+        is_expand (doc[i], attr, 1) ||
+        is_apply (doc[i], attr, 1))
+      {
+        tree r= doc[i][N(doc[i])-1];
+        if ((attr == "body") && (!is_document (r))) return tree (DOCUMENT, r);
+        if (attr == "style") {
+          if (r == "none") return tree (TUPLE);
+          if (r == "") return tree (TUPLE);
+          if (r == "style") return tree (TUPLE);
+          if (is_atomic (r)) return tree (TUPLE, r);
+          if (!is_func (r, TUPLE)) return tree (TUPLE);
+        }
+        return r;
+      }
+
+  if (attr == "TeXmacs") return "";
+  if (attr == "body") return tree (DOCUMENT, "");
+  if (attr == "style") return tree (TUPLE);
+  if (attr == "initial") return tree (COLLECTION);
+  if (attr == "final") return tree (COLLECTION);
+  if (attr == "references") return tree (COLLECTION);
+  if (attr == "auxiliary") return tree (COLLECTION);
+  if (attr == "attachments") return tree (COLLECTION);
+  return "";
+}
+
+tree
+extract_document (tree doc) {
+  if (is_func (doc, _ERROR)) return doc;
+  tree body= extract (doc, "body");
+  tree init= extract (doc, "initial");
+  if (is_func (init, COLLECTION)) {
+    tree w (WITH);
+    int i, n= N(init);
+    for (i=0; i<n; i++)
+      if (is_func (init[i], ASSOCIATE, 2)) {
+        tree l= init[i][0];
+        tree r= init[i][1];
+        if ((l == PAGE_MEDIUM) ||
+            (l == PAGE_PRINTED) ||
+            (l == PAGE_TYPE) ||
+            (l == PAGE_ORIENTATION) ||
+            (l == PAGE_WIDTH_MARGIN) ||
+            (l == PAGE_SCREEN_MARGIN) ||
+            (l == PAGE_NR) ||
+            (l == PAGE_WIDTH) ||
+            (l == PAGE_HEIGHT) ||
+            (l == PAGE_ODD) ||
+            (l == PAGE_EVEN) ||
+            (l == PAGE_RIGHT) ||
+            (l == PAGE_ODD_SHIFT) ||
+            (l == PAGE_EVEN_SHIFT) ||
+            (l == PAGE_TOP) ||
+            (l == PAGE_BOT) ||
+            (l == PAGE_SCREEN_WIDTH) ||
+            (l == PAGE_SCREEN_HEIGHT) ||
+            (l == PAGE_SCREEN_LEFT) ||
+            (l == PAGE_SCREEN_RIGHT) ||
+            (l == PAGE_SCREEN_TOP) ||
+            (l == PAGE_SCREEN_BOT) ||
+            (l == PAGE_SHOW_HF)) continue;
+        w << l << r;
+      }
+    if (N(w)>0) {
+      w << body;
+      body= w;
+    }
+  }
+  return body;
+}
+
+tree
+change_doc_attr (tree doc, string attr, tree val) {
+  int i, n= arity (doc);
+  tree r (doc, n);
+  athena::node::copy_metadata (doc, r);
+  bool done= false;
+  for (i=0; i<n; i++)
+    if (is_compound (doc[i], attr, 1)) {
+      r[i]= tree (L(doc[i]), val);
+      athena::node::copy_metadata (doc[i], r[i]);
+      done= true;
+    }
+    else r[i]= doc[i];
+  if (!done) r << compound (attr, val);
+  return r;
+}
+
+tree
+remove_doc_attr (tree doc, string attr) {
+  int i, n= arity (doc);
+  tree r (L(doc));
+  athena::node::copy_metadata (doc, r);
+  for (i=0; i<n; i++)
+    if (!is_compound (doc[i], attr, 1))
+      r << doc[i];
+  return r;
+}
+
+/******************************************************************************
+* Extracting metadata
+******************************************************************************/
+
+static std::optional<path>
+search_tag_quick (tree t, string tag, path source= path ()) {
+  if (is_compound (t, tag)) return source;
+  if (!(is_func (t, DOCUMENT) || is_func (t, CONCAT) ||
+        is_func (t, SURROUND) || is_func (t, WITH))) return {};
+  for (int i=0; i<N(t); i++) {
+    auto result= search_tag_quick (t[i], tag, source * i);
+    if (result) return result;
+  }
+  return {};
+}
+
+static bool
+search_metadata_tag (tree value, string tag, path source,
+    const athena::contracts::source_contract_preparation& contexts, string& result) {
+  if (is_compound (value, tag, 1)) {
+    const auto text= source_to_verbatim (value[0], false, "utf-8", contexts, source * 0);
+    if (!text) return false;
+    if (N(result) != 0) result << ", ";
+    result << *text;
+  }
+  else
+    for (int i=0; i<N(value); ++i) {
+      if (!search_metadata_tag (value[i], tag, source * i, contexts, result))
+        return false;
+    }
+  return true;
+}
+
+std::optional<string>
+search_metadata (tree doc, string kind,
+    const athena::contracts::source_contract_preparation& contexts) {
+  const auto source= search_tag_quick (doc, "doc-data");
+  if (source && (kind == "title" || kind == "author")) {
+    string result;
+    if (!search_metadata_tag (subtree (doc, *source),
+        kind == "title" ? "doc-title" : "author-name", *source, contexts, result))
+      return {};
+    return result;
+  }
+  return string ("");
+}

@@ -10,11 +10,11 @@
 
 #include <QtTest/QtTest>
 
-#include "ATHENA/Data/document_node_model.hpp"
-#include "ATHENA/Data/enunciation_model.hpp"
-#include "ATHENA/Data/document_node_copy.hpp"
+#include "Document/Model/document_node_model.hpp"
+#include "Domains/Knowledge/enunciation_model.hpp"
+#include "Document/Model/document_node_copy.hpp"
 #include "patch.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 
 #include <algorithm>
 #include <iomanip>

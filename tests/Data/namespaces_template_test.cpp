@@ -4,7 +4,7 @@
 * COPYRIGHT  : (C) 2026 Felix
 *******************************************************************************/
 
-#include "ATHENA/Data/namespaces.hpp"
+#include "Domains/Namespaces/namespaces.hpp"
 
 #include <QtTest/QtTest>
 

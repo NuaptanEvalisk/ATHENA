@@ -11,58 +11,58 @@ else (APPLE)
 endif (APPLE)
 
 list (REMOVE_ITEM ATHENA_All_SRCS
-  "${ATHENA_SOURCE_DIR}/src/Data/String/unicode_text.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/Plugins/subscription.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/Plugins/package.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/RAG/rag_npu_worker.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/RAG/rag_embedding_stub.cpp"
-  "${ATHENA_SOURCE_DIR}/src/ATHENA/Data/artifact_range_llm_stub.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPluginManager.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPluginUi.cpp"
-  "${ATHENA_SOURCE_DIR}/src/System/Misc/tsan_mimalloc_shim.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAudmapTerminal.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAudmap_stub.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMContinuousRag_stub.cpp"
-  "${ATHENA_SOURCE_DIR}/src/System/Link/pipe_link_stub.cpp")
+  "${ATHENA_SOURCE_DIR}/src/Core/Text/unicode_text.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Services/Plugins/subscription.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Services/Plugins/package.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Services/RAG/rag_npu_worker.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Services/RAG/rag_embedding_stub.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Domains/Artifacts/artifact_range_llm_stub.cpp"
+  "${ATHENA_SOURCE_DIR}/src/UI/Qt/Integrations/QTMPluginManager.cpp"
+  "${ATHENA_SOURCE_DIR}/src/UI/Qt/Integrations/QTMPluginUi.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Infrastructure/Misc/tsan_mimalloc_shim.cpp"
+  "${ATHENA_SOURCE_DIR}/src/UI/Qt/Integrations/QTMAudmapTerminal.cpp"
+  "${ATHENA_SOURCE_DIR}/src/UI/Qt/Integrations/QTMAudmap_stub.cpp"
+  "${ATHENA_SOURCE_DIR}/src/UI/Qt/Integrations/QTMContinuousRag_stub.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Infrastructure/Link/pipe_link_stub.cpp")
 if (NOT ATHENA_ENABLE_AUDMAP_LISTENER)
   list (REMOVE_ITEM ATHENA_All_SRCS
-    "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAudmap.cpp")
+    "${ATHENA_SOURCE_DIR}/src/UI/Qt/Integrations/QTMAudmap.cpp")
   list (APPEND ATHENA_All_SRCS
-    "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMAudmap_stub.cpp")
+    "${ATHENA_SOURCE_DIR}/src/UI/Qt/Integrations/QTMAudmap_stub.cpp")
 endif ()
 if (NOT ATHENA_ENABLE_LOCAL_INFERENCE)
   list (REMOVE_ITEM ATHENA_All_SRCS
-    "${ATHENA_SOURCE_DIR}/src/Subsystems/RAG/rag_embedding.cpp"
-    "${ATHENA_SOURCE_DIR}/src/ATHENA/Data/artifact_range_llm.cpp"
-    "${ATHENA_SOURCE_DIR}/src/ATHENA/Data/llama_runtime.cpp"
-    "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMContinuousRag.cpp")
+    "${ATHENA_SOURCE_DIR}/src/Services/RAG/rag_embedding.cpp"
+    "${ATHENA_SOURCE_DIR}/src/Domains/Artifacts/artifact_range_llm.cpp"
+    "${ATHENA_SOURCE_DIR}/src/Services/RAG/llama_runtime.cpp"
+    "${ATHENA_SOURCE_DIR}/src/UI/Qt/Integrations/QTMContinuousRag.cpp")
   list (APPEND ATHENA_All_SRCS
-    "${ATHENA_SOURCE_DIR}/src/Subsystems/RAG/rag_embedding_stub.cpp"
-    "${ATHENA_SOURCE_DIR}/src/ATHENA/Data/artifact_range_llm_stub.cpp"
-    "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMContinuousRag_stub.cpp")
+    "${ATHENA_SOURCE_DIR}/src/Services/RAG/rag_embedding_stub.cpp"
+    "${ATHENA_SOURCE_DIR}/src/Domains/Artifacts/artifact_range_llm_stub.cpp"
+    "${ATHENA_SOURCE_DIR}/src/UI/Qt/Integrations/QTMContinuousRag_stub.cpp")
 endif ()
 if (ATHENA_PLATFORM_IPADOS)
   list (REMOVE_ITEM ATHENA_All_SRCS
-    "${ATHENA_SOURCE_DIR}/src/System/Link/pipe_link.cpp"
-    "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/qt_pipe_link.cpp"
-    "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPipeLink.cpp"
-    "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPipeLink.hpp"
-    "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPrintDialog.cpp"
-    "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPrintDialog.hpp"
-    "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPrinterSettings.cpp"
-    "${ATHENA_SOURCE_DIR}/src/Subsystems/Qt/QTMPrinterSettings.hpp")
+    "${ATHENA_SOURCE_DIR}/src/Infrastructure/Link/pipe_link.cpp"
+    "${ATHENA_SOURCE_DIR}/src/UI/Qt/Platform/qt_pipe_link.cpp"
+    "${ATHENA_SOURCE_DIR}/src/UI/Qt/Platform/QTMPipeLink.cpp"
+    "${ATHENA_SOURCE_DIR}/src/UI/Qt/Platform/QTMPipeLink.hpp"
+    "${ATHENA_SOURCE_DIR}/src/UI/Qt/Dialogs/QTMPrintDialog.cpp"
+    "${ATHENA_SOURCE_DIR}/src/UI/Qt/Dialogs/QTMPrintDialog.hpp"
+    "${ATHENA_SOURCE_DIR}/src/UI/Qt/Dialogs/QTMPrinterSettings.cpp"
+    "${ATHENA_SOURCE_DIR}/src/UI/Qt/Dialogs/QTMPrinterSettings.hpp")
   list (APPEND ATHENA_All_SRCS
-    "${ATHENA_SOURCE_DIR}/src/System/Link/pipe_link_stub.cpp")
+    "${ATHENA_SOURCE_DIR}/src/Infrastructure/Link/pipe_link_stub.cpp")
 endif ()
-add_library (athena_unicode STATIC Data/String/unicode_text.cpp)
+add_library (athena_unicode STATIC Core/Text/unicode_text.cpp)
 set_target_properties (athena_unicode PROPERTIES AUTOMOC OFF)
-target_include_directories (athena_unicode PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/Data/String")
+target_include_directories (athena_unicode PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/Core/Text")
 target_link_libraries (athena_unicode PUBLIC ICU::uc ICU::i18n)
 if (ATHENA_PLATFORM_IPADOS)
   target_link_libraries (athena_unicode PUBLIC "${ATHENA_ICU_DATA_LIBRARY}")
 endif ()
 if (ATHENA_ENABLE_AUDMAP_REPL)
-  add_library (athena_audmap_terminal STATIC Subsystems/Qt/QTMAudmapTerminal.cpp)
+  add_library (athena_audmap_terminal STATIC UI/Qt/Integrations/QTMAudmapTerminal.cpp)
   target_compile_features (athena_audmap_terminal PRIVATE cxx_std_17)
   target_link_libraries (athena_audmap_terminal PUBLIC Qt6::Widgets PRIVATE qtermwidget6)
 endif ()
@@ -71,27 +71,27 @@ include(AthenaShippedMacroLabels)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   "${ATHENA_SOURCE_DIR}/ATHENA/misc/node-fields.json")
 file(READ "${ATHENA_SOURCE_DIR}/ATHENA/misc/node-fields.json" ATHENA_NATIVE_FIELDS_JSON)
-configure_file(Data/NodeContracts/native_fields_data.hpp.in
+configure_file(Document/NodeContracts/native_fields_data.hpp.in
   "${ATHENA_BINARY_DIR}/generated/native_fields_data.hpp" @ONLY)
-set_source_files_properties(Data/NodeContracts/native_fields.cpp PROPERTIES
+set_source_files_properties(Document/NodeContracts/native_fields.cpp PROPERTIES
   INCLUDE_DIRECTORIES "${ATHENA_BINARY_DIR}/generated")
-add_subdirectory(ATHENA/Interop)
+add_subdirectory(Interop/Engine)
 if(ATHENA_ENABLE_PLUGINS)
-  add_subdirectory(Subsystems/Plugins)
+  add_subdirectory(Services/Plugins)
 endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   add_executable(athena-plugin-sandbox
-    Subsystems/Plugins/sandbox_main.cpp
-    System/Files/confined_filesystem.cpp)
+    Services/Plugins/sandbox_main.cpp
+    Infrastructure/Files/confined_filesystem.cpp)
   set_target_properties(athena-plugin-sandbox PROPERTIES AUTOMOC OFF)
   target_include_directories(athena-plugin-sandbox PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/System/Files"
-    "${CMAKE_CURRENT_SOURCE_DIR}/ATHENA/Interop")
+    "${CMAKE_CURRENT_SOURCE_DIR}/Infrastructure/Files"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Interop/Engine")
   target_link_libraries(athena-plugin-sandbox PRIVATE
     athena_minijail athena_interop Threads::Threads)
   if (ATHENA_OPENVINO_RUNTIME_FOUND AND LLAMA_FOUND)
     add_executable(athena-rag-npu-worker
-      Subsystems/RAG/rag_npu_worker.cpp)
+      Services/RAG/rag_npu_worker.cpp)
     set_target_properties(athena-rag-npu-worker PROPERTIES AUTOMOC OFF)
     target_compile_features(athena-rag-npu-worker PRIVATE cxx_std_17)
     target_include_directories(athena-rag-npu-worker PRIVATE
@@ -103,25 +103,25 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   endif()
 endif()
 if(ATHENA_ENABLE_PLUGINS)
-  add_library(athena_plugin_runtime STATIC Subsystems/Qt/QTMPluginManager.cpp Subsystems/Qt/QTMPluginManager.hpp)
+  add_library(athena_plugin_runtime STATIC UI/Qt/Integrations/QTMPluginManager.cpp UI/Qt/Integrations/QTMPluginManager.hpp)
   set_target_properties(athena_plugin_runtime PROPERTIES AUTOMOC ON)
-  target_include_directories(athena_plugin_runtime PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/Subsystems/Qt")
+  target_include_directories(athena_plugin_runtime PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/UI/Qt/Integrations")
   target_link_libraries(athena_plugin_runtime PUBLIC athena_plugins athena_audmap Qt6::Core)
-  add_library(athena_plugin_ui STATIC Subsystems/Qt/QTMPluginUi.cpp)
+  add_library(athena_plugin_ui STATIC UI/Qt/Integrations/QTMPluginUi.cpp)
   set_target_properties(athena_plugin_ui PROPERTIES AUTOMOC OFF)
   target_include_directories(athena_plugin_ui PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/Data/Convert/Xml"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Data/String")
+    "${CMAKE_CURRENT_SOURCE_DIR}/Document/Convert/Xml"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Core/Text")
   target_link_libraries(athena_plugin_ui PUBLIC athena_plugin_runtime Qt6::Widgets)
 endif()
-set_source_files_properties(ATHENA/Commands/native_commands.cpp PROPERTIES
+set_source_files_properties(App/Commands/native_commands.cpp PROPERTIES
   INCLUDE_DIRECTORIES "${ATHENA_BINARY_DIR}/generated")
 
 function (athena_configure_body_target target_name)
   add_library (${target_name} STATIC ${ATHENA_All_SRCS})
   athena_use_shipped_macro_labels (${target_name})
   if (ATHENA_ENABLE_WATCHDOG)
-    target_sources (${target_name} PRIVATE ./ATHENA/Watchdog/watchdog_client.cpp)
+    target_sources (${target_name} PRIVATE ./App/Watchdog/watchdog_client.cpp)
   endif ()
   add_dependencies (${target_name} athena_build_info athena_commands)
   target_compile_definitions (${target_name} PRIVATE
@@ -179,16 +179,16 @@ endif ()
 
 if (WIN32)
   add_executable (${ATHENA_binary_name} WIN32
-    ./ATHENA/ATHENA/athena.cpp
+    ./App/Entry/athena.cpp
   )
 else (WIN32)
   add_executable (${ATHENA_binary_name}
-    ./ATHENA/ATHENA/athena.cpp
+    ./App/Entry/athena.cpp
   )
 endif (WIN32)
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
   add_executable (ATHENA-Watchdog
-    ./ATHENA/Watchdog/watchdog_main.cpp)
+    ./App/Watchdog/watchdog_main.cpp)
   target_compile_features (ATHENA-Watchdog PRIVATE cxx_std_17)
   set_target_properties (ATHENA-Watchdog PROPERTIES AUTOMOC OFF)
   add_dependencies (${ATHENA_binary_name} athena-plugin-sandbox)
@@ -198,7 +198,7 @@ if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif ()
 if (ATHENA_ENABLE_TSAN)
   target_sources (${ATHENA_binary_name} PRIVATE
-    ./System/Misc/tsan_mimalloc_shim.cpp)
+    ./Infrastructure/Misc/tsan_mimalloc_shim.cpp)
 else ()
   athena_link_allocator (${ATHENA_binary_name})
 endif ()

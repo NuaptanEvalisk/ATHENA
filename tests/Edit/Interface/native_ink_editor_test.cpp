@@ -14,12 +14,12 @@
 #include <cstdlib>
 #include <unistd.h>
 
-#include "ATHENA/Math/native_shape_recognizer.hpp"
-#include "ATHENA/server.hpp"
-#include "Editor/edit_main.hpp"
-#include "Graphics/Gui/gui.hpp"
+#include "Math/Tools/native_shape_recognizer.hpp"
+#include "App/Runtime/server.hpp"
+#include "Editor/Engine/edit_main.hpp"
+#include "UI/Abstract/gui.hpp"
 #include "boot.hpp"
-#include "buffer_state.hpp"
+#include "App/Runtime/buffer_state.hpp"
 #include "convert.hpp"
 #include "data_cache.hpp"
 #include "observer.hpp"

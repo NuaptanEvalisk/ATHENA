@@ -15,12 +15,12 @@
 #include <QTimer>
 #include <QtTest/QtTest>
 #include "QTMVaultMaintenanceDialog.hpp"
-#include "ATHENA/Data/vaultfile_json.hpp"
+#include "Domains/Vault/vaultfile_json.hpp"
 #include "boot.hpp"
 #include "data_cache.hpp"
 #include "gui.hpp"
 #include "native_dispatch.hpp"
-#include "server.hpp"
+#include "App/Runtime/server.hpp"
 
 bool headless_mode= true;
 bool is_headless () { return true; }

@@ -8,19 +8,19 @@ Historical note: the dated startup and direct-call sections below record the
 intermediate 2026-11-02 state, not the current runtime. The embedded Scheme VM,
 Guile libraries, script CLI and generated Scheme glue were removed on
 2026-11-03. Current command signatures live in
-`src/ATHENA/Commands/Interfaces/`; see `notes/scheme-runtime-removal.md` for
+`src/App/Commands/Interfaces/`; see `notes/scheme-runtime-removal.md` for
 the completion and deployment evidence.
 
 ## Sources Of Truth
 
 - `ATHENA/misc/ui/application-shell.json` and the other UI JSON files author
   presentation, command references, grouping and conditions.
-- `src/Subsystems/Qt/QTMCommandRegistry.cpp` owns command registration,
+- `src/UI/Qt/Commands/QTMCommandRegistry.cpp` owns command registration,
   dispatch and dynamic providers.
 - `QTMDocumentMenuCommands.cpp`, `QTMFocus*Commands.cpp` and other provider
   modules supply context-dependent entries.
 - `QTMToolbarController.cpp` owns toolbar materialization.
-- `src/Edit/Interface/native_editor_actions.cpp` executes editor actions on
+- `src/Editor/Commands/native_editor_actions.cpp` executes editor actions on
   the owning BufferActor. State comes from published editor/pane snapshots.
 - `ATHENA/misc/input/` holds keyboard declarations. Registry, event dispatch
   and generic editing are native; `progs/kernel/gui` is removed.
@@ -100,7 +100,7 @@ contract; raw legacy-locus persistence compatibility was not added.
 The `progs/athena` business migration is complete. Its former modules and the
 empty directory are removed, rather than moved to another Scheme directory.
 The native entrypoints are declared in
-`src/ATHENA/Commands/Interfaces/native.xml` and generated as direct C++
+`src/App/Commands/Interfaces/native.xml` and generated as direct C++
 dispatch. The Guile marshalling bridge was retired.
 
 - `application_lifecycle.cpp` and `document_save_frontend.cpp` own document
@@ -145,7 +145,7 @@ now live in native code:
 - `Typeset/Env/title_markup.cpp` owns title, author and abstract rendering,
   including note deduplication and author clustering.
 
-Bindings in `src/ATHENA/Commands/Interfaces/native.xml` retain the native
+Bindings in `src/App/Commands/Interfaces/native.xml` retain the native
 entrypoints needed by the keymap dispatcher and style `extern` calls. The removed
 modules are not imported or relocated into another Scheme directory.
 

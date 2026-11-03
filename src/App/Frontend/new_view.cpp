@@ -1,0 +1,650 @@
+
+/******************************************************************************
+* MODULE     : new_view.cpp
+* DESCRIPTION: View management
+* COPYRIGHT  : (C) 1999-2012  Joris van der Hoeven
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#include "App/Runtime/tm_data.hpp"
+#include "App/Runtime/buffer_name_catalog.hpp"
+#include "convert.hpp"
+#include "file.hpp"
+#include "web_files.hpp"
+#include "tm_link.hpp"
+#include "message.hpp"
+#include "new_document.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
+#include "boot.hpp"
+#include "App/Runtime/execution_context.hpp"
+#include "App/Runtime/buffer_actor.hpp"
+#include "Editor/editor.hpp"
+#include "App/Runtime/actor_ui_bridge.hpp"
+#include "Editor/Commands/document_commands.hpp"
+
+#ifdef QTTEXMACS
+#include <QCoreApplication>
+#include <QMetaObject>
+#include <QThread>
+#include <QTimer>
+#include "UI/Qt/Toolkit/qt_actor_widget.hpp"
+#endif
+
+#ifdef OS_MINGW
+#define WINPATHS
+#endif
+
+/******************************************************************************
+* Associating URLs to views
+******************************************************************************/
+
+static hashmap<tree,int> view_number_table (0);
+static hashmap<tree,pointer> view_table (NULL);
+static athena_view_id next_runtime_view_id= 1;
+
+static int
+new_view_number (url u) {
+  view_number_table (u->t) += 1;
+  return view_number_table [u->t];
+}
+
+tm_view_rep::tm_view_rep (tm_buffer buf2):
+  buf (buf2), canvas (), win (NULL), master_view (NULL),
+  nr (new_view_number (buf->buf->name)),
+  runtime_id (next_runtime_view_id++) {
+  ASSERT (runtime_id != ATHENA_NO_VIEW, "view id space exhausted");
+#ifdef QTTEXMACS
+  bool embedded= starts (as_string (buf->buf->name), "tmfs://aux/");
+  canvas= actor_editor_widget (buf->actor->id (), runtime_id, embedded);
+#endif
+}
+
+static string
+encode_url (url u) {
+  if (!is_rooted (u)) return "here/" * as_string (u, URL_UNIX);
+  if (get_root (u) == "default") return "default" * as_string (u, URL_UNIX);
+  return get_root (u) * "/" * as_string (unroot (u), URL_UNIX);
+}
+
+static url
+decode_url (string s) {
+  int i= search_forwards ("/", 0, s);
+  if (i < 0) return url_none ();
+#ifdef WINPATHS
+  int j= 0;
+  if (s (0, i) == "here") j= i+1;
+  if (s (0, i) == "default") j= i;
+  if (j != 0) {
+    if (s[j+1] == ':') return url (s (j, N(s)));
+    else return url_root ("default") * url (s (j, N(s)));
+  }
+#else
+  if (s (0, i) == "here") return url (s (i+1, N(s)));
+  if (s (0, i) == "default") return url (s (i, N(s)));
+#endif
+  return url_root (s (0, i)) * url_general (s (i+1, N(s)), URL_CLEAN_UNIX);
+}
+
+url
+make_abstract_view_url (url buffer_name, int view_number) {
+  string name= encode_url (buffer_name);
+  //cout << vw->buf->buf->name << " -> " << name << "\n";
+  string nr  = as_string (view_number);
+  return "tmfs://view/" * nr * "/" * name;
+}
+
+url
+abstract_view (tm_view vw) {
+  if (vw == NULL) return url_none ();
+  return make_abstract_view_url (vw->buf->buf->name, vw->nr);
+}
+
+tm_view
+concrete_view (url u) {
+  if (is_none (u)) return NULL;
+  string s= as_string (u);
+  if (!starts (s, "tmfs://view/")) return NULL;
+  s= s (N (string ("tmfs://view/")), N(s));
+  int i= search_forwards ("/", 0, s);
+  if (i < 0) return NULL;
+  int nr= as_int (s (0, i));
+  url name= decode_url (s (i+1, N(s)));
+  //cout << s (i+1, N(s)) << " -> " << name << "\n";
+  tm_buffer buf= concrete_buffer (name);
+  if (!is_nil (buf))
+    for (i=0; i<N(buf->vws); i++)
+      if (buf->vws[i]->nr == nr)
+        return buf->vws[i];
+  return NULL;
+}
+
+tm_view
+concrete_runtime_view (athena_view_id view_id) {
+  if (view_id == ATHENA_NO_VIEW) return nullptr;
+  for (int i= 0; i < N (bufs); ++i)
+    for (int j= 0; j < N (bufs[i]->vws); ++j)
+      if (bufs[i]->vws[j]->runtime_id == view_id)
+        return bufs[i]->vws[j];
+  return nullptr;
+}
+
+/******************************************************************************
+* Views associated to editor, window, or buffer
+******************************************************************************/
+
+void
+notify_viewport_follow () {
+#ifdef QTTEXMACS
+  QCoreApplication* app= QCoreApplication::instance ();
+  if (app != nullptr && QThread::currentThread () != app->thread ()) {
+    QMetaObject::invokeMethod (app, [] { notify_viewport_follow (); },
+                              Qt::QueuedConnection);
+    return;
+  }
+#endif
+  // The GUI owns the view registry; editors are touched only on their actors.
+  array<url> views= get_all_views ();
+  for (int i=0; i<N(views); ++i) {
+    tm_view view= concrete_view (views[i]);
+    if (view == nullptr) continue;
+    actor_ui_endpoint* endpoint= find_actor_ui_endpoint (view->runtime_id);
+    if (endpoint == nullptr || !endpoint->viewport ().attached) continue;
+    athena_continuation_id continuation=
+      actor_continuation_registry::instance ().store ([] {
+        const ExecutionContext* context=
+          current_execution_context ();
+        if (context == nullptr || context->editor == nullptr ||
+            context->editor->ui_endpoint == nullptr ||
+            !context->editor->ui_endpoint->viewport ().attached) return;
+        // Manual-scroll inhibition remains enforced by cursor following itself.
+        context->editor->notify_change (THE_EXTENTS | THE_CURSOR, THE_FREEZE);
+      });
+    if (!view->buf->actor->submit (
+          actor_command_kind::run_native_continuation, view->runtime_id,
+          ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
+          continuation))
+      (void) actor_continuation_registry::instance ().discard (continuation);
+  }
+}
+
+tm_view the_view= NULL;
+
+bool
+has_current_view () {
+  const ExecutionContext* context= current_execution_context ();
+  if (context != nullptr) return context->view_id != ATHENA_NO_VIEW;
+  return the_view != NULL;
+}
+
+void
+set_current_view (url u) {
+  tm_view vw= concrete_view (u);
+  //ASSERT (is_none (u) || starts (as_string (tail (u)), "no_name") || vw != NULL, "bad view");
+  the_view= vw;
+  publish_active_buffer (vw && vw->buf->actor ? vw->buf->actor->id () : ATHENA_NO_ACTOR);
+  if (vw != NULL) {
+    visit_buffer (vw->buf);
+  }
+  athena::contracts::exchange_evaluation_state (nullptr);
+  swap_current_document_tree (nullptr);
+}
+
+url
+get_current_view () {
+  const ExecutionContext* context= current_execution_context ();
+  if (context != nullptr) {
+    ASSERT (context->view_id != ATHENA_NO_VIEW,
+            "no active view in Scheme context");
+    return context->actor->current_view_url (context->view_id);
+  }
+  ASSERT (the_view != NULL, "no active view");
+  return abstract_view (the_view);
+}
+
+url
+get_current_view_safe () {
+  const ExecutionContext* context= current_execution_context ();
+  if (context != nullptr)
+    return context->view_id == ATHENA_NO_VIEW ? url_none () :
+      context->actor->current_view_url (context->view_id);
+  if (the_view == NULL) return url_none ();
+  return abstract_view (the_view);
+}
+
+void notify_delete_view (url u);
+
+editor
+get_current_editor () {
+  const ExecutionContext* context= current_execution_context ();
+  if (context != nullptr) {
+    ASSERT (context->editor != nullptr,
+            "no editor capability in Scheme execution context");
+    ASSERT (context->has (EXECUTION_CAPABILITY_BUFFER),
+            "Scheme execution context cannot access a buffer editor");
+    return editor (context->editor);
+  }
+  FAILED ("editor state is owned by its BufferActor");
+  return editor ();
+}
+
+void
+keyboard_focus_on_current_view (string field) {
+  const ExecutionContext* context= current_execution_context ();
+  if (context != nullptr) {
+    ASSERT (context->editor != nullptr,
+            "no editor capability in Scheme execution context");
+    ASSERT (context->has (EXECUTION_CAPABILITY_BUFFER),
+            "Scheme execution context cannot access the current view");
+    context->editor->keyboard_focus_on (std::move (field));
+    return;
+  }
+
+  url current= get_current_view_safe ();
+  if (is_none (current)) return;
+  tm_view view= concrete_view (current);
+  if (view != nullptr && view->win != nullptr)
+    send_keyboard_focus_on (view->win->wid, std::move (field));
+}
+
+void
+init_default_current_view (string variable) {
+  const ExecutionContext* context= current_execution_context ();
+  if (context != nullptr) {
+    ASSERT (context->editor != nullptr,
+            "no editor capability in Scheme execution context");
+    ASSERT (context->has (EXECUTION_CAPABILITY_BUFFER),
+            "Scheme execution context cannot modify a buffer editor");
+    context->editor->init_default (std::move (variable));
+    return;
+  }
+
+  tm_view view= the_view;
+  if (view == nullptr) return;
+  athena_blob_id payload=
+    actor_text_registry::instance ().store (std::move (variable));
+  actor_command_ticket ticket= buffer_actor::submit_to (
+    view->buf->actor->id (), actor_command_kind::init_default,
+    view->runtime_id, payload, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER);
+  if (!ticket)
+    (void) actor_text_registry::instance ().discard (payload);
+}
+
+array<url>
+buffer_to_views (url name) {
+  tm_buffer buf= concrete_buffer (name);
+  array<url> r;
+  if (is_nil (buf)) return r;
+  for (int i=0; i<N(buf->vws); i++)
+    r << abstract_view (buf->vws[i]);
+  return r;
+}
+
+url
+view_to_buffer (url u) {
+  tm_view vw= concrete_view (u);
+  if (vw == NULL) return url_none ();
+  return vw->buf->buf->name;
+}
+
+url
+view_to_window (url u) {
+  tm_view vw= concrete_view (u);
+  if (vw == NULL) return url_none ();
+  return abstract_window (vw->win);
+}
+
+editor
+view_to_editor (url u) {
+  tm_view vw= concrete_view (u);
+  if (vw == NULL) {
+    notify_delete_view (u); // HACK: returns to valid (?) state.
+#ifdef ADVANCED_DEVELOPER_MODE
+    failed_error << "View is " << u << "\n";
+    FAILED ("View admits no editor");
+#else
+    return editor ();
+#endif
+  }
+  const ExecutionContext* context= current_execution_context ();
+  if (context != nullptr && context->actor == vw->buf->actor &&
+      context->view_id == vw->runtime_id && context->editor != nullptr)
+    return editor (context->editor);
+  FAILED ("editor state requested outside its BufferActor");
+  return editor ();
+}
+
+/******************************************************************************
+* Viewing history
+******************************************************************************/
+
+array<url> view_history;
+
+void
+notify_set_view (url u) {
+  int i;
+  for (i=0; i<N(view_history); i++)
+    if (view_history[i] == u) break;
+  if (i >= N(view_history))
+    view_history= append (u, view_history);
+  else {
+    int j;
+    for (j=i; j>0; j--)
+      view_history[j]= view_history[j-1];
+    view_history[j]= u;
+  }
+  publish_window_catalog ();
+}
+
+void
+notify_delete_view (url u) {
+  for (int i=0; i<N(view_history); i++)
+    if (view_history[i] == u) {
+      view_history= append (range (view_history, 0, i),
+			    range (view_history, i+1, N(view_history)));
+      publish_window_catalog ();
+      return;
+    }
+}
+
+url
+get_recent_view (url name, bool same, bool other, bool active, bool passive) {
+  // Get most recent view with the following filters:
+  //   If same, then the name of the buffer much be name
+  //   If other, then the name of the buffer much be other than name
+  //   If active, then the buffer must be active
+  //   If passive, then the buffer must be passive
+  int i;
+  for (i= 0; i < N(view_history); i++) {
+    tm_view vw= concrete_view (view_history[i]);
+    if (vw != NULL) {
+      if (vw->compound_member) continue;
+      if (same && vw->buf->buf->name != name) continue;
+      if (other && vw->buf->buf->name == name) continue;
+      if (active && vw->win == NULL) continue;
+      if (passive && vw->win != NULL) continue;
+      return view_history[i];
+    }
+  }
+  return url_none ();
+}
+
+array<url>
+get_all_views () {
+  return view_history;
+}
+
+/******************************************************************************
+* Creation of views on buffers
+******************************************************************************/
+
+static bool defer_view_initialization= false;
+static url deferred_view= url_none ();
+
+void
+defer_next_view_initialization () {
+  defer_view_initialization= true;
+}
+
+void
+initialize_current_view () {
+  url buffer= get_current_buffer ();
+  if (!is_none (buffer) && !buffer_has_name (buffer)) {
+    if (document_missing_style ()) document_set_default_style ();
+    document_apply_vault_font ();
+  }
+}
+
+static void
+initialize_view (tm_view vw) {
+  if (!vw->buf->actor->submit (
+        actor_command_kind::initialize_view, vw->runtime_id))
+    FAILED ("BufferActor rejected view initialization");
+}
+
+void
+schedule_deferred_view_initialization () {
+#ifdef QTTEXMACS
+  url pending= deferred_view;
+  deferred_view= url_none ();
+  QTimer::singleShot (500, [pending] () {
+    tm_view vw= concrete_view (pending);
+    if (vw != nullptr && vw->win != nullptr) initialize_view (vw);
+  });
+#endif
+}
+
+url
+get_new_view (url name) {
+  //cout << "Creating new view " << name << "\n";
+
+  create_buffer (name, tree (DOCUMENT));
+  tm_buffer buf= concrete_buffer (name);
+  tm_view   vw = tm_new<tm_view_rep> (buf);
+  buf->vws << vw;
+  bench_start ("construct initial editor");
+  if (!buf->actor->invoke (
+        actor_command_kind::create_view, vw->runtime_id,
+        ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
+        EXECUTION_CAPABILITY_BUFFER, static_cast<std::uint64_t> (vw->nr)))
+    FAILED ("BufferActor rejected view creation");
+  bench_cumul ("construct initial editor");
+
+  if (defer_view_initialization) {
+    defer_view_initialization= false;
+    deferred_view= abstract_view (vw);
+  }
+  else initialize_view (vw);
+
+  publish_buffer_source_view (buf);
+
+  //cout << "View created " << abstract_view (vw) << "\n";
+  return abstract_view (vw);
+}
+
+url
+get_passive_view (url name) {
+  // Get a view on a buffer, but not one which is attached to a window
+  // Create a new view if no such view exists
+  tm_buffer buf= concrete_buffer_insist (name);
+  if (is_nil (buf)) return url_none ();
+  array<url> vs= buffer_to_views (name);
+  for (int i=0; i<N(vs); i++) {
+    url win= view_to_window (vs[i]);
+    if (is_none (win) && !concrete_view (vs[i])->compound_member) return vs[i];
+  }
+  return get_new_view (buf->buf->name);
+}
+
+url
+get_recent_view (url name) {
+  // Get (most) recent view on a buffer, with a preference for
+  // the current buffer or another view attached to a window
+  array<url> vs= buffer_to_views (name);
+  if (N(vs) == 0) return get_new_view (name);
+  url u= get_current_view_safe ();
+  if (!is_none (u) && view_to_buffer (u) == name &&
+      !concrete_view (u)->compound_member) return u;
+  url r= get_recent_view (name, true, false, true, false);
+  if (!is_none (r)) return r;
+  r= get_recent_view (name, true, false, false, false);
+  if (!is_none (r)) return r;
+  for (int i= 0; i < N (vs); ++i)
+    if (!concrete_view (vs[i])->compound_member) return vs[i];
+  return get_new_view (name);
+}
+
+/******************************************************************************
+* Destroying a view
+******************************************************************************/
+
+void
+delete_view (url u) {
+  tm_view vw= concrete_view (u);
+  if (vw == NULL) return;
+  if (the_view == vw) set_current_view (url_none ());
+  tm_buffer buf= vw->buf;
+  int i, j, n= N(buf->vws);
+  for (i=0; i<n; i++)
+    if (buf->vws[i] == vw) {
+      array<tm_view> a (n-1);
+      for (j=0; j<n-1; j++)
+        if (j<i) a[j]= buf->vws[j];
+        else a[j]= buf->vws[j+1];
+      buf->vws= a;
+    }
+  notify_delete_view (u);
+  (void) buf->actor->invoke (
+    actor_command_kind::destroy_view, vw->runtime_id);
+  tm_delete (vw);
+  publish_buffer_source_view (buf);
+}
+
+void
+notify_rename_before (url old_name) {
+  array<url> vs= buffer_to_views (old_name);
+  for (int i=0; i<N(vs); i++)
+    notify_delete_view (vs[i]);
+}
+
+void
+notify_rename_after (url new_name) {
+  array<url> vs= buffer_to_views (new_name);
+  for (int i=0; i<N(vs); i++)
+    notify_set_view (vs[i]);
+}
+
+/******************************************************************************
+* Attaching and detaching views
+******************************************************************************/
+
+void
+attach_view (url win_u, url u) {
+  tm_window win= concrete_window (win_u);
+  tm_view   vw = concrete_view (u);
+  if (win == NULL || vw == NULL) return;
+  // cout << "Attach view " << vw->buf->buf->name << "\n";
+  vw->win= win;
+  widget wid= win->wid;
+  bench_start ("attach editor canvas");
+  set_scrollable (wid, vw->canvas);
+  bench_cumul ("attach editor canvas");
+  ASSERT (is_attached (wid), "widget should be attached");
+  bench_start ("resume initial editor");
+  (void) vw->buf->actor->submit (
+    actor_command_kind::resume_view, vw->runtime_id);
+  bench_cumul ("resume initial editor");
+  win->set_window_name (vw->buf->buf->title);
+  win->set_window_url (vw->buf->buf->name);
+  notify_set_view (u);
+  // cout << "View attached\n";
+}
+
+void
+detach_view (url u) {
+  tm_view vw = concrete_view (u);
+  if (vw == NULL) return;
+  tm_window win= vw->win;
+  if (win == NULL) return;
+  // cout << "Detach view " << vw->buf->buf->name << "\n";
+  vw->win= NULL;
+  publish_window_catalog ();
+  widget wid= win->wid;
+  ASSERT (is_attached (wid), "widget should be attached");
+  (void) vw->buf->actor->submit (
+    actor_command_kind::suspend_view, vw->runtime_id);
+  set_scrollable (wid, glue_widget ());
+  win->set_window_name ("TeXmacs");
+  win->set_window_url (url_none ());
+  // cout << "View detached\n";
+}
+
+/******************************************************************************
+* Switching views
+******************************************************************************/
+
+void
+window_set_view (url win_u, url new_u, bool focus) {
+  //cout << "set view " << win_u << ", " << new_u << ", " << focus << "\n";
+  tm_window win= concrete_window (win_u);
+  if (win == NULL) return;
+  //cout << "Found window\n";
+  tm_view new_vw= concrete_view (new_u);
+  if (new_vw == NULL || new_vw->win == win) return;
+  //cout << "Found view\n";
+  ASSERT (new_vw->win == NULL, "view attached to other window");
+  url old_u= window_to_view (win_u);
+  if (!is_none (old_u)) detach_view (old_u);
+  attach_view (win_u, new_u);
+  if (focus || get_current_view () == old_u)
+    set_current_view (new_u);
+}
+
+void
+switch_to_buffer (url name) {
+  const ExecutionContext* context= current_execution_context ();
+  if (context != nullptr && context->editor != nullptr) {
+    (void) context->editor->publish_ui_text (
+      actor_command_kind::ui_switch_to_buffer, encode_url (name));
+    return;
+  }
+  //cout << "Switching to buffer " << name << "\n";
+  // A document keeps its tab and view. Reattaching a passive view here used
+  // to hide the previous document and discard the target's visible state.
+  if (is_none (name)) return;
+  url u= get_current_view_safe ();
+  if (!is_none (u) && view_to_buffer (u) == name &&
+      !is_none (view_to_window (u))) return;
+  u= get_recent_view (name, true, false, true, false);
+  if (!is_none (u)) switch_to_window (view_to_window (u));
+  else if (!is_nil (concrete_buffer_insist (name)))
+    new_buffer_in_new_window (name, tree (DOCUMENT));
+  //cout << "Switched to buffer " << vw->buf->buf->name << "\n";
+}
+
+void
+switch_to_buffer_from_actor (string encoded_name) {
+  switch_to_buffer (decode_url (std::move (encoded_name)));
+}
+
+bool
+focus_on_buffer (url name) {
+  // Focus on the most recent view on a buffer, preferably active in a window
+  // Return false if no view exists for the buffer
+  if (the_view != NULL && the_view->buf->buf->name == name) return true;
+  url r= get_recent_view (name, true, false, true, false);
+  if (is_none (r)) r= get_recent_view (name, true, false, false, false);
+  if (is_none (r)) {
+    array<url> vws= buffer_to_views (name);
+    for (int i= 0; i < N(vws); ++i)
+      if (!concrete_view (vws[i])->compound_member) { r= vws[i]; break; }
+  }
+  if (is_none (r)) return false;
+  set_current_view (r);
+  return true;
+}
+
+bool
+var_focus_on_buffer (url name) {
+  if (the_view != NULL && the_view->buf->buf->name == name) return true;
+  url r= get_recent_view (name, true, false, true, false);
+  if (is_none (r)) r= get_recent_view (name, true, false, false, false);
+  if (is_none (r)) {
+    array<url> vws= buffer_to_views (name);
+    for (int i= 0; i < N(vws); ++i)
+      if (!concrete_view (vws[i])->compound_member) { r= vws[i]; break; }
+  }
+  if (is_none (r)) return false;
+  if (the_view != nullptr) {
+    (void) the_view->buf->actor->submit (
+      actor_command_kind::suspend_view, the_view->runtime_id);
+  }
+  set_current_view (r);
+  tm_view new_vw = concrete_view (r);
+  (void) new_vw->buf->actor->submit (
+    actor_command_kind::resume_view, new_vw->runtime_id);
+  send_keyboard_focus (new_vw->canvas);
+  return true;
+}

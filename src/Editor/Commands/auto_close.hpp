@@ -1,0 +1,61 @@
+/******************************************************************************
+* MODULE     : auto_close.hpp
+* DESCRIPTION: Native smart quotes, apostrophes and paired delimiters
+* COPYRIGHT  : (C) 2001 Joris van der Hoeven, 2026 Nuaptan Felix Evalisk
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+#pragma once
+
+#include "Editor/editor.hpp"
+
+namespace athena::auto_close {
+
+struct quote_style {
+  string open;
+  string close;
+  string open_suffix;
+  string close_prefix;
+  array<string> open_after;
+  bool apostrophe_opens= true;
+  bool paired= true;
+};
+
+// Pure helpers are exposed for regression tests of byte-position behavior.
+quote_style quote_style_for_language (string language);
+bool quote_should_close (tree root, path cursor, string language);
+bool has_opening_single_quote (tree root, path cursor);
+
+void insert_quote (editor_rep* ed);
+void insert_apostrophe (editor_rep* ed, bool alternate);
+void make_bracket_open (editor_rep* ed, string left, string right,
+                        bool large=false);
+void make_separator (editor_rep* ed, string separator, bool large=false);
+void make_bracket_close (editor_rep* ed, string right, string left,
+                         bool large=false);
+bool test_matching_brackets ();
+void toggle_matching_brackets ();
+void make_big_operator (editor_rep* ed, string op);
+// Shared keymap/toolbar long-arrow insertion. Old XML v2 buffers retain
+// LONG_ARROW; native v3 mathematics use the fixed three-slot MATH_LONG_ARROW.
+void insert_long_arrow (editor_rep* ed, tree glyph, bool below=false);
+// Interpret the shipped math keymap's `with` presentation flags into native
+// v3 operator metadata. Preserve the legacy BIG source exactly for XML v2.
+void insert_big_operator (editor_rep* ed, tree descriptor);
+// Convert losslessly supported toolbar alphabet groups to native v3 variants;
+// unsupported font families do not silently become legacy XML v2 wrappers.
+void insert_alphabet (editor_rep* ed, string tag, string value);
+
+} // namespace athena::auto_close
+
+// Native entry points shared by generated commands and direct callers.
+void native_insert_quote ();
+void native_insert_apostrophe (bool alternate);
+void native_make_bracket_open (string left, string right, bool large= false);
+void native_make_separator (string separator, bool large= false);
+void native_make_bracket_close (string right, string left, bool large= false);
+bool native_test_matching_brackets ();
+void native_toggle_matching_brackets ();
+void native_make_big_operator (string op);

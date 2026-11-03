@@ -12,7 +12,7 @@
 #include "Xml/vault_format_upgrade.hpp"
 #include "Xml/document_file_codec.hpp"
 #include "vault_directory_lease.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 #include "convert.hpp"
 #include <QByteArray>
 #include <fstream>

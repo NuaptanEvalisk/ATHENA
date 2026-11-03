@@ -1,0 +1,787 @@
+
+/******************************************************************************
+* MODULE     : file.cpp
+* DESCRIPTION: file handling
+* COPYRIGHT  : (C) 1999  Joris van der Hoeven
+*******************************************************************************
+* This software falls under the GNU general public license version 3 or later.
+* It comes WITHOUT ANY WARRANTY WHATSOEVER. For details, see the file LICENSE
+* in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
+******************************************************************************/
+
+#include "Infrastructure/Files/file.hpp"
+#include "Infrastructure/VirtualFS/tmfs.hpp"
+#include "sys_utils.hpp"
+#include "analyze.hpp"
+#include "hashmap.hpp"
+#include "tm_timer.hpp"
+#include "merge_sort.hpp"
+#include "data_cache.hpp"
+#include "Infrastructure/Files/web_files.hpp"
+#include "convert.hpp"
+
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <sys/stat.h>
+#include <sys/file.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <string.h>  // strerror
+#include <dirent.h>
+
+#ifdef MACOSX_EXTENSIONS
+#include "Platform/MacOS/mac_images.h"
+#endif
+
+#if defined (OS_MINGW64)
+#include "Platform/Windows64/windows64_system.hpp"
+#elif defined (OS_MINGW)
+#include "Platform/Windows/windows32_system.hpp"
+#else
+#include "Platform/Unix/unix_system.hpp"
+#endif
+
+/******************************************************************************
+* New style loading and saving
+******************************************************************************/
+
+bool
+load_string (url u, string& s, bool fatal) {
+  // cout << "Load " << u << LF;
+  url r= u;
+  if (!is_rooted_name (r)) r= resolve (r);
+  // cout << "Resolved " << r << LF;
+  bool err= !is_rooted_name (r) || is_directory (r);
+  if (!err) {
+    string name= concretize (r);
+    // cout << "Concrete :" << name << LF;
+    // File contents in cache?
+    bool file_flag= do_cache_file (name);
+    string cache_type= "file_cache";
+    bool currently_cached= file_flag &&
+                           is_cached (cache_type, name);
+    if (currently_cached && is_up_to_date (url_parent (r))) {
+      s= cache_get (cache_type, name) -> label;
+      return false;
+    }
+    // End caching
+
+    bench_start ("load file");
+
+    texmacs_reset_last_error();
+    FILE* fin= texmacs_fopen (name, "r");
+
+    if (fin == NULL) {
+      err= true;
+      if (!occurs ("system", name))
+        std_warning << "Load error for " << name << ", "
+                    << texmacs_get_last_error_str() << "\n";
+    }
+    ssize_t size= 0;
+    if (!err) {
+      size = texmacs_fsize (fin);
+      if (size < 0) {
+        err= true;
+        std_warning << "Can't get file size for " << name << "\n";
+      }
+    }
+    if (!err) {
+      s.resize (size);
+      ssize_t readed= texmacs_fread (s.mutable_data (), size, fin);
+      texmacs_fclose (fin);
+      if (readed != size) {
+        err= true;
+        std_warning << "Can't read " << name << "\n";
+      }
+    }
+    bench_cumul ("load file");
+
+    // Cache file contents
+    if (!err && (N(s) <= 10000 || currently_cached))
+      if (file_flag)
+        cache_set (cache_type, name, s);
+    // End caching
+  }
+  if (err) {
+    string err_msg = string("Failed to load file: ") * as_string (u);
+    if (fatal) {
+      failed_error << err_msg << LF;
+      FAILED ("file not readable");
+    }
+    //else debug_io << err_msg << LF;
+  }
+  return err;
+}
+
+bool
+save_string (url u, string s, bool fatal) {
+  if (is_rooted_tmfs (u)) {
+    bool err= save_to_server (u, s);
+    if (err && fatal) {
+      failed_error << "File name= " << as_string (u) << "\n";
+      FAILED ("file not writeable");
+    }
+    return err;
+  }
+
+  url r= u;
+  if (!is_rooted_name (r)) r= resolve (r, "");
+  bool err= !is_rooted_name (r);
+  if (!err) {
+    string name= concretize (r);
+    {
+      texmacs_reset_last_error();
+      FILE* fout = texmacs_fopen (name, "w");
+      if (fout == NULL) {
+        err= true;
+        std_warning << "Save error for " << name << ", "
+                    << texmacs_get_last_error_str() << "\n";
+      }
+      if (!err) {
+        int n= N(s);
+        ssize_t written = texmacs_fwrite (s.data (), n, fout);
+        texmacs_fclose (fout);
+        if (written != n) {
+          err= true;
+          std_warning << "Can't write to " << name << "\n";
+        }
+      }
+    }
+    // Cache file contents
+    bool file_flag= do_cache_file (name);
+    string cache_type= "file_cache";
+    if (!err && N(s) <= 10000)
+      if (file_flag)
+        cache_set (cache_type, name, s);
+    declare_out_of_date (url_parent (r));
+    // End caching
+  }
+
+  if (err && fatal) {
+    failed_error << "File name= " << as_string (u) << "\n";
+    FAILED ("file not writeable");
+  }
+  return err;
+}
+
+bool
+append_string (url u, string s, bool fatal) {
+  if (is_rooted_tmfs (u)) FAILED ("file not appendable");
+
+  // cout << "Save " << u << LF;
+  url r= u;
+  if (!is_rooted_name (r)) r= resolve (r, "");
+  bool err= !is_rooted_name (r);
+  if (!err) {
+    string name= concretize (r);
+    {
+      texmacs_reset_last_error();
+      FILE* fout= texmacs_fopen (name, "a");
+      if (fout == NULL) {
+        err= true;
+        std_warning << "Append error for " << name << ", "
+                    << texmacs_get_last_error_str() << "\n";
+      }
+      if (!err) {
+        int n= N(s);
+        ssize_t written = texmacs_fwrite (s.data (), n, fout);
+        if (written != n) {
+          err= true;
+          std_warning << "Can't append to " << name << "\n";
+        }
+        texmacs_fclose (fout);
+      }
+    }
+    // Cache file contents
+    declare_out_of_date (url_parent (r));
+    // End caching
+  }
+
+  if (err && fatal) {
+    failed_error << "File name= " << as_string (u) << "\n";
+    FAILED ("file not appendable");
+  }
+  return err;
+}
+
+/******************************************************************************
+* Getting attributes of a file
+******************************************************************************/
+
+static bool
+get_attributes (url name, struct_stat* buf,
+                bool link_flag=false, bool cache_flag= true)
+{
+  // cout << "Stat " << name << LF;
+  string name_s= concretize (name);
+
+  // Stat result in cache?
+  if (cache_flag &&
+      is_cached ("stat_cache.scm", name_s) &&
+      is_up_to_date (url_parent (name)))
+    {
+      tree r= cache_get ("stat_cache.scm", name_s);
+      // cout << "Cache : " << r << LF;
+      if (r == "#f") return true;
+      if ((is_compound(r)) && (N(r)==3)) {
+        buf->st_mode = ((unsigned int) as_int (r[0]));
+        buf->st_mtime= ((unsigned int) as_int (r[1]));
+        buf->st_size = ((unsigned int) as_int (r[2]));
+        return false;
+      } 
+      std_warning << "Inconsistent value in stat_cache.scm for key "
+                  << name_s << LF;
+      std_warning << "The current value is " << r << LF;
+      std_warning << "I'm resetting this key" << LF;
+      // continue and recache, the current value is inconsistent. 
+    }
+  // End caching
+
+  //cout << "No cache" << LF;
+
+  bench_start ("stat");
+  bool flag = texmacs_stat (name_s, buf);
+  (void) link_flag;
+  bench_cumul ("stat");
+
+  // Cache stat results
+  if (cache_flag) {
+    if (flag) {
+      if (do_cache_stat_fail (name_s))
+        cache_set ("stat_cache.scm", name_s, "#f");
+    }
+    else {
+      if (do_cache_stat (name_s)) {
+        string s1= as_string ((int) buf->st_mode);
+        string s2= as_string ((int) buf->st_mtime);
+        string s3= as_string ((int) buf->st_size);
+        cache_set ("stat_cache.scm", name_s, tree (TUPLE, s1, s2, s3));
+      }
+    }
+  }
+  // End caching
+
+  return flag;
+}
+
+bool
+is_of_type (url name, string filter) {
+  if (filter == "") return true;
+  int i, n= N(filter);
+
+  // Files from the web
+  if (is_rooted_web (name)) {
+    // cout << "  try " << name << "\n";
+    url from_web= get_from_web (name);
+    // cout << "  --> " << from_web << "\n";
+    if (is_none (from_web)) return false;
+    for (i=0; i<n; i++)
+      switch (filter[i]) {
+      case 'd': return false;
+      case 'l': return false;
+      case 'w': return false;
+      case 'x': return false;
+      }
+    return true;
+  }
+
+  // Files from a remote server
+  if (is_rooted_tmfs (name)) {
+    for (i=0; i<n; i++)
+      switch (filter[i]) {
+      case 'd': return false;
+      case 'l': return false;
+      case 'r':
+        if (!tmfs_permission (name, "read"))
+          return false;
+        break;
+      case 'w':
+        if (!tmfs_permission (name, "write"))
+          return false;
+        break;
+      case 'x': return false;
+      }
+    return true;
+  }
+
+  // Files from the ramdisk
+  if (is_ramdisc (name))
+    return true;
+
+  // Normal files
+#ifdef OS_MINGW
+  string suf;
+  if (filter == "x") {
+    suf= suffix(name);
+    if ((suf != "exe") && (suf != "bat") && (suf != "com")) {
+      name = glue (name, ".exe");
+      suf = "exe";
+    }
+  }
+#endif
+  bool preserve_links= false;
+  for (i=0; i<n; i++)
+    preserve_links= preserve_links || (filter[i] == 'l');
+  struct_stat buf;
+  bool err= get_attributes (name, &buf, preserve_links);
+  for (i=0; i<n; i++)
+    switch (filter[i]) {
+      // FIXME: should check user id and group id for r, w and x
+    case 'f':
+      if (err || !S_ISREG (buf.st_mode)) return false;
+      break;
+    case 'd':
+      if (err || !S_ISDIR (buf.st_mode)) return false;
+      break;
+#ifndef OS_MINGW
+    case 'l':
+      if (err || !S_ISLNK (buf.st_mode)) return false;
+      break;
+#endif
+    case 'r':
+      if (err) return false;
+      if ((buf.st_mode & (S_IRUSR | S_IRGRP | S_IROTH)) == 0) return false;
+      break;
+    case 'w':
+      if (err) return false;
+      if ((buf.st_mode & (S_IWUSR | S_IWGRP | S_IWOTH)) == 0) return false;
+      break;
+    case 'x':
+      if (err) return false;
+#ifdef OS_MINGW
+      if (((suf == "exe") || (suf == "com") || (suf == "bat")) && (buf.st_mode & S_IRUSR)) return true;
+#endif
+      if ((buf.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) == 0) return false;
+      break;
+    }
+  return true;
+}
+
+bool is_regular (url name) { return is_of_type (name, "f"); }
+bool is_directory (url name) { return is_of_type (name, "d"); }
+bool is_symbolic_link (url name) { return is_of_type (name, "l"); }
+
+int
+file_size (url u) {
+  if (is_rooted_web (u)) return -1;
+  if (is_rooted_tmfs (u)) return -1;
+  struct_stat u_stat;
+  if (get_attributes (u, &u_stat, true)) return -1;
+  return u_stat.st_size;
+}
+
+int
+last_modified (url u, bool cache_flag) {
+  if (is_rooted_web (u))
+    return - (int) (((unsigned int) (-1)) >> 1);
+  if (is_rooted_tmfs (u))
+    return - (int) (((unsigned int) (-1)) >> 1);
+  struct_stat u_stat;
+  if (get_attributes (u, &u_stat, true, cache_flag))
+    return - (int) (((unsigned int) (-1)) >> 1);
+  return u_stat.st_mtime;
+}
+
+bool
+is_newer (url which, url than) {
+  struct_stat which_stat;
+  struct_stat than_stat;
+  // FIXME: why was this? 
+  if (is_cached ("stat_cache.scm", concretize (which))) return false;
+  if (is_cached ("stat_cache.scm", concretize (than))) return false;
+  // end FIXME
+  if (get_attributes (which, &which_stat, true)) return false;
+  if (get_attributes (than , &than_stat , true)) return false;
+  return which_stat.st_mtime > than_stat.st_mtime;
+}
+
+url
+url_temp (string suffix) {
+#ifdef OS_MINGW
+  unsigned int rnd= raw_time ();
+#else
+  static bool initialized= false;
+  if (!initialized) {
+    srandom ((int) raw_time ());
+    initialized= true;
+  }
+  unsigned int rnd= random ();
+#endif
+  string name= "tmp_" * as_string (rnd) * suffix;
+  url u= url_temp_dir () * url (name);
+  if (exists (u)) return url_temp (suffix);
+  return u;
+}
+
+url
+url_numbered (url dir, string prefix, string postfix, int i) {
+  if (!exists (dir)) mkdir (dir);
+  for (; true; i++) {
+    url name= dir * (prefix * as_string (i) * postfix);
+    if (!exists (name)) return name;
+  }
+  return dir * (prefix * "x" * postfix);
+}
+
+url
+url_scratch (string prefix, string postfix, int i) {
+  url dir ("$ATHENA_HOME_PATH/texts/scratch");
+  return url_numbered (dir, prefix, postfix, i);
+}
+
+bool
+is_scratch (url u) {
+  return head (u) == url ("$ATHENA_HOME_PATH/texts/scratch");
+}
+
+string
+file_format (url u) {
+  if (is_rooted_tmfs (u))
+    return "stm";
+  string ext= suffix (u);
+  if (ext == "ath" || ext == "tm" || ext == "ats" || ext == "ts" || ext == "tp")
+    return "texmacs";
+  return suffix_to_format (ext);
+}
+
+/******************************************************************************
+* Reading directories
+******************************************************************************/
+
+static array<string>
+cache_dir_get (string dir) {
+  tree t= cache_get ("dir_cache.scm", dir);
+  array<string> a (N(t));
+  for (int i=0; i<N(t); i++) a[i]= t[i]->label;
+  return a;
+}
+
+static void
+cache_dir_set (string dir, array<string> a) {
+  tree t (TUPLE, N(a));
+  for (int i=0; i<N(a); i++) t[i]= a[i];
+  cache_set ("dir_cache.scm", dir, t);
+}
+
+array<string>
+read_directory (url u, bool& error_flag) {
+  // cout << "Directory " << u << LF;
+  u= resolve (u, "dr");
+  if (is_none (u)) return array<string> ();
+  string name= concretize (u);
+
+  // Directory contents in cache?
+  if (is_cached ("dir_cache.scm", name) && is_up_to_date (u))
+    return cache_dir_get (name);
+  bench_start ("read directory");
+  // End caching
+
+  ATHENA_DIR dp;
+  dp = texmacs_opendir (name);
+
+  error_flag= (dp==NULL);
+  if (error_flag) return array<string> ();
+
+  array<string> dir;
+  texmacs_dirent ep;
+  while (true) {
+    ep = texmacs_readdir (dp);
+    if (!ep.is_valid) break;
+    dir << ep.d_name;
+  }
+  texmacs_closedir (dp);
+  merge_sort (dir);
+
+  // Caching of directory contents
+  bench_cumul ("read directory");
+  if (do_cache_dir (name))
+    cache_dir_set (name, dir);
+  // End caching
+
+  return dir;
+}
+
+/******************************************************************************
+* Commands on files
+******************************************************************************/
+
+void
+move (url u1, url u2) {
+  string _u1 = concretize (u1);
+  string _u2 = concretize (u2);
+  (void) texmacs_rename (_u1, _u2);
+}
+
+void
+copy (url u1, url u2) {
+  string s;
+  if (!load_string (u1, s, false))
+    (void) save_string (u2, s, false);
+}
+
+void
+remove_sub (url u) {
+  if (is_none (u)) {
+    return;
+  }
+  if (is_or (u)) {
+    remove_sub (u[1]);
+    remove_sub (u[2]);
+    return;
+  }
+  string _u = concretize (u);
+  if (!texmacs_remove (_u) && DEBUG_AUTO) {
+    std_warning << "Remove failed: " << strerror (errno) << LF;
+    std_warning << "File was: " << u << LF;
+  }
+}
+
+void
+remove (url u) {
+  remove_sub (expand (complete (u)));
+}
+
+void
+append_to (url what, url to) {
+  string what_s;
+  if (load_string (what, what_s, false) ||
+      append_string (to, what_s, false))
+    std_warning << "Append failed for " << to << LF;
+}
+
+void
+rmdir (url u) {
+  remove_sub (expand (complete (u, "dr")));
+}
+
+void
+mkdir (url u) {
+  // if the directory already exists, we do nothing
+  if (exists (u)) {
+    return;
+  }
+  
+  // if the parent directory does not exist, we create it
+  if (!is_atomic (u) && !is_root (u)) {
+    mkdir (head (u));
+  }
+  
+  // call the system mkdir
+  string _u = concretize (u);
+  (void) texmacs_mkdir (_u, S_IRWXU + S_IRGRP + S_IROTH);
+}
+
+void
+change_mode (url u, int mode) {
+  string _u = concretize (u);
+  (void) texmacs_chmod (_u, mode);
+}
+
+/******************************************************************************
+* Tab-completion for file names
+******************************************************************************/
+
+#ifdef OS_WIN32
+#define URL_CONCATER  '\\'
+#else
+#define URL_CONCATER  '/'
+#endif
+
+static void
+file_completions_file (array<string>& a, url search, url u) {
+  if (is_or (u)) {
+    file_completions_file (a, search, u[1]);
+    file_completions_file (a, search, u[2]);
+  }
+  else {
+    url v= delta (search * url ("dummy"), u);
+    if (is_none (v)) return;
+    string s= as_string (v);
+    if (is_directory (u)) s= s * string (URL_CONCATER);
+    a << s;
+  }
+}
+
+static void
+file_completions_dir (array<string>& a, url search, url dir) {
+  if (is_or (search)) {
+    file_completions_dir (a, search[1], dir);
+    file_completions_dir (a, search[2], dir);
+  }
+  else if (is_or (dir)) {
+    file_completions_dir (a, search, dir[1]);
+    file_completions_dir (a, search, dir[2]);
+  }
+  else {
+    url u= search * dir * url_wildcard ("*");
+    u= complete (u, "r");
+    u= expand (u);
+    file_completions_file (a, search, u);
+  }
+}
+
+array<string>
+file_completions (url search, url dir) {
+  array<string> a;
+  file_completions_dir (a, search, dir);
+  return a;
+}
+
+/******************************************************************************
+* Grepping of strings with heavy caching
+******************************************************************************/
+
+hashmap<tree,tree>   grep_cache (url_none () -> t);
+hashmap<tree,string> grep_load_cache ("");
+hashmap<tree,tree>   grep_complete_cache (url_none () -> t);
+
+static bool
+bad_url (url u) {
+  if (is_atomic (u))
+    return u == url ("aapi") || u == url (".svn");
+  else if (is_concat (u))
+    return bad_url (u[1]) || bad_url (u[2]);
+  else return false;
+}
+
+string
+grep_load (url u) {
+  if (!grep_load_cache->contains (u->t)) {
+    //cout << "Loading " << u << "\n";
+    string s;
+    if (load_string (u, s, false)) s= "";
+    grep_load_cache (u->t)= s;
+  }
+  return grep_load_cache [u->t];
+}
+
+url
+grep_sub (string what, url u) {
+  if (is_or (u))
+    return grep_sub (what, u[1]) | grep_sub (what, u[2]);
+  else if (bad_url (u))
+    return url_none ();
+  else {
+    string contents= grep_load (u);
+    if (occurs (what, contents)) return u;
+    else return url_none ();
+  }
+}
+
+url
+grep (string what, url u) {
+  tree key= tuple (what, u->t);
+  if (!grep_cache->contains (key)) {
+    if (!grep_complete_cache->contains (u->t))
+      grep_complete_cache (u->t)= expand (complete (u)) -> t;
+    url found= grep_sub (what, as_url (grep_complete_cache [u->t]));
+    grep_cache (key)= found->t;
+  }
+  return as_url (grep_cache [key]);
+}
+
+
+/******************************************************************************
+* Finding recursive non hidden subdirectories of a given directory
+******************************************************************************/
+
+static void
+search_sub_dirs (url& all, url root) {
+  if (is_none (root));
+  else if (is_or (root)) {
+    search_sub_dirs (all, root[2]);
+    search_sub_dirs (all, root[1]);
+  }
+  else if (is_directory (root)) {
+    bool err= false;
+    array<string> a= read_directory (root, err);
+    if (!err) {
+      for (int i=N(a)-1; i>=0; i--)
+        if (N(a[i])>0 && a[i][0] != '.')
+          search_sub_dirs (all, root * a[i]);
+    }
+    all= root | all;
+  }
+}
+
+url
+search_sub_dirs (url root) {
+  url all= url_none ();
+  //cout << "Search in " << root << " -> " << expand (complete (root, "dr")) << LF;
+  search_sub_dirs (all, expand (complete (root, "dr")));
+  return all;
+}
+
+/******************************************************************************
+* Searching files in a directory tree with caching
+******************************************************************************/
+
+array<string> no_strings;
+hashmap<tree,int> dir_stamp (0);
+hashmap<tree,bool> dir_is_dir (false);
+hashmap<tree,array<string> > dir_contents (no_strings);
+
+array<string>
+var_read_directory (url u) {
+  array<string> d;
+  if (is_rooted (u, "default") || is_rooted (u, "file")) {
+    bool error_flag= false;
+    array<string> a= read_directory (u, error_flag);
+    for (int i=0; i<N(a); i++)
+      if (!starts (a[i], "."))
+        d << a[i];
+  }
+  return d;
+}
+
+url
+search_file_in (url u, string name) {
+  // cout << "Search in " << u << ", " << name << LF;
+  if (!dir_stamp->contains (u->t) ||
+      texmacs_time () - dir_stamp [u->t] > 10000) {
+    dir_is_dir->reset (u->t);
+    dir_contents->reset (u->t);
+  }
+  dir_stamp (u->t)= texmacs_time ();
+
+  if (!dir_is_dir->contains (u->t))
+    dir_is_dir (u->t)= is_directory (u);
+  if (!dir_is_dir [u->t]) {
+    if (as_string (tail (u)) == name) return u;
+    return url_none ();
+  }
+
+  if (!dir_contents->contains (u->t)) {
+    array<string> d= var_read_directory (u);
+    dir_contents (u->t)= d;
+  }
+
+  array<string> d= dir_contents [u->t];
+  for (int i=0; i<N(d); i++) {
+    url f= search_file_in (u * d[i], name);
+    if (!is_none (f)) return f;
+  }
+  return url_none ();
+}
+
+bool
+find_stop (url u, array<string> stops) {
+  if (head (u) == u) return false;
+  for (int i=0; i<N(stops); i++)
+    if (as_string (tail (u)) == stops[i]) return true;
+  return find_stop (head (u), stops);
+}
+
+url
+search_file_upwards (url u, string name, array<string> stops) {
+  // cout << "Search upwards " << u << ", " << name << LF;
+  url f= search_file_in (u, name);
+  if (!is_none (f)) return f;
+  if (head (u) == u) return url_none ();
+  if (!find_stop (head (u), stops)) return url_none ();
+  for (int i=0; i<N(stops); i++)
+    if (as_string (tail (u)) == stops[i]) return url_none ();
+  return search_file_upwards (head (u), name, stops);
+}

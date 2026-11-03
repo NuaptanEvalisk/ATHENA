@@ -205,9 +205,9 @@ separate pending and active drag modes.
 
 Relevant ATHENA source:
 
-- [`commutative_diagram_native.cpp`](../../src/ATHENA/Math/commutative_diagram_native.cpp)
-- [`edit_commutative_diagram.cpp`](../../src/Edit/Interface/edit_commutative_diagram.cpp)
-- [`concat_commutative_diagram.cpp`](../../src/Typeset/Concat/concat_commutative_diagram.cpp)
+- [`commutative_diagram_native.cpp`](../../src/Math/Tools/commutative_diagram_native.cpp)
+- [`edit_commutative_diagram.cpp`](../../src/Editor/Commands/edit_commutative_diagram.cpp)
+- [`concat_commutative_diagram.cpp`](../../src/Typesetting/Concat/concat_commutative_diagram.cpp)
 
 ## 8. Recommended ATHENA Interaction Model
 

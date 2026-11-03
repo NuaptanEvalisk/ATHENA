@@ -9,7 +9,7 @@
 
 #include <QtTest/QtTest>
 
-#include "ATHENA/Data/heading_word_count.hpp"
+#include "Document/Model/heading_word_count.hpp"
 
 class TestHeadingStructure: public QObject {
   Q_OBJECT

@@ -8,7 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-#include "Qt/QTMCompletingComboBox.hpp"
+#include "UI/Qt/Widgets/QTMCompletingComboBox.hpp"
 
 #include <QLineEdit>
 #include <QShortcut>

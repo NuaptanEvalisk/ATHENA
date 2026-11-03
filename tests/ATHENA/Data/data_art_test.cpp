@@ -10,7 +10,7 @@
 
 #include <QtTest/QtTest>
 
-#include "ATHENA/Data/data_art.hpp"
+#include "Rendering/Art/data_art.hpp"
 
 #include <QCryptographicHash>
 #include <QFile>

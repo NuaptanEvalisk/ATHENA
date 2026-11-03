@@ -9,10 +9,10 @@
 #include <QtTest/QtTest>
 #include <QTemporaryDir>
 
-#include "ATHENA/Data/vault_file_references.hpp"
-#include "ATHENA/Data/vault_maintenance_internal.hpp"
-#include "ATHENA/Data/vault_maintenance_passes.hpp"
-#include "ATHENA/Data/vaultfile_json.hpp"
+#include "Domains/Vault/vault_file_references.hpp"
+#include "Domains/Vault/vault_maintenance_internal.hpp"
+#include "Domains/Vault/vault_maintenance_passes.hpp"
+#include "Domains/Vault/vaultfile_json.hpp"
 #include "convert.hpp"
 
 #include <filesystem>

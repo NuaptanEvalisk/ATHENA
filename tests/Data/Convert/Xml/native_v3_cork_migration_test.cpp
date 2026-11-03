@@ -13,7 +13,7 @@
 #include "Xml/athena_document_xml.hpp"
 #include "Xml/legacy_cork.hpp"
 #include "Xml/math_v2_to_v3.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 #include "node_metadata.hpp"
 
 using namespace athena::document;

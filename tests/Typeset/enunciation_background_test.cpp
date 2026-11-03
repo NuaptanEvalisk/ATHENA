@@ -3,7 +3,7 @@
 * DESCRIPTION: Tests for incremental enunciation background injection
 *******************************************************************************/
 
-#include "enunciation_surround.hpp"
+#include "Typesetting/enunciation_surround.hpp"
 #include <QtTest/QtTest>
 
 class TestEnunciationBackground: public QObject {

@@ -35,7 +35,7 @@ From the repository root, with dependencies already installed::
   cmake --build build_hodarium_node --target athena-hodarium-node -j20
 
 The executable is
-``build_hodarium_node/src/ATHENA/HodariumNode/athena-hodarium-node``.
+``build_hodarium_node/src/Sync/Node/athena-hodarium-node``.
 The dedicated CMake graph requires a C/C++ compiler, CMake, pkg-config,
 threads, Qt 6.5 or newer Core/Network/WebSockets, ICU, libsodium, SQLite, GnuTLS, mimalloc,
 spdlog, and nlohmann JSON headers. It does not configure the desktop, GUI, model

@@ -7,7 +7,7 @@
 *******************************************************************************/
 
 #include <QtTest/QtTest>
-#include "Qt/QTMGraphTopology.hpp"
+#include "UI/Qt/Editor/QTMGraphTopology.hpp"
 
 class TestGraphTopology: public QObject {
   Q_OBJECT

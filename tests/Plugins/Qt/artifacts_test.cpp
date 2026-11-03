@@ -16,20 +16,20 @@
 #include <QProcessEnvironment>
 #include <QTemporaryDir>
 
-#include "ATHENA/Data/artifacts.hpp"
-#include "ATHENA/Data/artifact_identity.hpp"
-#include "ATHENA/Data/artifact_document.hpp"
-#include "ATHENA/Data/artifact_range_llm.hpp"
-#include "ATHENA/Data/artifact_radioactive_links.hpp"
-#include "ATHENA/Data/artifact_title_filter.hpp"
-#include "ATHENA/Data/document_node_copy.hpp"
-#include "ATHENA/Data/enunciation_model.hpp"
-#include "ATHENA/Data/vaultfile_json.hpp"
-#include "Data/Convert/Xml/document_file_codec.hpp"
-#include "Data/Convert/Xml/vault_format_upgrade.hpp"
+#include "Domains/Artifacts/artifacts.hpp"
+#include "Domains/Artifacts/artifact_identity.hpp"
+#include "Domains/Artifacts/artifact_document.hpp"
+#include "Domains/Artifacts/artifact_range_llm.hpp"
+#include "Domains/Artifacts/artifact_radioactive_links.hpp"
+#include "Domains/Artifacts/artifact_title_filter.hpp"
+#include "Document/Model/document_node_copy.hpp"
+#include "Domains/Knowledge/enunciation_model.hpp"
+#include "Domains/Vault/vaultfile_json.hpp"
+#include "Document/Convert/Xml/document_file_codec.hpp"
+#include "Document/Convert/Xml/vault_format_upgrade.hpp"
 #include "converter.hpp"
 #include "convert.hpp"
-#include "Data/NodeContracts/execution_state.hpp"
+#include "Document/NodeContracts/execution_state.hpp"
 #include "node_metadata.hpp"
 
 #include <sqlite3.h>

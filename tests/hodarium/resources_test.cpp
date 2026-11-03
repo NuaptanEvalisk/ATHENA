@@ -2,8 +2,8 @@
 // Standalone adapter test: link hodarium_resources (+ its live adapter), confined_filesystem,
 // document_history_store (+ its existing delta dependencies) and athena_hodarium.
 // The two UI-publication stubs below are intentionally local to this executable.
-#include "ATHENA/Data/hodarium_resources.hpp"
-#include "ATHENA/Data/background_workers.hpp"
+#include "Sync/State/hodarium_resources.hpp"
+#include "App/Runtime/background_workers.hpp"
 #include <QCryptographicHash>
 #include <QTemporaryDir>
 #include <nlohmann/json.hpp>
