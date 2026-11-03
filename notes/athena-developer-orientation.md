@@ -231,12 +231,14 @@ tools/deploy-local-runtime.sh build_qt6
 ```
 
 Use an explicit application target, not the default ALL target. Do not deploy
-after a failed or unfinished build. The installer retains retired executables
-by ELF build ID; do not substitute a manual install/copy/rename sequence.
+after a failed or unfinished build. The installer atomically replaces the
+installed executable without saving historical binaries; do not substitute
+a manual install/copy/rename sequence.
 
 Generated interfaces are built by `athena_commands` as an application dependency.
-Deployment uses the existing installer and retains the previous executable for
-running processes. No interpreter library, source tree or bytecode is packaged.
+Deployment uses the existing installer and preserves running processes through
+the kernel's executable mappings, without keeping a separate archived copy.
+No interpreter library, source tree or bytecode is packaged.
 
 Tests are not a default deliverable. Clear, straightforward changes do not need
 tests; use focused evidence only for concrete uncertainty. Do not run broad

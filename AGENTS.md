@@ -178,10 +178,11 @@ boundaries, do not patch from intuition. Debug from evidence.
 - On Linux, deploy rebuilt ATHENA binaries with
   `python3 tools/install-local-executable.py build_qt6/src/ATHENA.bin ATHENA/bin/ATHENA.bin`
   or `tools/deploy-local-runtime.sh`. Do not bypass this with `install`, `cp`, or
-  a manual rename: the helper preserves retired executables by ELF build ID for
-  active processes and core dumps. Archives live under
-  `ATHENA/bin/.retired/ATHENA.bin/<build-id>/` and are pruned on later deployments
-  only after a one-day grace period, with no active instance or retained core.
+  a manual rename: the helper atomically replaces the installed executable,
+  verifies its ELF build ID, and leaves active processes running on their
+  existing executable mappings. Do not create archived executable copies or a
+  `.retired/` directory during deployment; old build-tree outputs can be
+  preserved explicitly when needed for debugging.
 
 ## System Package Installation Boundary
 
