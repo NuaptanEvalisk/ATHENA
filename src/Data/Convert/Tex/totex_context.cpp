@@ -15,7 +15,6 @@
 #include "base64.hpp"
 #include "hashmap.hpp"
 #include "iterator.hpp"
-#include "scheme.hpp"
 #include "new_style.hpp"
 #include "Data/NodeContracts/builtin_contracts.hpp"
 #include "Data/NodeContracts/editing_query.hpp"

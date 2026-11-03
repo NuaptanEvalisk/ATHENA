@@ -9,7 +9,6 @@
 #include "Tex/convert_tex.hpp"
 #include "convert.hpp"
 #include "converter.hpp"
-#include "scheme.hpp"
 #include "base64.hpp"
 #include "config.h"
 

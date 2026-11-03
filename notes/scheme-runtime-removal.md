@@ -2017,6 +2017,23 @@ generated native entries and remain on the secure-function list.
   build_qt6/native-latex-query-editor-build.log. No tests added/run; combined
   linking and deployment are pending. The full runtime-removal goal stays active.
 
+## Native Preference Queries
+
+- Moved get_preference and its converter-mode cache from Scheme/object.cpp to
+  System/Boot/preferences.cpp. Preserved cached-key precedence, missing-key
+  lookup, default-sentinel substitution and existing cache initialization.
+- Native declarations now live in boot.hpp; scheme.hpp includes that header
+  for unmigrated callers rather than owning duplicate declarations.
+- Removed explicit scheme.hpp includes from the shared LaTeX export helpers,
+  context, serializer and image implementation. The totex sources no longer
+  include it directly. Broader editor/runtime headers remain transitional.
+- Preferences/object implementations and the totex implementation targets
+  compiled with -j16. Logs: build_qt6/native-preference-query-build.log and
+  build_qt6/native-preference-export-build.log. No tests added/run; combined
+  linking/deployment remain pending with the previous export-query batch.
+- UI preference notifications and persistence entrypoints still live in
+  object.cpp and are the next related ownership boundary to remove.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

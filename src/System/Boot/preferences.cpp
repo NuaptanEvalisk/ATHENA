@@ -44,6 +44,56 @@ static std::shared_mutex user_preferences_mutex;
 static std::once_flag builtin_preferences_once;
 static std::vector<user_preference_ui_definition> builtin_preference_ui;
 
+bool aofm_converter_mode= false;
+static hashmap<string,string> aofm_pref_cache ("");
+
+void
+aofm_enable_converter_mode (bool enable) {
+  aofm_converter_mode= enable;
+}
+
+extern void aofm_cache_latex_commands ();
+
+void
+aofm_cache_preferences () {
+  cout << "AOFM] Caching preferences..." << LF;
+  array<string> prefs;
+  prefs << string ("latex->texmacs:align-to-aligned")
+        << string ("latex->texmacs:operator-d-is-differential")
+        << string ("latex->texmacs:roman-d-is-differential")
+        << string ("latex->texmacs:text-d-is-differential")
+        << string ("latex->texmacs:parse-bbbk")
+        << string ("latex->texmacs:parse-bbbi-as-mathi")
+        << string ("latex->texmacs:text-operators")
+        << string ("latex->texmacs:matrix-recognition")
+        << string ("latex->texmacs:aligned-to-eqnarray")
+        << string ("latex->texmacs:source-tracking")
+        << string ("latex->texmacs:transparent-source-tracking")
+        << string ("latex->texmacs:conservative")
+        << string ("remove superfluous invisible")
+        << string ("homoglyph correct")
+        << string ("insert missing invisible")
+        << string ("zealous invisible correct")
+        << string ("manual remove superfluous invisible")
+        << string ("manual homoglyph correct")
+        << string ("manual insert missing invisible")
+        << string ("manual zealous invisible correct")
+        << string ("vault preferred font");
+  for (int i=0; i<N(prefs); ++i) {
+    string val= get_preference (prefs[i], "default");
+    aofm_pref_cache (prefs[i])= val;
+    cout << "AOFM]   " << prefs[i] << " -> " << val << LF;
+  }
+  aofm_cache_latex_commands ();
+}
+
+string
+get_preference (string var, string def) {
+  string pref= aofm_converter_mode && aofm_pref_cache->contains (var)
+    ? aofm_pref_cache[var] : get_user_preference (var, def);
+  return pref == "default" ? def : pref;
+}
+
 static QString
 to_qstring (string s) {
   return QString::fromUtf8 (as_charp (s), N(s));

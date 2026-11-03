@@ -12,7 +12,7 @@
 #include <system_error>
 
 #include "convert.hpp"
-#include "scheme.hpp"
+#include "boot.hpp"
 
 namespace latex_export_internal {
 

@@ -11,7 +11,6 @@
 #include "editor.hpp"
 #include "file.hpp"
 #include "new_view.hpp"
-#include "scheme.hpp"
 
 #include <cmath>
 #include <stdexcept>
