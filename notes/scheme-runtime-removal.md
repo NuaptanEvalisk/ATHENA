@@ -2062,6 +2062,27 @@ generated native entries and remain on the secure-function list.
   build_qt6/retire-protected-call-build.log. No tests added/run; pending combined
   linking/startup/deployment work from the preceding batches remains.
 
+## Combined Native Preference Deployment
+
+- Resumed and completed the interrupted ATHENA.bin build through 2e44e2488
+  with -j16. This covers export queries, native preference queries/lifecycle
+  and protected-call retirement; their pending build/deployment notes above
+  are superseded. Log: build_qt6/native-preference-combined-build.log.
+- The isolated-profile runtime probe passed missing-preference fallback,
+  preference updates, color/math/page-margin export and absence of six retired
+  bindings. It exited successfully with NATIVE_PREFERENCE_COMBINED_OK and no
+  logged runtime error. The profile's system/preferences.json contained the
+  persisted preference, independently confirming the save boundary.
+- Deployed through tools/deploy-local-runtime.sh build_qt6. Installed build ID:
+  f8789d46db508df9cfa518b2efa5a9ace240ab20. The installer retained the previous
+  ELF for the user's running process. Runtime and deployment logs are
+  build_qt6/native-preference-combined-runtime.log and
+  build_qt6/native-preference-combined-deploy.log. Temporary probe/profile
+  removed; no broad test suite was run.
+- Conversion payload migration is now in progress. This checkpoint records
+  the preceding completed batches only; the full runtime-removal goal remains
+  active.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack
