@@ -1894,7 +1894,7 @@ main (int argc, char** argv) {
     }, 30);
     if (image.status != 0)
       throw std::runtime_error (
-        "container image does not exist; run tools/athena-web-server/"
+        "container image does not exist; run services/web/"
         "build-image.sh first: " + config.image);
     verify_container_isolation (config);
 

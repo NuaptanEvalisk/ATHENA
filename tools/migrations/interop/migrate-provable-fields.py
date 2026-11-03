@@ -545,7 +545,7 @@ def running_athena(binary, root, vault_name, destination, progress):
     with log_path.open("w", encoding="utf-8") as log:
         process = subprocess.Popen(
             [str(binary), "-X", "-no-splash-screen", "--vault", str(root)],
-            cwd=Path(__file__).resolve().parents[2] / "ATHENA",
+            cwd=Path(__file__).resolve().parents[3] / "ATHENA",
             stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
         print(f"Started ATHENA PID: {process.pid}\nATHENA log: {log_path}", flush=True)
         try:
@@ -658,7 +658,7 @@ def main(argv=None, *, planner=plan_document, migration="provable-fields",
          config_file="provable-attribution-fields.json",
          validate_config=validate_provable_config):
     parser = argparse.ArgumentParser(description=description)
-    parser.add_argument("--binary", type=Path, default=Path(__file__).resolve().parents[2] /
+    parser.add_argument("--binary", type=Path, default=Path(__file__).resolve().parents[3] /
                         "ATHENA/bin/ATHENA.bin", help="ATHENA.bin to launch after backup")
     parser.add_argument("--vault", required=True, help="Vault name to load")
     parser.add_argument("--expect-root", required=True, type=Path, help="Physical vault directory to back up")
@@ -677,7 +677,7 @@ def main(argv=None, *, planner=plan_document, migration="provable-fields",
     config["_root"] = root
     if validate_config:
         validate_config(config)
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "clients/python/src"))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "clients/python/src"))
     try:
         from athena_audmap import Client
     except ImportError as error:

@@ -75,7 +75,7 @@ GnuTLS for peer transport. Package references:
 When explicitly ready to build the development image, run from the repository
 root (this installs packages inside build layers, not on the host)::
 
-  docker build -f tools/hodarium/node/Dockerfile -t athena-hodarium-node:dev .
+  docker build -f services/hodarium/node/Dockerfile -t athena-hodarium-node:dev .
 
 Keep secrets outside the build context. The Dockerfile copies only the root
 build/license files, ``cmake/``, ``src/``, and shipped label/symbol definitions;

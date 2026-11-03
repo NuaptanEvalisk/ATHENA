@@ -30,8 +30,8 @@ def module(name, path):
     return result
 
 
-m = module("provable_fields_migration", REPO / "tools/interop/migrate-provable-fields.py")
-CONFIG = json.loads((REPO / "tools/interop/provable-attribution-fields.json").read_text())
+m = module("provable_fields_migration", REPO / "tools/migrations/interop/migrate-provable-fields.py")
+CONFIG = json.loads((REPO / "tools/migrations/interop/provable-attribution-fields.json").read_text())
 
 
 def text(value, identified=False):

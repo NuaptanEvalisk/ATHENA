@@ -271,7 +271,7 @@ def main(argv=None):
     parser.add_argument("--index", type=Path, default=None)
     parser.add_argument("--vault", required=True)
     parser.add_argument("--expect-root", type=Path, required=True)
-    parser.add_argument("--binary", type=Path, default=Path(__file__).resolve().parents[2] /
+    parser.add_argument("--binary", type=Path, default=Path(__file__).resolve().parents[3] /
                         "ATHENA/bin/ATHENA.bin")
     parser.add_argument("--identity", type=Path, default=None)
     parser.add_argument("--preflight-only", action="store_true",

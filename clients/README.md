@@ -6,6 +6,12 @@ native resource resolvers. They share wire protocol 2, document model 3 and the
 CURVE identity format.
 The server still applies its connection and operation authorization policies.
 
+The C++ connection implementation shared by the SDK and command-line tools is
+at `clients/cpp/src/connection.{cpp,hpp}`. The JSON-facing `athena-audmap` and
+interactive `athena-audmap-repl` frontends are in `clients/audmap-cli/`; their
+existing executable target names remain unchanged. Former one-time migration
+scripts are under `tools/migrations/interop/`, not in either client SDK.
+
 ## C++
 
 Build only the SDK from this repository:

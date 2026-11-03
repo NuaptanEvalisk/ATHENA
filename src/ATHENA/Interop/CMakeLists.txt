@@ -41,13 +41,15 @@ endif()
 
 if(ATHENA_ENABLE_CLI OR ATHENA_ENABLE_AUDMAP_REPL)
 add_library(athena_audmap_client STATIC
-  ${ATHENA_SOURCE_DIR}/tools/interop/connection.cpp
-  ${ATHENA_SOURCE_DIR}/tools/interop/repl_session.cpp)
+  ${ATHENA_SOURCE_DIR}/clients/cpp/src/connection.cpp
+  ${ATHENA_SOURCE_DIR}/clients/audmap-cli/repl_session.cpp)
 set_target_properties(athena_audmap_client PROPERTIES AUTOMOC OFF)
-target_include_directories(athena_audmap_client PUBLIC ${ATHENA_SOURCE_DIR}/tools/interop)
+target_include_directories(athena_audmap_client PUBLIC
+  ${ATHENA_SOURCE_DIR}/clients/cpp/src
+  ${ATHENA_SOURCE_DIR}/clients/audmap-cli)
 target_link_libraries(athena_audmap_client PUBLIC athena_audmap_wire cppzmq PRIVATE athena_interop)
 
-add_executable(athena-audmap ${ATHENA_SOURCE_DIR}/tools/interop/client.cpp)
+add_executable(athena-audmap ${ATHENA_SOURCE_DIR}/clients/audmap-cli/client.cpp)
 set_target_properties(athena-audmap PROPERTIES AUTOMOC OFF)
 target_link_libraries(athena-audmap PRIVATE athena_audmap_client)
 endif()
@@ -57,7 +59,7 @@ endif()
 if(ATHENA_ENABLE_AUDMAP_REPL)
 find_path(READLINE_INCLUDE_DIR readline/readline.h REQUIRED)
 find_library(READLINE_LIBRARY NAMES readline REQUIRED)
-add_executable(athena-audmap-repl ${ATHENA_SOURCE_DIR}/tools/interop/repl.cpp)
+add_executable(athena-audmap-repl ${ATHENA_SOURCE_DIR}/clients/audmap-cli/repl.cpp)
 set_target_properties(athena-audmap-repl PROPERTIES AUTOMOC OFF)
 target_include_directories(athena-audmap-repl PRIVATE ${READLINE_INCLUDE_DIR})
 target_link_libraries(athena-audmap-repl PRIVATE athena_audmap_client ${READLINE_LIBRARY})

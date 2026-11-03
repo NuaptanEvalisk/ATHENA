@@ -15,7 +15,7 @@ Use the updated binary containing saved-document `batch` support.
 From the repository:
 
 ```sh
-/usr/bin/python3 tools/interop/migrate-provable-fields.py \
+/usr/bin/python3 tools/migrations/interop/migrate-provable-fields.py \
   --vault nIKIS \
   --expect-root /home/felix/data/Notes \
   --apply
@@ -116,7 +116,7 @@ preserves mathematical content and effective style bindings. Incoming wikilinks,
 transclusions and typed references are redirected to the owning enunciation.
 
 ```sh
-/usr/bin/python3 tools/interop/repair-enunciation-fields.py \
+/usr/bin/python3 tools/migrations/interop/repair-enunciation-fields.py \
   --vault nIKIS --expect-root /home/felix/data/Notes \
   --identity ~/.config/athena-audmap/definition-fields-migration.json --apply
 ```

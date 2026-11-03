@@ -39,13 +39,13 @@ SERVICE_LAYOUT = {
     "transmitter": {
         "executable": "athena-transmitter",
         "directory": "ATHENA-Transmitter",
-        "source": "tools/athena-transmitter",
+        "source": "services/delegation-transmitter",
         "extras": ("README.md", "deploy"),
     },
     "web-server": {
         "executable": "athena-web-server",
         "directory": "ATHENA-Web-Server",
-        "source": "tools/athena-web-server",
+        "source": "services/web",
         "extras": (
             "README.md",
             "Containerfile",

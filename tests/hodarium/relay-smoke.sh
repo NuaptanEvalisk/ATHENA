@@ -14,7 +14,7 @@ cleanup() {
   rm -rf -- "$temporary"
 }
 trap cleanup EXIT
-cd "$repository/tools/hodarium"
+cd "$repository/services/hodarium"
 ATHENA_HODARIUM_NATIVE_RELAY="$temporary" go test ./internal/relay \
   -run '^TestNativeRelayServer$' -count=1 >"$temporary/server.log" 2>&1 &
 server=$!

@@ -7,7 +7,7 @@ Notes association task is still pending. From the repository root, prepare a
 fresh workspace outside the source vault:
 
 ```sh
-python3 tools/interop/prooftrack-review.py prepare --vault /path/to/vault --output /tmp/proof-review
+python3 tools/migrations/interop/prooftrack-review.py prepare --vault /path/to/vault --output /tmp/proof-review
 ```
 
 The generated workspace contains this prompt as PROMPT.md, review.py, queue.json

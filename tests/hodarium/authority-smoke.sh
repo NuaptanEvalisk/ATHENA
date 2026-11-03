@@ -15,7 +15,7 @@ cleanup() {
 }
 trap cleanup EXIT
 "$binary" prepare "$temporary"
-cd "$repository/tools/hodarium"
+cd "$repository/services/hodarium"
 ATHENA_HODARIUM_NATIVE_CLIENT="$temporary" go test ./internal/authority \
   -run '^TestNativeClientServer$' -count=1 >"$temporary/server.log" 2>&1 &
 server=$!

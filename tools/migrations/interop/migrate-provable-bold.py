@@ -219,7 +219,7 @@ def main():
     parser.add_argument("--apply", action="store_true", help="Commit edits; default only reports")
     parser.add_argument("paths", nargs="+", type=relative_path, help="Vault-relative files/directories")
     args = parser.parse_args()
-    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "clients/python/src"))
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "clients/python/src"))
     from athena_audmap import Client
 
     vault = "@/vaults/" + json.dumps(args.vault, ensure_ascii=False)

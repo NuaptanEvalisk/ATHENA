@@ -397,7 +397,7 @@ def validate_native_candidate(staged, workspace, binary):
             path = version_dir / f"{identity}.ath"
             path.write_bytes(payload)
             paths.append(str(path))
-    repo = Path(__file__).resolve().parents[2]
+    repo = Path(__file__).resolve().parents[3]
     profile = validation / "profile"
     (profile / "system").mkdir(parents=True)
     (profile / "system/sys_state.json").write_text(json.dumps({
@@ -513,7 +513,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--expect-root", type=Path, required=True)
     parser.add_argument("--binary", type=Path,
-                        default=Path(__file__).resolve().parents[2] /
+                        default=Path(__file__).resolve().parents[3] /
                         "build_qt6/src/ATHENA.bin",
                         help="Strict native XML v3 binary for candidate verification")
     parser.add_argument("--apply", action="store_true",

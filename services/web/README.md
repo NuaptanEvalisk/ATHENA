@@ -54,7 +54,7 @@ contains the native ATHENA executable and its shared-library closure for the
 openSUSE sandbox. Then build the web image:
 
 ```bash
-tools/athena-web-server/build-image.sh \
+services/web/build-image.sh \
   --runtime container_build/ATHENA-rel.AppImage \
   --image localhost/athena-web:latest
 ```
@@ -94,7 +94,7 @@ cmake --build build_qt6 --target athena-web-server
 The default listener is loopback-only:
 
 ```bash
-build_qt6/tools/athena-web-server/athena-web-server \
+build_qt6/services/web/athena-web-server \
   --listen-address 127.0.0.1 \
   --port 8090 \
   --image localhost/athena-web:latest \

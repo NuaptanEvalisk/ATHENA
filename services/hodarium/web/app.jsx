@@ -8,7 +8,7 @@ import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import { AlertCircle, KeyRound, LogOut, Plus, RefreshCw, Search, ShieldCheck, Trash2 } from 'lucide-react';
 import '@mantine/core/styles.css';
 import './style.css';
-import logo from '../../athena-web-server/web/athena-icon.png';
+import logo from '../../web/web/athena-icon.png';
 
 const theme = createTheme({ primaryColor: 'teal', defaultRadius: 0,
   radius: { xs: 0, sm: 0, md: 0, lg: 0, xl: 0 },

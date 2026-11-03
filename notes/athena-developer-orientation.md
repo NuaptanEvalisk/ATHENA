@@ -90,6 +90,12 @@ Paths in this note are relative to the repository unless absolute.
 | Native UI and render service | `src/Subsystems/Qt/` |
 | Native document codec and legacy import | `src/Data/Convert/Xml/` |
 | Native command declarations and generated dispatch | `src/ATHENA/Commands/` |
+| Directly linked citation engine | `src/Materials/Engine/` (Rust/Hayagriva) |
+| Installed Codex bridge helper | `src/Integrations/Codex/Bridge/` |
+| Independent Hodarium authority/relay | `services/hodarium/` (Go module) |
+| Independent web and delegation services | `services/web/`, `services/delegation-transmitter/` |
+| AUDMAP client SDK and CLI | `clients/cpp/`, `clients/audmap-cli/` |
+| Historical document migration tools | `tools/migrations/interop/` |
 | Styles and declarative resources | `ATHENA/packages/`, `ATHENA/misc/` |
 | AUDM resolution and resource adapters | `src/ATHENA/Interop/`, `src/ATHENA/Data/interop_*.cpp` |
 | AUDMAP transport and new plugins | `src/Subsystems/AUDMAP/`, `src/Subsystems/Plugins/`, `clients/` |
@@ -98,6 +104,7 @@ Paths in this note are relative to the repository unless absolute.
 Read the relevant implementation before attributing behavior to it. Historical
 TeXmacs names remain in paths, types and symbols; a name alone does not establish
 current behavior or compatibility requirements.
+See `notes/source-layout.md` for source, services, clients, and tooling ownership.
 
 ## Thread Ownership Is Part Of Correctness
 

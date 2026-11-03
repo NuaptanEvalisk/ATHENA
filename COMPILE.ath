@@ -274,15 +274,15 @@
     install -m755 "$BUILD/materials-engine-cargo/release/athena-materials-engine"
     ATHENA/bin/
 
-    install -m755 "$BUILD/tools/athena-transmitter/athena-transmitter"
+    install -m755 "$BUILD/services/delegation-transmitter/athena-transmitter"
     ATHENA/bin/
 
-    install -m755 "$BUILD/tools/athena-web-server/athena-web-server"
+    install -m755 "$BUILD/services/web/athena-web-server"
     ATHENA/bin/
 
     mkdir -p ATHENA/share/ATHENA/web
 
-    cp -a tools/athena-web-server/web/. ATHENA/share/ATHENA/web/
+    cp -a services/web/web/. ATHENA/share/ATHENA/web/
   </code>
 
   Use <verbatim|BUILD=build_rel> for a RelWithDebInfo tree. For a SYCL
@@ -495,7 +495,7 @@
 
   Reference systemd units, the optional XClarity Controller power hook, and a
   Cloudflare Tunnel unit are provided under
-  <verbatim|tools/athena-transmitter/deploy>.
+  <verbatim|services/delegation-transmitter/deploy>.
 
   <label|H2 Setting up Web-Accessible ATHENA on a server>
 
@@ -505,7 +505,7 @@
   <ATHENA> OCI image:
 
   <\code>
-    tools/athena-web-server/build-image.sh \\
+    services/web/build-image.sh \\
 
     \ \ --runtime container_build/ATHENA-rel.AppImage \\
 
@@ -541,7 +541,7 @@
   Put a WebSocket-capable TLS reverse proxy or tunnel in front of the broker.
   Configure STUN/TURN for the WebRTC media path as required by the
   deployment. The reference production templates under
-  <verbatim|tools/athena-web-server/deploy> use a dedicated openSUSE MicroOS
+  <verbatim|services/web/deploy> use a dedicated openSUSE MicroOS
   KVM guest for the broker and rootless session containers, with Cloudflare
   Tunnel for signaling and Cloudflare Realtime TURN for media relay.
 

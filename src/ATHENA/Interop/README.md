@@ -23,7 +23,7 @@ indexed artifacts, the vault filesystem and structured documents.
 - `src/Subsystems/AUDMAP`: MessagePack codec, connection-owned protocol state,
   local ZeroMQ transport. Resource operations have a separate fixed worker pool.
 - `src/Subsystems/Qt/QTMAudmap.cpp`: connection authorization and request dialogs.
-- `tools/interop/client.cpp`: JSON-facing command-line client.
+- `clients/audmap-cli/client.cpp`: JSON-facing command-line client.
 
 Resolution uses Boost.Asio's fixed `thread_pool`, shared by all tickets. The
 desktop currently starts min(8, hardware_concurrency), with at least one worker,

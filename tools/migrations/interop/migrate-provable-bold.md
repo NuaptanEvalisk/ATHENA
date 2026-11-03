@@ -19,7 +19,7 @@ Authorize the script's client through normal AUDMAP authentication. Its identity
 must live in a private directory (0700; key file 0600).
 
 ```sh
-/usr/bin/python3 tools/interop/migrate-provable-bold.py \
+/usr/bin/python3 tools/migrations/interop/migrate-provable-bold.py \
   --endpoint /path/to/test-instance/connection.json \
   --identity /private/directory/migration.json \
   --vault "Test vault" --expect-root /tmp/copied-vault \

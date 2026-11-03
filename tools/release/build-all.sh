@@ -185,13 +185,13 @@ assemble_linux_runtime () {
     "$local_build_dir/materials-engine-cargo/release/athena-materials-engine" \
     "$runtime/bin/athena-materials-engine"
   run install -m 755 \
-    "$local_build_dir/tools/athena-transmitter/athena-transmitter" \
+    "$local_build_dir/services/delegation-transmitter/athena-transmitter" \
     "$runtime/bin/athena-transmitter"
   run install -m 755 \
-    "$local_build_dir/tools/athena-web-server/athena-web-server" \
+    "$local_build_dir/services/web/athena-web-server" \
     "$runtime/bin/athena-web-server"
   run mkdir -p "$runtime/share/ATHENA/web"
-  run cp -a "$repo_root/tools/athena-web-server/web/." \
+  run cp -a "$repo_root/services/web/web/." \
     "$runtime/share/ATHENA/web/"
 
   if [[ "$dry_run" -eq 0 ]]; then
@@ -236,7 +236,7 @@ archive_linux_services () {
 
   run python3 "$script_dir/package_linux_service.py" \
     --kind transmitter \
-    --binary "$local_build_dir/tools/athena-transmitter/athena-transmitter" \
+    --binary "$local_build_dir/services/delegation-transmitter/athena-transmitter" \
     --repo-root "$repo_root" \
     --version "$version" \
     --source-epoch "$source_epoch" \
@@ -245,7 +245,7 @@ archive_linux_services () {
 
   run python3 "$script_dir/package_linux_service.py" \
     --kind web-server \
-    --binary "$local_build_dir/tools/athena-web-server/athena-web-server" \
+    --binary "$local_build_dir/services/web/athena-web-server" \
     --repo-root "$repo_root" \
     --version "$version" \
     --source-epoch "$source_epoch" \

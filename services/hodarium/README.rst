@@ -22,11 +22,11 @@ Relays without including production credentials.
 
 Use Go 1.26 or later and a Node version supported by Vite 8::
 
-  make -C tools/hodarium server
-  make -C tools/hodarium relay
+  make -C services/hodarium server
+  make -C services/hodarium relay
 
-Outputs are ``tools/hodarium/bin/athena-hodarium-server`` and
-``tools/hodarium/bin/athena-hodarium-relay``. The Server embeds its React/Mantine
+Outputs are ``services/hodarium/bin/athena-hodarium-server`` and
+``services/hodarium/bin/athena-hodarium-relay``. The Server embeds its React/Mantine
 panel; deployment needs no Node process. The Relay target does not build the
 panel. Dependencies are locked by ``go.sum`` and ``web/package-lock.json``:
 go-webauthn and modernc SQLite are BSD-3-Clause, Mantine and resend-go MIT,
@@ -258,7 +258,7 @@ has defined logical adapters and allowlists, not raw database or universal file
 mirroring. File History protection does not provide a service-side whole-Vault
 restore interface. See the native README for scope and recovery restrictions.
 
-``make -C tools/hodarium test`` runs the focused authority tests, not editor/iPad
+``make -C services/hodarium test`` runs the focused authority tests, not editor/iPad
 acceptance. Relay checks are under ``internal/relay``; native HTTPS/Relay launchers
 and isolated-keyring support are under ``tests/hodarium``. ``TestNativeRecovery``
 optionally runs a native fixture selected by ``ATHENA_HODARIUM_NATIVE_RECOVERY``.

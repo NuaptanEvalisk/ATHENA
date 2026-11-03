@@ -1169,12 +1169,12 @@ add_subdirectory (src/ATHENA/Hodarium)
 list (APPEND ATHENA_Libraries athena_hodarium)
 add_subdirectory (src)
 if (ATHENA_ENABLE_CODEX_BRIDGE)
-  add_subdirectory (tools/codex-bridge)
+  add_subdirectory (src/Integrations/Codex/Bridge)
 endif ()
-add_subdirectory (tools/materials-engine)
+add_subdirectory (src/Materials/Engine)
 if (UNIX AND NOT APPLE)
-  add_subdirectory (tools/athena-transmitter)
-  add_subdirectory (tools/athena-web-server)
+  add_subdirectory (services/delegation-transmitter)
+  add_subdirectory (services/web)
 endif ()
 add_subdirectory (ATHENA)
 
@@ -1213,9 +1213,9 @@ if (BUILD_TESTS)
   if (NOT WIN32 AND ATHENA_ENABLE_CODEX_BRIDGE)
     add_test(NAME codex_bridge_protocol
       COMMAND ${Python3_EXECUTABLE}
-              ${CMAKE_SOURCE_DIR}/tools/codex-bridge/tests/test_bridge.py
+              ${CMAKE_SOURCE_DIR}/src/Integrations/Codex/Bridge/tests/test_bridge.py
               $<TARGET_FILE:athena-codex-bridge>
-              ${CMAKE_SOURCE_DIR}/tools/codex-bridge/tests/fake_codex.py)
+              ${CMAKE_SOURCE_DIR}/src/Integrations/Codex/Bridge/tests/fake_codex.py)
   endif ()
   add_subdirectory (tests)
   # add_subdirectory (misc/benchmark)

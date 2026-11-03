@@ -67,7 +67,7 @@ secrets are not passed to the plugin. With no network permission the process rec
 a private network namespace. A network grant shares the host network namespace and
 therefore means Internet, LAN and localhost access.
 
-See `tools/interop/examples/echo-plugin`. Its Python interpreter must have the
+See `ATHENA/examples/echo-plugin`. Its Python interpreter must have the
 independent `clients/python` SDK installed.
 
 ## Package Contract

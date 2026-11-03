@@ -9,7 +9,7 @@ import unittest
 
 
 REPO = Path(__file__).resolve().parents[2]
-SCRIPT = REPO / "tools/interop/migrate-prooftrack-targets.py"
+SCRIPT = REPO / "tools/migrations/interop/migrate-prooftrack-targets.py"
 spec = importlib.util.spec_from_file_location("athena_prooftrack_target_test_module", SCRIPT)
 migration = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(migration)

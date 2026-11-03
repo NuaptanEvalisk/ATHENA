@@ -14,9 +14,9 @@ if (ATHENA_PLATFORM_IPADOS AND NOT ATHENA_MATERIALS_RUST_TARGET)
   endif ()
 endif ()
 set (ATHENA_MATERIALS_ENGINE_SOURCE
-     "${CMAKE_SOURCE_DIR}/tools/materials-engine/src/lib.rs")
+     "${CMAKE_CURRENT_SOURCE_DIR}/src/lib.rs")
 set (ATHENA_MATERIALS_ENGINE_MANIFEST
-     "${CMAKE_SOURCE_DIR}/tools/materials-engine/Cargo.toml")
+     "${CMAKE_CURRENT_SOURCE_DIR}/Cargo.toml")
 if (ATHENA_MATERIALS_RUST_TARGET)
   set (ATHENA_MATERIALS_CARGO_TARGET_ARGS
        --target "${ATHENA_MATERIALS_RUST_TARGET}")
@@ -59,8 +59,8 @@ add_custom_command (
   DEPENDS "${ATHENA_MATERIALS_ENGINE_SOURCE}"
           "${CMAKE_CURRENT_SOURCE_DIR}/src/main.rs"
           "${ATHENA_MATERIALS_ENGINE_MANIFEST}"
-          "${CMAKE_SOURCE_DIR}/tools/materials-engine/Cargo.lock"
-  WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}/tools/materials-engine"
+          "${CMAKE_CURRENT_SOURCE_DIR}/Cargo.lock"
+  WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
   COMMENT "Building pinned Hayagriva Materials engine"
   VERBATIM)
 

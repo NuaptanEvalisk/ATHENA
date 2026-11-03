@@ -55,8 +55,8 @@ def build_stdio_client(repository, build_dir, output):
     """
     commands = json.loads((build_dir / "compile_commands.json").read_text())
     wanted = {
-        str((repository / "tools/interop/client.cpp").resolve()): output.with_suffix(".client.o"),
-        str((repository / "tools/interop/connection.cpp").resolve()): output.with_suffix(".connection.o"),
+        str((repository / "clients/audmap-cli/client.cpp").resolve()): output.with_suffix(".client.o"),
+        str((repository / "clients/cpp/src/connection.cpp").resolve()): output.with_suffix(".connection.o"),
     }
     for source, object_path in wanted.items():
         entry = next((item for item in commands if str(Path(item["file"]).resolve()) == source), None)
@@ -74,9 +74,9 @@ def build_stdio_client(repository, build_dir, output):
     if argv and argv[0] == "ccache":
         argv.pop(0)
     old_client = next(i for i, arg in enumerate(argv) if arg.endswith("client.cpp.o"))
-    argv[old_client] = str(wanted[str((repository / "tools/interop/client.cpp").resolve())])
+    argv[old_client] = str(wanted[str((repository / "clients/audmap-cli/client.cpp").resolve())])
     old_connection = argv.index("libathena_audmap_client.a")
-    argv[old_connection] = str(wanted[str((repository / "tools/interop/connection.cpp").resolve())])
+    argv[old_connection] = str(wanted[str((repository / "clients/cpp/src/connection.cpp").resolve())])
     argv[argv.index("-o") + 1] = str(output)
     subprocess.run(argv, cwd=link_dir, check=True,
                    stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)

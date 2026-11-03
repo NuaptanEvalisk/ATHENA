@@ -27,8 +27,8 @@ export LC_ALL=en_US.UTF-8
 export LANG=en_US.UTF-8
 export IPHONEOS_DEPLOYMENT_TARGET=27.0
 
-manifest="$source_root/tools/materials-engine/Cargo.toml"
-lockfile="$source_root/tools/materials-engine/Cargo.lock"
+manifest="$source_root/src/Materials/Engine/Cargo.toml"
+lockfile="$source_root/src/Materials/Engine/Cargo.lock"
 target_dir="$developer_root/athena-deps/ipados/build/materials-engine-cargo"
 artifact="$target_dir/aarch64-apple-ios/release/libathena_materials.a"
 

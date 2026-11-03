@@ -20,14 +20,14 @@ if(NOT TARGET athena_audmap_wire)
   target_link_libraries(athena_audmap_wire PUBLIC nlohmann_json::nlohmann_json PRIVATE msgpack-cxx cppzmq)
 endif()
 
-add_library(athena_audmap_sdk STATIC src/client.cpp ${AUDMAP_ROOT}/tools/interop/connection.cpp)
+add_library(athena_audmap_sdk STATIC src/client.cpp src/connection.cpp)
 add_library(ATHENA::audmap ALIAS athena_audmap_sdk)
 set_target_properties(athena_audmap_sdk PROPERTIES AUTOMOC OFF EXPORT_NAME audmap)
 target_compile_features(athena_audmap_sdk PUBLIC cxx_std_17)
 target_include_directories(athena_audmap_sdk PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
-  PRIVATE ${AUDMAP_ROOT}/tools/interop)
+  PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(athena_audmap_sdk PUBLIC nlohmann_json::nlohmann_json PRIVATE athena_audmap_wire cppzmq Threads::Threads)
 
 install(TARGETS athena_audmap_sdk athena_audmap_wire EXPORT ATHENAAudmapTargets
