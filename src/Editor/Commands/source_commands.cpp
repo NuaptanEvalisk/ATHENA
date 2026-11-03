@@ -12,6 +12,8 @@
 #include "App/Frontend/application_lifecycle.hpp"
 #include "Document/Model/compound_edit_batch.hpp"
 #include "App/Runtime/buffer_name_catalog.hpp"
+#include "App/Runtime/execution_context.hpp"
+#include "Typesetting/Env/local_environment.hpp"
 #include "new_buffer.hpp"
 #include "new_view.hpp"
 #include "qt_utilities.hpp"
@@ -341,9 +343,21 @@ array<string> source_search_themes (string label) {
   return out;
 }
 bool source_has_macro (string name) {
-  return is_func (find_definition (get_current_editor ()->the_buffer (), name, true),
-                  ASSIGN, 2) ||
-         macro_package (name) != "";
+  auto editor= get_current_editor ();
+  if (is_nil (editor)) return false;
+  if (is_func (find_definition (editor->the_buffer (), name, true), ASSIGN, 2))
+    return true;
+  if (const auto* owner= current_execution_context (); owner && owner->actor) {
+    // Focus toolbar snapshots are computed on the BufferActor. Loading a style
+    // here can resolve tmfs:// URLs through the GUI buffer registry. Use the
+    // macro definition captured by this actor's evaluated source instead.
+    const auto prepared= editor->cursor_context_at (editor->the_path ());
+    if (!prepared || !existing_tree_label (name)) return false;
+    const auto binding= prepared->contract_context ().definition (as_tree_label (name));
+    return binding && binding->package && binding->value &&
+      binding->value->signature.kind != athena::contracts::definition_kind::value;
+  }
+  return macro_package (name) != "";
 }
 void source_edit_package (string name) {
   application_browse_document (document_url_resolve_package (name),
