@@ -454,8 +454,9 @@ pieces of the complete design, not a proposal to stop after the first cache laye
 9. Finish filesystem lifecycle, exclusions, budgets, and end-to-end performance
    validation. Do not claim completion from successful serialization alone.
 
-Generated Scheme binding changes must follow `src/Scheme/Glue/README.md`: edit
-XML declarations and generate the interfaces, never hand-write wrapper glue.
+Native command binding changes must follow
+`src/ATHENA/Commands/Interfaces/README.md`: edit the XML declarations and
+generate the C++ adapters, never hand-write per-command wrapper glue.
 
 ## 14. Acceptance Criteria
 

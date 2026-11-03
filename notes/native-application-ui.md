@@ -4,6 +4,13 @@ Updated: 2026-11-02. The application shell owns menus, toolbars, command palette
 and application shortcuts. The former Scheme UI migration inventories and the
 October command-loss handoff are retired; they are not current TODO lists.
 
+Historical note: the dated startup and direct-call sections below record the
+intermediate 2026-11-02 state, not the current runtime. The embedded Scheme VM,
+Guile libraries, script CLI and generated Scheme glue were removed on
+2026-11-03. Current command signatures live in
+`src/ATHENA/Commands/Interfaces/`; see `notes/scheme-runtime-removal.md` for
+the completion and deployment evidence.
+
 ## Sources Of Truth
 
 - `ATHENA/misc/ui/application-shell.json` and the other UI JSON files author
@@ -18,9 +25,9 @@ October command-loss handoff are retired; they are not current TODO lists.
 - `ATHENA/misc/input/` holds keyboard declarations. Registry, event dispatch
   and generic editing are native; `progs/kernel/gui` is removed.
 
-Native UI ownership does not imply every underlying business operation has
-already lost its Scheme implementation. Follow the actual command handler
-when assessing a remaining native rewrite; do not infer it from a command ID.
+Native UI ownership and native command dispatch are distinct from the
+underlying business implementation. Follow the command handler rather than
+inferring behavior or thread ownership from a command ID.
 
 ## Lessons From The Command-Loss Bug
 
