@@ -8,6 +8,7 @@
 #include "tm_window.hpp"
 #include "file.hpp"
 #include "boot.hpp"
+#include "colors.hpp"
 #include "new_view.hpp"
 #include "new_window.hpp"
 #include "new_buffer.hpp"
@@ -20,13 +21,26 @@
 
 namespace {
 std::atomic<bool> initialized {false};
+bool preferences_booted= false;
 void refresh_enunciations () { windows_refresh ("enunciations"); }
 }
 bool application_preferences_ready () { return initialized.load (); }
 void application_preferences_initialize () {
-  notify_preferences_booted ();
+  preferences_booted= true;
+  gui_cursor_color= named_color (get_preference ("gui cursor color", "red"));
+  gui_selection_color= named_color (get_preference ("gui selection color", "red"));
+  gui_focus_color= named_color (get_preference ("gui focus color", "#0ff"));
+  gui_focus_border_width=
+    max (as_int (get_preference ("gui focus border width", "1")), 1);
   application_preferences_notify_all ();
   initialized.store (true);
+}
+void set_preference (string var, string val) {
+  set_user_preference (var, val);
+  if (preferences_booted) save_user_preferences ();
+}
+void notify_preference (string var) {
+  if (preferences_booted) application_preference_notify (var);
 }
 void application_preference_notify (string key) {
   const string callback= get_user_preference_callback (key);

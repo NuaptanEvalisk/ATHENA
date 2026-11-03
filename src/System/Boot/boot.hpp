@@ -66,6 +66,8 @@ bool get_user_preference_ui_definition (
 std::vector<user_preference_ui_definition> get_user_preference_ui_definitions ();
 string get_user_preference (string var, string def= "");
 string get_preference (string var, string def= "default");
+void set_preference (string var, string val);
+void notify_preference (string var);
 void aofm_enable_converter_mode (bool enable);
 void aofm_cache_preferences ();
 string get_user_preference_callback (string var);

@@ -2034,6 +2034,21 @@ generated native entries and remain on the secure-function list.
 - UI preference notifications and persistence entrypoints still live in
   object.cpp and are the next related ownership boundary to remove.
 
+## Native Preference Lifecycle
+
+- Moved preference save/notify entrypoints into application_preferences.cpp,
+  alongside the existing native notification table. Initialization now directly
+  enables notification/persistence and seeds GUI colors before notifying all
+  preferences, retaining the prior ordering and final readiness publication.
+- Removed the unused notify-preferences-booted binding and helper. Viewport
+  follow uses the existing native handler instead of a duplicate special branch
+  in Scheme/object.cpp. Scheme object implementation no longer owns preferences.
+- Declarations reside in boot.hpp; removed redundant declarations and includes.
+  Interface generation and three affected implementations compiled with -j16.
+  Logs: build_qt6/native-preference-lifecycle-glue.log and
+  build_qt6/native-preference-lifecycle-build.log. No tests added/run; combined
+  linking, startup verification and deployment remain pending.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

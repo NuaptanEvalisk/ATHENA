@@ -129,10 +129,6 @@ tree   stree_to_tree (object obj);
 tree   content_to_tree (object obj);
 string object_to_string (object obj);
 
-void notify_preferences_booted ();
-void set_preference (string var, string val);
-void notify_preference (string var);
-
 object eval (const char* expr);
 object eval (string expr);
 object eval_file (string name);

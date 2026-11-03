@@ -19,18 +19,15 @@
 #include "hashmap.hpp"
 #include "promise.hpp"
 #include "widget.hpp"
-#include "boot.hpp"
 #include "editor.hpp"
 #include "modification.hpp"
 #include "patch.hpp"
-#include "colors.hpp"
 #include "tm_ostream.hpp"
 #include "actor_ui_bridge.hpp"
 #include "buffer_actor.hpp"
 #include "guile_tm.hpp"
 #include "scheme_execution_context.hpp"
 #include "new_view.hpp"
-#include "application_preferences.hpp"
 #include <variant>
 #include <cmath>
 #include <cstring>
@@ -703,37 +700,6 @@ object call (object fun, object a1) {
   return tmscm_to_object (call_scheme (object_to_tmscm (fun), object_to_tmscm (a1))); }
 object call (object fun, object a1, object a2) {
   return tmscm_to_object (call_scheme (object_to_tmscm (fun), object_to_tmscm (a1), object_to_tmscm (a2))); }
-
-/******************************************************************************
-* User preferences
-******************************************************************************/
-
-static bool preferences_ok= false;
-void
-notify_preferences_booted () {
-  preferences_ok= true;
-  gui_cursor_color = named_color (get_preference ("gui cursor color", "red"));
-  gui_selection_color = named_color (get_preference ("gui selection color", "red"));
-  gui_focus_color = named_color (get_preference ("gui focus color", "#0ff"));
-  gui_focus_border_width =
-    max (as_int (get_preference ("gui focus border width", "1")), 1);
-}
-
-void
-set_preference (string var, string val) {
-  set_user_preference (var, val);
-  if (preferences_ok) save_user_preferences ();
-}
-
-void
-notify_preference (string var) {
-  if (!preferences_ok) return;
-  if (get_user_preference_callback (var) == "notify-viewport-follow") {
-    notify_viewport_follow ();
-    return;
-  }
-  application_preference_notify (var);
-}
 
 void
 protected_call (object cmd) {

@@ -38,7 +38,6 @@ hashmap<string,string> user_prefs ("");
 hashmap<string,string> user_prefs_default ("");
 hashmap<string,string> user_prefs_callback ("");
 url user_prefs_file= "$ATHENA_HOME_PATH/system/preferences.json";
-void notify_preference (string var);
 
 static std::shared_mutex user_preferences_mutex;
 static std::once_flag builtin_preferences_once;

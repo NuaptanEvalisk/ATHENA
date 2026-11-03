@@ -240,7 +240,6 @@
   <binding name="protected-call" native="protected_call" returns="void">
     <arg type="object" />
   </binding>
-  <binding name="notify-preferences-booted" native="notify_preferences_booted" returns="void" />
   <binding name="cpp-has-preference?" native="has_user_preference" returns="bool">
     <arg type="string" />
   </binding>
