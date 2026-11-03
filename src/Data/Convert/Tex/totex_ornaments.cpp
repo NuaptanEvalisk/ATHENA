@@ -50,10 +50,10 @@ find_rule (string key) {
 }
 
 string
-ornament_value (const OrnamentRule& rule, object value) {
-  if (rule.kind == ORNAMENT_LENGTH) return latex_tmtex_decode_length (value);
-  if (!is_string (value)) return "";
-  string text= as_string (value);
+ornament_value (const OrnamentRule& rule, scheme_tree value) {
+  if (!string_atom (value)) return "";
+  string text= atom_text (value);
+  if (rule.kind == ORNAMENT_LENGTH) return latex_tmtex_decode_length (text);
   if (rule.kind == ORNAMENT_SHAPE)
     return text == "rounded" ? "1.7ex" : "0pt";
   scheme_tree color= latex_export_decode_color (text, false);
@@ -69,17 +69,13 @@ append_option (string& output, string key, string value) {
 
 string
 ornament_options () {
-  object keys_object= latex_export_env_keys ();
-  if (!is_list (keys_object)) return "";
-  array<object> keys= as_array_object (keys_object);
+  array<string> keys= latex_export_env_keys ();
   string output;
   for (int i=0; i<N(keys); ++i) {
-    if (!is_string (keys[i])) continue;
-    string key= as_string (keys[i]);
+    string key= keys[i];
     const OrnamentRule* rule= find_rule (key);
     if (rule == nullptr) continue;
-    object value= latex_export_env_get (key);
-    if (is_bool (value) && !as_bool (value)) continue;
+    scheme_tree value= latex_export_env_get (key);
     string decoded= ornament_value (*rule, value);
     append_option (output, rule->option1, decoded);
     if (rule->option2 != nullptr) append_option (output, rule->option2, decoded);

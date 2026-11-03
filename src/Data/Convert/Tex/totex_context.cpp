@@ -32,7 +32,7 @@ using latex_export_internal::empty_string_stree;
 using latex_export_internal::one_of;
 
 struct LatexExportContext {
-  hashmap<string,array<object>> env;
+  hashmap<string,array<scheme_tree>> env;
   hashmap<string,string> dynamic;
   hashmap<string,int> command_text_uses;
   hashmap<string,int> command_math_uses;
@@ -74,7 +74,7 @@ struct LatexExportContext {
   bool use_macros;
 
   LatexExportContext ():
-    env (array<object> ()), dynamic (""), command_text_uses (0),
+    env (array<scheme_tree> ()), dynamic (""), command_text_uses (0),
     command_math_uses (0), portable_image_copies (""),
     portable_image_used (false), placeholders (tree ("#f")),
     latex_language ("english"), latex_style ("generic"),
@@ -90,7 +90,7 @@ struct LatexExportContext {
   }
 
   void reset () {
-    env= hashmap<string,array<object>> (array<object> ());
+    env= hashmap<string,array<scheme_tree>> (array<scheme_tree> ());
     dynamic= hashmap<string,string> ("");
     command_text_uses= hashmap<string,int> (0);
     command_math_uses= hashmap<string,int> (0);
@@ -114,15 +114,9 @@ struct LatexExportContext {
 // storage also prevents simultaneous BufferActors from sharing exporter state.
 thread_local LatexExportContext latex_export_context;
 
-array<object>
+array<scheme_tree>
 env_values (string var) {
   return latex_export_context.env[var];
-}
-
-object
-optional_object (const array<object>& values, int index) {
-  if (index < 0 || index >= N(values)) return object (false);
-  return values[index];
 }
 
 void
@@ -184,11 +178,6 @@ stree_apply (string head) {
   scheme_tree r (TUPLE);
   r << tree (head);
   return r;
-}
-
-object
-stree_object (scheme_tree t) {
-  return scheme_tree_to_object (t);
 }
 
 scheme_tree
@@ -367,8 +356,8 @@ athena_data_wrap_with_records (scheme_tree st, scheme_tree records,
 
 bool
 export_math_mode () {
-  array<object> values= env_values ("mode");
-  return N(values) > 0 && is_string (values[0]) && as_string (values[0]) == "math";
+  array<scheme_tree> values= env_values ("mode");
+  return N(values) > 0 && string_atom (values[0]) && atom_text (values[0]) == "math";
 }
 
 scheme_tree
@@ -580,9 +569,9 @@ mixed_source_output_native (scheme_tree args) {
   scheme_tree value= args[1];
   if (func_is (value, "text", 1)) value= value[1];
 
-  array<object> previous= env_values ("mode");
-  array<object> scoped;
-  scoped << object ("text");
+  array<scheme_tree> previous= env_values ("mode");
+  array<scheme_tree> scoped;
+  scoped << stree_string ("text");
   for (int i=0; i<N(previous); ++i) scoped << previous[i];
   latex_export_context.env ("mode")= scoped;
   string text= latex_export_tt (value);
@@ -751,9 +740,9 @@ with_convert_native (scheme_tree args) {
   scheme_tree rest (TUPLE);
   for (int i=2; i<N(args); ++i) rest << args[i];
 
-  array<object> previous= env_values (var);
-  array<object> scoped;
-  scoped << object (val);
+  array<scheme_tree> previous= env_values (var);
+  array<scheme_tree> scoped;
+  scoped << stree_string (val);
   for (int i=0; i<N(previous); ++i) scoped << previous[i];
   latex_export_context.env (var)= scoped;
 
@@ -765,9 +754,9 @@ with_convert_native (scheme_tree args) {
 
 scheme_tree
 convert_in_mode (scheme_tree value, string mode) {
-  array<object> previous= env_values ("mode");
-  array<object> scoped;
-  scoped << object (mode);
+  array<scheme_tree> previous= env_values ("mode");
+  array<scheme_tree> scoped;
+  scoped << stree_string (mode);
   for (int i=0; i<N(previous); ++i) scoped << previous[i];
   latex_export_context.env ("mode")= scoped;
   scheme_tree result= tmtex_convert (value);
@@ -1403,9 +1392,9 @@ file_output_native (scheme_tree args) {
     output_styles << two_column;
   }
 
-  array<object> previous_preamble= env_values (":preamble");
-  array<object> scoped_preamble;
-  scoped_preamble << object (true);
+  array<scheme_tree> previous_preamble= env_values (":preamble");
+  array<scheme_tree> scoped_preamble;
+  scoped_preamble << scheme_tree ("#t");
   for (int i=0; i<N(previous_preamble); ++i) scoped_preamble << previous_preamble[i];
   latex_export_context.env (":preamble")= scoped_preamble;
   scheme_tree preamble= preprocess_preamble_list_native (doc_preamble);
@@ -1871,9 +1860,9 @@ rewrite_macro_args (scheme_tree x, scheme_tree args) {
 
 void
 assign_env_value (string var, scheme_tree value) {
-  array<object> old= env_values (var);
-  array<object> next;
-  next << stree_object (value);
+  array<scheme_tree> old= env_values (var);
+  array<scheme_tree> next;
+  next << copy (value);
   for (int i=1; i<N(old); ++i) next << old[i];
   latex_export_context.env (var)= next;
 }
@@ -2136,8 +2125,8 @@ wrap_with_command_native (NativeWithCommand command, scheme_tree arg) {
 scheme_tree
 with_one_native (string var, string val, scheme_tree arg) {
   if (var == "mode") {
-    array<object> values= env_values ("mode");
-    string old= N(values) > 1 && is_string (values[1]) ? as_string (values[1]) : "";
+    array<scheme_tree> values= env_values ("mode");
+    string old= N(values) > 1 && string_atom (values[1]) ? atom_text (values[1]) : "";
     if (val == "text" && old != "text") {
       scheme_tree out= stree_apply ("text"); out << arg; return out;
     }
@@ -2804,7 +2793,7 @@ native_v3_tex_math (string key, scheme_tree args) {
         kind != "mbf" && kind != "mbfu") {
       if (kind == "sl" && latex_export_mathjax ())
         throw std::runtime_error ("MathJax cannot preserve the slanted math variant");
-      latex_export_env_set ("mode", object ("text"));
+      latex_export_env_set ("mode", stree_string ("text"));
       scheme_tree body;
       try { body= tmtex_convert (args[1]); }
       catch (...) { latex_export_env_reset ("mode"); throw; }
@@ -3046,7 +3035,7 @@ native_v3_tex_math (string key, scheme_tree args) {
         scheme_tree suffix (TUPLE);
         suffix << row[N(row)-1];
         if (tagged) {
-          latex_export_env_set ("mode", object ("text"));
+          latex_export_env_set ("mode", stree_string ("text"));
           scheme_tree tag= stree_apply ("tag");
           try { tag << tmtex_convert (policy[2][1]); }
           catch (...) { latex_export_env_reset ("mode"); throw; }
@@ -3095,7 +3084,7 @@ native_v3_tex_math (string key, scheme_tree args) {
     }
     const int previous= latex_export_context.native_v3_block_numbered;
     latex_export_context.native_v3_block_numbered= grid ? (numbered ? 1 : 0) : -1;
-    latex_export_env_set ("mode", object ("math"));
+    latex_export_env_set ("mode", stree_string ("math"));
     scheme_tree body;
     try { body= tmtex_convert (args[1]); }
     catch (...) {
@@ -3133,7 +3122,7 @@ core_dispatch (string key, scheme_tree args) {
     // semantics do not depend on an extra historical math wrapper, whereas
     // LaTeX scripts/delimiters require a mathematical environment.
     const bool ensure_math= key != "math-block" && !export_math_mode ();
-    if (ensure_math) latex_export_env_set ("mode", object ("math"));
+    if (ensure_math) latex_export_env_set ("mode", stree_string ("math"));
     scheme_tree result;
     try { result= native_v3_tex_math (key, args); }
     catch (...) {
@@ -3169,9 +3158,9 @@ core_dispatch (string key, scheme_tree args) {
       key == "alignat" || key == "align*" || key == "flalign*" ||
       key == "alignat*") {
     if (N(args) == 0) return stree_string ("");
-    array<object> previous= env_values ("mode");
-    array<object> scoped;
-    scoped << object ("math");
+    array<scheme_tree> previous= env_values ("mode");
+    array<scheme_tree> scoped;
+    scoped << stree_string ("math");
     for (int i=0; i<N(previous); ++i) scoped << previous[i];
     latex_export_context.env ("mode")= scoped;
     scheme_tree out= latex_export_table_apply (key, scheme_tree (TUPLE), args[0]);
@@ -4051,53 +4040,38 @@ latex_export_image_root_string () {
   return latex_export_context.image_root_string;
 }
 
-object
-latex_export_env_list (string var) {
-  return as_list_object (env_values (var));
-}
-
-object
+scheme_tree
 latex_export_env_get (string var) {
-  return optional_object (env_values (var), 0);
-}
-
-object
-latex_export_env_get_previous (string var) {
-  return optional_object (env_values (var), 1);
+  array<scheme_tree> values= env_values (var);
+  return N(values) == 0 ? scheme_tree ("#f") : copy (values[0]);
 }
 
 void
-latex_export_env_set (string var, object value) {
-  array<object> old= env_values (var);
-  array<object> next;
-  next << value;
+latex_export_env_set (string var, scheme_tree value) {
+  array<scheme_tree> old= env_values (var);
+  array<scheme_tree> next;
+  next << copy (value);
   for (int i=0; i<N(old); ++i) next << old[i];
   latex_export_context.env (var)= next;
 }
 
 void
 latex_export_env_reset (string var) {
-  array<object> old= env_values (var);
-  array<object> next;
+  array<scheme_tree> old= env_values (var);
+  array<scheme_tree> next;
   for (int i=1; i<N(old); ++i) next << old[i];
   latex_export_context.env (var)= next;
 }
 
-void
-latex_export_env_assign (string var, object value) {
-  latex_export_env_reset (var);
-  latex_export_env_set (var, value);
-}
-
-object
+array<string>
 latex_export_env_keys () {
-  array<object> keys;
+  array<string> keys;
   iterator<string> it= iterate (latex_export_context.env);
   while (it->busy ()) {
     string key= it->next ();
-    if (N(latex_export_context.env[key]) != 0) keys << object (key);
+    if (N(latex_export_context.env[key]) != 0) keys << key;
   }
-  return as_list_object (keys);
+  return keys;
 }
 
 int
@@ -4183,13 +4157,13 @@ latex_export_var_name (string name) {
 }
 
 string
-latex_tmtex_decode_length (object value) {
-  return decode_length_string (is_string (value) ? as_string (value) : "");
+latex_tmtex_decode_length (string value) {
+  return decode_length_string (value);
 }
 
 bool
-latex_tmtex_px_length (object value) {
-  return px_length_string (is_string (value) ? as_string (value) : "");
+latex_tmtex_px_length (string value) {
+  return px_length_string (value);
 }
 
 scheme_tree

@@ -158,7 +158,7 @@ preamble_page_type (scheme_tree entries) {
     }
     else if (key == "page-orientation") options << value;
     else if (value != "auto")
-      options << key * "=" * latex_tmtex_decode_length (pair[1]);
+      options << key * "=" * latex_tmtex_decode_length (value);
   }
   if (N(options) == 0) return stree_string ("");
 

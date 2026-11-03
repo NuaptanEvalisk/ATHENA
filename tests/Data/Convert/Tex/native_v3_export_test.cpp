@@ -56,7 +56,7 @@ tree accent (const char* glyph, const char* side, bool stretch) {
 string output (tree source, bool mathjax= false) {
   latex_export_context_reset ();
   latex_export_set_mathjax (mathjax);
-  latex_export_env_set ("mode", object ("math"));
+  latex_export_env_set ("mode", tree (scm_quote ("math")));
   scheme_tree result= latex_export_convert_node (
     latex_export_prepare_v3_source (source));
   if (mathjax) result= latex_export_mathjax_pre (result);
@@ -273,7 +273,7 @@ private slots:
 
   void failuresRestoreExportScopes () {
     latex_export_context_reset ();
-    latex_export_env_set ("mode", object ("math"));
+    latex_export_env_set ("mode", tree (scm_quote ("math")));
     const tree unsupported= big_operator ("\u222b", true);
     const tree nested= delimited ("(", ")", 'a', unsupported);
     QVERIFY_THROWS_EXCEPTION (std::runtime_error,
@@ -285,7 +285,7 @@ private slots:
     QVERIFY_THROWS_EXCEPTION (std::runtime_error,
       latex_export_convert_node (latex_export_prepare_v3_source (
         tree (MATH_VARIANT, "bf", unsupported))));
-    QCOMPARE (as_string (latex_export_env_get ("mode")), string ("math"));
+    QCOMPARE (latex_export_env_get ("mode"), tree (scm_quote ("math")));
   }
 
   void latexRowReferencesUseMatchingCounterValues () {

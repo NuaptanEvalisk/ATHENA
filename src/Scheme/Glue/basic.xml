@@ -1660,27 +1660,6 @@
     <arg type="string" />
     <arg type="scheme_tree" />
   </binding>
-  <binding name="latex-export-env-list" native="latex_export_env_list" returns="object">
-    <arg type="string" />
-  </binding>
-  <binding name="latex-export-env-get" native="latex_export_env_get" returns="object">
-    <arg type="string" />
-  </binding>
-  <binding name="latex-export-env-get-previous" native="latex_export_env_get_previous" returns="object">
-    <arg type="string" />
-  </binding>
-  <binding name="latex-export-env-set" native="latex_export_env_set" returns="void">
-    <arg type="string" />
-    <arg type="object" />
-  </binding>
-  <binding name="latex-export-env-reset" native="latex_export_env_reset" returns="void">
-    <arg type="string" />
-  </binding>
-  <binding name="latex-export-env-assign" native="latex_export_env_assign" returns="void">
-    <arg type="string" />
-    <arg type="object" />
-  </binding>
-  <binding name="latex-export-env-keys" native="latex_export_env_keys" returns="object" />
   <binding name="latex-export-next-serial" native="latex_export_next_serial" returns="int" />
   <binding name="latex-export-ref-count-get" native="latex_export_ref_count_get" returns="int" />
   <binding name="latex-export-ref-count-set" native="latex_export_ref_count_set" returns="void">
@@ -1768,12 +1747,6 @@
   </binding>
   <binding name="tmtex-var-name" native="latex_export_var_name" returns="string">
     <arg type="string" />
-  </binding>
-  <binding name="tmtex-decode-length" native="latex_tmtex_decode_length" returns="string">
-    <arg type="object" />
-  </binding>
-  <binding name="tmtex-px-length?" native="latex_tmtex_px_length" returns="bool">
-    <arg type="object" />
   </binding>
   <binding name="latex-export-float-sub" native="latex_export_float_sub" returns="scheme_tree">
     <arg type="bool" />

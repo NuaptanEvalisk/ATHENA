@@ -161,13 +161,10 @@ void   latex_export_set_image_root (url root, string root_string);
 void   latex_export_set_save_urls (url source, url target);
 url    latex_export_image_root_url ();
 string latex_export_image_root_string ();
-object latex_export_env_list (string var);
-object latex_export_env_get (string var);
-object latex_export_env_get_previous (string var);
-void   latex_export_env_set (string var, object value);
+scheme_tree latex_export_env_get (string var);
+void   latex_export_env_set (string var, scheme_tree value);
 void   latex_export_env_reset (string var);
-void   latex_export_env_assign (string var, object value);
-object latex_export_env_keys ();
+array<string> latex_export_env_keys ();
 int    latex_export_next_serial ();
 int    latex_export_ref_count_get ();
 void   latex_export_ref_count_set (int value);
@@ -227,8 +224,8 @@ array<string> latex_export_preamble_data (scheme_tree text, scheme_tree style,
                                           scheme_tree colormaps);
 scheme_tree latex_export_preprocess_preamble_list (scheme_tree values);
 string latex_export_var_name (string name);
-string latex_tmtex_decode_length (object value);
-bool latex_tmtex_px_length (object value);
+string latex_tmtex_decode_length (string value);
+bool latex_tmtex_px_length (string value);
 scheme_tree latex_export_float_sub (bool wide, string position, scheme_tree body);
 scheme_tree latex_export_table_apply (string key, scheme_tree args,
                                       scheme_tree table);

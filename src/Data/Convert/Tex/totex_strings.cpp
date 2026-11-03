@@ -19,8 +19,8 @@ using namespace latex_export_internal;
 
 bool
 export_math_mode () {
-  object mode= latex_export_env_get ("mode");
-  return is_string (mode) && as_string (mode) == "math";
+  scheme_tree mode= latex_export_env_get ("mode");
+  return string_atom (mode) && atom_text (mode) == "math";
 }
 
 bool

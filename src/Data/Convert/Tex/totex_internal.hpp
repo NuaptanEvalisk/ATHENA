@@ -145,8 +145,8 @@ tmtex_convert (scheme_tree t) {
 
 inline bool
 math_mode () {
-  object mode= latex_export_env_get ("mode");
-  return is_string (mode) && as_string (mode) == "math";
+  scheme_tree mode= latex_export_env_get ("mode");
+  return string_atom (mode) && atom_text (mode) == "math";
 }
 
 } // namespace latex_export_internal

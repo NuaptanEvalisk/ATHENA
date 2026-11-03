@@ -391,7 +391,7 @@ elsevier_make_abstract_data (scheme_tree args) {
 scheme_tree
 elsevier_equation_output (string key, scheme_tree args) {
   if (!stree_list (args) || N(args) == 0) return stree_string ("");
-  latex_export_env_set ("mode", object ("math"));
+  latex_export_env_set ("mode", stree_string ("math"));
   scheme_tree body= tmtex_convert (args[0]);
   latex_export_env_reset ("mode");
   scheme_tree begin= stree_apply ("!begin");

@@ -200,7 +200,7 @@ formula_content (scheme_tree formula) {
 
 scheme_tree
 convert_formula (scheme_tree formula) {
-  latex_export_env_set ("mode", object ("math"));
+  latex_export_env_set ("mode", stree_string ("math"));
   scheme_tree out= tmtex_convert (formula_content (formula));
   latex_export_env_reset ("mode");
   return out;

@@ -149,7 +149,7 @@ image_length (scheme_tree value) {
   string unit;
   parse_length (s, number, unit);
   if (unit == "w" || unit == "h") return "!";
-  return latex_tmtex_decode_length (object (s));
+  return latex_tmtex_decode_length (s);
 }
 
 bool
@@ -172,7 +172,7 @@ scheme_tree
 image_size_records (scheme_tree width, scheme_tree height) {
   string w= force_string (width), h= force_string (height);
   scheme_tree records (TUPLE);
-  if (!latex_tmtex_px_length (object (w)) && !latex_tmtex_px_length (object (h)))
+  if (!latex_tmtex_px_length (w) && !latex_tmtex_px_length (h))
     return records;
   scheme_tree values (TUPLE);
   values << stree_string ("img_size") << stree_string ("width") << stree_string (w)

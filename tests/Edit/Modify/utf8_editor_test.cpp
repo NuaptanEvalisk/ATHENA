@@ -2231,7 +2231,7 @@ private slots:
     // This test runs on the initialized Scheme owner thread. The standalone
     // XML codec unit target intentionally does not initialize libguile.
     latex_export_context_reset ();
-    latex_export_env_set ("mode", object ("math"));
+    latex_export_env_set ("mode", tree (scm_quote ("math")));
     const auto exported= [] (const tree& source) {
       return scheme_tree_to_string (
         latex_export_convert_node (tree_to_scheme_tree (source)));

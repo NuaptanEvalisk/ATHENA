@@ -1972,6 +1972,33 @@ generated native entries and remain on the secure-function list.
 - This supersedes the preceding pending-deployment notes, not the outstanding
   environment-stack, conversion-payload and complete runtime-removal work.
 
+## Native LaTeX Environment Stacks
+
+- Export environment stacks now hold serialized native trees, preserving text,
+  boolean and compound values without Scheme objects. Set/get and assignment
+  detach tree storage; stack order and existing scope restoration are retained.
+  Mode readers, publisher/diagram export and ornament options use native values.
+- Removed seven unused environment bindings and unused list/previous/assign
+  APIs. Updated existing C++ checks to the native signatures without adding
+  tests or changing assertions.
+- Length decoding and pixel checks now accept strings directly, removing two
+  unused bindings and object wrapping in image export. This also corrects a
+  missed boundary in the preceding page-parameter migration: a serialized tree
+  implicitly wrapped as object failed the old string predicate. A4-only checking
+  did not cover explicit length options; verification must cover page margins.
+- Interface generation and eight affected implementation units compiled with
+  -j16 (native-latex-env-glue.log and native-latex-env-build.log in build_qt6).
+- Full ATHENA.bin build passed. A focused document export verified duplicate
+  top-margin assignments resolve to 2cm, left margin remains 3cm, color
+  definitions survive and mathematics before/after nested text mode exports
+  correctly. Nine retired bindings were absent (NATIVE_LATEX_ENV_OK).
+- Deployed build ID 803e72606406a5c8fddb8bfd1cd337fe4222e896 with the approved
+  deployment script. Logs in build_qt6: native-latex-env-full-build.log,
+  native-latex-env-runtime.log and native-latex-env-deploy.log. Temporary
+  probe/profile removed; broader tests were not run.
+- Remaining export object queries and the full runtime/build dependency removal
+  are still outstanding; this is not completion of the overall goal.
+
 ## Known Outstanding Failure
 
 - A C++ exception escaping a Scheme VM call can leave the dynamic-wind stack

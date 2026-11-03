@@ -66,7 +66,7 @@ initialize_native (const conversion_options& options) {
     option_string (options, "texmacs->latex:use-macros") == "on");
 
   if (option_string (options, "texmacs->latex:mathjax") == "on") {
-    latex_export_env_set ("mode", object ("math"));
+    latex_export_env_set ("mode", stree_string ("math"));
     latex_export_set_mathjax (true);
   }
 
