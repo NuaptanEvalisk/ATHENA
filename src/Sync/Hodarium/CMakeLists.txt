@@ -5,7 +5,8 @@ add_library(athena_hodarium STATIC revisions.cpp membership.cpp device_identity.
 set_target_properties(athena_hodarium PROPERTIES AUTOMOC OFF)
 target_compile_features(athena_hodarium PUBLIC cxx_std_17)
 target_include_directories(athena_hodarium PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
-  PRIVATE ${NLOHMANN_JSON_INCLUDE_DIR} ${LIBSODIUM_INCLUDE_DIRS} ${SQLITE3_INCLUDE_DIRS})
+  PRIVATE ${ATHENA_SOURCE_DIR}/src
+    ${NLOHMANN_JSON_INCLUDE_DIR} ${LIBSODIUM_INCLUDE_DIRS} ${SQLITE3_INCLUDE_DIRS})
 target_link_libraries(athena_hodarium PRIVATE ${SQLITE3_LIBRARIES} ${LIBSODIUM_LIBRARIES})
 find_package(Qt6 COMPONENTS WebSockets REQUIRED)
 target_link_libraries(athena_hodarium PUBLIC Qt6::Core Qt6::Network PRIVATE Qt6::WebSockets)

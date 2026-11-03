@@ -35,7 +35,10 @@ the deployed application. See `notes/athena-developer-orientation.md` and
 `notes/source-layout.md` for runtime details.
 
 This reorganization preserves the inherited `athena_body` target and its
-transitional per-directory include paths. The source files have been matched
-statically to the preceding CMake compilation inventory, but **no configure,
-build, tests or deployment were run**. Separate targets with enforced dependency
-directions require a later, explicit compilation/verification step.
+transitional per-directory include paths. The source files were matched
+statically to the preceding CMake compilation inventory. Subsequently, the
+desktop `ATHENA.bin`, separately deployed CMake service targets, and native
+Hodarium headless node built successfully; the standalone Hodarium Server and
+Relay also built with Go. A synthetic XML v3 CLI export and focused Codex/Web
+checks passed. No new executable has been deployed. Separate targets with
+enforced dependency directions remain a distinct architectural improvement.

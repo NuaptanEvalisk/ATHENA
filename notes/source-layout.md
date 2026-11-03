@@ -68,15 +68,35 @@ to `src/Materials/Model/`, and the Hodarium logical database to
 This change is a **physical source-path reorganization**, not a redesign of
 source types, protocols, XML v3, BufferActor ownership, or persisted data.
 The desktop `athena_body` library and its transitional global include paths
-are intentionally retained for this unbuilt step. Splitting this library into
-separately enforceable module targets is a distinct architectural change,
-requiring a later explicitly authorized build and runtime verification.
+are intentionally retained. Splitting this library into separately enforceable
+module targets remains a distinct architectural change.
 
 ## Verification boundary
 
-The November 3 reorganization was performed without running a compiler, Cargo,
-Go, npm, CMake configuration/build, or any runtime executable, in accordance
-with the power-conservation requirement. Static source and path checks do not
-establish that a new build has succeeded. Existing build directories were not
-regenerated or deployed; a future deliberate build must reconfigure its CMake
-source graph for the new locations.
+The initial November 3 source move was committed without building, as requested
+while the laptop was on battery. After power was restored, the configured Qt6
+desktop build was regenerated and `ATHENA.bin` built with IntelLLVM and `-j16`.
+The Codex bridge, Web broker, delegation transmitter, AUDMAP CLI/REPL, native
+Hodarium headless node, and the Go Hodarium Server/Relay all built successfully.
+
+The separate headless-node build exposed two omitted CMake requirements:
+`athena_hodarium` requires the source-root include path for its relocated
+`Sync/Hodarium/` headers, and the minimal node links the core field-contract
+implementation, which depends on the authoritative `ATHENA/misc/node-fields.json`
+and the same generated-header template as desktop ATHENA. Both are now explicit
+in the corresponding CMake target configurations.
+
+The new desktop executable successfully loaded and exported a synthetic native
+XML v3 document with an isolated temporary profile. `codex_bridge_protocol`,
+`athena-web-server-tests`, and `athena-web-session-helper-tests` passed (3/3).
+Build logs are in `build_qt6/source-layout-*.log`; node logs are in
+`build_hodarium_node/source-layout-*.log`.
+
+The completed build-tree `ATHENA.bin` has ELF build ID
+`7bda6827f34c5c5407d58eb8af0d400211f7c899`. The installed
+`ATHENA/bin/ATHENA.bin` remains the previous build ID
+`89aaf0afb7173ea7534dc13f01b432264444dc48`; it was **not** replaced.
+Active user processes, personal configuration and production vault files were
+not touched.
+These targeted checks do not constitute a complete editor regression suite or
+cross-platform acceptance test.

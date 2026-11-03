@@ -36,6 +36,13 @@ configure_file("${CMAKE_CURRENT_LIST_DIR}/HodariumNodeConfig.h.in"
 configure_file("${CMAKE_CURRENT_LIST_DIR}/HodariumNodeConfig.h.in"
   "${HODARIUM_CONFIG_DIR}/tm_configure.hpp" @ONLY)
 
+# The standalone source graph consumes the same embedded node field contracts
+# as the desktop, but does not enter src/CMakeLists.txt to generate the header.
+file(READ "${ATHENA_SOURCE_DIR}/ATHENA/misc/node-fields.json"
+  ATHENA_NATIVE_FIELDS_JSON)
+configure_file("${ATHENA_SOURCE_DIR}/src/Document/NodeContracts/native_fields_data.hpp.in"
+  "${HODARIUM_CONFIG_DIR}/native_fields_data.hpp" @ONLY)
+
 # Explicit source list: do not accidentally import editor or inference code.
 # This archive is also the integration boundary for the extracted disk adapters.
 add_library(athena_hodarium_node_core STATIC
@@ -54,6 +61,7 @@ add_library(athena_hodarium_node_core STATIC
   src/Document/Convert/Xml/athena_document_xml_v3.cpp
   src/Document/Convert/Xml/native_xml_codec.cpp
   src/Document/Tree/math_tree_v3.cpp
+  src/Document/NodeContracts/native_fields.cpp
   src/Core/Language/named_symbol.cpp
   src/Document/Convert/Xml/document_upgrade_file.cpp
   src/Infrastructure/Files/confined_filesystem.cpp

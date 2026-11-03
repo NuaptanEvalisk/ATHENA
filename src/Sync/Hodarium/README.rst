@@ -4,7 +4,7 @@ ATHENA Hodarium native client
 The design contract is ``notes/athena-hodarium.tex``. This directory implements
 native identity, control, transport and revision storage. Application wiring is
 in ``src/UI/Qt/Integrations/QTMHodarium.cpp``; source, resource and logical-database
-application lives in ``src/ATHENA/Data/hodarium_*.{hpp,cpp}``. See
+application lives in ``src/Sync/State/hodarium_*.{hpp,cpp}``. See
 ``services/hodarium/README.rst`` for independent Server and Relay deployment.
 
 Enrollment, peer transfer, protected application, conflict submission and
