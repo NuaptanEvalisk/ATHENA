@@ -1282,6 +1282,7 @@ using export_environment= std::map<std::string, tree>;
 class html_exporter {
   url target;
   editor_rep* rendering_editor;
+  bool mathjax_enabled= true;
   string stylesheet;
   url image_root;
   string image_name;
@@ -1412,7 +1413,8 @@ class html_exporter {
       tree styles (TUPLE);
       for (int i=1; i<N(source[2]); ++i) styles << source[2][i];
       return html_export_document_plan (source[1], styles, css, stylesheet,
-                                       "ATHENA " * string (ATHENA_VERSION), true);
+                                       "ATHENA " * string (ATHENA_VERSION),
+                                       mathjax_enabled);
     }
     if (op == "enunciation-color") {
       string color= get_user_preference ("vault " * atom (source[0]) * " color");
@@ -1430,6 +1432,9 @@ class html_exporter {
   }
 
   tree mathematics (tree source, bool display, bool block, const export_environment& env) {
+    if (!mathjax_enabled)
+      throw std::runtime_error (
+        "HTML export: native mathematics requires MathJax");
     tree plan= html_export_math_plan (source, display, block);
     return html_export_math_output (request ("math", plan, env),
                                     plan[1] == tree ("#t"), plan[2] == tree ("#t"));
@@ -1439,6 +1444,8 @@ public:
   html_exporter (url destination, url source, const conversion_options& options,
                  editor_rep* owner): target (destination), rendering_editor (owner) {
     if (!is_none (source)) included_sources.insert (source_identity (source));
+    const auto mathjax= options.find ("texmacs->html:mathjax");
+    mathjax_enabled= mathjax == options.end () || mathjax->second != "off";
     auto css= options.find ("texmacs->html:css-stylesheet");
     stylesheet= css == options.end () ? string ("---") : string (css->second.c_str ());
     string extension= suffix (target);

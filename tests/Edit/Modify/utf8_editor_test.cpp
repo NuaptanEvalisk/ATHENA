@@ -162,6 +162,10 @@ private slots:
     buffer->data->init (ZOOM_FACTOR)= "1";
     set_document (buffer->document, buffer->root_path, tree (DOCUMENT, ""));
     editor= tm_new<Utf8TestEditor> (test_server, buffer);
+    // Unlike a real view, this editor has no compositor driving the initial
+    // typesetting pass. Exercise clipboard and selection commands against a
+    // prepared editor rather than a cursor with no source environment.
+    editor->typeset_forced ();
   }
   void cleanup () {
     tm_delete<editor_rep> (editor);
@@ -1217,6 +1221,7 @@ private slots:
     editor->redo (0);
     QVERIFY (subtree (current_document_tree (), atom) == tree (source));
 
+    editor->typeset_forced ();
     editor->selection_set ("primary", tree (source));
     tree selection;
     string bytes;
@@ -1371,6 +1376,7 @@ private slots:
     editor->start_editing ();
     editor->insert_tree (compound ("math", tree (AROUND, "(", "x", ")")));
     editor->end_editing ();
+    editor->typeset_forced ();
     const tree before= copy (editor->the_buffer ());
     const path paragraph= buffer->root_path * 0;
     editor->select (paragraph * 0, paragraph * 1);
@@ -1464,6 +1470,7 @@ private slots:
     editor->start_editing ();
     editor->insert_tree (compound ("math", ""), path (0, 0));
     editor->end_editing ();
+    editor->typeset_forced ();
     QCOMPARE (editor->get_env_string (MODE), string ("math"));
     const tree before= copy (editor->the_buffer ());
     const tree offer= clipboard_with_version (
@@ -1963,6 +1970,7 @@ private slots:
     QVERIFY (editor->the_path () == atom * N(source));
     QVERIFY (subtree (current_document_tree (), atom) == tree (source));
 
+    editor->typeset_forced ();
     editor->selection_set_paths (atom * 2, atom * 8);
     QVERIFY (editor->selection_get_start () == atom * 1);
     QVERIFY (editor->selection_get_end () == atom * (1 + N(cluster)));
@@ -2058,6 +2066,7 @@ private slots:
     editor->end_editing ();
     QCOMPARE (subtree (current_document_tree (), buffer->root_path), source);
     const path marked_atom= buffer->root_path * path (0, 1, 0);
+    editor->typeset_forced ();
     editor->selection_set_paths (marked_atom * 0, marked_atom * 1);
     QVERIFY (editor->selection_active_normal ());
     QCOMPARE (count_node_identity (editor->selection_get (), identity), 1);
@@ -2169,6 +2178,10 @@ private slots:
     editor->archive_state ();
     editor->start_editing ();
     editor->insert_tree ("i");
+    // Leave the completed subscript before adding a superscript to the same
+    // MathScripts owner. A script command issued *inside* the nonempty slot
+    // intentionally creates a nested script instead.
+    editor->go_to_end (buffer->root_path * path (0, 0, N(sequence)-1));
     editor->make_script (true, true);
     editor->insert_tree ("2");
     editor->end_editing ();
@@ -2498,6 +2511,9 @@ private slots:
     const conversion_options without_mathjax {
       {"texmacs->html:mathjax", "off"}, {"texmacs->html:css", "on"},
       {"texmacs->html:images", "off"}};
+    const string text_only_html= html_document_for_test (baseline, without_mathjax);
+    QVERIFY (occurs ("HTML baseline text.", text_only_html));
+    QVERIFY (!occurs ("mathjax@3", text_only_html));
     QVERIFY_THROWS_EXCEPTION (std::runtime_error,
       html_document_for_test (doc, without_mathjax));
   }

@@ -2285,3 +2285,41 @@ The inconsistent Scheme dynamic-wind stack documented in
 and cross-VM C++ exception boundary have been deleted. Native nested-context
 restoration and repeated exception recovery pass in the focused tests. This
 closure follows removal of the complete runtime boundary, not just `progs`.
+
+### Complete UTF-8 editor test closure and retired GC skeleton (2026-11-03)
+
+- The detached editor fixture did not have a compositor to drive the initial
+  typesetting pass. It now calls `typeset_forced()` during setup and after
+  source edits or undo/redo before commands needing an admitted cursor context
+  (clipboard, selection extraction, source mode preflight). No production
+  context getter or edit invariant was weakened.
+- The MathScripts test now leaves the right-subscript field before constructing
+  the corresponding right superscript on the same owner. Invoking a script
+  command *inside* a filled script field correctly constructs a nested script;
+  that is exercised separately by the native editor tests.
+- HTML export had ignored an explicit `texmacs->html:mathjax=off` option. The
+  HTML exporter now omits MathJax resources for text-only output when disabled
+  and rejects native mathematical nodes in that mode rather than rendering
+  them through the disabled backend. The full UTF-8 test checks both results.
+- `utf8_editor_test` now passes **all 57 QtTest cases**, with zero failures or
+  skips; CTest's corresponding target also passes. The native conversion suite
+  passes after relinking against the updated HTML exporter. Logs:
+  `build_qt6/utf8-full-suite-qt-final.log`,
+  `build_qt6/utf8-full-suite-final-regressions.log` and
+  `build_qt6/utf8-full-suite-native-conversion.log`.
+- The user-noticed `3rdparty/athena-bdwgc` source path consisted solely of
+  14 empty, untracked directories, with no source files or tracked Git entries.
+  Those directories were removed. The obsolete Guile/BDW-GC stages in the
+  iPadOS build reference were updated to the actual native build workflow.
+- Built `ATHENA.bin` with `-j16` and deployed it via the official ELF-retaining
+  helper. Built and installed ELF build IDs match
+  `89aaf0afb7173ea7534dc13f01b432264444dc48`; the installed binary has no
+  `libguile` or `libgc` dynamic dependency. Logs:
+  `build_qt6/utf8-full-suite-html-build.log` and
+  `build_qt6/utf8-full-suite-deploy.log`. Existing user processes and the
+  production Notes Vault were not touched.
+- Separately, an exploratory build of `native_v3_math_editor_test` exposed
+  its pre-existing outdated `compute_env_rects` test calls. After a temporary
+  test-only signature correction, that separate suite still aborted at
+  `nativeGridEnterAddsRow` with an unprepared cursor mode. Those exploratory
+  edits were reverted; the failure is outside the now-green UTF-8 suite.

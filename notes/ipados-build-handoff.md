@@ -1,6 +1,6 @@
 # ATHENA iPadOS Build Reference
 
-Updated: 2026-11-01. The original porting assignment is complete enough to have
+Updated: 2026-11-03. The original porting assignment is complete enough to have
 a working native application build; this is not a request to start the port
 again. Later commits include native startup/window fixes, palette and gesture
 fixes, Hodarium integration and additional image formats. This note does not
@@ -14,11 +14,11 @@ The Linux repository is the source of truth. Platform scripts are under
 - `sync-source-to-vm.sh`: source synchronization.
 - `bootstrap-vm.sh`, `install-host-tools.sh`: host prerequisites.
 - `build-qt.sh`, `build-athena-deps.sh`, `build-materials.sh`: dependencies.
-- `build-bdwgc.sh`, `build-guile-deps.sh`, `build-guile-host.sh`,
-  `build-guile-target.sh`, `prepare-guile-bootstrap.sh`: private runtimes.
-- `build-scheme-bytecode.sh`: packaged target-compatible Scheme modules.
 - `configure-athena.sh`, `build-athena.sh`: device application configuration
   and build. Read the scripts before choosing which stages need rerunning.
+
+The earlier BDW-GC/Guile host and target stages and Scheme-bytecode build were
+removed by the native runtime migration. They are not part of this workflow.
 
 `build-athena.sh` uses the explicit Apple target `ATHENA`, Debug configuration,
 and `ATHENA_IPADOS_JOBS` (default 15). Linux uses `ATHENA.bin -j16`.
@@ -48,11 +48,11 @@ is actually requested; no remote inspection was performed for this note refresh.
 - Host build tools and arm64 device libraries are different artifacts. Do not
   run target executables as host generators or mix Linux runtime resources into
   the iPad bundle.
-- iPad ships precompiled private Guile bytecode, without JIT or runtime source
-  recompilation. Native interface changes must reach both binary and modules.
+- The native iPad build does not package a Guile interpreter, BDW-GC or Scheme
+  bytecode. Native XML command interface changes must reach the compiled binary.
 - Relevant integration lives in `cmake/AthenaPlatform.cmake`,
-  `cmake/AthenaIOS.cmake`, `cmake/AthenaGuile.cmake`,
-  `cmake/AthenaPackagedScheme.cmake` and `src/Subsystems/iOS/`.
+  `cmake/AthenaIOS.cmake`, `cmake/AthenaCommands.cmake` and
+  `src/Subsystems/iOS/`.
 - A Linux build does not update an IPA. Compiling a device bundle, signing it,
   installing it and verifying actual device behavior are distinct milestones.
   Do not label an unsigned ZIP as an installable signed IPA.
