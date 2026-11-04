@@ -460,14 +460,38 @@ concater_rep::typeset_v3_annotation (tree t, path ip) {
   if (!athena::math_v3::valid_native_math (t)) {
     typeset_error (t, ip); return;
   }
-  const box base= typeset_as_concat (env, t[0], descend (ip, 0));
-  box below, above;
+  box base= typeset_as_concat (env, t[0], descend (ip, 0));
+  box below, above, vacant_below, vacant_above;
   {
     native_math_context_scope scripts (*env.operator-> (), native_math_context::script);
-    if (t[1] != "") below= typeset_as_concat (env, t[1], descend (ip, 1));
-    if (t[2] != "") above= typeset_as_concat (env, t[2], descend (ip, 2));
+    for (int i=1; i<=2; ++i) {
+      native_math_context_scope position (*env.operator-> (),
+        native_script_position (L(t), i));
+      const box part= typeset_as_concat (env, t[i], descend (ip, i));
+      if (i == 1) {
+        if (t[i] == "") vacant_below= part;
+        else below= part;
+      }
+      else {
+        if (t[i] == "") vacant_above= part;
+        else above= part;
+      }
+    }
   }
-  print (limit_box (ip, base, below, above, env->fn, false));
+  box visible= limit_box (ip, base, below, above, env->fn, false);
+  if (!is_nil (vacant_below) || !is_nil (vacant_above)) {
+    // Match MATH_SCRIPTS: the actual typeset box omits empty annotations,
+    // while alternate layouts admit the insertion cursor in each vacant slot.
+    array<box> cursor_layouts (2);
+    if (!is_nil (vacant_below))
+      cursor_layouts[0]= limit_box (ip, base, vacant_below, above, env->fn, false);
+    if (!is_nil (vacant_above))
+      cursor_layouts[1]= limit_box (ip, base, below, vacant_above, env->fn, false);
+    visible= native_script_cursor_box (
+      ip, visible, cursor_layouts,
+      base->find_tree_path (base->find_left_box_path ()));
+  }
+  print (visible);
 }
 
 void

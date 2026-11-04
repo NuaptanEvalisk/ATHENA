@@ -564,6 +564,7 @@ private slots:
   }
   void nativeMathControlAnnotations () {
     buffer->storage_version= athena::document::xml_storage_version::v3;
+    for (bool inline_math: {false, true})
     for (bool above: {false, true}) {
       const string key= above ? "C-7" : "C-4";
       QVERIFY (native_math_keyboard_has_registered_key (key));
@@ -572,7 +573,7 @@ private slots:
       block_metadata.properties["math:block-numbered"]= athena::node::property (false);
       athena::node::set (block, block_metadata);
       set_document (buffer->document, buffer->root_path,
-                    tree (DOCUMENT, block));
+                    tree (DOCUMENT, inline_math ? compound ("math", "x") : block));
       editor->init_style ("generic");
       editor->typeset_forced ();
       editor->go_to (buffer->root_path * path (0, 0, 1));
@@ -590,10 +591,30 @@ private slots:
       editor->start_editing ();
       editor->key_press (key);
       editor->end_editing ();
-      const tree result= subtree (current_document_tree (), buffer->root_path * path (0, 0));
+      const path annotation_path= buffer->root_path * path (0, 0);
+      const tree result= subtree (current_document_tree (), annotation_path);
       QVERIFY (is_func (result, MATH_ANNOTATION, 3));
       QCOMPARE (result[0], tree ("x"));
       QCOMPARE (result[above ? 2 : 1], tree (""));
+      const path cursor= annotation_path * path (above ? 2 : 1, 0);
+      QCOMPARE (editor->the_path (), cursor);
+      editor->typeset_forced ();
+      for (int index=1; index<=2; ++index) {
+        const path field= annotation_path * index;
+        QVERIFY (editor->source_occurrence_at (
+          field, subtree (current_document_tree (), field), {}));
+        bool field_found= false;
+        editor->eb->find_box_path (field * 0, field_found);
+        QVERIFY (field_found);
+      }
+      QVERIFY (editor->editor_rep::cursor_context_at (cursor));
+      QCOMPARE (editor->get_env_string (MODE), string ("math"));
+      editor->start_editing ();
+      editor->insert_tree ("n");
+      editor->end_editing ();
+      const tree after= subtree (current_document_tree (), annotation_path);
+      QVERIFY (is_func (after, MATH_ANNOTATION, 3));
+      QCOMPARE (after[above ? 2 : 1], tree ("n"));
     }
   }
   void mathTypesetting () {
