@@ -313,6 +313,7 @@ bool
 is_multi_paragraph (tree t) {
   switch (L(t)) {
   case DOCUMENT:
+  case MATH_BLOCK:
     return true;
   case SURROUND:
     return is_multi_paragraph (t[2]);
