@@ -9,6 +9,7 @@
 #include <condition_variable>
 #include <mutex>
 #include <set>
+#include <system_error>
 #include <thread>
 
 namespace athena::prooftrack {
@@ -157,7 +158,16 @@ void run (vault_context_handle vault) {
             auto input= root.open (file.path);
             auto before= input.stat ();
             document::codec_limits limits;
-            tree doc= document::decode_native_xml_bytes (input.read (limits.input_bytes)).document;
+            std::string bytes;
+            try { bytes= input.read (limits.input_bytes); }
+            catch (const std::system_error& error) {
+              if (error.code () != std::errc::resource_unavailable_try_again) throw;
+              // A concurrent save changed the source while this snapshot was
+              // being read. Keep its existing index entry and retry the sweep.
+              retry= true;
+              continue;
+            }
+            tree doc= document::decode_native_xml_bytes (bytes).document;
             json nodes= json::array ();
             collect (doc, nodes);
             auto after= root.open (file.path);
