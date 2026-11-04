@@ -836,7 +836,15 @@ struct lazy_export_node_rep: public lazy_surround_rep {
 
 lazy
 make_lazy (edit_env env, tree t, path ip) {
-  source_occurrence_scope occurrence (*env.operator-> (), t, ip);
+  // A rewritten macro can retain its original attached source even when its
+  // presentation is laid out at a decorative path. Record that source entry
+  // without changing the decorative path used to render the lazy node.
+  path source= ip;
+  if (!is_accessible (source)) {
+    const path attached= obtain_ip (t);
+    if (is_accessible (attached)) source= attached;
+  }
+  source_occurrence_scope occurrence (*env.operator-> (), t, source);
   lazy result= make_lazy_impl (env, t, ip);
   occurrence.finish ();
   if (!athena::node_reference::export_node_destinations_active () ||

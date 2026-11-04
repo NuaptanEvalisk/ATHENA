@@ -119,6 +119,9 @@ tree_contains_literal (const tree& source, string expected) {
 
 class Utf8TestEditor: public edit_main_rep {
 public:
+  using editor_rep::eb;
+  using edit_cursor_rep::cursor_is_accessible;
+  using edit_typeset_rep::source_occurrence_at;
   Utf8TestEditor (server_rep* server, buffer_document_state* buffer):
     editor_rep (server, buffer), edit_main_rep (server, buffer) {}
   void* derived_this () override { return this; }
@@ -1012,6 +1015,35 @@ private slots:
       QVERIFY (!is_atom (entered) && entered->item == 0);
     }
 
+  }
+
+  void documentTitleFocus () {
+    const tree title (as_tree_label ("doc-title"), tree ("Editable title"));
+    set_document (buffer->document, buffer->root_path,
+      tree (DOCUMENT, tree (as_tree_label ("doc-data"), title), tree ("Body")));
+    editor->init_style ("generic");
+    editor->typeset_forced ();
+    const path title_path= buffer->root_path * path (0, 0);
+    const tree source= subtree (current_document_tree (), title_path);
+    // The doc-title wrapper is reconstructed by an EXTERN style callback.
+    // Its lazy display can have a decorative path, but its source occurrence
+    // is required to enter and edit the original title field.
+    QVERIFY (editor->source_occurrence_at (title_path, source, {}));
+    const path position= title_path * path (0, N(source[0]->label));
+    bool found= false;
+    const path box_path= editor->eb->find_box_path (position, found);
+    QVERIFY (found);
+    QCOMPARE (editor->eb->find_tree_path (box_path), position);
+    editor->go_to (position);
+    QVERIFY (editor->cursor_is_accessible ());
+    path focus;
+    QVERIFY (editor->focus_try_get (focus, true));
+    QCOMPARE (focus, title_path);
+    editor->start_editing ();
+    editor->insert_tree (" revised");
+    editor->end_editing ();
+    QCOMPARE (subtree (current_document_tree (), title_path * 0),
+              tree ("Editable title revised"));
   }
 
   void nativeUtf8MetadataAndLegacyEncodingPreference () {
