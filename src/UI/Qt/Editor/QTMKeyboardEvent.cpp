@@ -135,6 +135,14 @@ void QTMKeyboardEvent::patchForMac() {
 
 void
 QTMKeyboardEvent::handleKeyboardByTexmacs() {
+  // Some input methods translate Ctrl+digit into a control character or a
+  // layout-dependent glyph. The math shortcuts use the logical number key,
+  // not the translated text; preserve shifted and AltGr combinations.
+  if (isControl() && !isShift() && !isAlt() && !isMeta() &&
+      mKey >= Qt::Key_0 && mKey <= Qt::Key_9) {
+    mTexmacsKeyCombination= string ((char) mKey);
+    return;
+  }
     // We need to use text(): Alt-{5,6,7,8,9} are []|{} under MacOS, etc.
   nss = mEvent.text();
   kc  = mEvent.nativeVirtualKey();

@@ -31,6 +31,7 @@
 #include "UI/Abstract/gui.hpp"
 #include "boot.hpp"
 #include "App/Runtime/buffer_state.hpp"
+#include "App/Runtime/execution_context.hpp"
 #include "data_cache.hpp"
 #include "cursor_navigation.hpp"
 #include "native_dispatch.hpp"
@@ -119,6 +120,7 @@ tree_contains_literal (const tree& source, string expected) {
 
 class Utf8TestEditor: public edit_main_rep {
 public:
+  using editor_rep::contract_state;
   using editor_rep::eb;
   using edit_cursor_rep::cursor_is_accessible;
   using edit_typeset_rep::source_occurrence_at;
@@ -165,13 +167,14 @@ private slots:
     buffer->data->init (ZOOM_FACTOR)= "1";
     set_document (buffer->document, buffer->root_path, tree (DOCUMENT, ""));
     editor= tm_new<Utf8TestEditor> (test_server, buffer);
+    editor_owner= ::editor (editor);
     // Unlike a real view, this editor has no compositor driving the initial
     // typesetting pass. Exercise clipboard and selection commands against a
     // prepared editor rather than a cursor with no source environment.
     editor->typeset_forced ();
   }
   void cleanup () {
-    tm_delete<editor_rep> (editor);
+    editor_owner= ::editor ();
     swap_current_document_tree (nullptr);
     tm_delete (buffer);
   }
@@ -545,6 +548,53 @@ private slots:
     const QKeyEvent shifted (QEvent::KeyPress, Qt::Key_1,
       Qt::ControlModifier | Qt::ShiftModifier, 0, 0x1234, 0, "\x01");
     QCOMPARE (QTMKeyboardEvent (keyboard, shifted).texmacsKeyCombination (), "C-" * composed);
+    for (const auto& item: {std::pair<int,int> {Qt::Key_4, 0x1c},
+                            std::pair<int,int> {Qt::Key_7, 0x1f}}) {
+      const QKeyEvent shortcut (QEvent::KeyPress, item.first, Qt::ControlModifier,
+                                QString (QChar (item.second)));
+      QCOMPARE (QTMKeyboardEvent (keyboard, shortcut).texmacsKeyCombination (),
+                string (item.first == Qt::Key_4 ? "C-4" : "C-7"));
+      // Wayland/IME text can differ from the logical Qt number key. The
+      // Ctrl-digit shortcut must not change with the translated text.
+      const QKeyEvent translated (QEvent::KeyPress, item.first,
+        Qt::ControlModifier, QString::fromUtf8 ("\xc2\xa7"));
+      QCOMPARE (QTMKeyboardEvent (keyboard, translated).texmacsKeyCombination (),
+                string (item.first == Qt::Key_4 ? "C-4" : "C-7"));
+    }
+  }
+  void nativeMathControlAnnotations () {
+    buffer->storage_version= athena::document::xml_storage_version::v3;
+    for (bool above: {false, true}) {
+      const string key= above ? "C-7" : "C-4";
+      QVERIFY (native_math_keyboard_has_registered_key (key));
+      tree block (MATH_BLOCK, "x");
+      athena::node::metadata block_metadata;
+      block_metadata.properties["math:block-numbered"]= athena::node::property (false);
+      athena::node::set (block, block_metadata);
+      set_document (buffer->document, buffer->root_path,
+                    tree (DOCUMENT, block));
+      editor->init_style ("generic");
+      editor->typeset_forced ();
+      editor->go_to (buffer->root_path * path (0, 0, 1));
+      ExecutionContext context (nullptr, editor, &editor->contract_state,
+                                &buffer->document, 0, 0, 0, EXECUTION_CAPABILITY_BUFFER);
+      ExecutionScope scope (context);
+      QCOMPARE (editor->get_env_string (MODE), string ("math"));
+      QVERIFY (native_math_keyboard_context_active ());
+      string combination= key, shorthand, help;
+      int status= 0;
+      command action;
+      QVERIFY (native_math_keyboard_get_keycomb (
+        combination, status, action, shorthand, help));
+      QCOMPARE (status, 1);
+      editor->start_editing ();
+      editor->key_press (key);
+      editor->end_editing ();
+      const tree result= subtree (current_document_tree (), buffer->root_path * path (0, 0));
+      QVERIFY (is_func (result, MATH_ANNOTATION, 3));
+      QCOMPARE (result[0], tree ("x"));
+      QCOMPARE (result[above ? 2 : 1], tree (""));
+    }
   }
   void mathTypesetting () {
     using namespace athena::text;
@@ -2552,6 +2602,7 @@ private slots:
 private:
   buffer_document_state* buffer= nullptr;
   Utf8TestEditor* editor= nullptr;
+  ::editor editor_owner;
 };
 
 static void run_tests (int argc, char** argv) {
