@@ -1027,7 +1027,7 @@
   <binding name="escape-to-ascii" native="cork_to_ascii" returns="string">
     <arg type="string" />
   </binding>
-  <binding name="unescape-guile" native="unescape_guile" returns="string">
+  <binding name="unescape-hex-bytes" native="unescape_hex_bytes" returns="string">
     <arg type="string" />
   </binding>
   <binding name="string-quote" native="scm_quote" returns="string">

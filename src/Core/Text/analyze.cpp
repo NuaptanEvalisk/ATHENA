@@ -885,7 +885,7 @@ dos_to_better (string s) {
 }
 
 string
-unescape_guile (string s) {
+unescape_hex_bytes (string s) {
   int i, n= N(s);
   string r;
   for (i=0; i<n; i++) {

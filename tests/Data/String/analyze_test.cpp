@@ -26,7 +26,7 @@ private slots:
   void test_scm_unquote ();
   void test_raw_quote ();
   void test_raw_unquote ();
-  void test_unescape_guile ();
+  void test_unescape_hex_bytes ();
   void test_starts ();
   void test_ends ();
   void test_read_word ();
@@ -105,8 +105,8 @@ TestAnalyze::test_raw_unquote () {
 }
 
 void
-TestAnalyze::test_unescape_guile () {
-  QCOMPARE (as_charp (unescape_guile ("\\\\")), "\\\\");
+TestAnalyze::test_unescape_hex_bytes () {
+  QCOMPARE (as_charp (unescape_hex_bytes ("\\\\")), "\\\\");
 }
 
 void
