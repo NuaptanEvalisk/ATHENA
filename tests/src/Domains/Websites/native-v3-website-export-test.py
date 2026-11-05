@@ -6,6 +6,7 @@ from html import unescape
 import json
 import os
 from pathlib import Path
+import shutil
 import signal
 import subprocess
 import tempfile
@@ -60,10 +61,24 @@ def fixture():
         property_value("numbered", "b", "true"),
         property_value("name", "h", text("Native name"))),
         node("document", text("Enunciation remains visible."), block))
+    figure = node("big-figure",
+                  node("concat", text("Figure body"),
+                       node("image", text("assets/figure.png"), text("100px"),
+                            text(""), text(""), text(""))),
+                  text("Figure caption"))
     document = node("document", node("style", node("tuple", text("generic"))),
-                    node("body", node("document", text("Native website source"), enunciation)))
+                    node("body", node("document", text("Native website source"),
+                                      enunciation, figure)))
     envelope = ET.Element("a", {"v": "3", "k": "d"})
     envelope.append(document)
+    return ET.tostring(envelope, encoding="utf-8", xml_declaration=True)
+
+
+def source_document(*body):
+    envelope = ET.Element("a", {"v": "3", "k": "d"})
+    envelope.append(node("document",
+                         node("style", node("tuple", text("generic"))),
+                         node("body", node("document", *body))))
     return ET.tostring(envelope, encoding="utf-8", xml_declaration=True)
 
 
@@ -103,6 +118,9 @@ def main():
         (vault / "Vaultfile.json").write_text(json.dumps({"name": "Export fixture"}))
         source = vault / "source.ath"
         source.write_bytes(fixture())
+        (vault / "assets").mkdir()
+        shutil.copyfile(args.resources.resolve() / "misc/images/icon_fullsize.png",
+                        vault / "assets/figure.png")
         legacy = vault / "target.ath"
         legacy.write_text('<athena-document version="2" text-model="utf-8">'
                           '<node tag="document"><node tag="style"><node tag="tuple">'
@@ -136,9 +154,11 @@ def main():
         html = unescape((site / "source.html").read_text())
         normalized_html = " ".join(html.split())
         for expected in ("Native name", "Enunciation remains visible.", "Case A", "Link",
+                         "Figure body", "Figure caption",
                          r"\begin{gather", r"\tag{", "athena-node-" + ROW_ID,
                          "eq:first", "target.html"):
             assert expected in normalized_html, f"Missing {expected!r} from actual website output\n{html[-16000:]}"
+        assert any(site.glob("source-*.png")), "Website export lost the figure image"
         assert r"\tag{}" in html, "Explicit empty tag became absent"
         assert "nonconverted" not in html
         assert "Legacy baseline <literal> stays text." in unescape((site / "target.html").read_text())
@@ -178,6 +198,18 @@ def main():
         for path, before in originals.items():
             assert path.read_bytes() == before, "Export changed an authoritative source"
 
+        # A style macro's figure counter is an executed effect, but authored
+        # ASSIGN nodes must still be rejected rather than silently stripped.
+        bare = ET.fromstring(fixture())
+        bare_body = bare.find("./n/n[@t='body']/n[@t='document']")
+        bare_body.append(node("assign", text("html-export-regression"), text("value")))
+        source.write_bytes(ET.tostring(bare, encoding="utf-8"))
+        (site / "source.html").unlink()
+        failure = run(args.binary.resolve(), home, environment,
+                      ["--generate-website", str(vault), "test"], success=False)
+        assert "Unsupported HTML export: bare macro code: assign" in failure, failure[-12000:]
+        assert not (site / "source.html").exists(), "Authored ASSIGN became visible HTML"
+
         unsupported = ET.fromstring(fixture())
         grid = unsupported.find(".//n[@t='math-grid']")
         grid.set("k", "eqnarray")
@@ -185,7 +217,7 @@ def main():
             row.extend((node("cell", text("=")), node("cell", text("q"))))
         source.write_bytes(ET.tostring(unsupported, encoding="utf-8"))
         unsupported_bytes = source.read_bytes()
-        (site / "source.html").unlink()
+        (site / "source.html").unlink(missing_ok=True)
         failure = run(args.binary.resolve(), home, environment,
                       ["--generate-website", str(vault), "test"], success=False)
         assert "Custom MathGrid row tags" in failure, failure[-12000:]
@@ -196,6 +228,43 @@ def main():
         run(args.binary.resolve(), home, environment,
             ["--generate-website", str(vault), "test"], success=False)
         assert not (site / "source.html").exists(), "Import error became a website page"
+
+        # Canonical XML v3 transclusions contain an ordered UUID tuple rather
+        # than the retired four-argument Vault transclusion representation.
+        # The website must embed the resolved content and invalidate a cached
+        # host page when the transcluded source changes.
+        node_vault = home / "node-vault"
+        node_vault.mkdir()
+        node_site = home / "node-site"
+        node_id = "946b4317-8221-474a-829c-27c338f7f1a4"
+        (node_vault / "Vaultfile.json").write_text(json.dumps({
+            "name": "Canonical node references", "node_model_version": 2}))
+        (node_vault / "websites.json").write_text(json.dumps({
+            "version": 1, "websites": [{
+                "id": "node", "name": "Node reference regression",
+                "selector": {"kind": "path", "path": ""},
+                "destination": str(node_site), "generatePdfs": False,
+                "entrypoint": {"kind": "file", "path": "home.ath"}}]}))
+        (node_vault / "home.ath").write_bytes(source_document(
+            text("Transclusion host"),
+            node("transclude", node("tuple", text(node_id)))))
+        target = node_vault / "source.ath"
+
+        def write_target(content):
+            target.write_bytes(source_document(
+                node("concat", text(content), i=node_id)))
+
+        write_target("Original transcluded warning.")
+        run(args.binary.resolve(), home, environment,
+            ["--generate-website", str(node_vault), "node"])
+        assert "Original transcluded warning." in (node_site / "home.html").read_text()
+
+        write_target("Updated transcluded warning.")
+        run(args.binary.resolve(), home, environment,
+            ["--generate-website", str(node_vault), "node"])
+        updated_html = (node_site / "home.html").read_text()
+        assert "Updated transcluded warning." in updated_html
+        assert "Original transcluded warning." not in updated_html
         print("ATHENA-NATIVE-V3-WEBSITE-EXPORT-PASS")
 
 

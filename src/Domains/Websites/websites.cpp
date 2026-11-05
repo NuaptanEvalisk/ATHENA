@@ -10,6 +10,7 @@
 
 #include "Domains/Websites/websites_internal.hpp"
 #include "Domains/References/node_location.hpp"
+#include "Domains/References/node_reference.hpp"
 #include "Domains/Vault/vaultfile_json.hpp"
 
 #include <QCryptographicHash>
@@ -22,7 +23,7 @@ namespace {
 constexpr int website_source_manifest_version= 1;
 // Bump when HTML semantics change: unchanged .ath sources must not keep a
 // cached page missing enunciations or containing malformed MathJax tokens.
-constexpr int website_document_export_revision= 6;
+constexpr int website_document_export_revision= 7;
 constexpr const char* website_source_manifest_name=
   ".athena-source-hashes.json";
 
@@ -86,7 +87,8 @@ source_collection_hash (const std::map<std::string,std::string>& hashes) {
 bool
 contains_transclusion (tree t) {
   if (is_atomic (t)) return false;
-  if (is_compound (t, "transclude") && N(t) >= 4) return true;
+  if (is_compound (t, "transclude") &&
+      (athena::node_reference::canonical (t) || N(t) >= 4)) return true;
   for (int i=0; i<N(t); i++)
     if (contains_transclusion (t[i])) return true;
   return false;

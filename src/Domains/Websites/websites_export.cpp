@@ -12,6 +12,8 @@
 #include "boot.hpp"
 #include "Document/Model/buffer_export.hpp"
 #include "Domains/References/transclusion_cache.hpp"
+#include "Domains/References/node_reference.hpp"
+#include "Domains/References/node_location.hpp"
 #include "Rendering/Art/data_art.hpp"
 #include "App/Frontend/new_window.hpp"
 #include "App/Frontend/new_view.hpp"
@@ -560,15 +562,18 @@ local_document_target (const std::string& destination,
 }
 
 tree
-rewrite_static_links (tree t, const std::string& source_rel,
-                      const std::string& output_rel,
-                      const GenerationContext& cx);
+rewrite_static_links_internal (tree t, const std::string& source_rel,
+                               const std::string& output_rel,
+                               const GenerationContext& cx,
+                               std::set<std::string>& transclusion_ancestry);
 
 tree
 rewrite_link_like (tree t, const std::string& source_rel,
-                   const std::string& output_rel,
-                   const GenerationContext& cx, bool force_plain_hlink) {
-  tree body = rewrite_static_links (t[0], source_rel, output_rel, cx);
+                    const std::string& output_rel,
+                    const GenerationContext& cx, bool force_plain_hlink,
+                    std::set<std::string>& transclusion_ancestry) {
+  tree body = rewrite_static_links_internal (
+    t[0], source_rel, output_rel, cx, transclusion_ancestry);
   std::string destination = tree_string (t[1]);
   std::string rel_path;
   std::string anchor;
@@ -616,33 +621,89 @@ transclusion_source_rel (tree t) {
 
 tree
 resolve_transclusion (tree t, const std::string& source_rel,
-                      const std::string& output_rel,
-                      const GenerationContext& cx) {
+                       const std::string& output_rel,
+                       const GenerationContext& cx,
+                       std::set<std::string>& transclusion_ancestry) {
+  if (athena::node_reference::canonical (t)) {
+    tree shown (DOCUMENT);
+    for (const std::string& id: athena::node_reference::targets (t)) {
+      if (!transclusion_ancestry.insert (id).second)
+        throw std::runtime_error ("Cyclic website transclusion: " + id);
+      if (cx.conflicting_node_ids.count (id))
+        throw std::runtime_error ("Ambiguous website transclusion UUID: " + id);
+      auto found= cx.node_files.find (id);
+      if (found == cx.node_files.end ())
+        throw std::runtime_error ("Unresolved website transclusion UUID: " + id);
+      const std::string rel= clean_relative (found->second);
+      MaintenanceDocument source;
+      std::string error;
+      if (!read_maintenance_document (cx.root / rel, source, error))
+        throw std::runtime_error ("Could not read website transclusion source: " +
+                                  rel + ": " + error);
+      tree content;
+      bool resolved= false;
+      for (const auto& occurrence: athena::node_location::collect (source.document))
+        if (occurrence.id == id) {
+          content= athena::node_location::lookup (
+            source.document, occurrence.where, id);
+          resolved= true;
+          break;
+        }
+      if (!resolved)
+        throw std::runtime_error ("Website transclusion identity changed: " + id);
+
+      const url base= url_system (std_to_tm (
+        (cx.root / rel).parent_path ().string ()));
+      content= athena::node_reference::presentation_copy (content, base);
+      content= rewrite_static_links_internal (
+        content, rel, output_rel, cx, transclusion_ancestry);
+
+      tree source_link (HLINK,
+        std_to_tm ("[Source: " + fs::path (rel).filename ().string () + "]"),
+        std_to_tm ("tmfs://wikilink/" + id));
+      tree entry (DOCUMENT);
+      entry << tree (WITH, "font-size", "0.8", "color", "blue",
+        rewrite_static_links_internal (
+          source_link, rel, output_rel, cx, transclusion_ancestry));
+      if (is_document (content)) entry << A(content);
+      else entry << content;
+      shown << entry;
+      transclusion_ancestry.erase (id);
+    }
+    return athena_transclusion_compact_frame (shown);
+  }
   if (N(t) != 4) return copy (t);
 
   tree content= athena_resolve_transclusion_display (t);
   std::string transcluded_rel = transclusion_source_rel (t);
   if (transcluded_rel.empty ()) transcluded_rel = source_rel;
-  return rewrite_static_links (content, transcluded_rel, output_rel, cx);
+  return rewrite_static_links_internal (
+    content, transcluded_rel, output_rel, cx, transclusion_ancestry);
 }
 
 tree
-rewrite_static_links (tree t, const std::string& source_rel,
-                      const std::string& output_rel,
-                      const GenerationContext& cx) {
+rewrite_static_links_internal (tree t, const std::string& source_rel,
+                               const std::string& output_rel,
+                               const GenerationContext& cx,
+                               std::set<std::string>& transclusion_ancestry) {
   auto finish= [&] (tree r) {
     athena::node::transform_rich_metadata (t, r, [&] (tree rich) {
-      return rewrite_static_links (rich, source_rel, output_rel, cx);
+      return rewrite_static_links_internal (
+        rich, source_rel, output_rel, cx, transclusion_ancestry);
     });
     return r;
   };
   if (is_atomic (t)) return finish (copy (t));
   if (is_func (t, HLINK, 2))
-    return finish (rewrite_link_like (t, source_rel, output_rel, cx, false));
+    return finish (rewrite_link_like (
+      t, source_rel, output_rel, cx, false, transclusion_ancestry));
   if (is_compound (t, "cardlink", 2))
-    return finish (rewrite_link_like (t, source_rel, output_rel, cx, true));
-  if (is_compound (t, "transclude") && N(t) >= 4)
-    return resolve_transclusion (t, source_rel, output_rel, cx);
+    return finish (rewrite_link_like (
+      t, source_rel, output_rel, cx, true, transclusion_ancestry));
+  if (is_compound (t, "transclude") &&
+      (athena::node_reference::canonical (t) || N(t) >= 4))
+    return resolve_transclusion (
+      t, source_rel, output_rel, cx, transclusion_ancestry);
   if (is_func (t, IMAGE) && N(t) > 0 && is_atomic (t[0])) {
     std::string href;
     if (copy_static_image (tree_string (t[0]), source_rel, output_rel, cx,
@@ -652,15 +713,26 @@ rewrite_static_links (tree t, const std::string& source_rel,
       athena::node::copy_metadata (t[0], destination);
       r << destination;
       for (int i=1; i<N(t); i++)
-        r << rewrite_static_links (t[i], source_rel, output_rel, cx);
+        r << rewrite_static_links_internal (
+          t[i], source_rel, output_rel, cx, transclusion_ancestry);
       return finish (r);
     }
   }
 
   tree r (L(t));
   for (int i=0; i<N(t); i++)
-    r << rewrite_static_links (t[i], source_rel, output_rel, cx);
+    r << rewrite_static_links_internal (
+      t[i], source_rel, output_rel, cx, transclusion_ancestry);
   return finish (r);
+}
+
+tree
+rewrite_static_links (tree t, const std::string& source_rel,
+                      const std::string& output_rel,
+                      const GenerationContext& cx) {
+  std::set<std::string> transclusion_ancestry;
+  return rewrite_static_links_internal (
+    t, source_rel, output_rel, cx, transclusion_ancestry);
 }
 
 

@@ -175,6 +175,11 @@ boundaries, do not patch from intuition. Debug from evidence.
 
 ## Local Executable Deployment
 
+- After every successful build of the `ATHENA.bin` application target, deploy
+  the newly built binary locally as part of the same task without waiting for
+  a separate user request. Verify the deployed ELF build ID matches the build
+  artifact and confirm the files are byte-identical. Do not deploy on a failed
+  build or when only non-application targets were built.
 - On Linux, deploy rebuilt ATHENA binaries with
   `python3 tools/install-local-executable.py build_qt6/src/ATHENA.bin ATHENA/bin/ATHENA.bin`
   or `tools/deploy-local-runtime.sh`. Do not bypass this with `install`, `cp`, or

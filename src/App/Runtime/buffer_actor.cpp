@@ -2145,8 +2145,13 @@ buffer_actor::dispatch (actor_command_record& command) {
           document, "view", as_string (current_view_url (command.view_id)));
       tree links= native_get_link_locations (impl_->state.name, body);
       if (N (links) != 0) document << compound ("links", links);
-      failed= export_tree_with_options (document, dest, format, impl_->state.name,
-                                       request.options, export_editor);
+      // A transient website/export buffer can have a different master source.
+      // Resolve HTML images and included files against that source, not the
+      // temporary .ath file holding the export snapshot.
+      url origin= format == "html" && !is_none (impl_->state.master)
+        ? impl_->state.master : impl_->state.name;
+      failed= export_tree_with_options (document, dest, format, origin,
+                                        request.options, export_editor);
     }
     command.argument[0]= failed ? 1 : 0;
     break;

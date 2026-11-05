@@ -449,6 +449,11 @@ scheme_tree html_export_markup_plan (scheme_tree source) {
     return inputs;
   }
   if (head (source, "label")) return inputs;
+  if (head (source, "hidden-binding")) {
+    if (N(source) != 3 || !head (source[1], "tuple"))
+      throw std::runtime_error ("HTML export: invalid hidden binding");
+    return inputs;
+  }
   if (head (source, "hlink") || head (source, "hyper-link") ||
       head (source, "doc-title-block")) {
     inputs << source[1];
@@ -550,6 +555,13 @@ scheme_tree html_export_markup_output (scheme_tree source, scheme_tree children)
   }
   else if (head (source, "label"))
     output << tuple ("h:a", attributes ("id", force_text (source[1])));
+  else if (head (source, "hidden-binding")) {
+    // SET_BINDING already recorded the reference value during native
+    // expansion. Its hidden result has no visible text, but its keys must
+    // remain destinations for links into figures, equations, and captions.
+    for (int i=1; i<N(source[1]); ++i)
+      output << tuple ("h:a", attributes ("id", force_text (source[1][i])));
+  }
   else if (head (source, "hlink") || head (source, "hyper-link")) {
     string dest= force_text (source[2]);
     if (starts (dest, "$")) return content;

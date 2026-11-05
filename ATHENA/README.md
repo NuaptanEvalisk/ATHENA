@@ -45,6 +45,19 @@ style system. Commands and callbacks execute natively; external automation uses
 AUDMAP. The project also inherits decades of work by Joris van der Hoeven and
 the GNU TeXmacs contributors.
 
+## Changes in 0.12
+
+Version 0.12 removes the embedded Scheme/Guile application runtime. Native C++
+commands, XML-generated typed dispatch, JSON keymaps and actor-owned callbacks
+now drive the supported editor and document workflows; the remaining
+S-expression handling is for legacy *data*, not executing Scheme programs.
+The native XML v3 document format introduced in 0.11 is unchanged.
+
+This release also improves structured math insertion, caret placement and PDF
+layout, adds ProofTrack links between mathematical statements and proofs,
+extends native semantic heading editing, and reorganizes source code, services,
+clients and tests according to their runtime ownership.
+
 ## Major Features
 
 ### Vaults

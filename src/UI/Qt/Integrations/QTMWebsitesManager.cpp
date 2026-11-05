@@ -32,6 +32,7 @@
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLabel>
+#include <QLayout>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMessageBox>
@@ -56,6 +57,7 @@
 
 #include <algorithm>
 #include <set>
+#include <vector>
 
 static QWidget* websites_manager_widget= nullptr;
 static ads::CDockWidget* websites_manager_dock= nullptr;
@@ -907,6 +909,75 @@ private:
   }
 };
 
+// A dock may be substantially narrower than the combined action buttons.
+// Flow into additional rows without squeezing QPushButton text below sizeHint.
+class WebsiteActionFlowLayout final : public QLayout {
+public:
+  WebsiteActionFlowLayout () {
+    setContentsMargins (0, 0, 0, 0);
+    setSpacing (6);
+  }
+
+  ~WebsiteActionFlowLayout () override {
+    while (QLayoutItem* item= takeAt (0)) delete item;
+  }
+
+  void addItem (QLayoutItem* item) override { items.push_back (item); }
+  int count () const override { return int (items.size ()); }
+  QLayoutItem* itemAt (int index) const override {
+    return index >= 0 && index < count () ? items[size_t (index)] : nullptr;
+  }
+  QLayoutItem* takeAt (int index) override {
+    if (index < 0 || index >= count ()) return nullptr;
+    QLayoutItem* item= items[size_t (index)];
+    items.erase (items.begin () + index);
+    return item;
+  }
+  Qt::Orientations expandingDirections () const override { return {}; }
+  bool hasHeightForWidth () const override { return true; }
+  int heightForWidth (int width) const override {
+    return arrange (QRect (0, 0, width, 0), true);
+  }
+  void setGeometry (const QRect& rect) override {
+    QLayout::setGeometry (rect);
+    arrange (rect, false);
+  }
+  QSize minimumSize () const override {
+    QSize required;
+    for (QLayoutItem* item: items)
+      required= required.expandedTo (item->sizeHint ());
+    return required;
+  }
+  QSize sizeHint () const override {
+    int width= 0;
+    for (int i=0; i<std::min (3, count ()); ++i)
+      width+= items[size_t (i)]->sizeHint ().width () + (i ? spacing () : 0);
+    return QSize (width, heightForWidth (width));
+  }
+
+private:
+  std::vector<QLayoutItem*> items;
+
+  int arrange (const QRect& rect, bool measure) const {
+    int left, top, right, bottom;
+    getContentsMargins (&left, &top, &right, &bottom);
+    const QRect area= rect.adjusted (left, top, -right, -bottom);
+    int x= area.left (), y= area.top (), lineHeight= 0;
+    for (QLayoutItem* item: items) {
+      const QSize size= item->sizeHint ().expandedTo (item->minimumSize ());
+      if (x > area.left () && x + size.width () - 1 > area.right ()) {
+        x= area.left ();
+        y+= lineHeight + spacing ();
+        lineHeight= 0;
+      }
+      if (!measure) item->setGeometry (QRect (QPoint (x, y), size));
+      x+= size.width () + spacing ();
+      lineHeight= std::max (lineHeight, size.height ());
+    }
+    return y - area.top () + lineHeight + top + bottom;
+  }
+};
+
 class WebsitesManagerPane : public QWidget {
 public:
   WebsitesManagerPane () {
@@ -921,14 +992,13 @@ public:
     log->setReadOnly (true);
     log->setMaximumHeight (120);
 
-    QHBoxLayout* buttons= new QHBoxLayout;
+    WebsiteActionFlowLayout* buttons= new WebsiteActionFlowLayout;
     buttons->addWidget (create);
     buttons->addWidget (remove);
     buttons->addWidget (rename);
     buttons->addWidget (inspect);
     buttons->addWidget (configure);
     buttons->addWidget (generate);
-    buttons->addStretch ();
 
     QVBoxLayout* layout= new QVBoxLayout;
     layout->addWidget (list);

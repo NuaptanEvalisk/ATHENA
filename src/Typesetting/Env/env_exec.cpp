@@ -676,6 +676,10 @@ edit_env_rep::exec_assign (tree t) {
   tree r= exec (t[0]);
   if (is_compound (r)) return tree (_ERROR, "bad assign");
   assign (r->label, copy (t[1]));
+  // Macro-generated assignments are environment effects, not display content.
+  // Suppress their returned trees only during HTML expansion. Assignments
+  // authored directly in the document still reach the strict HTML converter.
+  if (!is_nil (macro_arg) && get_string ("html-export") == "true") return "";
   tree v= read (r->label);
   if (is_atomic (v) || is_func (v, MACRO));
   else v= tree (QUOTE, v);

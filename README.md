@@ -45,6 +45,43 @@ unsupported structure, or behave differently in ATHENA.
 Treat `.ath` as the native ATHENA format. If interchange with another system is
 required, use an explicitly supported export format and verify the result.
 
+## New in 0.12
+
+ATHENA 0.12 builds on the XML v3 document model introduced in 0.11. Its
+main changes are a fully native application runtime, expanded structured
+mathematical writing and proof workflows, and clearer boundaries between
+the editor, services, clients and tools.
+
+- **No embedded Scheme/Guile runtime.** Application startup, editor actions,
+  keyboard bindings, preferences, callbacks, document loading and saving,
+  and conversion/export orchestration now execute through native C++.
+  Typed command adapters are generated from XML declarations, not Scheme
+  glue. Legacy S-expression *data* readers remain for supported imports and
+  caches, but the interpreter, Guile/GC dependencies and shipped `.scm`
+  resources have been removed.
+- **Native document conversion and publishing.** TeX, HTML, document
+  loading/export and associated options use explicit native values and
+  structured-tree boundaries. Existing XML v3 documents remain the source
+  of truth; the release does not introduce a new Vault format or require a
+  repeat of the 0.11 XML v3 migration.
+- **More dependable mathematical editing and layout.** Changes include
+  structured display-math insertion, script and annotation caret placement,
+  Ctrl+digit math shortcut handling, and corrections to incremental inline
+  math spacing and table proportions in PDF export.
+- **ProofTrack and semantic headings.** ProofTrack connects statements and
+  their proofs, including drag-based linking. Definition and related
+  provable headings have native structured editing paths, with more precise
+  source-context handling during search and navigation.
+- **Source-owned execution and deployment.** BufferActor ownership is
+  preserved across asynchronous work. The C++ source is now organized by
+  responsibility under `src/`, separately deployed services live under
+  `services/`, external clients under `clients/`, and tests mirror those
+  owners. Linux executable deployment uses the atomic install helper.
+
+See [the 0.12 source changes](https://github.com/NuaptanEvalisk/ATHENA/compare/0.11.0...master)
+for the detailed development history. Version 0.12 is a native-runtime and
+workflow release, not a new document-format generation.
+
 ## New in 0.11
 
 ATHENA 0.11 introduces a **native XML v3 document model** and expands the
@@ -101,7 +138,7 @@ and verify actual documents and histories before switching devices.
 The maintained full compilation guide is the ATHENA document
 **ATHENA - Compiling** (the PDF is exported separately from ATHENA).
 The repository's `COMPILE.ath`, `COMPILE.tex` and `COMPILE.pdf` are older
-0.10-era snapshots and are not the authoritative 0.11 build guide.
+0.10-era snapshots and are not the authoritative 0.12 build guide.
 
 **GNU/Linux x86-64:** Qt 6 with native Wayland is the maintained desktop
 target. An existing configured Debug tree is built with:
@@ -143,14 +180,14 @@ After starting ATHENA, use the documentation under the Help menu. The manual is
 still under construction. Additional project information is available at
 [athena.evalisk.org](https://athena.evalisk.org/).
 
-The welcome and getting-started pages describe 0.11. Much of the inherited
-reference manual still uses legacy help markup and may describe retired
-features; a wider documentation rewrite is planned for 1.0. This retained help
-format is not the native format for newly saved user documents.
+The project website and this README describe 0.12. Some bundled welcome and
+inherited help pages may still describe older releases or retired features;
+a wider documentation rewrite is planned for 1.0. This retained help format
+is not the native format for newly saved user documents.
 
 ## Status
 
-ATHENA 0.11 is under active development. Interfaces, document structures, and
+ATHENA 0.12 is under active development. Interfaces, document structures, and
 workflows may still change as the project develops.
 
 ## Licensing
