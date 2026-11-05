@@ -425,6 +425,31 @@ private slots:
     QVERIFY_EXCEPTION_THROWN (utf8_grapheme_next (string ("\xff"), 0), std::invalid_argument);
     QCOMPARE (utf8_grapheme_next (original, size - 3), size);
   }
+  void inlineMathCacheSpacing () {
+    athena::contracts::evaluation_state contracts (athena::contracts::builtin_contracts ().snapshot ());
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contracts, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (FONT_SHAPE, "italic");
+    env->write (FONT_SERIES, "bold");
+    env->write ("athena-radioactive-links-suppressed", "true");
+    env->update ();
+    const tree source (CONCAT, compound ("math", "f"), "x");
+    inline_math_fragments cache;
+    const auto width= [] (array<line_item> items) {
+      SI result= 0;
+      for (int i=0; i<N(items); ++i) result += items[i]->b->w () + items[i]->spc->def;
+      return result;
+    };
+    const SI cold= width (typeset_concat (env, source, path (0)));
+    for (int pass=0; pass<5; ++pass) {
+      auto items= typeset_concat_cached (env, source, path (0), &cache);
+      QVERIFY (!cache.empty () && cache[0].valid);
+      QCOMPARE (width (items), cold);
+    }
+  }
   void textTypesetting () {
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);

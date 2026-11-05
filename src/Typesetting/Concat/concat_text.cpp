@@ -538,7 +538,9 @@ static line_item
 copy_fragment_item (line_item original) {
   line_item result (original->type, original->op_type, original->b,
                     original->penalty);
-  result->spc= original->spc;
+  // space is reference-counted and operator+= mutates its shared payload.
+  // Italic corrections in finish() must not accumulate in the cached item.
+  result->spc= copy (original->spc);
   result->limits= original->limits;
   result->lan= original->lan;
   result->t= original->t;
@@ -600,7 +602,7 @@ concater_rep::typeset_cached_math_child (tree t, path ip, int index) {
   const int start= N(a);
   line_item before= start ? a[start-1] : line_item ();
   const int old_penalty= start ? before->penalty : 0;
-  const space old_space= start ? before->spc : space (0);
+  const space old_space= start ? copy (before->spc) : space (0);
   const bool old_limits= start ? before->limits : false;
   const int old_type= start ? before->type : 0;
   const int old_op= start ? before->op_type : 0;
