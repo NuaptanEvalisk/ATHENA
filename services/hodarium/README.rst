@@ -260,7 +260,8 @@ restore interface. See the native README for scope and recovery restrictions.
 
 ``make -C services/hodarium test`` runs the focused authority tests, not editor/iPad
 acceptance. Relay checks are under ``internal/relay``; native HTTPS/Relay launchers
-and isolated-keyring support are under ``tests/hodarium``. ``TestNativeRecovery``
+are under ``tests/services/hodarium``; native client checks and isolated-keyring
+support are under ``tests/src/Sync/Hodarium``. ``TestNativeRecovery``
 optionally runs a native fixture selected by ``ATHENA_HODARIUM_NATIVE_RECOVERY``.
 Fixtures use temporary state rather than production Vaults or real user keyring/
 Passkey state. Component checks do not demonstrate completed desktop/mobile,

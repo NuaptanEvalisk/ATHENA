@@ -120,10 +120,10 @@ same structural and identity contracts.
 - Vault lifecycle: `src/Domains/Vault/vault.cpp`; Hodarium descriptors and
   transport: `src/Sync/Hodarium/revisions.hpp`,
   `peer_replication.cpp`, `revision_transfer.cpp`.
-- Tests: `tests/Data/Convert/Xml/xml_v3_test.cpp`,
-  `tests/Edit/Modify/native_v3_math_editor_test.cpp`,
-  `tests/Edit/Interface/native_v3_grid_commands_test.cpp`, and
-  focused native tests under `tests/ATHENA/` and `tests/Data/Convert/`.
+- Tests: `tests/src/Document/Convert/Xml/xml_v3_test.cpp`,
+  `tests/src/Editor/Modify/native_v3_math_editor_test.cpp`,
+  `tests/src/Editor/Commands/native_v3_grid_commands_test.cpp`, and
+  focused native tests under `tests/src/App/` and `tests/src/Document/Convert/`.
 
 Remaining source cleanup of legacy readers/migration entry points and
 regression work should be scoped to a current user task, not the old

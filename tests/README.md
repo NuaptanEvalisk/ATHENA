@@ -2,6 +2,28 @@
 
 CTest is the source of truth for maintained automated regressions.
 
+## Ownership layout
+
+The test tree follows the owners of production code rather than historical
+TeXmacs directories:
+
+- `tests/src/` mirrors `src/` (App, Core, Document, Domains, Editor,
+  Infrastructure, Integrations, Interop, Materials, Math, Rendering, Services,
+  Sync, Typesetting and UI). Follow the relevant production owner when adding
+  or moving a test.
+- `tests/services/hodarium/` contains launchers for the separate Hodarium
+  service. Its Go unit tests remain beside their implementations under
+  `services/hodarium/internal/`.
+- `tests/clients/audmap-cli/` covers the external AUDMAP client/REPL.
+  The C++ and Python client packages also keep their own tests under
+  `clients/cpp/tests/` and `clients/python/tests/`.
+- `tests/tools/migrations/` covers developer migration utilities;
+  `tests/ATHENA/` covers shipped runtime resources.
+
+Keep `tests/CMakeLists.txt` as the shared CTest entrypoint. Test executable and
+CTest names remain independent of directory names, so targeted build and CTest
+commands do not change when tests are relocated.
+
 Build only the application or test targets relevant to the change:
 
 ```sh
@@ -29,10 +51,11 @@ Command adapters are generated from XML. The generator contract test compiles
 and executes a temporary C++ fixture; real value/dispatch and ownership behavior
 is covered by the native C++ tests. No tests bootstrap a Scheme VM.
 
-The Python integrations in `runtime/` use normal native CLI operations and
-isolated profiles. The AUDMAP integration starts an ordinary document argument
-and tests the live protocol plus Vault proposal admission and Qt review. Website/export, offline migration, crash reporting,
-watchdog and symbolization checks remain registered in CTest.
+Python runtime integrations live with the subsystem they exercise under
+`tests/src/` and use normal native CLI operations and isolated profiles. The
+AUDMAP integration checks the live protocol, Vault proposal admission and Qt
+review. Website/export, offline migration, crash reporting, watchdog and
+symbolization checks remain registered in CTest.
 
 Interpreter-only runners and their Scheme fixtures have been retired.
 Their supported editor/actor behavior belongs in the C++ tests or AUDMAP

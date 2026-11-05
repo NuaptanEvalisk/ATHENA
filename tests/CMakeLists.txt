@@ -1,36 +1,39 @@
 file (GLOB_RECURSE TEST_SRC_FILES CONFIGURE_DEPENDS "*.cpp")
 add_test(NAME shipped_macro_labels_generator_test
   COMMAND "${Python3_EXECUTABLE}"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Data/NodeContracts/shipped-macro-labels-test.py")
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Document/NodeContracts/shipped-macro-labels-test.py")
 set_tests_properties(shipped_macro_labels_generator_test PROPERTIES TIMEOUT 15)
 
-list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/hodarium/.*_test\\.cpp$")
+# Keep native Hodarium targets with their dedicated link setup.  The adjacent
+# file_keystore_test remains an ordinary auto-registered C++ test.
+list (FILTER TEST_SRC_FILES EXCLUDE REGEX
+  "/src/Sync/Hodarium/(authority_client|decision_feed|identity|membership|native_runtime|path_collisions|recovery|resources|revisions)_test\\.cpp$")
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  add_executable(hodarium_authority_client_test EXCLUDE_FROM_ALL hodarium/authority_client_test.cpp)
+  add_executable(hodarium_authority_client_test EXCLUDE_FROM_ALL src/Sync/Hodarium/authority_client_test.cpp)
   set_target_properties(hodarium_authority_client_test PROPERTIES AUTOMOC OFF)
   target_include_directories(hodarium_authority_client_test PRIVATE ${NLOHMANN_JSON_INCLUDE_DIR})
   target_link_libraries(hodarium_authority_client_test PRIVATE athena_hodarium)
   # Explicit-only: the launcher provisions an isolated D-Bus/keyring session.
-  add_executable(hodarium_identity_test EXCLUDE_FROM_ALL hodarium/identity_test.cpp)
+  add_executable(hodarium_identity_test EXCLUDE_FROM_ALL src/Sync/Hodarium/identity_test.cpp)
   set_target_properties(hodarium_identity_test PROPERTIES AUTOMOC OFF)
   target_include_directories(hodarium_identity_test PRIVATE ${LIBSODIUM_INCLUDE_DIRS})
   target_link_libraries(hodarium_identity_test PRIVATE athena_hodarium
     PkgConfig::HODARIUM_SECRET ${LIBSODIUM_LIBRARIES})
 endif()
-add_executable(hodarium_membership_test hodarium/membership_test.cpp)
+add_executable(hodarium_membership_test src/Sync/Hodarium/membership_test.cpp)
 set_target_properties(hodarium_membership_test PROPERTIES AUTOMOC OFF)
 target_include_directories(hodarium_membership_test PRIVATE ${NLOHMANN_JSON_INCLUDE_DIR})
 target_link_libraries(hodarium_membership_test PRIVATE athena_hodarium)
 add_test(NAME hodarium_membership_test COMMAND hodarium_membership_test
-  ${CMAKE_CURRENT_SOURCE_DIR}/hodarium/membership-wire.json)
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/Sync/Hodarium/membership-wire.json)
 set_tests_properties(hodarium_membership_test PROPERTIES TIMEOUT 15)
-add_executable(hodarium_revisions_test hodarium/revisions_test.cpp)
+add_executable(hodarium_revisions_test src/Sync/Hodarium/revisions_test.cpp)
 set_target_properties(hodarium_revisions_test PROPERTIES AUTOMOC OFF)
 target_link_libraries(hodarium_revisions_test PRIVATE athena_hodarium)
 add_test(NAME hodarium_revisions_test COMMAND hodarium_revisions_test)
 set_tests_properties(hodarium_revisions_test PROPERTIES TIMEOUT 15)
 
-add_executable(hodarium_decision_feed_test hodarium/decision_feed_test.cpp)
+add_executable(hodarium_decision_feed_test src/Sync/Hodarium/decision_feed_test.cpp)
 set_target_properties(hodarium_decision_feed_test PROPERTIES AUTOMOC OFF)
 target_include_directories(hodarium_decision_feed_test PRIVATE
   ${NLOHMANN_JSON_INCLUDE_DIR} ${LIBSODIUM_INCLUDE_DIRS})
@@ -38,7 +41,7 @@ target_link_libraries(hodarium_decision_feed_test PRIVATE athena_hodarium ${LIBS
 add_test(NAME hodarium_decision_feed_test COMMAND hodarium_decision_feed_test)
 set_tests_properties(hodarium_decision_feed_test PROPERTIES TIMEOUT 15)
 
-add_executable(hodarium_path_collisions_test hodarium/path_collisions_test.cpp)
+add_executable(hodarium_path_collisions_test src/Sync/Hodarium/path_collisions_test.cpp)
 set_target_properties(hodarium_path_collisions_test PROPERTIES AUTOMOC OFF)
 target_link_libraries(hodarium_path_collisions_test PRIVATE athena_hodarium)
 add_test(NAME hodarium_path_collisions_test COMMAND hodarium_path_collisions_test)
@@ -46,14 +49,14 @@ set_tests_properties(hodarium_path_collisions_test PROPERTIES TIMEOUT 15)
 
 # Run through the isolated Go TestNativeRecovery harness, which supplies a
 # temporary HTTPS authority and fixture via ATHENA_HODARIUM_NATIVE_RECOVERY.
-add_executable(hodarium_recovery_test EXCLUDE_FROM_ALL hodarium/recovery_test.cpp)
+add_executable(hodarium_recovery_test EXCLUDE_FROM_ALL src/Sync/Hodarium/recovery_test.cpp)
 set_target_properties(hodarium_recovery_test PROPERTIES AUTOMOC OFF)
 target_include_directories(hodarium_recovery_test PRIVATE ${NLOHMANN_JSON_INCLUDE_DIR})
 target_link_libraries(hodarium_recovery_test PRIVATE athena_hodarium)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux" OR APPLE)
   add_executable(hodarium_resources_test EXCLUDE_FROM_ALL
-    hodarium/resources_test.cpp
+    src/Sync/Hodarium/resources_test.cpp
     ${ATHENA_SOURCE_DIR}/src/Sync/State/hodarium_resources.cpp
     ${ATHENA_SOURCE_DIR}/src/App/Runtime/background_workers.cpp
     ${ATHENA_SOURCE_DIR}/src/Sync/State/document_history_store.cpp
@@ -91,8 +94,8 @@ function (athena_link_full_test_runtime target)
       "${ATHENA_SOURCE_DIR}/src/Infrastructure/Misc/tsan_mimalloc_shim.cpp")
   endif ()
 endfunction ()
-list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/Data/String/unicode_text_test\\.cpp$")
-add_executable (unicode_text_test Data/String/unicode_text_test.cpp)
+list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/src/Core/Text/unicode_text_test\\.cpp$")
+add_executable (unicode_text_test src/Core/Text/unicode_text_test.cpp)
 set_target_properties (unicode_text_test PROPERTIES AUTOMOC OFF)
 target_link_libraries (unicode_text_test PRIVATE athena_unicode Threads::Threads)
 add_test (NAME unicode_text_test COMMAND unicode_text_test)
@@ -100,26 +103,26 @@ set_tests_properties (unicode_text_test PROPERTIES TIMEOUT 15)
 
 add_test(NAME package_utf8_resources_test
   COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/package-utf8-resources-test.py
+    ${CMAKE_CURRENT_SOURCE_DIR}/ATHENA/package-utf8-resources-test.py
     ${ATHENA_SOURCE_DIR}/ATHENA)
 set_tests_properties(package_utf8_resources_test PROPERTIES TIMEOUT 15)
 
-list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/watchdog/watchdog_fake_child\\.cpp$")
-list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/qt/completion_popup_test\\.cpp$")
-list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/interop_test\\.cpp$")
-list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/authorization_ui_test\\.cpp$")
-list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/confined_filesystem_test\\.cpp$")
-list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/repl-pane-test\\.cpp$")
-list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/plugin-subscription-test\\.cpp$")
-list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/plugin-package-test\\.cpp$")
-list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/plugin-runtime-test\\.cpp$")
-list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/interop/plugin-runtime-fixture\\.cpp$")
+list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/src/App/Watchdog/watchdog_fake_child\\.cpp$")
+list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/src/UI/Qt/Editor/completion_popup_test\\.cpp$")
+list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/clients/audmap-cli/interop_test\\.cpp$")
+list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/src/UI/Qt/Integrations/authorization_ui_test\\.cpp$")
+list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/src/Infrastructure/Files/confined_filesystem_test\\.cpp$")
+list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/src/UI/Qt/Integrations/repl-pane-test\\.cpp$")
+list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/src/Services/Plugins/plugin-subscription-test\\.cpp$")
+list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/src/Services/Plugins/plugin-package-test\\.cpp$")
+list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/src/Services/Plugins/plugin-runtime-test\\.cpp$")
+list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/src/Services/Plugins/plugin-runtime-fixture\\.cpp$")
 
-add_executable(plugin_runtime_fixture interop/plugin-runtime-fixture.cpp)
+add_executable(plugin_runtime_fixture src/Services/Plugins/plugin-runtime-fixture.cpp)
 set_target_properties(plugin_runtime_fixture PROPERTIES AUTOMOC OFF)
 target_link_libraries(plugin_runtime_fixture PRIVATE athena_audmap_sdk)
 
-add_executable(plugin_runtime_test interop/plugin-runtime-test.cpp)
+add_executable(plugin_runtime_test src/Services/Plugins/plugin-runtime-test.cpp)
 set_target_properties(plugin_runtime_test PROPERTIES AUTOMOC OFF)
 athena_link_full_test_runtime(plugin_runtime_test)
 target_link_libraries(plugin_runtime_test PRIVATE Qt6::Test)
@@ -144,28 +147,29 @@ add_test(NAME plugin_runtime_test COMMAND plugin_runtime_test)
 set_tests_properties(plugin_runtime_test PROPERTIES TIMEOUT 45 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
 find_package(LibArchive REQUIRED)
-add_executable(plugin_package_test interop/plugin-package-test.cpp)
+add_executable(plugin_package_test src/Services/Plugins/plugin-package-test.cpp)
 set_target_properties(plugin_package_test PROPERTIES AUTOMOC OFF)
 target_link_libraries(plugin_package_test PRIVATE athena_plugins LibArchive::LibArchive)
 add_test(NAME plugin_package_test COMMAND plugin_package_test)
 set_tests_properties(plugin_package_test PROPERTIES TIMEOUT 15)
 
-add_executable(plugin_subscription_test interop/plugin-subscription-test.cpp)
+add_executable(plugin_subscription_test src/Services/Plugins/plugin-subscription-test.cpp)
 set_target_properties(plugin_subscription_test PROPERTIES AUTOMOC OFF)
 target_link_libraries(plugin_subscription_test PRIVATE athena_plugins athena_audmap athena_audmap_sdk)
 add_test(NAME plugin_subscription_test COMMAND plugin_subscription_test)
 set_tests_properties(plugin_subscription_test PROPERTIES TIMEOUT 25)
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  add_executable(confined_filesystem_test interop/confined_filesystem_test.cpp
+  add_executable(confined_filesystem_test src/Infrastructure/Files/confined_filesystem_test.cpp
     ${ATHENA_SOURCE_DIR}/src/Infrastructure/Files/confined_filesystem.cpp)
   set_target_properties(confined_filesystem_test PROPERTIES AUTOMOC OFF)
+  target_include_directories(confined_filesystem_test PRIVATE ${ATHENA_SOURCE_DIR}/src)
   target_link_libraries(confined_filesystem_test PRIVATE Threads::Threads)
   add_test(NAME confined_filesystem_test COMMAND confined_filesystem_test)
   set_tests_properties(confined_filesystem_test PROPERTIES TIMEOUT 15)
 endif ()
 
-add_executable(interop_test interop/interop_test.cpp)
+add_executable(interop_test clients/audmap-cli/interop_test.cpp)
 set_target_properties(interop_test PROPERTIES AUTOMOC OFF)
 target_link_libraries(interop_test PRIVATE athena_audmap_client athena_audmap athena_audmap_sdk)
 add_dependencies(interop_test athena-audmap-repl)
@@ -173,11 +177,11 @@ target_compile_definitions(interop_test PRIVATE AUDMAP_REPL_PATH="$<TARGET_FILE:
 add_test(NAME interop_test COMMAND interop_test)
 set_tests_properties(interop_test PROPERTIES TIMEOUT 35)
 add_test(NAME audmap_repl_terminal_test
-  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/interop/repl-terminal-test.py
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/clients/audmap-cli/repl-terminal-test.py
     $<TARGET_FILE:interop_test> $<TARGET_FILE:athena-audmap-repl>)
 set_tests_properties(audmap_repl_terminal_test PROPERTIES TIMEOUT 25)
 
-add_executable(audmap_repl_pane_test interop/repl-pane-test.cpp)
+add_executable(audmap_repl_pane_test src/UI/Qt/Integrations/repl-pane-test.cpp)
 set_target_properties(audmap_repl_pane_test PROPERTIES AUTOMOC OFF)
 target_include_directories(audmap_repl_pane_test PRIVATE ${ATHENA_SOURCE_DIR}/src/UI/Qt/Integrations)
 target_link_libraries(audmap_repl_pane_test PRIVATE athena_audmap_terminal athena_audmap qtermwidget6 Qt6::Test)
@@ -186,7 +190,7 @@ add_dependencies(audmap_repl_pane_test athena-audmap-repl)
 add_test(NAME audmap_repl_pane_test COMMAND audmap_repl_pane_test)
 set_tests_properties(audmap_repl_pane_test PROPERTIES TIMEOUT 25 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
-add_executable(audmap_authorization_ui_test interop/authorization_ui_test.cpp)
+add_executable(audmap_authorization_ui_test src/UI/Qt/Integrations/authorization_ui_test.cpp)
 set_target_properties(audmap_authorization_ui_test PROPERTIES AUTOMOC OFF)
 target_include_directories(audmap_authorization_ui_test PRIVATE ${ATHENA_SOURCE_DIR}/src/UI/Qt/Integrations)
 athena_link_full_test_runtime(audmap_authorization_ui_test)
@@ -194,7 +198,7 @@ target_link_libraries(audmap_authorization_ui_test PRIVATE athena_audmap_client 
 add_test(NAME audmap_authorization_ui_test COMMAND audmap_authorization_ui_test)
 set_tests_properties(audmap_authorization_ui_test PROPERTIES TIMEOUT 20 ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
-add_executable (link_icon_cache_test qt/link_icon_cache_test.cc)
+add_executable (link_icon_cache_test src/UI/Qt/Knowledge/link_icon_cache_test.cc)
 set_target_properties (link_icon_cache_test PROPERTIES AUTOMOC OFF)
 target_include_directories (link_icon_cache_test PRIVATE
   ${ATHENA_SOURCE_DIR}/src/UI/Qt/Knowledge)
@@ -203,7 +207,7 @@ add_test (NAME link_icon_cache_test COMMAND link_icon_cache_test)
 set_tests_properties (link_icon_cache_test PROPERTIES TIMEOUT 15
   ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
 
-add_executable (completion_popup_test qt/completion_popup_test.cpp
+add_executable (completion_popup_test src/UI/Qt/Editor/completion_popup_test.cpp
   ${ATHENA_SOURCE_DIR}/src/UI/Qt/Editor/QTMCompletionPopup.cpp)
 target_include_directories (completion_popup_test PRIVATE
   ${ATHENA_SOURCE_DIR}/src/UI/Qt/Editor)
@@ -215,25 +219,25 @@ set_tests_properties (completion_popup_test PROPERTIES TIMEOUT 20
 if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
   add_test (NAME stacktrace_symbolize_test
     COMMAND ${Python3_EXECUTABLE}
-      ${CMAKE_CURRENT_SOURCE_DIR}/runtime/stacktrace-symbolize-test.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/Infrastructure/Misc/stacktrace-symbolize-test.py
       --compiler ${CMAKE_CXX_COMPILER}
       --source-dir ${ATHENA_SOURCE_DIR})
   set_tests_properties (stacktrace_symbolize_test PROPERTIES TIMEOUT 150)
-  add_executable (watchdog_fake_child watchdog/watchdog_fake_child.cpp)
+  add_executable (watchdog_fake_child src/App/Watchdog/watchdog_fake_child.cpp)
   target_sources (watchdog_fake_child PRIVATE
     ${ATHENA_SOURCE_DIR}/src/App/Watchdog/watchdog_client.cpp)
   target_link_libraries (watchdog_fake_child PRIVATE Qt6::Core)
   target_include_directories (watchdog_fake_child PRIVATE ${ATHENA_SOURCE_DIR}/src)
   add_test (NAME watchdog_supervisor_test
     COMMAND ${Python3_EXECUTABLE}
-      ${CMAKE_CURRENT_SOURCE_DIR}/runtime/watchdog-test.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/App/Watchdog/watchdog-test.py
       --watchdog $<TARGET_FILE:ATHENA-Watchdog>
       --child $<TARGET_FILE:watchdog_fake_child>)
   set_tests_properties (watchdog_supervisor_test PROPERTIES TIMEOUT 15)
 
   add_test (NAME crash_report_test
     COMMAND ${Python3_EXECUTABLE}
-      ${CMAKE_CURRENT_SOURCE_DIR}/runtime/crash-report-test.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/src/Infrastructure/Misc/crash-report-test.py
       --compiler ${CMAKE_CXX_COMPILER}
       --source-dir ${ATHENA_SOURCE_DIR}
       --build-dir ${ATHENA_BINARY_DIR}
@@ -245,16 +249,21 @@ endif ()
 # Command contracts are XML-generated and exercised without an interpreter.
 add_test(NAME native_command_generator_test
   COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/ATHENA/Commands/command-generator-test.py
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/App/Commands/command-generator-test.py
     --compiler ${CMAKE_CXX_COMPILER})
 set_tests_properties(native_command_generator_test PROPERTIES TIMEOUT 30)
 
-foreach(_case website-export website-math-export native-v3-website-export
-              native-v3-hodarium-shared-audit native-v3-math-alphabet-stage)
-  string(REPLACE "-" "_" _test_name "${_case}_test")
+foreach(_case_file
+    src/Domains/Websites/website-export-test.py
+    src/Domains/Websites/website-math-export-test.py
+    src/Domains/Websites/native-v3-website-export-test.py
+    src/Sync/Hodarium/native-v3-hodarium-shared-audit-test.py
+    src/Document/Convert/Xml/native-v3-math-alphabet-stage-test.py)
+  get_filename_component(_case "${_case_file}" NAME_WE)
+  string(REPLACE "-" "_" _test_name "${_case}")
   add_test(NAME ${_test_name}
     COMMAND ${Python3_EXECUTABLE}
-      ${CMAKE_CURRENT_SOURCE_DIR}/runtime/${_case}-test.py
+      ${CMAKE_CURRENT_SOURCE_DIR}/${_case_file}
       --binary $<TARGET_FILE:ATHENA.bin>
       --resources ${ATHENA_SOURCE_DIR}/ATHENA)
   set_tests_properties(${_test_name} PROPERTIES
@@ -263,12 +272,12 @@ endforeach()
 
 add_test(NAME vault_node_model_upgrade_runtime_test
   COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/Data/Convert/Xml/vault_node_model_upgrade_test.py
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Document/Convert/Xml/vault_node_model_upgrade_test.py
     --binary $<TARGET_FILE:ATHENA.bin>
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
 add_test(NAME audmap_v3_runtime_test
   COMMAND ${Python3_EXECUTABLE}
-    ${CMAKE_CURRENT_SOURCE_DIR}/interop/audmap-v3-runtime-test.py
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/Services/AUDMAP/audmap-v3-runtime-test.py
     --binary $<TARGET_FILE:ATHENA.bin>
     --resources ${ATHENA_SOURCE_DIR}/ATHENA)
 set_tests_properties(vault_node_model_upgrade_runtime_test audmap_v3_runtime_test

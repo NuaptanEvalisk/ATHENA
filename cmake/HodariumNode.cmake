@@ -117,7 +117,7 @@ target_link_libraries(athena_hodarium_node_core PUBLIC
 option(ATHENA_HODARIUM_NODE_TESTS "Build focused Hodarium node test targets" OFF)
 if(ATHENA_HODARIUM_NODE_TESTS)
   add_executable(hodarium_native_runtime_test EXCLUDE_FROM_ALL
-    tests/hodarium/native_runtime_test.cpp)
+    tests/src/Sync/Hodarium/native_runtime_test.cpp)
   target_link_libraries(hodarium_native_runtime_test PRIVATE athena_hodarium_node_core)
 endif()
 

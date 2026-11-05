@@ -274,8 +274,9 @@ The normal Linux build is::
   cmake --build build_qt6 --target ATHENA.bin -j20
 
 Do not invoke the default all-target build or complete test suite for this module.
-Focused checks are under ``tests/hodarium``. Secret Service tests must use
-``isolated-keyring.sh``; ``authority-smoke.sh`` and ``relay-smoke.sh`` launch
+Focused checks are under ``tests/src/Sync/Hodarium``. Secret Service tests must use
+``isolated-keyring.sh``; launchers ``authority-smoke.sh`` and ``relay-smoke.sh``
+under ``tests/services/hodarium`` start
 isolated HTTPS services. The Go ``TestNativeRecovery`` fixture accepts a focused
 native test binary via ``ATHENA_HODARIUM_NATIVE_RECOVERY``. Component checks do
 not replace editor, iPad or destructive-recovery acceptance.

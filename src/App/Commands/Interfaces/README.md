@@ -59,7 +59,7 @@ released on their owner, including cancellation and stale-view paths.
 ## Focused verification
 
 ```sh
-python3 tests/ATHENA/Commands/command-generator-test.py
+python3 tests/src/App/Commands/command-generator-test.py
 cmake --build build_qt6 --target ATHENA.bin -j16
 cmake --build build_qt6 --target buffer_actor_test execution_context_test native_context_test -j16
 ctest --test-dir build_qt6 -R '^(buffer_actor_test|execution_context_test|native_context_test)$' --output-on-failure

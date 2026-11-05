@@ -113,7 +113,7 @@ journal intent.
 ## Verification Boundary
 
 Focused regression cases are supplied in
-`tests/ATHENA/Data/hodarium_logical_database_test.cpp`. The SQLite cursor behavior
+`tests/src/Sync/State/hodarium_logical_database_test.cpp`. The SQLite cursor behavior
 and query plan were checked in an isolated in-memory database. Final combined
 application build, integration tests, UI recovery checks and production-Vault
 acceptance are deliberately deferred to the owner's joint verification phase.

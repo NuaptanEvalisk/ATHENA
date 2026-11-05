@@ -2147,7 +2147,8 @@ generated native entries and remain on the secure-function list.
 
 - Deleted `src/Scheme`, the vendored Guile and BDW-GC sources, obsolete glue
   generation, VM bootstraps, interpreter-only fixtures and private runtime
-  build/deployment scripts. Retained CLI integrations live in `tests/runtime`;
+  build/deployment scripts. Retained CLI integrations live alongside their owners
+  under `tests/src/`;
   retained editor checks initialize the native application directly.
 - Added native `--vault DIR` startup before document/CLI tasks. Conversion and
   quit use native startup work; retired script execution flags fail explicitly.

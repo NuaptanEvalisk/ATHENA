@@ -218,7 +218,7 @@ The main implementation boundaries are:
 - vault_format_upgrade.{hpp,cpp} and vault_upgrade_indexes.cpp — explicit
   offline whole-vault conversion.
 
-Focused regression coverage lives under tests/Data/Convert/Xml/, with
-application-level save-path coverage in the relevant ATHENA tests. When changing
+Focused regression coverage lives under tests/src/Document/Convert/Xml/, with
+application-level save-path coverage in the relevant App and Document tests. When changing
 the storage contract, update the implementation and its focused tests together;
 do not turn this README back into a chronological migration log.

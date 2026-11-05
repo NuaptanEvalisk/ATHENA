@@ -152,8 +152,8 @@ Exit codes:
 No real Notes files are used by these tests:
 
 ```sh
-/usr/bin/python3 tests/interop/provable-fields-migration-test.py
-/usr/bin/python3 tests/interop/provable-fields-migration-test.py --runtime
+/usr/bin/python3 tests/tools/migrations/interop/provable-fields-migration-test.py
+/usr/bin/python3 tests/tools/migrations/interop/provable-fields-migration-test.py --runtime
 ```
 
 The runtime test supplies a temporary test environment and a synthetic v3 vault
