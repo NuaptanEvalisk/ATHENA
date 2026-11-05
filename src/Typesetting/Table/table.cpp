@@ -22,6 +22,22 @@
 
 lazy make_lazy_paragraph (edit_env env, array<box> bs, path ip);
 
+SI
+table_format_length (edit_env env, tree value) {
+  value= env->exec (value);
+  const SI length= env->as_length (value);
+  if (is_atomic (value)) {
+    double amount;
+    string unit;
+    parse_length (value->label, amount, unit);
+    // Persisted screen-coordinate dimensions use the editor's 600 DPI grid.
+    // Do not change tmpt globally: internal layout lengths use the current grid.
+    if (unit == "tmpt" || unit == "px")
+      return (SI) tm_round (double (length) * env->dpi / 600.0);
+  }
+  return length;
+}
+
 namespace {
 template<typename Body>
 void with_table_format_sources (edit_env env, tree t, path ip, const Body& body) {
@@ -372,7 +388,7 @@ table_rep::format_table (tree fm) {
     format_item (fm[i]);
 
   if (var->contains (TABLE_WIDTH)) {
-    width= env->as_length (env->exec (var[TABLE_WIDTH]));
+    width= table_format_length (env, var[TABLE_WIDTH]);
     if (var->contains (TABLE_HMODE))
       hmode= as_string (env->exec (var[TABLE_HMODE]));
     else hmode= "exact";
@@ -382,7 +398,7 @@ table_rep::format_table (tree fm) {
     hmode= "auto";
   }
   if (var->contains (TABLE_HEIGHT)) {
-    height= env->as_length (env->exec (var[TABLE_HEIGHT]));
+    height= table_format_length (env, var[TABLE_HEIGHT]);
     if (var->contains (TABLE_VMODE))
       vmode= as_string (env->exec (var[TABLE_VMODE]));
     else vmode= "exact";
@@ -392,28 +408,28 @@ table_rep::format_table (tree fm) {
     vmode = "auto";
   }
   if (var->contains (TABLE_LSEP))
-    lsep= env->as_length (env->exec (var[TABLE_LSEP]));
+    lsep= table_format_length (env, var[TABLE_LSEP]);
   else lsep= 0;
   if (var->contains (TABLE_RSEP))
-    rsep= env->as_length (env->exec (var[TABLE_RSEP]));
+    rsep= table_format_length (env, var[TABLE_RSEP]);
   else rsep= 0;
   if (var->contains (TABLE_BSEP))
-    bsep= env->as_length (env->exec (var[TABLE_BSEP]));
+    bsep= table_format_length (env, var[TABLE_BSEP]);
   else bsep= 0;
   if (var->contains (TABLE_TSEP))
-    tsep= env->as_length (env->exec (var[TABLE_TSEP]));
+    tsep= table_format_length (env, var[TABLE_TSEP]);
   else tsep= 0;
   if (var->contains (TABLE_LBORDER))
-    lborder= env->as_length (env->exec (var[TABLE_LBORDER])) >> 1;
+    lborder= table_format_length (env, var[TABLE_LBORDER]) >> 1;
   else lborder= 0;
   if (var->contains (TABLE_RBORDER))
-    rborder= env->as_length (env->exec (var[TABLE_RBORDER])) >> 1;
+    rborder= table_format_length (env, var[TABLE_RBORDER]) >> 1;
   else rborder= 0;
   if (var->contains (TABLE_BBORDER))
-    bborder= env->as_length (env->exec (var[TABLE_BBORDER])) >> 1;
+    bborder= table_format_length (env, var[TABLE_BBORDER]) >> 1;
   else bborder= 0;
   if (var->contains (TABLE_TBORDER))
-    tborder= env->as_length (env->exec (var[TABLE_TBORDER])) >> 1;
+    tborder= table_format_length (env, var[TABLE_TBORDER]) >> 1;
   else tborder= 0;
   if (var->contains (TABLE_HALIGN))
     halign= as_string (env->exec (var[TABLE_HALIGN]));

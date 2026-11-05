@@ -44,12 +44,12 @@ cell_rep::typeset (tree fm, tree t, path iq, bool native_math) {
           const auto* raw= std::get_if<std::string> (&property.data);
           if (!raw) throw std::invalid_argument ("Math cell format must be scalar");
           const string text (raw->data (), int (raw->size ()));
-          if (key == "border-bottom") bborder= env->as_length (text) >> 1;
-          else if (key == "border-top") tborder= env->as_length (text) >> 1;
-          else if (key == "border-left") lborder= env->as_length (text) >> 1;
-          else if (key == "border-right") rborder= env->as_length (text) >> 1;
+          if (key == "border-bottom") bborder= table_format_length (env, text) >> 1;
+          else if (key == "border-top") tborder= table_format_length (env, text) >> 1;
+          else if (key == "border-left") lborder= table_format_length (env, text) >> 1;
+          else if (key == "border-right") rborder= table_format_length (env, text) >> 1;
           else if (key == "background") bg= env->exec (tree (text));
-          else if (key == "height") { height= env->as_length (text); vmode= "exact"; }
+          else if (key == "height") { height= table_format_length (env, text); vmode= "exact"; }
           else if (key == "height-mode") vmode= text;
           else if (key == "align") halign= text;
           else if (key == "color") { native_color= text; color_set= true; }
@@ -212,7 +212,7 @@ cell_rep::format_cell (tree fm) {
   }
   else bg= "";
   if (var->contains (CELL_WIDTH)) {
-    width= env->as_length (env->exec (var[CELL_WIDTH]));
+    width= table_format_length (env, var[CELL_WIDTH]);
     if (var->contains (CELL_HMODE))
       hmode= as_string (env->exec (var[CELL_HMODE]));
     else hmode= "exact";
@@ -222,7 +222,7 @@ cell_rep::format_cell (tree fm) {
     hmode= "auto";
   }
   if (var->contains (CELL_HEIGHT)) {
-    height= env->as_length (env->exec (var[CELL_HEIGHT]));
+    height= table_format_length (env, var[CELL_HEIGHT]);
     if (var->contains (CELL_VMODE))
       vmode= as_string (env->exec (var[CELL_VMODE]));
     else vmode= "exact";
@@ -238,28 +238,28 @@ cell_rep::format_cell (tree fm) {
     vpart= as_double (env->exec (var[CELL_VPART]));
   else vpart= 0.0;
   if (var->contains (CELL_LSEP))
-    lsep= env->as_length (env->exec (var[CELL_LSEP]));
+    lsep= table_format_length (env, var[CELL_LSEP]);
   else lsep= env->fn->spc->def;
   if (var->contains (CELL_RSEP))
-    rsep= env->as_length (env->exec (var[CELL_RSEP]));
+    rsep= table_format_length (env, var[CELL_RSEP]);
   else rsep= env->fn->spc->def;
   if (var->contains (CELL_BSEP))
-    bsep= env->as_length (env->exec (var[CELL_BSEP]));
+    bsep= table_format_length (env, var[CELL_BSEP]);
   else bsep= env->fn->sep;
   if (var->contains (CELL_TSEP))
-    tsep= env->as_length (env->exec (var[CELL_TSEP]));
+    tsep= table_format_length (env, var[CELL_TSEP]);
   else tsep= env->fn->sep;
   if (var->contains (CELL_LBORDER))
-    lborder= env->as_length (env->exec (var[CELL_LBORDER])) >> 1;
+    lborder= table_format_length (env, var[CELL_LBORDER]) >> 1;
   else lborder= 0;
   if (var->contains (CELL_RBORDER))
-    rborder= env->as_length (env->exec (var[CELL_RBORDER])) >> 1;
+    rborder= table_format_length (env, var[CELL_RBORDER]) >> 1;
   else rborder= 0;
   if (var->contains (CELL_BBORDER))
-    bborder= env->as_length (env->exec (var[CELL_BBORDER])) >> 1;
+    bborder= table_format_length (env, var[CELL_BBORDER]) >> 1;
   else bborder= 0;
   if (var->contains (CELL_TBORDER))
-    tborder= env->as_length (env->exec (var[CELL_TBORDER])) >> 1;
+    tborder= table_format_length (env, var[CELL_TBORDER]) >> 1;
   else tborder= 0;
   if (var->contains (CELL_HALIGN))
     halign= as_string (env->exec (var[CELL_HALIGN]));
@@ -280,7 +280,7 @@ cell_rep::format_cell (tree fm) {
     col_span= as_int (env->exec (var[CELL_COL_SPAN]));
   else col_span= 1;
   if (var->contains (CELL_SWELL))
-    swell= env->as_length (env->exec (var[CELL_SWELL])) >> 1;
+    swell= table_format_length (env, var[CELL_SWELL]) >> 1;
   else swell= 0;
 }
 

@@ -405,10 +405,9 @@ edit_interface_rep::table_resize_update (SI x, SI y) {
     x - table_resize_start_x : table_resize_start_y - y;
   SI min_size= max (as_length ("16px"), (SI) 1);
   SI final_size= max (table_resize_initial_size + delta, min_size);
-  // Mouse positions and cell boxes are already in typesetter coordinates.
-  // Persist that length directly: multiplying the px unit by zoom once more
-  // makes a small rightward drag shrink the column at zoom factors above one.
-  string length= as_string (final_size) * "tmpt";
+  // Convert typesetter coordinates to a physical unit, without applying zoom
+  // again. The persisted size must also scale with the PDF renderer's DPI.
+  string length= as_string (double (final_size) / as_length ("1bp")) * "bp";
   if (length == table_resize_value ||
       (table_resize_value == "" && delta == 0)) return true;
   bool first= table_resize_value == "";

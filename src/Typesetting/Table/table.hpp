@@ -21,6 +21,8 @@
 class cell;
 class table;
 
+SI table_format_length (edit_env env, tree value);
+
 class table_rep: public concrete_struct {
 protected:
   hashmap<string,tree> var;   // formatting variables
