@@ -26,6 +26,14 @@ protected:
   tree        what_stack;    // last search trees
   int         nr_replaced;   // number of replaced occurrences
   range_set   document_search_sels;
+  struct document_search_hit {
+    path begin, end;
+    string field;
+    int field_index= 0;
+    path field_begin, field_end;
+  };
+  std::vector<document_search_hit> document_search_hits;
+  void document_search_select (int index);
   path        document_search_reference;
   int         document_search_index;
   tree        document_search_query= tree ("");

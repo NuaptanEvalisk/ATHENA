@@ -289,6 +289,8 @@ QTMDocumentSearchBar::acceptState (QTMWidget* canvas, athena_view_id view,
     bar->replaceAll->setEnabled (total > 0 && replacementStatus != 1);
     if (replacementStatus == 1)
       bar->replacementLabel->setText (tr ("Read-only document"));
+    else if (replacementStatus == -1)
+      bar->replacementLabel->setText (tr ("Edit structured matches in title slots"));
     else if (replacementStatus >= 2)
       bar->replacementLabel->setText (
         tr ("Replaced %1").arg (replacementStatus - 2));

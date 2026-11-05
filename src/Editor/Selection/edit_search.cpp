@@ -19,6 +19,10 @@
 #include "Typesetting/Env/local_environment.hpp"
 #include "utf8_edit.hpp"
 #include "unicode_text.hpp"
+#include "Domains/Knowledge/enunciation_model.hpp"
+#include "Document/NodeContracts/builtin_contracts.hpp"
+#include "Document/Tree/cursor_navigation.hpp"
+#include <algorithm>
 #include <stdexcept>
 #include <vector>
 
@@ -552,15 +556,37 @@ edit_replace_rep::search_keypress (string s) {
 * Native document search
 ******************************************************************************/
 
-static int
-document_search_result_index (range_set sels, path start) {
-  for (int i=0; i+1<N(sels); i+=2)
-    if (sels[i] == start) return (i / 2) + 1;
-  return 0;
+void
+edit_replace_rep::document_search_select (int index) {
+  const auto& hit= document_search_hits[index];
+  selection_cancel ();
+  if (hit.field == "") {
+    const auto selected= prepare_source_position (hit.begin);
+    with_selection_context ([&] {
+      selection_set_range_set (range_set (hit.begin, hit.end));
+    }, selected);
+    go_to (copy (hit.begin));
+  }
+  else {
+    // Metadata has no editable body path. Navigate to its owner without
+    // manufacturing a body selection that typing could accidentally replace.
+    go_to (copy (hit.begin));
+    set_message ("Match in " * hit.field * " " * as_string (hit.field_index + 1),
+                 "Search");
+  }
+  document_search_index= index + 1;
+  document_search_reference= copy (tp);
 }
 
 int
 edit_replace_rep::document_search (tree what, bool case_insensitive) {
+  document_search_hit previous;
+  const bool retain= what == document_search_query &&
+    case_insensitive == document_search_ignore_case && document_search_index > 0 &&
+    document_search_index <= (int) document_search_hits.size () &&
+    tp == document_search_reference;
+  if (retain) previous= document_search_hits[document_search_index - 1];
+  document_search_hits.clear ();
   document_search_query= what;
   document_search_ignore_case= case_insensitive;
   document_search_reference= copy (tp);
@@ -582,53 +608,68 @@ edit_replace_rep::document_search (tree what, bool case_insensitive) {
   };
   document_search_sels= search (prepare, athena::contracts::access_policy::normal,
     subtree (et, rp), what, rp, case_insensitive, 1000000);
+  for (int i=0; i+1<N(document_search_sels); i+=2)
+    document_search_hits.push_back ({document_search_sels[i], document_search_sels[i+1]});
+  const auto collect_fields= [&] (auto&& visit, tree source, path p) -> void {
+    if (athena::enunciation::is_enunciation (source) &&
+        search_source_accessible (p, preparation)) {
+      for (const char* field: {"name", "year", "attribution"}) {
+        const auto values= athena::enunciation::title_fields (source, field);
+        for (int i=0; i<(int) values.size (); ++i) {
+          const auto matches= search (
+            {athena::contracts::builtin_contracts (), athena::contracts::access_policy::normal},
+            values[i], what, path (), case_insensitive, 1000000);
+          if (N(matches) == 0) continue;
+          const auto context= prepare_search_entry (p, preparation);
+          const path anchor= p * cursor_navigation ({context->contract_context (),
+            athena::contracts::access_policy::normal}).start (source);
+          for (int j=0; j+1<N(matches); j+=2)
+            document_search_hits.push_back ({anchor, anchor, field, i, matches[j], matches[j+1]});
+        }
+      }
+    }
+    for (int i=0; i<N(source); ++i)
+      visit (visit, source[i], p * i);
+  };
+  collect_fields (collect_fields, subtree (et, rp), rp);
+  std::stable_sort (document_search_hits.begin (), document_search_hits.end (),
+    [] (const document_search_hit& a, const document_search_hit& b) {
+      if (a.begin == b.begin) return a.field != "" && b.field == "";
+      return path_less (a.begin, b.begin);
+    });
   set_alt_selection ("alternate", document_search_sels);
   document_search_index= 0;
-  if (N(document_search_sels) < 2) {
+  if (document_search_hits.empty ()) {
     go_to (copy (document_search_reference));
     return 0;
   }
 
-  range_set hit= next_search_hit (document_search_sels,
-                                  document_search_reference, false);
-  if (N(hit) < 2) hit= range (document_search_sels, 0, 2);
-  const auto selected= prepare_search_target (hit[0], preparation);
-  with_selection_context ([&] { selection_set_range_set (hit); }, selected);
-  go_to (copy (hit[0]));
-  document_search_index=
-    document_search_result_index (document_search_sels, hit[0]);
-  return N(document_search_sels) / 2;
+  int selected= 0;
+  for (int i=0; i<(int) document_search_hits.size (); ++i)
+    if (path_less_eq (document_search_reference, document_search_hits[i].end)) {
+      selected= i; break;
+    }
+  if (retain)
+    for (int i=0; i<(int) document_search_hits.size (); ++i) {
+      const auto& hit= document_search_hits[i];
+      if (hit.begin == previous.begin && hit.end == previous.end &&
+          hit.field == previous.field && hit.field_index == previous.field_index &&
+          hit.field_begin == previous.field_begin && hit.field_end == previous.field_end) {
+        selected= i; break;
+      }
+    }
+  document_search_select (selected);
+  return document_search_hits.size ();
 }
 
 bool
 edit_replace_rep::document_search_navigate (bool forward, bool extreme) {
-  document_search_reference= copy (tp);
   document_search (document_search_query, document_search_ignore_case);
-  if (N(document_search_sels) < 2) return false;
-  path current= document_search_index > 0
-    ? document_search_sels[2 * (document_search_index - 1)]
-    : document_search_reference;
-  range_set hit;
-  if (extreme)
-    hit= forward
-      ? range (document_search_sels, N(document_search_sels) - 2,
-               N(document_search_sels))
-      : range (document_search_sels, 0, 2);
-  else
-    hit= forward
-      ? next_search_hit (document_search_sels, current, true)
-      : previous_search_hit (document_search_sels, current, true);
-  if (N(hit) < 2)
-    hit= forward
-      ? range (document_search_sels, 0, 2)
-      : range (document_search_sels, N(document_search_sels) - 2,
-               N(document_search_sels));
-
-  const auto selected= prepare_source_position (hit[0]);
-  with_selection_context ([&] { selection_set_range_set (hit); }, selected);
-  go_to (copy (hit[0]));
-  document_search_index=
-    document_search_result_index (document_search_sels, hit[0]);
+  const int count= document_search_hits.size ();
+  if (count == 0) return false;
+  const int index= extreme ? (forward ? count - 1 : 0)
+    : (document_search_index - 1 + (forward ? 1 : count - 1)) % count;
+  document_search_select (index);
   return true;
 }
 
@@ -637,6 +678,7 @@ edit_replace_rep::document_search_clear () {
   cancel_alt_selection ("alternate");
   selection_cancel ();
   document_search_sels= range_set ();
+  document_search_hits.clear ();
   document_search_index= 0;
   document_search_reference= path ();
   document_search_query= tree ("");
@@ -651,20 +693,24 @@ edit_replace_rep::document_search_current () {
 
 int
 edit_replace_rep::document_search_total () {
-  return N(document_search_sels) / 2;
+  return document_search_hits.size ();
 }
 
 int
 edit_replace_rep::document_replace (tree by, bool all) {
   if (buf != nullptr && buf->read_only) return -1;
   if (is_empty (document_search_query)) return 0;
-  document_search_reference= copy (tp);
   document_search (document_search_query, document_search_ignore_case);
   if (document_search_index == 0) return 0;
 
-  range_set hits= all ? document_search_sels
-    : range (document_search_sels, 2 * (document_search_index - 1),
-             2 * document_search_index);
+  const auto& current= document_search_hits[document_search_index - 1];
+  if ((!all && current.field != "") || (all &&
+      std::any_of (document_search_hits.begin (), document_search_hits.end (),
+        [] (const document_search_hit& hit) { return hit.field != ""; }))) {
+    set_message ("Edit structured field matches in their title slots", "Replace");
+    return -3;
+  }
+  range_set hits= all ? document_search_sels : range_set (current.begin, current.end);
   source_search_preparation preparation;
   std::vector<std::shared_ptr<const evaluation_environment_checkpoint>> contexts;
   contexts.reserve (N(hits) / 2);

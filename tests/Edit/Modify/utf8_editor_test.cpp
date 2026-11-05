@@ -1266,6 +1266,40 @@ private slots:
     packrat_parser nested (gr, compound ("utf8-packrat-node", node, symbol), syntax);
     QCOMPARE (nested->parse (rule ("Node"), 0), N(nested->current_input));
   }
+  void structuredTitleSearch () {
+    using namespace athena;
+    tree statement= compound ("enunciation", tree (DOCUMENT, "Gauss body"));
+    node::metadata metadata;
+    metadata.properties["kind"]= node::property (std::string ("theorem"));
+    metadata.properties["numbered"]= node::property (true);
+    metadata.properties["name"]= node::property (node::property::list {
+      node::property (node::rich_text {tree (WITH, "font-series", "bold", "Gauss theorem")}),
+      node::property (node::rich_text {tree ("Gauss alias")})});
+    metadata.properties["attribution"]= node::property (node::property::list {
+      node::property (node::rich_text {tree ("Gauss")})});
+    metadata.properties["year"]= node::property (std::string ("1801"));
+    node::set (statement, metadata);
+    set_document (buffer->document, buffer->root_path, tree (DOCUMENT, statement));
+    editor->typeset_forced ();
+    editor->go_to (buffer->root_path * path (0, 0, 0, 0));
+    QCOMPARE (editor->document_search ("gauss", true), 4);
+    QVERIFY (editor->document_search_navigate (false, true));
+    QCOMPARE (editor->document_search_current (), 1);
+    for (int i=2; i<=4; ++i) {
+      QVERIFY (editor->document_search_navigate (true, false));
+      QCOMPARE (editor->document_search_current (), i);
+    }
+    QVERIFY (editor->document_search_navigate (true, false));
+    QCOMPARE (editor->document_search_current (), 1);
+    QVERIFY (editor->document_search_navigate (false, false));
+    QCOMPARE (editor->document_search_current (), 4);
+    QCOMPARE (editor->document_replace ("Changed", true), -3);
+    QVERIFY (node::content_equal (editor->the_subtree (buffer->root_path * 0), statement));
+    QCOMPARE (editor->document_search ("1801", false), 1);
+    QCOMPARE (editor->document_search ("font-series", false), 0);
+    editor->document_search_clear ();
+    QCOMPARE (editor->document_search_total (), 0);
+  }
   void unicodeSearchAndReplace () {
     const string source= u8"Stra\u00dfe STRASSE <alpha> e\u0301";
     const path atom= buffer->root_path * 0;
