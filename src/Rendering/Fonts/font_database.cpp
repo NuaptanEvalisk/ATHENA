@@ -42,7 +42,7 @@ font_database_is_tt_file (string name) {
          font_database_has_extension (name, ".otf");
 }
 
-#define GLOBAL_SUBSTITUTIONS "$ATHENA_PATH/fonts/font-substitutions.scm"
+#define GLOBAL_SUBSTITUTIONS "$ATHENA_PATH/fonts/font-substitutions.json"
 #define CHARACTERISTICS_CACHE \
   "$ATHENA_HOME_PATH/system/cache/font-characteristics.json"
 #define CHARACTERISTICS_CACHE_VERSION 2
@@ -504,23 +504,34 @@ font_database_load_substitutions (url u) {
   if (!exists (u)) return;
   string s;
   if (!load_string (u, s, false)) {
-    tree t= block_to_scheme_tree (s);
-    for (int i=0; i<N(t); i++)
-      if (is_func (t[i], TUPLE, 2) &&
-          is_func (t[i][0], TUPLE) &&
-          is_func (t[i][1], TUPLE) &&
-          N(t[i][0]) > 0 &&
-          N(t[i][1]) > 0 &&
-          is_atomic (t[i][0][0]) &&
-          is_atomic (t[i][1][0])) {
-        string key= t[i][0][0]->label;
-        string im = t[i][1][0]->label;
-        if (N(font_database_styles (im)) != 0) {
-          if (!font_substitutions->contains (key))
-            font_substitutions (key)= tree (TUPLE);
-          font_substitutions (key) << t[i];
-        }
+    QJsonDocument doc= QJsonDocument::fromJson (QByteArray (s.data (), N(s)));
+    if (!doc.isObject ()) return;
+    QJsonObject root= doc.object ();
+    if (root.value ("version").toInt () != 1 ||
+        !root.value ("substitutions").isArray ()) return;
+
+    auto read_terms= [] (const QJsonValue& value, tree& terms) {
+      if (!value.isArray () || value.toArray ().isEmpty ()) return false;
+      for (const QJsonValue& item: value.toArray ()) {
+        if (!item.isString () || item.toString ().isEmpty ()) return false;
+        terms << tree (font_string (item.toString ()));
       }
+      return true;
+    };
+    for (const QJsonValue& value: root.value ("substitutions").toArray ()) {
+      if (!value.isArray ()) continue;
+      QJsonArray rule= value.toArray ();
+      if (rule.size () != 2) continue;
+      tree match (TUPLE), replacement (TUPLE);
+      if (!read_terms (rule[0], match) ||
+          !read_terms (rule[1], replacement)) continue;
+      string family= match[0]->label;
+      string replacement_family= replacement[0]->label;
+      if (N(font_database_styles (replacement_family)) == 0) continue;
+      if (!font_substitutions->contains (family))
+        font_substitutions (family)= tree (TUPLE);
+      font_substitutions (family) << tuple (match, replacement);
+    }
   }
 }
 

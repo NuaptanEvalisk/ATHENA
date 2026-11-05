@@ -1,6 +1,0 @@
-(GillSans.0.ttf)
-(HelveticaNeue.0.ttf)
-(texgyrepagella-regular.otf)
-(texgyrepagella-bold.otf)
-(texgyrepagella-italic.otf)
-(texgyrepagella-bolditalic.otf)

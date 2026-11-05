@@ -31,6 +31,8 @@
 #include <map>
 #include <stdexcept>
 #include <filesystem>
+#include <QJsonArray>
+#include <QJsonDocument>
 
 #ifdef QT_CORE_LIB
 #include <QtCore>
@@ -1224,20 +1226,20 @@ pdf_hummus_renderer_rep::flush_fonts()
 
 static hashset<string>
 pdf_font_issues () {
-  static const url u ("$ATHENA_PATH/fonts/pdf-font-issues.scm");
+  static const url u ("$ATHENA_PATH/fonts/pdf-font-issues.json");
   static bool loaded= false;
   static hashset<string> set;
   if (loaded)
     return set;
   string s;
   if (exists (u) && !load_string (u, s, false)) {
-    tree t= block_to_scheme_tree (s);
-    for (int i=0; i<N(t); i++)
-      if (is_func (t[i], TUPLE) && (N(t[i]) >= 1)) {
-        tree key= t[i][0];
-	if (is_string (key))
-	  set->insert (as_string (key));
-      }
+    QJsonDocument doc= QJsonDocument::fromJson (QByteArray (s.data (), N(s)));
+    if (doc.isArray ())
+      for (const QJsonValue& value: doc.array ())
+        if (value.isString ()) {
+          QByteArray name= value.toString ().toUtf8 ();
+          set->insert (string (name.constData (), name.size ()));
+        }
   }
   loaded= true;
   return set;
