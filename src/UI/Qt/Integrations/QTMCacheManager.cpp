@@ -20,6 +20,7 @@
 #include <QCheckBox>
 #include <QCoreApplication>
 #include <QCryptographicHash>
+#include <QDesktopServices>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -29,6 +30,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
+#include <QLocale>
 #include <QLockFile>
 #include <QMessageBox>
 #include <QPlainTextEdit>
@@ -41,13 +43,17 @@
 #include <QTemporaryDir>
 #include <QThread>
 #include <QTimer>
+#include <QUrl>
 #include <QVBoxLayout>
+
+#include <lmdb.h>
 
 #include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -150,7 +156,8 @@ scan_result scan_vault (const fs::path& root, int percent,
       continue;
     }
     if (iter->is_directory (ec)) {
-      if (path.filename () == ".athena" || path.filename () == ".git")
+      if (path.filename () == ".athena" || path.filename () == ".backup" ||
+          path.filename () == ".git")
         iter.disable_recursion_pending ();
       continue;
     }
@@ -186,6 +193,28 @@ QString cache_root () {
   const QString home= configured.isEmpty () ?
     QDir::homePath () + "/.ATHENA" : configured;
   return QDir (home).filePath ("system/cache");
+}
+
+std::optional<std::size_t> shaping_entry_count (const QString& directory) {
+  // LMDB exposes the named database's entry count in its B-tree metadata.
+  // This is a short read-only transaction, not a scan of the cache records.
+  MDB_env* raw= nullptr;
+  if (mdb_env_create (&raw) != MDB_SUCCESS) return {};
+  std::unique_ptr<MDB_env, decltype (&mdb_env_close)> env (raw, mdb_env_close);
+  if (mdb_env_set_maxdbs (env.get (), 4) != MDB_SUCCESS) return {};
+  const auto utf8= directory.toUtf8 ();
+  if (mdb_env_open (env.get (), utf8.constData (),
+                    MDB_RDONLY | MDB_NOTLS, 0400) != MDB_SUCCESS) return {};
+  MDB_txn* txn= nullptr;
+  if (mdb_txn_begin (env.get (), nullptr, MDB_RDONLY, &txn) != MDB_SUCCESS)
+    return {};
+  MDB_dbi dbi= 0;
+  MDB_stat statistics {};
+  const bool ok= mdb_dbi_open (txn, "runs", 0, &dbi) == MDB_SUCCESS &&
+                 mdb_stat (txn, dbi, &statistics) == MDB_SUCCESS;
+  mdb_txn_abort (txn);
+  if (!ok) return {};
+  return statistics.ms_entries;
 }
 
 QString journal_for_vault (const QString& root) {
@@ -304,9 +333,18 @@ public:
     shaping_layout->addLayout (buttons);
     layout->addWidget (shaping);
 
+    auto* storage= new QGroupBox ("Shaping cache storage");
+    auto* storage_layout= new QVBoxLayout (storage);
     usage= new QLabel;
     usage->setWordWrap (true);
-    layout->addWidget (usage);
+    storage_layout->addWidget (usage);
+    auto* storage_actions= new QVBoxLayout;
+    auto* open_directory= new QPushButton ("Open cache directory");
+    auto* refresh_statistics= new QPushButton ("Refresh statistics");
+    storage_actions->addWidget (open_directory);
+    storage_actions->addWidget (refresh_statistics);
+    storage_layout->addLayout (storage_actions);
+    layout->addWidget (storage);
     log= new QPlainTextEdit;
     log->setReadOnly (true);
     log->setMaximumBlockCount (1000);
@@ -322,6 +360,15 @@ public:
       tools_clean_cache ();
       refresh_status ();
     });
+    connect (open_directory, &QPushButton::clicked, this, [this] {
+      const QString directory= cache_root ();
+      if (!QDir ().mkpath (directory) ||
+          !QDesktopServices::openUrl (QUrl::fromLocalFile (directory)))
+        QMessageBox::warning (
+          this, "Cache manager", "Could not open the cache directory.");
+    });
+    connect (refresh_statistics, &QPushButton::clicked,
+             this, [this] { refresh_status (); });
     connect (start, &QPushButton::clicked, this, [this] { begin (); });
     connect (stop, &QPushButton::clicked, this, [this] { cancel (); });
     refresh_status ();
@@ -346,14 +393,23 @@ public:
         "No active Vault. Open a Vault to build its shaping cache.");
     }
     const auto root= cache_root () + "/native-shaping-v1";
-    const auto human= [] (const QString& path) {
-      const auto file= QFileInfo (path + "/data.mdb");
-      return file.exists () ?
-        QString::number (file.size () / 1024.0 / 1024.0, 'f', 1) + " MiB" :
-        "not created";
+    const auto body= QFileInfo (root + "/body/data.mdb");
+    const auto math= QFileInfo (root + "/math/data.mdb");
+    const auto size= [] (const QFileInfo& file) {
+      return file.exists () ? file.size () : qint64 (0);
     };
-    usage->setText ("LMDB: body " + human (root + "/body") +
-      " · math " + human (root + "/math"));
+    const auto describe= [] (const QFileInfo& file) {
+      if (!file.exists ()) return QString ("not created");
+      QString description= QLocale ().formattedDataSize (file.size ());
+      const auto entries= shaping_entry_count (file.absolutePath ());
+      description+= entries ?
+        QString (" · %1 entries").arg (QLocale ().toString (qulonglong (*entries))) :
+        QString (" · entries unavailable");
+      return description;
+    };
+    usage->setText (
+      "Total: " + QLocale ().formattedDataSize (size (body) + size (math)) +
+      "\nBody: " + describe (body) + "\nMath: " + describe (math));
     start->setEnabled (!running && vault_active ());
   }
 
