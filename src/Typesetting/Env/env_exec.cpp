@@ -2479,6 +2479,22 @@ edit_env_rep::exec_until (tree t, path p) {
       (void) exec (t);
     return true;
   }
+  // Commutative diagrams are native source structure, not ordinary macros.
+  // Their vertex and arrow labels are typeset directly at their authored
+  // source paths. Descend into the selected formula without asking the macro
+  // evaluator to resolve the structural cd-body/cd-vertex/cd-arrow labels.
+  if (L(t) >= START_EXTENSIONS) {
+    const string label= as_string (L(t));
+    if (label == "cd-body") {
+      if (p->item < 0 || p->item >= N(t)) return false;
+      return exec_until (t[p->item], p->next);
+    }
+    if (label == "cd-vertex" || label == "cd-arrow") {
+      const int arity= label == "cd-vertex" ? 4 : 5;
+      if (N(t) != arity || p->item != 3) return false;
+      return exec_until (t[3], p->next);
+    }
+  }
   if (L(t) == MATH_BLOCK || L(t) == MATH_GRID)
     return athena::avd::exec_native_counter_until (edit_env (this), t, p);
 
