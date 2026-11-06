@@ -19,6 +19,7 @@
 #include "UI/Qt/Vault/QTMNamespaceExplorer.hpp"
 #include "UI/Qt/Vault/QTMNeighborhoodsPane.hpp"
 #include "UI/Qt/Integrations/QTMHodarium.hpp"
+#include "UI/Qt/Integrations/QTMCacheManager.hpp"
 #include "UI/Qt/Editor/QTMHandwritingSymbolPane.hpp"
 #include "App/Runtime/background_workers.hpp"
 #include "UI/Qt/Toolkit/qt_window_widget.hpp"
@@ -860,6 +861,8 @@ void QTMMainTabWindow::restoreAdsVisiblePanes() {
       error_messages_show ();
     else if (name == "athena-custom-styles-manager")
       custom_styles_manager_show ();
+    else if (name == "athena-cache-manager")
+      cache_manager_show ();
     else if (name == "athena-hodarium")
       qtm_hodarium_show ();
   }

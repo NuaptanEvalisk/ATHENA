@@ -52,6 +52,7 @@
 #include "UI/Qt/Vault/QTMVaultFontConfigurator.hpp"
 #include "UI/Qt/Vault/QTMVaultMaintenanceDialog.hpp"
 #include "UI/Qt/Integrations/QTMWebsitesManager.hpp"
+#include "UI/Qt/Integrations/QTMCacheManager.hpp"
 #include "boot.hpp"
 #include "Document/Convert/Generic/conversion_graph.hpp"
 #include "Document/Convert/Generic/conversion_registry.hpp"
@@ -674,21 +675,10 @@ QTMCommandRegistry::registerApplicationCommands () {
       return true;
     });
   registerBehavior (
-    "workspace.refresh-styles", QTMCommandScope::Application,
+    "workspace.cache-manager", QTMCommandScope::Application,
     [] (const QTMCommandContext&) {
-      get_server ()->style_clear_cache ();
+      cache_manager_show ();
       return true;
-    });
-  registerBehavior (
-    "workspace.clean-cache", QTMCommandScope::Application,
-    [] (const QTMCommandContext&) {
-      try {
-        tools_clean_cache ();
-        return true;
-      }
-      catch (...) {
-        return false;
-      }
     });
   registerBehavior (
     "help.about", QTMCommandScope::Application,

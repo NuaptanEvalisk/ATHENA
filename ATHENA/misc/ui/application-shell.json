@@ -349,6 +349,14 @@
       "help": "Configure the font used by the active vault"
     },
     {
+      "id": "workspace.cache-manager",
+      "dock": "athena-cache-manager",
+      "label": "Cache manager",
+      "category": "Workspace",
+      "icon": "view-refresh",
+      "help": "Manage caches and build resumable Vault shaping caches"
+    },
+    {
       "id": "workspace.global-transformation",
       "label": "Run global transformation",
       "category": "Workspace",
@@ -361,20 +369,6 @@
       "category": "Workspace",
       "icon": "tools-wizard",
       "help": "Open the configured vault maintenance workflow"
-    },
-    {
-      "id": "workspace.refresh-styles",
-      "label": "Refresh style cache",
-      "category": "Workspace",
-      "icon": "view-refresh",
-      "help": "Clear and refresh the document style cache"
-    },
-    {
-      "id": "workspace.clean-cache",
-      "label": "Clean cache",
-      "category": "Workspace",
-      "icon": "edit-clear",
-      "help": "Clean ATHENA cached data"
     },
     {
       "id": "interface.header",
@@ -2250,6 +2244,7 @@
         { "command": "workspace.namespace-explorer" },
         { "command": "workspace.namespace-manager" },
         { "command": "application.hodarium" },
+        { "command": "workspace.cache-manager" },
         {
           "submenu": "workspace-managers",
           "label": "Managers",
@@ -2275,14 +2270,6 @@
           "label": "Vault",
           "items": [
             { "command": "workspace.vault-maintenance" }
-          ]
-        },
-        {
-          "submenu": "workspace-cache",
-          "label": "Caches",
-          "items": [
-            { "command": "workspace.refresh-styles" },
-            { "command": "workspace.clean-cache" }
           ]
         }
       ]

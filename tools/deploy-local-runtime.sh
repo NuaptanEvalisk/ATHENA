@@ -91,10 +91,9 @@ if [ -f "$build_dir/src/athena-rag-npu-worker" ]; then
     "$runtime_dir/bin/athena-rag-npu-worker" 755
 fi
 
-if [ -f "$build_dir/src/athena-shaping-cache-builder" ]; then
-  atomic_install "$build_dir/src/athena-shaping-cache-builder" \
-    "$runtime_dir/bin/athena-shaping-cache-builder" 755
-fi
+# The Vault shaping cache is now built by ATHENA's ADS Cache manager. Retire
+# the old standalone executable on local upgrades.
+rm -f "$runtime_dir/bin/athena-shaping-cache-builder"
 
 for src in "$build_dir"/x64/lib/libqt6advanceddocking*.so.*; do
   deploy_library "$src"

@@ -80,12 +80,6 @@ if(ATHENA_ENABLE_PLUGINS)
   add_subdirectory(Services/Plugins)
 endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  # Independent native corpus builder: each child invokes the real ATHENA
-  # typesetter with its own font/ICU domain and the shared global LMDB cache.
-  add_executable (athena-shaping-cache-builder
-    "${ATHENA_SOURCE_DIR}/tools/shaping-cache-builder.cpp")
-  set_target_properties (athena-shaping-cache-builder PROPERTIES AUTOMOC OFF)
-  target_compile_features (athena-shaping-cache-builder PRIVATE cxx_std_17)
   add_executable(athena-plugin-sandbox
     Services/Plugins/sandbox_main.cpp
     Infrastructure/Files/confined_filesystem.cpp)
