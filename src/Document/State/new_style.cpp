@@ -434,9 +434,22 @@ prepare_source_positions (
                      copy (global_aux), copy (attachments), copy (global_attachments),
                      saved.shared_aux, saved.shared_attachments};
     }
+    tree entry= body[where.front ()];
+    std::size_t offset= 1;
+    // Abstract metadata is persisted as authored source children, but its
+    // xmacro renders through EXTERN and cannot replay a child's physical
+    // source path. Prepare the selected child directly; this wrapper does not
+    // introduce local execution bindings of its own.
+    if (is_compound (entry, "abstract-data") && where.size () > 1) {
+      const int child= where[1];
+      if (child < 0 || child >= N(entry)) return {};
+      entry= entry[child];
+      offset= 2;
+    }
     path inside;
-    for (std::size_t i= 1; i<where.size (); ++i) inside= inside * where[i];
-    if (!evaluation->exec_until (body[where.front ()], inside * 0)) return {};
+    for (std::size_t i= offset; i<where.size (); ++i)
+      inside= inside * where[i];
+    if (!evaluation->exec_until (entry, inside * 0)) return {};
     evaluation->analyze_contracts (*analysis);
     return capture (local, *evaluation.operator-> ());
   };

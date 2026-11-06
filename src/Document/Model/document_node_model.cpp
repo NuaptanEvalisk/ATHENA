@@ -644,10 +644,18 @@ std::optional<role_declaration> standard_source_role (const tree& source) {
       is_compound (source, "doc-running-title", 1) ||
       is_compound (source, "doc-running-author", 1) ||
       is_compound (source, "author-name", 1) ||
-      is_compound (source, "author-affiliation", 1) ||
-      is_compound (source, "author-misc", 1) ||
-      is_compound (source, "author-note", 1) ||
-      is_compound (source, "abstract", 1))
+       is_compound (source, "author-affiliation", 1) ||
+       is_compound (source, "author-misc", 1) ||
+       is_compound (source, "author-note", 1) ||
+       is_compound (source, "abstract", 1))
+    return role_declaration {
+      semantic_role::content, "", {child_role::content}};
+  // Standard small-caps person(body) and framed(body) formatting preserve
+  // exactly one authored source child. The former may occur within doc-data,
+  // whose external rendering is not a source-entry execution path; the latter
+  // can contain a nested DOCUMENT. Neither is an opaque data argument.
+  if (is_compound (source, "person", 1) ||
+      is_compound (source, "framed", 1))
     return role_declaration {
       semantic_role::content, "", {child_role::content}};
   if (is_compound (source, "author-name-affiliation", 2))
