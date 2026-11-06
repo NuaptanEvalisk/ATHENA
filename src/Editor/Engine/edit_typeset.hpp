@@ -36,6 +36,7 @@ protected:
   hashmap<string,tree> init;              // environment changes w.r.t. style
   hashmap<string,tree> fin;               // environment changes w.r.t. doc
   hashmap<string,tree> grefs;             // global references
+  std::uint64_t radioactive_decorations_seen= 0;
   bool compound_counter_view= false;
   tree compound_incoming_counters= tree (COLLECTION);
   hashset<string> compound_counter_variables;

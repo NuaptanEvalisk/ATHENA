@@ -18,6 +18,7 @@
 #include <vector>
 
 struct AthenaArtifactTitleFilter;
+struct live_radioactive_decorations;
 
 struct AthenaArtifactNameResolution {
   std::string query;
@@ -74,6 +75,19 @@ athena_artifact_radioactive_matches (string text, path source= path ());
 
 std::vector<AthenaArtifactRadioactiveTreeMatch>
 athena_artifact_radioactive_matches_tree (const tree& text, path source= path ());
+
+// Interactive layouts consume prepared ranges only; workers hold detached
+// tokens and immutable index revisions, never actor-owned trees or boxes.
+void athena_artifact_radioactive_enable_async (bool enabled);
+bool athena_artifact_radioactive_async_enabled ();
+std::shared_ptr<live_radioactive_decorations>
+athena_artifact_radioactive_async_text (
+  string text, path source, url file, tree source_document, path source_path);
+std::shared_ptr<live_radioactive_decorations>
+athena_artifact_radioactive_async_tree (
+  const tree& text, path source, url file, tree source_document, path source_path);
+std::uint64_t athena_artifact_radioactive_async_completion_epoch ();
+std::uint64_t athena_artifact_radioactive_decoration_epoch ();
 
 std::vector<AthenaArtifactRadioactiveMatch>
 athena_artifact_radioactive_matches_for_records (

@@ -358,6 +358,7 @@ struct mapped_utf8_line_box_rep final: utf8_line_box_rep {
       [] (const text_annotation& a, int byte) { return a.end < byte; });
     for (auto it= first_link; it != annotations->end () && it->begin <= end; ++it) {
       const auto& annotation= *it;
+      if (annotation.link.radioactive) continue;
       const int first= max (begin, annotation.begin), last= min (end, annotation.end);
       const bool anchor= annotation.link.anchor != "" && annotation.begin >= begin &&
         annotation.begin <= end && annotation.source >= first_source && annotation.source <= last_source;
@@ -376,8 +377,44 @@ struct mapped_utf8_line_box_rep final: utf8_line_box_rep {
     return std::any_of (link.spans.begin (), link.spans.end (),
       [x] (const auto& span) { return x >= span.left && x < span.right; });
   }
+  std::vector<link_region> live_links () const {
+    std::vector<link_region> result;
+    if (!annotations) return result;
+    for (const auto& annotation: *annotations) {
+      if (!annotation.link.radioactive || annotation.source < first_source ||
+          annotation.source > last_source ||
+          annotation.end <= begin || annotation.begin >= end) continue;
+      const auto snapshot= annotation.link.radioactive->read ();
+      if (!snapshot) continue;
+      const auto& source= (*sources)[annotation.source];
+      for (const auto& match: snapshot->spans) {
+        if (match.child != annotation.link.radioactive_child) continue;
+        const int first= std::clamp (
+          annotation.begin + match.begin - source.source_begin,
+          max (annotation.begin, begin), min (annotation.end, end));
+        const int last= std::clamp (
+          annotation.begin + match.end - source.source_begin,
+          max (annotation.begin, begin), min (annotation.end, end));
+        if (last <= first) continue;
+        const int a= begin + snap (first-begin);
+        const auto after= std::lower_bound (
+          line.carets.begin (), line.carets.end (), last,
+          [] (const line_caret& caret, int at) { return caret.byte < std::size_t (at); });
+        if (after == line.carets.end () || after->byte <= std::size_t (a)) continue;
+        inline_link_info info;
+        info.reference= match.destination;
+        info.radioactive_color= annotation.link.radioactive_color;
+        result.push_back ({
+          std::move (info), line.selection_spans (a, after->byte), false, 0,
+          annotation.bottom, annotation.top});
+      }
+    }
+    return result;
+  }
   tree message (tree type, SI x, SI y, rectangles& rs) override {
-    for (const auto& link: links) if (link.info.reference != "" && contains (link, x, y)) {
+    auto all= live_links ();
+    all.insert (all.end (), links.begin (), links.end ());
+    for (const auto& link: all) if (link.info.reference != "" && contains (link, x, y)) {
       if (type == "link-target") return tree (TUPLE, "link-target", link.info.reference);
       if (is_nil (link.info.ids) && (type == "select" || type == "double-click"))
         return tree (TUPLE, "direct-link", link.info.reference);
@@ -403,12 +440,22 @@ struct mapped_utf8_line_box_rep final: utf8_line_box_rep {
     }
   }
   void post_display (renderer& ren) override {
-    for (const auto& link: links) {
+    auto all= live_links ();
+    all.insert (all.end (), links.begin (), links.end ());
+    const pencil previous= ren->get_pencil ();
+    for (const auto& link: all) {
       if (link.info.reference != "") for (const auto& span: link.spans)
         ren->href (link.info.reference, span.left, link.bottom, span.right, link.top);
+      const string tint= link.info.radioactive_color;
+      if (tint != "" && tint != "preserve") {
+        ren->set_pencil (pencil (named_color (tint), ren->pixel));
+        for (const auto& span: link.spans)
+          ren->line (span.left, link.bottom, span.right, link.bottom);
+      }
       if (link.owns_anchor)
         ren->anchor (link.info.anchor, link.anchor_x, link.bottom, offset (link.anchor_x, 1), link.top);
     }
+    ren->set_pencil (previous);
   }
 
   int source_index (path bp) const {

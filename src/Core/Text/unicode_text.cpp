@@ -552,6 +552,7 @@ const std::vector<line_break>& unicode_paragraph::breaks () const {
 const std::vector<script_run>& unicode_paragraph::scripts () const {
   return impl_->scripts;
 }
+grapheme_cursor& unicode_paragraph::graphemes () { return *impl_->graphemes; }
 
 std::size_t unicode_paragraph::byte_to_utf16 (std::size_t byte) const {
   const auto& indices= impl_->indices;

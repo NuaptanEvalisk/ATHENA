@@ -235,7 +235,11 @@ concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
   if (allow_links && has_source_context &&
       athena_artifact_is_inside_definition (source_document, source_path))
     allow_links= false;
-  if (allow_links) {
+  auto reactive= allow_links && athena_artifact_radioactive_async_enabled () ?
+    athena_artifact_radioactive_async_text (
+      s, ip, env->cur_file_name, source_document, source_path) :
+    std::shared_ptr<live_radioactive_decorations> {};
+  if (allow_links && !reactive) {
     auto matches= athena_artifact_radioactive_matches (s, ip);
     links.reserve (matches.size ());
     for (const AthenaArtifactRadioactiveMatch& match: matches) {
@@ -252,8 +256,15 @@ concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
     }
   }
 
+  string tint;
+  if (reactive) {
+    tint= env->get_string (RADIOACTIVE_LINK_COLOR);
+    if (tint == "global")
+      tint= get_locus_rendering (RADIOACTIVE_LINK_COLOR);
+  }
   size_t first_link= 0;
   auto typeset_piece= [&] (int first, int last) {
+    const int first_item= N(a);
     // Empty text still contributes a box that anchors an otherwise empty
     // paragraph.  The former direct typeset_substring call had this behavior.
     if (first == last) {
@@ -276,6 +287,10 @@ concater_rep::typeset_text_string (tree t, path ip, int pos, int end) {
       current= linked_end;
     }
     if (current < last) typeset_substring (s (current, last), ip, current);
+    if (reactive) for (int i=first_item; i<N(a); ++i)
+      if (a[i]->type == STRING_ITEM || a[i]->type == STD_ITEM)
+        a[i]->b= live_radioactive_box (
+          a[i]->b->ip, a[i]->b, reactive, 0, tint);
   };
 
   if (pos == end) { typeset_piece (pos, end); return; }
@@ -376,7 +391,7 @@ concater_rep::typeset_prog_string (tree t, path ip, int pos, int end) {
   array<space> spc_tab= env->fn->get_normal_spacing (env->spacing_policy);
   string s= t->label;
   scoped_text_paragraph paragraph (text_paragraph, env->fn, s);
-  athena::text::grapheme_cursor graphemes (std::string_view (s.data (), N(s)));
+  auto& graphemes= text_paragraph->analysis ().graphemes ();
   int    start;
 
   do {
@@ -460,7 +475,11 @@ concater_rep::typeset_concat (tree t, path ip) {
         allow= false;
     }
   }
-  if (allow) {
+  auto reactive= allow && athena_artifact_radioactive_async_enabled () ?
+    athena_artifact_radioactive_async_tree (
+      t, ip, env->cur_file_name, source_document, source_path) :
+    std::shared_ptr<live_radioactive_decorations> {};
+  if (allow && !reactive) {
     for (const auto& match: athena_artifact_radioactive_matches_tree (t, ip)) {
       if (!is_nil (source_path) &&
           athena_artifact_radioactive_is_defining_occurrence (
@@ -480,12 +499,23 @@ concater_rep::typeset_concat (tree t, path ip) {
     else fragment_cache->clear ();
   }
   if (links.empty ()) {
+    string tint;
+    if (reactive) {
+      tint= env->get_string (RADIOACTIVE_LINK_COLOR);
+      if (tint == "global")
+        tint= get_locus_rendering (RADIOACTIVE_LINK_COLOR);
+    }
     for (int i=0; i<N(t); ++i) {
+      const int before= N(a);
       path child= descend (ip, i);
       if (cache_root && i < int (fragment_cache->size ()) &&
           is_compound (t[i], "math"))
         typeset_cached_math_child (t[i], child, i);
       else typeset (t[i], child);
+      if (reactive) for (int j=before; j<N(a); ++j)
+        if (a[j]->type == STRING_ITEM || a[j]->type == STD_ITEM)
+          a[j]->b= live_radioactive_box (
+            a[j]->b->ip, a[j]->b, reactive, i, tint);
     }
     return;
   }
@@ -572,7 +602,6 @@ concater_rep::typeset_cached_math_child (tree t, path ip, int index) {
     !athena::node_reference::export_node_destinations_active ();
   if (eligible && fragment.valid && fragment.address == ip &&
       fragment.source == t &&
-      env->variable_values_match (fragment.input_receipts, fragment.variables) &&
       fragment.active_font.operator-> () == env->fn.operator-> () &&
       same_fragment_pencil (fragment.active_pen, env->pen) &&
       fragment.active_language.operator-> () == env->lan.operator-> () &&
@@ -612,8 +641,6 @@ concater_rep::typeset_cached_math_child (tree t, path ip, int index) {
   // content, not an alias that could silently follow a later in-place edit.
   prepared.source= copy (t);
   prepared.address= ip;
-  prepared.variables= evaluation_environment_checkpoint (*env.operator-> ()).variables ();
-  prepared.input_receipts= env->variable_input_snapshot ();
   prepared.active_font= env->fn;
   prepared.active_pen= env->pen;
   prepared.active_language= env->lan;

@@ -46,10 +46,13 @@ delete_typesetter (typesetter ttt) {
 bool
 refresh_radioactive_links (typesetter ttt) {
   const std::uint64_t revision= athena_artifact_radioactive_revision ();
-  if (ttt->radioactive_refresh_revision == revision) return false;
+  const auto completed= athena_artifact_radioactive_async_completion_epoch ();
+  if (ttt->radioactive_refresh_revision == revision &&
+      ttt->radioactive_completion_revision == completed) return false;
   const bool changed= ttt->br->refresh_radioactive_links ();
   // Do not acknowledge a newer index published during the traversal.
   ttt->radioactive_refresh_revision= revision;
+  ttt->radioactive_completion_revision= completed;
   return changed;
 }
 
@@ -246,9 +249,9 @@ typesetter_rep::typeset (SI& x1b, SI& y1b, SI& x2b, SI& y2b) {
   box b= typeset ();
   // cout << "-------------------------------------------------------------\n";
   b->position_at (0, 0, change_log);
-  change_log= requires_update (change_log);
+  *change_log= requires_update (*change_log);
   rectangle r (0, 0, 0, 0);
-  if (!is_nil (change_log)) r= least_upper_bound (change_log);
+  if (!is_nil (*change_log)) r= least_upper_bound (*change_log);
   array<brush> new_bgs;
   array<rectangle> rs;
   b->collect_page_colors (new_bgs, rs);
@@ -257,7 +260,7 @@ typesetter_rep::typeset (SI& x1b, SI& y1b, SI& x2b, SI& y2b) {
       r= least_upper_bound (r, rs[i]);
   old_bgs= new_bgs;
   x1b= r->x1; y1b= r->y1; x2b= r->x2; y2b= r->y2;
-  change_log= rectangles ();
+  *change_log= rectangles ();
   return b;
 }
 

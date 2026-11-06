@@ -62,10 +62,11 @@ public:
   font_catalog (const font_catalog&)= delete;
   font_catalog& operator= (const font_catalog&)= delete;
   std::vector<selected_font_run> select (const std::string& source,
-                                        const font_request& request,
-                                        std::uint8_t base_level= 0,
-                                        const std::vector<font_style_span>& styles= {},
-                                        const std::vector<script_run>* scripts= nullptr);
+                                         const font_request& request,
+                                         std::uint8_t base_level= 0,
+                                         const std::vector<font_style_span>& styles= {},
+                                         const std::vector<script_run>* scripts= nullptr,
+                                         grapheme_cursor* shared_graphemes= nullptr);
 };
 
 font_catalog& current_font_catalog ();

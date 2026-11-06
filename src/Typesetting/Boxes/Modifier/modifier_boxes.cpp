@@ -15,6 +15,7 @@
 #include "Typesetting/Boxes/construct.hpp"
 #include "Typesetting/Boxes/inline_link.hpp"
 #include "math_font.hpp"
+#include "colors.hpp"
 
 /******************************************************************************
 * Modifier boxes
@@ -587,6 +588,87 @@ frozen_box (path ip, box b) {
 box
 direct_link_box (path ip, box b, string ref) {
   return b->with_direct_link (ip, ref);
+}
+
+// An asynchronously resolved radioactive link retains the exact old box and
+// its metrics. The owning actor publishes source-relative ranges; drawing and
+// hit testing project them onto the old box without redoing paragraph layout.
+class live_radioactive_box_rep final:
+    public modifier_box_rep, public inline_link_source {
+  std::shared_ptr<live_radioactive_decorations> live;
+  int child;
+  string tint;
+
+  template<class F> void for_regions (F&& visit) {
+    const auto snapshot= live->read ();
+    if (!snapshot) return;
+    for (const auto& match: snapshot->spans) {
+      if (match.child != child || match.begin >= match.end) continue;
+      const int first= b->get_leaf_left_pos ();
+      const int last= b->get_leaf_right_pos ();
+      const int begin= std::max (match.begin, first);
+      const int end= std::min (match.end, last);
+      if (begin >= end) continue;
+      if (b->get_type () == TEXT_BOX) {
+        selection selected= b->find_selection (path (begin-first), path (end-first));
+        if (selected->valid)
+          for (auto r= selected->rs; !is_nil (r); r= r->next)
+            visit (r->item, match.destination);
+      }
+      else if (match.begin <= first && match.end >= last)
+        visit (rectangle (x1, y1, x2, y2), match.destination);
+    }
+  }
+
+public:
+  live_radioactive_box_rep (path ip, box body,
+    std::shared_ptr<live_radioactive_decorations> state, int part, string color):
+    modifier_box_rep (ip, body), live (std::move (state)),
+    child (part), tint (color) {}
+
+  operator tree () override { return (tree) b; }
+  box adjust_kerning (int mode, double factor) override {
+    return live_radioactive_box (ip, b->adjust_kerning (mode, factor),
+                                live, child, tint);
+  }
+  box expand_glyphs (int mode, double factor) override {
+    return live_radioactive_box (ip, b->expand_glyphs (mode, factor),
+                                live, child, tint);
+  }
+  bool inline_link (box& body, inline_link_info& link) override {
+    body= b;
+    link= {list<string> (), "", "", 0, live, child, tint};
+    return true;
+  }
+  tree message (tree type, SI x, SI y, rectangles& rs) override {
+    if (type == "link-target" || type == "select" || type == "double-click") {
+      tree answer;
+      for_regions ([&] (rectangle r, string target) {
+        if (x >= r->x1 && x < r->x2 && y >= r->y1 && y < r->y2)
+          answer= type == "link-target" ?
+            tree (TUPLE, "link-target", target) : tree (TUPLE, "direct-link", target);
+      });
+      if (!is_nil (answer)) return answer;
+    }
+    return modifier_box_rep::message (type, x, y, rs);
+  }
+  void post_display (renderer& ren) override {
+    const pencil old= ren->get_pencil ();
+    const bool decorate= tint != "" && tint != "preserve";
+    if (decorate) ren->set_pencil (pencil (named_color (tint), ren->pixel));
+    for_regions ([&] (rectangle r, string target) {
+      ren->href (target, r->x1, r->y1, r->x2, r->y2);
+      if (decorate) ren->line (r->x1, r->y1, r->x2, r->y1);
+    });
+    if (decorate) ren->set_pencil (old);
+  }
+};
+
+box live_radioactive_box (
+    path ip, box b, std::shared_ptr<live_radioactive_decorations> links,
+    int source_child, string color) {
+  return tm_new<live_radioactive_box_rep> (
+    ip, b, std::move (links), source_child, color);
 }
 
 box

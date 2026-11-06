@@ -14,14 +14,17 @@
 #include "shaped_line.hpp"
 #include "font_selection.hpp"
 #include "font_database.hpp"
+#include "Rendering/Fonts/persistent_shaping_cache.hpp"
 #include "math_font.hpp"
 #include "Typesetting/Boxes/construct.hpp"
 #include "Typesetting/Boxes/utf8_line.hpp"
+#include "Typesetting/Boxes/inline_link.hpp"
 #include "Rendering/Fonts/Freetype/tt_face.hpp"
 #include "UI/Qt/Editor/QTMRenderService.hpp"
 #include "UI/Qt/Rendering/qt_renderer.hpp"
 #include <harfbuzz/hb-ot.h>
 #include <QTemporaryDir>
+#include <QProcess>
 #include <QPicture>
 #include <cstdlib>
 #include <cmath>
@@ -64,6 +67,91 @@ static font_request exact_request (
   return font_request_from_source ({
     font_file_source {file, face, std::move (coordinates)},
     size, hdpi, vdpi});
+}
+
+static font_file_source cache_test_font () {
+  const char* root= std::getenv ("ATHENA_PATH");
+  if (!root) throw std::runtime_error ("ATHENA_PATH required for shaping cache test");
+  const auto file= std::filesystem::path (root) /
+    "fonts/truetype/texgyre/texgyrepagella-regular.otf";
+  return {file.string (), 0, {}};
+}
+
+static std::string cache_test_text () {
+  return "mathematical cohomology e\xcc\x81 correspondence";
+}
+
+static void check_persistent_shaping_cache (const char* self, bool read_only) {
+  font_domain owner;
+  font_domain_binding binding (owner);
+  const auto font= cache_test_font ();
+  const auto source= cache_test_text ();
+  shaping_options options;
+  options.language= "en";
+  options.editing_carets= true;
+  const auto key= make_shaping_cache_key (
+    font, 12, 96, 96, source, 0, source.size (), options);
+  require (key.has_value (), "Complete physical shaping key not constructed");
+
+  if (!read_only) {
+    auto baseline= shape_freetype_utf8 (
+      font, 12, 96, 96, source, 0, source.size (), options);
+    require (baseline.glyphs.size () > 2 && baseline.carets.size () > 2,
+      "Physical shaping cache fixture contains no glyph/caret data");
+    persistent_shaping_flush ();
+    const auto cached= persistent_shaping_lookup (*key, options);
+    require (cached.has_value (), "LMDB cache did not persist the native shaping result");
+    require (cached->advance_x == baseline.advance_x &&
+             cached->ink_x1 == baseline.ink_x1 &&
+             cached->ink_x2 == baseline.ink_x2 &&
+             cached->glyphs.size () == baseline.glyphs.size () &&
+             cached->carets.size () == baseline.carets.size (),
+      "Decoded persistent shaping geometry diverged from direct HarfBuzz result");
+    for (size_t i=0; i<cached->glyphs.size (); ++i) {
+      const auto& a= cached->glyphs[i];
+      const auto& b= baseline.glyphs[i];
+      require (a.index == b.index && a.byte == b.byte &&
+               a.x == b.x && a.y == b.y &&
+               a.advance_x == b.advance_x && a.advance_y == b.advance_y,
+        "Persistent glyph positions or clusters diverged");
+    }
+    for (size_t i=0; i<cached->carets.size (); ++i)
+      require (cached->carets[i].byte == baseline.carets[i].byte &&
+               cached->carets[i].x == baseline.carets[i].x,
+        "Persistent grapheme caret positions diverged");
+    const auto other_size= make_shaping_cache_key (
+      font, 13, 96, 96, source, 0, source.size (), options);
+    const auto other_locale= [&] {
+      options.language= "de";
+      return make_shaping_cache_key (
+        font, 12, 96, 96, source, 0, source.size (), options);
+    } ();
+    require (other_size && other_locale &&
+             other_size->digest != key->digest && other_locale->digest != key->digest,
+      "Persistent cache confused font metrics or language shaping context");
+
+    QProcess child;
+    child.setProgram (QString::fromLocal8Bit (self));
+    child.setArguments ({"--verify-cached-run"});
+    child.start ();
+    require (child.waitForStarted (10000) && child.waitForFinished (30000) &&
+             child.exitStatus () == QProcess::NormalExit && child.exitCode () == 0,
+      "Second process could not read identical cached glyphs and carets");
+    return;
+  }
+
+  // The fresh process maps the same cache rather than inheriting any in-memory
+  // C++ font/run objects. Mapping readiness is asynchronous.
+  for (int attempt=0; attempt<500; ++attempt) {
+    if (auto cached= persistent_shaping_lookup (*key, options)) {
+      require (cached->byte_end == source.size () &&
+               !cached->glyphs.empty () && cached->carets.size () > 2,
+        "Cross-session persistent shaping record was incomplete");
+      return;
+    }
+    std::this_thread::sleep_for (std::chrono::milliseconds (10));
+  }
+  throw std::runtime_error ("Second process did not obtain LMDB shaping entry");
 }
 
 static font_request installed_request (
@@ -169,6 +257,70 @@ static void check_boxes (font fn) {
   rejects<std::invalid_argument> ([&] {
     utf8_text_box (path (0), source, 4, end, fn, pencil (black));
   });
+}
+
+static void check_live_radioactive_boxes () {
+  font fn= pagella ();
+  string source= "cohomology rings";
+  shaping_options options;
+  options.editing_carets= true;
+  box original= utf8_text_box (path (0), source, 0, N(source), fn,
+                               pencil (black), options);
+  auto state= std::make_shared<live_radioactive_decorations> ();
+  box decorated= live_radioactive_box (
+    path (0), original, state, 0, "preserve");
+  auto selected= original->find_selection (path (0), path (10));
+  require (selected->valid && !is_nil (selected->rs),
+           "Radioactive test word is not selectable without a link");
+  const auto bounds= selected->rs->item;
+  const SI x= (bounds->x1 + bounds->x2) / 2;
+  const SI y= (bounds->y1 + bounds->y2) / 2;
+  const SI old_width= decorated->w (), old_height= decorated->h ();
+  rectangles ignored;
+  const string destination= "tmfs://artifact-disambiguation/cohomology";
+  auto previous= decorated->message ("link-target", x, y, ignored);
+  require (previous != tree (TUPLE, "link-target", destination),
+           "Unmatched text already has an automatic link");
+  auto snapshot= std::make_shared<live_radioactive_snapshot> ();
+  snapshot->spans.push_back ({0, 0, 10, destination});
+  state->publish (snapshot);
+  require (decorated->message ("link-target", x, y, ignored) ==
+           tree (TUPLE, "link-target", destination),
+           "Retained text box did not acquire a published radioactive link");
+  require (decorated->w () == old_width && decorated->h () == old_height,
+           "Link decoration changed retained text metrics");
+  state->publish ({});
+  require (decorated->message ("link-target", x, y, ignored) !=
+           tree (TUPLE, "link-target", destination),
+           "Removed radioactive link remained active without a reflow");
+
+  // The paragraph reassembler unwraps transparent source boxes and combines
+  // their glyphs. Live link regions must still project onto the joined line,
+  // without freezing the initial (possibly negative) match result.
+  auto paragraph= std::make_shared<font_paragraph> (
+    std::string (source.data (), N(source)), exact_request (cache_test_font ().file_utf8));
+  box first= utf8_line_box (path (0), paragraph, 0, 10, fn, pencil (black));
+  box second= utf8_line_box (path (1), paragraph, 10, N(source), fn, pencil (black));
+  array<box> parts;
+  parts << live_radioactive_box (path (0), first, state, 0, "preserve") << second;
+  array<bool> markers;
+  markers << false << false;
+  box joined= join_utf8_line_boxes (path (0), parts, markers);
+  require (!is_nil (joined), "Linked inline boxes were not reassembled");
+  const SI joined_width= joined->w ();
+  require (joined->message ("link-target", x, y, ignored) !=
+           tree (TUPLE, "link-target", destination),
+           "Reassembled line started with an unrequested automatic link");
+  state->publish (snapshot);
+  require (joined->message ("link-target", x, y, ignored) ==
+           tree (TUPLE, "link-target", destination),
+           "Reassembled line lost a live radioactive link hit target");
+  require (joined->w () == joined_width,
+           "Late radioactive result reshaped a joined text line");
+  state->publish ({});
+  require (joined->message ("link-target", x, y, ignored) !=
+           tree (TUPLE, "link-target", destination),
+           "Reassembled line retained a cleared radioactive link");
 }
 
 static void check_lines (font fn) {
@@ -1334,7 +1486,17 @@ static void check_recording (bool multi_font= false, double zoom= 1.0,
   throw std::runtime_error ("No rendered UTF-8 frame");
 }
 
-int main () {
+int main (int argc, char** argv) {
+  if (argc == 2 && std::string (argv[1]) == "--verify-cached-run") {
+    try {
+      check_persistent_shaping_cache (argv[0], true);
+      return 0;
+    }
+    catch (const std::exception& error) {
+      std::cerr << error.what () << '\n';
+      return 1;
+    }
+  }
   QTemporaryDir profile;
   if (!profile.isValid () || std::getenv ("ATHENA_PATH") == nullptr) return 1;
   qputenv ("ATHENA_HOME_PATH", profile.path ().toLocal8Bit ());
@@ -1342,6 +1504,8 @@ int main () {
   try {
     const tree diagnostics_before= get_debug_messages ("Debugging console", 1000);
     check_text ();
+    check_live_radioactive_boxes ();
+    check_persistent_shaping_cache (argv[0], false);
     check_synthetic_smallcaps ();
     auto first= std::async (std::launch::async, check_text);
     auto second= std::async (std::launch::async, check_text);

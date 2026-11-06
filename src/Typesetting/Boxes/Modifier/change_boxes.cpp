@@ -717,31 +717,33 @@ block_background_box (path ip, box b, array<rectangle> rs, array<brush> bg) {
 
 class remember_box_rep: public change_box_rep {
 public:
-  rectangles* logs_ptr;
+  std::shared_ptr<rectangles> logs_owner;
   SI          ox, oy;
 public:
   inline remember_box_rep (path ip, box b):
-    change_box_rep (ip, true), logs_ptr (NULL)
+    change_box_rep (ip, true)
   {
     insert (b, 0, 0);
     position ();
     finalize ();
   }
   inline ~remember_box_rep () {
-    if (logs_ptr != NULL) {
-      rectangles& logs= *logs_ptr;
+    if (logs_owner) {
+      rectangles& logs= *logs_owner;
       logs= rectangles (rectangle (ox+x3, oy+y3, ox+x4, oy+y4), logs);
       logs= rectangles (rectangle (0, 0, 0, 0), logs);
       // cout << "  8=X " << rectangle (ox+x3, oy+y3, ox+x4, oy+y4) << "\n";
     }
   }
-  inline void position_at (SI x, SI y, rectangles& logs) {
+  inline void position_at (
+      SI x, SI y, const std::shared_ptr<rectangles>& journal) {
+    rectangles& logs= *journal;
     x += x0; y += y0;
-    if (logs_ptr == NULL) logs= rectangles (rectangle (0, 0, 0, 0), logs);
+    if (!logs_owner) logs= rectangles (rectangle (0, 0, 0, 0), logs);
     else logs= rectangles (rectangle (ox+x3, oy+y3, ox+x4, oy+y4), logs);
     ox= x; oy= y;
     logs= rectangles (rectangle (ox+x3, oy+y3, ox+x4, oy+y4), logs);
-    logs_ptr= &logs;
+    logs_owner= journal;
   }
   inline void display (renderer ren) {
     ren->apply_shadow (x1, y1, x2, y2);

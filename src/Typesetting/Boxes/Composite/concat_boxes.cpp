@@ -671,20 +671,21 @@ concat_box_rep::graphical_select (SI x1, SI y1, SI x2, SI y2) {
 
 class phrase_box_rep: public concat_box_rep {
 public:
-  rectangles* logs_ptr;
+  std::shared_ptr<rectangles> logs_owner;
   SI          ox, oy;
   phrase_box_rep (path ip, array<box> bs, array<SI> spc);
   ~phrase_box_rep ();
-  void position_at (SI x, SI y, rectangles& change_log_ptr);
+  void position_at (SI x, SI y,
+                    const std::shared_ptr<rectangles>& change_log);
   void display (renderer ren);
 };
 
 phrase_box_rep::phrase_box_rep (path ip, array<box> bs, array<SI> spc):
-  concat_box_rep (ip, bs, spc, false), logs_ptr (NULL) {}
+  concat_box_rep (ip, bs, spc, false) {}
 
 phrase_box_rep::~phrase_box_rep () {
-  if (logs_ptr != NULL) {
-    rectangles& logs= *logs_ptr;
+  if (logs_owner) {
+    rectangles& logs= *logs_owner;
     logs= rectangles (rectangle (ox+x3, oy+y3, ox+x4, oy+y4), logs);
     logs= rectangles (rectangle (0, 0, 0, 0), logs);
     // cout << "  8=X " << rectangle (ox+x3, oy+y3, ox+x4, oy+y4) << "\n";
@@ -692,13 +693,15 @@ phrase_box_rep::~phrase_box_rep () {
 }
 
 void
-phrase_box_rep::position_at (SI x, SI y, rectangles& logs) {
+phrase_box_rep::position_at (
+    SI x, SI y, const std::shared_ptr<rectangles>& journal) {
+  rectangles& logs= *journal;
   x += x0; y += y0;
-  if (logs_ptr == NULL) logs= rectangles (rectangle (0, 0, 0, 0), logs);
+  if (!logs_owner) logs= rectangles (rectangle (0, 0, 0, 0), logs);
   else logs= rectangles (rectangle (ox+x3, oy+y3, ox+x4, oy+y4), logs);
   ox= x; oy= y;
   logs= rectangles (rectangle (ox+x3, oy+y3, ox+x4, oy+y4), logs);
-  logs_ptr= &logs;
+  logs_owner= journal;
 }
 
 void

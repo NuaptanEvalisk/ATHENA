@@ -10,6 +10,7 @@
 #include "Rendering/Fonts/shaped_text.hpp"
 #include "Rendering/Fonts/shaped_line.hpp"
 #include "Rendering/Fonts/bitmap_text.hpp"
+#include "Rendering/Fonts/persistent_shaping_cache.hpp"
 #include "unicode_text.hpp"
 #include "Rendering/Fonts/Freetype/tt_face.hpp"
 #include "Rendering/Fonts/Freetype/tt_file.hpp"
@@ -168,8 +169,14 @@ shaped_text make_math_glyph_run (tt_face face, hb_font_t* font,
 }
 
 void build_carets (shaped_text& run, hb_font_t* font, std::string_view text,
-                   std::size_t budget, bool fragments) {
-  grapheme_cursor boundaries (text);
+                    std::size_t budget, bool fragments,
+                    grapheme_cursor* borrowed= nullptr) {
+  std::unique_ptr<grapheme_cursor> local;
+  if (!borrowed) {
+    local= std::make_unique<grapheme_cursor> (text);
+    borrowed= local.get ();
+  }
+  auto& boundaries= *borrowed;
   const bool start_boundary= boundaries.boundary (run.byte_begin);
   const bool end_boundary= boundaries.boundary (run.byte_end);
   if (!fragments && (!start_boundary || !end_boundary))
@@ -315,6 +322,47 @@ static shaped_text shape_freetype_run (
       options.language.find ('\0') != std::string::npos)
     throw std::invalid_argument ("Invalid shaping language");
 
+  // Cache only requests for a known physical face. No LMDB transaction or
+  // font-domain object persists into the returned layout box. Hashing and
+  // lookup happen before creating the HarfBuzz buffer, FreeType shaping font
+  // or ICU editing-caret iterator.
+  const auto cache_key= file ? make_shaping_cache_key (
+    *file, size, hdpi, vdpi, text, begin, end, options) :
+    std::optional<shaping_cache_key> {};
+  if (cache_key) {
+    if (auto cached= persistent_shaping_lookup (*cache_key, options)) {
+      if (cached->byte_begin == begin && cached->byte_end == end &&
+          cached->direction == options.direction &&
+          (options.editing_carets ? !cached->carets.empty () :
+                                   cached->carets.empty ())) {
+        const tt_face cached_face= load_tt_face (*file);
+        if (!cached_face->bad_face && FT_IS_SCALABLE (cached_face->ft_face)) {
+          shaped_text result;
+          result.byte_begin= begin; result.byte_end= end;
+          result.direction= cached->direction;
+          result.glyphs= std::move (cached->glyphs);
+          result.carets= std::move (cached->carets);
+          result.advance_x= cached->advance_x;
+          result.advance_y= cached->advance_y;
+          result.ink_x1= cached->ink_x1; result.ink_y1= cached->ink_y1;
+          result.ink_x2= cached->ink_x2; result.ink_y2= cached->ink_y2;
+          result.has_ink= cached->has_ink;
+          result.missing_glyphs= cached->missing_glyphs;
+          result.glyph_source= tt_font_glyphs (cached_face, size, hdpi, vdpi);
+          if (!result.glyph_source->bad_font_glyphs) {
+            if (cached->has_math)
+              result.math= shaped_math_metrics {
+                cached->italic_correction,
+                cached->top_accent_attachment,
+                physical_source (cached_face, size, hdpi, vdpi),
+                cached->math_glyph};
+            return result;
+          }
+        }
+      }
+    }
+  }
+
   shaped_text result;
   result.byte_begin= begin;
   result.byte_end= end;
@@ -322,7 +370,7 @@ static shaped_text shape_freetype_run (
   if (begin == end) {
     if (options.editing_carets)
       build_carets (result, nullptr, text, options.max_carets,
-                    options.grapheme_fragments);
+                     options.grapheme_fragments, options.borrowed_graphemes);
     return result;
   }
   const tt_face face= file ? load_tt_face (*file) : load_tt_face (family);
@@ -486,7 +534,9 @@ static shaped_text shape_freetype_run (
   }
   if (options.editing_carets)
     build_carets (result, hbfont, text, options.max_carets,
-                  options.grapheme_fragments);
+                   options.grapheme_fragments, options.borrowed_graphemes);
+  if (cache_key && !bitmap)
+    persistent_shaping_submit (*cache_key, result);
   return result;
 }
 

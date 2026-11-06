@@ -18,6 +18,7 @@
 #include "message.hpp"
 #include "node_metadata.hpp"
 #include "unicode_text.hpp"
+#include "Typesetting/Boxes/inline_link.hpp"
 
 #include <QCryptographicHash>
 #include <QHash>
@@ -40,6 +41,8 @@ extern "C" {
 #include <unordered_set>
 #include <utility>
 #include <deque>
+#include <condition_variable>
+#include <thread>
 #include <tuple>
 
 namespace fs= std::filesystem;
@@ -61,9 +64,19 @@ struct TrieNode {
   std::string key;
 };
 
+struct ChangedHeadUnionCache {
+  std::mutex mutex;
+  std::unordered_map<std::uint64_t,
+    std::shared_ptr<const QSet<QString>>> unions;
+};
+
 struct RadioactiveIndex {
   std::uint64_t matching_revision= 0;
   std::deque<std::pair<std::uint64_t, QSet<QString>>> changes;
+  // Interval unions are immutable per published index. A bridge may contain
+  // thousands of source queries at the same old revision; merge once.
+  std::shared_ptr<ChangedHeadUnionCache> change_unions=
+    std::make_shared<ChangedHeadUnionCache> ();
   std::string incarnation;
   std::string vault_root;
   std::vector<TrieNode> nodes= {TrieNode ()};
@@ -106,6 +119,12 @@ struct MatchPart {
   QString structure;
 };
 
+struct AsyncMatchCompletion;
+struct AsyncMatchMailbox {
+  std::atomic<std::uint64_t> wanted {0};
+  std::shared_ptr<const AsyncMatchCompletion> result;
+};
+
 struct MatchQuery {
   bool initialized= false, structured= false, visited= false;
   std::uint64_t revision= 0;
@@ -116,6 +135,14 @@ struct MatchQuery {
   std::vector<std::shared_ptr<const MatchChoice>> choices;
   std::vector<AthenaArtifactRadioactiveMatch> selected;
   std::vector<MatchPart> parts;
+  std::vector<int> child_lengths;
+  std::shared_ptr<AsyncMatchMailbox> mailbox;
+  std::shared_ptr<live_radioactive_decorations> decorations;
+  std::uint64_t serial= 0, requested_revision= 0;
+  bool pending= false;
+  url source_file;
+  tree source_document;
+  path source_path;
 };
 }
 
@@ -145,6 +172,10 @@ std::atomic<std::uint64_t> matching_revision {0};
 std::deque<std::pair<std::uint64_t, QSet<QString>>> matching_changes;
 thread_local std::shared_ptr<AthenaArtifactRadioactiveDependencies>* queried_block= nullptr;
 thread_local const void* queried_owner= nullptr;
+std::atomic<bool> async_matching_enabled {false};
+std::atomic<std::uint64_t> async_completion_epoch {0};
+std::atomic<std::uint64_t> async_decoration_epoch {0};
+std::shared_ptr<const RadioactiveIndex> active_index ();
 
 void note_matching_changes (const RadioactiveIndex* before, const RadioactiveIndex* after) {
   QSet<QString> heads;
@@ -487,7 +518,10 @@ std::shared_ptr<const RadioactiveIndex> build_index (
     (!filter || (previous->title_filter.normalized == filter->normalized &&
                  previous->title_filter.structured == filter->structured));
   auto index= reusable ? std::make_shared<RadioactiveIndex> (*previous) :
-                        std::make_shared<RadioactiveIndex> ();
+                         std::make_shared<RadioactiveIndex> ();
+  // Reused tries belong to a new immutable revision; their union memoization
+  // must not reference the previous revision's change journal.
+  if (reusable) index->change_unions= std::make_shared<ChangedHeadUnionCache> ();
   index->vault_root= vault_root;
   if (filter != nullptr) {
     index->title_filter= *filter;
@@ -767,6 +801,101 @@ std::vector<AthenaArtifactRadioactiveTreeMatch> match_tree (
   return result;
 }
 
+struct AsyncMatchCompletion {
+  std::uint64_t serial= 0, revision= 0;
+  std::vector<AthenaArtifactRadioactiveMatch> selected;
+};
+
+struct AsyncMatchWork {
+  std::shared_ptr<const RadioactiveIndex> index;
+  QString text;
+  std::vector<Token> tokens;
+  bool structured= false;
+  std::uint64_t serial= 0;
+  std::shared_ptr<AsyncMatchMailbox> mailbox;
+};
+
+// All jobs are detached Unicode/token projections plus immutable published
+// indices. The actor alone validates their content version and installs
+// decoration results; workers never touch a tree, path, box or editor.
+class async_match_workers {
+  std::mutex mutex;
+  std::condition_variable changed;
+  std::deque<AsyncMatchWork> pending;
+  std::vector<std::thread> threads;
+  bool stopping= false;
+
+  void run () {
+    for (;;) {
+      AsyncMatchWork task;
+      {
+        std::unique_lock<std::mutex> lock (mutex);
+        changed.wait (lock, [&] { return stopping || !pending.empty (); });
+        if (stopping) return;
+        task= std::move (pending.front ());
+        pending.pop_front ();
+      }
+      if (task.mailbox->wanted.load (std::memory_order_acquire) != task.serial)
+        continue;
+      auto selected= match_tokens (*task.index, task.tokens, task.text);
+      if (task.structured) selected.erase (std::remove_if (
+        selected.begin (), selected.end (), [&] (const auto& match) {
+          for (int i=match.start; i<match.end; ++i)
+            if (task.tokens[i].key.startsWith (QChar (0))) return false;
+          return true;
+        }), selected.end ());
+      if (task.mailbox->wanted.load (std::memory_order_acquire) != task.serial)
+        continue;
+      auto output= std::make_shared<const AsyncMatchCompletion> (
+        AsyncMatchCompletion {task.serial, task.index->matching_revision,
+                              std::move (selected)});
+      std::atomic_store_explicit (&task.mailbox->result, std::move (output),
+                                  std::memory_order_release);
+      async_completion_epoch.fetch_add (1, std::memory_order_release);
+    }
+  }
+public:
+  async_match_workers () {
+    for (int i=0; i<2; ++i) threads.emplace_back ([this] { run (); });
+  }
+  ~async_match_workers () {
+    {
+      std::lock_guard<std::mutex> lock (mutex);
+      stopping= true;
+      pending.clear ();
+    }
+    changed.notify_all ();
+    for (auto& thread: threads) if (thread.joinable ()) thread.join ();
+  }
+  bool submit (AsyncMatchWork work) {
+    std::lock_guard<std::mutex> lock (mutex);
+    if (stopping || pending.size () >= 16384) return false;
+    pending.push_back (std::move (work));
+    changed.notify_one ();
+    return true;
+  }
+};
+
+async_match_workers& matcher_workers () {
+  static async_match_workers workers;
+  return workers;
+}
+
+bool schedule_async_match (
+    MatchQuery& query, const std::shared_ptr<const RadioactiveIndex>& index) {
+  if (!index) return false;
+  if (!query.mailbox) query.mailbox= std::make_shared<AsyncMatchMailbox> ();
+  const auto serial= query.serial + 1;
+  query.mailbox->wanted.store (serial, std::memory_order_release);
+  AsyncMatchWork work {index, query.text, query.tokens, query.structured,
+                       serial, query.mailbox};
+  if (!matcher_workers ().submit (std::move (work))) return false;
+  query.serial= serial;
+  query.pending= true;
+  query.requested_revision= index->matching_revision;
+  return true;
+}
+
 std::vector<Token> update_tokens (const QString& before,
     const std::vector<Token>& previous, const QString& text,
     AthenaArtifactRadioactiveWork& work) {
@@ -798,16 +927,23 @@ std::vector<Token> update_tokens (const QString& before,
   return result;
 }
 
-QSet<QString> changed_heads (std::uint64_t before, const RadioactiveIndex& index) {
-  QSet<QString> result;
+std::shared_ptr<const QSet<QString>> changed_heads (
+    std::uint64_t before, const RadioactiveIndex& index) {
+  static const auto empty= std::make_shared<const QSet<QString>> ();
   const auto after= index.matching_revision;
-  if (before == after) return result;
+  if (before == after) return empty;
+  auto& cache= *index.change_unions;
+  std::lock_guard<std::mutex> lock (cache.mutex);
+  auto found= cache.unions.find (before);
+  if (found != cache.unions.end ()) return found->second;
+  QSet<QString> result;
   const auto& changes= index.changes;
   if (before > after || changes.empty () || before + 1 < changes.front ().first)
     result.insert (QString ()); // The bounded journal no longer covers this view.
   for (const auto& change: changes)
     if (change.first > before && change.first <= after) result.unite (change.second);
-  return result;
+  auto unioned= std::make_shared<const QSet<QString>> (std::move (result));
+  return cache.unions.emplace (before, unioned).first->second;
 }
 
 bool same_matches (const std::vector<AthenaArtifactRadioactiveMatch>& a,
@@ -822,7 +958,10 @@ bool same_matches (const std::vector<AthenaArtifactRadioactiveMatch>& a,
 
 bool update_query (MatchQuery& query, const RadioactiveIndex& index,
     QString text, std::vector<Token> tokens, AthenaArtifactRadioactiveWork& work) {
-  const auto heads= changed_heads (query.revision, index);
+  // A never-matched query must visit every position anyway. Its old revision
+  // is not a comparison baseline and must not trigger a change-journal merge.
+  const auto heads= query.initialized ? changed_heads (query.revision, index) :
+    std::shared_ptr<const QSet<QString>> ();
   const int old_count= query.tokens.size (), count= tokens.size ();
   int first= 0, suffix= 0;
   // Include surface text and gaps: blacklists apply to surface forms, not only
@@ -852,7 +991,7 @@ bool update_query (MatchQuery& query, const RadioactiveIndex& index,
   bool recomputed= false;
   for (int i=0; i<count; ++i)
     if (!query.initialized || (edited && i >= dirty_start && i < count-suffix) ||
-        heads.contains (QString ()) || heads.contains (tokens[i].key)) {
+        (heads && (heads->contains (QString ()) || heads->contains (tokens[i].key)))) {
       choices[i]= match_at (index, tokens, text, size_t (i));
       ++work.matched_positions;
       recomputed= true;
@@ -907,6 +1046,151 @@ bool update_part (MatchPart& part, string source, AthenaArtifactRadioactiveWork&
   part.source= to_std (source);
   part.structure.clear ();
   return true;
+}
+
+std::shared_ptr<live_radioactive_decorations> ensure_live (MatchQuery& query) {
+  if (!query.decorations)
+    query.decorations= std::make_shared<live_radioactive_decorations> ();
+  return query.decorations;
+}
+
+void clear_live (MatchQuery& query) {
+  if (query.decorations) query.decorations->publish ({});
+  if (query.mailbox)
+    query.mailbox->wanted.fetch_add (1, std::memory_order_release);
+  ++query.serial;
+  query.initialized= false;
+  query.pending= false;
+}
+
+void update_live_source (MatchQuery& query, url file, tree document, path source) {
+  // A text revision may leave the same glyph bytes at the same source path
+  // while turning that occurrence into a definition. Its contextual link
+  // exclusion must be recomputed by the actor, not reused from old metadata.
+  if (query.source_file != file || query.source_path != source ||
+      query.source_document.operator-> () != document.operator-> ())
+    clear_live (query);
+  query.source_file= file;
+  query.source_document= document;
+  query.source_path= source;
+}
+
+std::shared_ptr<live_radioactive_decorations> live_text_matches (
+    string source, path address, url file, tree document, path source_path) {
+  auto& dependencies= query_dependencies ();
+  auto& query= source_query (dependencies, address, false);
+  const auto live= ensure_live (query);
+  query.parts.resize (1);
+  auto& part= query.parts[0];
+  const bool edited= update_part (part, source, dependencies.work);
+  if (edited) clear_live (query);
+  query.text= part.projection.text;
+  query.tokens= part.tokens;
+  query.positions.clear ();
+  query.positions.reserve (query.tokens.size ());
+  for (const auto& token: query.tokens)
+    query.positions.push_back ({
+      path (0, part.projection.source_boundary[token.start]),
+      path (0, part.projection.source_boundary[token.end])});
+  query.child_lengths= {N(source)};
+  query.heads.clear ();
+  for (const auto& token: query.tokens) query.heads.insert (token.key);
+  update_live_source (query, file, document, source_path);
+  auto index= active_index ();
+  if (index && !query.pending &&
+      (!query.initialized || query.revision != index->matching_revision))
+    schedule_async_match (query, index);
+  return live;
+}
+
+std::shared_ptr<live_radioactive_decorations> live_tree_matches (
+    const tree& source, path address, url file, tree document, path source_path) {
+  if (!is_func (source, CONCAT)) return {};
+  auto& dependencies= query_dependencies ();
+  auto& query= source_query (dependencies, address, true);
+  const auto live= ensure_live (query);
+  query.parts.resize (N(source));
+  std::vector<Token> tokens;
+  std::vector<std::pair<path,path>> positions;
+  std::vector<int> lengths;
+  QString surface;
+  for (int i=0; i<N(source); ++i) {
+    auto& part= query.parts[i];
+    lengths.push_back (is_atomic (source[i]) ? N(source[i]->label) : 1);
+    const int offset= surface.size ();
+    if (is_atomic (source[i])) {
+      update_part (part, source[i]->label, dependencies.work);
+      for (auto token: part.tokens) {
+        positions.push_back ({
+          path (i, part.projection.source_boundary[token.start]),
+          path (i, part.projection.source_boundary[token.end])});
+        token.start+= offset; token.end+= offset;
+        tokens.push_back (std::move (token));
+      }
+      surface+= part.projection.text;
+    }
+    else {
+      part= MatchPart ();
+      part.structure= structure_key (source[i]);
+      positions.push_back ({path (i, 0), path (i, 1)});
+      tokens.push_back ({part.structure, offset, offset+1});
+      surface+= QChar (0xfffc);
+    }
+  }
+  const bool edited= query.text != surface ||
+    query.positions != positions || query.child_lengths != lengths;
+  if (edited) clear_live (query);
+  query.text= std::move (surface);
+  query.tokens= std::move (tokens);
+  query.positions= std::move (positions);
+  query.child_lengths= std::move (lengths);
+  query.heads.clear ();
+  for (const auto& token: query.tokens) query.heads.insert (token.key);
+  update_live_source (query, file, document, source_path);
+  auto index= active_index ();
+  if (index && index->has_structured_names && !query.pending &&
+      (!query.initialized || query.revision != index->matching_revision))
+    schedule_async_match (query, index);
+  return live;
+}
+
+void apply_async_completion (MatchQuery& query, const RadioactiveIndex& index) {
+  if (!query.mailbox) return;
+  auto completion= std::atomic_exchange_explicit (
+    &query.mailbox->result, std::shared_ptr<const AsyncMatchCompletion> {},
+    std::memory_order_acq_rel);
+  if (!completion || completion->serial != query.serial ||
+      completion->revision != index.matching_revision) return;
+  query.pending= false;
+  query.initialized= true;
+  query.revision= completion->revision;
+  const auto next= std::make_shared<live_radioactive_snapshot> ();
+  for (const auto& match: completion->selected) {
+    if (match.start < 0 || match.end <= match.start ||
+        std::size_t (match.end) > query.positions.size ()) continue;
+    if (!is_nil (query.source_path) &&
+        athena_artifact_radioactive_is_defining_occurrence (
+          match, query.source_file, query.source_document, query.source_path))
+      continue;
+    const auto target= athena_artifact_radioactive_destination (match);
+    if (target.empty ()) continue;
+    const auto& start= query.positions[match.start].first;
+    const auto& end= query.positions[match.end-1].second;
+    const int first_child= start->item, last_child= end->item;
+    if (first_child < 0 || last_child >= int (query.child_lengths.size ()))
+      continue;
+    for (int child=first_child; child<=last_child; ++child) {
+      const int first= child == first_child ? start->next->item : 0;
+      const int last= child == last_child ? end->next->item :
+        query.child_lengths[child];
+      if (first < last)
+        next->spans.push_back ({child, first, last,
+          string (target.data (), int (target.size ()))});
+    }
+  }
+  query.selected= completion->selected;
+  query.decorations->publish (next);
+  async_decoration_epoch.fetch_add (1, std::memory_order_release);
 }
 
 std::vector<AthenaArtifactRadioactiveMatch> cached_text_matches (
@@ -969,6 +1253,42 @@ std::shared_ptr<const RadioactiveIndex> active_index () {
 }
 
 } // namespace
+
+void athena_artifact_radioactive_enable_async (bool enabled) {
+  if (enabled) (void) matcher_workers ();
+  async_matching_enabled.store (enabled, std::memory_order_release);
+}
+
+bool athena_artifact_radioactive_async_enabled () {
+  // Temporary/offline matching retains the synchronous semantics expected by
+  // conversion, tests and other non-editor callers.
+  return async_matching_enabled.load (std::memory_order_acquire) &&
+         queried_block != nullptr;
+}
+
+std::shared_ptr<live_radioactive_decorations>
+athena_artifact_radioactive_async_text (
+    string text, path source, url file, tree document, path source_path) {
+  if (!athena_artifact_radioactive_async_enabled ()) return {};
+  return live_text_matches (
+    text, source, file, document, source_path);
+}
+
+std::shared_ptr<live_radioactive_decorations>
+athena_artifact_radioactive_async_tree (
+    const tree& text, path source, url file, tree document, path source_path) {
+  if (!athena_artifact_radioactive_async_enabled ()) return {};
+  return live_tree_matches (
+    text, source, file, document, source_path);
+}
+
+std::uint64_t athena_artifact_radioactive_async_completion_epoch () {
+  return async_completion_epoch.load (std::memory_order_acquire);
+}
+
+std::uint64_t athena_artifact_radioactive_decoration_epoch () {
+  return async_decoration_epoch.load (std::memory_order_acquire);
+}
 
 AthenaArtifactRadioactiveScope::AthenaArtifactRadioactiveScope (
     std::shared_ptr<AthenaArtifactRadioactiveDependencies>& dependencies,
@@ -1389,13 +1709,45 @@ bool athena_artifact_radioactive_changed (
   auto index= active_index ();
   static const RadioactiveIndex empty;
   const auto& current= index ? *index : empty;
-  if (dependencies->revision == current.matching_revision) return false;
-  const auto heads= changed_heads (dependencies->revision, current);
+  const bool revision_changed= dependencies->revision != current.matching_revision;
+  const auto heads= revision_changed ?
+    changed_heads (dependencies->revision, current) :
+    std::shared_ptr<const QSet<QString>> {};
   bool affected= false;
   for (auto& entry: dependencies->queries) {
     auto& query= entry.second;
+    if (query.decorations) {
+      // Only the document actor reads source paths or installs new link
+      // rectangles. A completion does not corrupt the typeset bridge: both
+      // text metrics and the retained box hierarchy remain unchanged.
+      apply_async_completion (query, current);
+      if (!index) continue;
+      if (query.pending) {
+        if (query.requested_revision != current.matching_revision) {
+          clear_live (query);
+          async_decoration_epoch.fetch_add (1, std::memory_order_release);
+          schedule_async_match (query, index);
+        }
+        continue;
+      }
+      if (!query.initialized) {
+        schedule_async_match (query, index);
+        continue;
+      }
+      if (query.revision == current.matching_revision) continue;
+      if (heads && !heads->contains (QString ()) &&
+          !heads->intersects (query.heads)) {
+        query.revision= current.matching_revision;
+        continue;
+      }
+      clear_live (query);
+      async_decoration_epoch.fetch_add (1, std::memory_order_release);
+      schedule_async_match (query, index);
+      continue;
+    }
+    if (!revision_changed) continue;
     if (query.revision == current.matching_revision) continue;
-    if (!heads.contains (QString ()) && !heads.intersects (query.heads)) {
+    if (!heads->contains (QString ()) && !heads->intersects (query.heads)) {
       query.revision= current.matching_revision;
       continue;
     }

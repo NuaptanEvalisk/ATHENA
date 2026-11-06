@@ -15,8 +15,10 @@
 #include "array.hpp"
 #include "font.hpp"
 #include "command.hpp"
+#include <memory>
 
 class frame;
+struct live_radioactive_decorations;
 
 /******************************************************************************
 * Ornament parameters
@@ -193,6 +195,9 @@ box symbol_box (path ip, box b, int n);
 box shorter_box (path ip, box b, int n);
 box frozen_box (path ip, box b);
 box direct_link_box (path ip, box b, string ref);
+box live_radioactive_box (
+  path ip, box b, std::shared_ptr<live_radioactive_decorations> links,
+  int source_child, string color);
 box move_box (path ip, box b, SI x, SI y, bool chf= false, bool bigf= false);
 box move_delimiter_box (path ip, box b, SI x, SI y, SI bot, SI top);
 box shift_box (path ip, box b, SI x, SI y, bool chf= false, bool bigf= false);

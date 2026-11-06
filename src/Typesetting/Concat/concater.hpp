@@ -34,8 +34,9 @@ struct inline_math_fragment {
   bool valid= false;
   tree source;
   path address;
-  hashmap<string,tree> variables;
-  athena::contracts::evaluation_input_snapshot input_receipts;
+  // Evaluation inputs and definitions are validated by the retained native
+  // contract event log, including reads, writes, and reference effects.
+  // Do not retain an entire environment hashmap per inline formula.
   font active_font;
   pencil active_pen;
   language active_language;

@@ -122,6 +122,9 @@ public:
   std::string_view source () const;
   const std::vector<line_break>& breaks () const;
   const std::vector<script_run>& scripts () const;
+  // Borrow the paragraph's existing mutable ICU grapheme iterator while its
+  // owning thread performs font selection and line shaping.
+  grapheme_cursor& graphemes ();
   // Exact scalar-boundary conversions, including an explicit rejection of
   // surrogate interiors. Repeated line queries do not rescan text prefixes.
   std::size_t byte_to_utf16 (std::size_t byte) const;

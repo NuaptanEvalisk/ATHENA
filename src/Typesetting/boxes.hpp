@@ -26,6 +26,7 @@
 #include "Document/NodeContracts/evaluation_origin.hpp"
 #include <optional>
 #include <functional>
+#include <memory>
 
 #define STD_BOX       0
 #define STACK_BOX     1
@@ -155,7 +156,10 @@ public:
   virtual tree message (tree t, SI x, SI y, rectangles& rs);
   virtual void loci (SI x, SI y, SI d, list<string>& ids, rectangles& rs);
   virtual void display_links (renderer ren);
-  virtual void position_at (SI x, SI y, rectangles& change_log);
+  // A retained box may outlive its temporary typesetter. The repaint journal
+  // must therefore be shared with the boxes, never borrowed from its owner.
+  virtual void position_at (
+    SI x, SI y, const std::shared_ptr<rectangles>& change_log);
   virtual void collect_page_numbers (hashmap<string,tree>& h, tree page);
   virtual void collect_page_colors (array<brush>& bs, array<rectangle>& rs);
   virtual path find_tag (string name);

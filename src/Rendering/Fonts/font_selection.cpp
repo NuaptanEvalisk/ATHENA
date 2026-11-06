@@ -570,7 +570,8 @@ font_request font_request_with_italic (font_request request, bool italic) {
 std::vector<selected_font_run> font_catalog::select (
     const std::string& source, const font_request& request, std::uint8_t base_level,
     const std::vector<font_style_span>& styles,
-    const std::vector<script_run>* script_ranges) {
+    const std::vector<script_run>* script_ranges,
+    grapheme_cursor* shared_graphemes) {
   state_->check ();
   state_->synchronize_view ();
   require_utf8 (source);
@@ -718,8 +719,13 @@ std::vector<selected_font_run> font_catalog::select (
   if (script_ranges == nullptr) {
     local_analysis.emplace (source, request.direction, request.language);
     script_ranges= &local_analysis->scripts ();
+    shared_graphemes= &local_analysis->graphemes ();
   }
-  grapheme_cursor graphemes (source);
+  std::unique_ptr<grapheme_cursor> local_graphemes;
+  if (!shared_graphemes) {
+    local_graphemes= std::make_unique<grapheme_cursor> (source);
+    shared_graphemes= local_graphemes.get ();
+  }
   auto script= script_ranges->begin ();
   for (std::size_t at= 0; at<source.size ();) {
     const auto span= locate_style (at);
@@ -756,7 +762,7 @@ std::vector<selected_font_run> font_catalog::select (
 
     while (at < segment_end) {
       std::size_t next= source[at] == '\0' ? at + 1 :
-        std::min (graphemes.next (at), segment_end);
+        std::min (shared_graphemes->next (at), segment_end);
       if (next <= at || next > source.size ())
         throw std::logic_error ("Font selection did not advance");
       const auto required= required_coverage (source, at, next);
@@ -801,7 +807,8 @@ font_paragraph::font_paragraph (std::string source, font_request request,
   source_ (std::move (source)), analysis_ (source_, request.direction, request.language),
   request_ (std::move (request)), styles_ (styles),
   fonts_ (catalog.select (
-    source_, request_, analysis_.base_level (), styles, &analysis_.scripts ())),
+    source_, request_, analysis_.base_level (), styles, &analysis_.scripts (),
+    &analysis_.graphemes ())),
   owner_ (&current_font_domain ()) {}
 
 unicode_paragraph& font_paragraph::analysis () {
@@ -826,6 +833,7 @@ shaped_line font_paragraph::line (std::size_t begin, std::size_t end,
       if (font == fonts_.end () || font->begin > item.run.begin || font->end < item.run.end)
         throw std::logic_error ("Shaping item crosses selected font boundary");
       auto selected= o;
+      selected.borrowed_graphemes= &analysis_.graphemes ();
       selected.uppercase= font->uppercase;
       selected.math_semantics= font->math_semantics;
       selected.math_variant= font->math_variant;

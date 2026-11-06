@@ -22,7 +22,9 @@
 #include "unicode_text.hpp"
 #include "Rendering/Fonts/math_font.hpp"
 #include <algorithm>
+#include <optional>
 #include <stdexcept>
+#include <unordered_map>
 
 #include <cstdlib>
 
@@ -2129,6 +2131,36 @@ smart_font (string family, string variant, string series, string shape,
 }
 
 namespace athena::text {
+namespace {
+
+// A physical math face is selected by its resolved profile family and weight,
+// not by individual scalars. Keep the selection in the owning font domain.
+// DPI/point-size metrics still come from each requested source; a refreshed
+// catalog invalidates the face selection through its native generation.
+struct math_face_selections {
+  std::uint64_t generation= 0;
+  std::unordered_map<std::string, std::optional<font_file_source>> entries;
+};
+
+std::optional<font_file_source> select_math_face (string family, int weight) {
+  auto& cache= font_domain_local<math_face_selections> ();
+  const auto generation= font_database_native_view ()->generation;
+  if (cache.generation != generation) {
+    cache.entries.clear ();
+    cache.generation= generation;
+  }
+  std::string key (family.data (), N(family));
+  key.push_back ('\0');
+  key+= std::to_string (weight);
+  auto found= cache.entries.find (key);
+  if (found != cache.entries.end ()) return found->second;
+  auto selected= font_database_match_family (
+    std::string_view (family.data (), N(family)), weight, 0, 100, 0);
+  cache.entries.emplace (std::move (key), selected);
+  return selected;
+}
+} // namespace
+
 math_alphabet default_math_alphabet (font source, bool variable) {
   const auto* smart= dynamic_cast<const smart_font_rep*> (source.rep);
   const bool bold= smart && smart->series == "bold";
@@ -2186,9 +2218,7 @@ physical_font_source math_font_source (font source, math_alphabet alphabet) {
     // transformations of a math font's upright physical face. The target
     // family is already known, so resolve only that indexed family bucket.
     const int requested_weight= weight == "bold" ? 700 : 400;
-    if (auto selected= font_database_match_family (
-          std::string_view (family.data (), N(family)),
-          requested_weight, 0, 100, 0)) {
+    if (auto selected= select_math_face (family, requested_weight)) {
       physical.file= std::move (*selected);
       return physical;
     }

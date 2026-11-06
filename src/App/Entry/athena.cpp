@@ -61,6 +61,7 @@
 #include "App/Watchdog/watchdog_client.hpp"
 #include "convert.hpp"
 #include "Rendering/Fonts/Freetype/tt_file.hpp"
+#include "Rendering/Fonts/persistent_shaping_cache.hpp"
 #include "Domains/Vault/vault_maintenance.hpp"
 #include "Xml/vault_format_upgrade.hpp"
 #include "vault_directory_lease.hpp"
@@ -174,6 +175,10 @@ void run_startup_task (size_t index, std::string document= {}) {
       });
     return;
   case startup_operation::quit:
+    // Builder subprocesses must finish background LMDB persistence before the
+    // parent counts a document as prepared. Interactive quits never wait.
+    if (std::getenv ("ATHENA_SHAPING_BUILDER"))
+      athena::text::persistent_shaping_flush ();
     get_server ()->quit ();
     return;
   }

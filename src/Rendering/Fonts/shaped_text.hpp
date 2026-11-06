@@ -19,6 +19,7 @@
 #include <vector>
 
 namespace athena::text {
+class grapheme_cursor;
 
 enum class run_direction { left_to_right, right_to_left };
 enum class math_kern_corner { top_right, top_left, bottom_right, bottom_left };
@@ -75,6 +76,9 @@ struct shaping_options {
   // original source atom. Output positions remain absolute source byte offsets.
   std::size_t context_begin= 0;
   std::size_t context_end= std::string_view::npos;
+  // Transient, owner-local iterator borrowed from unicode_paragraph. Never
+  // retained by a shaped run, persisted, or passed across font-domain threads.
+  grapheme_cursor* borrowed_graphemes= nullptr;
 };
 
 struct positioned_glyph {

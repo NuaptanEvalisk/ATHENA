@@ -22,7 +22,7 @@ public:
   bridge       br;
   std::shared_ptr<const evaluation_environment_checkpoint> execution_base;
   prepared_context_index execution_contexts;
-  rectangles   change_log;
+  std::shared_ptr<rectangles> change_log= std::make_shared<rectangles> ();
   array<brush> old_bgs;
 
   array<page_item> l;      // current lines
@@ -44,6 +44,7 @@ public:
   time_t progressive_deadline_ms;
   int  progressive_pending_generation;
   std::uint64_t radioactive_refresh_revision= 0;
+  std::uint64_t radioactive_completion_revision= 0;
 
 public:
   typesetter_rep (edit_env& env, tree et, path ip);

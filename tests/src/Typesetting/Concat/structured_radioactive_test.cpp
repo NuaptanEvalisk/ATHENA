@@ -27,6 +27,7 @@
 #include "Domains/References/link_peek.hpp"
 #include "Domains/Artifacts/artifact_title_filter.hpp"
 #include "Domains/Artifacts/artifact_radioactive_links.hpp"
+#include "Typesetting/Boxes/inline_link.hpp"
 #include "Domains/Vault/vault.hpp"
 #include "Domains/Vault/vaultfile_json.hpp"
 #include "Domains/Vault/vault_map_sqlite.hpp"
@@ -71,6 +72,101 @@ static void text_positions (box b, SI x, SI y, tree& positions) {
 class StructuredRadioactiveTest: public QObject {
   Q_OBJECT
 private slots:
+  void asynchronousMatchesPublishWithoutReshaping () {
+    QTemporaryDir directory;
+    QVERIFY (directory.isValid ());
+    const auto root= std::filesystem::path (directory.path ().toStdString ());
+    AthenaVaultfileInfo info;
+    std::string error;
+    QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+    QCOMPARE (vault_load (url_system (root.string ().c_str ()), "test", "vault.sqlite"), string (""));
+    struct Cleanup {
+      ~Cleanup () {
+        athena_artifact_radioactive_enable_async (false);
+        vault_close ();
+      }
+    } cleanup;
+    athena_artifact_radioactive_refresh ();
+    const auto vault= vault_capture_context ();
+    auto record= [] (const std::string& id, const std::string& name) {
+      AthenaArtifactRecord result;
+      result.uuid= id; result.type= "definition";
+      result.relative_path= "terms.ath";
+      result.semantic_names= {name};
+      return result;
+    };
+    std::vector<AthenaArtifactRecord> records {
+      record ("topological", "cohomology rings")};
+    auto publish= [&] {
+      athena_artifact_radioactive_overlay (
+        vault->incarnation, "terms.ath", 9123, records);
+    };
+    publish ();
+    std::shared_ptr<AthenaArtifactRadioactiveDependencies> dependencies;
+    athena_artifact_radioactive_enable_async (true);
+
+    std::shared_ptr<live_radioactive_decorations> link;
+    {
+      AthenaArtifactRadioactiveScope scope (dependencies, &dependencies, true);
+      link= athena_artifact_radioactive_async_text (
+        "cohomology rings are useful", path (3), url_none (), tree (), path ());
+      scope.complete ();
+    }
+    QVERIFY (link);
+    // No synchronous matching result may be published during initial layout.
+    QVERIFY (!link->read ());
+    QTRY_VERIFY_WITH_TIMEOUT (
+      athena_artifact_radioactive_async_completion_epoch () > 0, 10000);
+    QTRY_VERIFY_WITH_TIMEOUT (([&] {
+      athena_artifact_radioactive_changed (dependencies);
+      const auto snapshot= link->read ();
+      return snapshot && snapshot->spans.size () == 1;
+    }) (), 10000);
+    auto first= link->read ();
+    QCOMPARE (first->spans.front ().child, 0);
+    QCOMPARE (first->spans.front ().begin, 0);
+    QCOMPARE (first->spans.front ().end, 16);
+
+    // A negative match still needs its own query. When a new definition is
+    // published, the exact same retained geometry acquires a live link.
+    std::shared_ptr<live_radioactive_decorations> negative;
+    {
+      AthenaArtifactRadioactiveScope scope (dependencies, &dependencies, true);
+      link= athena_artifact_radioactive_async_text (
+        "cohomology rings are useful", path (3), url_none (), tree (), path ());
+      negative= athena_artifact_radioactive_async_text (
+        "finite spectra", path (4), url_none (), tree (), path ());
+      scope.complete ();
+    }
+    QTRY_VERIFY_WITH_TIMEOUT (([&] {
+      athena_artifact_radioactive_changed (dependencies);
+      return bool (negative->read ());
+    }) (), 10000);
+    QCOMPARE (negative->read ()->spans.size (), size_t (0));
+    records.push_back (record ("spectra", "finite spectra"));
+    publish ();
+    QTRY_VERIFY_WITH_TIMEOUT (([&] {
+      athena_artifact_radioactive_changed (dependencies);
+      const auto snapshot= negative->read ();
+      return snapshot && snapshot->spans.size () == 1;
+    }) (), 10000);
+    QCOMPARE (negative->read ()->spans.front ().end, 14);
+
+    // A replacement under the same source slot invalidates the old result.
+    {
+      AthenaArtifactRadioactiveScope scope (dependencies, &dependencies, true);
+      negative= athena_artifact_radioactive_async_text (
+        "no relevant title", path (4), url_none (), tree (), path ());
+      scope.complete ();
+    }
+    QVERIFY (!negative->read ());
+    QTRY_VERIFY_WITH_TIMEOUT (([&] {
+      athena_artifact_radioactive_changed (dependencies);
+      return bool (negative->read ());
+    }) (), 10000);
+    QCOMPARE (negative->read ()->spans.size (), size_t (0));
+  }
+
   void incrementalMatching () {
     QTemporaryDir directory;
     QVERIFY (directory.isValid ());

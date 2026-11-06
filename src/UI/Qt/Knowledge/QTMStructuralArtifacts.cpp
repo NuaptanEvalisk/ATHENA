@@ -257,6 +257,7 @@ class StructuralArtifacts final: public QObject {
   }
 
   void stop () {
+    athena_artifact_radioactive_enable_async (false);
     timer.stop (); stopping->store (true); wake.notify_all ();
     if (matcher.joinable ()) matcher.join ();
     if (disk.joinable ()) disk.join ();
@@ -273,6 +274,7 @@ public:
     return false;
   }
   explicit StructuralArtifacts (QObject* parent): QObject (parent) {
+    athena_artifact_radioactive_enable_async (true);
     connect (&timer, &QTimer::timeout, this, [this] { update_buffers (); });
     connect (qApp, &QCoreApplication::aboutToQuit, this, [this] { stop (); });
     timer.start (500);

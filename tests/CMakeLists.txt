@@ -333,12 +333,18 @@ foreach (_test_file ${TEST_SRC_FILES})
       _test_name STREQUAL "completing_combo_box_test" OR
       _test_name STREQUAL "evaluation_bar_test" OR
       _test_name STREQUAL "evaluation_bar_conversion_test" OR
-      _test_name STREQUAL "commutative_diagram_native_editor_test" OR
-      _test_name STREQUAL "structured_radioactive_test" OR
+       _test_name STREQUAL "commutative_diagram_native_editor_test" OR
       _test_name STREQUAL "utf8_editor_test" OR
       _test_name STREQUAL "vault_maintenance_dialog_test" OR
       _test_name STREQUAL "preview_math_font_test")
     set_tests_properties (${_test_name} PROPERTIES TIMEOUT 30)
+  endif ()
+  if (_test_name STREQUAL "structured_radioactive_test")
+    # Creates and indexes several isolated Vaults, then exercises native math
+    # layout and asynchronous matching. Its normal runtime is close to 30 s.
+    set_tests_properties (${_test_name} PROPERTIES TIMEOUT 90)
+    set_property (TEST ${_test_name} APPEND PROPERTY ENVIRONMENT
+      "QT_QPA_PLATFORM=offscreen")
   endif ()
   if (_test_name STREQUAL "native_interactive_dialog_test" OR
       _test_name STREQUAL "completing_combo_box_test")
