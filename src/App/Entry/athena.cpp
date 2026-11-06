@@ -1879,10 +1879,15 @@ texmacs_entrypoint (int argc, char** argv) {
 #endif
   athena_crash_register_thread (AthenaCrashThreadRole::Main);
   bench_start ("startup to editor shell");
+  // A headless document conversion still renders images and fonts through
+  // QtGui. Detect the conversion before choosing the Qt application class.
+  bool document_conversion_mode= false;
 #if ATHENA_ENABLE_CLI
   for (int i=1; i<argc; i++) {
     string s= argv[i];
     if ((N(s)>=2) && (s(0,2)=="--")) s= s (1, N(s));
+    if (s == "-C" || s == "-c" || s == "-convert")
+      document_conversion_mode= true;
     if (s == "-aofm-convert-file") {
       i++;
       if (i < argc) {
@@ -2089,15 +2094,19 @@ texmacs_entrypoint (int argc, char** argv) {
   normalize_wayland_qt_scaling (argc, argv);
   bool rag_server_mode= rag_server_dir != "";
   bool website_generation_mode= website_generate_dir != "";
-  if (website_generation_mode &&
+  const bool headless_qt_rendering= headless_mode &&
+    (website_generation_mode || document_conversion_mode);
+  if (headless_qt_rendering &&
       is_empty (qt_platform_from_arguments (argc, argv)) &&
-      get_env ("QT_QPA_PLATFORM") == "" &&
-      get_env ("WAYLAND_DISPLAY") == "" && get_env ("DISPLAY") == "")
+      get_env ("QT_QPA_PLATFORM") == "")
     qputenv ("QT_QPA_PLATFORM", "offscreen");
   if (headless_mode && rag_server_mode) {
     qtmcoreapp= new QTMCoreApplication (argc, argv);
   }
-  else if (!headless_mode || website_generation_mode) {
+  else if (!headless_mode || headless_qt_rendering) {
+    // Even with no windows, PDF conversion can rasterize SVG <text> through
+    // QImageReader/QFontMetrics. QCoreApplication has no QFontDatabase and
+    // aborts there; a headless QApplication supplies QtGui without showing UI.
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy
       (requested_wayland_qt_platform (argc, argv) ?
        Qt::HighDpiScaleFactorRoundingPolicy::PassThrough :

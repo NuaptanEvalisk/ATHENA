@@ -576,9 +576,16 @@ private:
     process->setProcessChannelMode (QProcess::MergedChannels);
     process->setProgram (QCoreApplication::applicationFilePath ());
     process->setWorkingDirectory (current_vault);
-    process->setArguments ({"-H", "-C", document.absolute, task->output});
+    // Export reference preparation requires the source Vault's location
+    // snapshot. A worker is an independent process, so it cannot inherit the
+    // editor's already loaded Vault merely from its working directory.
+    process->setArguments (
+      {"-H", "-vault", current_vault, "-C", document.absolute, task->output});
     auto environment= QProcessEnvironment::systemEnvironment ();
     environment.insert ("ATHENA_SHAPING_BUILDER", "1");
+    // A prewarm process must never connect to the interactive Qt display.
+    // It still needs a QGui-capable application for SVG text/font rendering.
+    environment.insert ("QT_QPA_PLATFORM", "offscreen");
     process->setProcessEnvironment (environment);
 #if defined(Q_OS_UNIX)
     if (low_priority->isChecked ())
