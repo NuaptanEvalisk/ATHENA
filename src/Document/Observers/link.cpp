@@ -214,7 +214,7 @@ get_locus_rendering (string var) {
   if (var == VISITED_COLOR)
     return get_user_preference (var, "#702070");
   if (var == RADIOACTIVE_LINK_COLOR)
-    return get_user_preference (var, "#a04400");
+    return get_user_preference (var, "#305ac0");
   return "";
 }
 

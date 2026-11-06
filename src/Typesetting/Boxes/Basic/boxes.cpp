@@ -27,6 +27,39 @@ int box_rep::subnr () { return 0; }
 box box_rep::subbox (int i) { (void) i; return box (); }
 box box::operator [] (path p) {
   if (is_nil (p)) return *this; else return rep->subbox(p->item)[p->next]; }
+void
+box_rep::draw_link_ink (renderer ren, pencil ink) {
+  // Composite math boxes contain independently positioned glyph leaves.
+  // Reuse those shaped leaves; no macro execution or re-typesetting occurs.
+  for (int i=0; i<subnr (); ++i) {
+    box child= subbox (i);
+    const SI dx= sx (i), dy= sy (i);
+    ren->move_origin (dx, dy);
+    child->draw_link_ink (ren, ink);
+    ren->move_origin (-dx, -dy);
+  }
+}
+
+void
+box_rep::draw_link_ink_clipped (renderer ren, rectangle region, pencil ink) {
+  SI x1, y1, x2, y2;
+  ren->get_clipping (x1, y1, x2, y2);
+  const SI left= max (x1, region->x1), bottom= max (y1, region->y1);
+  const SI right= min (x2, region->x2), top= min (y2, region->y2);
+  if (left >= right || bottom >= top) return;
+  const pencil previous= ren->get_pencil ();
+  struct restore {
+    renderer ren;
+    pencil pen;
+    SI x1, y1, x2, y2;
+    ~restore () {
+      ren->set_clipping (x1, y1, x2, y2, true);
+      ren->set_pencil (pen);
+    }
+  } guard {ren, previous, x1, y1, x2, y2};
+  ren->extra_clipping (left, bottom, right, top);
+  draw_link_ink (ren, ink);
+}
 double box_rep::left_slope () { return 0.0; }
 double box_rep::right_slope () { return 0.0; }
 SI box_rep::left_correction () { return (SI) (-min (y1, 0) * left_slope ()); }

@@ -151,6 +151,12 @@ struct utf8_line_box_rep: box_rep {
     ren->set_pencil (pen);
     line.draw_fixed (ren, bytes (), 0, 0);
   }
+  void draw_link_ink (renderer ren, pencil ink) override {
+    ren->set_pencil (ink);
+    // Only glyph ink: the original backgrounds, line metrics and character
+    // clusters must remain unchanged when an asynchronous link is published.
+    line.draw_fixed (ren, bytes (), 0, 0);
+  }
   box expand_glyphs (int, double factor) override {
     if (!std::isfinite (factor) || factor <= -1.0)
       throw std::invalid_argument ("Invalid Unicode line expansion");
@@ -448,9 +454,11 @@ struct mapped_utf8_line_box_rep final: utf8_line_box_rep {
         ren->href (link.info.reference, span.left, link.bottom, span.right, link.top);
       const string tint= link.info.radioactive_color;
       if (tint != "" && tint != "preserve") {
-        ren->set_pencil (pencil (named_color (tint), ren->pixel));
+        const pencil ink (named_color (tint), ren->pixel);
         for (const auto& span: link.spans)
-          ren->line (span.left, link.bottom, span.right, link.bottom);
+          draw_link_ink_clipped (ren,
+            rectangle (span.left, min (y3, link.bottom), span.right,
+                       max (y4, link.top)), ink);
       }
       if (link.owns_anchor)
         ren->anchor (link.info.anchor, link.anchor_x, link.bottom, offset (link.anchor_x, 1), link.top);

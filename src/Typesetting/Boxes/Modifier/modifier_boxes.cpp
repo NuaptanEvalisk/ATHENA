@@ -604,19 +604,22 @@ class live_radioactive_box_rep final:
     if (!snapshot) return;
     for (const auto& match: snapshot->spans) {
       if (match.child != child || match.begin >= match.end) continue;
+      if (b->get_type () != TEXT_BOX) {
+        // A native math expression is a structured box, not a textual leaf.
+        // The matching projection addresses it as one complete source node.
+        if (match.begin <= 0 && match.end >= 1)
+          visit (rectangle (x1, y1, x2, y2), match.destination);
+        continue;
+      }
       const int first= b->get_leaf_left_pos ();
       const int last= b->get_leaf_right_pos ();
       const int begin= std::max (match.begin, first);
       const int end= std::min (match.end, last);
       if (begin >= end) continue;
-      if (b->get_type () == TEXT_BOX) {
-        selection selected= b->find_selection (path (begin-first), path (end-first));
-        if (selected->valid)
-          for (auto r= selected->rs; !is_nil (r); r= r->next)
-            visit (r->item, match.destination);
-      }
-      else if (match.begin <= first && match.end >= last)
-        visit (rectangle (x1, y1, x2, y2), match.destination);
+      selection selected= b->find_selection (path (begin-first), path (end-first));
+      if (selected->valid)
+        for (auto r= selected->rs; !is_nil (r); r= r->next)
+          visit (r->item, match.destination);
     }
   }
 
@@ -653,14 +656,16 @@ public:
     return modifier_box_rep::message (type, x, y, rs);
   }
   void post_display (renderer& ren) override {
-    const pencil old= ren->get_pencil ();
     const bool decorate= tint != "" && tint != "preserve";
-    if (decorate) ren->set_pencil (pencil (named_color (tint), ren->pixel));
+    const pencil ink= decorate ?
+      pencil (named_color (tint), ren->pixel) : pencil (false);
     for_regions ([&] (rectangle r, string target) {
       ren->href (target, r->x1, r->y1, r->x2, r->y2);
-      if (decorate) ren->line (r->x1, r->y1, r->x2, r->y1);
+      if (decorate)
+        b->draw_link_ink_clipped (ren,
+          rectangle (r->x1, min (b->y3, r->y1), r->x2,
+                     max (b->y4, r->y2)), ink);
     });
-    if (decorate) ren->set_pencil (old);
   }
 };
 

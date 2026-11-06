@@ -147,6 +147,11 @@ public:
   virtual void      pre_display (renderer& ren);
   virtual void      post_display (renderer& ren);
   virtual void      display (renderer ren) = 0;
+  // Redraw existing glyph ink in a link color without reshaping text, clearing
+  // backgrounds, or changing source paths and box geometry.
+  virtual void      draw_link_ink (renderer ren, pencil ink);
+  void              draw_link_ink_clipped (
+    renderer ren, rectangle region, pencil ink);
   virtual void      display_background (renderer ren);
   virtual void      clear_incomplete (rectangles& rs, SI pixel,
 				      int i, int i1, int i2);

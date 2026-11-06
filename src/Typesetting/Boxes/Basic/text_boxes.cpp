@@ -77,6 +77,10 @@ struct utf8_text_box_rep final: box_rep {
     ren->set_pencil (pen);
     run.draw_fixed (ren, bytes (), 0, 0);
   }
+  void draw_link_ink (renderer ren, pencil ink) override {
+    ren->set_pencil (ink);
+    run.draw_fixed (ren, bytes (), 0, 0);
+  }
   box expand_glyphs (int mode, double factor) override {
     (void) mode;
     box result= utf8_text_box (ip, source, begin, end,
@@ -194,6 +198,11 @@ struct math_glyph_box_rep final: box_rep {
     run.draw_fixed (ren,
       std::string_view (source.data (), static_cast<std::size_t> (N(source))), 0, 0);
   }
+  void draw_link_ink (renderer ren, pencil ink) override {
+    ren->set_pencil (ink);
+    run.draw_fixed (ren,
+      std::string_view (source.data (), static_cast<std::size_t> (N(source))), 0, 0);
+  }
   double left_slope () override { return nominal->slope; }
   double right_slope () override { return nominal->slope; }
   SI left_correction () override { return max (0, x1 - x3); }
@@ -285,6 +294,7 @@ struct text_box_rep: public box_rep {
   box expand_glyphs (int mode, double factor);
 
   void      display (renderer ren);
+  void      draw_link_ink (renderer ren, pencil ink) override;
   double    left_slope ();
   double    right_slope ();
   SI        left_correction ();
@@ -388,6 +398,14 @@ text_box_rep::display (renderer ren) {
     if (is_nil (xk)) fn->draw (ren, str, 0, 0);
     else fn->draw (ren, str, xk->left, 0, xk->padding);
   }
+}
+
+void
+text_box_rep::draw_link_ink (renderer ren, pencil ink) {
+  if (N(str) == 0) return;
+  ren->set_pencil (ink);
+  if (is_nil (xk)) fn->draw (ren, str, 0, 0);
+  else fn->draw (ren, str, xk->left, 0, xk->padding);
 }
 
 double text_box_rep::left_slope () {
