@@ -60,12 +60,10 @@ QTMIconManager::is_dark_mode () {
 
 namespace {
 
-// All mathematical menu previews are rasterized on startup after the math
-// font catalog is initialized. The GUI paint path uses only premade images;
-// in particular a QMenu::paintEvent may never enter typeset_as_concat,
-// virtual_font_rep::compile, or search_font.
+// Mathematical menu previews are rasterized during the CMake build. Menu
+// painting only reads shipped PNGs; it cannot compile fonts or typeset.
 constexpr int math_icon_raster_size= 48;
-constexpr int math_icon_cache_schema= 2;
+constexpr int math_icon_resource_schema= 3;
 
 QHash<QString, QImage>&
 math_icon_images () {
@@ -100,42 +98,20 @@ render_math_icon_at_startup (const QString& symbol) {
       .convertToFormat (QImage::Format_ARGB32_Premultiplied);
 }
 
-QString
-math_icon_cache_signature (const QStringList& sortedSymbols) {
-  QCryptographicHash hash (QCryptographicHash::Sha256);
-  auto append= [&hash] (const QString& value) {
-    hash.addData (value.toUtf8 ());
-    hash.addData ("\0", 1);
-  };
-  append (QString::number (math_icon_cache_schema));
-  append (QString::fromLatin1 (qVersion ()));
-  const QFileInfo executable (QCoreApplication::applicationFilePath ());
-  append (executable.absoluteFilePath ());
-  append (QString::number (executable.size ()));
-  append (QString::number (executable.lastModified ().toMSecsSinceEpoch ()));
-  for (const QString& symbol: sortedSymbols) append (symbol);
-
-  // Virtual recipes and bundled font files participate in the signature.
-  // File sizes and timestamps keep the check cheap on subsequent launches.
-  const QString fontsPath= qEnvironmentVariable ("ATHENA_PATH") +
-                           QStringLiteral ("/fonts");
-  QStringList filenames;
-  QDirIterator files (fontsPath, QDir::Files,
-                      QDirIterator::Subdirectories);
-  while (files.hasNext ()) filenames << files.next ();
-  filenames.sort ();
-  for (const QString& name: filenames) {
-    const QFileInfo info (name);
-    append (name);
-    append (QString::number (info.size ()));
-    append (QString::number (info.lastModified ().toMSecsSinceEpoch ()));
-  }
-  const QFileInfo catalog (
-    qEnvironmentVariable ("ATHENA_HOME_PATH") +
-    QStringLiteral ("/system/cache/font-characteristics.json"));
-  append (QString::number (catalog.size ()));
-  append (QString::number (catalog.lastModified ().toMSecsSinceEpoch ()));
-  return QString::fromLatin1 (hash.result ().toHex ());
+QImage
+bundled_math_icon (const QString& symbol) {
+  auto& images= math_icon_images ();
+  auto found= images.constFind (symbol);
+  if (found != images.constEnd ()) return found.value ();
+  const QString filename= qEnvironmentVariable ("ATHENA_PATH") +
+    QStringLiteral ("/misc/images/math-icons-v3/") +
+    math_icon_digest (symbol) + QStringLiteral (".png");
+  QImage image;
+  if (!image.load (filename, "PNG"))
+    std_warning << "Missing bundled mathematical icon: "
+                << from_qstring (symbol) << LF;
+  images.insert (symbol, image);
+  return image;
 }
 
 bool
@@ -144,6 +120,14 @@ write_cached_image (const QString& name, const QImage& image) {
   if (!file.open (QIODevice::WriteOnly)) return false;
   if (!image.save (&file, "PNG")) return false;
   return file.commit ();
+}
+
+bool
+has_visible_math_icon_pixels (const QImage& image) {
+  for (int y= 0; y < image.height (); ++y)
+    for (int x= 0; x < image.width (); ++x)
+      if (qAlpha (image.pixel (x, y)) != 0) return true;
+  return false;
 }
 
 // No calls to font APIs or typesetting are permitted here.
@@ -156,7 +140,7 @@ public:
   }
   QPixmap pixmap (const QSize& size, QIcon::Mode mode,
                   QIcon::State state) override {
-    const QImage source= math_icon_images ().value (symbol);
+    const QImage source= bundled_math_icon (symbol);
     if (source.isNull () || size.isEmpty ()) return QPixmap ();
     const QColor foreground= QApplication::palette ().color (
       mode == QIcon::Disabled ? QPalette::Disabled : QPalette::Active,
@@ -397,14 +381,13 @@ load_bundled_icon (url file_name, const QString& key, QIcon& icon) {
          load_pixmap (file_name, icon);
 }
 
-void
-QTMIconManager::prewarmMathIcons (
-  const std::function<void (int, int)>& progress) {
+bool
+QTMIconManager::buildBundledMathIcons (const QString& folder) {
   Q_ASSERT (QThread::currentThread () == qApp->thread ());
   QTMCommandRegistry& registry= QTMCommandRegistry::instance ();
   if (!registry.initialize ()) {
-    std_warning << "math icon cache: command registry not available" << LF;
-    return;
+    std_warning << "math icon resource build: command registry unavailable" << LF;
+    return false;
   }
 
   QSet<QString> symbols;
@@ -428,68 +411,49 @@ QTMIconManager::prewarmMathIcons (
 
   QStringList ordered= symbols.values ();
   ordered.sort ();
-  QHash<QString, QImage>& images= math_icon_images ();
-  images.clear ();
-  if (ordered.isEmpty ()) return;
-
-  const QString folder= qEnvironmentVariable ("ATHENA_HOME_PATH") +
-                         QStringLiteral ("/system/cache/math-icons-v2");
-  const QString signature= math_icon_cache_signature (ordered);
-  QDir ().mkpath (folder);
-  QFile manifest (folder + QStringLiteral ("/manifest.json"));
-  bool manifestValid= false;
-  if (manifest.open (QIODevice::ReadOnly)) {
-    const QJsonDocument document= QJsonDocument::fromJson (manifest.readAll ());
-    manifestValid= document.isObject () &&
-      document.object ().value ("signature").toString () == signature &&
-      document.object ().value ("count").toInt () == ordered.size ();
-  }
-
-  bool allSaved= true;
-  int regenerated= 0;
-  const int total= ordered.size ();
-  for (int i=0; i<total; ++i) {
-    const QString& symbol= ordered[i];
+  if (ordered.isEmpty () || !QDir ().mkpath (folder)) return false;
+  QSet<QString> names;
+  for (const QString& symbol: ordered) {
     const QString filename= folder + "/" + math_icon_digest (symbol) + ".png";
+    names.insert (QFileInfo (filename).fileName ());
     QImage image;
-    if (manifestValid) image.load (filename, "PNG");
-    if (image.isNull ()) {
-      try {
-        image= render_math_icon_at_startup (symbol);
-      }
-      catch (...) {
-        std_warning << "math icon cache: cannot render a symbol" << LF;
-      }
-      if (image.isNull ()) {
-        // Even on a rendering failure, a paint event cannot compile the icon.
-        // Record a transparent placeholder instead of retrying in a menu.
-        image= QImage (math_icon_raster_size, math_icon_raster_size,
-                       QImage::Format_ARGB32_Premultiplied);
-        image.fill (Qt::transparent);
-      }
-      if (!write_cached_image (filename, image)) allSaved= false;
-      ++regenerated;
+    try {
+      image= render_math_icon_at_startup (symbol);
     }
-    images.insert (symbol, image);
-    if (progress && ((i+1) % 16 == 0 || i+1 == total))
-      progress (i+1, total);
-  }
-  // Mark the cache complete only after every image has been saved. Incomplete
-  // or interrupted warmups are reconstructed on the next startup.
-  if (allSaved && (regenerated > 0 || !manifestValid)) {
-    QSaveFile output (folder + QStringLiteral ("/manifest.json"));
-    QJsonObject details;
-    details.insert ("signature", signature);
-    details.insert ("count", total);
-    details.insert ("schema", math_icon_cache_schema);
-    if (output.open (QIODevice::WriteOnly)) {
-      output.write (QJsonDocument (details).toJson (QJsonDocument::Compact));
-      if (!output.commit ())
-        std_warning << "math icon cache: could not commit manifest" << LF;
+    catch (...) {
+      std_warning << "math icon resource build: cannot render "
+                  << from_qstring (symbol) << LF;
+      return false;
+    }
+    if (image.isNull () || !has_visible_math_icon_pixels (image) ||
+        !write_cached_image (filename, image)) {
+      std_warning << "math icon resource build: cannot save "
+                  << from_qstring (symbol) << LF;
+      return false;
     }
   }
-  io_info << "math icon cache: " << total << " loaded, "
-          << regenerated << " built during startup" << LF;
+
+  // A changed command registry must not leave removed icons in a release.
+  QDir directory (folder);
+  for (const QString& old: directory.entryList ({"*.png"}, QDir::Files))
+    if (!names.contains (old) && !directory.remove (old)) return false;
+
+  QJsonObject details;
+  details.insert ("schema", math_icon_resource_schema);
+  details.insert ("count", ordered.size ());
+  QCryptographicHash listHash (QCryptographicHash::Sha256);
+  for (const QString& symbol: ordered) {
+    listHash.addData (symbol.toUtf8 ());
+    listHash.addData ("\0", 1);
+  }
+  details.insert ("symbols", QString::fromLatin1 (listHash.result ().toHex ()));
+  QSaveFile manifest (folder + QStringLiteral ("/manifest.json"));
+  if (!manifest.open (QIODevice::WriteOnly) ||
+      manifest.write (QJsonDocument (details).toJson (QJsonDocument::Compact)) < 0 ||
+      !manifest.commit ()) return false;
+  io_info << "Bundled mathematical menu icons: "
+          << ordered.size () << " generated" << LF;
+  return true;
 }
 
 QIcon

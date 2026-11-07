@@ -700,6 +700,10 @@ tt_font_match_family (string family) {
 
 url
 tt_font_path () {
+  // The CMake math-icon generator must not select glyphs from its build host.
+  // Only installed fonts are permitted in this build-only execution mode.
+  if (get_env ("ATHENA_MATH_ICON_BUILD") == "1")
+    return search_sub_dirs ("$ATHENA_PATH/fonts/truetype");
   struct path_cache {
     bool initialized= false;
     string xtt;

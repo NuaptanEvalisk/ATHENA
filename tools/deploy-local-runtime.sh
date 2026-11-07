@@ -18,9 +18,13 @@ mkdir -p "$runtime_dir/bin" "$runtime_dir/lib"
 
 tmp=
 list_tmp=
+math_stage=
+math_previous=
 cleanup () {
   if [ -n "${tmp:-}" ]; then rm -f -- "$tmp"; fi
   if [ -n "${list_tmp:-}" ]; then rm -f -- "$list_tmp"; fi
+  if [ -n "${math_stage:-}" ]; then rm -rf -- "$math_stage"; fi
+  if [ -n "${math_previous:-}" ]; then rm -rf -- "$math_previous"; fi
 }
 trap cleanup EXIT HUP INT TERM
 
@@ -68,6 +72,29 @@ deploy_library () {
     atomic_install "$src" "$dst" 755
   fi
 }
+
+# Build (if out of date) and atomically replace the release math icon set.
+# These are shipped immutable assets, never files in ~/.ATHENA/system/cache.
+cmake --build "$build_dir" --target athena_math_icons
+math_source=$build_dir/generated/math-icons-v3
+math_parent=$runtime_dir/misc/images
+math_dest=$math_parent/math-icons-v3
+test -s "$math_source/manifest.json"
+mkdir -p "$math_parent"
+math_stage=$(mktemp -d "$math_parent/.math-icons-v3.new.XXXXXX")
+cp -a -- "$math_source/." "$math_stage/"
+if [ -d "$math_dest" ]; then
+  math_previous=$(mktemp -d "$math_parent/.math-icons-v3.old.XXXXXX")
+  rmdir -- "$math_previous"
+  mv -- "$math_dest" "$math_previous"
+fi
+mv -- "$math_stage" "$math_dest"
+math_stage=
+if [ -n "$math_previous" ]; then
+  rm -rf -- "$math_previous"
+  math_previous=
+fi
+printf 'deployed  %s\n' "$math_dest"
 
 if [ "$(uname -s)" = Linux ]; then
   python3 "$repo_root/tools/install-local-executable.py" \

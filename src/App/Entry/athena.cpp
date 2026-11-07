@@ -159,6 +159,7 @@ struct startup_task {
 };
 std::vector<startup_task> startup_tasks;
 std::string startup_vault;
+std::string math_icons_build_dir;
 std::vector<std::string> startup_documents;
 
 void run_startup_task (size_t index, std::string document= {}) {
@@ -935,6 +936,7 @@ set_global_options  (int argc, char** argv)  {
         const string root= as_string (url_pwd () * url_system (argv[i]));
         startup_vault.assign (root.data (), N(root));
       }
+      else if (s == "-build-math-icons") i++;
       else if (s == "-b" || s == "-initialize-buffer" || s == "-i" ||
                s == "-initialize" || s == "-x" || s == "-execute") {
         cerr << "ATHENA: embedded script execution is no longer supported\n";
@@ -1127,6 +1129,16 @@ TeXmacs_main (int argc, char** argv) {
     bench_cumul ("start server");
     startup_progress (92, "Server ready");
 
+#if ATHENA_ENABLE_CLI && defined(QTTEXMACS)
+    if (!math_icons_build_dir.empty ()) {
+      // Build-time resource generator: GUI plumbing exists for the retained
+      // box/QAction renderer, but no window is shown or event loop entered.
+      const bool ok= qtmapp->icon_manager ().buildBundledMathIcons (
+        QString::fromStdString (math_icons_build_dir));
+      if (!ok) std::cerr << "ATHENA: math icon resource generation failed" << std::endl;
+      std::exit (ok ? 0 : 1);
+    }
+#endif
 
 #if ATHENA_ENABLE_CLI
     if (rag_server_dir != "") {
@@ -1211,12 +1223,6 @@ TeXmacs_main (int argc, char** argv) {
       startup_progress (94, "Building application workspace");
       bench_start ("show application shell");
       qt_wait_for_font_fallback_warmup ();
-      // The math icon renderer uses the GUI helper to create a transient
-      // QAction. Prewarm after gui_open() has initialized that helper, but
-      // before showing menus or starting the normal event loop.
-      bench_start ("prewarm math icon cache");
-      qtmapp->prewarmMathIcons ();
-      bench_cumul ("prewarm math icon cache");
       qtmapp->mainTabWindow ().showShell ();
       bench_cumul ("show application shell");
       bench_cumul ("startup to application shell");
@@ -1886,6 +1892,15 @@ texmacs_entrypoint (int argc, char** argv) {
   for (int i=1; i<argc; i++) {
     string s= argv[i];
     if ((N(s)>=2) && (s(0,2)=="--")) s= s (1, N(s));
+    if (s == "-build-math-icons") {
+      if (++i >= argc) {
+        std::cerr << "ATHENA: --build-math-icons requires an output directory" << std::endl;
+        return 2;
+      }
+      math_icons_build_dir= argv[i];
+      no_splash_screen= true;
+      continue;
+    }
     if (s == "-C" || s == "-c" || s == "-convert")
       document_conversion_mode= true;
     if (s == "-aofm-convert-file") {
@@ -2096,7 +2111,7 @@ texmacs_entrypoint (int argc, char** argv) {
   bool website_generation_mode= website_generate_dir != "";
   const bool headless_qt_rendering= headless_mode &&
     (website_generation_mode || document_conversion_mode);
-  if (headless_qt_rendering &&
+  if ((headless_qt_rendering || !math_icons_build_dir.empty ()) &&
       is_empty (qt_platform_from_arguments (argc, argv)) &&
       get_env ("QT_QPA_PLATFORM") == "")
     qputenv ("QT_QPA_PLATFORM", "offscreen");

@@ -235,6 +235,39 @@ if (NOT APPLE AND NOT WIN32)
     VERBATIM)
 endif ()
 
+# Mathematical menu icons are a shipped, immutable resource rather than a
+# startup font compilation/cache. Generate them using the just-linked ATHENA
+# with only its bundled font families visible through Fontconfig.
+if (UNIX AND NOT ATHENA_PLATFORM_IPADOS AND ATHENA_ENABLE_CLI)
+  configure_file (
+    "${ATHENA_SOURCE_DIR}/tools/math-icons-fontconfig.conf.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/math-icons-fontconfig.conf" @ONLY)
+  file (GLOB_RECURSE ATHENA_MATH_ICON_INPUTS CONFIGURE_DEPENDS
+    "${ATHENA_SOURCE_DIR}/ATHENA/misc/ui/*.json"
+    "${ATHENA_SOURCE_DIR}/ATHENA/fonts/*")
+  set (ATHENA_MATH_ICON_OUTPUT
+    "${CMAKE_BINARY_DIR}/generated/math-icons-v3")
+  add_custom_command (
+    OUTPUT "${ATHENA_MATH_ICON_OUTPUT}/manifest.json"
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+      "${CMAKE_BINARY_DIR}/generated/math-icon-profile"
+    COMMAND ${CMAKE_COMMAND} -E env
+      "ATHENA_PATH=${ATHENA_SOURCE_DIR}/ATHENA"
+      "ATHENA_HOME_PATH=${CMAKE_BINARY_DIR}/generated/math-icon-profile"
+      "ATHENA_MATH_ICON_BUILD=1"
+      "FONTCONFIG_FILE=${CMAKE_CURRENT_BINARY_DIR}/math-icons-fontconfig.conf"
+      "QT_QPA_PLATFORM=offscreen"
+      "LD_LIBRARY_PATH=${ATHENA_SOURCE_DIR}/ATHENA/lib:$ENV{LD_LIBRARY_PATH}"
+      $<TARGET_FILE:${ATHENA_binary_name}>
+      --build-math-icons "${ATHENA_MATH_ICON_OUTPUT}"
+    DEPENDS ${ATHENA_binary_name} ${ATHENA_MATH_ICON_INPUTS}
+      "${CMAKE_CURRENT_BINARY_DIR}/math-icons-fontconfig.conf"
+    COMMENT "Generating bundled mathematical menu icons from ATHENA fonts"
+    VERBATIM)
+  add_custom_target (athena_math_icons ALL
+    DEPENDS "${ATHENA_MATH_ICON_OUTPUT}/manifest.json")
+endif ()
+
 if (NOT WIN32 AND NOT ATHENA_PLATFORM_IPADOS)
   if (LLAMA_CPP_LIBRARY)
     get_filename_component (ATHENA_LLAMA_RUNTIME_DIR
@@ -304,7 +337,10 @@ if (NOT WIN32 AND NOT ATHENA_PLATFORM_IPADOS)
     COMMENT "Deploying the complete ATHENA runtime tree"
     VERBATIM)
   add_dependencies (athena_local_runtime
-                    ${ATHENA_binary_name} athena-audmap athena-audmap-repl)
+                     ${ATHENA_binary_name} athena-audmap athena-audmap-repl)
+  if (TARGET athena_math_icons)
+    add_dependencies (athena_local_runtime athena_math_icons)
+  endif ()
   if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_dependencies (athena_local_runtime ATHENA-Watchdog athena-plugin-sandbox)
     if (TARGET athena-rag-npu-worker)

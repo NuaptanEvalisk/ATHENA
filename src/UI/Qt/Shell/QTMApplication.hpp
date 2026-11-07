@@ -42,7 +42,6 @@ public:
   
   void init_theme ();
 
-  void prewarmMathIcons ();
 
   void set_window_icon (string icon_path);
   

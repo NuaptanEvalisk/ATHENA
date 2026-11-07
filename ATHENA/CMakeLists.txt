@@ -10,3 +10,8 @@ install (DIRECTORY . DESTINATION "${ATHENA_RUNTIME_INSTALL_DESTINATION}"
   REGEX "/(progs|lib/(athena-scheme|athena-guile|guile)|share/guile)(/|$)" EXCLUDE
   REGEX "/lib(athena-)?guile[^/]*$" EXCLUDE
   REGEX "/libgc([.-][^/]*)?$" EXCLUDE)
+
+if (TARGET athena_math_icons)
+  install (DIRECTORY "${CMAKE_BINARY_DIR}/generated/math-icons-v3/"
+    DESTINATION "${ATHENA_RUNTIME_INSTALL_DESTINATION}/misc/images/math-icons-v3")
+endif ()

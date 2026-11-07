@@ -1,0 +1,6 @@
+<?xml version="1.0"?>
+<fontconfig>
+  <!-- CMake math-icon rasterization must see only ATHENA's shipped fonts. -->
+  <dir>@ATHENA_SOURCE_DIR@/ATHENA/fonts/truetype</dir>
+  <cachedir>@CMAKE_BINARY_DIR@/generated/math-icons-fontconfig-cache</cachedir>
+</fontconfig>

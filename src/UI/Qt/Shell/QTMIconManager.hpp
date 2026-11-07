@@ -34,10 +34,9 @@ public:
   
   QIcon getIcon (url file_name);
   QIcon getPresentationIcon (const QString& value);
-  // Eagerly load/compile the complete registry palette. Runtime icon painting
-  // must never call the TeXmacs math typesetter or virtual font compiler.
-  void prewarmMathIcons (
-    const std::function<void (int, int)>& progress= {});
+  // Build only: generate the fixed math palette into the shipped resources.
+  // Runtime icon painting reads these images and never typesets.
+  bool buildBundledMathIcons (const QString& outputDirectory);
   QIcon getDocumentIcon (const QString& filename);
 
   static bool is_dark_mode ();
