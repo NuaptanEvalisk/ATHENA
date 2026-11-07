@@ -177,6 +177,11 @@ modifier_box_rep::graphical_select (SI x1, SI y1, SI x2, SI y2) {
 
 class direct_link_box_rep: public modifier_box_rep, public inline_link_source {
   string ref;
+  rectangle hit_region () {
+    if (b->get_type () != TEXT_BOX) return rectangle (x1, y1, x2, y2);
+    const font face= b->get_leaf_font ();
+    return rectangle (x1, min (y1, face->y1), x2, max (y2, face->y2));
+  }
 public:
   direct_link_box_rep (path ip, box b, string ref);
   operator tree () { return tuple ("direct-link", (tree) b); }
@@ -206,17 +211,22 @@ direct_link_box_rep::expand_glyphs (int mode, double factor) {
 
 tree
 direct_link_box_rep::message (tree type, SI x, SI y, rectangles& rs) {
-  if (type == "link-target" && x >= x1 && x < x2 && y >= y1 && y < y2)
+  rectangle region= hit_region ();
+  if (type == "link-target" && x >= region->x1 && x < region->x2 &&
+      y >= region->y1 && y < region->y2) {
+    rs << region;
     return tree (TUPLE, "link-target", ref);
+  }
   if ((type == "select" || type == "double-click") &&
-      x >= x1 && x < x2 && y >= y1 && y < y2)
+      x >= region->x1 && x < region->x2 && y >= region->y1 && y < region->y2)
     return tree (TUPLE, "direct-link", ref);
   return modifier_box_rep::message (type, x, y, rs);
 }
 
 void
 direct_link_box_rep::post_display (renderer& ren) {
-  ren->href (ref, x1, y1, x2, y2);
+  rectangle region= hit_region ();
+  ren->href (ref, region->x1, region->y1, region->x2, region->y2);
 }
 
 /******************************************************************************
@@ -617,9 +627,17 @@ class live_radioactive_box_rep final:
       const int end= std::min (match.end, last);
       if (begin >= end) continue;
       selection selected= b->find_selection (path (begin-first), path (end-first));
-      if (selected->valid)
+      if (selected->valid) {
+        // The selected substring's glyph ink can be much shorter than the
+        // surrounding font line (notably in enunciation headings). Clicks
+        // should use the full text-row height, not only its painted glyphs.
+        const font face= b->get_leaf_font ();
+        const SI bottom= min (b->y1, face->y1);
+        const SI top= max (b->y2, face->y2);
         for (auto r= selected->rs; !is_nil (r); r= r->next)
-          visit (r->item, match.destination);
+          visit (rectangle (r->item->x1, bottom, r->item->x2, top),
+                 match.destination);
+      }
     }
   }
 
@@ -647,9 +665,11 @@ public:
     if (type == "link-target" || type == "select" || type == "double-click") {
       tree answer;
       for_regions ([&] (rectangle r, string target) {
-        if (x >= r->x1 && x < r->x2 && y >= r->y1 && y < r->y2)
+        if (x >= r->x1 && x < r->x2 && y >= r->y1 && y < r->y2) {
+          if (type == "link-target") rs << r;
           answer= type == "link-target" ?
             tree (TUPLE, "link-target", target) : tree (TUPLE, "direct-link", target);
+        }
       });
       if (!is_nil (answer)) return answer;
     }

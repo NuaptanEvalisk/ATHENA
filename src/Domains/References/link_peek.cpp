@@ -71,7 +71,8 @@ bool athena_link_peek_target (string target) {
 }
 
 bool athena_link_peek_native_target (string target) {
-  if (parsed_target (target).host () == "transclude" &&
+  if ((parsed_target (target).host () == "transclude" ||
+       parsed_target (target).host () == "node-source") &&
       !athena::node_reference::target_id (target).empty ()) return true;
   // Wikilink hint suffixes survive migration for display compatibility, but a
   // migrated Vault resolves only the first UUID component through the native
@@ -154,8 +155,13 @@ tree athena_link_peek_document (string target, url& source,
   if (athena_link_peek_native_target (target)) {
     std::string id= athena::node_reference::target_id (target);
     if (id.empty ()) id= migrated_wikilink_id (target);
-    auto current= athena::node_reference::get ({id}, ancestry);
-    if (parsed_target (target).host () == "transclude")
+    const bool source_badge= parsed_target (target).host () == "node-source";
+    // Source browsing is not an expansion of the parent node. Its context
+    // must remain available even if that UUID appears in the preview
+    // ancestry; genuine nested transclusions still retain cycle protection.
+    auto current= athena::node_reference::get (
+      {id}, source_badge ? std::vector<std::string> {} : ancestry);
+    if (parsed_target (target).host () == "transclude" || source_badge)
       return athena::node_reference::preview_context_document (current, source);
     return athena::node_reference::preview_document (current, source);
   }

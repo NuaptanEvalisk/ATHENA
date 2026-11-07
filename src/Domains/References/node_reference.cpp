@@ -81,6 +81,8 @@ std::string target_id (const string& text) {
   const auto id= path.section ('/', 1, 1).toStdString ();
   if (!node::valid_id (id)) return {};
   if (url.host () == "transclude") return id;
+  if (url.host () == "node-source" &&
+      path == "/" + QString::fromStdString (id)) return id;
   if (url.host () == "wikilink" && path == "/" + QString::fromStdString (id)) return id;
   return {};
 }
@@ -119,7 +121,9 @@ static tree compute_display (const view& current) {
         url_none () : url_system (native (target.source_directory)));
       if (!export_node_destinations_active ()) node= node::content_projection (node);
       tree content= is_document (node) ? node : tree (DOCUMENT, node);
-      const string source= native ("tmfs://transclude/" + target.id);
+      // Source badges navigate to the authored source. They are not another
+      // expansion of the node whose preview contains this badge.
+      const string source= native ("tmfs://node-source/" + target.id);
       std::string source_name= "Source";
       if (target.candidates.size () == 1 && !target.candidates[0].file.empty ())
         source_name= std::filesystem::path (target.candidates[0].file).filename ().string ();

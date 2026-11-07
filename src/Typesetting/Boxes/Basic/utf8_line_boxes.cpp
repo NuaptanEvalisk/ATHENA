@@ -421,7 +421,11 @@ struct mapped_utf8_line_box_rep final: utf8_line_box_rep {
     auto all= live_links ();
     all.insert (all.end (), links.begin (), links.end ());
     for (const auto& link: all) if (link.info.reference != "" && contains (link, x, y)) {
-      if (type == "link-target") return tree (TUPLE, "link-target", link.info.reference);
+      if (type == "link-target") {
+        for (const auto& span: link.spans)
+          rs << rectangle (span.left, link.bottom, span.right, link.top);
+        return tree (TUPLE, "link-target", link.info.reference);
+      }
       if (is_nil (link.info.ids) && (type == "select" || type == "double-click"))
         return tree (TUPLE, "direct-link", link.info.reference);
     }
@@ -673,7 +677,9 @@ build_utf8_flow (path ip, array<box> pieces, array<bool> markers, bool restore_s
       append (b, b->begin, b->end);
       for (const auto& link: contents[i].links)
         annotations->push_back ({begin, static_cast<int> (text.size ()),
-                                result->piece_sources.back (), pieces[i]->y1, pieces[i]->y2, link});
+                                 result->piece_sources.back (),
+                                 min (pieces[i]->y1, b->nominal->y1),
+                                 max (pieces[i]->y2, b->nominal->y2), link});
       previous= b;
     }
     else {

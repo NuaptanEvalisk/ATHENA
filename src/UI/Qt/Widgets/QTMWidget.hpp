@@ -50,6 +50,8 @@ class QTMWidget: public QTMScrollView {
   qt_widget    tmwid;
   QLabel*      imwidget;
   QPoint       cursor_pos;
+  QPoint       hoverSurfacePos;
+  bool         hoverSurfaceValid= false;
   bool         preediting;
   bool         inertiaOverlay= false;
   QPoint       inertiaOverlayPosition;

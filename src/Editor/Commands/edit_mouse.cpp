@@ -744,10 +744,21 @@ edit_interface_rep::update_mouse_loci () {
 #ifdef USE_EXCEPTIONS
   try {
 #endif
+  // Radioactive links are native, sometimes asynchronously resolved link
+  // regions rather than named loci. Highlight exactly the rectangles used
+  // by their link-target hit test, including merged Unicode line boxes.
+  rectangles link_regions;
+  tree target= eb->message ("link-target", last_x, last_y, link_regions);
+  if (!is_tuple (target, "link-target", 1) || !is_atomic (target[1]) ||
+      !(starts (target[1]->label, "tmfs://artifact-disambiguation/") ||
+        starts (target[1]->label, "tmfs://artifact/")))
+    link_regions= rectangles ();
+  else link_regions= outlines (link_regions, pixel);
   const path hit= tree_path (path (), last_x, last_y, 0, true);
   if (is_nil (hit)) {
-    locus_new_rects= rectangles ();
+    locus_new_rects= link_regions;
     mouse_ids= list<string> ();
+    if (locus_new_rects != locus_rects) notify_change (THE_LOCUS);
     return;
   }
   path cp= path_up (hit);
@@ -761,7 +772,7 @@ edit_interface_rep::update_mouse_loci () {
     p= path_up (p);
   }
 
-  locus_new_rects= rectangles ();
+  locus_new_rects= link_regions;
   mouse_ids= list<string> ();
   if (!is_nil (ids1 * ids2) && !has_changed (THE_FOCUS)) {
     ids1= native_link_mouse_ids (ids1);
@@ -784,7 +795,7 @@ edit_interface_rep::update_mouse_loci () {
     if (is_nil (ids2)) rs2= rectangles ();
     // FIXME: we should keep track which id corresponds to which rectangle
     if (!is_nil (ids1 * ids2)) {
-      locus_new_rects= rs1 * rs2;
+      locus_new_rects= link_regions * rs1 * rs2;
       mouse_ids= ids1 * ids2;
     }
   }

@@ -166,7 +166,25 @@ string edit_interface_rep::link_peek_hit (int layer, SI x, SI y) {
       x-r->x1-pad+peek.content->x1,
       y-r->y2+pad+peek.content->y2-peek.scroll_y, ignored);
   }
-  if (!is_tuple (hit, "link-target", 1) || !is_atomic (hit[1])) return "";
+  if (!is_tuple (hit, "link-target", 1) || !is_atomic (hit[1])) {
+    if (layer < 0) {
+      // The source link of an in-document transclusion may be registered as
+      // a locus rather than a direct-link box. Resolve it through the same
+      // owner-actor link registry used by ordinary clicks.
+      list<string> ids;
+      rectangles locus_regions;
+      eb->loci (x, y, 0, ids, locus_regions);
+      auto matching= native_matching_links (ids, "click");
+      if (matching.size () == 1 && is_func (matching.front ().link, LINK) &&
+          matching.front ().link[0] == "hyperlink") {
+        const tree& link= matching.front ().link;
+        for (int i=1; i<N(link); ++i)
+          if (is_compound (link[i], "url", 1) && is_atomic (link[i][0]))
+            return link[i][0]->label;
+      }
+    }
+    return "";
+  }
   string target= hit[1]->label;
   QUrl destination (QString::fromUtf8 (as_charp (target), N(target)));
   if (layer >= 0 && destination.isRelative () &&
@@ -270,8 +288,21 @@ void edit_interface_rep::update_link_peek (SI x, SI y, int modifiers) {
   peek.target= copy (target);
   if (parent >= 0) {
     peek.ancestry= link_peeks[parent].ancestry;
-    if (athena_link_peek_native_target (link_peeks[parent].target))
-      peek.ancestry.push_back (athena::node_reference::target_id (link_peeks[parent].target));
+    const QUrl parent_url (QString::fromUtf8 (
+      as_charp (link_peeks[parent].target), N(link_peeks[parent].target)));
+    // A source context is browsing, not another transclusion expansion.
+    // Propagate actual expansion ancestry, but do not count source peeks as
+    // an extra copy of the same UUID.
+    if (parent_url.host () != "node-source" &&
+        athena_link_peek_native_target (link_peeks[parent].target)) {
+      std::string id= athena::node_reference::target_id (link_peeks[parent].target);
+      // Migrated wikilink URLs may retain a display-hint suffix. The
+      // canonical target_id parser deliberately rejects that suffix, while
+      // the native peek resolver accepts its first UUID component.
+      if (id.empty ())
+        id= parent_url.path (QUrl::FullyDecoded).section ('/', 1, 1).toStdString ();
+      if (!id.empty ()) peek.ancestry.push_back (id);
+    }
   }
   if (!prepare_link_peek (peek, width)) return;
   SI height= min (peek.content->h ()+2*pad, min (400*pixel, (vy2-vy1)/2));

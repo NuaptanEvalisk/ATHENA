@@ -263,7 +263,8 @@ bool native_vault_navigate_url (url target, bool history) {
     native_wikilink_repair_apply (decode (0), decode (1), decode (2), "", decode (3));
     return true;
   }
-  if (is_rooted_tmfs (target, "transclude")) {
+  if (is_rooted_tmfs (target, "transclude") ||
+      is_rooted_tmfs (target, "node-source")) {
     athena_node_reference_open (as_string (target, URL_SYSTEM));
     return true;
   }
