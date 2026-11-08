@@ -163,6 +163,21 @@ void math_sqrt_toggle (tree t) {
   else if (N(t) == 2) tree_remove (t, 1, 1);
 }
 
+void math_sqrt_enter_index () {
+  editor ed= get_current_editor ();
+  if (is_nil (ed)) return;
+  const path root= ed->the_buffer_path ();
+  for (path p= path_up (ed->the_path ()); root <= p; p= path_up (p)) {
+    tree t= ed->the_subtree (p);
+    if (is_func (t, SQRT)) {
+      if (N(t) == 1) math_sqrt_toggle (t);
+      else if (N(t) == 2) ed->go_to_start (p * 1);
+      return;
+    }
+    if (p == root) break;
+  }
+}
+
 void math_correct_all () {
   editor ed= get_current_editor ();
   tree root= ed->the_root ();

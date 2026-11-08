@@ -9,6 +9,7 @@
 #include "Editor/editor.hpp"
 #include "Editor/Commands/edit_interface.hpp"
 #include "Editor/Commands/structured_commands.hpp"
+#include "Editor/Commands/native_math_edit.hpp"
 #include "file.hpp"
 #include "sys_utils.hpp"
 #include "language.hpp"
@@ -254,6 +255,7 @@ void execute_action (const QJsonObject& action,
   }
   else if (op == "make-fraction") ed->make_fraction ();
   else if (op == "make-sqrt") ed->make_sqrt ();
+  else if (op == "math-sqrt-index") math_sqrt_enter_index ();
   else if (op == "make-neg") ed->make_neg ();
   else if (op == "make-above") ed->make_above ();
   else if (op == "make-below") ed->make_below ();

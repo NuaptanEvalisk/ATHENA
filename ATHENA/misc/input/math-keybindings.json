@@ -712,6 +712,14 @@
           ]
         },
         {
+          "key": "C-5",
+          "actions": [
+            {
+              "op": "math-sqrt-index"
+            }
+          ]
+        },
+        {
           "key": "math n",
           "actions": [
             {
