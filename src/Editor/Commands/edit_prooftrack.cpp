@@ -87,8 +87,10 @@ void edit_interface_rep::refresh_prooftrack_geometry () {
     item["x"]= double (point.x)*magf/PIXEL;
     item["y"]= -double (point.y)*magf/PIXEL;
     item["linkable"]= true;
-    item["writable"]= !editor_command_state_snapshot ().read_only () &&
-                       !item.value ("transclusion", false);
+    // The transclusion is a presentation copy. Its proof is edited through
+    // its own source, not through this view's read-only/editor state.
+    item["writable"]= item.value ("transclusion", false) ||
+                        !editor_command_state_snapshot ().read_only ();
     path source;
     for (const auto& component: item.at ("path")) source= source * component.get<int> ();
     if (rp <= source && has_subtree (et, source) &&

@@ -19,4 +19,8 @@ struct snapshot {
 std::shared_ptr<const snapshot> read ();
 void start (vault_context_handle);
 void stop ();
+// Apply a proof association to its actual owner-local source tree. The caller
+// owns the transaction (BufferActor edit or detached, revision-checked file).
+bool relink_source (tree scope, const std::string& proof_id,
+                    const std::string& target_id, const std::string& previous);
 }

@@ -48,6 +48,8 @@ class QTMProofTrack: public QObject {
   int handle_= -1, drop_= -1;
   QTMProofEndpoint drag_source_;
   QPointF press_position_;
+  QPointF pointer_position_;
+  bool pointer_inside_= false;
   bool handle_pressed_= false;
   QString hovered_, pressed_;
   std::map<QString, bool> next_;

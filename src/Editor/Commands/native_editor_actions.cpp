@@ -29,6 +29,7 @@
 
 #include "Document/Model/program_model.hpp"
 #include "Document/Model/document_node_model.hpp"
+#include "Domains/Knowledge/prooftrack.hpp"
 #include "Rendering/Art/image_background.hpp"
 #include "picture.hpp"
 #include "App/Runtime/server.hpp"
@@ -61,47 +62,12 @@
 
 namespace {
 
-bool prooftrack_find (tree node, const std::string& id,
-                     athena::document_node::source_path& where) {
-  if (athena::node::id (node) == id) return true;
-  if (is_atomic (node)) return false;
-  for (int i=0; i<N(node); ++i) {
-    where.push_back (i);
-    if (prooftrack_find (node[i], id, where)) return true;
-    where.pop_back ();
-  }
-  return false;
-}
-
 void prooftrack_link (editor ed, const QJsonObject& action) {
-  namespace model= athena::document_node;
-  namespace node= athena::node;
   if (ed->editor_command_state_snapshot ().read_only ()) return;
-  tree scope= ed->the_buffer ();
-  model::source_path where;
-  const auto id= action.value ("proof").toString ().toStdString ();
-  if (!prooftrack_find (scope, id, where))
-    throw std::invalid_argument ("ProofTrack: proof no longer exists in this document");
-  tree proof= scope;
-  for (int i: where) proof= proof[i];
-  const auto* metadata= node::get (proof);
-  const auto kind= metadata->properties.find ("kind");
-  if (!is_compound (proof, "enunciation") || kind == metadata->properties.end () ||
-      std::get_if<std::string> (&kind->second.data) == nullptr ||
-      std::get<std::string> (kind->second.data) != "proof")
-    throw std::invalid_argument ("ProofTrack: endpoint is no longer a proof");
-  std::string previous;
-  auto target= metadata->properties.find ("target");
-  if (target != metadata->properties.end ())
-    previous= std::get<node::reference> (target->second.data).id;
-  if (previous != action.value ("previous").toString ().toStdString ())
-    throw std::invalid_argument ("ProofTrack: proof target changed during the drag");
-  model::property_edit change;
-  change.set.emplace ("target", node::property (node::reference {
-    action.value ("target").toString ().toStdString ()}));
-  const auto prepared= model::prepare_property_edit (scope, where, change);
-  if (!prepared.ok ()) throw std::invalid_argument (prepared.diagnostics.front ().detail);
-  if (prepared.change) ::apply (scope, *prepared.change);
+  athena::prooftrack::relink_source (
+    ed->the_buffer (), action.value ("proof").toString ().toStdString (),
+    action.value ("target").toString ().toStdString (),
+    action.value ("previous").toString ().toStdString ());
 }
 
 string

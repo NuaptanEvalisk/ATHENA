@@ -3,14 +3,26 @@
 #include "boot.hpp"
 #include "App/Runtime/buffer_actor.hpp"
 #include "App/Runtime/actor_ui_bridge.hpp"
+#include "App/Runtime/buffer_name_catalog.hpp"
+#include "UI/Qt/Vault/QTMVaultLinkModel.hpp"
+#include "Domains/Knowledge/prooftrack.hpp"
+#include "Domains/References/node_reference.hpp"
+#include "Domains/References/node_location.hpp"
+#include "Domains/References/node_location_cache.hpp"
+#include "Document/Convert/Xml/document_file_codec.hpp"
+#include "Sync/State/document_history_store.hpp"
+#include "Infrastructure/Files/confined_filesystem.hpp"
+#include "node_metadata.hpp"
 #include <QApplication>
+#include <QCoreApplication>
 #include <QDrag>
 #include <QDropEvent>
 #include <QMimeData>
 #include <QPointer>
-#include <QCursor>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QMessageBox>
+#include <QThreadPool>
 #include <QToolTip>
 #include <QWidget>
 #include <nlohmann/json.hpp>
@@ -19,6 +31,9 @@
 #include <set>
 #include <limits>
 #include <QLineF>
+#include <filesystem>
+#include <mutex>
+#include <stdexcept>
 
 namespace {
 constexpr const char* prooftrack_mime= "application/x-athena-prooftrack";
@@ -32,10 +47,122 @@ QTMProofEndpoint drag_endpoint (const QMimeData* mime) {
   p.id= QString::fromStdString (json.at ("id").get<std::string> ());
   p.target= QString::fromStdString (json.at ("target").get<std::string> ());
   p.proof= json.at ("proof").get<bool> ();
+  p.transclusion= json.at ("transclusion").get<bool> ();
   p.writable= json.at ("writable").get<bool> ();
   p.actor= json.at ("actor").get<athena_actor_id> ();
   p.view= json.at ("view").get<athena_view_id> ();
   return p;
+}
+
+void prooftrack_error (QPointer<QWidget> surface, const QString& message) {
+  if (surface)
+    QMessageBox::warning (surface, QObject::tr ("ProofTrack"), message);
+}
+
+bool submit_prooftrack_link (athena_actor_id actor, athena_view_id view,
+                             const std::string& request) {
+  const string encoded (request.data (), int (request.size ()));
+  const auto payload= actor_text_from_string (encoded);
+  if (buffer_actor::try_submit_to (actor, actor_command_kind::native_editor_action_json,
+        view, payload, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
+        0, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY)) return true;
+  actor_text_registry::instance ().discard (payload);
+  return false;
+}
+
+void relink_saved_proof (vault_context_handle vault,
+                         athena::node_location::location location,
+                         std::string proof, std::string target, std::string previous,
+                         QPointer<QWidget> surface) {
+  QThreadPool::globalInstance ()->start (
+    [vault, location= std::move (location), proof= std::move (proof),
+     target= std::move (target), previous= std::move (previous), surface] {
+      QString error;
+      try {
+        namespace fs= athena::filesystem;
+        namespace doc= athena::document;
+        if (!vault_context_is_current (vault) || location.actor ||
+            !location.disk_revision || location.file.empty ())
+          throw std::runtime_error ("Proof source location has changed");
+        fs::confined_root directory (vault->root);
+        const auto file= directory.open (location.file);
+        const auto revision= file.stat ();
+        if (!fs::same_revision (revision, *location.disk_revision))
+          throw std::runtime_error ("Proof source was modified; retry the drag");
+        const auto original= file.read (doc::codec_limits ().input_bytes);
+        auto source= doc::decode_native_xml_bytes (original);
+        athena::node_location::lookup (source.document, location.where, proof);
+        if (!athena::prooftrack::relink_source (source.document, proof,
+                                                target, previous)) return;
+        const std::string bytes= doc::encode_native_xml_bytes (
+          source.document, source.version);
+        athena::history::document_history_store history;
+        std::string diagnostic;
+        std::int64_t revision_id= 0;
+        if (!history.open (vault->root, diagnostic) ||
+            !history.protect (location.file, original,
+              "prooftrack-relink-" + athena::node::new_id (), revision_id, diagnostic))
+          throw std::runtime_error ("Could not preserve proof source history: " + diagnostic);
+        const auto absolute= (vault->root / location.file).string ();
+        const string url_name= as_string (url_system (string (absolute.c_str ())));
+        const std::string name (url_name.data (), N(url_name));
+        std::unique_lock<std::recursive_mutex> publication (
+          document_publication_mutex (), std::defer_lock);
+        const auto saved= directory.replace (location.file, file, revision, bytes, [&] {
+          if (!publication.try_lock () || !vault_context_is_current (vault) ||
+              published_buffer_source (name).first != ATHENA_NO_ACTOR)
+            throw std::runtime_error ("Proof source opened or vault changed; retry the drag");
+        });
+        athena::node_location::persistent_index_wake ();
+        athena::node_reference::source_changed ();
+        if (!saved.directory_synced)
+          throw std::runtime_error ("Proof source updated, but directory sync failed");
+      }
+      catch (const std::exception& e) { error= QString::fromUtf8 (e.what ()); }
+      if (!error.isEmpty ())
+        if (auto* app= QCoreApplication::instance ())
+          QMetaObject::invokeMethod (app,
+            [surface, error] { prooftrack_error (surface, error); }, Qt::QueuedConnection);
+    });
+}
+
+void relink_transcluded_proof (QWidget* surface, const QTMProofEndpoint& proof,
+                               const std::string& request, const QString& target) {
+  const auto vault= vault_capture_context ();
+  const QPointer<QWidget> guard (surface);
+  if (!vault) { prooftrack_error (guard, QObject::tr ("No open Vault")); return; }
+  vault_resolve_source_ids (surface, {proof.id},
+    [guard, vault, proof, request, target] (athena::node_location::snapshot result,
+                                           QString error) {
+      if (!guard) return;
+      if (!error.isEmpty () || !result || result->items.size () != 1 ||
+          result->items.front ().candidates.size () != 1) {
+        prooftrack_error (guard, error.isEmpty () ? QObject::tr ("Proof source is ambiguous") : error);
+        return;
+      }
+      const auto location= result->items.front ().candidates.front ();
+      // The source may already be an open, realtime-saving buffer, including
+      // the same document displaying this transclusion. Always edit its actor.
+      athena_actor_id actor= location.actor;
+      athena_view_id view= ATHENA_NO_VIEW;
+      const std::string absolute= (vault->root / location.file).string ();
+      const string url_name= as_string (url_system (string (absolute.c_str ())));
+      const std::string name (url_name.data (), N(url_name));
+      const auto open= published_buffer_source (name);
+      if (open.first) { actor= open.first; view= open.second; }
+      else if (actor) {
+        for (const auto& [url, metadata]: published_buffer_metadata ())
+          if (metadata.actor_id == actor) { view= metadata.source_view; break; }
+      }
+      if (actor) {
+        if (view == ATHENA_NO_VIEW || !submit_prooftrack_link (actor, view, request))
+          prooftrack_error (guard, QObject::tr ("Proof source is busy or closed; retry the drag"));
+        return;
+      }
+      const auto action= nlohmann::json::parse (request);
+      relink_saved_proof (vault, location, proof.id.toStdString (), target.toStdString (),
+                          action.at ("previous").get<std::string> (), guard);
+    });
 }
 }
 
@@ -199,7 +326,9 @@ void QTMProofTrack::paint (QPainter& painter, std::vector<QTMProofEndpoint> poin
       }
     }
   }
-  handle_= handleHit (surface_->mapFromGlobal (QCursor::pos ()));
+  // Wayland does not promise a usable global cursor position during repaint.
+  // The last pointer event owns the local position of the visible handle.
+  handle_= pointer_inside_ ? handleHit (pointer_position_) : -1;
   for (int i=0; i<int (visible_.size ()); ++i) {
     const auto& endpoint= visible_[i];
     if (i == drop_) {
@@ -273,13 +402,10 @@ bool QTMProofTrack::eventFilter (QObject*, QEvent* event) {
     const auto bytes= nlohmann::json {{"op", "prooftrack-link"},
       {"proof", proof.id.toStdString ()}, {"target", statement.id.toStdString ()},
       {"previous", proof.target.toStdString ()}}.dump ();
-    const auto payload= actor_text_from_string (string (bytes.data (), bytes.size ()));
-    if (!buffer_actor::try_submit_to (proof.actor, actor_command_kind::native_editor_action_json,
-          proof.view, payload, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
-          0, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY)) {
-      actor_text_registry::instance ().discard (payload);
+    if (proof.transclusion)
+      relink_transcluded_proof (surface_, proof, bytes, statement.id);
+    else if (!submit_prooftrack_link (proof.actor, proof.view, bytes))
       drop->ignore ();
-    }
     drop_= -1;
   }
   if (event->type () == QEvent::Drop) {
@@ -311,13 +437,16 @@ int QTMProofTrack::hit (QPointF p) const {
 
 bool QTMProofTrack::mouse (QMouseEvent* event) {
   if (!shown_) return false;
+  pointer_position_= event->position ();
+  pointer_inside_= true;
   if (handle_pressed_ && event->type () == QEvent::MouseMove) {
     if ((event->position ()-press_position_).manhattanLength () < QApplication::startDragDistance ())
       return true;
     handle_pressed_= false;
     const auto& p= drag_source_;
     const auto bytes= nlohmann::json {{"id", p.id.toStdString ()},
-      {"target", p.target.toStdString ()}, {"proof", p.proof}, {"writable", p.writable},
+      {"target", p.target.toStdString ()}, {"proof", p.proof},
+      {"transclusion", p.transclusion}, {"writable", p.writable},
       {"actor", p.actor}, {"view", p.view}}.dump ();
     auto* mime= new QMimeData;
     mime->setData (prooftrack_mime, QByteArray (bytes.data (), bytes.size ()));
@@ -395,6 +524,7 @@ bool QTMProofTrack::mouse (QMouseEvent* event) {
 }
 
 void QTMProofTrack::leave () {
+  pointer_inside_= false;
   handle_= -1;
   hovered_.clear (); surface_->unsetCursor (); QToolTip::hideText (); surface_->update ();
 }

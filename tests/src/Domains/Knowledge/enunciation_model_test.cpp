@@ -12,6 +12,7 @@
 #include <stdexcept>
 
 #include "Domains/Knowledge/enunciation_model.hpp"
+#include "Domains/Knowledge/prooftrack.hpp"
 #include "Document/Model/heading_word_count.hpp"
 #include "Document/NodeContracts/execution_state.hpp"
 
@@ -55,6 +56,7 @@ private slots:
   void source_classification ();
   void filters_and_colors ();
   void body_statistics ();
+  void prooftrack_relinks_source_only ();
 };
 
 void TestEnunciationModel::all_declared_aliases () {
@@ -325,6 +327,32 @@ void TestEnunciationModel::body_statistics () {
     const int index= en::standard_registry ().body_index (block);
     QCOMPARE (athena_enunciation_word_count_at (document, path (0, index, 0, 2)), 3);
   }
+}
+
+void TestEnunciationModel::prooftrack_relinks_source_only () {
+  tree proof (en::label (), tree (DOCUMENT, "Original proof"));
+  node::metadata metadata;
+  metadata.id= source_id;
+  metadata.properties["kind"]= node::property (std::string ("proof"));
+  metadata.properties["numbered"]= node::property (false);
+  metadata.properties["name"]= node::property (node::rich_text {tree ("")});
+  node::set (proof, metadata);
+  tree original (DOCUMENT, proof);
+  tree source= copy (original);
+
+  QVERIFY (athena::prooftrack::relink_source (source, source_id, target_id, ""));
+  QCOMPARE (value<node::reference> (source[0], "target").id, target_id);
+  QVERIFY (node::get (original[0])->properties.count ("target") == 0);
+  QCOMPARE (source[0][0], original[0][0]);
+  QVERIFY (!athena::prooftrack::relink_source (
+    source, source_id, target_id, target_id));
+  const std::string next= "55555555-5555-4555-8555-555555555555";
+  QVERIFY_EXCEPTION_THROWN (
+    athena::prooftrack::relink_source (source, source_id, next, ""),
+    std::invalid_argument);
+  QCOMPARE (value<node::reference> (source[0], "target").id, target_id);
+  QVERIFY (athena::prooftrack::relink_source (source, source_id, next, target_id));
+  QCOMPARE (value<node::reference> (source[0], "target").id, next);
 }
 
 QTEST_MAIN (TestEnunciationModel)

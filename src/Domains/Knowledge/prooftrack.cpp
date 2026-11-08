@@ -2,6 +2,7 @@
 #include "Domains/Knowledge/prooftrack_kinds.hpp"
 #include "App/Runtime/background_workers.hpp"
 #include "Document/Convert/Xml/document_file_codec.hpp"
+#include "Document/Model/document_node_model.hpp"
 #include "node_metadata.hpp"
 #include <lmdb++.h>
 #include <nlohmann/json.hpp>
@@ -216,5 +217,49 @@ void start (vault_context_handle vault) {
   stop ();
   state ().stopping= false;
   state ().thread= std::thread ([vault] { run (vault); });
+}
+
+bool relink_source (tree scope, const std::string& proof_id,
+                    const std::string& target_id, const std::string& previous) {
+  namespace model= athena::document_node;
+  model::source_path where;
+  const auto locate= [&] (auto&& visit, tree source) -> bool {
+    if (node::id (source) == proof_id) return true;
+    if (is_atomic (source)) return false;
+    for (int i=0; i<N(source); ++i) {
+      where.push_back (i);
+      if (visit (visit, source[i])) return true;
+      where.pop_back ();
+    }
+    return false;
+  };
+  if (!locate (locate, scope))
+    throw std::invalid_argument ("ProofTrack: proof no longer exists in its source");
+  tree proof= scope;
+  for (int i: where) proof= proof[i];
+  const auto* metadata= node::get (proof);
+  if (!is_compound (proof, "enunciation") || !metadata)
+    throw std::invalid_argument ("ProofTrack: endpoint is no longer a proof");
+  const auto kind= metadata->properties.find ("kind");
+  if (kind == metadata->properties.end () ||
+      std::get_if<std::string> (&kind->second.data) == nullptr ||
+      std::get<std::string> (kind->second.data) != "proof")
+    throw std::invalid_argument ("ProofTrack: endpoint is no longer a proof");
+  std::string actual_previous;
+  const auto target= metadata->properties.find ("target");
+  if (target != metadata->properties.end ()) {
+    const auto* ref= std::get_if<node::reference> (&target->second.data);
+    if (!ref) throw std::invalid_argument ("ProofTrack: invalid previous proof target");
+    actual_previous= ref->id;
+  }
+  if (actual_previous != previous)
+    throw std::invalid_argument ("ProofTrack: proof target changed during the drag");
+  model::property_edit change;
+  change.set.emplace ("target", node::property (node::reference {target_id}));
+  const auto prepared= model::prepare_property_edit (scope, where, change);
+  if (!prepared.ok ()) throw std::invalid_argument (prepared.diagnostics.front ().detail);
+  if (!prepared.change) return false;
+  ::apply (scope, *prepared.change);
+  return true;
 }
 }
