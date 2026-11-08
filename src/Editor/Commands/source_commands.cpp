@@ -223,6 +223,17 @@ void list_macros (tree t, names& out) {
     for (int i= 0; i < N (t); ++i)
       list_macros (t[i], out);
 }
+
+bool shipped_main_style (url files, string name) {
+  if (is_or (files))
+    return shipped_main_style (files[1], name) ||
+           shipped_main_style (files[2], name);
+  if (is_concat (files))
+    return shipped_main_style (files[2], name);
+  return is_atomic (files) &&
+         (as_string (files) == name * ".ats" ||
+          as_string (files) == name * ".ts");
+}
 } // namespace
 
 void source_make_latex () {
@@ -418,15 +429,14 @@ array<string> source_personal_macros () {
     result << string ("") << name << name;
   }
   auto styles= document_get_style_list ();
+  // Scan the shipped style tree as data. Completing a path containing a
+  // recursive wildcard and a filename turns intermediate directory choices
+  // into an invalid composite URL base (e.g. article/{acm:ams}/beamer.ats).
+  const url shipped= descendance ("$ATHENA_PATH/styles");
   for (int i= 0; i < N (styles); ++i) {
     string pack= styles[i];
     if (i == 0) {
-      url builtin= complete (
-          url ("$ATHENA_PATH/styles") * url_wildcard () * url (pack * ".ats"), "fr");
-      url legacy= complete (
-          url ("$ATHENA_PATH/styles") * url_wildcard () * url (pack * ".ts"), "fr");
-      if (!is_none (builtin) || !is_none (legacy))
-        continue;
+      if (shipped_main_style (shipped, pack)) continue;
     } else if (hidden_package (pack))
       continue;
     names macros;

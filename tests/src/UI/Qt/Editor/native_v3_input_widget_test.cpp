@@ -28,6 +28,7 @@
 #include "message.hpp"
 #include "native_dispatch.hpp"
 #include "App/Runtime/execution_context.hpp"
+#include "Editor/Commands/source_commands.hpp"
 #include "sys_utils.hpp"
 #include "Domains/Knowledge/enunciation_model.hpp"
 #include "UI/Qt/Knowledge/QTMEnunciationSlots.hpp"
@@ -57,6 +58,35 @@ bool contains_label (const tree& source, tree_label label) {
 class TestNativeV3InputWidget: public QObject {
   Q_OBJECT
 private slots:
+  void shippedBeamerDoesNotCrashPersonalMacroProvider () {
+    const url name ("tmfs://aux/personal-macro-beamer");
+    tree document (DOCUMENT, compound ("style", tuple ("beamer")),
+      compound ("body", tree (DOCUMENT, "Presentation")));
+    create_buffer (name, document);
+    const url window= new_window (false);
+    const url view_url= get_passive_view (name);
+    window_set_view (window, view_url, true);
+    auto cleanup= qScopeGuard ([&] {
+      delete_window (window);
+      remove_buffer (name);
+    });
+    tm_view view= concrete_view (view_url);
+    QVERIFY (view != nullptr);
+    bool completed= false;
+    bool saw_builtin= false;
+    const auto task= actor_continuation_registry::instance ().store ([&] {
+      auto values= source_personal_macros ();
+      for (int i= 0; i + 2 < N (values); i+= 3)
+        if (values[i] == "beamer") saw_builtin= true;
+      completed= true;
+    });
+    QVERIFY (view->buf->actor->invoke (actor_command_kind::run_native_continuation,
+      view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
+      EXECUTION_CAPABILITY_BUFFER, task));
+    QVERIFY (completed);
+    QVERIFY (!saw_builtin);
+  }
+
   void auxiliaryPageHeaderStyleDoesNotReadGuiRegistry () {
     // Page properties embeds header/footer editors in TMFS auxiliary buffers.
     // Their styles may name an optional, no-longer-installed GUI package.
