@@ -176,6 +176,10 @@ private:
   bool can_apply_saved_document (const std::string& expected_storage) const;
   const athena_actor_id id_;
   std::atomic<std::uint64_t> source_epoch_ {1};
+  // Owner-thread cache: ignore shown/hidden wrapper changes when retaining
+  // previously visited slideshow thumbnails, but reject actual source edits.
+  std::uint64_t thumbnail_source_epoch_= 0;
+  std::uint64_t thumbnail_content_signature_= 0;
   athena_blob_id initial_name_;
   athena_blob_id initial_master_;
   athena_blob_id initial_title_;

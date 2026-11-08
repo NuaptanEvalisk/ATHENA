@@ -20,6 +20,9 @@
 #include <optional>
 
 namespace {
+thread_local int thumbnail_slide_index= -1;
+thread_local int thumbnail_slide_count= 0;
+
 bool tag (tree t, const char* name) {
   return is_compound (t, name);
 }
@@ -935,12 +938,27 @@ void expand_slide (tree slide, tree& output) {
   }
 }
 } // namespace
+
+presentation_thumbnail_scope::presentation_thumbnail_scope (int index, int count):
+  previous_index_ (thumbnail_slide_index),
+  previous_count_ (thumbnail_slide_count) {
+  thumbnail_slide_index= index;
+  thumbnail_slide_count= count;
+}
+
+presentation_thumbnail_scope::~presentation_thumbnail_scope () {
+  thumbnail_slide_index= previous_index_;
+  thumbnail_slide_count= previous_count_;
+}
+
 string presentation_screens_index (tree body) {
+  if (thumbnail_slide_index >= 0) return as_string (thumbnail_slide_index);
   tree t= screens_parent (body);
   path ip= obtain_ip (t);
   return ip_attached (ip) && !is_nil (ip) ? as_string (ip->item) : string ("-1");
 }
 string presentation_screens_arity (tree body) {
+  if (thumbnail_slide_index >= 0) return as_string (thumbnail_slide_count);
   tree t= screens_parent (body), p;
   return parent (t, p) ? as_string (N (p)) : string ("-1");
 }
@@ -950,10 +968,13 @@ int presentation_page_count () {
                                   : get_current_editor ()->nr_pages ();
 }
 tree presentation_screens_bar (tree body) {
-  tree t= screens_parent (body), p;
-  if (!parent (t, p))
-    return "";
-  int c= obtain_ip (t)->item, n= N (p);
+  int c= thumbnail_slide_index, n= thumbnail_slide_count;
+  if (c < 0) {
+    tree t= screens_parent (body), p;
+    if (!parent (t, p)) return "";
+    c= obtain_ip (t)->item;
+    n= N (p);
+  }
   tree out (CONCAT);
   for (int i= 0; i < n; ++i) {
     if (!page_accept (i, c, n)) {

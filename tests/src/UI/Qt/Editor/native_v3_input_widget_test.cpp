@@ -9,6 +9,7 @@
 #include <QScopeGuard>
 #include <QTemporaryDir>
 #include <QtTest/QtTest>
+#include <QListWidget>
 #include <cstdlib>
 
 #include "App/Runtime/server.hpp"
@@ -37,6 +38,8 @@
 #include "UI/Qt/Widgets/QTMWidget.hpp"
 #include "UI/Qt/Toolkit/qt_actor_widget.hpp"
 #include "UI/Qt/Toolkit/qt_widget.hpp"
+#include "UI/Qt/Document/QTMThumbnailsPane.hpp"
+#include "UI/Qt/Shell/QTMMainTabWindow.hpp"
 
 bool headless_mode= false;
 bool is_headless () { return false; }
@@ -60,6 +63,147 @@ bool contains_label (const tree& source, tree_label label) {
 class TestNativeV3InputWidget: public QObject {
   Q_OBJECT
 private slots:
+  void thumbnailsNavigateExistingBeamerSlides () {
+    const url name ("tmfs://aux/thumbnail-slides");
+    tree slides= compound ("screens",
+      compound ("shown", tree (DOCUMENT, "First slide text")),
+      compound ("hidden", tree (DOCUMENT, "Second slide text")));
+    tree document (DOCUMENT,
+      compound ("style", tuple ("beamer")),
+      compound ("body", tree (DOCUMENT, slides)));
+    create_buffer (name, document);
+    const url window= new_window (true);
+    const url view_url= get_passive_view (name);
+    window_set_view (window, view_url, true);
+    auto cleanup= qScopeGuard ([&] {
+      delete_window (window);
+      remove_buffer (name);
+    });
+    tm_view view= concrete_view (view_url);
+    QVERIFY (view != nullptr);
+    const auto begin= actor_continuation_registry::instance ().store ([] {
+      editor ed= get_current_editor ();
+      ed->go_to_start (current_execution_context ()->actor->current_state ()->
+                        root_path * path (0, 0, 0));
+    });
+    QVERIFY (view->buf->actor->invoke (actor_command_kind::run_native_continuation,
+      view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
+      EXECUTION_CAPABILITY_BUFFER, begin));
+    QVERIFY (view->buf->actor->invoke (actor_command_kind::apply_changes,
+      view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB));
+    QTMMainTabWindow* shell= QTMMainTabWindow::topTabWindow ();
+    QVERIFY (shell != nullptr);
+    shell->show ();
+    thumbnails_pane_show ();
+    auto* thumbnails= shell->findChild<QListWidget*> ("athenaThumbnailsList");
+    QVERIFY (thumbnails != nullptr);
+    QTRY_COMPARE_WITH_TIMEOUT (thumbnails->count (), 2, 15000);
+    QCOMPARE (thumbnails->item (0)->text (), QStringLiteral ("Slide 1"));
+    QTRY_VERIFY_WITH_TIMEOUT (!thumbnails->item (0)->icon ().isNull (), 15000);
+    auto* firstRow= thumbnails->item (0);
+    // A never-opened hidden slide is rasterized without switching the live
+    // presentation, and is available before the user clicks its row.
+    QTRY_VERIFY_WITH_TIMEOUT (!thumbnails->item (1)->icon ().isNull (), 15000);
+    const QImage firstImage=
+      thumbnails->item (0)->icon ().pixmap (190, 270).toImage ();
+    const QImage secondImage=
+      thumbnails->item (1)->icon ().pixmap (190, 270).toImage ();
+    QVERIFY (!firstImage.isNull () && !secondImage.isNull ());
+    QVERIFY (firstImage != secondImage);
+    auto remainedHidden= std::make_shared<std::atomic<bool>> (false);
+    const auto inspect= actor_continuation_registry::instance ().store (
+      [remainedHidden] {
+        tree body= get_current_editor ()->the_buffer ();
+        tree screens= body[N (body)-1];
+        remainedHidden->store (
+          is_compound (screens[0], "shown", 1) &&
+          is_compound (screens[1], "hidden", 1));
+      });
+    QVERIFY (view->buf->actor->invoke (actor_command_kind::run_native_continuation,
+      view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
+      EXECUTION_CAPABILITY_BUFFER, inspect));
+    QVERIFY (remainedHidden->load ());
+
+    auto* second= thumbnails->item (1);
+    thumbnails->scrollToItem (second);
+    QTRY_VERIFY (thumbnails->visualItemRect (second).isValid ());
+    QTest::mouseClick (thumbnails->viewport (), Qt::LeftButton, Qt::NoModifier,
+      thumbnails->visualItemRect (second).center ());
+    QTRY_VERIFY_WITH_TIMEOUT (!thumbnails->item (1)->icon ().isNull (), 15000);
+    QVERIFY (!thumbnails->item (0)->icon ().isNull ());
+    QCOMPARE (thumbnails->item (0), firstRow);
+  }
+
+  void thumbnailsRasterizeExistingPaperLayout () {
+    const url name= make_new_source_buffer ();
+    // The Thumbnails pane follows the ADS active document, not a detached
+    // unshown tm_window. Map this test document just as the real UI does.
+    const url window= new_window (true);
+    const url view_url= get_passive_view (name);
+    window_set_view (window, view_url, true);
+    auto cleanup= qScopeGuard ([&] {
+      delete_window (window);
+      remove_buffer (name);
+    });
+    tm_view view= concrete_view (view_url);
+    QVERIFY (view != nullptr);
+    const auto makePaper= actor_continuation_registry::instance ().store ([] {
+      editor ed= get_current_editor ();
+      ed->insert_tree (tree ("Theorem: a squared plus b squared equals c squared."));
+      native_editor_action_execute (ed, QJsonObject {
+        {"op", "view-presentation-mode"}, {"mode", "paper"}});
+      ed->publish_editor_command_state ();
+    });
+    QVERIFY (view->buf->actor->invoke (actor_command_kind::run_native_continuation,
+      view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
+      EXECUTION_CAPABILITY_BUFFER, makePaper));
+    QVERIFY (view->buf->actor->invoke (actor_command_kind::apply_changes,
+      view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB));
+    auto* shell= QTMMainTabWindow::topTabWindow ();
+    QVERIFY (shell != nullptr);
+    shell->show ();
+    thumbnails_pane_show ();
+    auto* thumbnails= shell->findChild<QListWidget*> ("athenaThumbnailsList");
+    QVERIFY (thumbnails != nullptr);
+    // The pane is persistent across tests/documents. Wait for this Paper
+    // manifest (one page), not a stale row from the preceding slide document.
+    QTRY_COMPARE_WITH_TIMEOUT (thumbnails->count (), 1, 15000);
+    QTRY_VERIFY_WITH_TIMEOUT (!thumbnails->item (0)->icon ().isNull (), 15000);
+    const QImage image= thumbnails->item (0)->icon ().pixmap (190, 270).toImage ();
+    QVERIFY (!image.isNull ());
+    int darkPixels= 0;
+    for (int y=0; y<image.height (); ++y)
+      for (int x=0; x<image.width (); ++x) {
+        const QRgb pixel= image.pixel (x, y);
+        if (qRed (pixel) < 150 && qGreen (pixel) < 150 && qBlue (pixel) < 150)
+          ++darkPixels;
+      }
+    QVERIFY2 (darkPixels > 20, "Rasterized thumbnail contains no page text");
+    auto* firstRow= thumbnails->item (0);
+    const auto editPaper= actor_continuation_registry::instance ().store ([] {
+      get_current_editor ()->insert_tree (tree (
+        " Additional notes change the page's rasterized appearance."));
+    });
+    QVERIFY (view->buf->actor->invoke (actor_command_kind::run_native_continuation,
+      view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
+      EXECUTION_CAPABILITY_BUFFER, editPaper));
+    QVERIFY (view->buf->actor->invoke (actor_command_kind::apply_changes,
+      view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB));
+    QTRY_VERIFY_WITH_TIMEOUT (
+      thumbnails->item (0) == firstRow &&
+      !thumbnails->item (0)->icon ().isNull () &&
+      thumbnails->item (0)->icon ().pixmap (190, 270).toImage () != image,
+      15000);
+    const auto returnToReflow= actor_continuation_registry::instance ().store ([] {
+      native_editor_action_execute (get_current_editor (), QJsonObject {
+        {"op", "view-presentation-mode"}, {"mode", "automatic"}});
+    });
+    QVERIFY (view->buf->actor->invoke (actor_command_kind::run_native_continuation,
+      view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
+      EXECUTION_CAPABILITY_BUFFER, returnToReflow));
+    QTRY_VERIFY_WITH_TIMEOUT (!thumbnails->isVisible (), 5000);
+  }
+
   void beamerSceneThemesAndVirtualPatterns () {
     const url name ("tmfs://aux/beamer-scene-theme-regression");
     tree document (DOCUMENT, compound ("style", tuple ("beamer")),

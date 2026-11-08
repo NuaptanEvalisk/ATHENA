@@ -28,7 +28,7 @@ struct render_damage {
 
 struct render_chunk_descriptor {
   std::uint32_t slot= 0;
-  std::uint32_t used= 0;
+  std::size_t used= 0;
   std::uint64_t buffer_generation= 0;
   std::uint64_t frame_generation= 0;
   render_damage damage;
@@ -52,8 +52,10 @@ public:
 
   // BufferActor producer API.
   bool acquire (writable_chunk& chunk);
+  bool try_acquire (writable_chunk& chunk);
   bool discard (std::uint32_t slot) noexcept;
   bool publish (const render_chunk_descriptor& descriptor);
+  bool try_publish (const render_chunk_descriptor& descriptor);
 
   // RenderService consumer API.
   bool try_submission (render_chunk_descriptor& descriptor);

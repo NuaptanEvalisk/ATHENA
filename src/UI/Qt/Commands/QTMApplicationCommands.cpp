@@ -40,6 +40,7 @@
 #include "UI/Qt/Dialogs/QTMNativeDialogs.hpp"
 #include "UI/Qt/Vault/QTMNeighborhoodsPane.hpp"
 #include "UI/Qt/Document/QTMOutlinePane.hpp"
+#include "UI/Qt/Document/QTMThumbnailsPane.hpp"
 #include "UI/Qt/Dialogs/QTMPreferencesDialog.hpp"
 #include "UI/Qt/Integrations/QTMPluginUi.hpp"
 #include "athena_platform.hpp"
@@ -515,6 +516,12 @@ QTMCommandRegistry::registerApplicationCommands () {
     "view.outline", QTMCommandScope::Application,
     [] (const QTMCommandContext&) {
       outline_pane_show ();
+      return true;
+    });
+  registerBehavior (
+    "view.thumbnails", QTMCommandScope::Application,
+    [] (const QTMCommandContext&) {
+      thumbnails_pane_show ();
       return true;
     });
   registerBehavior (

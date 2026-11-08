@@ -735,10 +735,12 @@ public:
     std::shared_ptr<render_connection> connection,
     std::shared_ptr<QTMRenderConnection::processor_state> processor,
     std::uint64_t buffer_generation, std::uint64_t frame_generation,
-    render_damage damage):
+    render_damage damage, bool non_blocking):
     connection_ (std::move (connection)), processor_ (std::move (processor)),
     buffer_generation_ (buffer_generation), frame_generation_ (frame_generation),
-    damage_ (damage) {}
+    damage_ (damage), non_blocking_ (non_blocking) {}
+
+  bool failed () const noexcept { return failed_; }
 
   ~render_stream_writer () {
     if (has_chunk_ && !finished_)
@@ -751,15 +753,27 @@ public:
       return nullptr;
     std::size_t total= aligned_size (
       sizeof (render_command_header) + payload_size);
-    if (!ensure (total)) return nullptr;
-    auto* header= reinterpret_cast<render_command_header*> (
-      chunk_.data + used_);
+    std::byte* start;
+    if (non_blocking_) {
+      // Page thumbnails contain many tiny glyph/path commands. The four-slot
+      // viewport ring can fill before the RenderService drains them, leaving
+      // a partial frame that never appears. Retain the complete recording and
+      // hand it to the same service only when complete.
+      const std::size_t offset= owned_stream_.size ();
+      owned_stream_.resize (offset + total);
+      start= owned_stream_.data () + offset;
+    }
+    else {
+      if (!ensure (total)) return nullptr;
+      start= chunk_.data + used_;
+      used_ += total;
+    }
+    auto* header= reinterpret_cast<render_command_header*> (start);
     *header= render_command_header {
       opcode, 0, static_cast<std::uint32_t> (payload_size)};
-    std::byte* payload= chunk_.data + used_ + sizeof (*header);
+    std::byte* payload= start + sizeof (*header);
     std::memset (payload + payload_size, 0,
                  total - sizeof (*header) - payload_size);
-    used_ += total;
     return payload;
   }
 
@@ -770,7 +784,25 @@ public:
   bool finish () noexcept {
     if (finished_) return !failed_;
     finished_= true;
-    if (failed_ || !has_chunk_) return false;
+    if (non_blocking_) {
+      if (failed_ || owned_stream_.empty ()) return false;
+      render_chunk_descriptor descriptor;
+      descriptor.used= owned_stream_.size ();
+      descriptor.buffer_generation= buffer_generation_;
+      descriptor.frame_generation= frame_generation_;
+      descriptor.damage= damage_;
+      descriptor.final_chunk= true;
+      if (!connection_->publish_owned (std::move (owned_stream_), descriptor))
+        failed_= true;
+      return !failed_;
+    }
+    if (failed_ || !has_chunk_) {
+      if (has_chunk_) {
+        (void) connection_->discard (chunk_.slot);
+        has_chunk_= false;
+      }
+      return false;
+    }
     render_chunk_descriptor descriptor;
     descriptor.slot= chunk_.slot;
     descriptor.used= static_cast<std::uint32_t> (used_);
@@ -778,7 +810,8 @@ public:
     descriptor.frame_generation= frame_generation_;
     descriptor.damage= damage_;
     descriptor.final_chunk= true;
-    if (!connection_->publish (descriptor)) {
+    if (!(non_blocking_ ? connection_->try_publish (descriptor) :
+                            connection_->publish (descriptor))) {
       (void) connection_->discard (chunk_.slot);
       failed_= true;
     }
@@ -789,7 +822,8 @@ public:
 private:
   bool ensure (std::size_t required) {
     if (!has_chunk_) {
-      if (!connection_->acquire (chunk_)) {
+      if (!(non_blocking_ ? connection_->try_acquire (chunk_) :
+                            connection_->acquire (chunk_))) {
         failed_= true;
         return false;
       }
@@ -808,7 +842,15 @@ private:
     descriptor.frame_generation= frame_generation_;
     descriptor.damage= damage_;
     descriptor.final_chunk= false;
-    if (!connection_->publish (descriptor) || !connection_->acquire (chunk_)) {
+    if (!(non_blocking_ ? connection_->try_publish (descriptor) :
+                            connection_->publish (descriptor))) {
+      (void) connection_->discard (chunk_.slot);
+      failed_= true;
+      has_chunk_= false;
+      return false;
+    }
+    if (!(non_blocking_ ? connection_->try_acquire (chunk_) :
+                            connection_->acquire (chunk_))) {
       failed_= true;
       has_chunk_= false;
       return false;
@@ -824,6 +866,8 @@ private:
   std::uint64_t buffer_generation_;
   std::uint64_t frame_generation_;
   render_damage damage_;
+  std::vector<std::byte> owned_stream_;
+  bool non_blocking_;
   bool has_chunk_= false;
   bool failed_= false;
   bool finished_= false;
@@ -1159,9 +1203,9 @@ struct QTMRenderRecording::implementation {
     int width, int height, double pixel_ratio,
     std::uint32_t background_argb, std::uint64_t buffer_generation,
     std::uint64_t frame_generation, render_damage damage,
-    std::int64_t origin_x, std::int64_t origin_y):
+    std::int64_t origin_x, std::int64_t origin_y, bool non_blocking):
     writer (std::move (connection), std::move (processor), buffer_generation,
-            frame_generation, damage),
+             frame_generation, damage, non_blocking),
     device (writer, width, height, pixel_ratio) {
     std::byte* payload= writer.command (
       render_opcode::frame_begin, sizeof (frame_begin_command));
@@ -1301,14 +1345,15 @@ QTMRenderConnection::beginRecording (
   int pixelWidth, int pixelHeight, double devicePixelRatio,
   std::uint32_t backgroundArgb, std::uint64_t bufferGeneration,
   std::uint64_t frameGeneration, render_damage damage,
-  std::int64_t originX, std::int64_t originY) {
+  std::int64_t originX, std::int64_t originY, bool nonBlocking) {
   if (connection_ == nullptr || pixelWidth <= 0 || pixelHeight <= 0 ||
       !std::isfinite (devicePixelRatio) || devicePixelRatio <= 0.0)
     return nullptr;
   auto impl= std::make_unique<QTMRenderRecording::implementation> (
     connection_, processor_, pixelWidth, pixelHeight, devicePixelRatio,
     backgroundArgb, bufferGeneration, frameGeneration, damage,
-    originX, originY);
+    originX, originY, nonBlocking);
+  if (impl->writer.failed ()) return nullptr;
   return std::unique_ptr<QTMRenderRecording> (
     new QTMRenderRecording (std::move (impl)));
 }
@@ -1371,9 +1416,10 @@ qtm_begin_render_recording (
   athena_resource_id connectionId, int pixelWidth, int pixelHeight,
   double devicePixelRatio, std::uint32_t backgroundArgb,
   std::uint64_t bufferGeneration, std::uint64_t frameGeneration,
-  render_damage damage, std::int64_t originX, std::int64_t originY) {
+  render_damage damage, std::int64_t originX, std::int64_t originY,
+  bool nonBlocking) {
   auto connection= QTMRenderConnection::lookup (connectionId);
   return connection == nullptr ? nullptr : connection->beginRecording (
     pixelWidth, pixelHeight, devicePixelRatio, backgroundArgb,
-    bufferGeneration, frameGeneration, damage, originX, originY);
+    bufferGeneration, frameGeneration, damage, originX, originY, nonBlocking);
 }

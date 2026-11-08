@@ -81,7 +81,8 @@ public:
     int pixelWidth, int pixelHeight, double devicePixelRatio,
     std::uint32_t backgroundArgb, std::uint64_t bufferGeneration,
     std::uint64_t frameGeneration, render_damage damage,
-    std::int64_t originX= 0, std::int64_t originY= 0);
+    std::int64_t originX= 0, std::int64_t originY= 0,
+    bool nonBlocking= false);
   QTMSharedFrame acquireLatestFrame ();
   void retire () noexcept;
 
@@ -106,6 +107,7 @@ std::unique_ptr<QTMRenderRecording> qtm_begin_render_recording (
   athena_resource_id connectionId, int pixelWidth, int pixelHeight,
   double devicePixelRatio, std::uint32_t backgroundArgb,
   std::uint64_t bufferGeneration, std::uint64_t frameGeneration,
-  render_damage damage, std::int64_t originX= 0, std::int64_t originY= 0);
+  render_damage damage, std::int64_t originX= 0, std::int64_t originY= 0,
+  bool nonBlocking= false);
 
 #endif // defined QTM_RENDER_SERVICE_HPP

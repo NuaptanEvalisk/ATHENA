@@ -71,8 +71,14 @@ public:
   render_connection& operator = (const render_connection&)= delete;
 
   bool acquire (render_chunk_arena::writable_chunk& chunk);
+  bool try_acquire (render_chunk_arena::writable_chunk& chunk);
   bool discard (std::uint32_t slot) noexcept;
   bool publish (const render_chunk_descriptor& descriptor);
+  bool try_publish (const render_chunk_descriptor& descriptor);
+  // Detached recordings are submitted as one owned command stream.
+  // Unlike the live viewport ring, recording never fails midway under pressure.
+  bool publish_owned (std::vector<std::byte> stream,
+                      const render_chunk_descriptor& descriptor);
   void retire () noexcept;
   bool is_retired () const noexcept;
   render_chunk_arena& arena () noexcept;
@@ -86,6 +92,12 @@ private:
   std::shared_ptr<render_processor> process_;
   render_chunk_arena arena_;
   std::atomic<bool> retired_ {false};
+  struct owned_submission {
+    std::vector<std::byte> stream;
+    render_chunk_descriptor descriptor;
+  };
+  std::mutex owned_lock_;
+  std::unique_ptr<owned_submission> owned_pending_;
 
   void drain ();
 

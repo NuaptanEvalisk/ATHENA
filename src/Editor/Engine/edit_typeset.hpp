@@ -16,6 +16,7 @@
 #include "Editor/editor.hpp"
 #include "hashset.hpp"
 #include "heading_word_count.hpp"
+#include "App/Runtime/thumbnail_snapshot.hpp"
 
 class document_rep;
 class evaluation_environment_checkpoint;
@@ -33,6 +34,8 @@ protected:
     int packet, offset;
   } prepared_page_geometry;
   bool page_geometry_from_layout= false;
+  // Advances when the owning editor actually produces a new box layout.
+  std::uint64_t thumbnail_layout_revision_= 1;
   hashmap<string,tree> init;              // environment changes w.r.t. style
   hashmap<string,tree> fin;               // environment changes w.r.t. doc
   hashmap<string,tree> grefs;             // global references
@@ -139,6 +142,18 @@ public:
   color    get_init_color (string var_name);
   language get_env_language ();
   int      get_page_count ();
+  std::vector<thumbnail_page_bounds> thumbnail_page_geometry ();
+  std::uint64_t thumbnail_layout_revision () const noexcept {
+    return thumbnail_layout_revision_;
+  }
+  struct thumbnail_paint_target {
+    box page;
+    SI offset_x= 0;
+    SI offset_y= 0;
+  };
+  thumbnail_paint_target thumbnail_page_box (int index);
+  thumbnail_paint_target thumbnail_hidden_slide_box (int index);
+  bool paint_thumbnail_page (renderer ren, const thumbnail_paint_target& target);
   SI       get_page_width (bool deco);
   SI       get_pages_width (bool deco);
   SI       get_page_height (bool deco);

@@ -29,6 +29,9 @@
 #include "App/Frontend/new_buffer.hpp"
 #include "App/Frontend/new_view.hpp"
 #include "Editor/editor.hpp"
+#include "Editor/Engine/edit_typeset.hpp"
+#include "Editor/Commands/edit_interface.hpp"
+#include "App/Runtime/thumbnail_snapshot.hpp"
 #include "file.hpp"
 #include "font_domain.hpp"
 #include "outline_snapshot.hpp"
@@ -60,12 +63,101 @@
 #include <cstdio>
 #include <atomic>
 #include <cmath>
+#include <algorithm>
 #include <cstring>
 #include <exception>
 #include <unordered_map>
 #include <utility>
 
 namespace {
+
+#ifdef QTTEXMACS
+struct thumbnail_actor_manifest {
+  std::vector<thumbnail_page_bounds> pages;
+  std::uint32_t active= 0;
+  std::uint32_t flags= 0;
+};
+
+thumbnail_actor_manifest
+make_thumbnail_manifest (editor_rep* editor, edit_typeset_rep* typeset) {
+  thumbnail_actor_manifest result;
+  result.pages= typeset->thumbnail_page_geometry ();
+  if (editor->get_init_string ("page-medium") != "beamer") return result;
+  tree body= editor->the_buffer ();
+  if (!is_document (body) || N (body) == 0) return result;
+  tree screens= body[N (body)-1];
+  if (!is_compound (screens, "screens") || N (screens) == 0)
+    return result;
+  result.flags= THUMBNAIL_MANIFEST_SLIDES;
+  for (int i=0; i<N(screens); ++i)
+    if (is_compound (screens[i], "shown", 1)) {
+      result.active= static_cast<std::uint32_t> (i);
+      break;
+    }
+  const auto visible= result.pages;
+  result.pages.assign (N (screens), {});
+  // Beamer screens share page geometry. The hidden slides do not have boxes
+  // yet, but their provisional bounds let the pane schedule offscreen fills.
+  if (!visible.empty ())
+    std::fill (result.pages.begin (), result.pages.end (), visible[0]);
+  return result;
+}
+
+std::uint64_t
+thumbnail_slides_content_signature (editor_rep* editor) {
+  tree body= editor->the_buffer ();
+  if (!is_document (body) || N (body) == 0) return 0;
+  tree screens= body[N (body)-1];
+  if (!is_compound (screens, "screens")) return 0;
+  std::uint64_t result= 1469598103934665603ULL;
+  for (int i=0; i<N (screens); ++i) {
+    tree slide= screens[i];
+    // Presentation navigation only changes these wrapper labels. The actual
+    // content and its node metadata remain the authority for cache validity.
+    if (N (slide) == 1 &&
+        (is_compound (slide, "shown") ||
+         is_compound (slide, "hidden") ||
+         is_compound (slide, "hidden*") ||
+         is_compound (slide, "slide")))
+      slide= slide[0];
+    result= (result * 1099511628211ULL) ^
+            static_cast<std::uint32_t> (hash (slide));
+  }
+  return result == 0 ? 1 : result;
+}
+
+std::uint64_t
+thumbnail_style_signature (editor_rep* editor) {
+  std::uint64_t result= 1469598103934665603ULL;
+  result= (result * 1099511628211ULL) ^ editor->runtime_view_id;
+  new_data data;
+  editor->get_data (data);
+  result= (result * 1099511628211ULL) ^
+          static_cast<std::uint32_t> (hash (data->style));
+  for (const char* variable: {"page-type", "page-medium", "bg-color",
+                             "color", "page-orientation", "page-width", "page-height"})
+    result= (result * 1099511628211ULL) ^
+            static_cast<std::uint32_t> (hash (editor->get_init_value (variable)));
+  return result == 0 ? 1 : result;
+}
+
+std::uint64_t
+thumbnail_signature (std::uint64_t style_signature,
+                     const thumbnail_actor_manifest& manifest,
+                     std::uint64_t layout_revision,
+                     std::uint64_t content_signature) {
+  // An actual typeset pass increments this revision, including when page
+  // boxes are updated in place. Cursor blinks do not invalidate thumbnails.
+  std::uint64_t result= style_signature ^ layout_revision;
+  result= (result * 1099511628211ULL) ^ content_signature;
+  result= (result * 1099511628211ULL) ^ manifest.flags;
+  result= (result * 1099511628211ULL) ^ manifest.active;
+  for (const auto& page: manifest.pages)
+    for (const auto value: {page.x1, page.y1, page.x2, page.y2})
+      result= (result * 1099511628211ULL) ^ static_cast<std::uint64_t> (value);
+  return result == 0 ? 1 : result;
+}
+#endif
 
 std::mutex actor_registry_lock;
 std::atomic<std::uint64_t> continuous_rag_save_sequence {1};
@@ -1133,7 +1225,8 @@ buffer_actor::execute (actor_command_record& command) {
       (command.kind == actor_command_kind::apply_changes ||
        command.kind == actor_command_kind::progressive_typeset ||
        command.kind == actor_command_kind::render_view ||
-       command.kind == actor_command_kind::request_outline ||
+        command.kind == actor_command_kind::request_outline ||
+        command.kind == actor_command_kind::request_thumbnail_manifest ||
        command.kind == actor_command_kind::user_scroll ||
        command.kind == actor_command_kind::cursor_blink))
     editor->ui_endpoint->finish_coalesced_command (command.kind);
@@ -1816,6 +1909,113 @@ buffer_actor::dispatch (actor_command_record& command) {
     if (!editor->ui_endpoint->publish (
           actor_command_kind::ui_outline_snapshot, payload, signature))
       (void) actor_blob_registry::instance ().discard (payload);
+    break;
+  }
+  case actor_command_kind::request_thumbnail_manifest: {
+#ifdef QTTEXMACS
+    auto* typeset= dynamic_cast<edit_typeset_rep*> (editor);
+    if (!typeset || !editor->ui_endpoint) break;
+    const auto manifest= make_thumbnail_manifest (editor, typeset);
+    const auto source_generation= source_epoch ();
+    if (manifest.flags & THUMBNAIL_MANIFEST_SLIDES &&
+        source_generation != thumbnail_source_epoch_) {
+      thumbnail_content_signature_= thumbnail_slides_content_signature (editor);
+      thumbnail_source_epoch_= source_generation;
+    }
+    const std::uint64_t content_signature=
+      (manifest.flags & THUMBNAIL_MANIFEST_SLIDES) ?
+      thumbnail_content_signature_ : 0;
+    const std::uint64_t style_signature= thumbnail_style_signature (editor);
+    // Paper may re-typeset for auxiliary/viewport work without any source
+    // change. Those passes must not cancel a dense page's pending thumbnail.
+    const std::uint64_t revision= (manifest.flags & THUMBNAIL_MANIFEST_SLIDES) ?
+      typeset->thumbnail_layout_revision () : source_generation;
+    const std::uint64_t signature= thumbnail_signature (
+      style_signature, manifest, revision, content_signature);
+    if (command.argument[1] && command.argument[0] == signature) break;
+    const std::size_t bytes= sizeof (thumbnail_manifest_header) +
+      manifest.pages.size () * sizeof (thumbnail_page_bounds);
+    auto reservation= actor_blob_registry::instance ().allocate (bytes);
+    thumbnail_manifest_header header {signature, style_signature,
+      content_signature,
+      static_cast<std::uint32_t> (manifest.pages.size ()),
+      manifest.active, manifest.flags, 0};
+    std::memcpy (reservation.data (), &header, sizeof (header));
+    if (!manifest.pages.empty ())
+      std::memcpy (reservation.data () + sizeof (header), manifest.pages.data (),
+                   manifest.pages.size () * sizeof (thumbnail_page_bounds));
+    const auto payload= reservation.publish ();
+    if (!editor->ui_endpoint->publish (
+          actor_command_kind::ui_thumbnail_manifest, payload, signature))
+      (void) actor_blob_registry::instance ().discard (payload);
+#endif
+    break;
+  }
+  case actor_command_kind::request_thumbnail_raster: {
+#ifdef QTTEXMACS
+    auto* typeset= dynamic_cast<edit_typeset_rep*> (editor);
+    if (!typeset) break;
+    const auto manifest= make_thumbnail_manifest (editor, typeset);
+    const int index= static_cast<int> (command.argument[0]);
+    if (index < 0 || index >= static_cast<int> (manifest.pages.size ())) break;
+    const auto source_generation= source_epoch ();
+    if (manifest.flags & THUMBNAIL_MANIFEST_SLIDES &&
+        source_generation != thumbnail_source_epoch_) {
+      thumbnail_content_signature_= thumbnail_slides_content_signature (editor);
+      thumbnail_source_epoch_= source_generation;
+    }
+    const std::uint64_t revision= (manifest.flags & THUMBNAIL_MANIFEST_SLIDES) ?
+      typeset->thumbnail_layout_revision () : source_generation;
+    const auto signature= thumbnail_signature (
+      thumbnail_style_signature (editor), manifest, revision,
+      (manifest.flags & THUMBNAIL_MANIFEST_SLIDES) ?
+        thumbnail_content_signature_ : 0);
+    if (signature != command.argument[1]) break;
+    auto target= (manifest.flags & THUMBNAIL_MANIFEST_SLIDES) ?
+      (index == static_cast<int> (manifest.active) ?
+        typeset->thumbnail_page_box (0) :
+        typeset->thumbnail_hidden_slide_box (index)) :
+      typeset->thumbnail_page_box (index);
+    box page= target.page;
+    if (is_nil (page)) break;
+    const double pageWidth= double (page->x2-page->x1);
+    const double pageHeight= double (page->y2-page->y1);
+    if (pageWidth <= 0 || pageHeight <= 0) break;
+    constexpr int maxWidth= 190, maxHeight= 270;
+    const double scale= std::min (double (maxWidth)/pageWidth,
+                                  double (maxHeight)/pageHeight);
+    const int width= std::max (1, int (std::ceil (pageWidth * scale)));
+    const int height= std::max (1, int (std::ceil (pageHeight * scale)));
+    render_damage damage {0, 0, width, height};
+    auto recording= qtm_begin_render_recording (
+      command.argument[2], width, height, 1.0, 0xffffffffU,
+      signature, std::uint64_t (index) + 1, damage, 0, 0, true);
+    if (!recording) break;
+    QPainter painter;
+    qt_renderer_rep renderer (&painter, 1.0, width, height, true);
+    renderer.begin (recording->device ());
+    renderer.set_zoom_factor (scale * std_shrinkf * PIXEL, false);
+    (void) typeset->paint_thumbnail_page (&renderer, target);
+    renderer.end ();
+    (void) recording->finish ();
+#endif
+    break;
+  }
+  case actor_command_kind::activate_thumbnail_page: {
+    auto* typeset= dynamic_cast<edit_typeset_rep*> (editor);
+    auto* interface= dynamic_cast<edit_interface_rep*> (editor);
+    if (!typeset || !interface) break;
+    const int index= static_cast<int> (command.argument[0]);
+    const auto manifest= make_thumbnail_manifest (editor, typeset);
+    if (manifest.flags & THUMBNAIL_MANIFEST_SLIDES) {
+      if (index >= 0 && index < static_cast<int> (manifest.pages.size ()))
+        presentation_switch_to (index);
+      break;
+    }
+    const auto& pages= manifest.pages;
+    if (index < 0 || index >= static_cast<int> (pages.size ())) break;
+    const auto& page= pages[static_cast<std::size_t> (index)];
+    interface->scroll_to ((page.x1+page.x2)/2, (page.y1+page.y2)/2);
     break;
   }
   case actor_command_kind::activate_outline_entry: {

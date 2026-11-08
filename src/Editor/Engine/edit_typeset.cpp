@@ -27,6 +27,7 @@
 #include "merge_sort.hpp"
 #include "Typesetting/Env/compound_counters.hpp"
 #include "Typesetting/Env/local_environment.hpp"
+#include "Editor/Commands/presentation_commands.hpp"
 #include "node_metadata_transform.hpp"
 #include "Document/NodeContracts/editing_query.hpp"
 #include "cursor_navigation.hpp"
@@ -923,6 +924,100 @@ edit_typeset_rep::get_page_count () {
   return N (eb[0]);
 }
 
+std::vector<thumbnail_page_bounds>
+edit_typeset_rep::thumbnail_page_geometry () {
+  std::vector<thumbnail_page_bounds> result;
+  if (is_nil (eb) || eb->subnr () == 0) return result;
+  box pages= eb[0];
+  result.reserve (pages->subnr ());
+  for (int i=0; i<pages->subnr (); ++i) {
+    box page= pages[i];
+    const SI x= eb->sx (0) + pages->sx (i);
+    const SI y= eb->sy (0) + pages->sy (i);
+    result.push_back ({x + page->x1, y + page->y1,
+                       x + page->x2, y + page->y2});
+  }
+  return result;
+}
+
+edit_typeset_rep::thumbnail_paint_target
+edit_typeset_rep::thumbnail_page_box (int index) {
+  if (is_nil (eb) || eb->subnr () == 0 ||
+      index < 0 || index >= eb[0]->subnr ()) return {};
+  box pages= eb[0];
+  return {pages[index], pages->sx (index), pages->sy (index)};
+}
+
+edit_typeset_rep::thumbnail_paint_target
+edit_typeset_rep::thumbnail_hidden_slide_box (int index) {
+  // The live Beamer layout contains only the currently shown screen. Build a
+  // transient source view with the requested screen shown, sharing the source
+  // nodes but never editing their shown/hidden tags or the live typesetter.
+  tree body= the_buffer ();
+  if (!is_document (body) || N (body) == 0) return {};
+  tree screens= body[N (body)-1];
+  if (!is_compound (screens, "screens") ||
+      index < 0 || index >= N (screens)) return {};
+
+  tree preview_screens= compound ("screens");
+  for (int i=0; i<N (screens); ++i) {
+    tree child= screens[i];
+    if (N (child) != 1 ||
+        !(is_compound (child, "shown") ||
+          is_compound (child, "hidden") ||
+          is_compound (child, "hidden*") ||
+          is_compound (child, "slide")))
+      return {};
+    // Unrelated hidden slides need not be typeset again. Their source content
+    // is not requested; retain their positions for screens-index/arity.
+    preview_screens << (i == index ?
+      compound ("shown", child[0]) :
+      compound ("hidden", tree (DOCUMENT, "")));
+  }
+
+  // Reuse the owning view's evaluated style checkpoint, but isolate all
+  // reference/auxiliary writes from its live editor and production document.
+  // Only this slide is typeset; the existing RenderService then rasterizes it.
+  athena::contracts::evaluation_state local_state (
+    contract_state.contracts.snapshot ());
+  hashmap<string,tree> refs= copy (buf->data->ref);
+  hashmap<string,tree> global_refs= copy (grefs);
+  hashmap<string,tree> aux= copy (buf->data->aux);
+  hashmap<string,tree> attachments= copy (buf->data->att);
+  edit_env preview (local_state, buf->master, refs, global_refs,
+                    aux, aux, attachments, attachments);
+  pre->restore (*preview.operator-> ());
+  preview->style_init_env ();
+  preview->update ();
+  presentation_thumbnail_scope presentation (index, N (screens));
+  box result= typeset_as_document (
+    preview, tree (DOCUMENT, preview_screens), path (DETACHED));
+  if (is_nil (result) || result->subnr () == 0 ||
+      result[0]->subnr () == 0) return {};
+  auto changes= std::make_shared<rectangles> ();
+  result->position_at (0, 0, changes);
+  box pages= result[0];
+  return {pages[0], pages->sx (0), pages->sy (0)};
+}
+
+bool
+edit_typeset_rep::paint_thumbnail_page (
+    renderer ren, const thumbnail_paint_target& target) {
+  box page= target.page;
+  if (is_nil (page)) return false;
+  // A page has an offset in its parent scatter box (page 2 often has y0=-H).
+  // Cancel that placement when drawing it alone, while retaining its local
+  // clipping and all descendants' positions. Otherwise only page 1 is visible.
+  ren->set_origin (-page->x1, -page->y2);
+  ren->set_clipping (page->x1, page->y1, page->x2, page->y2);
+  rectangles drawn;
+  const bool screen= ren->is_screen;
+  ren->is_screen= false; // page output is complete, not an interrupted viewport
+  page->redraw (ren, path (), drawn, -target.offset_x, -target.offset_y);
+  ren->is_screen= screen;
+  return true;
+}
+
 SI
 edit_typeset_rep::get_page_width (bool deco) {
   return (prepared_page_geometry.page_width[deco] + std_shrinkf - 1) / std_shrinkf;
@@ -1785,6 +1880,7 @@ edit_typeset_rep::typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2) {
     }
     prooftrack_screen_scope prooftrack_screen (!printed);
     eb= ::typeset (ttt, x1, y1, x2, y2);
+    ++thumbnail_layout_revision_;
     prepare_page_geometry ();
     page_geometry_from_layout= true;
     progressive_typeset_pending=

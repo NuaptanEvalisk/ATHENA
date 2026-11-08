@@ -21,6 +21,7 @@
 #include "App/Window/tm_window.hpp"
 #include "UI/Qt/Dialogs/QTMToast.hpp"
 #include "UI/Qt/Document/QTMOutlinePane.hpp"
+#include "UI/Qt/Document/QTMThumbnailsPane.hpp"
 #include "UI/Qt/Document/QTMDocumentSearchBar.hpp"
 #include "UI/Qt/Editor/QTMCompletionPopup.hpp"
 #include "UI/Qt/Document/QTMDocumentPersistence.hpp"
@@ -895,6 +896,10 @@ qt_actor_widget_rep::drain_external_effects () {
     case actor_command_kind::ui_outline_snapshot:
       outline_pane_accept_snapshot (
         record.view_id, record.payload0, record.argument[0]);
+      break;
+    case actor_command_kind::ui_thumbnail_manifest:
+      thumbnails_pane_accept_manifest (
+        record.view_id, record.payload0);
       break;
     case actor_command_kind::ui_document_search_state:
       QTMDocumentSearchBar::acceptState (

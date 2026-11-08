@@ -23,6 +23,7 @@ private slots:
   void transfersWithoutPayloadCopies ();
   void discardsUnpublishedSlots ();
   void appliesBackpressureAndWakesOnCompletion ();
+  void thumbnailProducerNeverWaitsForRenderBackpressure ();
   void closeWakesBlockedConsumer ();
 };
 
@@ -94,6 +95,32 @@ TestRenderChunkArena::appliesBackpressureAndWakesOnCompletion () {
   producer.join ();
   QVERIFY (acquired.load (std::memory_order_acquire));
   arena.close ();
+}
+
+void
+TestRenderChunkArena::thumbnailProducerNeverWaitsForRenderBackpressure () {
+  render_chunk_arena arena (2, 64);
+  render_chunk_arena::writable_chunk first, second, unavailable;
+  QVERIFY (arena.try_acquire (first));
+  QVERIFY (arena.try_acquire (second));
+  QVERIFY (!arena.try_acquire (unavailable));
+
+  render_chunk_descriptor descriptor;
+  descriptor.used= 1;
+  descriptor.slot= first.slot;
+  QVERIFY (arena.try_publish (descriptor));
+  descriptor.slot= second.slot;
+  QVERIFY (arena.try_publish (descriptor));
+  // The submission ring is full. A low-priority producer must fail fast,
+  // not wait for RenderService to drain a frame.
+  QVERIFY (!arena.try_publish (descriptor));
+  QVERIFY (!arena.try_acquire (unavailable));
+
+  render_chunk_descriptor received;
+  QVERIFY (arena.try_submission (received));
+  QVERIFY (arena.complete (received.slot));
+  QVERIFY (arena.try_acquire (unavailable));
+  QCOMPARE (unavailable.slot, first.slot);
 }
 
 void

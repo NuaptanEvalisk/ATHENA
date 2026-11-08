@@ -145,6 +145,12 @@ render_connection::acquire (render_chunk_arena::writable_chunk& chunk) {
 }
 
 bool
+render_connection::try_acquire (render_chunk_arena::writable_chunk& chunk) {
+  return !retired_.load (std::memory_order_acquire) &&
+         arena_.try_acquire (chunk);
+}
+
+bool
 render_connection::discard (std::uint32_t slot) noexcept {
   if (retired_.load (std::memory_order_acquire)) return false;
   return arena_.discard (slot);
@@ -158,6 +164,32 @@ render_connection::publish (const render_chunk_descriptor& descriptor) {
   return true;
 }
 
+bool
+render_connection::try_publish (const render_chunk_descriptor& descriptor) {
+  if (retired_.load (std::memory_order_acquire) ||
+      !arena_.try_publish (descriptor)) return false;
+  service_.notify ();
+  return true;
+}
+
+bool
+render_connection::publish_owned (
+    std::vector<std::byte> stream,
+    const render_chunk_descriptor& descriptor) {
+  if (retired_.load (std::memory_order_acquire) || stream.empty () ||
+      stream.size () != descriptor.used || !descriptor.final_chunk)
+    return false;
+  {
+    std::lock_guard<std::mutex> guard (owned_lock_);
+    if (retired_.load (std::memory_order_acquire) || owned_pending_)
+      return false;
+    owned_pending_= std::make_unique<owned_submission> (
+      owned_submission {std::move (stream), descriptor});
+  }
+  service_.notify ();
+  return true;
+}
+
 void
 render_connection::retire () noexcept {
   bool expected= false;
@@ -165,6 +197,10 @@ render_connection::retire () noexcept {
         expected, true, std::memory_order_acq_rel))
     return;
   arena_.close ();
+  {
+    std::lock_guard<std::mutex> guard (owned_lock_);
+    owned_pending_.reset ();
+  }
   service_.notify ();
 }
 
@@ -197,5 +233,24 @@ render_connection::drain () {
       }
     }
     (void) arena_.complete (descriptor.slot);
+  }
+  std::unique_ptr<owned_submission> pending;
+  {
+    std::lock_guard<std::mutex> guard (owned_lock_);
+    pending= std::move (owned_pending_);
+  }
+  if (pending && !is_retired () && process_) {
+    try { process_->process (pending->descriptor, pending->stream.data ()); }
+    catch (const std::exception& error) {
+      try {
+        athena_spdlog_error (std::string ("RenderService thumbnail failed: ") +
+                             error.what ());
+      }
+      catch (...) {}
+    }
+    catch (...) {
+      try { athena_spdlog_error ("RenderService thumbnail failed"); }
+      catch (...) {}
+    }
   }
 }

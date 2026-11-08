@@ -42,3 +42,15 @@ string presentation_screens_index (tree);
 string presentation_screens_arity (tree);
 tree presentation_screens_bar (tree);
 int presentation_page_count ();
+
+// Owner-thread-only context for rendering a detached slide without changing
+// the active document. Native presentation macros still get its real index.
+class presentation_thumbnail_scope {
+  int previous_index_;
+  int previous_count_;
+public:
+  presentation_thumbnail_scope (int index, int count);
+  ~presentation_thumbnail_scope ();
+  presentation_thumbnail_scope (const presentation_thumbnail_scope&)= delete;
+  presentation_thumbnail_scope& operator= (const presentation_thumbnail_scope&)= delete;
+};

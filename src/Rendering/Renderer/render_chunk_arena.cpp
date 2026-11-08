@@ -80,6 +80,19 @@ render_chunk_arena::acquire (writable_chunk& chunk) {
 }
 
 bool
+render_chunk_arena::try_acquire (writable_chunk& chunk) {
+  if (closed_.load (std::memory_order_acquire)) return false;
+  while (producer_free_slots_.empty () && reclaim_completion ()) {}
+  if (producer_free_slots_.empty ()) return false;
+  const std::uint32_t slot= producer_free_slots_.back ();
+  producer_free_slots_.pop_back ();
+  chunk.slot= slot;
+  chunk.data= payloads_.get () + slot * slot_capacity_;
+  chunk.capacity= slot_capacity_;
+  return true;
+}
+
+bool
 render_chunk_arena::discard (std::uint32_t slot) noexcept {
   if (!valid_slot (slot) || closed_.load (std::memory_order_acquire))
     return false;
@@ -103,6 +116,25 @@ render_chunk_arena::publish (const render_chunk_descriptor& descriptor) {
     });
     if (closed_.load (std::memory_order_acquire)) return false;
 
+    submissions_[write % slot_count_]= descriptor;
+    submission_write_.value.store (write + 1, std::memory_order_release);
+  }
+  submission_ready_.notify_one ();
+  return true;
+}
+
+bool
+render_chunk_arena::try_publish (const render_chunk_descriptor& descriptor) {
+  if (!valid_slot (descriptor.slot) || descriptor.used > slot_capacity_)
+    return false;
+  {
+    std::lock_guard<std::mutex> guard (wait_lock_);
+    const std::uint64_t write=
+      submission_write_.value.load (std::memory_order_relaxed);
+    if (closed_.load (std::memory_order_acquire) ||
+        write - submission_read_.value.load (std::memory_order_acquire) >=
+          slot_count_)
+      return false;
     submissions_[write % slot_count_]= descriptor;
     submission_write_.value.store (write + 1, std::memory_order_release);
   }

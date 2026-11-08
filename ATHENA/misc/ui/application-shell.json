@@ -192,6 +192,14 @@
       "help": "Show the outline for the last active document"
     },
     {
+      "id": "view.thumbnails",
+      "dock": "athena-thumbnails-pane",
+      "label": "Thumbnails",
+      "category": "View",
+      "icon": "presentation-mode-panorama",
+      "help": "Show the paginated preview pane for Paper, Slideshow, Book, and Panorama"
+    },
+    {
       "id": "view.neighborhoods",
       "dock": "athena-neighborhoods-pane",
       "label": "Neighborhoods",
@@ -2218,6 +2226,7 @@
         { "command": "workspace.vault-explorer" },
         { "command": "workspace.namespace-explorer" },
         { "command": "view.outline" },
+        { "command": "view.thumbnails" },
         { "command": "view.document-history" },
         { "command": "view.neighborhoods" },
         { "separator": true },
