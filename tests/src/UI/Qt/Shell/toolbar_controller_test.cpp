@@ -11,6 +11,7 @@
 #include "UI/Qt/Shell/QTMToolbarController.hpp"
 #include "UI/Qt/Shell/QTMMainTabWindow.hpp"
 #include "UI/Qt/Shell/QTMApplication.hpp"
+#include "UI/Qt/Commands/QTMCommandRegistry.hpp"
 #include "boot.hpp"
 #include "data_cache.hpp"
 #include "gui.hpp"
@@ -21,11 +22,14 @@
 #include <DockWidgetTab.h>
 #include <FloatingDockContainer.h>
 #include <QLabel>
+#include <QComboBox>
+#include <QAbstractItemView>
 #include <QMainWindow>
 #include <QMenuBar>
 #include <QStatusBar>
 #include <QTemporaryDir>
 #include <QToolBar>
+#include <QToolButton>
 #include <QWidget>
 
 bool headless_mode= false;
@@ -42,6 +46,9 @@ private slots:
   void disablingAutoHideRestoresNativeToolbars ();
   void reloadsAutoHidePreference ();
   void floatingWindowsRetainApplicationChrome ();
+  void presentationSelectorHasSixDistinctIcons ();
+  void presentationCustomizeOpensPaneWithoutChangingMode ();
+  void documentMenuCommandsAppearInPalette ();
 };
 
 static void
@@ -190,6 +197,73 @@ TestToolbarController::reloadsAutoHidePreference () {
     set_user_preference ("hide toolbars when not using them", oldPreference);
   else
     reset_user_preference ("hide toolbars when not using them");
+}
+
+void
+TestToolbarController::presentationSelectorHasSixDistinctIcons () {
+  QTMMainTabWindow shell;
+  auto* modes= shell.findChild<QComboBox*> ("athenaPresentationMode");
+  QVERIFY (modes != nullptr);
+  QCOMPARE (modes->count (), 8);
+  QVERIFY (shell.findChild<QToolButton*> ("athenaPresentationCustomize") == nullptr);
+  const QStringList names {"Reflow", "Scroll", "Paper", "Slideshow", "Book", "Panorama"};
+  const QStringList identifiers {"automatic", "papyrus", "paper", "beamer", "book", "panorama"};
+  QVector<QImage> rendered;
+  for (int i=0; i<6; ++i) {
+    QCOMPARE (modes->itemText (i), names[i]);
+    QCOMPARE (modes->itemData (i).toString (), identifiers[i]);
+    QVERIFY2 (!modes->itemIcon (i).isNull (), qPrintable (names[i]));
+    const QImage pixels= modes->itemIcon (i).pixmap (32, 32).toImage ();
+    QVERIFY2 (!pixels.isNull (), qPrintable (names[i]));
+    for (const auto& previous: rendered)
+      QVERIFY2 (pixels != previous, qPrintable (names[i]));
+    rendered.append (pixels);
+  }
+  const auto separator= modes->model ()->index (6, 0);
+  QVERIFY (!(modes->model ()->flags (separator) & Qt::ItemIsSelectable));
+  QCOMPARE (modes->itemText (7), QStringLiteral ("Customize..."));
+  QVERIFY (!modes->itemIcon (7).isNull ());
+  modes->setCurrentIndex (4);
+  QCOMPARE (modes->currentIndex (), 4);
+  // Selection temporarily lands on Customize until activation is delivered.
+  modes->setCurrentIndex (7);
+  QCOMPARE (modes->currentIndex (), 7);
+  QVERIFY (QMetaObject::invokeMethod (modes, "activated", Q_ARG (int, 7)));
+  QCOMPARE (modes->currentIndex (), 4);
+  QCOMPARE (modes->currentData ().toString (), QStringLiteral ("book"));
+  QCOMPARE (modes->iconSize (), QSize (16, 16));
+  QCOMPARE (modes->minimumContentsLength (), 9);
+}
+
+void
+TestToolbarController::presentationCustomizeOpensPaneWithoutChangingMode () {
+  QTMMainTabWindow shell;
+  shell.resize (1100, 700);
+  shell.show ();
+  auto* modes= shell.findChild<QComboBox*> ("athenaPresentationMode");
+  QVERIFY (modes != nullptr);
+  modes->setCurrentIndex (4);
+  modes->showPopup ();
+  QVERIFY (modes->view ()->isVisible ());
+  const auto custom= modes->model ()->index (7, 0);
+  const QPoint position= modes->view ()->visualRect (custom).center ();
+  QVERIFY (modes->view ()->visualRect (custom).isValid ());
+  QTest::mouseClick (modes->view ()->viewport (), Qt::LeftButton,
+                     Qt::NoModifier, position);
+  QTRY_VERIFY (shell.findChild<ads::CDockWidget*> (
+    "athena-page-properties-pane") != nullptr);
+  QCOMPARE (modes->currentData ().toString (), QStringLiteral ("book"));
+}
+
+void
+TestToolbarController::documentMenuCommandsAppearInPalette () {
+  QTMCommandRegistry& registry= QTMCommandRegistry::instance ();
+  QVERIFY (registry.initialize ());
+  const auto* menu= registry.menu ("document");
+  QVERIFY (menu != nullptr);
+  QVERIFY (!menu->items.isEmpty ());
+  QCOMPARE (menu->items[0].providerId, QStringLiteral ("document-menu"));
+  QVERIFY (menu->items[0].showInPalette);
 }
 
 void

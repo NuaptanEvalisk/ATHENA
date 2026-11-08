@@ -84,7 +84,7 @@ void update_reference_preview () {
   if (tip) {
     tooltip_show (preview_id,
       get_current_editor ()->the_subtree (path_up (get_current_editor ()->the_path ())),
-      *tip, "auto", "auto", "keyboard", 0.6);
+       *tip, "auto", "auto", "keyboard");
     if (inferred)
       get_current_editor ()->set_message (
         tree (CONCAT, compound ("verbatim", original_id), " <rightarrow> ",

@@ -122,6 +122,9 @@ edit_env_rep::mark_execution_boundary () {
 
 void
 edit_env_rep::write_value (string name, tree value, bool monitored, bool refresh) {
+  // Ignore retired magnification assignments without recording environment
+  // dependencies or installing a replacement variable.
+  if (name == MAGNIFICATION) return;
   record_variable_write (name, &value);
   synchronize_definition_value (name, value);
   const bool changed= !env->contains (name) || env[name] != value;
@@ -133,6 +136,7 @@ edit_env_rep::write_value (string name, tree value, bool monitored, bool refresh
 
 void
 edit_env_rep::assign (string name, tree expression) {
+  if (name == MAGNIFICATION) return;
   tree value= exec (expression);
   track_definition (name, value);
   monitored_write_update (name, value);
@@ -140,6 +144,7 @@ edit_env_rep::assign (string name, tree expression) {
 
 void
 edit_env_rep::restore_local_value (string name, tree value, bool previously_present) {
+  if (name == MAGNIFICATION) return;
   if (previously_present) {
     record_variable_write (name, &value);
     // The enclosing scope restores the original binding after its values.
@@ -247,6 +252,8 @@ void
 edit_env_rep::write_env (hashmap<string,tree> user_env) {
   if (contract_events) contract_events->record (athena::contracts::evaluation_barrier {});
   env= copy (user_env);
+  // Old checkpoints can still contain the retired variable.
+  if (env->contains (MAGNIFICATION)) env->reset (MAGNIFICATION);
   initialize_value_inputs ();
   if (recorded_contexts) recorded_contexts->rebase ();
 }

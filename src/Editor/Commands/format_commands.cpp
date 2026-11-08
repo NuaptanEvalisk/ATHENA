@@ -364,13 +364,13 @@ void format_prompt (string prompt, std::optional<string> proposal,
 }
 
 void format_environment_prompt (string variable, format_prompt_action action) {
+  if (variable == MAGNIFICATION) return;
   static const struct { const char* variable; const char* label; } labels[] = {
     {"color", "Foreground color"},
     {"bg-color", "Background color"},
     {"locus-color", "Color of loci"},
     {"visited-color", "Color of visited loci"},
     {"radioactive-link-color", "Color of automatic artifact links"},
-    {"magnification", "Magnification"},
     {"font-base-size", "Font size"},
     {"dpi", "Dots per inch"},
     {"par-width", "Paragraph width"},

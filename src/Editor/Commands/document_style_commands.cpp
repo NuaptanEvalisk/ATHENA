@@ -410,7 +410,14 @@ document_set_main_style (string style) {
 
 void
 document_notify_new_style (string) {
+  editor ed= get_current_editor ();
+  const string before= ed->get_init_string ("page-medium");
   presentation_style_changed ();
+  // Some main styles (notably Beamer) select a presentation medium as part
+  // of changing the style. A previous user-facing mode selection must not
+  // mask that actual medium in the new presentation selector.
+  if (ed->get_init_string ("page-medium") != before)
+    ed->view_modes.selected_presentation= "";
 }
 
 bool
@@ -448,6 +455,19 @@ document_current_basic_theme (editor_rep* ed) {
   for (int i= 0; i < N(styles); ++i)
     if (style_catalog ().theme (styles[i])) return styles[i];
   return "plain";
+}
+
+string
+document_effective_theme (editor_rep* ed) {
+  // Explicit themes override the one provided by a main style such as
+  // Beamer's implicit bluish. Only the effective theme should be checked.
+  const auto styles= current_style_strings (ed);
+  for (int i=N(styles)-1; i>=0; --i)
+    if (style_catalog ().theme (styles[i])) return styles[i];
+  const auto themes= document_theme_names ();
+  for (int i=0; i<N(themes); ++i)
+    if (document_has_style_package (ed, themes[i])) return themes[i];
+  return "";
 }
 
 array<string>

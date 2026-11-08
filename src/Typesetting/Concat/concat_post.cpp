@@ -38,10 +38,8 @@ get_reference_font (box b, font fn) {
   // FIXME: the active font should really be part of 'line_item_rep'.
   // Currently, the font that is used for spacing parameters of scripts
   // can be completely unrelated to the fonts of the reference box and
-  // the fonts of the scripts.  This occurs for instance when typesetting
-  // (with "magnification" "10" [some box with limits]).  In such cases,
-  // the env->fn at the time that we actually attach the limits is
-  // typically ten times smaller than the font for the actual box.
+  // the fonts of the scripts.  The font of the reference box is the
+  // authoritative one when attaching its limits.
   if (b->get_type () != TEXT_BOX) return fn;
   else return b->get_leaf_font ();
 }

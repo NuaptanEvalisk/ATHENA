@@ -70,6 +70,37 @@ bar_ink_height (box b) {
 class EvaluationBarTest: public QObject {
   Q_OBJECT
 private slots:
+  void retiredMagnificationIsNotAnEnvironmentVariable () {
+    athena::contracts::evaluation_state contract_state (
+      athena::contracts::builtin_contracts ().snapshot ());
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    const SI length= env->as_length ("12pt");
+    const int fontSize= env->fn_size;
+    QVERIFY (!env->provides (MAGNIFICATION));
+    QCOMPARE (env->read (MAGNIFICATION), tree (UNINIT));
+
+    env->write_update (MAGNIFICATION, "4");
+    QCOMPARE (env->exec (tree (ASSIGN, "magnification", "7")), tree (""));
+    QCOMPARE (env->exec (tree (VALUE, "magnification")), tree ("1"));
+    const tree scoped= env->exec (tree (WITH, "magnification", "12",
+                                        tree (VALUE, "magnification")));
+    QVERIFY (is_func (scoped, WITH, 1));
+    QCOMPARE (scoped[0], tree ("1"));
+    hashmap<string,tree> legacy (UNINIT);
+    env->read_env (legacy);
+    legacy (MAGNIFICATION)= "9";
+    env->write_env (legacy);
+    env->update ();
+    QVERIFY (!env->provides (MAGNIFICATION));
+    QCOMPARE (env->read (MAGNIFICATION), tree (UNINIT));
+    QCOMPARE (env->as_length ("12pt"), length);
+    QCOMPARE (env->fn_size, fontSize);
+    QCOMPARE (env->get_double (ZOOM_FACTOR), 1.0);
+    QCOMPARE (env->get_double (MAGNIFY), 1.0);
+  }
+
   void nestedAngles_data () { growsWithBody_data (); }
   void nestedAngles () {
     QFETCH (QString, family);

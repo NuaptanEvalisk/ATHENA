@@ -682,6 +682,7 @@ edit_env_rep::exec_assign (tree t) {
   if (N(t)!=2) return tree (_ERROR, "bad assign");
   tree r= exec (t[0]);
   if (is_compound (r)) return tree (_ERROR, "bad assign");
+  if (r->label == MAGNIFICATION) return "";
   assign (r->label, copy (t[1]));
   // Macro-generated assignments are environment effects, not display content.
   // Suppress their returned trees only during HTML expansion. Assignments
@@ -698,6 +699,7 @@ edit_env_rep::exec_provide (tree t) {
   if (N(t)!=2) return tree (_ERROR, "bad provide");
   tree r= exec (t[0]);
   if (is_compound (r)) return tree (_ERROR, "bad provide");
+  if (r->label == MAGNIFICATION) return "";
   if (provides (r->label)) return "";
   assign (r->label, copy (t[1]));
   tree v= read (r->label);
@@ -715,12 +717,11 @@ edit_env_rep::exec_with (tree t) {
   tree r= exec (t[n-1]);
   scope.finish ();
 
-  tree u (WITH, n);
+  tree u (WITH);
   for (int i=0; i<int(bindings.size ()); i++) {
-    u[i<<1]    = bindings[i].name;
-    u[(i<<1)+1]= tree (QUOTE, bindings[i].value);
+    u << bindings[i].name << tree (QUOTE, bindings[i].value);
   }
-  u[n-1]= r;
+  u << r;
   athena::node::copy_metadata (t, u);
   return u;
 }
@@ -999,6 +1000,9 @@ edit_env_rep::exec_value (tree t) {
   if (N(t)<1) return tree (_ERROR, "bad value");
   tree r= exec (t[0]);
   if (is_compound (r)) return tree (_ERROR, "bad value");
+  // Historical style expressions use this value as a numeric multiplier.
+  // Substitute the literal identity without reading a variable.
+  if (r->label == MAGNIFICATION) return "1";
   return exec (read (r->label));
 }
 
@@ -1007,6 +1011,7 @@ edit_env_rep::exec_quote_value (tree t) {
   if (N(t)<1) return tree (_ERROR, "bad quote-value");
   tree r= exec (t[0]);
   if (is_compound (r)) return tree (_ERROR, "bad quote-value");
+  if (r->label == MAGNIFICATION) return "1";
   return read (r->label);
 }
 
@@ -1198,6 +1203,7 @@ edit_env_rep::exec_apply_theme_sub (string var) {
   while (is_compound (val, 1) && !is_func (val, WITH)) {
     string lab= as_string (L(val));
     r << exec_apply_theme_sub (lab);
+    val= val[N(val)-1];
   }
   if (is_func (val, WITH))
     for (int i=0; i+2<N(val); i+=2)
@@ -2241,7 +2247,8 @@ edit_env_rep::exec_pattern (tree t) {
   if (no_patterns && N(t) == 4 && is_atomic (t[3])) return exec (t[3]);
   url im= url_system (exec_string (t[0]));
   url image= is_procedural_gradient_url (im)? im:
-             resolve_pattern (relative (base_file_name, im));
+             resolve_pattern (is_rooted_tmfs (base_file_name)? im:
+                              relative (base_file_name, im));
   if (is_none (image)) return "white";
   int imw_pt, imh_pt;
   pattern_image_size (image, imw_pt, imh_pt);

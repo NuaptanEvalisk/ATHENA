@@ -58,7 +58,6 @@ initialize_default_env () {
   env (GLOBAL_TITLE)     = "";          // global document title
   env (GLOBAL_AUTHOR)    = "";          // global document author
   env (GLOBAL_SUBJECT)   = "";          // global document subject
-  env (LENGTH_MODE)      = "magnified"; // length units under magnification
 
   env (CURSOR_COLOR)     = get_preference ("gui cursor color", "red");
   env (MATH_CURSOR_COLOR)= "#b0f";      // cursor color in math mode
@@ -79,7 +78,6 @@ initialize_default_env () {
   env (FONT_SIZE)        = "1";         // the font size multiplier
   env (FONT_BASE_SIZE)   = "10";        // the font base size
   env (FONT_EFFECTS)     = "";          // additional effects applied to font
-  env (MAGNIFICATION)    = "1";         // magnification (slides for instance)
   env (COLOR)            = "black";     // the color
   env ("text-background-color") = "";    // background color for inline markup
   env (OPACITY)          = "100%";      // the opacity

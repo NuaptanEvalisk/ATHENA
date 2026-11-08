@@ -18,7 +18,7 @@
     {"id":"editor.focus.remove-tag","label":"Remove tag","category":"Focus","icon":"tm_focus_delete","help":"Remove the focused structure","palette":false},
     {"id":"editor.focus.set-main-style","label":"Document style","category":"Focus","icon":"tm_style","help":"Set the main document style","palette":false},
     {"id":"editor.focus.document-font","label":"Document font","category":"Focus","icon":"tm_focus_font","help":"Choose the main document font","palette":false},
-    {"id":"editor.focus.page-properties","dock":"athena-page-properties-pane","label":"Page properties","category":"Focus","icon":"tm_portrait","help":"Open page properties","palette":false},
+    {"id":"editor.focus.page-properties","dock":"athena-page-properties-pane","label":"Customize presentation","category":"Focus","icon":"tm_portrait","help":"Customize presentation","palette":false},
     {"id":"editor.focus.slide-properties","dock":"athena-slide-properties","label":"Slide properties","category":"Focus","icon":"tm_landscape","help":"Open slide properties","palette":false},
     {"id":"editor.focus.metadata-properties","dock":"athena-metadata-properties-pane","label":"Metadata properties","category":"Focus","icon":"tm_title","help":"Open document metadata properties","palette":false},
     {"id":"editor.focus.table-properties","dock":"athena-table-properties","label":"Table properties","category":"Focus","icon":"tm_set_properties","help":"Open table properties","palette":false},

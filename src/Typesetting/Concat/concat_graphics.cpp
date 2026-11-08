@@ -18,15 +18,6 @@
 #include "matrix.hpp"
 #include "Typesetting/Concat/graphics_transform.hpp"
 
-#define BEGIN_MAGNIFY                                           \
-  tree new_mag= as_string (env->magn * env->mgfy);              \
-  tree old_mfy= env->local_begin (MAGNIFY, "1");                \
-  tree old_mag= env->local_begin (MAGNIFICATION, new_mag);
-
-#define END_MAGNIFY                             \
-  env->local_end (MAGNIFICATION, old_mag);      \
-  env->local_end (MAGNIFY, old_mfy);
-
 /******************************************************************************
 * Typesetting graphics
 ******************************************************************************/
@@ -41,7 +32,6 @@
 
 void
 concater_rep::typeset_graphics (tree t, path ip) {
-BEGIN_MAGNIFY
   env->update_color ();
   env->update_dash_style_unit ();
   grid gr= as_grid (env->read (GR_GRID));
@@ -86,16 +76,13 @@ BEGIN_MAGNIFY
   }
   print (b);
 
-END_MAGNIFY
 }
 
 void
 concater_rep::typeset_gr_group (tree t, path ip) {
-BEGIN_MAGNIFY
   array<box> bs;
   typeset_graphical (bs, t, ip);
   print (graphics_group_box (ip, bs));
-END_MAGNIFY
 }
 
 void
@@ -206,7 +193,6 @@ concater_rep::typeset_gr_effect (tree t, path ip) {
 
 void
 concater_rep::typeset_text_at (tree t, path ip) {
-BEGIN_MAGNIFY
   if (N(t) != 2) typeset_error (t, ip);
   else {
     box    b     = typeset_as_concat (env, t[0], descend (ip, 0));
@@ -236,12 +222,10 @@ BEGIN_MAGNIFY
                                        x + b->x2 + pad, y + b->y2 + pad);
     }
   }
-END_MAGNIFY
 }
 
 void
 concater_rep::typeset_math_at (tree t, path ip) {
-BEGIN_MAGNIFY
   if (N(t) != 2) typeset_error (t, ip);
   else {
     // FIXME: attaching an ip to compound ("math", t[0]) is a bit hacky,
@@ -273,12 +257,10 @@ BEGIN_MAGNIFY
                                        x + b->x2 + pad, y + b->y2 + pad);
     }
   }
-END_MAGNIFY
 }
 
 void
 concater_rep::typeset_document_at (tree t, path ip) {
-BEGIN_MAGNIFY
   if (N(t) != 2) typeset_error (t, ip);
   else {
     // FIXME: attaching ip to compound ("paragraph-box", t[0]) is a bit hacky,
@@ -310,12 +292,10 @@ BEGIN_MAGNIFY
                                        x + b->x2 + pad, y + b->y2 + pad);
     }
   }
-END_MAGNIFY
 }
 
 void
 concater_rep::typeset_point (tree t, path ip) {
-BEGIN_MAGNIFY
   if (N(t) < 2) typeset_error (t, ip);
   else {
     int i, n= N(t);
@@ -327,7 +307,6 @@ BEGIN_MAGNIFY
     print (point_box (ip, p, env->point_size, pen,
                       env->fill_brush, env->point_style));
   }
-END_MAGNIFY
 }
 
 static tree
@@ -413,7 +392,6 @@ adjust_extremities (curve& c, array<rectangle> a) {
 
 void
 concater_rep::typeset_line (tree t, path ip, bool close) {
-BEGIN_MAGNIFY
   int i, n= N(t);
   array<point> a(n);
   for (i=0; i<n; i++)
@@ -437,12 +415,10 @@ BEGIN_MAGNIFY
                       env->dash_style, env->dash_motif, env->dash_style_unit,
                       env->fill_brush, typeset_line_arrows (ip)));
   }
-END_MAGNIFY
 }
 
 void
 concater_rep::typeset_arc (tree t, path ip, bool close) {
-BEGIN_MAGNIFY
   int i, n= N(t);
   array<point> a(n);
   for (i=0; i<n; i++)
@@ -464,12 +440,10 @@ BEGIN_MAGNIFY
                         env->fill_brush, typeset_line_arrows (ip)));
     }
   }
-END_MAGNIFY
 }
 
 void
 concater_rep::typeset_spline (tree t, path ip, bool close) {
-BEGIN_MAGNIFY
   int i, n= N(t);
   array<point> a(n);
   for (i=0; i<n; i++)
@@ -489,7 +463,6 @@ BEGIN_MAGNIFY
                       env->dash_style, env->dash_motif, env->dash_style_unit,
                       env->fill_brush, typeset_line_arrows (ip)));
   }
-END_MAGNIFY
 }
 
 void
@@ -505,7 +478,6 @@ concater_rep::typeset_cspline (tree t, path ip) {
 
 void
 concater_rep::typeset_bezier (tree t, path ip) {
-BEGIN_MAGNIFY
   int i, n= N(t);
   array<point> a(n);
   for (i=0; i<n; i++)
@@ -532,7 +504,6 @@ BEGIN_MAGNIFY
                       env->dash_style, env->dash_motif, env->dash_style_unit,
                       env->fill_brush, typeset_line_arrows (ip)));
   }
-END_MAGNIFY
 }
 
 void
@@ -556,7 +527,6 @@ project2 (array<point> a) {
 
 void
 concater_rep::typeset_penscript (tree t, path ip) {
-BEGIN_MAGNIFY
   if (N(t) < 4 || N(t[N(t)-1]) < 1) typeset_error (t, ip);
   else {
     int i, n= N(t), k=N(t[n-1]);
@@ -660,7 +630,6 @@ BEGIN_MAGNIFY
     print (composite_box (ip, sb));
     */
   }
-END_MAGNIFY
 }
 
 /******************************************************************************
@@ -871,7 +840,6 @@ as_spacial (tree t) {
 
 void
 concater_rep::typeset_graphics_3d (tree t, path ip) {
-BEGIN_MAGNIFY
   point o = env->fr (point (0.0, 0.0));
   point ux= env->fr (point (1.0, 0.0));
   point uy= env->fr (point (0.0, 1.0));
@@ -891,5 +859,4 @@ BEGIN_MAGNIFY
     typeset_dynamic (tree (_ERROR, "bad spacial object"), ip);
   else
     print (spacial_box (ip, transformed (obj, vt)));
-END_MAGNIFY
 }

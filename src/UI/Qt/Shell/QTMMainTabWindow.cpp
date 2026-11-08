@@ -12,6 +12,8 @@
 #include "UI/Qt/Dialogs/QTMErrorMessagesPane.hpp"
 #include "UI/Qt/Editor/QTMGlobalSearch.hpp"
 #include "UI/Qt/Widgets/QTMWidget.hpp"
+#include "UI/Qt/Toolkit/qt_actor_widget.hpp"
+#include "UI/Qt/Document/QTMPagePropertiesPane.hpp"
 #include "UI/Qt/Shell/QTMWindow.hpp"
 #include "UI/Qt/Document/QTMOutlinePane.hpp"
 #include "UI/Qt/Document/QTMDocumentHistoryPane.hpp"
@@ -30,6 +32,11 @@
 #include "vault.hpp"
 
 #include <QApplication>
+#include <QAbstractItemView>
+#include <QComboBox>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QSignalBlocker>
 #include <QByteArray>
 #include <QCloseEvent>
 #include <QToolButton>
@@ -171,20 +178,91 @@ installApplicationBackgroundStatus (QTMMainTabWindow* shell, QMainWindow* host) 
   row->setContentsMargins (8, 0, 8, 0);
   row->setSpacing (12);
   QLabel* center= new QLabel (contents);
-  QLabel* right= new QLabel (contents);
   center->setObjectName (QStringLiteral ("athenaStatusCenter"));
-  right->setObjectName (QStringLiteral ("athenaStatusRight"));
   center->setAlignment (Qt::AlignCenter);
-  right->setAlignment (Qt::AlignRight | Qt::AlignVCenter);
   center->setMinimumWidth (0);
-  right->setMinimumWidth (0);
   center->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Preferred);
-  right->setSizePolicy (QSizePolicy::Ignored, QSizePolicy::Preferred);
-  // Equal, content-independent columns keep the document status centered
-  // across worker rotation, progress visibility and changing cursor details.
+  auto* presentation= new QWidget (contents);
+  presentation->setObjectName (QStringLiteral ("athenaPresentationSelector"));
+  auto* presentationRow= new QHBoxLayout (presentation);
+  presentationRow->setContentsMargins (0, 0, 0, 0);
+  presentationRow->setSpacing (6);
+  auto* modes= new QComboBox (presentation);
+  modes->setObjectName (QStringLiteral ("athenaPresentationMode"));
+  modes->setAccessibleName (QObject::tr ("Presentation mode"));
+  modes->setIconSize (QSize (16, 16));
+  const auto addPresentationMode= [modes] (const char* label, const char* value,
+                                           const char* icon) {
+    modes->addItem (tmapp ()->icon_manager ().getIcon (url (icon)),
+                    QObject::tr (label), QString::fromLatin1 (value));
+  };
+  addPresentationMode ("Reflow", "automatic", "presentation-mode-reflow");
+  addPresentationMode ("Scroll", "papyrus", "presentation-mode-scroll");
+  addPresentationMode ("Paper", "paper", "presentation-mode-paper");
+  addPresentationMode ("Slideshow", "beamer", "presentation-mode-slideshow");
+  addPresentationMode ("Book", "book", "presentation-mode-book");
+  addPresentationMode ("Panorama", "panorama", "presentation-mode-panorama");
+  const int customizeIndex= modes->count () + 1;
+  modes->insertSeparator (modes->count ());
+  modes->addItem (tmapp ()->icon_manager ().getIcon (
+                    url ("presentation-mode-customize")),
+                  QObject::tr ("Customize..."));
+  modes->setItemData (customizeIndex, QStringLiteral ("customize"));
+  modes->setMinimumContentsLength (9);
+  modes->setSizeAdjustPolicy (QComboBox::AdjustToMinimumContentsLengthWithIcon);
+  modes->setSizePolicy (QSizePolicy::Fixed, QSizePolicy::Preferred);
+  modes->setProperty ("athenaLastModeIndex", 0);
+  // The selected control stays compact; the popup can accommodate its longer
+  // Customize action without enlarging the entire status bar.
+  modes->view ()->setMinimumWidth (
+    modes->fontMetrics ().horizontalAdvance (QObject::tr ("Customize...")) +
+    modes->iconSize ().width () + 52);
+  presentationRow->addStretch (1);
+  presentationRow->addWidget (modes);
+  auto currentProxy= [shell, host] () -> qt_actor_widget_rep* {
+    QWidget* pane= shell->activeWorkPaneWidget (host->window ());
+    QTMWidget* canvas= qobject_cast<QTMWidget*> (pane);
+    if (!canvas)
+      if (auto* document= qobject_cast<QTMWindow*> (pane))
+        canvas= document->editorCanvas ();
+    if (!canvas) {
+      pane= shell->lastActiveDocumentWidget (host->window ());
+      canvas= qobject_cast<QTMWidget*> (pane);
+      if (!canvas)
+        if (auto* document= qobject_cast<QTMWindow*> (pane))
+          canvas= document->editorCanvas ();
+    }
+    if (!canvas) return nullptr;
+    return dynamic_cast<qt_actor_widget_rep*> (canvas->tm_widget ());
+  };
+  QObject::connect (modes, QOverload<int>::of (&QComboBox::currentIndexChanged),
+    presentation, [modes] (int index) {
+      if (index >= 0 && index < 6)
+        modes->setProperty ("athenaLastModeIndex", index);
+    });
+  QObject::connect (modes, QOverload<int>::of (&QComboBox::activated),
+    presentation, [modes, currentProxy, customizeIndex] (int index) {
+      if (index == customizeIndex) {
+        // Qt emits currentIndexChanged before activated. Restore only after
+        // activation, otherwise resetting the index can swallow the action.
+        {
+          const QSignalBlocker blocker (modes);
+          modes->setCurrentIndex (modes->property ("athenaLastModeIndex").toInt ());
+        }
+        QTimer::singleShot (0, modes, [] { page_properties_pane_show (); });
+        return;
+      }
+      auto* proxy= currentProxy ();
+      if (!proxy || index < 0 || index >= 6) return;
+      const QJsonObject action {{QStringLiteral ("op"), QStringLiteral ("view-presentation-mode")},
+                                {QStringLiteral ("mode"), modes->itemData (index).toString ()}};
+      proxy->submit_editor_action (
+        QString::fromUtf8 (QJsonDocument (action).toJson (QJsonDocument::Compact)),
+        0, 0);
+    });
   row->addWidget (widget, 1);
   row->addWidget (center, 1);
-  row->addWidget (right, 1);
+  row->addWidget (presentation, 1);
   bar->addWidget (contents, 1);
   bar->setMinimumWidth (2);
 
@@ -192,17 +270,30 @@ installApplicationBackgroundStatus (QTMMainTabWindow* shell, QMainWindow* host) 
   timer->setInterval (160);
   QObject::connect (
     timer, &QTimer::timeout, widget,
-    [shell, host, center, right, widget, layout, indicator, title, progress, count, tick=0u] () mutable {
+    [shell, host, center, modes, currentProxy, widget, layout, indicator, title, progress, count, tick=0u] () mutable {
       const auto* document= qobject_cast<QTMWindow*> (
         shell->activeWorkPaneWidget (host->window ()));
       const auto status= document && document->editorStatus.visible ?
         document->editorStatus : QTMWindow::EditorStatus {};
       center->setToolTip (status.center);
-      right->setToolTip (status.right);
-      right->setText (right->fontMetrics ().elidedText (
-        status.right, Qt::ElideRight, right->width ()));
       center->setText (center->fontMetrics ().elidedText (
         status.center, Qt::ElideRight, center->width ()));
+      if (auto* proxy= currentProxy ()) {
+        const auto state= proxy->document_menu_state ();
+        modes->setEnabled (state.ready);
+        if (state.ready && !modes->view ()->isVisible ()) {
+          const QString rendering= state.page_rendering == "slideshow" ?
+            QStringLiteral ("beamer") :
+            QString::fromStdString (state.page_rendering);
+          const int index= modes->findData (rendering);
+          if (index >= 0 && index != modes->currentIndex ()) {
+            QSignalBlocker block (modes);
+            modes->setCurrentIndex (index);
+            modes->setProperty ("athenaLastModeIndex", index);
+          }
+        }
+      }
+      else modes->setEnabled (false);
       using athena::background::phase;
       const auto statuses= athena::background::snapshot ();
       auto name= [] (std::size_t i) { return QString::fromLatin1 (

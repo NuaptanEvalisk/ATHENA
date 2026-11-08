@@ -21,12 +21,16 @@
 tree
 evaluate_assign (tree t) {
   int i, n=N(t), k=n>>1;
-  assoc_environment local (k);
+  array<string> names;
+  array<tree> values;
   for (i=0; i<k; i++) {
     string var= as_string (evaluate (t[i<<1]));
-    tree   val= evaluate (t[(i<<1)+1]);
-    local->raw_write (i, var, val);
+    if (var == MAGNIFICATION) continue;
+    names << var;
+    values << evaluate (t[(i<<1)+1]);
   }
+  assoc_environment local (N(names));
+  for (i=0; i<N(names); ++i) local->raw_write (i, names[i], values[i]);
   assign (std_env, local);
   return "";
 }
@@ -34,14 +38,19 @@ evaluate_assign (tree t) {
 tree
 evaluate_with (tree t) {
   int i, n=N(t), k=(n-1)>>1;
-  assoc_environment local (k);
+  array<string> names;
+  array<tree> values;
   tree w (WITH);
   for (i=0; i<k; i++) {
     string var= as_string (evaluate (t[i<<1]));
-    tree   val= evaluate (t[(i<<1)+1]);
-    local->raw_write (i, var, val);
+    if (var == MAGNIFICATION) continue;
+    tree val= evaluate (t[(i<<1)+1]);
+    names << var;
+    values << val;
     w << var << val; // FIXME: don't add non-typesetter variables (?)
   }
+  assoc_environment local (N(names));
+  for (i=0; i<N(names); ++i) local->raw_write (i, names[i], values[i]);
   begin_with (std_env, local);
   tree r= evaluate (t[n-1]);
   end_with (std_env);
@@ -53,6 +62,7 @@ tree
 evaluate_provides (tree t) {
   tree r= evaluate (t[0]);
   if (is_compound (r)) return evaluate_error ("bad provides");
+  if (r->label == MAGNIFICATION) return "false";
   if (std_env->contains (r->label)) return "true"; else return "false";  
 }
 
@@ -60,6 +70,7 @@ tree
 evaluate_value (tree t) {
   tree r= evaluate (t[0]);
   if (is_compound (r)) return evaluate_error ("bad value");
+  if (r->label == MAGNIFICATION) return tree ("1");
   int key= make_tree_label (r->label);
   if (!std_env->contains (key)) return evaluate_error ("undefined", r);
   return evaluate (std_env[key]);
@@ -69,6 +80,7 @@ tree
 evaluate_quote_value (tree t) {
   tree r= evaluate (t[0]);
   if (is_compound (r)) return evaluate_error ("bad quoted value");
+  if (r->label == MAGNIFICATION) return tree ("1");
   int key= make_tree_label (r->label);
   if (!std_env->contains (key)) return evaluate_error ("undefined", r);
   return std_env[key];

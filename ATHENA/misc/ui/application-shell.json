@@ -2189,7 +2189,7 @@
       "id": "document",
       "label": "Document",
       "items": [
-        { "provider": "document-menu" }
+        { "provider": "document-menu", "palette": true }
       ]
     },
     {

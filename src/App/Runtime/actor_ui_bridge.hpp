@@ -209,7 +209,6 @@ struct actor_document_menu_snapshot {
   std::string document_font;
   std::string font_base_size;
   std::string document_language;
-  std::string magnification;
   std::string foreground_color;
   std::string info_flag;
   std::string page_rendering;

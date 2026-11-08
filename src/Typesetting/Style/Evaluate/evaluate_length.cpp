@@ -124,8 +124,6 @@ inline double std_zoom () {
   return as_double (std_env [ZOOM_FACTOR]); }
 inline int std_dpi () {
   return as_int (std_env [DPI]); }
-inline double std_magnification () {
-  return as_double (std_env [MAGNIFICATION]); }
 inline int std_font_base_size () {
   return as_int (std_env [FONT_BASE_SIZE]); }
 inline double std_font_size () {
@@ -151,7 +149,7 @@ std_fn () {
                        as_string (std_env [FONT_SERIES]),
                        as_string (std_env [FONT_SHAPE]),
                        script (fs, std_math_level ()),
-                       (int) (std_magnification () * std_dpi ()));
+                        std_dpi ());
   case 2:
     return smart_font (as_string (std_env [MATH_FONT]),
                        as_string (std_env [MATH_FONT_FAMILY]),
@@ -162,7 +160,7 @@ std_fn () {
                        as_string (std_env [FONT_SERIES]),
                        "mathitalic",
                        script (fs, std_math_level ()),
-                       (int) (std_magnification () * std_dpi ()));
+                        std_dpi ());
   case 3:
     return smart_font (as_string (std_env [PROG_FONT]),
                        as_string (std_env [PROG_FONT_FAMILY]),
@@ -173,7 +171,7 @@ std_fn () {
                        as_string (std_env [FONT_SERIES]),
                        as_string (std_env [FONT_SHAPE]),
                        script (fs, std_math_level ()),
-                       (int) (std_magnification () * std_dpi ()));
+                        std_dpi ());
   default:
     return get_default_font ();
   }
@@ -206,14 +204,14 @@ tree evaluate_cc_length () {
 
 tree
 evaluate_fs_length () {
-  double fs= (std_font_base_size () * std_magnification () *
+  double fs= (std_font_base_size () *
 	      std_inch () * std_font_size ()) / 72.0;
   return tree (TMLEN, as_string (fs));
 }
 
 tree
 evaluate_fbs_length () {
-  double fbs= (std_font_base_size () * std_magnification () *
+  double fbs= (std_font_base_size () *
 	       std_inch ()) / 72.0;
   return tree (TMLEN, as_string (fbs));
 }
@@ -231,14 +229,14 @@ tree evaluate_ex_length () {
 
 tree
 evaluate_fn_length () {
-  double fs= (std_font_base_size () * std_magnification () *
+  double fs= (std_font_base_size () *
 	      std_inch () * std_font_size ()) / 72.0;
   return tree (TMLEN, as_string (0.5*fs), as_string (fs), as_string (1.5*fs));
 }
 
 tree
 evaluate_fns_length () {
-  double fs= (std_font_base_size () * std_magnification () *
+  double fs= (std_font_base_size () *
 	      std_inch () * std_font_size ()) / 72.0;
   return tree (TMLEN, "0", "0", as_string (fs));
 }
@@ -261,7 +259,7 @@ as_vspace (tree t) {
 
 tree
 evaluate_bls_length () {
-  double fs= (std_font_base_size () * std_magnification () *
+  double fs= (std_font_base_size () *
 	      std_inch () * std_font_size ()) / 72.0;
   return tmlen_plus (tree (TMLEN, as_string (fs)),
 		     tree (as_vspace (std_env [PAR_SEP])));

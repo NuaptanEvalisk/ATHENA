@@ -51,7 +51,7 @@ SI vertical_position (SI y1, SI y2, SI wy, SI bh, SI sh, SI my, string align) {
 }
 
 void tooltip_show (string id, tree reference, tree content, string ha,
-                   string va, string type, double magnification) {
+                    string va, string type) {
   editor ed= get_current_editor ();
   const auto bounds= get_bounding_rectangle (reference);
   const auto mouse= ed->get_mouse_position ();
@@ -71,11 +71,11 @@ void tooltip_show (string id, tree reference, tree content, string ha,
     tree entry= inits[i];
     if (!is_func (entry, ASSOCIATE, 2) || !is_atomic (entry[0])) continue;
     string key= entry[0]->label;
-    if (starts (key,"page-") || key == "zoom-factor" || key == "full-screen-mode") continue;
+    if (starts (key,"page-") || key == "zoom-factor" ||
+        key == "full-screen-mode" || key == MAGNIFICATION) continue;
     document << entry[0] << entry[1];
   }
-  document << "magnification" << as_string (zoom*magnification)
-           << "project" << as_string (ed->get_name ())
+  document << "project" << as_string (ed->get_name ())
            << tree (SURROUND, compound ("hide-preamble", document_get_preamble (ed->the_buffer ())), "", content);
   tree packages= ed->get_style ();
   if (is_atomic (packages)) packages= tree (TUPLE, packages);

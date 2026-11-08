@@ -24,6 +24,7 @@ class QComboBox;
 class QFormLayout;
 class QGroupBox;
 class QLineEdit;
+class QPushButton;
 class QTabWidget;
 class QTimer;
 class QVBoxLayout;
@@ -38,6 +39,7 @@ public:
 
 private:
   QWidget* buildFormatTab ();
+  QWidget* buildPresentationTab ();
   QWidget* buildMarginsTab ();
   QWidget* buildBreakingTab ();
   QWidget* buildHeadersTab ();
@@ -46,6 +48,10 @@ private:
   void rebuildHeaderEditors ();
   void refreshAll ();
   void refreshFormat ();
+  void refreshPresentation ();
+  void loadCitationStyles ();
+  void applyPresentationAction (const QString& operation,
+                                const QString& name= QString ());
   void refreshMargins ();
   void refreshBreaking ();
   void refreshHeaders ();
@@ -78,11 +84,18 @@ private:
 
   url targetBuffer;
   bool loading;
+  bool citationLoading= false;
+  bool citationLoaded= false;
 
   QTabWidget* tabs;
   QTimer* timer;
 
-  QComboBox* renderingCombo;
+  QComboBox* presentationModeCombo;
+  QComboBox* styleCombo;
+  QComboBox* themeCombo;
+  QComboBox* citationCombo;
+  QPushButton* backgroundButton;
+  QPushButton* foregroundButton;
   QComboBox* pageTypeCombo;
   QComboBox* orientationCombo;
   QComboBox* firstPageCombo;

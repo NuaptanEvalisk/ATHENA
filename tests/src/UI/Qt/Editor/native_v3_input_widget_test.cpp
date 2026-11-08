@@ -14,6 +14,7 @@
 #include "App/Runtime/server.hpp"
 #include "UI/Qt/Shell/QTMApplication.hpp"
 #include "App/Window/tm_window.hpp"
+#include "App/Frontend/new_buffer.hpp"
 #include "App/Frontend/new_view.hpp"
 #include "App/Frontend/new_window.hpp"
 #include "Document/Model/source_document_creation.hpp"
@@ -29,6 +30,7 @@
 #include "native_dispatch.hpp"
 #include "App/Runtime/execution_context.hpp"
 #include "Editor/Commands/source_commands.hpp"
+#include "Editor/Commands/native_editor_actions.hpp"
 #include "sys_utils.hpp"
 #include "Domains/Knowledge/enunciation_model.hpp"
 #include "UI/Qt/Knowledge/QTMEnunciationSlots.hpp"
@@ -58,6 +60,98 @@ bool contains_label (const tree& source, tree_label label) {
 class TestNativeV3InputWidget: public QObject {
   Q_OBJECT
 private slots:
+  void beamerSceneThemesAndVirtualPatterns () {
+    const url name ("tmfs://aux/beamer-scene-theme-regression");
+    tree document (DOCUMENT, compound ("style", tuple ("beamer")),
+      compound ("body", tree (DOCUMENT, "Scene theme probe")));
+    create_buffer (name, document);
+    const url window= new_window (false);
+    const url view_url= get_passive_view (name);
+    window_set_view (window, view_url, true);
+    auto cleanup= qScopeGuard ([&] {
+      delete_window (window);
+      remove_buffer (name);
+    });
+    tm_view view= concrete_view (view_url);
+    QVERIFY (view != nullptr);
+    bool ice_selected= false, dark_changed= false, pattern_loaded= false;
+    const auto token= actor_continuation_registry::instance ().store ([&] {
+      editor ed= get_current_editor ();
+      const tree base_bg= ed->get_init_value ("bg-color");
+      const tree pattern= ed->texmacs_exec (tree (_PATTERN,
+        "ice-medium-blue.png", "*3/5", "*3/5", "pastel blue"));
+      pattern_loaded= is_func (pattern, _PATTERN);
+      native_editor_action_execute (ed, QJsonObject {
+        {"op", "document-package"}, {"action", "add"}, {"name", "ice"}});
+      for (const auto& choice: ed->document_menu_state_snapshot ().document_themes)
+        if (choice.value == "ice") ice_selected= choice.checked;
+      native_editor_action_execute (ed, QJsonObject {
+        {"op", "document-package"}, {"action", "add"}, {"name", "dark-vador"}});
+      dark_changed= ed->get_init_value ("bg-color") != base_bg;
+    });
+    QVERIFY (view->buf->actor->invoke (actor_command_kind::run_native_continuation,
+      view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
+      EXECUTION_CAPABILITY_BUFFER, token));
+    QVERIFY (pattern_loaded);
+    QVERIFY (ice_selected);
+    QVERIFY (dark_changed);
+  }
+
+  void beamerThemeUpdatesEffectiveDocumentColors () {
+    // Ctrl+N creates a scratch source buffer; exercise the actual menu path.
+    const url name= make_new_source_buffer ();
+    const url window= new_window (false);
+    const url view_url= get_passive_view (name);
+    window_set_view (window, view_url, true);
+    auto cleanup= qScopeGuard ([&] {
+      delete_window (window);
+      remove_buffer (name);
+    });
+    tm_view view= concrete_view (view_url);
+    QVERIFY (view != nullptr);
+    string before, after, restored;
+    bool explicit_color= true;
+    bool in_theme_menu= false, in_package_menu= false;
+    bool pale_blue_selected= false, bluish_still_selected= false;
+    bool bluish_restored= false;
+    const auto token= actor_continuation_registry::instance ().store ([&] {
+      editor ed= get_current_editor ();
+      native_editor_action_execute (ed, QJsonObject {
+        {"op", "set-main-style"}, {"style", "beamer"}});
+      explicit_color= ed->defined_in_init ("bg-color");
+      before= ed->get_init_string ("bg-color");
+      const auto state= ed->document_menu_state_snapshot ();
+      for (const auto& theme: state.document_themes)
+        if (theme.value == "pale-blue") in_theme_menu= true;
+      for (const auto& package: state.document_packages)
+        if (package.value == "pale-blue") in_package_menu= true;
+      native_editor_action_execute (ed, QJsonObject {
+        {"op", "document-package"}, {"action", "add"}, {"name", "pale-blue"}});
+      after= ed->get_init_string ("bg-color");
+      for (const auto& choice: ed->document_menu_state_snapshot ().document_themes) {
+        if (choice.value == "pale-blue") pale_blue_selected= choice.checked;
+        if (choice.value == "bluish") bluish_still_selected= choice.checked;
+      }
+      native_editor_action_execute (ed, QJsonObject {
+        {"op", "document-package"}, {"action", "add"}, {"name", "bluish"}});
+      restored= ed->get_init_string ("bg-color");
+      for (const auto& choice: ed->document_menu_state_snapshot ().document_themes)
+        if (choice.value == "bluish") bluish_restored= choice.checked;
+    });
+    QVERIFY (view->buf->actor->invoke (actor_command_kind::run_native_continuation,
+      view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr,
+      EXECUTION_CAPABILITY_BUFFER, token));
+    QVERIFY (!explicit_color);
+    QVERIFY (in_theme_menu);
+    QVERIFY (!in_package_menu);
+    QVERIFY (before != after);
+    QCOMPARE (after, string ("#f0f0ff"));
+    QVERIFY (pale_blue_selected);
+    QVERIFY (!bluish_still_selected);
+    QCOMPARE (restored, before);
+    QVERIFY (bluish_restored);
+  }
+
   void shippedBeamerDoesNotCrashPersonalMacroProvider () {
     const url name ("tmfs://aux/personal-macro-beamer");
     tree document (DOCUMENT, compound ("style", tuple ("beamer")),

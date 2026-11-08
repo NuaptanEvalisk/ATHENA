@@ -446,20 +446,19 @@ int document_panorama_packets () {
 
 string document_get_init_page_rendering () {
   editor ed= get_current_editor ();
+  if (ed->view_modes.selected_presentation != "")
+    return ed->view_modes.selected_presentation;
   if (ed->get_init_string ("page-border") == "attached") return "book";
   if (ed->get_init_string ("page-packet") != "1") return "panorama";
-  if (ed->get_init_string ("page-medium") == "paper" && !ed->inside ("slideshow"))
-    return "slideshow";
   return ed->get_init_string ("page-medium");
 }
 
 string document_get_init_page_rendering (editor_rep* ed) {
   if (ed == nullptr) return string ("");
+  if (ed->view_modes.selected_presentation != "")
+    return ed->view_modes.selected_presentation;
   if (ed->get_init_string ("page-border") == "attached") return "book";
   if (ed->get_init_string ("page-packet") != "1") return "panorama";
-  if (ed->get_init_string ("page-medium") == "paper" &&
-      !ed->inside ("slideshow"))
-    return "slideshow";
   return ed->get_init_string ("page-medium");
 }
 

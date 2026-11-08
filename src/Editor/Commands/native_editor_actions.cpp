@@ -19,6 +19,7 @@
 #include "Editor/Commands/reference_markup.hpp"
 #include "Editor/Commands/application_tools.hpp"
 #include "Editor/Commands/view_zoom.hpp"
+#include "Editor/Commands/view_modes.hpp"
 #include "Editor/Commands/view_controls.hpp"
 #include "Editor/Commands/native_input_events.hpp"
 #include "Editor/Commands/vault_navigation.hpp"
@@ -617,11 +618,18 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
              action.value ("kind").toString ()) ?
       true : fail_validation (error, "invalid focus link display kind");
   if (op == "init-env")
-    return has_string (action, "var") && has_string (action, "value") ?
-             true : fail_validation (error, "init-env requires var/value");
+    return has_string (action, "var") && has_string (action, "value") &&
+           action.value ("var").toString () != "magnification" ?
+              true : fail_validation (error, "invalid init-env variable or value");
+  if (op == "view-presentation-mode")
+    return has_string (action, "mode") &&
+           QSet<QString> {"automatic", "papyrus", "paper", "beamer",
+                          "book", "panorama"}.contains (action.value ("mode").toString ()) ?
+      true : fail_validation (error, "invalid presentation mode");
   if (op == "init-default")
-    return has_string (action, "var") ?
-             true : fail_validation (error, "init-default requires var");
+    return has_string (action, "var") &&
+           action.value ("var").toString () != "magnification" ?
+           true : fail_validation (error, "invalid init-default variable");
   if (op == "set-main-style")
     return has_string (action, "style") ?
              true : fail_validation (error, "set-main-style requires style");
@@ -1021,7 +1029,9 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
   else if (op == "init-env")
     ed->init_env (
       native_action_string (action.value ("var")),
-      tree (native_action_string (action.value ("value"))));
+       tree (native_action_string (action.value ("value"))));
+  else if (op == "view-presentation-mode")
+    view_init_page_rendering (native_action_string (action.value ("mode")));
   else if (op == "init-default")
     ed->init_default (native_action_string (action.value ("var")));
   else if (op == "set-main-style")
@@ -1045,6 +1055,12 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
         available= true;
         break;
       }
+    bool theme= false;
+    for (const auto& choice: state.document_themes)
+      if (choice.value == nativeName) {
+        available= theme= true;
+        break;
+      }
     bool current= false;
     for (const auto& package: state.current_packages)
       if (package.value == nativeName) {
@@ -1052,7 +1068,10 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
         break;
       }
     if (kind == "add" && available) {
-      if (!document_has_style_package (name))
+      // Themes are intentionally absent from the ordinary Add package list.
+      // Always allow a selected theme to replace an inherited main-style
+      // theme, such as Beamer's implicit bluish.
+      if (theme || !document_has_style_package (name))
         document_add_style_package (name);
     }
     else if (kind == "toggle" && available)
@@ -1615,6 +1634,12 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
         available= true;
         break;
       }
+    bool theme= false;
+    for (const auto& choice: state.document_themes)
+      if (choice.value == nativeName) {
+        available= theme= true;
+        break;
+      }
     bool current= false;
     for (const auto& package: state.current_packages)
       if (package.value == nativeName) {
@@ -1622,7 +1647,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
         break;
       }
     if (kind == "add" && available) {
-      if (!document_has_style_package (name))
+      if (theme || !document_has_style_package (name))
         document_add_style_package (name);
     }
     else if (kind == "toggle" && available)

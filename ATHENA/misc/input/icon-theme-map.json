@@ -28,6 +28,27 @@
     "tm_wide_under"
   ],
   "icons": {
+    "presentation-mode-reflow": {
+      "libreoffice": ["cmd/32/editdoc.svg"]
+    },
+    "presentation-mode-scroll": {
+      "libreoffice": ["cmd/32/scrollbar.svg"]
+    },
+    "presentation-mode-paper": {
+      "libreoffice": ["cmd/32/showsinglepage.svg"]
+    },
+    "presentation-mode-slideshow": {
+      "libreoffice": ["cmd/32/presentation.svg"]
+    },
+    "presentation-mode-book": {
+      "libreoffice": ["cmd/32/showbookview.svg"]
+    },
+    "presentation-mode-panorama": {
+      "libreoffice": ["cmd/32/showmultiplepages.svg"]
+    },
+    "presentation-mode-customize": {
+      "libreoffice": ["cmd/32/configuredialog.svg"]
+    },
     "application-exit": {
       "theme": ["application-exit"],
       "libreoffice": ["cmd/32/quit.svg"]

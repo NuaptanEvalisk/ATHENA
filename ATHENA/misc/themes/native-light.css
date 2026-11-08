@@ -24,6 +24,33 @@ QStatusBar::item, QStatusBar QWidget {
     border: 0px;
 }
 
+/* Compact presentation control uses ATHENA's palette rather than native
+   desktop combo chrome. The popup contains the separate Customize action. */
+QStatusBar QComboBox#athenaPresentationMode {
+    background: palette(base);
+    color: palette(text);
+    border: 1px solid palette(mid);
+    border-radius: 4px;
+    padding: 1px 20px 1px 5px;
+    min-height: 17px;
+}
+QStatusBar QComboBox#athenaPresentationMode:hover,
+QStatusBar QComboBox#athenaPresentationMode:focus {
+    border-color: palette(highlight);
+}
+QStatusBar QComboBox#athenaPresentationMode::drop-down {
+    width: 18px;
+    border: none;
+}
+QComboBox#athenaPresentationMode QAbstractItemView {
+    color: palette(text);
+    background: palette(base);
+    selection-color: palette(highlighted-text);
+    selection-background-color: palette(highlight);
+    border: 1px solid palette(mid);
+    outline: none;
+}
+
 NomacQComboBox {
     min-height: 18px;
 }

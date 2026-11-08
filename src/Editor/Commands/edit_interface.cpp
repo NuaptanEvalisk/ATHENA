@@ -882,7 +882,6 @@ editor_rep::document_menu_state_snapshot () {
     document_font_display_name (get_init_string ("font")));
   assign (snapshot.font_base_size, get_init_string ("font-base-size"));
   assign (snapshot.document_language, document_get_language (this));
-  assign (snapshot.magnification, get_init_string ("magnification"));
   assign (snapshot.foreground_color, get_init_string ("color"));
   assign (snapshot.info_flag, get_init_string ("info-flag"));
   assign (snapshot.page_rendering, document_get_init_page_rendering (this));
@@ -921,13 +920,14 @@ editor_rep::document_menu_state_snapshot () {
   }
   string themeKind= snapshot.beamer_style ? string ("beamer"): string ("basic");
   assign (snapshot.document_theme_kind, themeKind);
+  const string effective_theme= document_effective_theme (this);
   auto append_theme_list=
     [&] (array<string> themes,
          std::vector<actor_focus_choice_snapshot>& target) {
       for (int i= 0; i < N(themes); ++i)
         append_choice (
           target, themes[i],
-          document_has_style_package (this, themes[i]));
+           themes[i] == effective_theme);
     };
   if (snapshot.beamer_style) {
     append_theme_list (document_theme_names (), snapshot.document_themes);
@@ -1638,13 +1638,14 @@ editor_rep::focus_toolbar_state_snapshot () {
     snapshot.document_theme_kind.assign (
       themeKind.data (), static_cast<std::size_t> (N(themeKind)));
 
+    const string effective_theme= document_effective_theme (this);
     auto append_theme_list=
       [&] (array<string> themes,
            std::vector<actor_focus_choice_snapshot>& target) {
         for (int i= 0; i < N(themes); ++i)
           append_choice (
             target, themes[i],
-            document_has_style_package (this, themes[i]));
+             themes[i] == effective_theme);
       };
     if (snapshot.beamer_style) {
       append_theme_list (document_theme_names (), snapshot.document_themes);

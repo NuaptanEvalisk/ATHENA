@@ -243,24 +243,10 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
       append_item (out, "font", QObject::tr ("Font..."), QString (), writable);
       append_item (
         out, "paragraph", QObject::tr ("Paragraph..."), QString (), writable);
-      append_item (out, "page", QObject::tr ("Page..."), QString (), writable);
+      append_item (out, "page", QObject::tr ("Customize presentation..."),
+                   QString (), writable);
       append_item (
         out, "metadata", QObject::tr ("Metadata..."), QString (), writable);
-
-      static const char* magnifications[]= {
-        "0.7", "0.8", "1", "1.2", "1.4", "1.7", "2"
-      };
-      append_item (
-        out, "magnification/default", QObject::tr ("Default"),
-        QObject::tr ("Magnification"), writable);
-      for (const char* value: magnifications)
-        append_item (
-          out, QStringLiteral ("magnification/%1").arg (value),
-          QString::fromLatin1 (value), QObject::tr ("Magnification"), writable,
-          true, qs (document.magnification) == QString::fromLatin1 (value));
-      append_item (
-        out, "magnification/other", QObject::tr ("Other..."),
-        QObject::tr ("Magnification"), writable);
 
       append_item (
         out, "color/background-default", QObject::tr ("Default"),
@@ -482,31 +468,6 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
       if (key == QStringLiteral ("metadata"))
         return submit_business (context, "open-document-metadata");
 
-      if (key.startsWith (QStringLiteral ("magnification/"))) {
-        QString value= key.mid (14);
-        QJsonObject action;
-        if (value == QStringLiteral ("default")) {
-          action.insert ("op", "init-default");
-          action.insert ("var", "magnification");
-        }
-        else {
-          if (value == QStringLiteral ("other")) {
-            bool ok= false;
-            double current= qs (document.magnification).toDouble (&ok);
-            if (!ok || current <= 0.0) current= 1.0;
-            double selected= QInputDialog::getDouble (
-              context.shell.data (), QObject::tr ("Magnification"),
-              QObject::tr ("Magnification:"), current, 0.01, 100.0, 3, &ok);
-            if (!ok) return true;
-            value= QString::number (selected, 'g', 6);
-          }
-          action.insert ("op", "init-env");
-          action.insert ("var", "magnification");
-          action.insert ("value", value);
-        }
-        return submit_inline_editor_action (
-          context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
-      }
       if (key.startsWith (QStringLiteral ("color/"))) {
         QString kind= key.mid (6);
         QJsonObject action;

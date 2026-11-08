@@ -848,17 +848,20 @@ edit_typeset_rep::get_env_value (string var) {
 
 bool
 edit_typeset_rep::defined_at_init (string var) {
+  if (var == MAGNIFICATION) return false;
   if (init->contains (var)) return true;
   return pre->contains (var);
 }
 
 bool
 edit_typeset_rep::defined_in_init (string var) {
+  if (var == MAGNIFICATION) return false;
   return init->contains (var);
 }
 
 tree
 edit_typeset_rep::get_init_value (string var) {
+  if (var == MAGNIFICATION) return tree (UNINIT);
   tree t= var == BG_COLOR ? initial_background :
     init->contains (var) ? init[var] : pre->value (var);
   return is_func (t, BACKUP, 2)? t[0]: t;
@@ -1355,6 +1358,7 @@ edit_typeset_rep::get_init_all () {
 
 void
 edit_typeset_rep::init_env (string var, tree by) {
+  if (var == MAGNIFICATION) return;
   if (init (var) == by) return;
   init (var)= by;
   prepare_initial_background ();
@@ -1368,6 +1372,7 @@ edit_typeset_rep::init_env (string var, tree by) {
 
 void
 edit_typeset_rep::init_default (string var) {
+  if (var == MAGNIFICATION) return;
   if (!init->contains (var)) return;
   init->reset (var);
   notify_change (THE_ENVIRONMENT);

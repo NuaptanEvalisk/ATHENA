@@ -7,6 +7,7 @@ class editor_rep;
 struct editor_view_modes {
   tree informative_flags= "default";
   string panorama_revert= "paper", slideshow_revert= "paper";
+  string selected_presentation;
   bool pending= false;
   int fullscreen_wait= -1;
   string zoom_mode;

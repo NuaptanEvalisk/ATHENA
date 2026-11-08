@@ -33,7 +33,6 @@ extern string WARN_MISSING;
 extern string GLOBAL_TITLE;
 extern string GLOBAL_AUTHOR;
 extern string GLOBAL_SUBJECT;
-extern string LENGTH_MODE;
 
 extern string CURSOR_COLOR;
 extern string MATH_CURSOR_COLOR;

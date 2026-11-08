@@ -1,6 +1,6 @@
 /******************************************************************************
 * MODULE     : QTMPagePropertiesPane.cpp
-* DESCRIPTION: Native ADS pane for document page properties
+* DESCRIPTION: Native ADS pane for presentation customization
 * COPYRIGHT  : (C) 2026  Felix
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -11,10 +11,19 @@
 #include "UI/Qt/Document/QTMPagePropertiesPane.hpp"
 
 #include "UI/Qt/Shell/QTMMainTabWindow.hpp"
+#include "UI/Qt/Shell/QTMWindow.hpp"
+#include "UI/Qt/Widgets/QTMWidget.hpp"
+#include "UI/Qt/Toolkit/qt_actor_widget.hpp"
+#include "App/Runtime/tm_buffer.hpp"
+#include "App/Runtime/buffer_actor.hpp"
+#include "Materials/Model/materials_engine.hpp"
 #include "new_buffer.hpp"
 #include "UI/Qt/Toolkit/qt_utilities.hpp"
 #include "UI/Qt/Toolkit/qt_widget.hpp"
 #include "document_commands.hpp"
+#include "Editor/Commands/document_style_commands.hpp"
+#include "Editor/Commands/native_editor_actions.hpp"
+#include "native_interfaces.hpp"
 #include "Editor/editor.hpp"
 #include "insertion_commands.hpp"
 #include "new_view.hpp"
@@ -23,12 +32,16 @@
 
 #include <DockWidget.h>
 #include <QApplication>
+#include <QAbstractItemView>
+#include <QCoreApplication>
 #include <QCheckBox>
+#include <QColorDialog>
 #include <QComboBox>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QJsonObject>
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QPushButton>
@@ -36,6 +49,7 @@
 #include <QSignalBlocker>
 #include <QTabWidget>
 #include <QThread>
+#include <QThreadPool>
 #include <QTimer>
 #include <QVBoxLayout>
 #include <algorithm>
@@ -74,7 +88,9 @@ lower_page_type (const QString& value) {
 
 QTMPagePropertiesPane::QTMPagePropertiesPane (QWidget* parent)
   : QWidget (parent), loading (false), tabs (new QTabWidget (this)),
-    timer (new QTimer (this)), renderingCombo (nullptr),
+    timer (new QTimer (this)),
+    presentationModeCombo (nullptr), styleCombo (nullptr), themeCombo (nullptr),
+    citationCombo (nullptr), backgroundButton (nullptr), foregroundButton (nullptr),
     pageTypeCombo (nullptr), orientationCombo (nullptr),
     firstPageCombo (nullptr), cropMarksCombo (nullptr),
     userPageWidget (nullptr), pageWidthEdit (nullptr),
@@ -88,14 +104,19 @@ QTMPagePropertiesPane::QTMPagePropertiesPane (QWidget* parent)
   layout->setSpacing (6);
   layout->addWidget (tabs);
 
-  tabs->addTab (buildFormatTab (), "Format");
+  tabs->addTab (buildPresentationTab (), "Presentation");
+  tabs->addTab (buildFormatTab (), "Page geometry");
   tabs->addTab (buildMarginsTab (), "Margins");
   tabs->addTab (buildBreakingTab (), "Page Breaking");
   tabs->addTab (buildHeadersTab (), "Headers");
+  connect (tabs, &QTabWidget::currentChanged, this,
+           [this] (int) { refreshAll (); });
 
   timer->setInterval (700);
   connect (timer, &QTimer::timeout, this, [this] () {
     refreshFromCurrentBuffer ();
+    if (isVisible () && tabs->currentIndex () == 0)
+      refreshPresentation ();
   });
   timer->start ();
   refreshFromCurrentBuffer ();
@@ -115,6 +136,77 @@ QTMPagePropertiesPane::formPage (QVBoxLayout*& layout) {
   layout->setContentsMargins (10, 10, 10, 10);
   layout->setSpacing (10);
   scroll->setWidget (page);
+  return scroll;
+}
+
+QWidget*
+QTMPagePropertiesPane::buildPresentationTab () {
+  QVBoxLayout* layout;
+  QWidget* scroll= formPage (layout);
+  auto* form= new QFormLayout ();
+  form->setFieldGrowthPolicy (QFormLayout::AllNonFixedFieldsGrow);
+  presentationModeCombo= combo ({"Reflow", "Scroll", "Paper",
+                                 "Slideshow", "Book", "Panorama"});
+  addRow (form, "Presentation mode", presentationModeCombo);
+  connect (presentationModeCombo, &QComboBox::currentTextChanged,
+    this, [this] (const QString& value) {
+      if (loading) return;
+      qt_with_buffer (targetBuffer, [mode= encodeRendering (value)] {
+        view_init_page_rendering (tm_string (mode));
+      });
+    });
+  styleCombo= combo ({});
+  addRow (form, "Style", styleCombo);
+  connect (styleCombo, QOverload<int>::of (&QComboBox::activated), this, [this] (int index) {
+    if (loading || index < 0) return;
+    applyPresentationAction ("set-main-style", styleCombo->itemData (index).toString ());
+  });
+  themeCombo= combo ({});
+  addRow (form, "Theme", themeCombo);
+  connect (themeCombo, QOverload<int>::of (&QComboBox::activated), this, [this] (int index) {
+    if (loading || index < 0) return;
+    applyPresentationAction ("theme", themeCombo->itemData (index).toString ());
+  });
+  citationCombo= combo ({});
+  addRow (form, "Citation style", citationCombo);
+  connect (citationCombo, QOverload<int>::of (&QComboBox::activated), this, [this] (int index) {
+    if (loading || index < 0) return;
+    applyPresentationAction ("citation", citationCombo->itemData (index).toString ());
+  });
+  const auto addColorRow= [this, form] (const QString& label,
+                                       const QString& variable, QPushButton*& button) {
+    auto* controls= new QWidget (this);
+    auto* row= new QHBoxLayout (controls);
+    row->setContentsMargins (0, 0, 0, 0);
+    button= new QPushButton ("Choose color…", controls);
+    auto* reset= new QPushButton ("Default", controls);
+    row->addWidget (button, 1);
+    row->addWidget (reset);
+    connect (button, &QPushButton::clicked, this, [this, variable] {
+      const QColor initial (getString (variable));
+      const QColor chosen= QColorDialog::getColor (
+        initial.isValid () ? initial : Qt::white, this,
+        variable == "bg-color" ? "Presentation background" : "Presentation foreground");
+      if (chosen.isValid ()) {
+        setString (variable, chosen.name ());
+        refreshPresentation ();
+      }
+    });
+    connect (reset, &QPushButton::clicked, this, [this, variable] {
+      resetVariables ({variable});
+      refreshPresentation ();
+    });
+    addRow (form, label, controls);
+  };
+  addColorRow ("Background", "bg-color", backgroundButton);
+  addColorRow ("Foreground", "color", foregroundButton);
+  layout->addLayout (form);
+  auto* note= new QLabel (
+    "These settings control how the knowledge content is presented. "
+    "The underlying theorem, proof and reference nodes are unchanged.", this);
+  note->setWordWrap (true);
+  layout->addWidget (note);
+  layout->addStretch (1);
   return scroll;
 }
 
@@ -172,20 +264,6 @@ QTMPagePropertiesPane::buildFormatTab () {
   QWidget* page= qobject_cast<QScrollArea*> (scroll)->widget ();
   QFormLayout* form= new QFormLayout ();
   form->setFieldGrowthPolicy (QFormLayout::AllNonFixedFieldsGrow);
-
-  renderingCombo= combo (QStringList () << "Paper" << "Scroll" << "Reflow"
-                                        << "Slides" << "Book" << "Panorama");
-  addRow (form, "Page rendering", renderingCombo);
-  connect (renderingCombo, &QComboBox::currentTextChanged,
-           this, [this] (const QString& text) {
-    if (!loading) {
-      const QString rendering= encodeRendering (text);
-      qt_with_buffer (targetBuffer, [&] {
-        view_init_page_rendering (tm_string (rendering));
-      });
-      refreshFormat ();
-    }
-  });
 
   pageTypeCombo= combo (QStringList (), false);
   addRow (form, "Page type", pageTypeCombo);
@@ -402,7 +480,7 @@ QString
 QTMPagePropertiesPane::decodeRendering (const QString& value) const {
   if (value == "automatic") return "Reflow";
   if (value == "papyrus") return "Scroll";
-  if (value == "beamer") return "Slides";
+  if (value == "beamer" || value == "slideshow") return "Slideshow";
   if (value.isEmpty ()) return "Paper";
   QString out= value;
   out[0]= out[0].toUpper ();
@@ -413,7 +491,7 @@ QString
 QTMPagePropertiesPane::encodeRendering (const QString& value) const {
   if (value == "Reflow") return "automatic";
   if (value == "Scroll") return "papyrus";
-  if (value == "Slides") return "beamer";
+  if (value == "Slideshow") return "beamer";
   return value.toLower ();
 }
 
@@ -456,35 +534,174 @@ QTMPagePropertiesPane::pageSizeValues () const {
 
 void
 QTMPagePropertiesPane::refreshAll () {
+  if (!targetLooksUsable ()) return;
   loading= true;
-  refreshFormat ();
-  rebuildMarginsTab ();
-  refreshBreaking ();
-  refreshHeaders ();
+  switch (tabs->currentIndex ()) {
+  case 0: refreshPresentation (); break;
+  case 1: refreshFormat (); break;
+  case 2: rebuildMarginsTab (); break;
+  case 3: refreshBreaking (); break;
+  case 4: refreshHeaders (); break;
+  }
   loading= false;
 }
 
 void
+QTMPagePropertiesPane::loadCitationStyles () {
+  if (citationLoaded || citationLoading) return;
+  citationLoading= true;
+  QPointer<QTMPagePropertiesPane> guard (this);
+  QThreadPool::globalInstance ()->start ([guard] {
+    std::vector<MaterialCslStyle> styles;
+    std::string error;
+    const bool loaded= athena_materials_list_csl_styles (styles, error);
+    if (auto* app= QCoreApplication::instance ())
+      QMetaObject::invokeMethod (app,
+        [guard, loaded, styles= std::move (styles), error= std::move (error)] {
+          if (!guard) return;
+          guard->citationLoading= false;
+          guard->citationLoaded= true;
+          if (loaded) {
+            QSignalBlocker blocker (guard->citationCombo);
+            for (const auto& style: styles)
+              guard->citationCombo->addItem (
+                QString::fromStdString (style.title) + " (" +
+                QString::fromStdString (style.name) + ")",
+                QString::fromStdString (style.name));
+          }
+          else guard->citationCombo->setToolTip (QString::fromStdString (error));
+          guard->refreshPresentation ();
+        }, Qt::QueuedConnection);
+  });
+}
+
+void
+QTMPagePropertiesPane::applyPresentationAction (const QString& operation,
+                                                 const QString& name) {
+  if (!targetLooksUsable ()) return;
+  try {
+    qt_with_buffer (targetBuffer, [&] {
+      editor ed= get_current_editor ();
+      if (operation == "set-main-style")
+        document_set_main_style (tm_string (name));
+      else if (operation == "theme") {
+        if (name.isEmpty ()) {
+          // Remove explicit themes only; the main style's theme stays intact.
+          const auto styles= document_get_style_list ();
+          const auto themes= document_theme_names ();
+          for (int i=1; i<N(styles); ++i)
+            for (int j=0; j<N(themes); ++j)
+              if (styles[i] == themes[j]) document_remove_style_package (styles[i]);
+        }
+        else native_editor_action_execute (ed, QJsonObject {
+          {"op", "document-package"}, {"action", "add"}, {"name", name}});
+      }
+      else if (operation == "citation") {
+        QJsonObject action {{"op", "document-citation-style"},
+                            {"default", name.isEmpty ()}};
+        if (!name.isEmpty ()) action.insert ("style", name);
+        native_editor_action_execute (ed, action);
+      }
+    });
+    refreshAll ();
+  }
+  catch (...) {}
+}
+
+void
+QTMPagePropertiesPane::refreshPresentation () {
+  if (!targetLooksUsable () || !styleCombo) return;
+  actor_document_menu_snapshot snapshot;
+  auto* buffer= concrete_buffer (targetBuffer);
+  auto* shell= QTMMainTabWindow::topTabWindow ();
+  if (is_nil (buffer) || !buffer->actor || !shell) return;
+  // The actor already publishes a GUI-readable snapshot. Reading it here
+  // avoids synchronously entering a BufferActor while opening this pane.
+  for (QWidget* pane: shell->documentWidgets ()) {
+    QTMWidget* canvas= qobject_cast<QTMWidget*> (pane);
+    if (!canvas)
+      if (auto* document= qobject_cast<QTMWindow*> (pane))
+        canvas= document->editorCanvas ();
+    if (!canvas) continue;
+    auto* proxy= dynamic_cast<qt_actor_widget_rep*> (canvas->tm_widget ());
+    if (proxy && proxy->actor_id () == buffer->actor->id ()) {
+      snapshot= proxy->document_menu_state ();
+      break;
+    }
+  }
+  if (!snapshot.ready) return;
+  loadCitationStyles ();
+  const bool wasLoading= loading;
+  loading= true;
+  QSignalBlocker b0 (presentationModeCombo), b1 (styleCombo),
+                 b2 (themeCombo), b3 (citationCombo);
+  auto setMode= [this] (const std::string& value) {
+    const QString text= decodeRendering (QString::fromStdString (value));
+    if (presentationModeCombo->currentText () != text)
+      presentationModeCombo->setCurrentText (text);
+  };
+  setMode (snapshot.page_rendering);
+  auto populate= [] (QComboBox* box, const QStringList& labels,
+                     const QStringList& ids, const QString& selected) {
+    if (box->view ()->isVisible ()) return;
+    bool changed= box->count () != labels.size ();
+    if (!changed)
+      for (qsizetype i=0; i<labels.size (); ++i)
+        if (box->itemText (i) != labels[i] ||
+            box->itemData (i).toString () != ids[i]) {
+          changed= true;
+          break;
+        }
+    if (changed) {
+      box->clear ();
+      for (qsizetype i=0; i<labels.size (); ++i)
+        box->addItem (labels[i], ids[i]);
+    }
+    const int current= box->findData (selected);
+    if (current >= 0) box->setCurrentIndex (current);
+  };
+  QStringList styleLabels, styleIds;
+  for (const auto& choice: snapshot.document_styles) {
+    styleLabels << QString::fromStdString (choice.label);
+    styleIds << QString::fromStdString (choice.value);
+  }
+  populate (styleCombo, styleLabels, styleIds,
+            QString::fromStdString (snapshot.document_style));
+  QStringList themeLabels {"Style default"}, themeIds {""};
+  QString selectedTheme;
+  for (const auto& choice: snapshot.document_themes) {
+    if (choice.value == "alt-colors" || choice.value == "framed-theorems") continue;
+    themeLabels << QString::fromStdString (choice.label);
+    themeIds << QString::fromStdString (choice.value);
+    if (choice.checked) selectedTheme= themeIds.last ();
+  }
+  populate (themeCombo, themeLabels, themeIds, selectedTheme);
+  QStringList citationLabels {"Preferences default"}, citationIds {""};
+  for (int i=1; i<citationCombo->count (); ++i) {
+    citationLabels << citationCombo->itemText (i);
+    citationIds << citationCombo->itemData (i).toString ();
+  }
+  populate (citationCombo, citationLabels, citationIds,
+            snapshot.materials_citation_default ? QString () :
+            QString::fromStdString (snapshot.materials_citation_style));
+  const QString background= QString::fromStdString (snapshot.background_color);
+  const QString foreground= QString::fromStdString (snapshot.foreground_color);
+  backgroundButton->setText ("Choose…  " + background.left (24));
+  foregroundButton->setText ("Choose…  " + foreground.left (24));
+  backgroundButton->setToolTip (background);
+  foregroundButton->setToolTip (foreground);
+  loading= wasLoading;
+}
+
+void
 QTMPagePropertiesPane::refreshFormat () {
-  if (renderingCombo == nullptr) return;
-  QSignalBlocker b1 (renderingCombo);
+  if (pageTypeCombo == nullptr) return;
   QSignalBlocker b2 (pageTypeCombo);
   QSignalBlocker b3 (orientationCombo);
   QSignalBlocker b4 (firstPageCombo);
   QSignalBlocker b5 (cropMarksCombo);
   QSignalBlocker b6 (pageWidthEdit);
   QSignalBlocker b7 (pageHeightEdit);
-
-  QString rendering;
-  try {
-    qt_with_buffer (targetBuffer, [&] {
-      rendering= qs (document_get_init_page_rendering ());
-    });
-  }
-  catch (...) {
-    rendering= getString ("page-medium");
-  }
-  renderingCombo->setCurrentText (decodeRendering (rendering));
 
   pageTypeCombo->clear ();
   pageTypeCombo->addItems (pageSizeValues ());
@@ -765,7 +982,7 @@ page_properties_pane_show_for (url target) {
   }
   QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
   if (win == nullptr || win->dockManager () == nullptr) {
-    QMessageBox::warning (QApplication::activeWindow (), "Page properties",
+    QMessageBox::warning (QApplication::activeWindow (), "Customize presentation",
                           "No active ATHENA window.");
     return;
   }
@@ -779,7 +996,7 @@ page_properties_pane_show_for (url target) {
   }
 
   if (page_properties_pane_dock == nullptr) {
-    page_properties_pane_dock= new ads::CDockWidget ("Page properties");
+    page_properties_pane_dock= new ads::CDockWidget ("Customize presentation");
     page_properties_pane_dock->setObjectName ("athena-page-properties-pane");
     page_properties_pane_dock->resize (420, 720);
     page_properties_pane_dock->setWidget (page_properties_pane_widget);

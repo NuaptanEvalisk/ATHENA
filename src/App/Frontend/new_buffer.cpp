@@ -56,6 +56,8 @@ tree
 new_source_document () {
   tree body (DOCUMENT, tree (""));
   new_data data;
+  // A new knowledge document starts in reflow, independently of its style.
+  data->init ("page-medium")= "automatic";
   auto identities= athena::document_node::assign_detached_source_ids (
     body, athena::contracts::builtin_contracts (),
     athena::document_node::standard_source_role,

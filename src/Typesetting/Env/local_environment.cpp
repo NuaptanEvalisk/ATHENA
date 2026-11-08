@@ -536,6 +536,8 @@ bool evaluate_local_environment (edit_env_rep& env, const tree& source,
   for (int i=0; i+1<N(source); i+=2) {
     tree name= env.exec (source[i]);
     if (!is_atomic (name)) return false;
+    // The historical magnification binding has no environment effect.
+    if (name->label == MAGNIFICATION) continue;
     tree value= env.exec (source[i+1]);
     string variable= env.normalize_legacy_math_font_variable (name->label, value);
     bindings.push_back ({variable, value, tree (), false});

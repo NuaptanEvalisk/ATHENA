@@ -41,7 +41,6 @@ initialize_default_var_type () {
   var_type (FONT_SIZE)          = Env_Font_Size;
   var_type (FONT_BASE_SIZE)     = Env_Font_Size;
   var_type (FONT_EFFECTS)       = Env_Font;
-  var_type (MAGNIFICATION)      = Env_Magnification;
   var_type (MAGNIFY)            = Env_Magnify;
   var_type (COLOR)              = Env_Color;
   var_type ("text-background-color") = Env_Color;
@@ -172,8 +171,6 @@ initialize_default_var_type () {
 
 void
 edit_env_rep::update_page_pars () {
-  double magn_old= magn_len;
-  magn_len= 1.0;
 
   page_type         = get_string (PAGE_TYPE);
   page_landscape    = (get_string (PAGE_ORIENTATION) == "landscape");
@@ -275,7 +272,6 @@ edit_env_rep::update_page_pars () {
   page_offset= get_int (PAGE_OFFSET);
   page_border= read (PAGE_BORDER);
 
-  magn_len= magn_old;
 }
 
 void
@@ -293,11 +289,8 @@ edit_env_rep::get_page_pars (SI& w, SI& h, SI& width, SI& height,
 
   int nr_cols= get_int (PAR_COLUMNS);
   if (nr_cols > 1) {
-    double magn_old= magn_len;
-    magn_len= 1.0;
     SI col_sep= get_length (PAR_COLUMNS_SEP);
     w= ((w+col_sep) / nr_cols) - col_sep;
-    magn_len= magn_old;
   }
 
   /*
@@ -564,7 +557,7 @@ edit_env_rep::update_font () {
   case 1:
     fn= smart_font (get_string (FONT), get_string (FONT_FAMILY),
                     get_string (FONT_SERIES), get_string (FONT_SHAPE),
-                    get_script_size (fn_size, index_level), (int) (magn*dpi));
+                     get_script_size (fn_size, index_level), dpi);
     break;
   case 2: {
     string math_font= get_string (MATH_FONT);
@@ -583,7 +576,7 @@ edit_env_rep::update_font () {
     int selected_size= get_script_size (fn_size, index_level);
     fn= smart_font (math_font, math_family, math_series, math_shape,
                     text_font, text_family, text_series, text_shape,
-                    selected_size, (int) (magn*dpi));
+                     selected_size, dpi);
     if (index_level > 0 && math_font_sizes == "default")
       if (auto metrics= athena::text::math_layout_metrics (fn)) {
         const int percent= index_level == 1 ? metrics->script_percent_scale_down :
@@ -593,7 +586,7 @@ edit_env_rep::update_font () {
           if (math_size != selected_size)
             fn= smart_font (math_font, math_family, math_series, math_shape,
                             text_font, text_family, text_series, text_shape,
-                            math_size, (int) (magn*dpi));
+                             math_size, dpi);
         }
       }
     break;
@@ -603,7 +596,7 @@ edit_env_rep::update_font () {
                     get_string (PROG_FONT_SERIES), get_string (PROG_FONT_SHAPE),
                     get_string (FONT), get_string (FONT_FAMILY) * "-tt",
                     get_string (FONT_SERIES), get_string (FONT_SHAPE),
-                    get_script_size (fn_size, index_level), (int) (magn*dpi));
+                     get_script_size (fn_size, index_level), dpi);
     break;
   }
   string eff= get_string (FONT_EFFECTS);
@@ -970,9 +963,7 @@ void
 edit_env_rep::update () {
   zoomf          = normal_zoom (get_double (ZOOM_FACTOR));
   pixel          = (SI) tm_round ((std_shrinkf * PIXEL) / zoomf);
-  magn           = get_double (MAGNIFICATION);
   mgfy           = get_double (MAGNIFY);
-  magn_len       = (get_string (LENGTH_MODE) == "fixed"? 1.0: magn);
   index_level    = get_int (MATH_LEVEL);
   display_style  = get_bool (MATH_DISPLAY);
   math_condensed = get_bool (MATH_CONDENSED);
@@ -1031,13 +1022,6 @@ edit_env_rep::update (string s) {
   case Env_Zoom:
     zoomf= normal_zoom (get_double (ZOOM_FACTOR));
     pixel= (SI) tm_round ((std_shrinkf * PIXEL) / zoomf);
-    break;
-  case Env_Magnification:
-    magn= get_double (MAGNIFICATION);
-    magn_len= (get_string (LENGTH_MODE) == "fixed"? 1.0: magn);
-    update_font ();
-    update_color ();
-    update_dash_style_unit ();
     break;
   case Env_Magnify:
     mgfy= get_double (MAGNIFY);

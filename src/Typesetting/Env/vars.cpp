@@ -31,7 +31,6 @@ string WARN_MISSING ("warn-missing");
 string GLOBAL_TITLE ("global-title");
 string GLOBAL_AUTHOR ("global-author");
 string GLOBAL_SUBJECT ("global-subject");
-string LENGTH_MODE ("length-mode");
 
 string CURSOR_COLOR ("cursor-color");
 string MATH_CURSOR_COLOR ("math-cursor-color");

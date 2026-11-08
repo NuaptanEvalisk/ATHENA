@@ -60,6 +60,7 @@ void view_init_page_rendering (string mode) {
   if (expanded (mode) && !expanded (old)) view_screens_show_all ();
   if (!expanded (mode) && expanded (old)) view_screens_show_this ();
   document_apply_page_rendering_state (mode);
+  ed->view_modes.selected_presentation= mode;
   schedule_zoom (ed.operator-> (), mode, mode == "panorama"? 2: 0,
                  ed->view_modes.fullscreen_wait);
 }

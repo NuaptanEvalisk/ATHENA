@@ -96,13 +96,17 @@ build_palette_groups (QObject* parent, const QTMCommandContext& context) {
       const QString prefix= path.section (" -> ", 1);
       for (const auto& entry: registry.providerItems (item.providerId, context)) {
         if (!entry.state.available) continue;
+        const QString entryPrefix= item.providerId == QStringLiteral ("document-menu")
+          ? entry.group : QString ();
+        const QString label= entryPrefix.isEmpty () ? entry.label :
+          entryPrefix + QStringLiteral (" -> ") + entry.label;
         QAction* action= new QAction (
           tmapp ()->icon_manager ().getPresentationIcon (entry.icon),
-          prefix.isEmpty () ? entry.label : prefix + " -> " + entry.label, parent);
+          prefix.isEmpty () ? label : prefix + " -> " + label, parent);
         action->setEnabled (entry.state.enabled);
         action->setCheckable (entry.state.checkable);
         action->setChecked (entry.state.checkable && entry.state.checked);
-        action->setToolTip (path + " -> " + entry.label);
+        action->setToolTip (path + " -> " + label);
         action->setStatusTip (entry.help);
         QObject::connect (action, &QAction::triggered, action,
                           [provider= item.providerId, key= entry.key, context] () {

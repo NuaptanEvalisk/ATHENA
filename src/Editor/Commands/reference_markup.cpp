@@ -353,5 +353,5 @@ void reference_show_preview (tree body, tree label) {
   tree ref= get_current_editor ()->the_subtree (reverse (ip->next));
   const auto tip= reference_preview (label->label);
   if (!tip) return;
-  tooltip_show (label->label, ref, *tip, "auto", "auto", "default", 0.6);
+  tooltip_show (label->label, ref, *tip, "auto", "auto", "default");
 }

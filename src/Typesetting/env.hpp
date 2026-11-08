@@ -37,7 +37,6 @@ namespace athena::contracts { class macro_analysis; class detached_environment; 
 #define Env_User               0
 #define Env_Fixed              1
 #define Env_Zoom               2
-#define Env_Magnification      3
 #define Env_Magnify            4
 #define Env_Language           5
 #define Env_Mode               6
@@ -186,8 +185,6 @@ public:
   double       inch;
   double       zoomf;
   SI           pixel;
-  double       magn;
-  double       magn_len;
   double       mgfy;
   double       flexibility;
   int          first_page;
@@ -517,11 +514,13 @@ public:
     local_end (MATH_LEVEL, t); }
   void assign (string name, tree expression);
   inline bool provides (string s) {
+    if (s == MAGNIFICATION) return false;
     const bool present= env->contains (s);
     if (contract_events) contract_events->read_variable (s, present);
     return present;
   }
   inline tree read (string s) {
+    if (s == MAGNIFICATION) return tree (UNINIT);
     tree value= env[s];
     if (contract_events) contract_events->read_variable (s, env->contains (s), &value);
     return value;
