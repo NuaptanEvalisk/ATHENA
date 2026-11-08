@@ -178,7 +178,7 @@ QTMCommandRegistry::registerBuiltins () {
           QTMCommandDynamicItem item;
           item.key= QStringLiteral ("command:") + runtimeId;
           item.group= group;
-          item.label= definition->label;
+          item.label= QString::fromStdString (command.title);
           item.help= definition->help;
           item.icon= definition->icon;
           item.state= state (runtimeId, context);
@@ -468,6 +468,7 @@ QTMCommandRegistry::synchronizePluginCommands (QTMPluginManager* manager) {
     const QString pluginName= QString::fromStdString (plugin.manifest.name);
     for (const athena::plugins::plugin_command& command: plugin.manifest.commands) {
       const QString commandName= QString::fromStdString (command.id);
+      const QString commandTitle= QString::fromStdString (command.title);
       const QString id=
         QStringLiteral ("plugin.command/") + pluginId +
         QStringLiteral ("/") + commandName;
@@ -505,10 +506,10 @@ QTMCommandRegistry::synchronizePluginCommands (QTMPluginManager* manager) {
 
       QTMCommandDefinition definition;
       definition.id= id;
-      definition.label= QString::fromStdString (command.title);
+      definition.label= pluginName + QStringLiteral (": ") + commandTitle;
       definition.icon= QStringLiteral ("system-run");
       definition.category= QStringLiteral ("Plugins");
-      definition.help= pluginName + QStringLiteral (" — ") + definition.label;
+      definition.help= pluginName + QStringLiteral (" — ") + commandTitle;
       definition.scope= QTMCommandScope::Application;
       definition.showInPalette= true;
       commandIndex_.insert (id, commands_.size ());
