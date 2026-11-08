@@ -26,6 +26,7 @@
 #include <thread>
 #include <unordered_map>
 #include <unordered_set>
+#include <vector>
 
 class editor_rep;
 class tm_buffer_rep;
@@ -180,6 +181,7 @@ private:
   // previously visited slideshow thumbnails, but reject actual source edits.
   std::uint64_t thumbnail_source_epoch_= 0;
   std::uint64_t thumbnail_content_signature_= 0;
+  std::vector<std::uint64_t> thumbnail_slide_signatures_;
   athena_blob_id initial_name_;
   athena_blob_id initial_master_;
   athena_blob_id initial_title_;

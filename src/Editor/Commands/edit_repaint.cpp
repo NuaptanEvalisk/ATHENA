@@ -39,7 +39,7 @@ is_plain_white_background (tree bg) {
          bg == "#ffffff" || bg == "#FFFFFF";
 }
 
-static tree
+tree
 effective_document_background (tree bg) {
   if (get_preference ("override white document background", "off") == "on" &&
       is_plain_white_background (bg))

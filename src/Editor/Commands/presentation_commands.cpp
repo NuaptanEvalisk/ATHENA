@@ -404,6 +404,99 @@ static void switch_slide (std::optional<int> index, string direction) {
   go_graphics ();
 }
 void presentation_switch_to (int index) { switch_slide (index, ""); }
+
+namespace {
+tree editable_screens () {
+  editor ed= get_current_editor ();
+  if (is_nil (ed) || ed->get_init_string ("page-medium") != "beamer")
+    return tree (UNINIT);
+  tree body= ed->the_buffer ();
+  if (!is_document (body) || N (body) == 0) return tree (UNINIT);
+  tree screens= body[N (body)-1];
+  return tag (screens, "screens") ? screens : tree (UNINIT);
+}
+
+bool empty_screen_tree (tree t) {
+  if (is_atomic (t)) return t == "";
+  if (is_func (t, WITH) || tag (t, "with-screen-color") ||
+      tag (t, "gr-screen"))
+    return N (t) > 0 && empty_screen_tree (t[N (t)-1]);
+  if (tag (t, "gr-overlays") && N (t) == 3)
+    return empty_screen_tree (t[2]);
+  // Treat an empty title and empty document wrappers as blank. Non-textual
+  // objects count as content unless they themselves contain no visible parts.
+  if (!is_document (t) && !is_concat (t) && !tag (t, "shown") &&
+      !tag (t, "hidden") && !tag (t, "hidden*") &&
+      !tag (t, "tit") && !tag (t, "slide") &&
+      !is_func (t, GRAPHICS)) return false;
+  for (int i=0; i<N (t); ++i)
+    if (!empty_screen_tree (t[i])) return false;
+  return true;
+}
+}
+
+int presentation_active_screen () {
+  tree screens= editable_screens ();
+  if (!tag (screens, "screens")) return -1;
+  for (int i=0; i<N (screens); ++i)
+    if (tag (screens[i], "shown")) return i;
+  return -1;
+}
+
+bool presentation_screen_empty (int index) {
+  tree screens= editable_screens ();
+  return tag (screens, "screens") && index >= 0 && index < N (screens) &&
+         N (screens[index]) == 1 && empty_screen_tree (screens[index][0]);
+}
+
+tree presentation_screen_copy (int index) {
+  tree screens= editable_screens ();
+  if (!tag (screens, "screens") || index < 0 || index >= N (screens) ||
+      N (screens[index]) != 1) return tree (UNINIT);
+  return copy (screens[index][0]);
+}
+
+bool presentation_edit_screen (screen_edit_operation operation, int index,
+                               tree paste_content) {
+  tree screens= editable_screens ();
+  if (!tag (screens, "screens") || N (screens) == 0) return false;
+  const int active= presentation_active_screen ();
+  if (index < 0) index= active;
+  if (index < 0 || index >= N (screens)) return false;
+  if (operation == screen_edit_operation::erase) {
+    if (N (screens) == 1) return false;
+    const int chosen= index == active ? std::min (index, N (screens)-2) :
+                       active - (index < active ? 1 : 0);
+    screens= tree_remove (screens, index, 1);
+    switch_to (screens, chosen);
+    go_graphics ();
+    return true;
+  }
+  if (operation == screen_edit_operation::copy) return true;
+
+  tree content (UNINIT);
+  if (operation == screen_edit_operation::duplicate)
+    content= tree_duplicate_source (screens[index][0]);
+  else if (operation == screen_edit_operation::paste_before ||
+           operation == screen_edit_operation::paste_after) {
+    if (paste_content == tree (UNINIT)) return false;
+    content= tree_duplicate_source (paste_content);
+  }
+  else {
+    content= slide_template (screens[index]);
+    if (!is_document (content)) content= tree (DOCUMENT, content);
+  }
+  const bool before= operation == screen_edit_operation::insert_before ||
+                     operation == screen_edit_operation::paste_before;
+  const int at= index + (before ? 0 : 1);
+  screens= tree_insert (screens, at,
+                        tree (TUPLE, compound ("shown", content)));
+  select (screens, at);
+  go (screens[at]);
+  go_graphics ();
+  return true;
+}
+
 void presentation_navigate (string direction) {
   switch_slide (std::nullopt, direction);
 }

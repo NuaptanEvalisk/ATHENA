@@ -7,6 +7,11 @@ QWidget {
     font-size: 14px;
 }
 
+/* Page and slide captions are secondary to their preview images. */
+QListWidget#athenaThumbnailsList {
+    font-size: 11px;
+}
+
 QFileDialog {
     min-width: 800px;
     min-height: 600px;

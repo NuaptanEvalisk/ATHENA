@@ -30,6 +30,9 @@
 #define INPUT_COMPLETE    4
 
 string MODE_LANGUAGE (string mode);
+// The editor's effective canvas color, including the user's white-background
+// override. Thumbnail and interactive painting must use the same source.
+tree effective_document_background (tree bg);
 struct source_occurrence;
 
 struct heading_cell_bracket {

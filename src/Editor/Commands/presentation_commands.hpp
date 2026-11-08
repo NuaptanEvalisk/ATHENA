@@ -1,6 +1,7 @@
 // Copyright (C) 2026 ATHENA contributors. GPL-3.0-or-later.
 #pragma once
 #include "tree.hpp"
+#include "App/Runtime/thumbnail_snapshot.hpp"
 
 bool presentation_context (tree);
 bool presentation_screens (tree);
@@ -18,6 +19,11 @@ void presentation_slide_graphics (tree);
 tree presentation_slide_background ();
 void presentation_set_slide_background (tree);
 void presentation_switch_to (int);
+int presentation_active_screen ();
+bool presentation_screen_empty (int index);
+tree presentation_screen_copy (int index);
+bool presentation_edit_screen (screen_edit_operation operation, int index,
+                               tree paste_content= tree (UNINIT));
 void presentation_navigate (string direction);
 void presentation_make (tree_label);
 void presentation_make_unroll (tree_label);

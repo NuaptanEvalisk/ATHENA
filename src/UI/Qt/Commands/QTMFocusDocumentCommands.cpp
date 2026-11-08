@@ -10,6 +10,7 @@
 
 #include "UI/Qt/Commands/QTMCommandRegistry.hpp"
 #include "UI/Qt/Commands/QTMCommandRegistryInternal.hpp"
+#include "UI/Qt/Document/QTMThumbnailsPane.hpp"
 
 #include <QColor>
 #include <QColorDialog>
@@ -376,6 +377,44 @@ QTMCommandRegistry::registerFocusDocumentCommands () {
       state.available= true;
       state.enabled= true;
       return state;
+    });
+
+  const auto screen_command_state= [] (
+      const QTMCommandContext& context, bool deleting) {
+    QTMCommandState state;
+    qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+    if (!proxy || !context.lastDocument.has_view ()) return state;
+    const auto focus= proxy->focus_toolbar_state ();
+    const auto editor= proxy->editor_command_state ();
+    if (!focus.valid () || !editor.valid () || !focus.beamer_style ||
+        !focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT) ||
+        focus.slide_names.empty ()) return state;
+    state.available= true;
+    state.enabled= !editor.read_only () &&
+      (!deleting || focus.slide_names.size () > 1);
+    return state;
+  };
+  registerBehavior (
+    "editor.focus.screen-new", QTMCommandScope::Editor,
+    [screen_command_state] (const QTMCommandContext& context) {
+      if (!screen_command_state (context, false).enabled) return false;
+      return thumbnails_screen_action (
+        context.lastDocument.actor, context.lastDocument.view,
+        screen_edit_operation::insert_after);
+    },
+    [screen_command_state] (const QTMCommandContext& context) {
+      return screen_command_state (context, false);
+    });
+  registerBehavior (
+    "editor.focus.screen-delete", QTMCommandScope::Editor,
+    [screen_command_state] (const QTMCommandContext& context) {
+      if (!screen_command_state (context, true).enabled) return false;
+      return thumbnails_screen_action (
+        context.lastDocument.actor, context.lastDocument.view,
+        screen_edit_operation::erase);
+    },
+    [screen_command_state] (const QTMCommandContext& context) {
+      return screen_command_state (context, true);
     });
 
   registerBehavior (

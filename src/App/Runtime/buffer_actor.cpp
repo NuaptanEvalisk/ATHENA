@@ -55,6 +55,7 @@
 #include "QTMHodarium.hpp"
 #include "node_metadata.hpp"
 #include "QTMRenderService.hpp"
+#include "UI/Qt/Document/QTMThumbnailsPane.hpp"
 #include "qt_renderer.hpp"
 #include <QJsonDocument>
 #include <QPainter>
@@ -103,13 +104,19 @@ make_thumbnail_manifest (editor_rep* editor, edit_typeset_rep* typeset) {
   return result;
 }
 
-std::uint64_t
-thumbnail_slides_content_signature (editor_rep* editor) {
+std::vector<std::uint64_t>
+thumbnail_slide_signatures (editor_rep* editor) {
   tree body= editor->the_buffer ();
-  if (!is_document (body) || N (body) == 0) return 0;
+  if (!is_document (body) || N (body) == 0) return {};
   tree screens= body[N (body)-1];
-  if (!is_compound (screens, "screens")) return 0;
-  std::uint64_t result= 1469598103934665603ULL;
+  if (!is_compound (screens, "screens")) return {};
+  // Preamble and other document-level definitions affect every screen.
+  std::uint64_t common= 1469598103934665603ULL;
+  for (int i=0; i<N (body)-1; ++i)
+    common= (common * 1099511628211ULL) ^
+            static_cast<std::uint32_t> (hash (body[i]));
+  std::vector<std::uint64_t> result;
+  result.reserve (N (screens));
   for (int i=0; i<N (screens); ++i) {
     tree slide= screens[i];
     // Presentation navigation only changes these wrapper labels. The actual
@@ -120,9 +127,18 @@ thumbnail_slides_content_signature (editor_rep* editor) {
          is_compound (slide, "hidden*") ||
          is_compound (slide, "slide")))
       slide= slide[0];
-    result= (result * 1099511628211ULL) ^
-            static_cast<std::uint32_t> (hash (slide));
+    const auto identity= (common * 1099511628211ULL) ^
+                         static_cast<std::uint32_t> (hash (slide));
+    result.push_back (identity == 0 ? 1 : identity);
   }
+  return result;
+}
+
+std::uint64_t
+thumbnail_slides_content_signature (const std::vector<std::uint64_t>& slides) {
+  std::uint64_t result= 1469598103934665603ULL;
+  for (const auto slide: slides)
+    result= (result * 1099511628211ULL) ^ slide;
   return result == 0 ? 1 : result;
 }
 
@@ -135,9 +151,14 @@ thumbnail_style_signature (editor_rep* editor) {
   result= (result * 1099511628211ULL) ^
           static_cast<std::uint32_t> (hash (data->style));
   for (const char* variable: {"page-type", "page-medium", "bg-color",
-                             "color", "page-orientation", "page-width", "page-height"})
+                              "color", "page-orientation", "page-width", "page-height"})
     result= (result * 1099511628211ULL) ^
-            static_cast<std::uint32_t> (hash (editor->get_init_value (variable)));
+             static_cast<std::uint32_t> (hash (editor->get_init_value (variable)));
+  // Changing the Vault's white-background override affects every preview,
+  // even though neither the document source nor its initial bg-color changes.
+  result= (result * 1099511628211ULL) ^
+          static_cast<std::uint32_t> (hash (effective_document_background (
+            editor->get_init_value ("bg-color"))));
   return result == 0 ? 1 : result;
 }
 
@@ -1915,13 +1936,19 @@ buffer_actor::dispatch (actor_command_record& command) {
 #ifdef QTTEXMACS
     auto* typeset= dynamic_cast<edit_typeset_rep*> (editor);
     if (!typeset || !editor->ui_endpoint) break;
-    const auto manifest= make_thumbnail_manifest (editor, typeset);
+    auto manifest= make_thumbnail_manifest (editor, typeset);
     const auto source_generation= source_epoch ();
     if (manifest.flags & THUMBNAIL_MANIFEST_SLIDES &&
         source_generation != thumbnail_source_epoch_) {
-      thumbnail_content_signature_= thumbnail_slides_content_signature (editor);
+      thumbnail_slide_signatures_= thumbnail_slide_signatures (editor);
+      thumbnail_content_signature_=
+        thumbnail_slides_content_signature (thumbnail_slide_signatures_);
       thumbnail_source_epoch_= source_generation;
     }
+    if (manifest.flags & THUMBNAIL_MANIFEST_SLIDES)
+      for (std::size_t i=0; i<manifest.pages.size () &&
+                            i<thumbnail_slide_signatures_.size (); ++i)
+        manifest.pages[i].content_signature= thumbnail_slide_signatures_[i];
     const std::uint64_t content_signature=
       (manifest.flags & THUMBNAIL_MANIFEST_SLIDES) ?
       thumbnail_content_signature_ : 0;
@@ -1955,15 +1982,21 @@ buffer_actor::dispatch (actor_command_record& command) {
 #ifdef QTTEXMACS
     auto* typeset= dynamic_cast<edit_typeset_rep*> (editor);
     if (!typeset) break;
-    const auto manifest= make_thumbnail_manifest (editor, typeset);
+    auto manifest= make_thumbnail_manifest (editor, typeset);
     const int index= static_cast<int> (command.argument[0]);
     if (index < 0 || index >= static_cast<int> (manifest.pages.size ())) break;
     const auto source_generation= source_epoch ();
     if (manifest.flags & THUMBNAIL_MANIFEST_SLIDES &&
         source_generation != thumbnail_source_epoch_) {
-      thumbnail_content_signature_= thumbnail_slides_content_signature (editor);
+      thumbnail_slide_signatures_= thumbnail_slide_signatures (editor);
+      thumbnail_content_signature_=
+        thumbnail_slides_content_signature (thumbnail_slide_signatures_);
       thumbnail_source_epoch_= source_generation;
     }
+    if (manifest.flags & THUMBNAIL_MANIFEST_SLIDES)
+      for (std::size_t i=0; i<manifest.pages.size () &&
+                            i<thumbnail_slide_signatures_.size (); ++i)
+        manifest.pages[i].content_signature= thumbnail_slide_signatures_[i];
     const std::uint64_t revision= (manifest.flags & THUMBNAIL_MANIFEST_SLIDES) ?
       typeset->thumbnail_layout_revision () : source_generation;
     const auto signature= thumbnail_signature (
@@ -1986,15 +2019,24 @@ buffer_actor::dispatch (actor_command_record& command) {
                                   double (maxHeight)/pageHeight);
     const int width= std::max (1, int (std::ceil (pageWidth * scale)));
     const int height= std::max (1, int (std::ceil (pageHeight * scale)));
+    const tree background= effective_document_background (
+      typeset->get_init_value ("bg-color"));
+    brush backgroundBrush (background);
+    int red, green, blue, alpha;
+    get_rgb_color (backgroundBrush->get_color (), red, green, blue, alpha);
+    const std::uint32_t argb=
+      (std::uint32_t (alpha) << 24) | (std::uint32_t (red) << 16) |
+      (std::uint32_t (green) << 8) | std::uint32_t (blue);
     render_damage damage {0, 0, width, height};
     auto recording= qtm_begin_render_recording (
-      command.argument[2], width, height, 1.0, 0xffffffffU,
+      command.argument[2], width, height, 1.0, argb,
       signature, std::uint64_t (index) + 1, damage, 0, 0, true);
     if (!recording) break;
     QPainter painter;
     qt_renderer_rep renderer (&painter, 1.0, width, height, true);
     renderer.begin (recording->device ());
     renderer.set_zoom_factor (scale * std_shrinkf * PIXEL, false);
+    renderer.set_background (background);
     (void) typeset->paint_thumbnail_page (&renderer, target);
     renderer.end ();
     (void) recording->finish ();
@@ -2016,6 +2058,59 @@ buffer_actor::dispatch (actor_command_record& command) {
     if (index < 0 || index >= static_cast<int> (pages.size ())) break;
     const auto& page= pages[static_cast<std::size_t> (index)];
     interface->scroll_to ((page.x1+page.x2)/2, (page.y1+page.y2)/2);
+    break;
+  }
+  case actor_command_kind::edit_screen: {
+#ifdef QTTEXMACS
+    // The source tree stays on BufferActor. The UI only receives serialized
+    // clipboard data and the confirmation prompt through a GUI continuation.
+    owned_actor_blob payload=
+      actor_blob_registry::instance ().take (command.payload0);
+    if (!editor) break;
+    const auto operation= static_cast<screen_edit_operation> (command.argument[0]);
+    if (operation > screen_edit_operation::paste_after) break;
+    int index= static_cast<int> (command.argument[1]);
+    if (index < 0) index= presentation_active_screen ();
+    tree content= presentation_screen_copy (index);
+    if (content == tree (UNINIT)) break;
+    if (operation == screen_edit_operation::copy) {
+      if (!editor->ui_endpoint) break;
+      const std::string xml= athena::document::write_xml_v3 (
+        content, athena::document::xml_kind::fragment);
+      (void) editor->ui_endpoint->publish_continuation ([xml] {
+        thumbnails_screen_set_clipboard (xml);
+      });
+      break;
+    }
+    if (editor->editor_command_state_snapshot ().read_only ()) break;
+    if (operation == screen_edit_operation::erase &&
+        !presentation_screen_empty (index)) {
+      const auto stamp= static_cast<std::uint64_t> (
+        static_cast<std::uint32_t> (hash (content))) + 1;
+      if (command.argument[2] != stamp) {
+        if (command.argument[2] == 0 && editor->ui_endpoint)
+          (void) editor->ui_endpoint->publish_continuation (
+            [actorId=id_, targetView=command.view_id, index, stamp] {
+              thumbnails_screen_confirm_delete (
+                actorId, targetView, index, stamp);
+            });
+        break;
+      }
+    }
+    tree paste_content (UNINIT);
+    if (operation == screen_edit_operation::paste_before ||
+        operation == screen_edit_operation::paste_after) {
+      if (!payload) break;
+      paste_content= athena::document::read_xml_v3 (
+        std::string_view (reinterpret_cast<const char*> (payload.data ()),
+                          payload.size ()),
+        athena::document::xml_kind::fragment);
+    }
+    if (presentation_edit_screen (operation, index, paste_content)) {
+      editor->publish_editor_command_state ();
+      editor->publish_focus_toolbar_state ();
+    }
+#endif
     break;
   }
   case actor_command_kind::activate_outline_entry: {

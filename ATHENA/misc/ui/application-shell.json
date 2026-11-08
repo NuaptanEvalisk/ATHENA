@@ -918,6 +918,7 @@
       "id": "insert",
       "label": "Insert",
       "items": [
+        { "command": "editor.focus.screen-new", "focus_requires": ["screens-context"] },
         {
           "submenu": "insert-document-data",
           "label": "Document header",
