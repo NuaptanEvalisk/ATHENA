@@ -43,13 +43,20 @@ resolve_package_source (url base, string package) {
   url search= "$ATHENA_STYLE_PATH";
   if (is_rooted (base, "default"))
     search= search | ::expand (head (base) * url_ancestor ());
-  else search= search | head (base);
+  // A TMFS buffer is an editor view, not a directory of style packages.
+  // TMFS grants read permission to arbitrary paths, so resolving a missing
+  // package relative to tmfs://aux/ falsely finds a virtual .ats file and
+  // attempts to load it through the GUI-owned buffer registry on this actor.
+  else if (!is_rooted_tmfs (base)) search= search | head (base);
   return resolve_style_file (package, search, true);
 }
 
 static athena::contracts::package_source_query
 package_source_receipt (string requested, url source) {
   namespace fs= std::filesystem;
+  if (is_none (source))
+    return {std::string (requested.data (), N(requested)), {},
+            style_cache_generation (), -1, std::uintmax_t (-1)};
   const string name= concretize (source);
   const std::string path (name.data (), N(name));
   std::error_code error;

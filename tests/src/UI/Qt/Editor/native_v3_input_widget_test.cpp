@@ -57,6 +57,37 @@ bool contains_label (const tree& source, tree_label label) {
 class TestNativeV3InputWidget: public QObject {
   Q_OBJECT
 private slots:
+  void auxiliaryPageHeaderStyleDoesNotReadGuiRegistry () {
+    // Page properties embeds header/footer editors in TMFS auxiliary buffers.
+    // Their styles may name an optional, no-longer-installed GUI package.
+    // A missing package must not resolve to tmfs://aux/gui-base.ats, because
+    // materializing that virtual URL reads the GUI buffer registry on an actor.
+    const url master ("tmfs://aux/input-widget-master");
+    create_buffer (master, document_with_math ("master"));
+    const url window= new_window (false);
+    window_set_view (window, get_passive_view (master), true);
+    auto cleanup= qScopeGuard ([&] {
+      delete_window (window);
+      remove_buffer (master);
+    });
+
+    const url input_name ("tmfs://aux/page-odd-header");
+    tree style= compound ("style", tuple ("generic", "gui-base"));
+    widget input= texmacs_input_widget (tree (DOCUMENT, "Header"), style, input_name);
+    auto input_cleanup= qScopeGuard ([&] { send_destroy (input); });
+    tm_buffer aux= concrete_buffer (input_name);
+    QVERIFY (!is_nil (aux));
+    const auto views= buffer_to_views (input_name);
+    QCOMPARE (N(views), 1);
+    tm_view view= concrete_view (views[0]);
+    QVERIFY (view != nullptr);
+    actor_command_record snapshot;
+    QVERIFY (aux->actor->invoke (actor_command_kind::snapshot_document,
+      view->runtime_id, ATHENA_NO_BLOB, ATHENA_NO_BLOB, &snapshot));
+    const tree document= actor_tree_registry::instance ().take (snapshot.payload0);
+    QCOMPARE (extract (document, "body"), tree (DOCUMENT, "Header"));
+  }
+
   void structuredTitleSlots () {
     namespace en= athena::enunciation;
     namespace node= athena::node;
@@ -82,7 +113,7 @@ private slots:
       });
       owner->invoke (actor_command_kind::run_native_continuation, view->runtime_id,
         ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER, close);
-      qtm_enunciation_slot (nullptr, owner->id (), view->runtime_id, "");
+      qtm_enunciation_slot (nullptr, owner->id (), view->runtime_id, "", nullptr);
       const bool drained= QTest::qWaitFor ([] {
         const auto buffers= get_all_buffers ();
         for (int i=0; i<N(buffers); ++i)
