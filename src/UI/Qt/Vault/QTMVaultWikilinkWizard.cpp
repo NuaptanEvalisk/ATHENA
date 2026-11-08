@@ -1213,7 +1213,7 @@ WikilinkSearchPage::searchFile (
     int occurrence= 1;
     for (const VaultContentMatch& match: matches) {
       WikilinkSearchResult result;
-      if (match.semantic && !match.sourceUuid.isEmpty ())
+      if (!match.sourceUuid.isEmpty ())
         result.sourceUuid= match.sourceUuid;
       else if (options.nodeModel) {
         tree current= body;
@@ -1238,7 +1238,8 @@ WikilinkSearchPage::searchFile (
       result.titleMatchScore= match.titleMatchScore;
       result.semantic= match.semantic;
       result.semanticScore= match.semanticScore;
-      result.identityKey= vault_search_identity (body, u, match.start);
+      result.identityKey= match.sourceUuid.isEmpty () ?
+        vault_search_identity (body, u, match.start) : match.sourceUuid;
       hits.push_back (result);
     }
     return hitCount;

@@ -20,6 +20,7 @@
 #include "math_tree_v3.hpp"
 #include "cursor_navigation.hpp"
 #include "Document/NodeContracts/builtin_contracts.hpp"
+#include "Document/NodeContracts/native_fields.hpp"
 #include "Document/Convert/Xml/document_file_codec.hpp"
 #include "convert.hpp"
 #include "boot.hpp"
@@ -737,10 +738,10 @@ math_match_boundary (tree t, path base, path position) {
   return pos == wanted;
 }
 
-void
-append_content_matches (std::vector<VaultContentMatch>& out, tree t,
-                        tree query, path base, int limit,
-                        bool caseInsensitive, bool fuzzy) {
+static void
+append_tree_content_matches (std::vector<VaultContentMatch>& out, tree t,
+                             tree query, path base, int limit,
+                             bool caseInsensitive, bool fuzzy) {
   if (limit <= 0 || vault_search_cancelled ()) return;
   // Keep the mathematical context but select the expression inside it,
   // rather than requiring the enclosing formula to equal the whole query.
@@ -786,7 +787,56 @@ append_content_matches (std::vector<VaultContentMatch>& out, tree t,
   double cutoff= normalizedQuery.size () <= 5 ? 75.0 : 80.0;
   int remaining= limit - (int) exact.size ();
   collect_fuzzy_atomic_matches (out, t, base, normalizedQuery, remaining,
-                                cutoff, caseInsensitive, *scorer, exact);
+                                 cutoff, caseInsensitive, *scorer, exact);
+}
+
+void
+append_content_matches (std::vector<VaultContentMatch>& out, tree t,
+                         tree query, path base, int limit,
+                         bool caseInsensitive, bool fuzzy) {
+  if (limit <= 0 || vault_search_cancelled ()) return;
+  int remaining= limit;
+
+  // Canonical enunciation title fields live in typed node metadata, not the
+  // body tree. Search their rich text, but anchor hits to the owning source
+  // node: metadata has no valid child path in the editor or inserter preview.
+  // Titles precede body hits so a long document cannot exhaust the hit limit
+  // before a matching structured field has a chance to enter the results.
+  const cursor_navigation navigation ({athena::contracts::builtin_contracts (),
+    athena::contracts::access_policy::source});
+  const auto collect= [&] (auto&& visit, tree node, path at) -> void {
+    if (remaining <= 0 || vault_search_cancelled () || is_atomic (node)) return;
+    if (athena::enunciation::is_enunciation (node)) {
+      const path anchor= at * navigation.start (node);
+      const auto* fields= athena::contracts::native_fields (L(node));
+      if (fields) for (const auto& [name, field]: fields->properties) {
+        if (field.editor != athena::contracts::property_editor::title_slot) continue;
+        for (const tree& value: athena::enunciation::title_fields (node, name)) {
+          if (remaining <= 0 || vault_search_cancelled ()) return;
+          std::vector<VaultContentMatch> fieldMatches;
+          append_tree_content_matches (fieldMatches, value, query, path (),
+                                       remaining, caseInsensitive, fuzzy);
+          if (fieldMatches.empty ()) continue;
+          auto best= fieldMatches.front ();
+          for (const auto& match: fieldMatches)
+            if ((match.exact && !best.exact) ||
+                (match.exact == best.exact && match.score > best.score))
+              best= match;
+          best.start= anchor;
+          best.end= anchor;
+          best.sourceUuid= QString::fromStdString (athena::node::id (node));
+          out.push_back (std::move (best));
+          --remaining;
+        }
+      }
+    }
+    for (int i=0; i<N(node) && remaining>0; ++i)
+      visit (visit, node[i], at * i);
+  };
+  collect (collect, t, base);
+  if (remaining > 0)
+    append_tree_content_matches (out, t, query, base, remaining,
+                                 caseInsensitive, fuzzy);
 }
 
 void
@@ -984,6 +1034,8 @@ collect_preferred_scopes (tree t, path base,
   if (heading_node (t))
     scopes.push_back ({base, visible_tree_text (t)});
   if (enunciation_node (t)) {
+    for (const tree& name: athena::enunciation::names (t))
+      scopes.push_back ({base, visible_tree_text (name)});
     path title;
     tree titleTree;
     if (leading_bold_scope (t, base, title, titleTree))

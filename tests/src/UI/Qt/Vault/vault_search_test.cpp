@@ -80,6 +80,7 @@ private slots:
   void nativeV3SearchExcludesMathDescriptorsFromTextAndFuzzy ();
   void emptyNativeSearchPatternDoesNotLoopOrIndexMissingChildren ();
   void filtersCanonicalAndLegacyEnunciations ();
+  void findsStructuredEnunciationTitleFields ();
   void keepsConcurrentSearchOptionsIndependent ();
   void fuzzyInsertion ();
   void fuzzySubstitution ();
@@ -1141,6 +1142,61 @@ void TestVaultSearch::filtersCanonicalAndLegacyEnunciations () {
                                path (), 200, false, false);
   QCOMPARE (matches.size (), std::size_t (1));
   QCOMPARE (matches[0].start, path (2, 0, 0, 0));
+}
+
+void TestVaultSearch::findsStructuredEnunciationTitleFields () {
+  using namespace athena::node;
+  tree bodyText ("Unrelated body");
+  metadata bodyMetadata;
+  bodyMetadata.id= new_id ();
+  set (bodyText, bodyMetadata);
+  tree theorem (athena::enunciation::label (), tree (DOCUMENT, bodyText));
+  metadata properties;
+  properties.id= new_id ();
+  const auto id= QString::fromStdString (properties.id);
+  properties.properties["kind"]= athena::node::property (std::string ("theorem"));
+  properties.properties["numbered"]= athena::node::property (true);
+  properties.properties["name"]= athena::node::property (rich_text {tree ("Structured title")});
+  properties.properties["year"]= athena::node::property (std::string ("1997"));
+  properties.properties["attribution"]= athena::node::property (rich_text {tree ("A. Researcher")});
+  set (theorem, properties);
+  tree source (DOCUMENT, theorem);
+
+  for (const char* term: {"Structured title", "1997", "A. Researcher"}) {
+    std::vector<VaultContentMatch> matches;
+    append_content_matches (matches, source, tree (term), path (), 200,
+                            false, false);
+    QCOMPARE (matches.size (), std::size_t (1));
+    QCOMPARE (matches[0].start, matches[0].end);
+    QCOMPARE (matches[0].sourceUuid, id);
+    QVERIFY (matches[0].exact);
+  }
+
+  std::vector<VaultContentMatch> matches;
+  collect_enunciation_matches (matches, source, tree ("Structured title"),
+                               "theorem", path (), 200, false, false);
+  QCOMPARE (matches.size (), std::size_t (1));
+  QCOMPARE (matches[0].sourceUuid, id);
+  matches.clear ();
+  collect_enunciation_matches (matches, source, tree ("Structured title"),
+                               "definition", path (), 200, false, false);
+  QVERIFY (matches.empty ());
+  matches.clear ();
+  append_content_matches (matches, theorem, tree ("Structured title"),
+                          path (), 200, false, false);
+  QCOMPARE (matches.size (), std::size_t (1));
+  score_search_match_titles (theorem, tree ("Structured title"), path (),
+                             matches, false, false);
+  QCOMPARE (matches.front ().titleMatchScore, 100000);
+
+  tree crowded (DOCUMENT);
+  for (int i=0; i<205; ++i) crowded << tree ("Structured title");
+  crowded << theorem;
+  matches.clear ();
+  append_content_matches (matches, crowded, tree ("Structured title"),
+                          path (), 200, false, false);
+  QCOMPARE (matches.size (), std::size_t (200));
+  QCOMPARE (matches.front ().sourceUuid, id);
 }
 
 static std::vector<VaultContentMatch>
