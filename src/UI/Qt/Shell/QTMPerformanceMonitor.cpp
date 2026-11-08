@@ -13,34 +13,152 @@
 #include "UI/Qt/Widgets/QTMWidget.hpp"
 #include "UI/Qt/Toolkit/qt_simple_widget.hpp"
 
+#include <QEnterEvent>
+#include <QEvent>
 #include <QFontDatabase>
 #include <QFontMetrics>
 #include <QPaintEvent>
 #include <QPainter>
-#include <QRegion>
+#include <QToolButton>
+#include <QWidget>
 
 #include <algorithm>
 #include <cmath>
 
+class QTMPerformanceHudOverlay final: public QWidget {
+  friend class QTMPerformanceMonitor;
+  QTMPerformanceMonitor& monitor;
+  QToolButton* minimizeButton;
+  QToolButton* closeButton;
+  QToolButton* restoreButton;
+  bool collapsed= false;
+  bool hovered= false;
+
+  void positionAtViewportCorner () {
+    QWidget* host= parentWidget ();
+    if (host == nullptr) return;
+    const QSize wanted= collapsed ? QSize (44, 24) : monitor.hudSize ();
+    const QSize fitted (
+      std::min (wanted.width (), std::max (1, host->width () - 12)),
+      std::min (wanted.height (), std::max (1, host->height () - 12)));
+    setGeometry (6, std::max (6, host->height () - fitted.height () - 6),
+                 fitted.width (), fitted.height ());
+    minimizeButton->setGeometry (std::max (0, width () - 46), 2, 22, 20);
+    closeButton->setGeometry (std::max (0, width () - 23), 2, 22, 20);
+    restoreButton->setGeometry (rect ());
+  }
+
+  void showControls () {
+    minimizeButton->setVisible (!collapsed && hovered);
+    closeButton->setVisible (!collapsed && hovered);
+    restoreButton->setVisible (collapsed);
+  }
+
+  void setCollapsed (bool value) {
+    collapsed= value;
+    hovered= false;
+    positionAtViewportCorner ();
+    showControls ();
+    update ();
+  }
+
+protected:
+  bool eventFilter (QObject* watched, QEvent* event) override {
+    if (watched == parentWidget () &&
+        (event->type () == QEvent::Resize ||
+         event->type () == QEvent::Show))
+      positionAtViewportCorner ();
+    return QWidget::eventFilter (watched, event);
+  }
+
+  void enterEvent (QEnterEvent* event) override {
+    hovered= true;
+    showControls ();
+    QWidget::enterEvent (event);
+  }
+
+  void leaveEvent (QEvent* event) override {
+    // The mouse may be entering one of our child buttons. Defer the check
+    // until Qt has delivered its enter event to that child, so the controls
+    // never blink away while the pointer moves over them (also on Wayland).
+    QTimer::singleShot (0, this, [this] {
+      hovered= underMouse () || minimizeButton->underMouse () ||
+               closeButton->underMouse ();
+      showControls ();
+    });
+    QWidget::leaveEvent (event);
+  }
+
+  void paintEvent (QPaintEvent*) override {
+    QPainter painter (this);
+    if (collapsed) {
+      painter.setPen (QColor (255, 255, 255, 70));
+      painter.setBrush (QColor (20, 24, 28, 190));
+      painter.drawRect (rect ().adjusted (0, 0, -1, -1));
+    }
+    else monitor.drawHud (painter, monitor.clock.nsecsElapsed ());
+  }
+
+public:
+  QTMPerformanceHudOverlay (QTMPerformanceMonitor& monitor2, QWidget* host):
+    QWidget (host), monitor (monitor2),
+    minimizeButton (new QToolButton (this)),
+    closeButton (new QToolButton (this)),
+    restoreButton (new QToolButton (this)) {
+    setObjectName ("athenaPerformanceHud");
+    setFocusPolicy (Qt::NoFocus);
+    setMouseTracking (true);
+    for (QToolButton* button: {minimizeButton, closeButton, restoreButton}) {
+      button->setFocusPolicy (Qt::NoFocus);
+      button->setAutoRaise (true);
+    }
+    minimizeButton->setText (QString::fromUtf8 ("−"));
+    minimizeButton->setToolTip (tr ("Minimize performance HUD"));
+    closeButton->setText (QString::fromUtf8 ("×"));
+    closeButton->setToolTip (tr ("Hide performance HUD (Preferences)"));
+    restoreButton->setText (QStringLiteral ("FPS"));
+    restoreButton->setToolTip (tr ("Expand performance HUD"));
+    connect (minimizeButton, &QToolButton::clicked, this,
+             [this] { setCollapsed (true); });
+    connect (restoreButton, &QToolButton::clicked, this,
+             [this] { setCollapsed (false); });
+    connect (closeButton, &QToolButton::clicked, this, [this] {
+      set_preference ("rendering performance monitor", "off");
+      QTMWidget::refreshAllPerformanceMonitors ();
+      monitor.refresh ();
+    });
+    host->installEventFilter (this);
+    positionAtViewportCorner ();
+    showControls ();
+    hide ();
+  }
+};
+
 QTMPerformanceMonitor::QTMPerformanceMonitor (QTMWidget* owner2):
-  QTMPerformanceMonitor (owner2->surface ()) {
+  QTMPerformanceMonitor (owner2->surface (), owner2->viewport ()) {
   owner= owner2;
 }
 
 QTMPerformanceMonitor::QTMPerformanceMonitor (QWidget* surface2):
-  surface (surface2) {
+  QTMPerformanceMonitor (surface2, surface2) {}
+
+QTMPerformanceMonitor::QTMPerformanceMonitor (
+    QWidget* surface2, QWidget* viewport2):
+  surface (surface2), viewport (viewport2) {
   clock.start ();
+  hud= new QTMPerformanceHudOverlay (*this, viewport);
   hudTimer.setInterval (250);
   hudTimer.setTimerType (Qt::CoarseTimer);
-  QObject::connect (&hudTimer, &QTimer::timeout, surface, [this] () {
+  QObject::connect (&hudTimer, &QTimer::timeout, viewport, [this] () {
     if (!enabled || !isDocumentCanvas ()) {
       refresh ();
       return;
     }
-    hudRefreshPending= true;
-    surface->update (hudRect ());
+    if (hud) hud->update ();
   });
 }
+
+QTMPerformanceMonitor::~QTMPerformanceMonitor () { delete hud.data (); }
 
 bool
 QTMPerformanceMonitor::isDocumentCanvas () const {
@@ -52,8 +170,8 @@ QTMPerformanceMonitor::isDocumentCanvas () const {
          !owner->isEmbedded ();
 }
 
-QRect
-QTMPerformanceMonitor::hudRect () const {
+QSize
+QTMPerformanceMonitor::hudSize () const {
   QFont font= QFontDatabase::systemFont (QFontDatabase::FixedFont);
   qreal appPointSize= surface->font ().pointSizeF ();
   if (appPointSize > 0.0)
@@ -62,40 +180,36 @@ QTMPerformanceMonitor::hudRect () const {
   int width= metrics.horizontalAdvance (
     QStringLiteral ("Edit: 9999.9 ms   p95: 9999.9 ms")) + 18;
   int height= metrics.height () * 2 + 14;
-  QRect bounds= surface->rect ();
-  width= std::min (width, std::max (1, bounds.width () - 12));
-  height= std::min (height, std::max (1, bounds.height () - 12));
-  return QRect (6, std::max (6, bounds.height () - height - 6),
-                width, height);
+  width= std::min (width, std::max (1, viewport->width () - 12));
+  height= std::min (height, std::max (1, viewport->height () - 12));
+  return QSize (width, height);
 }
 
 void
 QTMPerformanceMonitor::refresh () {
-  QRect oldRect= hudRect ();
   bool shouldEnable=
     get_preference ("rendering performance monitor", "off") == "on" &&
     isDocumentCanvas ();
-  if (shouldEnable == enabled) {
-    if (enabled && !hudTimer.isActive ()) hudTimer.start ();
-    if (enabled) {
-      hudRefreshPending= true;
-      surface->update (oldRect);
-    }
-    return;
+  if (enabled != shouldEnable) {
+    enabled= shouldEnable;
+    frameTimes.clear ();
+    pendingInputTimes.clear ();
+    latencySamples.clear ();
+    clock.restart ();
   }
-
-  enabled= shouldEnable;
-  hudRefreshPending= false;
-  frameTimes.clear ();
-  pendingInputTimes.clear ();
-  latencySamples.clear ();
-  clock.restart ();
   if (enabled) {
-    hudTimer.start ();
-    hudRefreshPending= true;
+    if (!hudTimer.isActive ()) hudTimer.start ();
+    if (hud) {
+      hud->positionAtViewportCorner ();
+      hud->show ();
+      hud->raise ();
+      hud->update ();
+    }
   }
-  else hudTimer.stop ();
-  surface->update (oldRect);
+  else {
+    hudTimer.stop ();
+    if (hud) hud->hide ();
+  }
 }
 
 void
@@ -150,7 +264,7 @@ QTMPerformanceMonitor::drawHud (QPainter& painter, qint64 nowNs) {
     font.setPointSizeF (std::max (8.0, appPointSize * 0.82));
   font.setWeight (QFont::DemiBold);
   QFontMetrics metrics (font);
-  QRect hud= hudRect ();
+  QRect hud (QPoint (0, 0), hudSize ());
   int textLeft= hud.left () + 9;
   int firstBaseline= hud.top () + 7 + metrics.ascent ();
 
@@ -158,7 +272,7 @@ QTMPerformanceMonitor::drawHud (QPainter& painter, qint64 nowNs) {
   painter.setRenderHint (QPainter::Antialiasing, false);
   painter.setPen (QColor (255, 255, 255, 70));
   painter.setBrush (QColor (20, 24, 28, 190));
-  painter.drawRect (hud);
+  painter.drawRect (hud.adjusted (0, 0, -1, -1));
   painter.setFont (font);
   painter.setPen (QColor (245, 247, 248));
   painter.drawText (textLeft, firstBaseline,
@@ -170,18 +284,16 @@ QTMPerformanceMonitor::drawHud (QPainter& painter, qint64 nowNs) {
 
 void
 QTMPerformanceMonitor::finishPaint (QPaintEvent* event, QPainter& painter) {
+  (void) event;
+  (void) painter;
   if (!enabled || !clock.isValid ()) return;
-  QRect hud= hudRect ().intersected (surface->rect ());
-  bool hudOnly= hudRefreshPending && event->region () == QRegion (hud);
-  hudRefreshPending= false;
   qint64 nowNs= clock.nsecsElapsed ();
-  if (!hudOnly) {
-    frameTimes << nowNs;
-    for (qint64 inputNs: pendingInputTimes)
-      latencySamples << LatencySample {
-        nowNs, (nowNs - inputNs) / 1000000.0
-      };
-    pendingInputTimes.clear ();
-  }
-  drawHud (painter, nowNs);
+  // The HUD now lives on the viewport, not the document surface. Its own
+  // repaint never reaches this callback and cannot count as an editor frame.
+  frameTimes << nowNs;
+  for (qint64 inputNs: pendingInputTimes)
+    latencySamples << LatencySample {
+      nowNs, (nowNs - inputNs) / 1000000.0
+    };
+  pendingInputTimes.clear ();
 }

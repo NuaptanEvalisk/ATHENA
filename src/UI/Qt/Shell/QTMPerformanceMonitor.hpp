@@ -12,7 +12,8 @@
 #define QTMPERFORMANCEMONITOR_HPP
 
 #include <QElapsedTimer>
-#include <QRect>
+#include <QPointer>
+#include <QSize>
 #include <QTimer>
 #include <QVector>
 
@@ -20,11 +21,13 @@ class QPaintEvent;
 class QPainter;
 class QTMWidget;
 class QWidget;
+class QTMPerformanceHudOverlay;
 
 class QTMPerformanceMonitor {
 public:
   explicit QTMPerformanceMonitor (QTMWidget* owner);
   explicit QTMPerformanceMonitor (QWidget* surface);
+  ~QTMPerformanceMonitor ();
 
   void refresh ();
   void recordEditingInput ();
@@ -33,6 +36,8 @@ public:
   void setInputBatchActive (bool active) { inputBatch= active; }
 
 private:
+  friend class QTMPerformanceHudOverlay;
+  QTMPerformanceMonitor (QWidget* surface, QWidget* viewport);
   struct LatencySample {
     qint64 completedNs;
     double milliseconds;
@@ -40,18 +45,19 @@ private:
 
   QTMWidget* owner= nullptr;
   QWidget* surface;
+  QWidget* viewport;
+  QPointer<QTMPerformanceHudOverlay> hud;
   QElapsedTimer clock;
   QTimer hudTimer;
   QVector<qint64> frameTimes;
   QVector<qint64> pendingInputTimes;
   QVector<LatencySample> latencySamples;
   bool enabled= false;
-  bool hudRefreshPending= false;
   bool inputBatch= false;
 
   bool isDocumentCanvas () const;
   void pruneSamples (qint64 nowNs);
-  QRect hudRect () const;
+  QSize hudSize () const;
   void drawHud (QPainter& painter, qint64 nowNs);
 };
 

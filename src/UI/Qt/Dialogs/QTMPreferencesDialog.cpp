@@ -2289,8 +2289,10 @@ QTMPreferencesDialog::buildOtherPage () {
                       QTMWidget::refreshAllPerformanceMonitors ();
                     });
   QLabel* performanceNote= new QLabel (
-    "The semi-transparent HUD is shown at the lower-left of every document "
-    "editor. FPS counts completed canvas paints; editing latency measures "
+    "The HUD is anchored to the lower-left of the complete editor viewport. "
+    "Hover to minimize it to a small handle or close it; closing turns this "
+    "preference off until you enable it again here. "
+    "FPS counts completed canvas paints; editing latency measures "
     "from keyboard or input-method delivery to the next completed paint. "
     "HUD-only refreshes are excluded from both measurements.", debugging);
   performanceNote->setWordWrap (true);
