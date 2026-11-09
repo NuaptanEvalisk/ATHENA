@@ -11,6 +11,7 @@
 #include "UI/Qt/Shell/QTMMainTabWindow.hpp"
 #include "UI/Qt/Toolkit/qt_utilities.hpp"
 #include "boot.hpp"
+#include "athena_build_info.hpp"
 
 #include <QApplication>
 #include <QCloseEvent>
@@ -34,6 +35,8 @@
 #include <QScrollArea>
 #include <QSlider>
 #include <QTimer>
+#include <QTextDocument>
+#include <QTextOption>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QWheelEvent>
@@ -512,12 +515,30 @@ protected:
       canvas_->rootObject ()->setProperty ("pointerPosition", pointerPosition_);
     }
     if (finished_) {
-      painter.setPen (Qt::white);
+      QTextDocument message;
       QFont font= painter.font ();
-      font.setPointSize (22);
-      painter.setFont (font);
-      painter.drawText (rect (), Qt::AlignCenter,
-                        tr ("End of slideshow\nPress any key to exit"));
+      font.setPointSize (14);
+      message.setDefaultFont (font);
+      QTextOption option;
+      option.setAlignment (Qt::AlignHCenter);
+      option.setWrapMode (QTextOption::WrapAtWordBoundaryOrAnywhere);
+      message.setDefaultTextOption (option);
+      message.setTextWidth (std::max (1, width ()-48));
+      message.setHtml (
+        QStringLiteral ("<div align='center' style='color:white'>"
+                        "<p style='font-size:22pt'>%1<br>%2</p>"
+                        "<p style='margin-top:36px;font-size:18pt'><b>ATHENA %3</b></p>"
+                        "<p>%4</p>"
+                        "<p>%5 https://athena.evalisk.org/<br>"
+                        "%6 https://github.com/nuaptanEvalisk/ATHENA</p></div>")
+          .arg (tr ("End of slideshow.").toHtmlEscaped (),
+                tr ("Press any key to exit.").toHtmlEscaped (),
+                QString::fromLatin1 (ATHENA_APP_VERSION).toHtmlEscaped (),
+                tr ("ATHENA is free software licensed under the GNU GPL v3.").toHtmlEscaped (),
+                tr ("Website:").toHtmlEscaped (),
+                tr ("Source code:").toHtmlEscaped ()));
+      painter.translate (24, std::max (0.0, (height ()-message.size ().height ())/2));
+      message.drawContents (&painter);
       return;
     }
     if (blackout_) {
