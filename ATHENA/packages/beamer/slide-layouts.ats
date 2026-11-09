@@ -26,10 +26,18 @@
       </node>
     </node></node>
     <node tag="assign"><text>slide-line</text><node tag="macro"><text>line</text><text>rest</text>
-      <node tag="if"><node tag="equal"><node tag="arg"><text>line</text></node><text/></node>
-        <node tag="arg"><text>rest</text></node>
-        <node tag="document"><node tag="arg"><text>line</text></node><node tag="arg"><text>rest</text></node></node>
+      <node tag="compound">
+        <node tag="if"><node tag="equal"><node tag="arg"><text>line</text></node><text/></node>
+          <text>slide-line-empty</text><text>slide-line-present</text>
+        </node>
+        <node tag="arg"><text>line</text></node><node tag="arg"><text>rest</text></node>
       </node>
+    </node></node>
+    <node tag="assign"><text>slide-line-empty</text><node tag="macro"><text>line</text><text>rest</text>
+      <node tag="arg"><text>rest</text></node>
+    </node></node>
+    <node tag="assign"><text>slide-line-present</text><node tag="macro"><text>line</text><text>rest</text>
+      <node tag="document"><node tag="concat"><node tag="arg"><text>line</text></node></node><node tag="arg"><text>rest</text></node></node>
     </node></node>
     <node tag="assign"><text>slide-centered</text><node tag="macro"><text>body</text>
       <node tag="tabular*"><node tag="tformat">
