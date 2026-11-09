@@ -18,9 +18,10 @@
 #include "Domains/References/node_reference_export.hpp"
 
 static box
-apply_block_backgrounds (path ip, box b, array<brush> bg) {
+apply_block_backgrounds (path ip, box b, array<brush> bg, array<path> sources) {
   array<rectangle> rs;
   array<brush> bs;
+  array<path> owners;
   int n= min (N(bg), b->subnr ());
   for (int i=0; i<n; ) {
     if (bg[i]->get_type () == brush_none) {
@@ -28,7 +29,8 @@ apply_block_backgrounds (path ip, box b, array<brush> bg) {
       continue;
     }
     int start= i;
-    while (i+1<n && same_brush_instance (bg[i+1], bg[start])) i++;
+    while (i+1<n && same_brush_instance (bg[i+1], bg[start]) &&
+           sources[i+1] == sources[start]) i++;
     SI x1= min ((SI) 0, b->x1);
     SI x2= b->x2;
     SI y1= b->sy1 (i);
@@ -36,10 +38,11 @@ apply_block_backgrounds (path ip, box b, array<brush> bg) {
     if (x2 > x1 && y2 > y1) {
       rs << rectangle (x1, y1, x2, y2);
       bs << bg[start];
+      owners << sources[start];
     }
     i++;
   }
-  return block_background_box (ip, b, rs, bs);
+  return block_background_box (ip, b, rs, bs, owners);
 }
 
 bool
@@ -498,6 +501,7 @@ bridge_rep::typeset (int desired_status) {
       array<box> bs;
       array<SI>  spc;
       array<brush> bg;
+      array<path> sources;
       array<page_item> special_l;
       for (i=0; i<n; i++)
 	if (output[i]->type != PAGE_CONTROL_ITEM) {
@@ -505,6 +509,7 @@ bridge_rep::typeset (int desired_status) {
 	  bs  << output[i]->b;
 	  spc << output[i]->spc->def;
 	  bg  << output[i]->block_bg;
+          sources << output[i]->block_bg_ip;
 	  last= i;
 	}
         else if (is_tuple (output[i]->t, "env_page") &&
@@ -513,7 +518,7 @@ bridge_rep::typeset (int desired_status) {
                   output[i]->t[1] == PAGE_THIS_BG_COLOR))
           special_l << output[i];
       box lb= stack_box (path (ip), bs, spc);
-      lb= apply_block_backgrounds (path (ip), lb, bg);
+      lb= apply_block_backgrounds (path (ip), lb, bg, sources);
       if (first != -1) lb= move_box (path (ip), lb, 0, bs[first]->y2);
       array<page_item> new_l (1);
       new_l[0]= page_item (lb);

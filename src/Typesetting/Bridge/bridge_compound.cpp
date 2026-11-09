@@ -42,14 +42,16 @@ athena_enunciation_surround_body_path (bool display, path p) {
 
 static void
 athena_mark_enunciation_background (
-  array<page_item>& items, tree color, int alpha)
+  array<page_item>& items, tree color, int alpha, path ip)
 {
   brush bg (color, alpha);
   for (int i=0; i<N(items); i++)
     if (items[i]->type == PAGE_LINE_ITEM) {
       page_item item= copy (items[i]);
-      if (item->block_bg->get_type () == brush_none)
+      if (item->block_bg->get_type () == brush_none) {
         item->block_bg= bg;
+        item->block_bg_ip= ip;
+      }
       items[i]= item;
     }
 }
@@ -381,7 +383,7 @@ bridge_compound_rep::my_typeset (int desired_status) {
     ttt->local_start (items, border);
     body->typeset (desired_status);
     ttt->local_end (items, border);
-    athena_mark_enunciation_background (items, st[d], env->alpha);
+    athena_mark_enunciation_background (items, st[d], env->alpha, ip);
     ttt->insert_stack (items, border);
     return;
   }
@@ -399,7 +401,7 @@ bridge_compound_rep::my_typeset (int desired_status) {
       ttt->local_start (items, border);
       body->typeset (desired_status);
       ttt->local_end (items, border);
-      athena_mark_enunciation_background (items, color, env->alpha);
+      athena_mark_enunciation_background (items, color, env->alpha, ip);
       ttt->insert_stack (items, border);
     }
     return;

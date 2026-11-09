@@ -27,9 +27,11 @@ box page_box (path ip, box b, tree page, int page_nr, brush bgc,
 	      SI bot, box header, box footer, SI head_sep, SI foot_sep);
 
 static box
-apply_block_backgrounds (path ip, box b, array<brush> bg, SI width) {
+apply_block_backgrounds (path ip, box b, array<brush> bg,
+                         array<path> sources, SI width) {
   array<rectangle> rs;
   array<brush> bs;
+  array<path> owners;
   int n= min (N(bg), b->subnr ());
   for (int i=0; i<n; ) {
     if (bg[i]->get_type () == brush_none) {
@@ -37,7 +39,8 @@ apply_block_backgrounds (path ip, box b, array<brush> bg, SI width) {
       continue;
     }
     int start= i;
-    while (i+1<n && same_brush_instance (bg[i+1], bg[start])) i++;
+    while (i+1<n && same_brush_instance (bg[i+1], bg[start]) &&
+           sources[i+1] == sources[start]) i++;
     SI x1= min ((SI) 0, b->x1);
     SI x2= max (width, b->x2);
     SI y1= b->sy1 (i);
@@ -45,10 +48,11 @@ apply_block_backgrounds (path ip, box b, array<brush> bg, SI width) {
     if (x2 > x1 && y2 > y1) {
       rs << rectangle (x1, y1, x2, y2);
       bs << bg[start];
+      owners << sources[start];
     }
     i++;
   }
-  return block_background_box (ip, b, rs, bs);
+  return block_background_box (ip, b, rs, bs, owners);
 }
 
 box
@@ -59,6 +63,7 @@ pager_rep::pages_format (array<page_item> l, SI ht, SI tcor, SI bcor) {
   array<box>   bs;
   array<space> spc;
   array<brush> bg;
+  array<path> sources;
   for (i=0; i<n; i++) {
     page_item item= l[i];
     if (item->type == PAGE_CONTROL_ITEM) {
@@ -75,6 +80,7 @@ pager_rep::pages_format (array<page_item> l, SI ht, SI tcor, SI bcor) {
       bs  << item->b;
       spc << item->spc;
       bg  << item->block_bg;
+      sources << item->block_bg_ip;
     }
   }
   if (N(bs) == 0) {
@@ -83,7 +89,7 @@ pager_rep::pages_format (array<page_item> l, SI ht, SI tcor, SI bcor) {
   }
   else {
     box b= format_stack (ip, bs, spc, ht, true);
-    b= apply_block_backgrounds (ip, b, bg, text_width);
+    b= apply_block_backgrounds (ip, b, bg, sources, text_width);
     return vcorrect_box (b->ip, b, tcor, bcor);
   }
 }

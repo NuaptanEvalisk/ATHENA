@@ -57,9 +57,10 @@ pager_rep::pager_rep (path ip2, edit_env env2, array<page_item> l2):
 ******************************************************************************/
 
 static box
-apply_block_backgrounds (path ip, box b, array<brush> bg) {
+apply_block_backgrounds (path ip, box b, array<brush> bg, array<path> sources) {
   array<rectangle> rs;
   array<brush> bs;
+  array<path> owners;
   int n= min (N(bg), b->subnr ());
   for (int i=0; i<n; ) {
     if (bg[i]->get_type () == brush_none) {
@@ -67,7 +68,8 @@ apply_block_backgrounds (path ip, box b, array<brush> bg) {
       continue;
     }
     int start= i;
-    while (i+1<n && same_brush_instance (bg[i+1], bg[start])) i++;
+    while (i+1<n && same_brush_instance (bg[i+1], bg[start]) &&
+           sources[i+1] == sources[start]) i++;
     SI x1= min ((SI) 0, b->x1);
     SI x2= b->x2;
     SI y1= b->sy1 (i);
@@ -75,10 +77,11 @@ apply_block_backgrounds (path ip, box b, array<brush> bg) {
     if (x2 > x1 && y2 > y1) {
       rs << rectangle (x1, y1, x2, y2);
       bs << bg[start];
+      owners << sources[start];
     }
     i++;
   }
-  return block_background_box (ip, b, rs, bs);
+  return block_background_box (ip, b, rs, bs, owners);
 }
 
 box
@@ -132,16 +135,19 @@ format_stack (path ip, array<page_item> l) {
   array<box> bs  (n);
   array<SI>  spc (n);
   array<brush> bg (n);
+  array<path> sources (n);
   for (i=0; i<n-1; i++) {
     bs [i]= l[i]->b;
     spc[i]= l[i]->spc->def;
     bg [i]= l[i]->block_bg;
+    sources[i]= l[i]->block_bg_ip;
   }
   if (i<n) {
     bs [i]= l[i]->b;
     bg [i]= l[i]->block_bg;
+    sources[i]= l[i]->block_bg_ip;
   }
-  return apply_block_backgrounds (ip, stack_box (ip, bs, spc), bg);
+  return apply_block_backgrounds (ip, stack_box (ip, bs, spc), bg, sources);
 }
 
 box
@@ -150,17 +156,20 @@ format_stack (path ip, array<page_item> l, SI height, bool may_stretch) {
   array<box>   bs  (n);
   array<space> spc (n);
   array<brush> bg  (n);
+  array<path> sources (n);
   for (i=0; i<n-1; i++) {
     bs [i]= l[i]->b;
     spc[i]= l[i]->spc;
     bg [i]= l[i]->block_bg;
+    sources[i]= l[i]->block_bg_ip;
   }
   if (i<n) {
     bs [i]= l[i]->b;
     bg [i]= l[i]->block_bg;
+    sources[i]= l[i]->block_bg_ip;
   }
   return apply_block_backgrounds (ip, format_stack (ip, bs, spc, height,
-                                                    may_stretch), bg);
+                                                    may_stretch), bg, sources);
 }
 
 box

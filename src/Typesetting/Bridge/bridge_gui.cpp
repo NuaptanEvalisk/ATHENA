@@ -235,12 +235,14 @@ is_block_background_ornament (ornament_parameters ps, box xb) {
 }
 
 static void
-mark_block_background (array<page_item>& l, brush bg) {
+mark_block_background (array<page_item>& l, brush bg, path ip) {
   for (int i=0; i<N(l); i++)
     if (l[i]->type == PAGE_LINE_ITEM) {
       page_item item= copy (l[i]);
-      if (item->block_bg->get_type () == brush_none)
+      if (item->block_bg->get_type () == brush_none) {
         item->block_bg= bg;
+        item->block_bg_ip= ip;
+      }
       l[i]= item;
     }
 }
@@ -259,7 +261,8 @@ materialize_block_background_runs (
 
     int start= i;
     while (i+1<N(l) && l[i+1]->type == PAGE_LINE_ITEM &&
-           same_brush_instance (l[i+1]->block_bg, l[start]->block_bg))
+           same_brush_instance (l[i+1]->block_bg, l[start]->block_bg) &&
+           l[i+1]->block_bg_ip == l[start]->block_bg_ip)
       i++;
 
     int n= i - start + 1;
@@ -274,9 +277,11 @@ materialize_block_background_runs (
     box b= stack_box (ip, lines_bx, lines_ht);
     array<rectangle> rs;
     array<brush> bg;
+    array<path> sources;
     rs << rectangle (body_x1, b->sy1 (n-1), body_x2, b->sy2 (0));
     bg << l[start]->block_bg;
-    b= block_background_box (decorate (b->ip), b, rs, bg);
+    sources << l[start]->block_bg_ip;
+    b= block_background_box (decorate (b->ip), b, rs, bg, sources);
     SI dy= n == 0? 0: b[0]->y2;
     b= move_box (decorate (ip), b, 0, dy);
     page_item last= l[i];
@@ -440,7 +445,7 @@ bridge_ornament_rep::my_typeset (int desired_status) {
   stack_border sb2;
   typeset_ornament_stack (desired_status, l2, sb2);
   if (is_block_background_ornament (ps, xb)) {
-    mark_block_background (l2, ps->bg);
+    mark_block_background (l2, ps->bg, ip);
     insert_ornament (l2, sb2);
     return;
   }

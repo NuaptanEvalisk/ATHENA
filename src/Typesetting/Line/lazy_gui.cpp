@@ -182,12 +182,14 @@ stack_page_items (path ip, array<page_item> l, int start, int end) {
   array<box> lines_bx (n);
   array<SI> lines_ht (n);
   brush block_bg= l[start]->block_bg;
+  path block_bg_ip= l[start]->block_bg_ip;
   for (int i=0; i<n; i++) {
     box b= l[start + i]->b;
     lines_bx[i]= resize_box (b->ip, b, b->x1, min (b->y1, b->y3),
                               b->x2, max (b->y2, b->y4));
     lines_ht[i]= l[start + i]->spc->def;
-    if (!same_brush_instance (l[start + i]->block_bg, block_bg))
+    if (!same_brush_instance (l[start + i]->block_bg, block_bg) ||
+        l[start + i]->block_bg_ip != block_bg_ip)
       block_bg= brush (false);
   }
   box b= stack_box (ip, lines_bx, lines_ht);
@@ -197,6 +199,7 @@ stack_page_items (path ip, array<page_item> l, int start, int end) {
   page_item item= page_item (PAGE_LINE_ITEM, b, space (0), last->penalty,
                              last->fl, last->nr_cols, last->t);
   item->block_bg= block_bg;
+  item->block_bg_ip= block_bg_ip;
   return item;
 }
 
@@ -240,12 +243,14 @@ is_block_background_ornament (ornament_parameters ps, box xb) {
 }
 
 static void
-mark_block_background (array<page_item>& l, brush bg, SI dx) {
+mark_block_background (array<page_item>& l, brush bg, SI dx, path ip) {
   for (int i=0; i<N(l); i++)
     if (l[i]->type == PAGE_LINE_ITEM) {
       page_item item= copy (l[i]);
-      if (item->block_bg->get_type () == brush_none)
+      if (item->block_bg->get_type () == brush_none) {
         item->block_bg= bg;
+        item->block_bg_ip= ip;
+      }
       if (dx != 0)
         item->b= move_box (decorate (item->b->ip), item->b, dx, 0);
       l[i]= item;
@@ -266,7 +271,8 @@ materialize_block_background_runs (
 
     int start= i;
     while (i+1<N(l) && l[i+1]->type == PAGE_LINE_ITEM &&
-           same_brush_instance (l[i+1]->block_bg, l[start]->block_bg))
+           same_brush_instance (l[i+1]->block_bg, l[start]->block_bg) &&
+           l[i+1]->block_bg_ip == l[start]->block_bg_ip)
       i++;
 
     int n= i - start + 1;
@@ -281,9 +287,11 @@ materialize_block_background_runs (
     box b= stack_box (ip, lines_bx, lines_ht);
     array<rectangle> rs;
     array<brush> bg;
+    array<path> sources;
     rs << rectangle (body_x1, b->sy1 (n-1), body_x2, b->sy2 (0));
     bg << l[start]->block_bg;
-    b= block_background_box (decorate (b->ip), b, rs, bg);
+    sources << l[start]->block_bg_ip;
+    b= block_background_box (decorate (b->ip), b, rs, bg, sources);
     SI dy= n == 0? 0: b[0]->y2;
     b= move_box (decorate (ip), b, 0, dy);
     page_item last= l[i];
@@ -318,7 +326,7 @@ lazy_ornament_rep::produce (lazy_type request, format fm) {
     lazy_vstream body_vs= (lazy_vstream) body;
     array<page_item> l= body_vs->l;
     if (is_block_background_ornament (ps, xb)) {
-      mark_block_background (l, ps->bg, ps->lpad);
+      mark_block_background (l, ps->bg, ps->lpad, ip);
       return lazy_vstream (ip, "", l, body_vs->sb);
     }
     group_highlight_runs (ip, l, 3 * env->fn->yx);

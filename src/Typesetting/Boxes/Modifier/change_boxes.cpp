@@ -659,8 +659,9 @@ cell_box_rep::post_display (renderer& ren) {
 struct block_background_box_rep: public change_box_rep {
   array<rectangle> rs;
   array<brush> bg;
+  array<path> sources;
   block_background_box_rep (path ip, box b, array<rectangle> rs2,
-                            array<brush> bg2);
+                            array<brush> bg2, array<path> sources2);
   operator tree () { return tree (TUPLE, "block-background", (tree) bs[0]); }
   box adjust_kerning (int mode, double factor);
   box expand_glyphs (int mode, double factor);
@@ -668,8 +669,9 @@ struct block_background_box_rep: public change_box_rep {
 };
 
 block_background_box_rep::block_background_box_rep (
-  path ip, box b, array<rectangle> rs2, array<brush> bg2):
-    change_box_rep (ip, false), rs (rs2), bg (bg2)
+  path ip, box b, array<rectangle> rs2, array<brush> bg2,
+  array<path> sources2):
+    change_box_rep (ip, false), rs (rs2), bg (bg2), sources (sources2)
 {
   // Background painting must not intercept margin clicks before line lookup.
   insert (b, 0, 0);
@@ -686,13 +688,13 @@ block_background_box_rep::block_background_box_rep (
 box
 block_background_box_rep::adjust_kerning (int mode, double factor) {
   box nb= bs[0]->adjust_kerning (mode, factor);
-  return block_background_box (ip, nb, rs, bg);
+  return block_background_box (ip, nb, rs, bg, sources);
 }
 
 box
 block_background_box_rep::expand_glyphs (int mode, double factor) {
   box nb= bs[0]->expand_glyphs (mode, factor);
-  return block_background_box (ip, nb, rs, bg);
+  return block_background_box (ip, nb, rs, bg, sources);
 }
 
 void
@@ -700,6 +702,7 @@ block_background_box_rep::pre_display (renderer& ren) {
   brush old_bg= ren->get_background ();
   for (int i=0; i<N(rs) && i<N(bg); i++)
     if (bg[i]->get_type () != brush_none) {
+      if (ren->source_paint) ren->source_paint (sources[i]);
       ren->set_background (bg[i]);
       ren->clear_pattern (rs[i]->x1, rs[i]->y1, rs[i]->x2, rs[i]->y2);
     }
@@ -707,9 +710,10 @@ block_background_box_rep::pre_display (renderer& ren) {
 }
 
 box
-block_background_box (path ip, box b, array<rectangle> rs, array<brush> bg) {
+block_background_box (path ip, box b, array<rectangle> rs, array<brush> bg,
+                      array<path> sources) {
   if (N(rs) == 0 || N(bg) == 0) return b;
-  return tm_new<block_background_box_rep> (ip, b, rs, bg);
+  return tm_new<block_background_box_rep> (ip, b, rs, bg, sources);
 }
 
 /******************************************************************************

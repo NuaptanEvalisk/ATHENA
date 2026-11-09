@@ -51,23 +51,27 @@ format_vstream_as_box (
   array<box> lines_bx (n);
   array<SI>  lines_ht (n);
   array<brush> lines_bg (n);
+  array<path> lines_bg_ip (n);
   for (i=0; i<n; i++) {
     page_item item= copy (l[i]);
     lines_bx[i]= item->b;
     lines_ht[i]= item->spc->def;
     lines_bg[i]= item->block_bg;
+    lines_bg_ip[i]= item->block_bg_ip;
   }
 
   box b= stack_box (ip, lines_bx, lines_ht);
   array<rectangle> rs;
   array<brush> bg;
+  array<path> sources;
   for (i=0; i<n; ) {
     if (lines_bg[i]->get_type () == brush_none) {
       i++;
       continue;
     }
     int start= i;
-    while (i+1<n && same_brush_instance (lines_bg[i+1], lines_bg[start]))
+    while (i+1<n && same_brush_instance (lines_bg[i+1], lines_bg[start]) &&
+           lines_bg_ip[i+1] == lines_bg_ip[start])
       i++;
     SI x1= min ((SI) 0, b->x1);
     SI x2= b->x2;
@@ -76,10 +80,11 @@ format_vstream_as_box (
     if (x2 > x1 && y2 > y1) {
       rs << rectangle (x1, y1, x2, y2);
       bg << lines_bg[start];
+      sources << lines_bg_ip[start];
     }
     i++;
   }
-  b= block_background_box (ip, b, rs, bg);
+  b= block_background_box (ip, b, rs, bg, sources);
   SI dy= 0, bot= 0, top= 0;
   if (n>0) {
     if (vpos>0) dy= b->sy (0);

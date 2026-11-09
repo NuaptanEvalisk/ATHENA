@@ -29,6 +29,7 @@ public:
   space        spc;     // separation space
   int          penalty; // penalty for a linebreak after this page_item
   brush        block_bg;// block background paint metadata
+  path         block_bg_ip; // source owner, independent of the page/stack box
 
   array<lazy>  fl;      // floating objects attached to this item
   int          nr_cols; // number of columns

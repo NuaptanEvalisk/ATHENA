@@ -41,6 +41,7 @@ page_item copy (page_item l) {
   page_item r= page_item (l->type, l->b, l->spc, l->penalty,
                           l->fl, l->nr_cols, l->t);
   r->block_bg= l->block_bg;
+  r->block_bg_ip= l->block_bg_ip;
   return r;
 }
 
