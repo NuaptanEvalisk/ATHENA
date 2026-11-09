@@ -18,10 +18,9 @@ inline slot_style title_slot_style (const std::string& field) {
   return {"Attribution", "#285e9c", "#e7effa"};
 }
 inline bool editable_fields (const tree& t) {
-  return editable_title (t) || !athena::slides::fields (t).empty ();
+  return editable_title (t) || !athena::slides::kind (t).empty ();
 }
 inline std::vector<std::string> field_order (const tree& t) {
-  if (is_func (t, SLIDE_PAGE)) return athena::slides::fields (t);
   return {"name", "year", "attribution"};
 }
 inline string title_slot_prefix (const std::string& node) {

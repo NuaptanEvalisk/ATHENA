@@ -29,6 +29,7 @@
   "synopses": {
     "article": "Default style for writing articles",
     "beamer": "Style for laptop presentations",
+    "seafoam": "Square title bands and shared presentation footers",
     "book": "Default style for writing books",
     "generic": "Default document style",
     "letter": "Default style for writing letters",
@@ -152,7 +153,8 @@
     {
       "label": "Slides",
       "styles": [
-        "beamer"
+        "beamer",
+        "seafoam"
       ]
     }
   ],

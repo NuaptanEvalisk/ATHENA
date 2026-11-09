@@ -37,11 +37,14 @@ Transition and animation are not part of this change.
 
 ## Typed Pages And Style Layouts
 
-New pages carry a `kind` property: `title`, `section`, `content`, or `blank`.
+New pages carry a `kind` property declared by ATS. The default style provides
+`title`, `section`, `content`, and `blank`; these are not native enumerations.
 Title pages expose rich-text `title`, `subtitle`, `author`, and `date` properties;
 section pages expose title and subtitle, content pages expose title, and blank
-pages expose only their existing body. Fields are page-owned, not synchronized
-copies of document metadata. Untyped existing pages retain their authored body.
+pages expose only their existing body. These default fields are page-owned.
+Styles can declare additional types and fields, including bindings to shared
+document variables. See [Style-Declared Slide Pages](style-declared-slide-pages.md).
+Untyped existing pages retain their authored body.
 
 The thumbnail pane's New slide split button inherits the selected page's kind.
 Its arrow inserts a chosen kind. Duplicate copies content; New slide does not.

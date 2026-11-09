@@ -287,6 +287,7 @@ struct actor_focus_toolbar_snapshot {
   std::vector<actor_focus_choice_snapshot> document_packages;
   std::vector<actor_focus_choice_snapshot> current_packages;
   std::vector<std::string> slide_names;
+  std::vector<actor_focus_choice_snapshot> slide_types;
   std::string background_color;
   bool background_available= false;
   bool beamer_style= false;

@@ -3,6 +3,30 @@
 <node tag="document">
   <node tag="style"><text>source</text></node>
   <node tag="body"><node tag="document">
+    <node tag="assign"><text>slide-page-types</text><node tag="tuple"><text>title</text><text>section</text><text>content</text><text>blank</text></node></node>
+    <node tag="assign"><text>slide-default-type</text><text>blank</text></node>
+    <node tag="assign"><text>slide-page-type-title</text><node tag="tuple">
+      <text>Title</text><text>render-slide-title</text><node tag="tuple">
+        <node tag="tuple"><text>title</text><text>Title</text><text/></node>
+        <node tag="tuple"><text>subtitle</text><text>Subtitle</text><text/></node>
+        <node tag="tuple"><text>author</text><text>Author</text><text/></node>
+        <node tag="tuple"><text>date</text><text>Date</text><text/></node>
+      </node>
+    </node></node>
+    <node tag="assign"><text>slide-page-type-section</text><node tag="tuple">
+      <text>Section</text><text>render-slide-section</text><node tag="tuple">
+        <node tag="tuple"><text>title</text><text>Title</text><text/></node>
+        <node tag="tuple"><text>subtitle</text><text>Subtitle</text><text/></node>
+      </node>
+    </node></node>
+    <node tag="assign"><text>slide-page-type-content</text><node tag="tuple">
+      <text>Content</text><text>render-slide-content</text><node tag="tuple">
+        <node tag="tuple"><text>title</text><text>Title</text><text/></node>
+      </node>
+    </node></node>
+    <node tag="assign"><text>slide-page-type-blank</text><node tag="tuple">
+      <text>Blank</text><text>render-slide-blank</text><node tag="tuple"/>
+    </node></node>
     <node tag="assign"><text>slide-heading-size</text><text>2.4</text></node>
     <node tag="assign"><text>slide-cover-heading-size</text><text>3.6</text></node>
     <node tag="assign"><text>slide-cover-text-size</text><text>1.6</text></node>

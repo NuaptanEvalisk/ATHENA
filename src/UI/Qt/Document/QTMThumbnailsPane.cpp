@@ -147,17 +147,18 @@ QTMThumbnailsPane::QTMThumbnailsPane (QWidget* parent): QWidget (parent),
   newSlide->setIcon (QIcon::fromTheme (QStringLiteral ("list-add")));
   newSlide->setPopupMode (QToolButton::MenuButtonPopup);
   auto* kinds= new QMenu (newSlide);
-  const std::pair<const char*, slide_page_operation> layouts[]= {
-    {"Title", slide_page_operation::insert_title},
-    {"Section", slide_page_operation::insert_section},
-    {"Content", slide_page_operation::insert_content},
-    {"Blank", slide_page_operation::insert_blank}};
-  for (const auto& [label, operation]: layouts)
-    connect (kinds->addAction (tr (label)), &QAction::triggered, this,
-      [this, operation] {
-        if (available && slideshow && writable)
-          (void) thumbnails_slide_action (actor, view, operation, activeSlide);
-      });
+  connect (kinds, &QMenu::aboutToShow, this, [this, kinds] {
+    kinds->clear ();
+    auto* proxy= canvas_proxy (QTMMainTabWindow::topTabWindow ());
+    if (!proxy || proxy->view_id () != view) return;
+    for (const auto& type: proxy->focus_toolbar_state ().slide_types)
+      connect (kinds->addAction (QString::fromStdString (type.label)),
+        &QAction::triggered, this, [this, kind=type.value] {
+          if (available && slideshow && writable)
+            (void) thumbnails_slide_action (actor, view,
+              slide_page_operation::insert_type, activeSlide, 0, kind);
+        });
+  });
   newSlide->setMenu (kinds);
   newSlide->hide ();
   layout->addWidget (newSlide);
@@ -561,8 +562,13 @@ thumbnails_pane_accept_manifest (athena_view_id view, athena_blob_id id) {
 bool
 thumbnails_slide_action (athena_actor_id actor, athena_view_id view,
                           slide_page_operation operation, int index,
-                          std::uint64_t confirmed) {
+                          std::uint64_t confirmed, std::string kind) {
   athena_blob_id payload= ATHENA_NO_BLOB;
+  if (operation == slide_page_operation::insert_type) {
+    auto reservation= actor_blob_registry::instance ().allocate (kind.size ());
+    std::memcpy (reservation.data (), kind.data (), kind.size ());
+    payload= reservation.publish ();
+  }
   if (operation == slide_page_operation::paste_before ||
       operation == slide_page_operation::paste_after) {
     const QMimeData* offer= QApplication::clipboard ()->mimeData ();

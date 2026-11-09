@@ -575,6 +575,7 @@ public:
                      "Artifact binding requires a nonempty role and canonical UUID");
           }
         }
+        else if (L(source) == SLIDE_PAGE && std::holds_alternative<node::rich_text> (entry.second.data)) {}
         else if (!is_namespaced_extension (entry.first))
           error (issue::unknown_property, entry.first, "Unknown property must be namespaced");
         value (entry.second, entry.first, 0);

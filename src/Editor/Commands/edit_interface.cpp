@@ -1569,7 +1569,14 @@ editor_rep::focus_toolbar_state_snapshot () {
     snapshot.background_available= true;
 
     if (snapshot.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT)) {
-      for (int i=0; i<presentation_page_count (); ++i)
+      for (const auto& type: athena::slides::types (presentation_field_reader (*this))) {
+        actor_focus_choice_snapshot choice;
+        choice.value= type.id;
+        choice.label= type.label;
+        snapshot.slide_types.push_back (std::move (choice));
+      }
+      const int page_count= presentation_page_count ();
+      for (int i=0; i<page_count; ++i)
         snapshot.slide_names.push_back ("Slide " + std::to_string (i+1));
       try {
         tree slide= presentation_slide_document (t);

@@ -6,6 +6,7 @@
 * GNU general public license version 3 or later; see LICENSE.
 ******************************************************************************/
 #include "Editor/Commands/edit_interface.hpp"
+#include "Editor/Commands/presentation_commands.hpp"
 #include "Domains/Knowledge/enunciation_model.hpp"
 #include "Domains/Knowledge/enunciation_slots.hpp"
 #include "Document/Model/document_node_model.hpp"
@@ -117,9 +118,18 @@ bool edit_interface_rep::open_enunciation_slot (string field, int index,
   const std::string key (field.data (), N(field));
   const auto* fields= athena::contracts::native_fields (L(source));
   const auto* property= fields ? fields->property (key) : nullptr;
-  if (!property || property->editor != athena::contracts::property_editor::title_slot)
+  std::string label= en::title_slot_style (key).label;
+  if (is_func (source, SLIDE_PAGE)) {
+    bool found= false;
+    for (const auto& f: athena::slides::definition (athena::slides::kind (source),
+           presentation_field_reader (*this)).fields)
+      if (f.key == key) { found= true; label= f.label; }
+    if (!found) return false;
+  }
+  else if (!property || property->editor != athena::contracts::property_editor::title_slot)
     return false;
-  auto values= en::title_fields (source, key);
+  auto values= is_func (source, SLIDE_PAGE) ?
+    presentation_field_values (*this, source, key) : en::title_fields (source, key);
   if (values.empty ()) values.emplace_back ("");
   if (index < 0 || index >= int (values.size ())) return false;
   rectangle rect;
@@ -129,14 +139,19 @@ bool edit_interface_rep::open_enunciation_slot (string field, int index,
   enunciation_slot_field_= field;
   enunciation_slot_index_= index;
   namespace xml= athena::document;
-  tree carrier (TUPLE);
+  tree carrier (is_func (source, SLIDE_PAGE) ? SLIDE_PAGE : TUPLE);
+  if (is_func (source, SLIDE_PAGE)) carrier << tree (DOCUMENT, "");
   athena::node::copy_metadata (source, carrier);
+  if (is_func (source, SLIDE_PAGE))
+    athena::node::edit (carrier)->properties[key]=
+      athena::node::property (athena::node::rich_text {values[0]});
   std::vector<int> location;
   for (path p= enunciation_slots_path_ / rp; !is_nil (p); p= p->next)
     location.push_back (p->item);
   nlohmann::json request {
     {"generation", ++enunciation_slot_request_},
     {"styled", is_func (source, SLIDE_PAGE)},
+    {"label", label},
     {"field", key}, {"index", index}, {"node", athena::node::id (source)},
     {"path", location},
     {"header", xml::write_xml_v3 (carrier, xml::xml_kind::fragment)},

@@ -94,20 +94,17 @@ make_thumbnail_manifest (editor_rep* editor, edit_typeset_rep* typeset) {
 
 std::vector<std::uint64_t>
 thumbnail_slide_signatures (editor_rep* editor) {
-  tree body= editor->the_buffer ();
-  if (!is_document (body)) return {};
+  const auto source= athena::slides::source_pages (editor->the_buffer ());
   std::uint64_t common= 1469598103934665603ULL;
-  for (int i=0; i<N(body); ++i)
-    if (!is_func (body[i], SLIDE_PAGE))
-      common= (common * 1099511628211ULL) ^
-              static_cast<std::uint32_t> (hash (body[i]));
+  for (const auto& context: source.context)
+    common= (common * 1099511628211ULL) ^
+            static_cast<std::uint32_t> (hash (context));
   std::vector<std::uint64_t> result;
-  for (int i=0; i<N(body); ++i)
-    if (is_func (body[i], SLIDE_PAGE)) {
-      const auto identity= (common * 1099511628211ULL) ^
-                            static_cast<std::uint32_t> (hash (body[i]));
-      result.push_back (identity == 0 ? 1 : identity);
-    }
+  for (const auto& page: source.pages) {
+    const auto identity= (common * 1099511628211ULL) ^
+                          static_cast<std::uint32_t> (hash (page));
+    result.push_back (identity == 0 ? 1 : identity);
+  }
   return result;
 }
 
@@ -2101,7 +2098,7 @@ buffer_actor::dispatch (actor_command_record& command) {
       actor_blob_registry::instance ().take (command.payload0);
     if (!editor) break;
     const auto operation= static_cast<slide_page_operation> (command.argument[0]);
-    if (operation > slide_page_operation::insert_blank) break;
+    if (operation > slide_page_operation::insert_type) break;
     int index= static_cast<int> (command.argument[1]);
     if (index < 0) index= presentation_page_index ();
     tree content= presentation_page_copy (index);
@@ -2131,6 +2128,15 @@ buffer_actor::dispatch (actor_command_record& command) {
       }
     }
     tree paste_content (UNINIT);
+    std::string slide_kind;
+    if (operation == slide_page_operation::insert_type) {
+      if (!payload) break;
+      slide_kind.assign (reinterpret_cast<const char*> (payload.data ()), payload.size ());
+      const auto types= athena::slides::types (presentation_field_reader (*editor));
+      if (std::none_of (types.begin (), types.end (), [&] (const auto& type) {
+            return type.id == slide_kind;
+          })) break;
+    }
     if (operation == slide_page_operation::paste_before ||
         operation == slide_page_operation::paste_after) {
       if (!payload) break;
@@ -2142,7 +2148,7 @@ buffer_actor::dispatch (actor_command_record& command) {
     editor->before_menu_action ();
     bool changed;
     try {
-      changed= presentation_edit_page (operation, index, paste_content);
+      changed= presentation_edit_page (operation, index, paste_content, slide_kind);
       editor->after_menu_action ();
     }
     catch (...) {

@@ -77,7 +77,7 @@ void thumbnails_pane_show ();
 void thumbnails_pane_accept_manifest (athena_view_id view, athena_blob_id blob);
 bool thumbnails_slide_action (athena_actor_id actor, athena_view_id view,
                                slide_page_operation operation, int index= -1,
-                               std::uint64_t confirmed= 0);
+                               std::uint64_t confirmed= 0, std::string kind= {});
 void thumbnails_slide_set_clipboard (const std::string& xml);
 void thumbnails_slide_confirm_delete (athena_actor_id actor, athena_view_id view,
                                        int index, std::uint64_t stamp);

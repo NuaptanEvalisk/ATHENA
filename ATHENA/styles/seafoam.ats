@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<athena-document version="1" text-model="utf-8">
+<node tag="document">
+  <node tag="style"><text>source</text></node>
+  <node tag="body"><node tag="document">
+    <node tag="use-package"><text>generic</text><text>section-beamer</text><text>compact-list</text><text>presentation</text></node>
+    <node tag="assign"><text>page-type</text><text>16:9</text></node>
+    <node tag="assign"><text>page-odd</text><text>0mm</text></node>
+    <node tag="assign"><text>page-even</text><text>0mm</text></node>
+    <node tag="assign"><text>page-right</text><text>0mm</text></node>
+    <node tag="assign"><text>page-top</text><text>0mm</text></node>
+    <node tag="assign"><text>page-bot</text><text>0mm</text></node>
+    <node tag="assign"><text>page-foot-sep</text><text>1fn</text></node>
+    <node tag="assign"><text>bg-color</text><text>white</text></node>
+    <node tag="assign"><text>color</text><text>#161b22</text></node>
+    <node tag="assign"><text>strong-color</text><text>#161b22</text></node>
+    <node tag="assign"><text>math-color</text><text>#161b22</text></node>
+    <node tag="assign"><text>font-family</text><text>rm</text></node>
+    <node tag="assign"><text>font-base-size</text><text>18</text></node>
+    <node tag="assign"><text>par-first</text><text>0fn</text></node>
+    <node tag="assign"><text>par-mode</text><text>left</text></node>
+    <node tag="assign"><text>par-par-sep</text><text>0.5fn</text></node>
+    <node tag="assign"><text>seafoam-band-color</text><text>#d7d8ee</text></node>
+    <node tag="assign"><text>seafoam-footer-left-color</text><text>#c4c6e5</text></node>
+    <node tag="assign"><text>seafoam-footer-center-color</text><text>#ced0eb</text></node>
+    <node tag="assign"><text>slide-default-type</text><text>title</text></node>
+    <node tag="assign"><text>slide-page-types</text><node tag="tuple"><text>title</text><text>section</text><text>content</text><text>blank</text></node></node>
+    <node tag="assign"><text>slide-page-type-title</text><node tag="tuple">
+      <text>Title</text><text>seafoam-title</text><node tag="tuple">
+        <node tag="tuple"><text>title</text><text>Title</text><text/></node>
+        <node tag="tuple"><text>subtitle</text><text>Subtitle</text><text/></node>
+        <node tag="tuple"><text>author</text><text>Author</text><text>author</text></node>
+        <node tag="tuple"><text>affiliation</text><text>Affiliation</text><text>affiliation</text></node>
+        <node tag="tuple"><text>date</text><text>Date</text><text>date</text></node>
+        <node tag="tuple"><text>footer-author</text><text>Short author / affiliation</text><text>footer-author</text></node>
+        <node tag="tuple"><text>footer-title</text><text>Short presentation title</text><text>footer-title</text></node>
+        <node tag="tuple"><text>footer-date</text><text>Short date</text><text>footer-date</text></node>
+      </node>
+    </node></node>
+    <node tag="assign"><text>slide-page-type-section</text><node tag="tuple">
+      <text>Section</text><text>seafoam-section</text><node tag="tuple">
+        <node tag="tuple"><text>title</text><text>Title</text><text/></node>
+        <node tag="tuple"><text>subtitle</text><text>Subtitle</text><text/></node>
+        <node tag="tuple"><text>footer-author</text><text>Short author / affiliation</text><text>footer-author</text></node>
+        <node tag="tuple"><text>footer-title</text><text>Short presentation title</text><text>footer-title</text></node>
+        <node tag="tuple"><text>footer-date</text><text>Short date</text><text>footer-date</text></node>
+      </node>
+    </node></node>
+    <node tag="assign"><text>slide-page-type-content</text><node tag="tuple">
+      <text>Content</text><text>seafoam-content</text><node tag="tuple">
+        <node tag="tuple"><text>title</text><text>Title</text><text/></node>
+        <node tag="tuple"><text>footer-author</text><text>Short author / affiliation</text><text>footer-author</text></node>
+        <node tag="tuple"><text>footer-title</text><text>Short presentation title</text><text>footer-title</text></node>
+        <node tag="tuple"><text>footer-date</text><text>Short date</text><text>footer-date</text></node>
+      </node>
+    </node></node>
+    <node tag="assign"><text>slide-page-type-blank</text><node tag="tuple">
+      <text>Blank</text><text>seafoam-blank</text><node tag="tuple">
+        <node tag="tuple"><text>footer-author</text><text>Short author / affiliation</text><text>footer-author</text></node>
+        <node tag="tuple"><text>footer-title</text><text>Short presentation title</text><text>footer-title</text></node>
+        <node tag="tuple"><text>footer-date</text><text>Short date</text><text>footer-date</text></node>
+      </node>
+    </node></node>
+    <node tag="assign"><text>seafoam-panel</text><node tag="macro"><text>align</text><text>top</text><text>body</text>
+      <node tag="tabular*"><node tag="tformat">
+        <node tag="twith"><text>table-width</text><text>1par</text></node>
+        <node tag="twith"><text>table-hmode</text><text>exact</text></node>
+        <node tag="twith"><text>table-tsep</text><node tag="arg"><text>top</text></node></node>
+        <node tag="cwith"><text>1</text><text>1</text><text>1</text><text>1</text><text>cell-halign</text><node tag="arg"><text>align</text></node></node>
+        <node tag="cwith"><text>1</text><text>1</text><text>1</text><text>1</text><text>cell-background</text><node tag="value"><text>seafoam-band-color</text></node></node>
+        <node tag="cwith"><text>1</text><text>1</text><text>1</text><text>1</text><text>cell-hyphen</text><text>t</text></node>
+        <node tag="cwith"><text>1</text><text>1</text><text>1</text><text>1</text><text>cell-lsep</text><text>0.8fn</text></node>
+        <node tag="cwith"><text>1</text><text>1</text><text>1</text><text>1</text><text>cell-rsep</text><text>0.8fn</text></node>
+        <node tag="cwith"><text>1</text><text>1</text><text>1</text><text>1</text><text>cell-tsep</text><text>0.6fn</text></node>
+        <node tag="cwith"><text>1</text><text>1</text><text>1</text><text>1</text><text>cell-bsep</text><text>0.6fn</text></node>
+        <node tag="table"><node tag="row"><node tag="cell"><node tag="arg"><text>body</text></node></node></node></node>
+      </node></node>
+    </node></node>
+    <node tag="assign"><text>seafoam-body</text><node tag="macro"><text>body</text>
+      <node tag="with"><text>par-left</text><text>1.5fn</text><text>par-right</text><text>1.5fn</text>
+        <node tag="surround"><node tag="vspace*"><text>1fn</text></node><text/><node tag="arg"><text>body</text></node></node>
+      </node>
+    </node></node>
+    <node tag="assign"><text>seafoam-footer</text><node tag="macro"><text>author</text><text>title</text><text>date</text>
+      <node tag="with"><text>font-size</text><text>0.5</text><text>font-family</text><text>ss</text>
+        <text>par-first</text><text>0fn</text><text>par-left</text><text>0fn</text><text>par-right</text><text>0fn</text><text>par-par-sep</text><text>0fn</text>
+        <node tag="tabular*"><node tag="tformat">
+          <node tag="twith"><text>table-width</text><text>1par</text></node>
+          <node tag="twith"><text>table-hmode</text><text>exact</text></node>
+          <node tag="cwith"><text>1</text><text>1</text><text>1</text><text>-1</text><text>cell-hmode</text><text>exact</text></node>
+          <node tag="cwith"><text>1</text><text>1</text><text>1</text><text>-1</text><text>cell-hyphen</text><text>t</text></node>
+          <node tag="cwith"><text>1</text><text>1</text><text>1</text><text>-1</text><text>cell-halign</text><text>c</text></node>
+          <node tag="cwith"><text>1</text><text>1</text><text>1</text><text>-1</text><text>cell-valign</text><text>c</text></node>
+          <node tag="cwith"><text>1</text><text>1</text><text>1</text><text>-1</text><text>cell-tsep</text><text>0.3fn</text></node>
+          <node tag="cwith"><text>1</text><text>1</text><text>1</text><text>-1</text><text>cell-bsep</text><text>0.3fn</text></node>
+          <node tag="cwith"><text>1</text><text>1</text><text>1</text><text>1</text><text>cell-width</text><text>0.33par</text></node>
+          <node tag="cwith"><text>1</text><text>1</text><text>2</text><text>2</text><text>cell-width</text><text>0.39par</text></node>
+          <node tag="cwith"><text>1</text><text>1</text><text>3</text><text>3</text><text>cell-width</text><text>0.20par</text></node>
+          <node tag="cwith"><text>1</text><text>1</text><text>4</text><text>4</text><text>cell-width</text><text>0.08par</text></node>
+          <node tag="cwith"><text>1</text><text>1</text><text>1</text><text>1</text><text>cell-background</text><node tag="value"><text>seafoam-footer-left-color</text></node></node>
+          <node tag="cwith"><text>1</text><text>1</text><text>2</text><text>2</text><text>cell-background</text><node tag="value"><text>seafoam-footer-center-color</text></node></node>
+          <node tag="cwith"><text>1</text><text>1</text><text>3</text><text>4</text><text>cell-background</text><node tag="value"><text>seafoam-band-color</text></node></node>
+          <node tag="table"><node tag="row">
+            <node tag="cell"><node tag="document"><node tag="concat"><node tag="arg"><text>author</text></node></node></node></node>
+            <node tag="cell"><node tag="document"><node tag="concat"><node tag="arg"><text>title</text></node></node></node></node>
+            <node tag="cell"><node tag="document"><node tag="concat"><node tag="arg"><text>date</text></node></node></node></node>
+            <node tag="cell"><node tag="concat"><node tag="page-nr"/><text> / </text><node tag="value"><text>slide-page-count</text></node></node></node>
+          </node></node>
+        </node></node>
+      </node>
+    </node></node>
+    <node tag="assign"><text>seafoam-set-footer</text><node tag="macro"><text>author</text><text>title</text><text>date</text>
+      <node tag="assign"><text>page-this-footer</text><node tag="quasiquote"><node tag="seafoam-footer">
+        <node tag="unquote"><node tag="arg"><text>author</text></node></node>
+        <node tag="unquote"><node tag="arg"><text>title</text></node></node>
+        <node tag="unquote"><node tag="arg"><text>date</text></node></node>
+      </node></node></node>
+    </node></node>
+    <node tag="assign"><text>seafoam-cover-band</text><node tag="macro"><text>title</text><text>subtitle</text>
+      <node tag="with"><text>par-mode</text><text>center</text><text>par-left</text><text>0.6fn</text><text>par-right</text><text>0.6fn</text>
+        <node tag="surround"><node tag="vspace*"><text>0.8fn</text></node><text/>
+          <node tag="seafoam-panel"><text>c</text><text>0.8fn</text><node tag="document">
+            <node tag="concat"><node tag="with"><text>font-size</text><text>1.65</text><node tag="arg"><text>title</text></node></node></node>
+            <node tag="concat"><node tag="arg"><text>subtitle</text></node></node>
+          </node></node>
+        </node>
+      </node>
+    </node></node>
+    <node tag="assign"><text>seafoam-title</text><node tag="macro">
+      <text>title</text><text>subtitle</text><text>author</text><text>affiliation</text><text>date</text>
+      <text>footer-author</text><text>footer-title</text><text>footer-date</text><text>body</text>
+      <node tag="surround">
+        <node tag="seafoam-set-footer"><node tag="arg"><text>footer-author</text></node><node tag="arg"><text>footer-title</text></node><node tag="arg"><text>footer-date</text></node></node><text/>
+        <node tag="document">
+          <node tag="seafoam-cover-band"><node tag="arg"><text>title</text></node><node tag="arg"><text>subtitle</text></node></node>
+          <node tag="with"><text>par-mode</text><text>center</text><text>par-par-sep</text><text>1.2fn</text>
+            <text>par-left</text><text>1.5fn</text><text>par-right</text><text>1.5fn</text>
+            <node tag="surround"><node tag="vspace*"><text>1.5fn</text></node><text/>
+              <node tag="slide-line"><node tag="arg"><text>author</text></node>
+                <node tag="slide-line"><node tag="with"><text>font-size</text><text>0.8</text><node tag="arg"><text>affiliation</text></node></node>
+                  <node tag="slide-line"><node tag="arg"><text>date</text></node><node tag="arg"><text>body</text></node></node>
+                </node>
+              </node>
+            </node>
+          </node>
+        </node>
+      </node>
+    </node></node>
+    <node tag="assign"><text>seafoam-section</text><node tag="macro">
+      <text>title</text><text>subtitle</text><text>footer-author</text><text>footer-title</text><text>footer-date</text><text>body</text>
+      <node tag="surround">
+        <node tag="seafoam-set-footer"><node tag="arg"><text>footer-author</text></node><node tag="arg"><text>footer-title</text></node><node tag="arg"><text>footer-date</text></node></node><text/>
+        <node tag="document">
+          <node tag="seafoam-cover-band"><node tag="arg"><text>title</text></node><node tag="arg"><text>subtitle</text></node></node>
+          <node tag="seafoam-body"><node tag="arg"><text>body</text></node></node>
+        </node>
+      </node>
+    </node></node>
+    <node tag="assign"><text>seafoam-content</text><node tag="macro">
+      <text>title</text><text>footer-author</text><text>footer-title</text><text>footer-date</text><text>body</text>
+      <node tag="surround">
+        <node tag="seafoam-set-footer"><node tag="arg"><text>footer-author</text></node><node tag="arg"><text>footer-title</text></node><node tag="arg"><text>footer-date</text></node></node><text/>
+        <node tag="document">
+          <node tag="seafoam-panel"><text>l</text><text>0fn</text><node tag="document"><node tag="concat"><node tag="with"><text>font-size</text><text>1.5</text><node tag="arg"><text>title</text></node></node></node></node></node>
+          <node tag="seafoam-body"><node tag="arg"><text>body</text></node></node>
+        </node>
+      </node>
+    </node></node>
+    <node tag="assign"><text>seafoam-blank</text><node tag="macro">
+      <text>footer-author</text><text>footer-title</text><text>footer-date</text><text>body</text>
+      <node tag="surround">
+        <node tag="seafoam-set-footer"><node tag="arg"><text>footer-author</text></node><node tag="arg"><text>footer-title</text></node><node tag="arg"><text>footer-date</text></node></node><text/>
+        <node tag="seafoam-body"><node tag="arg"><text>body</text></node></node>
+      </node>
+    </node></node>
+  </node></node>
+</node>
+</athena-document>

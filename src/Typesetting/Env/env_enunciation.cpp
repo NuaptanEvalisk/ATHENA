@@ -143,14 +143,17 @@ tree native_slide_macro (edit_env_rep* env, const tree& source) {
   const auto kind= athena::slides::kind (source);
   const bool editing= env->editing_enunciation_id == node::id (source) &&
     !node::id (source).empty () && env->get_string (PAGE_PRINTED) != "true";
-  tree layout (as_tree_label ("render-slide-" * text (kind)));
-  for (const auto& key: athena::slides::fields (source)) {
-    const auto values= en::title_fields (source, key);
-    tree value= values.empty () ? tree ("") : rich (values[0], 0);
+  const athena::slides::reader read= [env] (string key) {
+    return env->provides (key) ? env->read (key) : tree (UNINIT);
+  };
+  const auto type= athena::slides::definition (kind, read);
+  tree layout (as_tree_label (text (type.layout)));
+  for (const auto& field: type.fields) {
+    const auto& key= field.key;
+    tree value= rich (athena::slides::value (source, field, read), 0);
     if (editing) {
-      const auto style= en::title_slot_style (key);
       tree slot= compound ("render-slide-field", text (key),
-        value == "" ? tree (WITH, "font-shape", "italic", style.label) : value);
+        value == "" ? tree (WITH, "font-shape", "italic", text (field.label)) : value);
       value= tree (LOCUS, tree (ID, en::title_slot_id (node::id (source), key, 0)), slot);
     }
     layout << value;

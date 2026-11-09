@@ -257,6 +257,17 @@ pager_rep::papyrus_make () {
   const bool slide= env->get_string (PAGE_MEDIUM) == "slideshow";
   const int nr= slide ? N(pages) + 1 + page_offset : 0;
   if (slide) env->write (PAGE_NR, as_string (nr));
+  if (slide && show_hf &&
+      (style[PAGE_THIS_FOOTER] != "" ||
+       style[(N(pages)&1)==0 ? PAGE_ODD_FOOTER : PAGE_EVEN_FOOTER] != "")) {
+    box footer= make_footer (false);
+    height= max (height, top + dtop + ph + foot_sep + footer->h() + bot);
+    // Keep slide footers in the searchable box tree: their structured fields
+    // are editable loci, unlike paper's noninteractive page decorations.
+    bs << footer;
+    bs_x << left;
+    bs_y << -height + bot - footer->y1;
+  }
   box pb= page_box (ip, slide ? tree (as_string (nr)) : tree ("?"), nr, bgc, width, height,
 		    bs, bs_x, bs_y, 0, 0, 0);
   pages << pb;
@@ -267,6 +278,23 @@ pager_rep::slides_make () {
   // Explicit source-page boundaries, not a fixed-height page-breaking policy.
   // Reuse the normal unbounded layout, including floats and footnotes, per page.
   array<page_item> source= l;
+  int count= 0;
+  bool pending= false;
+  for (int i=0; i<N(source); ++i) {
+    const auto item= source[i];
+    if (item->type == PAGE_CONTROL_ITEM) {
+      if (is_tuple (item->t, "slide-start") || item->t == PAGE_BREAK ||
+          item->t == NEW_PAGE || item->t == NEW_DPAGE) continue;
+      if (is_tuple (item->t, "slide-end")) {
+        ++count;
+        pending= false;
+        continue;
+      }
+    }
+    pending= true;
+  }
+  if (pending || count == 0) ++count;
+  tree old_count= env->local_begin ("slide-page-count", as_string (count));
   l= array<page_item> ();
   for (int i=0; i<N(source); ++i) {
     const auto item= source[i];
@@ -284,4 +312,5 @@ pager_rep::slides_make () {
   }
   if (N(l) > 0 || N(pages) == 0) papyrus_make ();
   l= source;
+  env->local_end ("slide-page-count", old_count);
 }

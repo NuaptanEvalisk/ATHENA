@@ -2507,7 +2507,7 @@ QTMWidget::event (QEvent* event) {
   return QTMScrollView::event (event);
 }
 
-QTMWidget *last_focused_widget = nullptr;
+QPointer<QTMWidget> last_focused_widget;
 
 QTMWidget *QTMWidget::getLastFocusedWidget() {
   return last_focused_widget;

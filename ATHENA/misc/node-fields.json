@@ -7,11 +7,7 @@
       "fields": [{"name": "body", "role": "body"}],
       "properties": {
         "background": {"type": "string"},
-        "kind": {"type": "string"},
-        "title": {"type": "rich-text", "editor": "title-slot"},
-        "subtitle": {"type": "rich-text", "editor": "title-slot"},
-        "author": {"type": "rich-text", "editor": "title-slot"},
-        "date": {"type": "rich-text", "editor": "title-slot"}
+        "kind": {"type": "string"}
       }
     },
     "document": {

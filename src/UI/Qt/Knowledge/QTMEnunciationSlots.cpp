@@ -10,6 +10,8 @@
 #include "UI/Qt/Toolkit/qt_actor_widget.hpp"
 #include "UI/Qt/Toolkit/qt_utilities.hpp"
 #include "Domains/Knowledge/enunciation_slots.hpp"
+#include "Editor/Commands/presentation_commands.hpp"
+#include "Typesetting/Env/local_environment.hpp"
 #include "Domains/Knowledge/enunciation_model.hpp"
 #include "Document/Model/document_node_model.hpp"
 #include "Document/Convert/Xml/athena_document_xml.hpp"
@@ -90,9 +92,10 @@ struct input_session {
   std::vector<int> path;
   int index= 0, count= 1;
   // Only the input actor accesses these after registration.
-  std::string previous;
+  std::string previous, label;
   std::uint64_t epoch= 0;
   bool navigating= false;
+  bool single= false;
   bool empty= false;
   std::function<void (bool)> show_placeholder;
   std::function<void (int)> resize_input;
@@ -139,7 +142,9 @@ void submit_value (const std::shared_ptr<input_session>& session, tree value,
         const tree& source= subtree (scope, location);
         if (node::id (source) != id || !en::editable_fields (source))
           throw std::runtime_error ("Title node has changed");
-        auto values= en::title_fields (source, field);
+        const bool slide= is_func (source, SLIDE_PAGE);
+        auto values= slide ? presentation_field_values (editor, source, field) :
+                             en::title_fields (source, field);
         if (values.empty ()) values.emplace_back ("");
         if (index < 0 || index >= int (values.size ()) ||
             !node::content_equal (inline_value (values[index]),
@@ -157,7 +162,11 @@ void submit_value (const std::shared_ptr<input_session>& session, tree value,
           next= std::max (0, index-1);
         }
         node::metadata metadata= *node::get (source);
-        if (is_func (source, SLIDE_PAGE)) {
+        std::string shared;
+        if (slide) {
+          for (const auto& f: athena::slides::definition (athena::slides::kind (source),
+                 presentation_field_reader (editor)).fields)
+            if (f.key == field) shared= f.shared;
           metadata.properties[field]= node::property (node::rich_text {values[0]});
         }
         else if (field == "year") {
@@ -177,7 +186,13 @@ void submit_value (const std::shared_ptr<input_session>& session, tree value,
         node::set (header, metadata);
         const auto errors= model::validate_node_properties (header);
         if (!errors.empty ()) throw std::runtime_error (errors.front ().detail);
-        if (!node::equal_metadata (source, header)) {
+        if (!shared.empty ()) {
+          editor.before_menu_action ();
+          try { editor.init_env ("slide-shared-" * native (shared), values[0]); }
+          catch (...) { editor.cancel_menu_action (); throw; }
+          editor.after_menu_action ();
+        }
+        else if (!node::equal_metadata (source, header)) {
           editor.before_menu_action ();
           try { ::apply (scope, mod_set_metadata (location, header)); }
           catch (...) { editor.cancel_menu_action (); throw; }
@@ -186,7 +201,8 @@ void submit_value (const std::shared_ptr<input_session>& session, tree value,
         std::string next_field= field;
         if (action == "next" || action == "previous") {
           next+= action == "next" ? 1 : -1;
-          const auto order= en::field_order (source);
+          const auto order= slide ? athena::slides::fields (source, presentation_field_reader (editor)) :
+                                    en::field_order (source);
           auto at= std::find (order.begin (), order.end (), field);
           if (next >= int (values.size ())) {
             next_field= at != order.end () && ++at != order.end () ? *at : "";
@@ -234,10 +250,12 @@ public:
     });
     auto session= std::make_shared<input_session> ();
     session->owner= actor; session->view= view;
+    session->single= request.value ("styled", false);
     session->node= request.at ("node"); session->field= request.at ("field");
     session->index= request.at ("index"); session->path= request.at ("path").get<std::vector<int>> ();
     node_id= session->node; field= session->field; field_index= session->index;
     const auto colors= en::title_slot_style (session->field);
+    session->label= request.value ("label", std::string (colors.label));
     tree header= xml::read_xml_v3 (request.at ("header").get<std::string> (), xml::xml_kind::fragment);
     auto values= en::title_fields (header, session->field);
     if (values.empty ()) values.emplace_back ("");
@@ -278,7 +296,7 @@ public:
     native_input->setVerticalScrollBarPolicy (Qt::ScrollBarAlwaysOff);
     auto* proxy= dynamic_cast<qt_actor_widget_rep*> (native_input->tm_widget ());
     if (!proxy) throw std::runtime_error ("No title BufferActor");
-    placeholder= new QLabel (colors.label, this);
+    placeholder= new QLabel (QString::fromStdString (session->label), this);
     placeholder->setObjectName ("enunciation-slot-placeholder");
     placeholder->setAttribute (Qt::WA_TransparentForMouseEvents);
     placeholder->setAlignment (Qt::AlignLeft | Qt::AlignVCenter);
@@ -307,7 +325,7 @@ public:
     }
     setFocusProxy (native_input);
     setObjectName ("enunciation-inline-slot");
-    setAccessibleName (colors.label);
+    setAccessibleName (QString::fromStdString (session->label));
     auto* timer= new QTimer (this);
     connect (timer, &QTimer::timeout, this, [this] { place (); });
     timer->start (16);
@@ -481,8 +499,7 @@ void title_input_layout (editor_rep& editor, const std::function<int (tree)>& me
   auto session= input_for (editor);
   if (!session || session->navigating) return;
   const tree value= inline_value (editor.the_buffer ());
-  const auto colors= title_slot_style (session->field);
-  tree content= value == "" ? tree (WITH, "font-shape", "italic", tree (colors.label)) : value;
+  tree content= value == "" ? tree (WITH, "font-shape", "italic", native (session->label)) : value;
   session->resize_input (measure (content));
 }
 
@@ -513,9 +530,11 @@ bool title_input_key (editor_rep& editor, const string& key) {
   const bool remove= (key == "backspace" || key == "S-backspace") &&
     session->count > 1 && inline_value (editor.the_buffer ()) == "";
   const bool next= key == "tab", previous= key == "S-tab";
-  const bool close= key == "return" && editor.get_env_string ("mode") != "math";
+  const bool close= key == "return" &&
+    editor.prepare_source_position (editor.the_path ())->effective_value ("mode") != "math";
   if (!split && !remove && !next && !previous && !close) return false;
-  if (split && session->field != "name" && session->field != "attribution") return true;
+  if (split && (session->single ||
+      (session->field != "name" && session->field != "attribution"))) return true;
   try {
     tree left= editor.the_buffer (), right ("");
     if (split) {

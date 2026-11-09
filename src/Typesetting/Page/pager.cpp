@@ -44,7 +44,8 @@ pager_rep::pager_rep (path ip2, edit_env env2, array<page_item> l2):
   fnote_bl  = env->get_length (PAGE_FNOTE_BARLEN);
   float_sep = env->get_vspace (PAGE_FLOAT_SEP);
   mnote_sep = env->get_length (PAGE_MNOTE_SEP);
-  show_hf   = env->get_bool (PAGE_SHOW_HF) && paper;
+  show_hf   = env->get_bool (PAGE_SHOW_HF) &&
+    (paper || env->get_string (PAGE_MEDIUM) == "slideshow");
   if (nr_cols > 1) text_width = (text_width+col_sep+1) * nr_cols - col_sep;
 
   page_offset= env->first_page - 1;
