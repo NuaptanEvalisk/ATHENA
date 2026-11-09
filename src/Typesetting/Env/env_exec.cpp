@@ -235,6 +235,14 @@ edit_env_rep::exec (tree t) {
   // authored cell labels in this isolated semantic pass as layout would.
   if (compound_counter_execution && L(t) == LABEL) return exec_compound (t);
   switch (L(t)) {
+  case SLIDE_PAGE:
+    if (!athena::slides::kind (t).empty ()) return exec_compound (t);
+    {
+      tree result (t, N(t));
+      for (int i=0; i<N(t); ++i) result[i]= exec (t[i]);
+      athena::node::copy_metadata (t, result);
+      return result;
+    }
   case MOVE:
   case SHIFT:
   case RESIZE:
@@ -732,7 +740,11 @@ edit_env_rep::exec_compound (tree t) {
   if (athena_enunciation_layout_rewrite (edit_env (this), t, layout))
     return exec (layout);
   int d; tree f;
-  if (athena::program::is_program (t)) {
+  if (!athena::slides::kind (t).empty ()) {
+    d= 0;
+    f= native_slide_macro (this, t);
+  }
+  else if (athena::program::is_program (t)) {
     d= 0;
     f= native_program_macro (t);
   }
@@ -2493,6 +2505,7 @@ edit_env_rep::exec_until (tree t, path p) {
       (void) exec (t);
     return true;
   }
+  if (!athena::slides::kind (t).empty ()) return exec_until_compound (t, p);
   // Commutative diagrams are native source structure, not ordinary macros.
   // Their vertex and arrow labels are typeset directly at their authored
   // source paths. Descend into the selected formula without asking the macro
@@ -2654,7 +2667,11 @@ edit_env_rep::exec_until_with (tree t, path p) {
 bool
 edit_env_rep::exec_until_compound (tree t, path p) {
   int d; tree f;
-  if (athena::program::is_program (t)) {
+  if (!athena::slides::kind (t).empty ()) {
+    d= 0;
+    f= native_slide_macro (this, t);
+  }
+  else if (athena::program::is_program (t)) {
     d= 0;
     f= native_program_macro (t);
   }
@@ -2721,6 +2738,7 @@ edit_env_rep::exec_until (tree t, path p, string var, int level) {
   // cout << "Execute " << t << " until " << p
   //      << " inside " << var << " level " << level << "\n";
   if (is_atomic (t)) return false;
+  if (!athena::slides::kind (t).empty ()) return exec_until_compound (t, p, var, level);
   if (L(t) == MATH_BLOCK || L(t) == MATH_GRID)
     return athena::avd::exec_native_counter_until (edit_env (this), t, p, var, level);
   switch (L(t)) {
@@ -2969,7 +2987,11 @@ edit_env_rep::exec_until_compound (tree t, path p, string var, int level) {
   if (athena_enunciation_layout_rewrite (edit_env (this), t, layout))
     return exec_until (layout, p, var, level);
   int d; tree f;
-  if (athena::program::is_program (t)) {
+  if (!athena::slides::kind (t).empty ()) {
+    d= 0;
+    f= native_slide_macro (this, t);
+  }
+  else if (athena::program::is_program (t)) {
     d= 0;
     f= native_program_macro (t);
   }

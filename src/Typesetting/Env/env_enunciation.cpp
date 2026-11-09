@@ -139,6 +139,31 @@ tree label_text (edit_env_rep* env, const en::registry& registry,
 
 tree native_enunciation_rich_text (const tree& source) { return rich (source, 0); }
 
+tree native_slide_macro (edit_env_rep* env, const tree& source) {
+  const auto kind= athena::slides::kind (source);
+  const bool editing= env->editing_enunciation_id == node::id (source) &&
+    !node::id (source).empty () && env->get_string (PAGE_PRINTED) != "true";
+  tree layout (as_tree_label ("render-slide-" * text (kind)));
+  for (const auto& key: athena::slides::fields (source)) {
+    const auto values= en::title_fields (source, key);
+    tree value= values.empty () ? tree ("") : rich (values[0], 0);
+    if (editing) {
+      const auto style= en::title_slot_style (key);
+      tree slot= compound ("render-slide-field", text (key),
+        value == "" ? tree (WITH, "font-shape", "italic", style.label) : value);
+      value= tree (LOCUS, tree (ID, en::title_slot_id (node::id (source), key, 0)), slot);
+    }
+    layout << value;
+  }
+  layout << tree (ARG, "body");
+  // The generated page owns layout only. ARG retains the source body path;
+  // omitting kind prevents the presentation wrapper from expanding again.
+  tree page (SLIDE_PAGE, tree (DOCUMENT, layout));
+  if (const auto* background= property<std::string> (source, "background"))
+    node::edit (page)->properties["background"]= node::property (*background);
+  return tree (MACRO, "body", page);
+}
+
 tree native_enunciation_macro (edit_env_rep* env, const tree& source) {
   if (!en::is_canonical (source)) return tree (_ERROR, "Malformed enunciation");
   const auto& properties= node::get (source)->properties;

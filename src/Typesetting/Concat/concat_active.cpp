@@ -20,6 +20,7 @@
 #include "convert.hpp"
 #include "converter.hpp"
 #include "node_metadata.hpp"
+#include "Typesetting/Env/local_environment.hpp"
 
 static string
 athena_labels_mode (edit_env env) {
@@ -123,6 +124,12 @@ build_locus (edit_env env, tree t, list<string>& ids, string& col, string &ref,
       tree arg= env->exec (t[i]);
       if (is_compound (arg, "id", 1) && !is_nil (env->link_env)) {
         string id= as_string (arg[0]);
+        if (env->recorded_contexts && !env->editing_enunciation_id.empty () &&
+            starts (id, "athena-title-slot:" *
+              string (env->editing_enunciation_id.c_str ()) * ":"))
+          env->title_field_contexts[id]=
+            std::make_shared<const evaluation_environment_checkpoint> (
+              env->recorded_contexts->snapshot ().current);
         if (accessible) env->link_env->insert_locus (id, body);
         else if (N (obtain_ip (body)) > 1) {
           extern tree get_subtree (path p);

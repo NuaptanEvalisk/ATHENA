@@ -12,6 +12,7 @@
 
 #include "Typesetting/Concat/concater.hpp"
 #include "boot.hpp"
+#include "Document/Model/slide_page.hpp"
 #include "Document/NodeContracts/editing_query.hpp"
 #include "Typesetting/Env/local_environment.hpp"
 #include "analyze.hpp"
@@ -221,6 +222,11 @@ concater_rep::typeset_impl (tree t, path ip) {
     break;
   case RAW_DATA:
     typeset_inactive (t, ip);
+    break;
+  case SLIDE_PAGE:
+    if (!athena::slides::kind (t).empty ())
+      typeset_compound (t, ip);
+    else typeset_document (t, ip);
     break;
   case DOCUMENT:
     typeset_document (t, ip);

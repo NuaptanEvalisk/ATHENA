@@ -389,6 +389,11 @@ make_lazy_compound (edit_env env, tree t, path ip) {
     macro_name= "program";
     f= native_program_macro (t);
   }
+  else if (!athena::slides::kind (t).empty ()) {
+    d= 0;
+    macro_name= "slide-page";
+    f= native_slide_macro (env.operator-> (), t);
+  }
   else if (athena::enunciation::is_enunciation (t)) {
     d= 0;
     macro_name= "enunciation";
@@ -759,6 +764,8 @@ make_lazy_impl (edit_env env, tree t, path ip) {
 
   switch (L(t)) {
   case SLIDE_PAGE:
+    if (!athena::slides::kind (t).empty ()) return make_lazy_compound (env, t, ip);
+    return lazy_document (env, t, ip);
   case DOCUMENT:
     return lazy_document (env, t, ip);
   case SURROUND:

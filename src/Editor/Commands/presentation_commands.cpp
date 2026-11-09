@@ -5,6 +5,7 @@
 #include "Editor/Commands/generic_editor_commands.hpp"
 #include "App/Commands/native_interfaces.hpp"
 #include "node_metadata.hpp"
+#include "Document/Model/slide_page.hpp"
 #include "tree_traverse.hpp"
 #include <algorithm>
 
@@ -17,10 +18,11 @@ int page_offset (tree body) {
      is_compound (body[0], "show-preamble")) ? 1 : 0;
 }
 
-tree new_page (tree body) {
+tree new_page (tree body, std::string kind= "blank") {
   tree result (SLIDE_PAGE, body);
   athena::node::metadata metadata;
   metadata.id= athena::node::new_id ();
+  metadata.properties["kind"]= athena::node::property (kind);
   athena::node::set (result, metadata);
   return result;
 }
@@ -95,7 +97,16 @@ tree presentation_page_copy (int index) {
 }
 
 bool presentation_page_empty (int index) {
-  return empty_content (presentation_page_copy (index));
+  const tree page= presentation_page_copy (index);
+  if (!empty_content (page)) return false;
+  if (const auto* meta= athena::node::get (page))
+    for (const auto& key: athena::slides::fields (page)) {
+      auto it= meta->properties.find (key);
+      if (it != meta->properties.end ())
+        if (const auto* value= std::get_if<athena::node::rich_text> (&it->second.data))
+          if (!empty_content (value->content)) return false;
+    }
+  return true;
 }
 
 void presentation_switch_to (int index) {
@@ -115,7 +126,12 @@ bool presentation_edit_page (slide_page_operation operation, int index,
   const int at= index + offset;
   if (operation == slide_page_operation::erase) {
     if (count == 1) {
-      tree_assign (body[at][0], tree (DOCUMENT, ""));
+      tree replacement= copy (body[at]);
+      replacement[0]= tree (DOCUMENT, "");
+      if (auto* meta= athena::node::edit (replacement))
+        for (const auto& key: athena::slides::fields (replacement))
+          meta->properties.erase (key);
+      tree_assign (body[at], replacement);
       go (body[at][0]);
     }
     else {
@@ -143,7 +159,15 @@ bool presentation_edit_page (slide_page_operation operation, int index,
     if (!is_func (paste_content, SLIDE_PAGE, 1)) return false;
     page= tree_duplicate_source (paste_content);
   }
-  else page= new_page (tree (DOCUMENT, ""));
+  else {
+    std::string kind= athena::slides::kind (body[at]);
+    if (kind.empty ()) kind= "blank";
+    if (operation == slide_page_operation::insert_title) kind= "title";
+    if (operation == slide_page_operation::insert_section) kind= "section";
+    if (operation == slide_page_operation::insert_content) kind= "content";
+    if (operation == slide_page_operation::insert_blank) kind= "blank";
+    page= new_page (tree (DOCUMENT, ""), kind);
+  }
   const bool before= operation == slide_page_operation::insert_before ||
                      operation == slide_page_operation::paste_before;
   const int insert= at + (before ? 0 : 1);
@@ -157,6 +181,11 @@ tree presentation_slide_document (tree t) {
 }
 
 void presentation_slide_title (tree t) {
+  if (!athena::slides::fields (t).empty ()) {
+    go (t[0]);
+    get_current_editor ()->open_enunciation_slot ("title", 0);
+    return;
+  }
   tree doc= presentation_slide_document (t);
   if (!is_document (doc)) return;
   if (N(doc) && is_compound (doc[0], "tit")) { go (doc[0][0]); return; }

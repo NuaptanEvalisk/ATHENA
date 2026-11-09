@@ -70,7 +70,7 @@ void edit_interface_rep::refresh_enunciation_slots () {
   path selected;
   if (buf && !buf->read_only)
     for (path p= path_up (tp); rp <= p; p= path_up (p)) {
-      if (has_subtree (et, p) && en::editable_title (subtree (et, p))) {
+      if (has_subtree (et, p) && en::editable_fields (subtree (et, p))) {
         selected= p; break;
       }
       if (p == rp) break;
@@ -108,8 +108,11 @@ bool edit_interface_rep::open_enunciation_slot (string field, int index,
   if (is_nil (enunciation_slots_path_) || !has_subtree (et, enunciation_slots_path_) ||
       !buf || buf->read_only) return false;
   const tree& source= subtree (et, enunciation_slots_path_);
-  if (!en::editable_title (source)) return false;
-  const auto prepared= cursor_context_at (enunciation_slots_path_ * 0, {});
+  if (!en::editable_fields (source)) return false;
+  auto prepared= cursor_context_at (enunciation_slots_path_ * 0, {});
+  const auto captured= title_field_context (
+    en::title_slot_id (athena::node::id (source), std::string (field.data (), N(field)), index));
+  if (captured) prepared= captured;
   if (!prepared || !ui_endpoint) return false;
   const std::string key (field.data (), N(field));
   const auto* fields= athena::contracts::native_fields (L(source));
@@ -133,6 +136,7 @@ bool edit_interface_rep::open_enunciation_slot (string field, int index,
     location.push_back (p->item);
   nlohmann::json request {
     {"generation", ++enunciation_slot_request_},
+    {"styled", is_func (source, SLIDE_PAGE)},
     {"field", key}, {"index", index}, {"node", athena::node::id (source)},
     {"path", location},
     {"header", xml::write_xml_v3 (carrier, xml::xml_kind::fragment)},
@@ -155,7 +159,10 @@ void edit_interface_rep::refresh_enunciation_slot_geometry () {
       is_nil (enunciation_slots_path_) || !has_subtree (et, enunciation_slots_path_)) return;
   const auto id= athena::node::id (subtree (et, enunciation_slots_path_));
   const std::string field (enunciation_slot_field_.data (), N(enunciation_slot_field_));
-  const auto prepared= cursor_context_at (enunciation_slots_path_ * 0, {});
+  auto prepared= cursor_context_at (enunciation_slots_path_ * 0, {});
+  const auto captured= title_field_context (
+    en::title_slot_id (id, field, enunciation_slot_index_));
+  if (captured) prepared= captured;
   if (!prepared) {
     open_enunciation_slot ("", 0);
     return;

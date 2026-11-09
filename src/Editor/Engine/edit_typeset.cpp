@@ -950,6 +950,36 @@ edit_typeset_rep::thumbnail_page_box (int index) {
   return {pages[index], pages->sx (index), pages->sy (index)};
 }
 
+void
+edit_typeset_rep::prepare_slideshow_pages () {
+  // Freeze a clean presentation once per playback, without changing the live
+  // editing environment, field slots or reference/auxiliary records.
+  typeset_preamble ();
+  athena::contracts::evaluation_state state (contract_state.contracts.snapshot ());
+  auto refs= copy (buf->data->ref), global_refs= copy (grefs);
+  auto aux= copy (buf->data->aux), attachments= copy (buf->data->att);
+  edit_env presentation (state, buf->master, refs, global_refs,
+                         aux, aux, attachments, attachments);
+  pre->restore (*presentation.operator-> ());
+  presentation->style_init_env ();
+  if (compound_counter_view)
+    athena::avd::apply_counter_state (
+      presentation, compound_counter_variables, compound_incoming_counters);
+  presentation->write (PAGE_PRINTED, "true");
+  presentation->editing_enunciation_id.clear ();
+  presentation->update ();
+  slideshow_pages= typeset_as_document (
+    presentation, subtree (et, rp), reverse (rp));
+}
+
+edit_typeset_rep::thumbnail_paint_target
+edit_typeset_rep::slideshow_page_box (int index) {
+  if (is_nil (slideshow_pages) || slideshow_pages->subnr () == 0 ||
+      index < 0 || index >= slideshow_pages[0]->subnr ()) return {};
+  box pages= slideshow_pages[0];
+  return {pages[index], pages->sx (index), pages->sy (index)};
+}
+
 bool
 edit_typeset_rep::paint_thumbnail_page (
     renderer ren, const thumbnail_paint_target& target) {
@@ -1971,7 +2001,14 @@ edit_typeset_rep::typeset_invalidate_presentation (path p) {
 bool edit_typeset_rep::set_enunciation_editing_id (const std::string& id) {
   if (env->editing_enunciation_id == id) return false;
   env->editing_enunciation_id= id;
+  env->title_field_contexts.clear ();
   return true;
+}
+
+std::shared_ptr<const evaluation_environment_checkpoint>
+edit_typeset_rep::title_field_context (const string& id) {
+  const auto found= env->title_field_contexts.find (id);
+  return found == env->title_field_contexts.end () ? nullptr : found->second;
 }
 
 void

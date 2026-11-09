@@ -36,6 +36,7 @@ protected:
   bool page_geometry_from_layout= false;
   // Advances when the owning editor actually produces a new box layout.
   std::uint64_t thumbnail_layout_revision_= 1;
+  box slideshow_pages;
   hashmap<string,tree> init;              // environment changes w.r.t. style
   hashmap<string,tree> fin;               // environment changes w.r.t. doc
   hashmap<string,tree> grefs;             // global references
@@ -103,6 +104,8 @@ public:
   bool cursor_occurrence_admitted (
     path source, const athena::contracts::evaluation_boundary_handle& selected) override;
   bool set_enunciation_editing_id (const std::string& id) override;
+  std::shared_ptr<const evaluation_environment_checkpoint> title_field_context (
+    const string& id) override;
   void set_data (new_data data);
   void get_data (new_data& data);
 
@@ -152,6 +155,8 @@ public:
     SI offset_y= 0;
   };
   thumbnail_paint_target thumbnail_page_box (int index);
+  void prepare_slideshow_pages ();
+  thumbnail_paint_target slideshow_page_box (int index);
   bool paint_thumbnail_page (renderer ren, const thumbnail_paint_target& target);
   SI       get_page_width (bool deco);
   SI       get_pages_width (bool deco);

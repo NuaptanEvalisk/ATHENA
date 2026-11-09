@@ -21,7 +21,7 @@
 
 class QListWidget;
 class QLabel;
-class QPushButton;
+class QToolButton;
 class QTimer;
 class QHideEvent;
 struct actor_viewport_snapshot;
@@ -53,7 +53,7 @@ private:
 
   QListWidget* list;
   QLabel* message;
-  QPushButton* newSlide;
+  QToolButton* newSlide;
   QTimer* timer;
   std::shared_ptr<QTMRenderConnection> raster;
   QHash<int, cached_thumbnail> cache;

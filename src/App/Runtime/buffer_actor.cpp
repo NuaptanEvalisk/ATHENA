@@ -2016,6 +2016,7 @@ buffer_actor::dispatch (actor_command_record& command) {
     if (!typeset || !editor->ui_endpoint) break;
     const auto manifest= make_thumbnail_manifest (editor, typeset);
     if (manifest.pages.empty ()) break;
+    typeset->prepare_slideshow_pages ();
     int initial= 0;
     if (command.argument[0]) {
       initial= static_cast<int> (manifest.active);
@@ -2058,7 +2059,7 @@ buffer_actor::dispatch (actor_command_record& command) {
         availableWidth > 16384 || availableHeight > 16384) break;
     const auto manifest= make_thumbnail_manifest (editor, typeset);
     if (index < 0 || index >= static_cast<int> (manifest.pages.size ())) break;
-    const auto target= typeset->thumbnail_page_box (index);
+    const auto target= typeset->slideshow_page_box (index);
     box page= target.page;
     if (is_nil (page)) break;
     const double pageWidth= double (page->x2-page->x1);
@@ -2100,7 +2101,7 @@ buffer_actor::dispatch (actor_command_record& command) {
       actor_blob_registry::instance ().take (command.payload0);
     if (!editor) break;
     const auto operation= static_cast<slide_page_operation> (command.argument[0]);
-    if (operation > slide_page_operation::move_next) break;
+    if (operation > slide_page_operation::insert_blank) break;
     int index= static_cast<int> (command.argument[1]);
     if (index < 0) index= presentation_page_index ();
     tree content= presentation_page_copy (index);
@@ -2138,7 +2139,17 @@ buffer_actor::dispatch (actor_command_record& command) {
                           payload.size ()),
         athena::document::xml_kind::fragment);
     }
-    if (presentation_edit_page (operation, index, paste_content)) {
+    editor->before_menu_action ();
+    bool changed;
+    try {
+      changed= presentation_edit_page (operation, index, paste_content);
+      editor->after_menu_action ();
+    }
+    catch (...) {
+      editor->cancel_menu_action ();
+      throw;
+    }
+    if (changed) {
       editor->publish_editor_command_state ();
       editor->publish_focus_toolbar_state ();
     }

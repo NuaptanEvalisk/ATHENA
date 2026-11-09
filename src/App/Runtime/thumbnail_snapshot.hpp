@@ -29,7 +29,8 @@ constexpr std::uint32_t THUMBNAIL_MANIFEST_SLIDES= 1U;
 // Insert menu, and Thumbnails context menu.
 enum class slide_page_operation: std::uint64_t {
   insert_before, insert_after, duplicate, erase, copy,
-  paste_before, paste_after, move_previous, move_next
+  paste_before, paste_after, move_previous, move_next,
+  insert_title, insert_section, insert_content, insert_blank
 };
 
 #endif

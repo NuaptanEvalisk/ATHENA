@@ -107,7 +107,8 @@ bridge_compound (typesetter ttt, tree st, path ip) {
 void
 bridge_compound_rep::notify_assign (path p, tree u) {
   // cout << "Assign " << p << ", " << u << " in " << st << "\n";
-  ASSERT (!is_nil (p) || L(u) >= START_EXTENSIONS, "nil path");
+  ASSERT (!is_nil (p) || L(u) >= START_EXTENSIONS ||
+          !athena::slides::kind (u).empty (), "nil path");
   if (athena_is_enunciation_background (st)) {
     int d= athena_enunciation_background_delta (st);
     if (!is_nil (p) && p->item == d + 1 && !is_nil (p->next) &&
@@ -419,6 +420,11 @@ bridge_compound_rep::my_typeset (int desired_status) {
     d= 0;
     macro_name= "program";
     f= native_program_macro (st);
+  }
+  else if (!athena::slides::kind (st).empty ()) {
+    d= 0;
+    macro_name= "slide-page";
+    f= native_slide_macro (env.operator-> (), st);
   }
   else if (athena::enunciation::is_enunciation (st)) {
     d= 0;

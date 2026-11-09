@@ -115,7 +115,12 @@ concater_rep::typeset_compound (tree t, path ip) {
   int d;
   tree f;
   string macro_name;
-  if (athena::enunciation::is_enunciation (t)) {
+  if (!athena::slides::kind (t).empty ()) {
+    d= 0;
+    macro_name= "slide-page";
+    f= native_slide_macro (env.operator-> (), t);
+  }
+  else if (athena::enunciation::is_enunciation (t)) {
     d= 0;
     macro_name= "enunciation";
     f= native_enunciation_macro (env.operator-> (), t);

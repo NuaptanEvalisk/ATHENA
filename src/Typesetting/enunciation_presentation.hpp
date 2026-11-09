@@ -13,11 +13,13 @@
 
 #include "Typesetting/env.hpp"
 #include "Domains/Knowledge/enunciation_model.hpp"
+#include "Document/Model/slide_page.hpp"
 
 // One pure macro plan for execution, cursor environments and all typeset routes.
 // The body is an ARG, never a copied or reparented source subtree. Rich property
 // values are projected to inert presentation; unknown markup stays visible.
 tree native_enunciation_macro (edit_env_rep* env, const tree& source);
 tree native_enunciation_rich_text (const tree& source);
+tree native_slide_macro (edit_env_rep* env, const tree& source);
 
 #endif

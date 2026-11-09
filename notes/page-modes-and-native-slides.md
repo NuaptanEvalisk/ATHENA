@@ -34,3 +34,36 @@ native heading/ToC folding and balloon interactions remain. The retained
 interaction style definitions are in `std-interaction.ats`.
 
 Transition and animation are not part of this change.
+
+## Typed Pages And Theme Layouts
+
+New pages carry a `kind` property: `title`, `section`, `content`, or `blank`.
+Title pages expose rich-text `title`, `subtitle`, `author`, and `date` properties;
+section pages expose title and subtitle, content pages expose title, and blank
+pages expose only their existing body. Fields are page-owned, not synchronized
+copies of document metadata. Untyped existing pages retain their authored body.
+
+The thumbnail pane's New slide split button inherits the selected page's kind.
+Its arrow inserts a chosen kind. Duplicate copies content; New slide does not.
+There is no layout-conversion operation in this version. Deleting the last page
+clears its fields as well as its body, retaining its UUID, kind and background.
+
+`slide-layouts.ats`, loaded by `std`, defines these theme-overridable macros:
+
+- `render-slide-title(title, subtitle, author, date, body)`
+- `render-slide-section(title, subtitle, body)`
+- `render-slide-content(title, body)`
+- `render-slide-blank(body)`
+- `render-slide-field(field, body)` for the editing decoration
+
+Native code projects properties and preserves the body through ARG; it does not
+choose typography, alignment, minimum content height or decorations. A generated
+page wrapper retains the existing slide-boundary/pager implementation. The default
+style uses a growing, minimum-height centered area for title and section pages.
+
+Page fields reuse the inline structured-field editor. Their input context is
+captured from the rendered field, so theme title typography is retained while
+typing. Empty field hints are editing-only; printed output uses field values.
+Playback builds one clean page snapshot in a separate evaluation environment,
+then reuses its boxes for frame rendering. It does not reuse active editor field
+decorations or mutate the editing environment and auxiliary records.

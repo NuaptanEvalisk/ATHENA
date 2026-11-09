@@ -23,6 +23,7 @@
 #include <QMimeData>
 #include <QPainter>
 #include <QPushButton>
+#include <QToolButton>
 #include <QScrollBar>
 #include <QStyledItemDelegate>
 #include <QTimer>
@@ -117,7 +118,7 @@ qt_actor_widget_rep* canvas_proxy (QTMMainTabWindow* shell) {
 
 QTMThumbnailsPane::QTMThumbnailsPane (QWidget* parent): QWidget (parent),
     list (new QListWidget (this)), message (new QLabel (this)),
-    newSlide (new QPushButton (tr ("New slide"), this)),
+    newSlide (new QToolButton (this)),
     timer (new QTimer (this)) {
   setObjectName ("athenaThumbnailsContent");
   auto* layout= new QVBoxLayout (this);
@@ -141,9 +142,26 @@ QTMThumbnailsPane::QTMThumbnailsPane (QWidget* parent): QWidget (parent),
   list->hide ();
   layout->addWidget (list, 1);
   newSlide->setObjectName ("athenaNewSlideButton");
+  newSlide->setText (tr ("New slide"));
+  newSlide->setToolButtonStyle (Qt::ToolButtonTextBesideIcon);
+  newSlide->setIcon (QIcon::fromTheme (QStringLiteral ("list-add")));
+  newSlide->setPopupMode (QToolButton::MenuButtonPopup);
+  auto* kinds= new QMenu (newSlide);
+  const std::pair<const char*, slide_page_operation> layouts[]= {
+    {"Title", slide_page_operation::insert_title},
+    {"Section", slide_page_operation::insert_section},
+    {"Content", slide_page_operation::insert_content},
+    {"Blank", slide_page_operation::insert_blank}};
+  for (const auto& [label, operation]: layouts)
+    connect (kinds->addAction (tr (label)), &QAction::triggered, this,
+      [this, operation] {
+        if (available && slideshow && writable)
+          (void) thumbnails_slide_action (actor, view, operation, activeSlide);
+      });
+  newSlide->setMenu (kinds);
   newSlide->hide ();
   layout->addWidget (newSlide);
-  connect (newSlide, &QPushButton::clicked, this, [this] {
+  connect (newSlide, &QToolButton::clicked, this, [this] {
     if (available && slideshow && writable)
       (void) thumbnails_slide_action (
         actor, view, slide_page_operation::insert_after, activeSlide);

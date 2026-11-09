@@ -137,7 +137,7 @@ void submit_value (const std::shared_ptr<input_session>& session, tree value,
         for (int step: where) location= location * step;
         if (!has_subtree (scope, location)) throw std::runtime_error ("Title node has moved");
         const tree& source= subtree (scope, location);
-        if (node::id (source) != id || !en::editable_title (source))
+        if (node::id (source) != id || !en::editable_fields (source))
           throw std::runtime_error ("Title node has changed");
         auto values= en::title_fields (source, field);
         if (values.empty ()) values.emplace_back ("");
@@ -157,7 +157,10 @@ void submit_value (const std::shared_ptr<input_session>& session, tree value,
           next= std::max (0, index-1);
         }
         node::metadata metadata= *node::get (source);
-        if (field == "year") {
+        if (is_func (source, SLIDE_PAGE)) {
+          metadata.properties[field]= node::property (node::rich_text {values[0]});
+        }
+        else if (field == "year") {
           if (!is_atomic (values[0]))
             throw std::runtime_error ("Year must be plain text");
           const string year= values[0]->label;
@@ -170,7 +173,7 @@ void submit_value (const std::shared_ptr<input_session>& session, tree value,
         }
         // Field input has no source IDs. Validate the title without auditing or
         // copying the unchanged enunciation body on each character.
-        tree header (en::label (), tree (DOCUMENT, ""));
+        tree header (L(source), tree (DOCUMENT, ""));
         node::set (header, metadata);
         const auto errors= model::validate_node_properties (header);
         if (!errors.empty ()) throw std::runtime_error (errors.front ().detail);
@@ -183,12 +186,14 @@ void submit_value (const std::shared_ptr<input_session>& session, tree value,
         std::string next_field= field;
         if (action == "next" || action == "previous") {
           next+= action == "next" ? 1 : -1;
+          const auto order= en::field_order (source);
+          auto at= std::find (order.begin (), order.end (), field);
           if (next >= int (values.size ())) {
-            next_field= field == "name" ? "year" : field == "year" ? "attribution" : "";
+            next_field= at != order.end () && ++at != order.end () ? *at : "";
             next= 0;
           }
           else if (next < 0) {
-            next_field= field == "attribution" ? "year" : field == "year" ? "name" : "";
+            next_field= at != order.begin () && at != order.end () ? *--at : "";
             next= std::max (0, int (en::title_fields (source, next_field).size ())-1);
           }
         }
@@ -249,8 +254,9 @@ public:
     setPalette (palette);
     tree doc (WITH);
     doc << "athena-radioactive-links-suppressed" << "true"
-        << "font-series" << "medium" << "font-shape" << "right"
         << "par-mode" << "left" << "scroll-bars" << "false";
+    if (!request.value ("styled", false))
+      doc << "font-series" << "medium" << "font-shape" << "right";
     doc << "bg-color" << colors.background << "color" << "#222222"
         << "page-screen-left" << "4px" << "page-screen-right" << "4px"
         << tree (DOCUMENT, value);
@@ -509,7 +515,7 @@ bool title_input_key (editor_rep& editor, const string& key) {
   const bool next= key == "tab", previous= key == "S-tab";
   const bool close= key == "return" && editor.get_env_string ("mode") != "math";
   if (!split && !remove && !next && !previous && !close) return false;
-  if (split && session->field == "year") return true;
+  if (split && session->field != "name" && session->field != "attribution") return true;
   try {
     tree left= editor.the_buffer (), right ("");
     if (split) {

@@ -12,6 +12,7 @@
 #include "Typesetting/Bridge/bridge.hpp"
 #include "Typesetting/Env/local_environment.hpp"
 #include "node_metadata.hpp"
+#include "Document/Model/slide_page.hpp"
 #include "Typesetting/Boxes/construct.hpp"
 #include "new_document.hpp"
 #include "Domains/References/node_reference_export.hpp"
@@ -141,6 +142,8 @@ make_bridge (typesetter ttt, tree st, path ip) {
   case _ERROR:
     return bridge_auto (ttt, st, ip, error_m, true);
   case SLIDE_PAGE:
+    if (!athena::slides::kind (st).empty ()) return bridge_compound (ttt, st, ip);
+    return bridge_document (ttt, st, ip);
   case DOCUMENT:
     return bridge_document (ttt, st, ip);
   case SURROUND:

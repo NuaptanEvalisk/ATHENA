@@ -169,6 +169,7 @@ public:
   bool                         read_only;   // write-protected ?
   bool                         compound_counter_execution= false;
   std::string                  editing_enunciation_id;
+  std::map<string, std::shared_ptr<const evaluation_environment_checkpoint>> title_field_contexts;
   bool                         page_refs_changed; // page references changed ?
   hashmap<string,tree>         missing;     // missing refs
   array<tree>                  redefined;   // redefined labels

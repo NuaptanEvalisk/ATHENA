@@ -859,6 +859,8 @@ public:
   virtual bool open_enunciation_slot (string field, int index,
                                       uint64_t expected_request= 0) = 0;
   virtual bool set_enunciation_editing_id (const std::string& id) = 0;
+  virtual std::shared_ptr<const evaluation_environment_checkpoint> title_field_context (
+    const string& id) = 0;
   virtual void show_selection () = 0;
   virtual void edit_special () = 0;
 
