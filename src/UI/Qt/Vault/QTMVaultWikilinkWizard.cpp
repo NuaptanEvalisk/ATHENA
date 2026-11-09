@@ -20,6 +20,7 @@
 #include "UI/Qt/Vault/QTMVaultPreviewWidget.hpp"
 #include "UI/Qt/Vault/QTMVaultSearch.hpp"
 #include "UI/Qt/Vault/QTMVaultSearchWorker.hpp"
+#include "Domains/Knowledge/enunciation_model.hpp"
 #include "namespaces.hpp"
 #include "new_buffer.hpp"
 #include "node_metadata.hpp"
@@ -1181,24 +1182,72 @@ WikilinkSearchPage::searchFile (
   try {
     std::vector<VaultContentMatch> matches;
     {
-      QString enunciation= options.enunciation;
+      const QString enunciationFilter= options.enunciation;
       bool caseInsensitive= options.caseInsensitive;
       bool fuzzy= options.fuzzy;
-      if (options.mode == VaultSearchMode::Semantic)
+      if (options.nodeModel && !enunciationFilter.isEmpty () &&
+          enunciationFilter != "__athena_paragraph__") {
+        // A typed enunciation search returns source objects, not text leaves.
+        // Looking up the deepest UUID at a word hit otherwise links to a
+        // nested with/concat inside the Example rather than to the Example.
+        const auto& registry= athena::enunciation::standard_registry ();
+        const std::string kind= enunciationFilter.toStdString ();
+        std::vector<VaultContentMatch> semanticMatches;
+        if (options.mode == VaultSearchMode::Semantic)
+          vault_search_semantic_matches (body, u, options, semanticMatches);
+        for (const VaultSourceTarget& target: vault_source_targets (body)) {
+          if (matches.size () >= 200 || vault_search_cancelled ()) break;
+          const tree source= subtree (body, target.where);
+          if (!registry.matches_filter (source, kind))
+            continue;
+          std::vector<VaultContentMatch> local;
+          if (options.mode == VaultSearchMode::Semantic) {
+            for (const auto& hit: semanticMatches)
+              if (common (target.where, hit.start) == target.where)
+                local.push_back (hit);
+          }
+          else {
+            append_content_matches (local, source, query, path (), 200,
+                                    caseInsensitive, fuzzy);
+            if (!local.empty ())
+              score_search_match_titles (source, query, path (), local,
+                                         caseInsensitive, fuzzy);
+          }
+          if (local.empty ()) continue;
+          const auto better= [] (const VaultContentMatch& a,
+                                  const VaultContentMatch& b) {
+            if (a.semantic || b.semantic)
+              return a.semanticScore > b.semanticScore;
+            if (a.titleMatchScore != b.titleMatchScore)
+              return a.titleMatchScore > b.titleMatchScore;
+            if (a.exact != b.exact) return a.exact;
+            return a.score > b.score;
+          };
+          const auto best= std::max_element (local.begin (), local.end (),
+            [&] (const VaultContentMatch& a, const VaultContentMatch& b) {
+              return better (b, a);
+            });
+          VaultContentMatch match= *best;
+          match.start= match.end= target.where;
+          match.sourceUuid= target.uuid;
+          matches.push_back (std::move (match));
+        }
+      }
+      else if (options.mode == VaultSearchMode::Semantic)
         vault_search_semantic_matches (body, u, options, matches);
-      else if (enunciation.isEmpty ()) {
+      else if (enunciationFilter.isEmpty ()) {
         append_content_matches (matches, body, query, path (), 200,
                                 caseInsensitive, fuzzy);
         append_heading_matches (matches, body, query, path (),
                                 200 - (int) matches.size (),
                                 caseInsensitive, fuzzy);
       }
-      else if (enunciation == "__athena_paragraph__")
+      else if (enunciationFilter == "__athena_paragraph__")
         collect_aofm_paragraph_matches (matches, body, query, path (), 200,
                                         caseInsensitive, fuzzy);
       else
         collect_enunciation_matches (matches, body, query,
-                                     from_qstring (enunciation), path (), 200,
+                                      from_qstring (enunciationFilter), path (), 200,
                                      caseInsensitive, fuzzy);
       if (options.mode != VaultSearchMode::Semantic)
         score_search_match_titles (body, query, path (), matches,
