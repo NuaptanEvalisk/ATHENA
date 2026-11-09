@@ -28,6 +28,10 @@
 #include "Document/NodeContracts/node_group_scope.hpp"
 #include "Document/NodeContracts/editing_query.hpp"
 #include "Document/NodeContracts/builtin_contracts.hpp"
+#include "math_tree_v3.hpp"
+#include "named_symbol.hpp"
+#include "language.hpp"
+#include "utf8_edit.hpp"
 
 #include <algorithm>
 
@@ -64,6 +68,78 @@ struct macro_edit_scope {
     selected (selected), previous (selected) { selected= std::move (context); }
   ~macro_edit_scope () { selected= std::move (previous); }
 };
+
+// Split only a display formula's top-level mathematical expression. A
+// relation inside a fraction, radical, delimiter or other structured operand
+// belongs to that operand and must not become the alignment point.
+bool math_grid_relation (const tree& token) {
+  string glyph;
+  if (is_atomic (token)) glyph= token->label;
+  else if (is_func (token, MATH_SYMBOL, 1) && is_atomic (token[0])) {
+    // A native symbol keeps its semantic identity; consult the authoritative
+    // glyph registry solely to recognize relations, not to replace the node.
+    const std::string identity=
+      athena::math_v3::symbol_registry_identity (token[0]->label);
+    const auto* symbol= athena::text::standard_named_symbols ().lookup (identity);
+    if (symbol && !symbol->glyph_utf8.empty ())
+      glyph= string (symbol->glyph_utf8.c_str ());
+  }
+  if (glyph != "") {
+    if (glyph == "=" || glyph == "≠" || glyph == "≤" || glyph == "≥" ||
+        glyph == "<" || glyph == ">" || glyph == "≈" || glyph == "≡" ||
+        glyph == "≃" || glyph == "≅" || glyph == "∼" || glyph == "∝" ||
+        glyph == "∈" || glyph == "∉" || glyph == "⊂" || glyph == "⊆" ||
+        glyph == "⊃" || glyph == "⊇" || glyph == "≪" || glyph == "≫")
+      return true;
+  }
+  const string group= math_symbol_group (token);
+  return group == "Relation-nolim-symbol" || group == "Assign-symbol";
+}
+
+void append_math_grid_tokens (const tree& value, std::vector<tree>& tokens) {
+  if (is_concat (value)) {
+    for (int i=0; i<N(value); ++i)
+      append_math_grid_tokens (value[i], tokens);
+  }
+  else if (is_atomic (value)) {
+    // Native v3 math may have several glyphs in one atomic source leaf.
+    // Examine graphemes individually so x=y and x≠y split correctly too.
+    const array<string> units= utf8_graphemes (value->label);
+    for (int i=0; i<N(units); ++i) tokens.push_back (tree (units[i]));
+  }
+  else tokens.push_back (copy (value));
+}
+
+tree math_grid_cell_expression (const std::vector<tree>& tokens,
+                                std::size_t begin, std::size_t end) {
+  if (begin == end) return tree ("");
+  if (begin+1 == end) return copy (tokens[begin]);
+  tree result (CONCAT);
+  for (std::size_t i=begin; i<end; ++i) result << copy (tokens[i]);
+  return result;
+}
+
+tree math_grid_from_display_expression (const tree& source,
+                                        bool& aligned) {
+  std::vector<tree> tokens;
+  append_math_grid_tokens (source, tokens);
+  std::size_t relation= tokens.size ();
+  for (std::size_t i=0; i<tokens.size (); ++i)
+    if (math_grid_relation (tokens[i])) { relation= i; break; }
+  aligned= relation != tokens.size ();
+  tree left= aligned ? math_grid_cell_expression (tokens, 0, relation) :
+                       copy (source);
+  tree middle= aligned ? copy (tokens[relation]) : tree ("");
+  tree right= aligned ? math_grid_cell_expression (
+    tokens, relation+1, tokens.size ()) : tree ("");
+  tree grid (MATH_GRID, tree (ROW, tree (CELL, left),
+                                      tree (CELL, middle), tree (CELL, right)));
+  athena::node::metadata meta;
+  meta.properties["math:grid-kind"]= athena::node::property (
+    std::string ("eqnarray"));
+  athena::node::set (grid, meta);
+  return grid;
+}
 
 }
 
@@ -787,6 +863,26 @@ edit_dynamic_rep::make_native_math_block (bool grid) {
   insert_tree (block, destination);
   ensure_trailing_proof_paragraph ();
   if (!is_nil (hp)) finish_hybrid (true);
+}
+
+bool
+edit_dynamic_rep::convert_native_math_block_to_grid () {
+  if (!buf || buf->storage_version != athena::document::xml_storage_version::v3 ||
+      in_source () || editor_command_state_snapshot ().read_only () ||
+      selection_active_any ()) return false;
+  const path blockPath= search_upwards (MATH_BLOCK);
+  if (is_nil (blockPath)) return false;
+  const tree block= subtree (et, blockPath);
+  if (!is_func (block, MATH_BLOCK, 1) ||
+      is_func (block[0], MATH_GRID)) return false;
+  bool aligned= false;
+  const tree grid= math_grid_from_display_expression (block[0], aligned);
+  if (!athena::math_v3::valid_native_math (grid)) return false;
+  // Replace only the content slot. The MATH_BLOCK and its numbering/identity
+  // metadata remain unchanged, so references and equation numbering survive.
+  assign (blockPath * 0, grid);
+  go_to_start (blockPath * path (0, 0, aligned ? 2 : 0, 0));
+  return true;
 }
 
 void

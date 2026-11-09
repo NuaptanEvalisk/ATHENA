@@ -35,6 +35,7 @@
         {"key": "S-tab", "commands": [{"call": "kbd-shift-tab", "args": []}]},
         {"key": "S-return", "commands": [{"call": "kbd-shift-return", "args": []}]},
         {"key": "C-return", "commands": [{"call": "kbd-control-return", "args": []}]},
+        {"key": "C-enter", "commands": [{"call": "kbd-control-return", "args": []}]},
         {"key": "C-S-return", "commands": [{"call": "kbd-shift-control-return", "args": []}]},
         {"key": "A-return", "commands": [{"call": "kbd-alternate-return", "args": []}]},
         {"key": "A-S-return", "commands": [{"call": "kbd-shift-alternate-return", "args": []}]},

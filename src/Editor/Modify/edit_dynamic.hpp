@@ -74,6 +74,7 @@ public:
 
   void make_hybrid ();
   void make_native_math_block (bool grid);
+  bool convert_native_math_block_to_grid () override;
   bool hybrid_name_context ();
   bool hybrid_keypress (string key);
   bool prepare_hybrid ();

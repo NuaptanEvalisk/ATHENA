@@ -710,6 +710,7 @@ public:
   virtual void make_style_with (string var, string val) = 0;
   virtual void make_hybrid () = 0;
   virtual void make_native_math_block (bool grid) = 0;
+  virtual bool convert_native_math_block_to_grid () = 0;
   virtual bool hybrid_name_context () = 0;
   virtual bool hybrid_keypress (string key) = 0;
   virtual bool prepare_hybrid () = 0;

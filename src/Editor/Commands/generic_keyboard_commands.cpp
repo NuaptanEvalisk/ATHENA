@@ -552,7 +552,11 @@ void generic_kbd_return () {
   dispatch_focus (generic_kbd_enter, false);
 }
 void generic_kbd_shift_return () { dispatch_focus (generic_kbd_enter, true); }
-void generic_kbd_control_return () { dispatch_focus (generic_kbd_control_enter, false); }
+void generic_kbd_control_return () {
+  editor ed= get_current_editor ();
+  if (!is_nil (ed) && ed->convert_native_math_block_to_grid ()) return;
+  dispatch_focus (generic_kbd_control_enter, false);
+}
 void generic_kbd_shift_control_return () { dispatch_focus (generic_kbd_control_enter, true); }
 void generic_kbd_alternate_return () { dispatch_focus (generic_kbd_alternate_enter, false); }
 void generic_kbd_shift_alternate_return () { dispatch_focus (generic_kbd_alternate_enter, true); }
