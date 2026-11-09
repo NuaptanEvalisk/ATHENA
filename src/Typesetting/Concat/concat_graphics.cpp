@@ -710,12 +710,6 @@ typeset_gr_item (edit_env env, tree t, path ip, bool& ok) {
         vars[i]= var;
         oldv[i]= env->read (var);
         newv[i]= env->exec (t[(i<<1)+1]);
-        if (var == PROVISO && newv[i] == "false") {
-          STACK_DELETE_ARRAY(vars);
-          STACK_DELETE_ARRAY(oldv);
-          STACK_DELETE_ARRAY(newv);
-          return empty_box (ip);
-        }
       }
       else {
         STACK_DELETE_ARRAY(vars);

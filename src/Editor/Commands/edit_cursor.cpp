@@ -859,7 +859,6 @@ edit_cursor_rep::go_to_label (string s) {
   if (is_nil (p)) p= search_label (s, true);
   if (!is_nil (p)) {
     go_to (p);
-    show_cursor_if_hidden ();
     return;
   }
   tree val= buf->data->ref[s];

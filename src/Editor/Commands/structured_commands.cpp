@@ -161,25 +161,34 @@ void dispatch_focus (void (*command) (tree, structural_navigation), structural_n
   command (focus_tree (), direction);
 }
 
+bool slide_editing_root (tree t) {
+  return is_func (t, SLIDE_PAGE) &&
+    get_current_editor ()->get_init_string (PAGE_MEDIUM) == "slideshow";
+}
+
 bool simple_tag (tree t) {
   return is_func (t, CONCAT) || is_func (t, DOCUMENT) ||
+    slide_editing_root (t) ||
     is_func (t, TFORMAT) || is_func (t, TABLE) || is_func (t, ROW) ||
     is_func (t, CELL) || is_compound (t, "shown") ||
     is_compound (t, "hidden");
 }
 
 void outward (tree t, void (*command) (tree, bool), bool direction) {
+  if (slide_editing_root (t)) return;
   tree parent;
   if (parent_tree (t, parent))
     command (parent, direction);
 }
 
 void outward (tree t, void (*command) (tree, structural_navigation), structural_navigation argument) {
+  if (slide_editing_root (t)) return;
   tree parent;
   if (parent_tree (t, parent)) command (parent, argument);
 }
 
 void outward (tree t, void (*command) (tree)) {
+  if (slide_editing_root (t)) return;
   tree parent;
   if (parent_tree (t, parent)) command (parent);
 }
@@ -404,7 +413,6 @@ void generic_traverse_previous_section_title () {
 }
 
 void generic_swipe_horizontal (tree t, bool forwards) {
-  if (presentation_structured (t, "swipe-horizontal", forwards)) return;
   if (generic_table_markup_context (t)) {
     editor ed= get_current_editor ();
     if (!is_nil (ed)) {
@@ -417,7 +425,6 @@ void generic_swipe_horizontal (tree t, bool forwards) {
 }
 
 void generic_swipe_vertical (tree t, bool downwards) {
-  if (presentation_structured (t, "swipe-vertical", downwards)) return;
   if (generic_table_markup_context (t)) {
     editor ed= get_current_editor ();
     if (!is_nil (ed)) {
@@ -434,8 +441,8 @@ void generic_swipe_right () { dispatch_focus (generic_swipe_horizontal, true); }
 void generic_swipe_up () { dispatch_focus (generic_swipe_vertical, false); }
 void generic_swipe_down () { dispatch_focus (generic_swipe_vertical, true); }
 
-void generic_structured_maximize (tree t) { if (!presentation_structured (t, "maximize", true)) outward (t, generic_structured_maximize); }
-void generic_structured_minimize (tree t) { if (!presentation_structured (t, "minimize", false)) outward (t, generic_structured_minimize); }
+void generic_structured_maximize (tree t) { outward (t, generic_structured_maximize); }
+void generic_structured_minimize (tree t) { outward (t, generic_structured_minimize); }
 
 bool generic_wheel_capture () { return false; }
 
@@ -449,13 +456,12 @@ bool generic_focus_has_toggles (tree t) {
 }
 
 bool generic_focus_can_move (tree t) {
-  if (presentation_screens (t)) return false;
+  if (presentation_page_context (t)) return false;
   return !text_doc_title_context (t) && !text_doc_author_context (t) &&
     !text_node_in_group (t, "abstract-data-tag");
 }
 
 bool generic_focus_can_insert_remove (tree t) {
-  if (presentation_overlays (t)) return true;
   if (math_script_context (t)) return true;
   if (is_func (t, SQRT)) return false;
   bool structured=
@@ -465,14 +471,12 @@ bool generic_focus_can_insert_remove (tree t) {
 }
 
 bool generic_focus_can_insert (tree t) {
-  if (presentation_overlays (t) || is_compound (t, "slideshow")) return true;
   const auto context= generic_prepared_tree_context (t);
   if (!context) return false;
   const athena::contracts::editing_query query {context->contract_context ()};
   return N(t) < query.describe (L(t)).layout.maximum ();
 }
 bool generic_focus_can_remove (tree t) {
-  if (presentation_overlays (t) || is_compound (t, "slideshow")) return true;
   const auto context= generic_prepared_tree_context (t);
   if (!context) return false;
   const athena::contracts::editing_query query {context->contract_context ()};
@@ -550,7 +554,6 @@ bool generic_table_markup_context (tree t) {
 }
 
 bool generic_structured_horizontal_context (tree t) {
-  if (presentation_overlays (t) || is_compound (t, "slideshow")) return true;
   if (is_graphical_text (t) && N(t) >= 2) return false;
   if (generic_table_markup_context (t)) return true;
   const auto context= generic_prepared_tree_context (t);
@@ -563,7 +566,6 @@ bool generic_structured_vertical_context (tree t) {
 
 void generic_structured_insert_horizontal (tree t, bool forwards) {
   if (is_func (t, HYBRID)) { get_current_editor ()->activate_hybrid (true); return; }
-  if (presentation_structured (t, "insert", forwards)) return;
   if (generic_table_markup_context (t)) {
     get_current_editor ()->table_insert_column (forwards);
     return;
@@ -579,8 +581,6 @@ void generic_structured_insert_horizontal (tree t, bool forwards) {
 }
 
 void generic_structured_insert_vertical (tree t, bool downwards) {
-  if (native_node_group_contains ("switch-tag", as_string (L(t))) &&
-      presentation_structured (t, "insert", downwards)) return;
   if (math_script_context (t)) {
     const bool sub= is_func (t, LSUB) || is_func (t, RSUB);
     if (downwards != sub && math_script_only (t)) {
@@ -600,7 +600,6 @@ void generic_structured_insert_vertical (tree t, bool downwards) {
 }
 
 void generic_structured_remove_horizontal (tree t, bool forwards) {
-  if (presentation_structured (t, "remove", forwards)) return;
   if (generic_table_markup_context (t)) {
     get_current_editor ()->table_remove_column (forwards);
     return;
@@ -616,8 +615,6 @@ void generic_structured_remove_horizontal (tree t, bool forwards) {
 }
 
 void generic_structured_remove_vertical (tree t, bool downwards) {
-  if (native_node_group_contains ("switch-tag", as_string (L(t))) &&
-      presentation_structured (t, "remove", downwards)) return;
   if (generic_table_markup_context (t)) {
     get_current_editor ()->table_remove_row (downwards);
     return;
@@ -636,7 +633,6 @@ void generic_structured_insert_incremental (tree t, bool downwards) {
 }
 
 void generic_structured_horizontal (tree t, bool forwards) {
-  if (presentation_structured (t, "move", forwards)) return;
   if (generic_table_markup_context (t)) {
     (void) table_move (get_current_editor (), 0, forwards ? 1 : -1);
     return;
@@ -645,7 +641,6 @@ void generic_structured_horizontal (tree t, bool forwards) {
 }
 
 void generic_structured_vertical (tree t, bool downwards) {
-  if (presentation_structured (t, "move", downwards)) return;
   if (generic_table_markup_context (t)) {
     (void) table_move (get_current_editor (), downwards ? 1 : -1, 0);
     return;
@@ -673,7 +668,6 @@ void generic_structured_inner_extremal (tree t, bool forwards) {
 }
 
 void generic_structured_extremal (tree t, bool forwards) {
-  if (presentation_structured (t, "extremal", forwards)) return;
   if (is_tree_branch (t)) { tree_extremal (t, forwards); return; }
   editor ed= get_current_editor ();
   while (true) {
@@ -685,7 +679,6 @@ void generic_structured_extremal (tree t, bool forwards) {
 }
 
 void generic_structured_incremental (tree t, bool downwards) {
-  if (presentation_structured (t, "extremal", downwards)) return;
   if (is_tree_branch (t)) {
     editor ed= get_current_editor ();
     while (true) {

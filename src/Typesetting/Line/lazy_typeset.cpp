@@ -22,6 +22,7 @@
 #include "packrat.hpp"
 #include "Typesetting/radioactive_link_scope.hpp"
 #include "tree_label.hpp"
+#include "node_metadata.hpp"
 #include "Domains/References/node_reference_export.hpp"
 
 array<line_item> typeset_marker (edit_env env, path ip);
@@ -88,6 +89,15 @@ is_only_labels_and_white (tree t) {
 lazy_document_rep::lazy_document_rep (edit_env env, tree t, path ip):
   lazy_rep (LAZY_DOCUMENT, ip)
 {
+  slide= is_func (t, SLIDE_PAGE) &&
+         env->get_string (PAGE_MEDIUM) == "slideshow";
+  if (slide)
+    if (const auto* meta= athena::node::get (t)) {
+      auto it= meta->properties.find ("background");
+      if (it != meta->properties.end ())
+        if (auto color= std::get_if<std::string> (&it->second.data))
+          slide_background= string (color->data (), color->size ());
+    }
   int i, n= N(t);
   string mode = athena_labels_mode (env);
   bool printed= env->get_string (PAGE_PRINTED) == "true";
@@ -162,6 +172,16 @@ lazy_document_rep::produce (lazy_type request, format fm) {
 	sb= tmp_vs->sb;
       }
       else merge_stack (l, sb, tmp_vs->l, tmp_vs->sb);
+    }
+    if (slide) {
+      array<page_item> bounded;
+      bounded << page_item (tuple ("slide-start"), 1);
+      if (slide_background != "")
+        bounded << page_item (tuple ("env_page", PAGE_THIS_BG_COLOR,
+                                     slide_background), 1);
+      bounded << l;
+      bounded << page_item (tuple ("slide-end"), 1);
+      l= bounded;
     }
     return lazy_vstream (ip, "", l, sb);
   }
@@ -738,6 +758,7 @@ make_lazy_impl (edit_env env, tree t, path ip) {
     env->lan->highlight (t);
 
   switch (L(t)) {
+  case SLIDE_PAGE:
   case DOCUMENT:
     return lazy_document (env, t, ip);
   case SURROUND:

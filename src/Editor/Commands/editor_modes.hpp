@@ -8,7 +8,6 @@ bool editor_mode_text ();
 bool editor_mode_math ();
 bool editor_mode_program ();
 bool editor_mode_table ();
-bool editor_mode_screens ();
 bool editor_mode_standard ();
 bool editor_mode_standard_text ();
 bool editor_mode_smart_reference ();

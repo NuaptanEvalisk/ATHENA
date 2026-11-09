@@ -17,7 +17,6 @@
   "ext-tm-arity", "ext-tm-index", "ext-tm-last?", "ext-apply-on-paragraphs", "ext-numbered", "ext-listing",
   "ext-render-exercises-smaller?", "ext-number-solutions?",
   "doc-data", "author-data", "abstract-data", "ext-edit-macro",
-  "screens-index", "screens-arity", "screens-bar", "screens-switch-to",
   "ext-cardlink-render", "system-icon-for-link", "cardlink-native-type", "cardlink-native-render", "display-balloon",
   "wikilink-repair-apply", "vault-transclude-repair", "node-reference-jump-to-source", "vault-jump-to-source",
   "artifact-jump-to-position", "artifact-navigation-failed", "load-buffer", "load-vault-dir", "string->url",
@@ -26,7 +25,7 @@
   "vault-explorer-track-file", "open-namespace-manager", "open-namespace-explorer",
   "namespace-new-file-within-wizard", "namespace-info-page", "open-quick-switcher", "new-document",
   "mouse-toggle-todo-item", "mouse-toggle-cloud-todo-item",
-  "ext-fold-toc-in-reflow?", "toc-fold-tree", "toc-unfold-tree", "mouse-fold", "mouse-unfold",
+  "ext-fold-toc-in-reflow?", "toc-fold-tree", "toc-unfold-tree",
   "preview-reference", "reverse-hierarchy-graph-render", "global-hierarchy-graph-show",
   "websites-manager-show", "open-websites-manager", "ext-typed-ref*", "ext-typed-ref", "ext-smart-ref"
 ]

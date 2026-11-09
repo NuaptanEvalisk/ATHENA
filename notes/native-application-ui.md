@@ -137,9 +137,10 @@ now live in native code:
 - `generic_frontend.cpp` owns insertion dialogs, figure wrapping, document
   updates and global-search result navigation. Destination positioning is an
   owner task after loading, rather than a timed Scheme continuation.
-- `presentation_commands.cpp` owns folds, switches, overlays, slide editing,
-  traversal, presentation expansion and navigation markup. Slideshow clipboard
-  insertion uses `edit_select.cpp`'s normal version and source-identity pipeline.
+- `presentation_commands.cpp` now owns explicit `slide-page` editing and
+  navigation. Legacy Dynamic folds, switches, overlays, traversal and presentation
+  expansion have been removed. See `page-modes-and-native-slides.md` for the
+  replacement pagination and clipboard model.
 - `source_commands.cpp` owns source activation, macro definition lookup/editing,
   style extraction and parameter/theme analysis.
 - `Typeset/Env/title_markup.cpp` owns title, author and abstract rendering,

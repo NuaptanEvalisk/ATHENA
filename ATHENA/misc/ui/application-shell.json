@@ -426,13 +426,6 @@
       "help": "Show or hide the captured editor view status bar"
     },
     {
-      "id": "interface.presentation-tool",
-      "label": "Presentation tool",
-      "category": "Interface",
-      "icon": "video-display",
-      "help": "Enable or disable the presentation tool"
-    },
-    {
       "id": "interface.source-tool",
       "label": "Source macros tool",
       "category": "Interface",
@@ -637,48 +630,6 @@
       "category": "Go",
       "icon": "go-next",
       "help": "Go to the next cursor-history position"
-    },
-    {
-      "id": "editor.presentation-first",
-      "label": "First",
-      "category": "Presentation",
-      "icon": "go-first",
-      "help": "Go to the first presentation state"
-    },
-    {
-      "id": "editor.presentation-previous-screen",
-      "label": "Previous screen",
-      "category": "Presentation",
-      "icon": "go-previous",
-      "help": "Go to the previous presentation screen"
-    },
-    {
-      "id": "editor.presentation-previous",
-      "label": "Previous",
-      "category": "Presentation",
-      "icon": "go-previous",
-      "help": "Go to the previous presentation state"
-    },
-    {
-      "id": "editor.presentation-next",
-      "label": "Next",
-      "category": "Presentation",
-      "icon": "go-next",
-      "help": "Go to the next presentation state"
-    },
-    {
-      "id": "editor.presentation-next-screen",
-      "label": "Next screen",
-      "category": "Presentation",
-      "icon": "go-next",
-      "help": "Go to the next presentation screen"
-    },
-    {
-      "id": "editor.presentation-last",
-      "label": "Last",
-      "category": "Presentation",
-      "icon": "go-last",
-      "help": "Go to the last presentation state"
     },
     {
       "id": "editor.search",
@@ -919,7 +870,7 @@
       "id": "insert",
       "label": "Insert",
       "items": [
-        { "command": "editor.focus.screen-new", "focus_requires": ["screens-context"] },
+        { "command": "editor.focus.slide-new", "focus_requires": ["slide-page-context"] },
         {
           "submenu": "insert-document-data",
           "label": "Document header",
@@ -1312,103 +1263,6 @@
           "icon": "tm_link"
         },
         {
-          "submenu": "menubar-insert-fold",
-          "label": "Switching and folding",
-          "items": [
-            {
-              "submenu": "menubar-insert-fold-0-editor-mode-fold-folded",
-              "label": "Folded",
-              "items": [
-                { "command": "editor.insert.fold.folded" },
-                { "command": "editor.insert.fold.folded-plain" },
-                { "command": "editor.insert.fold.folded-std" },
-                { "command": "editor.insert.fold.folded-env" },
-                { "command": "editor.insert.fold.folded-documentation" },
-                { "command": "editor.insert.fold.folded-grouped" }
-              ]
-            },
-            {
-              "submenu": "menubar-insert-fold-1-editor-mode-fold-summarized",
-              "label": "Summarized",
-              "items": [
-                { "command": "editor.insert.fold.summarized" },
-                { "command": "editor.insert.fold.summarized-plain" },
-                { "command": "editor.insert.fold.summarized-std" },
-                { "command": "editor.insert.fold.summarized-env" },
-                { "command": "editor.insert.fold.summarized-documentation" },
-                { "command": "editor.insert.fold.summarized-grouped" }
-              ]
-            },
-            {
-              "submenu": "menubar-insert-fold-2-editor-mode-fold-switch",
-              "label": "Switch",
-              "items": [
-                { "command": "editor.insert.fold.switch" },
-                { "command": "editor.insert.fold.screens" },
-                { "command": "editor.insert.fold.tiny-switch" }
-              ]
-            },
-            {
-              "submenu": "menubar-insert-fold-3-editor-mode-fold-unroll",
-              "label": "Unroll",
-              "items": [
-                { "command": "editor.insert.fold.unroll" },
-                { "command": "editor.insert.fold.unroll-compressed" },
-                { "command": "editor.insert.fold.unroll-phantoms" },
-                { "command": "editor.insert.fold.unroll-greyed" },
-                { "separator": true },
-                { "command": "editor.insert.fold.unroll-itemize" },
-                { "command": "editor.insert.fold.unroll-enumerate" },
-                { "command": "editor.insert.fold.unroll-description" }
-              ]
-            },
-            {
-              "submenu": "menubar-insert-fold-4-editor-mode-fold-expanded",
-              "label": "Expanded",
-              "items": [
-                { "command": "editor.insert.fold.expanded" },
-                { "command": "editor.insert.fold.slides" }
-              ]
-            },
-            {
-              "submenu": "menubar-insert-fold-5-editor-mode-fold-overlays",
-              "label": "Overlays",
-              "items": [
-                { "command": "editor.insert.fold.overlays" },
-                { "command": "editor.insert.fold.overlays-compressed" },
-                { "command": "editor.insert.fold.overlays-phantoms" },
-                { "command": "editor.insert.fold.overlays-greyed" }
-              ]
-            },
-            {
-              "submenu": "menubar-insert-fold-6-editor-mode-fold-overlay",
-              "label": "Overlay",
-              "items": [
-                { "command": "editor.insert.fold.alter-colors" },
-                { "separator": true },
-                { "command": "editor.insert.fold.overlay-from" },
-                { "command": "editor.insert.fold.overlay-until" },
-                { "command": "editor.insert.fold.overlay-this" },
-                { "command": "editor.insert.fold.overlay-other" },
-                { "separator": true },
-                { "command": "editor.insert.fold.alternate-from" },
-                { "command": "editor.insert.fold.alternate-until" },
-                { "command": "editor.insert.fold.alternate-this" },
-                { "command": "editor.insert.fold.alternate-other" }
-              ]
-            },
-            {
-              "submenu": "menubar-insert-fold-7-editor-mode-fold-traversal",
-              "label": "Traversal",
-              "items": [
-                { "command": "editor.insert.fold.fold-back" },
-                { "command": "editor.insert.fold.keep-unfolded" }
-              ]
-            }
-          ],
-          "icon": "tm_switch"
-        },
-        {
           "submenu": "insert-program",
           "label": "Program",
           "items": [
@@ -1557,167 +1411,6 @@
       ]
     },
     {
-      "id": "dynamic",
-      "label": "Dynamic",
-      "items": [
-        {
-          "submenu": "dynamic-navigation",
-          "label": "Navigation",
-          "items": [
-            { "command": "editor.presentation-first" },
-            { "command": "editor.presentation-previous-screen" },
-            { "command": "editor.presentation-previous" },
-            { "command": "editor.presentation-next" },
-            { "command": "editor.presentation-next-screen" },
-            { "command": "editor.presentation-last" }
-          ]
-        },
-        {
-          "submenu": "dynamic-fold",
-          "label": "Fold",
-          "items": [
-            { "command": "editor.dynamic.fold" }
-          ]
-        },
-        {
-          "submenu": "dynamic-unfold",
-          "label": "Unfold",
-          "items": [
-            { "command": "editor.dynamic.unfold" }
-          ]
-        },
-        {
-          "submenu": "dynamic-compress",
-          "label": "Compress",
-          "items": [
-            { "command": "editor.dynamic.compress" },
-            { "command": "editor.dynamic.var-compress" }
-          ]
-        },
-        {
-          "submenu": "dynamic-expand",
-          "label": "Expand",
-          "items": [
-            { "command": "editor.dynamic.expand" },
-            { "command": "editor.dynamic.var-expand" }
-          ]
-        },
-        {
-          "submenu": "dynamic-filter",
-          "label": "Filter",
-          "items": [
-            { "command": "editor.dynamic.remove-folded" },
-            { "command": "editor.dynamic.remove-unfolded" },
-            { "command": "editor.dynamic.keep-folded" },
-            { "command": "editor.dynamic.keep-unfolded" }
-          ]
-        },
-        {
-          "submenu": "dynamic-insert-folds",
-          "label": "Insert folding constructs",
-          "items": [
-            {
-              "submenu": "dynamic-insert-fold-submenu",
-              "label": "Switching and folding",
-              "items": [
-                {
-                  "submenu": "dynamic-insert-fold-submenu-0-editor-mode-fold-folded",
-                  "label": "Folded",
-                  "items": [
-                    { "command": "editor.insert.fold.folded" },
-                    { "command": "editor.insert.fold.folded-plain" },
-                    { "command": "editor.insert.fold.folded-std" },
-                    { "command": "editor.insert.fold.folded-env" },
-                    { "command": "editor.insert.fold.folded-documentation" },
-                    { "command": "editor.insert.fold.folded-grouped" }
-                  ]
-                },
-                {
-                  "submenu": "dynamic-insert-fold-submenu-1-editor-mode-fold-summarized",
-                  "label": "Summarized",
-                  "items": [
-                    { "command": "editor.insert.fold.summarized" },
-                    { "command": "editor.insert.fold.summarized-plain" },
-                    { "command": "editor.insert.fold.summarized-std" },
-                    { "command": "editor.insert.fold.summarized-env" },
-                    { "command": "editor.insert.fold.summarized-documentation" },
-                    { "command": "editor.insert.fold.summarized-grouped" }
-                  ]
-                },
-                {
-                  "submenu": "dynamic-insert-fold-submenu-2-editor-mode-fold-switch",
-                  "label": "Switch",
-                  "items": [
-                    { "command": "editor.insert.fold.switch" },
-                    { "command": "editor.insert.fold.screens" },
-                    { "command": "editor.insert.fold.tiny-switch" }
-                  ]
-                },
-                {
-                  "submenu": "dynamic-insert-fold-submenu-3-editor-mode-fold-unroll",
-                  "label": "Unroll",
-                  "items": [
-                    { "command": "editor.insert.fold.unroll" },
-                    { "command": "editor.insert.fold.unroll-compressed" },
-                    { "command": "editor.insert.fold.unroll-phantoms" },
-                    { "command": "editor.insert.fold.unroll-greyed" },
-                    { "separator": true },
-                    { "command": "editor.insert.fold.unroll-itemize" },
-                    { "command": "editor.insert.fold.unroll-enumerate" },
-                    { "command": "editor.insert.fold.unroll-description" }
-                  ]
-                },
-                {
-                  "submenu": "dynamic-insert-fold-submenu-4-editor-mode-fold-expanded",
-                  "label": "Expanded",
-                  "items": [
-                    { "command": "editor.insert.fold.expanded" },
-                    { "command": "editor.insert.fold.slides" }
-                  ]
-                },
-                {
-                  "submenu": "dynamic-insert-fold-submenu-5-editor-mode-fold-overlays",
-                  "label": "Overlays",
-                  "items": [
-                    { "command": "editor.insert.fold.overlays" },
-                    { "command": "editor.insert.fold.overlays-compressed" },
-                    { "command": "editor.insert.fold.overlays-phantoms" },
-                    { "command": "editor.insert.fold.overlays-greyed" }
-                  ]
-                },
-                {
-                  "submenu": "dynamic-insert-fold-submenu-6-editor-mode-fold-overlay",
-                  "label": "Overlay",
-                  "items": [
-                    { "command": "editor.insert.fold.alter-colors" },
-                    { "separator": true },
-                    { "command": "editor.insert.fold.overlay-from" },
-                    { "command": "editor.insert.fold.overlay-until" },
-                    { "command": "editor.insert.fold.overlay-this" },
-                    { "command": "editor.insert.fold.overlay-other" },
-                    { "separator": true },
-                    { "command": "editor.insert.fold.alternate-from" },
-                    { "command": "editor.insert.fold.alternate-until" },
-                    { "command": "editor.insert.fold.alternate-this" },
-                    { "command": "editor.insert.fold.alternate-other" }
-                  ]
-                },
-                {
-                  "submenu": "dynamic-insert-fold-submenu-7-editor-mode-fold-traversal",
-                  "label": "Traversal",
-                  "items": [
-                    { "command": "editor.insert.fold.fold-back" },
-                    { "command": "editor.insert.fold.keep-unfolded" }
-                  ]
-                }
-              ],
-              "icon": "tm_switch"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "id": "focus",
       "label": "Focus",
       "items": [
@@ -1856,13 +1549,6 @@
           "label": "Image",
           "items": [
             { "provider": "editor-focus-embedded-image" }
-          ]
-        },
-        {
-          "submenu": "focus-overlay",
-          "label": "Overlay",
-          "items": [
-            { "provider": "editor-focus-overlays" }
           ]
         },
         {
@@ -2214,7 +1900,6 @@
         { "separator": true },
         { "command": "interface.status-bar" },
         { "separator": true },
-        { "command": "interface.presentation-tool" },
         { "command": "interface.source-tool" },
         { "separator": true },
         { "command": "interface.show-keypresses" }
@@ -2331,7 +2016,6 @@
         { "menu": "edit" },
         { "menu": "insert" },
         { "menu": "source" },
-        { "menu": "dynamic" },
         { "menu": "focus" },
         { "menu": "format" },
         { "menu": "document" },
@@ -2441,13 +2125,7 @@
         { "separator": true },
         { "command": "editor.history-back" },
         { "command": "editor.revert" },
-        { "command": "editor.history-forward" },
-        { "command": "editor.presentation-first" },
-        { "command": "editor.presentation-previous-screen" },
-        { "command": "editor.presentation-previous" },
-        { "command": "editor.presentation-next" },
-        { "command": "editor.presentation-next-screen" },
-        { "command": "editor.presentation-last" }
+        { "command": "editor.history-forward" }
       ]
     }
   ]

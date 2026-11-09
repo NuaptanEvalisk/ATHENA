@@ -627,7 +627,7 @@ native_graphics_object_property_name (string name) {
 
 bool
 native_graphics_common_property (string name) {
-  return name == "gid" || name == "proviso" || name == "magnify" ||
+  return name == "gid" || name == "magnify" ||
          name == "color" || name == "opacity";
 }
 

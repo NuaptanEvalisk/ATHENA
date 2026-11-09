@@ -226,7 +226,6 @@ void native_artifact_jump_to_position (url source, path position, bool record_hi
       return true;
     };
     if (locate ()) {
-      ed.show_cursor_if_hidden ();
       // Expanding a folded ancestor may move the cursor to its variant entry.
       locate ();
     }

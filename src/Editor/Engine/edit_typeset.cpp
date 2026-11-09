@@ -568,7 +568,8 @@ editor_rep::with_admitted_navigation (
     const bool source= entry->effective_value (MODE) == "src" ||
                        entry->effective_value (PREAMBLE) == "true";
     return {{entry, &entry->contract_context ()},
-      source ? access_policy::source : access_policy::normal};
+      source ? access_policy::source : access_policy::normal,
+      get_init_string (PAGE_MEDIUM) == "slideshow"};
   };
   try {
     action (cursor_navigation (prepare, root ? *root : rp));
@@ -638,7 +639,8 @@ editor_rep::prepare_tree_boundary (tree source, path target, bool at_start,
     const bool source_mode= entry->effective_value (MODE) == "src" ||
                            entry->effective_value (PREAMBLE) == "true";
     return {{entry, &entry->contract_context ()},
-      source_mode ? access_policy::source : access_policy::normal};
+      source_mode ? access_policy::source : access_policy::normal,
+      get_init_string (PAGE_MEDIUM) == "slideshow"};
   };
   const cursor_navigation navigation (prepare, path ());
   return at_start ? navigation.start (source, target) : navigation.end (source, target);
@@ -946,58 +948,6 @@ edit_typeset_rep::thumbnail_page_box (int index) {
       index < 0 || index >= eb[0]->subnr ()) return {};
   box pages= eb[0];
   return {pages[index], pages->sx (index), pages->sy (index)};
-}
-
-edit_typeset_rep::thumbnail_paint_target
-edit_typeset_rep::thumbnail_hidden_slide_box (int index) {
-  // The live Beamer layout contains only the currently shown screen. Build a
-  // transient source view with the requested screen shown, sharing the source
-  // nodes but never editing their shown/hidden tags or the live typesetter.
-  tree body= the_buffer ();
-  if (!is_document (body) || N (body) == 0) return {};
-  tree screens= body[N (body)-1];
-  if (!is_compound (screens, "screens") ||
-      index < 0 || index >= N (screens)) return {};
-
-  tree preview_screens= compound ("screens");
-  for (int i=0; i<N (screens); ++i) {
-    tree child= screens[i];
-    if (N (child) != 1 ||
-        !(is_compound (child, "shown") ||
-          is_compound (child, "hidden") ||
-          is_compound (child, "hidden*") ||
-          is_compound (child, "slide")))
-      return {};
-    // Unrelated hidden slides need not be typeset again. Their source content
-    // is not requested; retain their positions for screens-index/arity.
-    preview_screens << (i == index ?
-      compound ("shown", child[0]) :
-      compound ("hidden", tree (DOCUMENT, "")));
-  }
-
-  // Reuse the owning view's evaluated style checkpoint, but isolate all
-  // reference/auxiliary writes from its live editor and production document.
-  // Only this slide is typeset; the existing RenderService then rasterizes it.
-  athena::contracts::evaluation_state local_state (
-    contract_state.contracts.snapshot ());
-  hashmap<string,tree> refs= copy (buf->data->ref);
-  hashmap<string,tree> global_refs= copy (grefs);
-  hashmap<string,tree> aux= copy (buf->data->aux);
-  hashmap<string,tree> attachments= copy (buf->data->att);
-  edit_env preview (local_state, buf->master, refs, global_refs,
-                    aux, aux, attachments, attachments);
-  pre->restore (*preview.operator-> ());
-  preview->style_init_env ();
-  preview->update ();
-  presentation_thumbnail_scope presentation (index, N (screens));
-  box result= typeset_as_document (
-    preview, tree (DOCUMENT, preview_screens), path (DETACHED));
-  if (is_nil (result) || result->subnr () == 0 ||
-      result[0]->subnr () == 0) return {};
-  auto changes= std::make_shared<rectangles> ();
-  result->position_at (0, 0, changes);
-  box pages= result[0];
-  return {pages[0], pages->sx (0), pages->sy (0)};
 }
 
 bool
@@ -1846,7 +1796,7 @@ edit_typeset_rep::typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2) {
 #endif
     bool printed= env->get_string (PAGE_PRINTED) == "true";
     ttt->progressive= !printed &&
-      env->get_string (PAGE_MEDIUM) != "paper";
+      env->get_string (PAGE_MEDIUM) == "automatic";
     path relative_cursor= rp <= tp? tp / rp: path ();
     ttt->progressive_required=
       is_nil (relative_cursor)? 0: max (0, relative_cursor->item);

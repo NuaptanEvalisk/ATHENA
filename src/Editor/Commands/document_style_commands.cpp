@@ -411,13 +411,9 @@ document_set_main_style (string style) {
 void
 document_notify_new_style (string) {
   editor ed= get_current_editor ();
-  const string before= ed->get_init_string ("page-medium");
-  presentation_style_changed ();
-  // Some main styles (notably Beamer) select a presentation medium as part
-  // of changing the style. A previous user-facing mode selection must not
-  // mask that actual medium in the new presentation selector.
-  if (ed->get_init_string ("page-medium") != before)
-    ed->view_modes.selected_presentation= "";
+  if (ed->get_init_string ("page-medium") == "slideshow")
+    presentation_ensure_pages ();
+  ed->view_modes.selected_presentation= "";
 }
 
 bool

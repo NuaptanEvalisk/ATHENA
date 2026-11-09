@@ -6,6 +6,7 @@
 struct navigation_context {
   std::shared_ptr<const athena::contracts::contract_scope> contracts;
   athena::contracts::access_policy access= athena::contracts::access_policy::normal;
+  bool slideshow= false;
 };
 using cursor_context_preparation= std::function<navigation_context (path)>;
 
@@ -27,9 +28,13 @@ class cursor_navigation {
   path right_correct (tree, path) const;
   path up_correct (tree, path, bool active= true) const;
 public:
-  explicit cursor_navigation (athena::contracts::editing_query query): query (query) {}
+  explicit cursor_navigation (athena::contracts::editing_query query,
+                              bool slideshow= false): query (query) {
+    owned.slideshow= slideshow;
+  }
   cursor_navigation (const cursor_context_preparation&, path source, bool input_only= false);
   const athena::contracts::editing_query& contracts () const { return query; }
+  bool child_enforcing (tree t) const;
   cursor_navigation at (path relative) const;
   bool is_accessible_cursor (tree, path) const;
   // The caller must first admit the exact physical hit's source occurrence.

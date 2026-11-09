@@ -1,6 +1,5 @@
 {"version": 1, "properties": [
   ["gid", "default"],
-  ["proviso", "true"],
   ["magnify", "1"],
   ["color", "black"],
   ["opacity", "100%"],

@@ -85,54 +85,29 @@ thumbnail_actor_manifest
 make_thumbnail_manifest (editor_rep* editor, edit_typeset_rep* typeset) {
   thumbnail_actor_manifest result;
   result.pages= typeset->thumbnail_page_geometry ();
-  if (editor->get_init_string ("page-medium") != "beamer") return result;
-  tree body= editor->the_buffer ();
-  if (!is_document (body) || N (body) == 0) return result;
-  tree screens= body[N (body)-1];
-  if (!is_compound (screens, "screens") || N (screens) == 0)
-    return result;
-  result.flags= THUMBNAIL_MANIFEST_SLIDES;
-  for (int i=0; i<N(screens); ++i)
-    if (is_compound (screens[i], "shown", 1)) {
-      result.active= static_cast<std::uint32_t> (i);
-      break;
-    }
-  const auto visible= result.pages;
-  result.pages.assign (N (screens), {});
-  // Beamer screens share page geometry. The hidden slides do not have boxes
-  // yet, but their provisional bounds let the pane schedule offscreen fills.
-  if (!visible.empty ())
-    std::fill (result.pages.begin (), result.pages.end (), visible[0]);
+  if (editor->get_init_string ("page-medium") == "slideshow") {
+    result.flags= THUMBNAIL_MANIFEST_SLIDES;
+    result.active= static_cast<std::uint32_t> (presentation_page_index ());
+  }
   return result;
 }
 
 std::vector<std::uint64_t>
 thumbnail_slide_signatures (editor_rep* editor) {
   tree body= editor->the_buffer ();
-  if (!is_document (body) || N (body) == 0) return {};
-  tree screens= body[N (body)-1];
-  if (!is_compound (screens, "screens")) return {};
-  // Preamble and other document-level definitions affect every screen.
+  if (!is_document (body)) return {};
   std::uint64_t common= 1469598103934665603ULL;
-  for (int i=0; i<N (body)-1; ++i)
-    common= (common * 1099511628211ULL) ^
-            static_cast<std::uint32_t> (hash (body[i]));
+  for (int i=0; i<N(body); ++i)
+    if (!is_func (body[i], SLIDE_PAGE))
+      common= (common * 1099511628211ULL) ^
+              static_cast<std::uint32_t> (hash (body[i]));
   std::vector<std::uint64_t> result;
-  result.reserve (N (screens));
-  for (int i=0; i<N (screens); ++i) {
-    tree slide= screens[i];
-    // Presentation navigation only changes these wrapper labels. The actual
-    // content and its node metadata remain the authority for cache validity.
-    if (N (slide) == 1 &&
-        (is_compound (slide, "shown") ||
-         is_compound (slide, "hidden") ||
-         is_compound (slide, "hidden*") ||
-         is_compound (slide, "slide")))
-      slide= slide[0];
-    const auto identity= (common * 1099511628211ULL) ^
-                         static_cast<std::uint32_t> (hash (slide));
-    result.push_back (identity == 0 ? 1 : identity);
-  }
+  for (int i=0; i<N(body); ++i)
+    if (is_func (body[i], SLIDE_PAGE)) {
+      const auto identity= (common * 1099511628211ULL) ^
+                            static_cast<std::uint32_t> (hash (body[i]));
+      result.push_back (identity == 0 ? 1 : identity);
+    }
   return result;
 }
 
@@ -202,7 +177,7 @@ run_native_editor_command (editor_rep* editor,
     focus.valid () &&
     !focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
     !focus.has (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT) &&
-    !focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT);
+    !focus.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT);
   switch (command) {
   case native_editor_command_id::undo:
     if (state.read_only () || state.undo_count == 0) return false;
@@ -228,16 +203,6 @@ run_native_editor_command (editor_rep* editor,
     break;
   case native_editor_command_id::math_correct_all:
     if (state.read_only () || !state.math_mode ()) return false;
-    break;
-  case native_editor_command_id::presentation_first:
-  case native_editor_command_id::presentation_previous:
-  case native_editor_command_id::presentation_next:
-  case native_editor_command_id::presentation_last:
-    if (!state.presentation_mode ()) return false;
-    break;
-  case native_editor_command_id::presentation_previous_screen:
-  case native_editor_command_id::presentation_next_screen:
-    if (!state.presentation_mode () || !state.screens_mode ()) return false;
     break;
   case native_editor_command_id::export_selection_image:
     if (!has_selection || N(argument) == 0) return false;
@@ -365,24 +330,6 @@ run_native_editor_command (editor_rep* editor,
       break;
     case native_editor_command_id::math_correct_all:
       math_correct_all ();
-      break;
-    case native_editor_command_id::presentation_first:
-      presentation_operate_buffer ("first");
-      break;
-    case native_editor_command_id::presentation_previous_screen:
-      presentation_navigate ("previous");
-      break;
-    case native_editor_command_id::presentation_previous:
-      presentation_traverse_buffer ("previous");
-      break;
-    case native_editor_command_id::presentation_next:
-      presentation_traverse_buffer ("next");
-      break;
-    case native_editor_command_id::presentation_next_screen:
-      presentation_navigate ("next");
-      break;
-    case native_editor_command_id::presentation_last:
-      presentation_operate_buffer ("last");
       break;
     case native_editor_command_id::print_to_file:
       document_print_file_dialog ();
@@ -2011,11 +1958,7 @@ buffer_actor::dispatch (actor_command_record& command) {
       (manifest.flags & THUMBNAIL_MANIFEST_SLIDES) ?
         thumbnail_content_signature_ : 0);
     if (signature != command.argument[1]) break;
-    auto target= (manifest.flags & THUMBNAIL_MANIFEST_SLIDES) ?
-      (index == static_cast<int> (manifest.active) ?
-        typeset->thumbnail_page_box (0) :
-        typeset->thumbnail_hidden_slide_box (index)) :
-      typeset->thumbnail_page_box (index);
+    auto target= typeset->thumbnail_page_box (index);
     box page= target.page;
     if (is_nil (page)) break;
     const double pageWidth= double (page->x2-page->x1);
@@ -2115,11 +2058,7 @@ buffer_actor::dispatch (actor_command_record& command) {
         availableWidth > 16384 || availableHeight > 16384) break;
     const auto manifest= make_thumbnail_manifest (editor, typeset);
     if (index < 0 || index >= static_cast<int> (manifest.pages.size ())) break;
-    const auto target= (manifest.flags & THUMBNAIL_MANIFEST_SLIDES) ?
-      (index == static_cast<int> (manifest.active) ?
-        typeset->thumbnail_page_box (0) :
-        typeset->thumbnail_hidden_slide_box (index)) :
-      typeset->thumbnail_page_box (index);
+    const auto target= typeset->thumbnail_page_box (index);
     box page= target.page;
     if (is_nil (page)) break;
     const double pageWidth= double (page->x2-page->x1);
@@ -2153,53 +2092,53 @@ buffer_actor::dispatch (actor_command_record& command) {
 #endif
     break;
   }
-  case actor_command_kind::edit_screen: {
+  case actor_command_kind::edit_slide_page: {
 #ifdef QTTEXMACS
     // The source tree stays on BufferActor. The UI only receives serialized
     // clipboard data and the confirmation prompt through a GUI continuation.
     owned_actor_blob payload=
       actor_blob_registry::instance ().take (command.payload0);
     if (!editor) break;
-    const auto operation= static_cast<screen_edit_operation> (command.argument[0]);
-    if (operation > screen_edit_operation::paste_after) break;
+    const auto operation= static_cast<slide_page_operation> (command.argument[0]);
+    if (operation > slide_page_operation::move_next) break;
     int index= static_cast<int> (command.argument[1]);
-    if (index < 0) index= presentation_active_screen ();
-    tree content= presentation_screen_copy (index);
+    if (index < 0) index= presentation_page_index ();
+    tree content= presentation_page_copy (index);
     if (content == tree (UNINIT)) break;
-    if (operation == screen_edit_operation::copy) {
+    if (operation == slide_page_operation::copy) {
       if (!editor->ui_endpoint) break;
       const std::string xml= athena::document::write_xml_v3 (
         content, athena::document::xml_kind::fragment);
       (void) editor->ui_endpoint->publish_continuation ([xml] {
-        thumbnails_screen_set_clipboard (xml);
+        thumbnails_slide_set_clipboard (xml);
       });
       break;
     }
     if (editor->editor_command_state_snapshot ().read_only ()) break;
-    if (operation == screen_edit_operation::erase &&
-        !presentation_screen_empty (index)) {
+    if (operation == slide_page_operation::erase &&
+        !presentation_page_empty (index)) {
       const auto stamp= static_cast<std::uint64_t> (
         static_cast<std::uint32_t> (hash (content))) + 1;
       if (command.argument[2] != stamp) {
         if (command.argument[2] == 0 && editor->ui_endpoint)
           (void) editor->ui_endpoint->publish_continuation (
             [actorId=id_, targetView=command.view_id, index, stamp] {
-              thumbnails_screen_confirm_delete (
+              thumbnails_slide_confirm_delete (
                 actorId, targetView, index, stamp);
             });
         break;
       }
     }
     tree paste_content (UNINIT);
-    if (operation == screen_edit_operation::paste_before ||
-        operation == screen_edit_operation::paste_after) {
+    if (operation == slide_page_operation::paste_before ||
+        operation == slide_page_operation::paste_after) {
       if (!payload) break;
       paste_content= athena::document::read_xml_v3 (
         std::string_view (reinterpret_cast<const char*> (payload.data ()),
                           payload.size ()),
         athena::document::xml_kind::fragment);
     }
-    if (presentation_edit_screen (operation, index, paste_content)) {
+    if (presentation_edit_page (operation, index, paste_content)) {
       editor->publish_editor_command_state ();
       editor->publish_focus_toolbar_state ();
     }

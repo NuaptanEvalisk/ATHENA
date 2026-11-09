@@ -101,7 +101,6 @@ bool math_bracket_geometry (tree t, bool down, bool reset) {
 }
 
 void native_variant_circulate (tree t, bool forward) {
-  if (presentation_variant (t, forward)) return;
   if (math_script_context (t)) {
     if (math_script_only (t)) {
       tree_label label= is_func (t, LSUB) ? LSUP : is_func (t, LSUP) ? LSUB :

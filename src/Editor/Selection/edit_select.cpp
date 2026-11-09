@@ -198,6 +198,11 @@ edit_select_rep::select (path p) {
 
 void
 edit_select_rep::select_all () {
+  const path page= search_upwards (SLIDE_PAGE);
+  if (!is_nil (page) && get_init_string (PAGE_MEDIUM) == "slideshow") {
+    select (page * 0);
+    return;
+  }
   tree buffer= the_buffer ();
   selection_set_paths (rp * 0, rp * right_index (buffer));
 }
@@ -333,6 +338,12 @@ edit_select_rep::select_enlarge () {
     }
     sq= path_up (sp);
   }
+  if (is_func (subtree (et, sq), SLIDE_PAGE) &&
+      get_init_string (PAGE_MEDIUM) == "slideshow") {
+    select (sq * 0);
+    selecting= shift_selecting= false;
+    return;
+  }
   if (is_atomic (subtree (et, sp))) select_enlarge_text ();
   else select (sq * 0, sq * 1);
 
@@ -379,11 +390,14 @@ stop_enlarge_environmental (tree t) {
 
 void
 edit_select_rep::select_enlarge_environmental () {
+  const range_set previous= cur_sel;
   select_enlarge ();
-  if (is_empty (cur_sel)) return;
+  if (is_empty (cur_sel) || cur_sel == previous) return;
   path p= common (cur_sel);
   tree st= subtree (et, p);
   if (stop_enlarge_environmental (st)) return;
+  if (rp < p && is_func (subtree (et, path_up (p)), SLIDE_PAGE) &&
+      get_init_string (PAGE_MEDIUM) == "slideshow") return;
   select_enlarge_environmental ();
 }
 
@@ -1435,27 +1449,6 @@ edit_select_rep::store_cut_selection (string key, tree clipboard) {
 
 void
 edit_select_rep::selection_cut (string key) {
-  const path slideshow= search_upwards ("slideshow");
-  if (!is_nil (slideshow) && selection_active_normal () &&
-      is_compound (subtree (et, slideshow), "slideshow", 1)) {
-    const path document= slideshow * 0;
-    tree slides= subtree (et, document);
-    path a= selection_get_start (), b= selection_get_end ();
-    if (is_document (slides) && document < a && document < b) {
-      int first= (a / document)->item, last= (b / document)->item;
-      if (first >= 0 && last < N(slides) && first < last &&
-          last-first+1 < N(slides) && is_compound (slides[first], "slide") &&
-          is_compound (slides[last], "slide")) {
-        tree clipboard (DOCUMENT);
-        for (int i= first; i <= last; ++i) clipboard << copy (slides[i]);
-        store_cut_selection (key, clipboard);
-        remove (document * first, last-first+1);
-        if (first < N(subtree (et, document))) go_to_start (document * first);
-        else go_to_end (document * (first-1));
-        return;
-      }
-    }
-  }
   if (inside_active_graphics ()) {
     if (key != "none") {
       tree t= native_graphics_copy_selection ();

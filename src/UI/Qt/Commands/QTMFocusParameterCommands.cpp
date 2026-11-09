@@ -33,14 +33,14 @@ generic_focus_surface (const actor_focus_toolbar_snapshot& focus) {
   return focus.valid () &&
          !focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
          !focus.has (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT) &&
-         !focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT);
+         !focus.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT);
 }
 
 bool
 preferences_focus_surface (const actor_focus_toolbar_snapshot& focus) {
   return generic_focus_surface (focus) ||
          (focus.valid () &&
-          focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT));
+          focus.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT));
 }
 
 const std::vector<actor_focus_parameter_snapshot>*

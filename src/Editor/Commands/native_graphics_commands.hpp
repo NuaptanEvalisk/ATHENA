@@ -9,6 +9,5 @@ tree graphics_object_attribute (tree object, string name);
 void graphics_set_object_attribute (tree object, string name, tree value);
 string graphics_vertical_alignment (tree object);
 void graphics_insert (tree properties);
-void graphics_update_proviso (tree source, string value);
 void graphics_rotate (double angle, bool xz);
 void graphics_grid_subdivisions (int divisions);

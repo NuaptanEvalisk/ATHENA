@@ -97,16 +97,6 @@ void graphics_insert (tree properties) {
   get_current_editor ()->insert_tree (source, path (N(properties), 1));
 }
 
-void graphics_update_proviso (tree source, string value) {
-  if (is_atomic (source)) return;
-  if (is_func (source, WITH))
-    for (int i=0; i+1<N(source)-1; i+=2)
-      if (source[i] == "gr-proviso" && is_compound (source[i+1]) &&
-          N(source[i+1]) == 1 && is_atomic (source[i+1][0]))
-        tree_assign (source[i+1][0], value);
-  for (int i=0; i<N(source); ++i) graphics_update_proviso (source[i], value);
-}
-
 void graphics_rotate (double angle, bool xz) {
   editor ed= get_current_editor ();
   tree matrix= ed->get_env_value ("gr-transformation");

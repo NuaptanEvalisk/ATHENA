@@ -12,6 +12,7 @@
 #include "Typesetting/Bridge/bridge.hpp"
 #include "boot.hpp"
 #include "tm_timer.hpp"
+#include "node_metadata.hpp"
 
 static string
 athena_labels_mode (edit_env env) {
@@ -83,7 +84,8 @@ bridge_document (typesetter ttt, tree st, path ip) {
 void
 bridge_document_rep::notify_assign (path p, tree u) {
   // cout << "Assign " << p << ", " << u << " in " << st << "\n";
-  ASSERT (!is_nil (p) || is_func (u, DOCUMENT) || is_func (u, PARA),
+  ASSERT (!is_nil (p) || is_func (u, DOCUMENT) || is_func (u, PARA) ||
+          is_func (u, SLIDE_PAGE),
 	  "nil path");
   if (is_nil (p)) {
     bool same_source= st == u;
@@ -284,6 +286,20 @@ athena_progressive_placeholder_height (array<page_item> lines,
 
 void
 bridge_document_rep::my_typeset (int desired_status) {
+  const bool slide= is_func (st, SLIDE_PAGE) &&
+                    env->get_string (PAGE_MEDIUM) == "slideshow";
+  if (slide) {
+    array<page_item> boundary;
+    boundary << page_item (tuple ("slide-start"), 1);
+    if (const auto* meta= athena::node::get (st)) {
+      auto it= meta->properties.find ("background");
+      if (it != meta->properties.end ())
+        if (auto color= std::get_if<std::string> (&it->second.data))
+          boundary << page_item (tuple ("env_page", PAGE_THIS_BG_COLOR,
+            string (color->data (), color->size ())), 1);
+    }
+    ttt->insert_stack (boundary, stack_border ());
+  }
   //cout << INDENT;
   if (is_nil (acc)) {
     int i, n= N(st);
@@ -363,5 +379,10 @@ bridge_document_rep::my_typeset (int desired_status) {
     }
   }
   else acc->my_typeset (desired_status);
+  if (slide) {
+    array<page_item> boundary;
+    boundary << page_item (tuple ("slide-end"), 1);
+    ttt->insert_stack (boundary, stack_border ());
+  }
   //cout << UNINDENT;
 }

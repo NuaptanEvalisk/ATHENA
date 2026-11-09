@@ -1573,7 +1573,6 @@ QTMPreferencesDialog::buildConversionPage () {
 
   QWidget* pdf= make_page ();
   QFormLayout* pdfForm= add_section (pdf, "ATHENA → Pdf/Postscript");
-  add_toggle (pdfForm, "texmacs->pdf:expand slides");
   add_toggle (pdfForm, "texmacs->pdf:data-art cover");
   {
     add_combo (pdfForm, "texmacs->pdf:version");

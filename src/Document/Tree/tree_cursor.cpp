@@ -17,6 +17,13 @@
 
 using athena::contracts::access_policy;
 
+bool
+cursor_navigation::child_enforcing (tree t) const {
+  if (is_func (t, SLIDE_PAGE))
+    return owned.slideshow && query.access != access_policy::source;
+  return query.child_enforcing (t);
+}
+
 cursor_navigation::cursor_navigation (
     const cursor_context_preparation& prepare, path source, bool input_only):
   owned (prepare (source)),
@@ -35,7 +42,7 @@ cursor_navigation::child (tree t, int index, athena::contracts::editing_query po
   if (policy.access == access_policy::source)
     return cursor_navigation ({athena::contracts::builtin_contracts (), policy.access, policy.input_only});
   if (!preparation || is_atomic (t[index]) || query.access == access_policy::source)
-    return cursor_navigation (policy);
+    return cursor_navigation (policy, owned.slideshow);
   return cursor_navigation (preparation, source * index, policy.input_only);
 }
 
@@ -156,7 +163,7 @@ cursor_navigation::accessible_cursor (tree t, path p, bool mapped) const {
       return false;
     else if (is_atomic (t))
       return is_inside (t, p);
-    else return !query.child_enforcing (t);
+    else return !child_enforcing (t);
   }
   else if (0 > p->item || p->item >= N(t)) return false;
   else if (query.parent_enforcing (t) &&
@@ -197,7 +204,7 @@ cursor_navigation::closest_accessible (tree t, path p, int dir) const {
   // The routine returns nil if there exists no accessible path inside t
   if (is_atomic (t)) return p;
   else if (is_nil (p)) return closest_accessible (t, path (0), dir);
-  else if (is_atom (p) && !query.child_enforcing (t)) return p;
+  else if (is_atom (p) && !child_enforcing (t)) return p;
   else if (is_around (t) && (p->item == 0 || p->item == 2)) {
     if (p->item == 0)
       return dir < 0 ? path (0) : path (1, child (t, 1).start (t[1]));
@@ -213,14 +220,14 @@ cursor_navigation::closest_accessible (tree t, path p, int dir) const {
       else if (dir == 1) {
         j= k+i;
         if (j >= n) {
-          if (query.child_enforcing (t)) break;
+          if (child_enforcing (t)) break;
           return path (1);
         }
       }
       else {
         j= k-i;
         if (j < 0) {
-          if (query.child_enforcing (t)) break;
+          if (child_enforcing (t)) break;
           return path (0);
         }
       }
@@ -317,7 +324,7 @@ cursor_navigation::valid_cursor (tree t, path p, bool start_flag) const {
   if (is_nil (p)) return false;
   if (is_atomic (t) && !is_inside (t, p)) return false;
   if (is_atom (p)) {
-    if (query.child_enforcing (t)) return false;
+    if (child_enforcing (t)) return false;
     if (start_flag) return (p->item!=0);
     return true;
   }
@@ -391,7 +398,7 @@ cursor_navigation::pre_correct (tree t, path p) const {
 
   if (is_nil (p)) return pre_correct (t, path (0));
   if (is_atom (p)) {
-    if (!is_atomic (t) && query.child_enforcing (t)) {
+    if (!is_atomic (t) && child_enforcing (t)) {
       if (p->item == 0) {
         for (int i=0; i<N(t); i++)
           if (i == N(t)-1 || query.accessible (t, i))

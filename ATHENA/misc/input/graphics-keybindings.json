@@ -24,13 +24,6 @@
         {"key": "C-up", "commands": [{"call": "graphics-rotate", "args": [{"number": 0.1}, false]}]},
         {"key": "C-down", "commands": [{"call": "graphics-rotate", "args": [{"number": -0.1}, false]}]}
       ]
-    },
-    {
-      "require": {"all": [{"call": "in-graphics?", "args": []}, {"not": {"call": "in-commutative-diagram?", "args": []}}, {"equal": [{"call": "get-env", "args": ["preamble"]}, "false"]}, {"call": "in-screens?", "args": []}]},
-      "bindings": [
-        {"key": "pageup", "commands": [{"call": "screens-navigate", "args": ["previous"]}]},
-        {"key": "pagedown", "commands": [{"call": "screens-navigate", "args": ["next"]}]}
-      ]
     }
   ]
 }

@@ -38,47 +38,11 @@
     ],
     "alternate-first-tag": [
       "wide",
-      "around",
-      "picture-mixed",
-      "folded-reverse",
-      "folded",
-      "folded-plain",
-      "folded-std",
-      "folded-explain",
-      "folded-env",
-      "folded-documentation",
-      "folded-grouped",
-      "summarized",
-      "summarized-plain",
-      "summarized-std",
-      "summarized-env",
-      "summarized-documentation",
-      "summarized-grouped",
-      "summarized-raw",
-      "summarized-tiny",
-      "summarized-algorithm"
+      "around"
     ],
     "alternate-second-tag": [
       "wide*",
-      "around*",
-      "source-mixed",
-      "unfolded-reverse",
-      "unfolded",
-      "unfolded-plain",
-      "unfolded-std",
-      "unfolded-explain",
-      "unfolded-env",
-      "unfolded-documentation",
-      "unfolded-grouped",
-      "detailed",
-      "detailed-plain",
-      "detailed-std",
-      "detailed-env",
-      "detailed-documentation",
-      "detailed-grouped",
-      "detailed-raw",
-      "detailed-tiny",
-      "detailed-algorithm"
+      "around*"
     ],
     "variant-tag": [
       {
@@ -211,33 +175,6 @@
         "group": "math-table-tag"
       },
       {
-        "group": "folded-tag"
-      },
-      {
-        "group": "unfolded-tag"
-      },
-      {
-        "group": "summarized-tag"
-      },
-      {
-        "group": "detailed-tag"
-      },
-      {
-        "group": "unroll-tag"
-      },
-      {
-        "group": "std-overlays-tag"
-      },
-      {
-        "group": "nullary-overlay-tag"
-      },
-      {
-        "group": "unary-overlay-tag"
-      },
-      {
-        "group": "binary-overlay-tag"
-      },
-      {
         "group": "hidden-tag"
       },
       {
@@ -354,33 +291,6 @@
         "group": "math-table-tag"
       },
       {
-        "group": "folded-tag"
-      },
-      {
-        "group": "unfolded-tag"
-      },
-      {
-        "group": "summarized-tag"
-      },
-      {
-        "group": "detailed-tag"
-      },
-      {
-        "group": "unroll-tag"
-      },
-      {
-        "group": "std-overlays-tag"
-      },
-      {
-        "group": "nullary-overlay-tag"
-      },
-      {
-        "group": "unary-overlay-tag"
-      },
-      {
-        "group": "binary-overlay-tag"
-      },
-      {
         "group": "hidden-tag"
       },
       {
@@ -391,11 +301,7 @@
       }
     ],
     "hidden-tag": [
-      "hidden",
-      "hidden*",
-      "hidden-deleted",
-      "hidden-invisible",
-      "hidden-greyed"
+      "hidden"
     ],
     "argument-tag": [
       "arg",
@@ -832,7 +738,6 @@
     "compression-tag": [
       "ultra-compact",
       "compact",
-      "compressed",
       "amplified"
     ],
     "alignment-tag": [
@@ -911,7 +816,6 @@
     ],
     "opacity-tag": [
       "pastel",
-      "greyed",
       "light"
     ],
     "decorated-tag": [
@@ -1079,164 +983,6 @@
       "bmatrix",
       "Bmatrix"
     ],
-    "toggle-tag": [
-      {
-        "group": "folded-tag"
-      },
-      {
-        "group": "unfolded-tag"
-      },
-      {
-        "group": "toggle-first-tag"
-      },
-      {
-        "group": "toggle-second-tag"
-      }
-    ],
-    "toggle-first-tag": [
-      {
-        "group": "folded-tag"
-      },
-      "picture-mixed",
-      "folded-reverse",
-      {
-        "group": "summarized-tag"
-      },
-      "summarized-algorithm"
-    ],
-    "toggle-second-tag": [
-      {
-        "group": "unfolded-tag"
-      },
-      "source-mixed",
-      "unfolded-reverse",
-      {
-        "group": "detailed-tag"
-      },
-      "detailed-algorithm"
-    ],
-    "folded-tag": [
-      "folded",
-      "folded-plain",
-      "folded-std",
-      "folded-explain",
-      "folded-env",
-      "folded-documentation",
-      "folded-grouped"
-    ],
-    "unfolded-tag": [
-      "unfolded",
-      "unfolded-plain",
-      "unfolded-std",
-      "unfolded-explain",
-      "unfolded-env",
-      "unfolded-documentation",
-      "unfolded-grouped"
-    ],
-    "summarized-tag": [
-      "summarized",
-      "summarized-plain",
-      "summarized-std",
-      "summarized-env",
-      "summarized-documentation",
-      "summarized-grouped",
-      "summarized-raw",
-      "summarized-tiny"
-    ],
-    "detailed-tag": [
-      "detailed",
-      "detailed-plain",
-      "detailed-std",
-      "detailed-env",
-      "detailed-documentation",
-      "detailed-grouped",
-      "detailed-raw",
-      "detailed-tiny"
-    ],
-    "switch-tag": [
-      {
-        "group": "alternative-tag"
-      },
-      {
-        "group": "unroll-tag"
-      },
-      {
-        "group": "expanded-tag"
-      }
-    ],
-    "big-switch-tag": [
-      {
-        "group": "big-alternative-tag"
-      },
-      {
-        "group": "unroll-tag"
-      },
-      {
-        "group": "expanded-tag"
-      }
-    ],
-    "alternative-tag": [
-      {
-        "group": "big-alternative-tag"
-      },
-      "tiny-switch"
-    ],
-    "big-alternative-tag": [
-      "switch",
-      "screens"
-    ],
-    "unroll-tag": [
-      "unroll",
-      "unroll-compressed",
-      "unroll-phantoms",
-      "unroll-greyed"
-    ],
-    "expanded-tag": [
-      "expanded",
-      "slides"
-    ],
-    "overlays-tag": [
-      {
-        "group": "std-overlays-tag"
-      },
-      "gr-overlays"
-    ],
-    "std-overlays-tag": [
-      "overlays",
-      "overlays-compressed",
-      "overlays-phantoms",
-      "overlays-greyed"
-    ],
-    "overlay-tag": [
-      {
-        "group": "nullary-overlay-tag"
-      },
-      {
-        "group": "unary-overlay-tag"
-      },
-      {
-        "group": "binary-overlay-tag"
-      }
-    ],
-    "nullary-overlay-tag": [
-      "show-always",
-      "show-from",
-      "show-until",
-      "show-this",
-      "show-other"
-    ],
-    "unary-overlay-tag": [
-      "overlay-from",
-      "overlay-until",
-      "overlay-this",
-      "overlay-other"
-    ],
-    "binary-overlay-tag": [
-      "alternate-from",
-      "alternate-until",
-      "alternate-this",
-      "alternate-other"
-    ],
     "graphical-atomic-tag": [
       "point"
     ],
@@ -1334,78 +1080,6 @@
     [
       "around",
       "around*"
-    ],
-    [
-      "picture-mixed",
-      "source-mixed"
-    ],
-    [
-      "folded-reverse",
-      "unfolded-reverse"
-    ],
-    [
-      "folded",
-      "unfolded"
-    ],
-    [
-      "folded-plain",
-      "unfolded-plain"
-    ],
-    [
-      "folded-std",
-      "unfolded-std"
-    ],
-    [
-      "folded-explain",
-      "unfolded-explain"
-    ],
-    [
-      "folded-env",
-      "unfolded-env"
-    ],
-    [
-      "folded-documentation",
-      "unfolded-documentation"
-    ],
-    [
-      "folded-grouped",
-      "unfolded-grouped"
-    ],
-    [
-      "summarized",
-      "detailed"
-    ],
-    [
-      "summarized-plain",
-      "detailed-plain"
-    ],
-    [
-      "summarized-std",
-      "detailed-std"
-    ],
-    [
-      "summarized-env",
-      "detailed-env"
-    ],
-    [
-      "summarized-documentation",
-      "detailed-documentation"
-    ],
-    [
-      "summarized-grouped",
-      "detailed-grouped"
-    ],
-    [
-      "summarized-raw",
-      "detailed-raw"
-    ],
-    [
-      "summarized-tiny",
-      "detailed-tiny"
-    ],
-    [
-      "summarized-algorithm",
-      "detailed-algorithm"
     ]
   ]
 }

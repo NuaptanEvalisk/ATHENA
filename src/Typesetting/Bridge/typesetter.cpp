@@ -28,7 +28,8 @@ typesetter_rep::typesetter_rep (edit_env& env2, tree et, path ip):
   progressive_budget_ms (0), progressive_deadline_ms (0),
   progressive_pending_generation (0)
 {
-  paper= (env->get_string (PAGE_MEDIUM) == "paper");
+  paper= (env->get_string (PAGE_MEDIUM) == "paper" ||
+          env->get_string (PAGE_MEDIUM) == "slideshow");
   br= make_bridge (this, et, ip);
   x1= y1= x2= y2=0;
 }
@@ -207,7 +208,8 @@ typesetter_rep::typeset_pass () {
   sb       = stack_border ();
   a        = array<line_item> ();
   b        = array<line_item> ();
-  paper    = (env->get_string (PAGE_MEDIUM) == "paper");
+  paper    = (env->get_string (PAGE_MEDIUM) == "paper" ||
+              env->get_string (PAGE_MEDIUM) == "slideshow");
   progressive_root_active= false;
   // Actual unfinished document bridges set this while typesetting this pass.
   progressive_pending= false;

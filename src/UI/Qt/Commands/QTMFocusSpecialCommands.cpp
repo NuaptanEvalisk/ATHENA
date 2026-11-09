@@ -225,8 +225,7 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
       actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
       actor_editor_command_snapshot editor= proxy->editor_command_state ();
       if (!focus.valid () || !editor.valid () ||
-          focus.pure_alternate_context ||
-          focus.overlays_context || focus.overlay_context)
+          focus.pure_alternate_context)
         return out;
       const bool enabled= !editor.read_only ();
       auto append=
@@ -351,8 +350,7 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
       if (!indexOk) return false;
       actor_focus_toolbar_snapshot focus;
       if (!writable_focus (context, &focus) ||
-          focus.pure_alternate_context ||
-          focus.overlays_context || focus.overlay_context)
+          focus.pure_alternate_context)
         return false;
       const actor_focus_hidden_field_snapshot* field= nullptr;
       for (const auto& candidate: focus.hidden_fields)
@@ -485,71 +483,6 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
       actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
       return state_if (
         context, focus.valid () && focus.pen_effect_context);
-    });
-
-  registerProvider (
-    "editor-focus-overlays", QTMCommandScope::Editor,
-    [] (const QTMCommandContext& context) {
-      QVector<QTMCommandDynamicItem> out;
-      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
-      if (proxy == nullptr) return out;
-      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
-      actor_editor_command_snapshot editor= proxy->editor_command_state ();
-      if (!focus.valid () || !editor.valid () ||
-          (!focus.overlays_context && !focus.overlay_context) ||
-          focus.overlay_count <= 0)
-        return out;
-      for (int i=1; i<=focus.overlay_count; ++i) {
-        QTMCommandDynamicItem item= enabled_dynamic_item (
-          QStringLiteral ("switch:%1").arg (i),
-          QObject::tr ("Overlay %1").arg (i));
-        item.group= QObject::tr ("Current overlay");
-        item.state.enabled= !editor.read_only ();
-        item.state.checkable= true;
-        item.state.checked= focus.overlay_current == i;
-        out.append (std::move (item));
-      }
-      if (focus.overlay_context)
-        for (int i=1; i<=focus.overlay_count; ++i) {
-          bool visible=
-            i <= static_cast<int> (focus.overlay_visible.size ()) ?
-              focus.overlay_visible[static_cast<std::size_t> (i - 1)] : true;
-          QString label= QObject::tr ("Overlay %1").arg (i);
-          if (!visible) label += QObject::tr (" (hidden)");
-          QTMCommandDynamicItem item= enabled_dynamic_item (
-            QStringLiteral ("reference:%1").arg (i), label);
-          item.group= QObject::tr ("Filter reference");
-          item.state.enabled= !editor.read_only ();
-          item.state.checkable= true;
-          item.state.checked= focus.overlay_reference == i;
-          out.append (std::move (item));
-        }
-      return out;
-    },
-    [] (const QString& key, const QTMCommandContext& context) {
-      QStringList parts= key.split (':');
-      if (parts.size () != 2) return false;
-      bool ok= false;
-      int index= parts[1].toInt (&ok);
-      if (!ok || index < 1) return false;
-      QJsonObject action;
-      if (parts[0] == QStringLiteral ("switch"))
-        action.insert ("op", "focus-overlay-switch");
-      else if (parts[0] == QStringLiteral ("reference"))
-        action.insert ("op", "focus-overlay-reference");
-      else return false;
-      action.insert ("index", index);
-      return submit_inline_editor_action (
-        context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
-    },
-    [] (const QTMCommandContext& context) {
-      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
-      if (proxy == nullptr) return QTMCommandState {};
-      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
-      return state_if (
-        context, focus.valid () &&
-                 (focus.overlays_context || focus.overlay_context) &&
-                 focus.overlay_count > 0);
     });
 
   registerProvider (
@@ -802,17 +735,12 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
         append (
           QStringLiteral ("document-insert-abstract"),
           QObject::tr ("Abstract"));
-      if (focus.document_insert_screens_available)
-        append (
-          QStringLiteral ("document-insert-screens"),
-          QObject::tr ("Screens"));
       return out;
     },
     [] (const QString& key, const QTMCommandContext& context) {
       static const QSet<QString> allowed {
         QStringLiteral ("document-insert-title"),
-        QStringLiteral ("document-insert-abstract"),
-        QStringLiteral ("document-insert-screens")
+        QStringLiteral ("document-insert-abstract")
       };
       return allowed.contains (key) ?
         submit_focus_action (context, key) : false;
@@ -824,8 +752,7 @@ QTMCommandRegistry::registerFocusSpecialCommands () {
       const bool available=
         focus.valid () && focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
         (focus.document_insert_title_available ||
-         focus.document_insert_abstract_available ||
-         focus.document_insert_screens_available);
+         focus.document_insert_abstract_available);
       return state_if (context, available);
     });
 }

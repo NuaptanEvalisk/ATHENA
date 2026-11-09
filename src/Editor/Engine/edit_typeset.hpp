@@ -152,7 +152,6 @@ public:
     SI offset_y= 0;
   };
   thumbnail_paint_target thumbnail_page_box (int index);
-  thumbnail_paint_target thumbnail_hidden_slide_box (int index);
   bool paint_thumbnail_page (renderer ren, const thumbnail_paint_target& target);
   SI       get_page_width (bool deco);
   SI       get_pages_width (bool deco);

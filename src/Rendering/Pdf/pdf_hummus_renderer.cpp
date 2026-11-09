@@ -76,6 +76,7 @@ class pdf_pattern;
 
 class pdf_hummus_renderer_rep : public renderer_rep {
   friend void pdf_hummus_set_link_resolver (renderer, std::function<string(string)>);
+  friend void pdf_hummus_set_page_size (renderer, double, double);
   friend void pdf_hummus_set_destination_observer (
     renderer, std::function<void(string, int, double, double)>);
   EPDFVersion ePDFVersion= ePDFVersion14;
@@ -2312,6 +2313,22 @@ pdf_hummus_renderer_rep::href (string label, SI x1, SI y1, SI x2, SI y2)
   }
   dict << ">>\r\n";
   annot_list (annotId) = dict;
+}
+
+void pdf_hummus_set_page_size (renderer ren, double width_cm, double height_cm) {
+  auto* pdf= dynamic_cast<pdf_hummus_renderer_rep*> (ren);
+  if (!pdf || !pdf->page) return;
+  pdf->paper_w= width_cm;
+  pdf->paper_h= height_cm;
+  pdf->width= pdf->default_dpi * width_cm / 2.54;
+  pdf->height= pdf->default_dpi * height_cm / 2.54;
+  pdf->page->SetMediaBox (PDFRectangle (0, 0, pdf->width, pdf->height));
+  pdf->set_origin (0, height_cm * pdf->dpi * pdf->pixel / 2.54);
+  // Replace begin_page's clip; intersecting it would truncate a growing page.
+  pdf->set_clipping (0, (SI) (-pdf->dpi * pdf->pixel * height_cm / 2.54),
+                    (SI) (pdf->dpi * pdf->pixel * width_cm / 2.54), 0, true);
+  pdf->set_clipping (0, (SI) (-pdf->dpi * pdf->pixel * height_cm / 2.54),
+                    (SI) (pdf->dpi * pdf->pixel * width_cm / 2.54), 0);
 }
 
 void pdf_hummus_set_link_resolver (renderer ren, std::function<string(string)> resolver) {

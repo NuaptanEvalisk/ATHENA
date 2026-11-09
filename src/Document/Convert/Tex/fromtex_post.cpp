@@ -613,16 +613,6 @@ finalize_layout (tree t) {
         continue;
       }
 
-      if (is_func (v, BEGIN) && v[0] == "tmcompressed") {
-        r << tree (BEGIN, "compressed");
-        continue;
-      }
-
-      if (is_func (v, END) && v[0] == "tmcompressed") {
-        r << tree (END, "compressed");
-        continue;
-      }
-
       if (is_func (v, BEGIN) && v[0] == "tmamplified") {
         r << tree (BEGIN, "amplified");
         continue;

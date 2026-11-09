@@ -201,61 +201,13 @@ void export_pdf_ready (url target, bool attach_source) {
     throw std::runtime_error ("Could not attach native document source to PDF");
 }
 
-struct export_tree_payload {
-  athena_blob_id id;
-  explicit export_tree_payload (tree document):
-    id (actor_tree_registry::instance ().store (std::move (document))) {}
-  ~export_tree_payload () { actor_tree_registry::instance ().discard (id); }
-};
-
 void export_pdf (url target, bool attach_source) {
   if (suffix (target) != "pdf")
     throw std::runtime_error ("PDF export requires a .pdf destination");
   auto destination= bytes (as_string (target));
   athena_node_reference_with_native_export (
     [destination, attach_source] (editor_rep&) {
-      const auto* owner= current_execution_context ();
-      tree body= get_buffer_body (owner->actor->current_buffer_url ());
-      if (!is_document (body) || N(body) == 0 ||
-          !is_compound (body[N(body)-1], "screens")) {
-        export_pdf_ready (url (text (destination)), attach_source);
-        return;
-      }
-      auto payload= std::make_shared<export_tree_payload> (
-        copy (owner->actor->current_source (owner->view_id)));
-      auto source= bytes (as_string (owner->actor->current_buffer_url ()));
-      auto version= owner->actor->current_state ()->storage_version;
-      auto references= athena::node_reference::current_export_references ();
-      qt_post_to_main_thread ([payload, source, destination, version, references, attach_source] {
-        url transient= url_none ();
-        try {
-          transient= make_new_buffer ();
-          url view= get_new_view (transient);
-          if (!replace_buffer_tree (transient,
-                actor_tree_registry::instance ().take (payload->id), version))
-            throw std::runtime_error ("Slide export snapshot replacement rejected");
-          set_master_buffer (transient, url (text (source)));
-          auto name= bytes (as_string (transient));
-          athena::avd::submit_source_task (
-            concrete_buffer (transient)->actor->id (), concrete_view (view)->runtime_id,
-            [destination, references, attach_source] (editor_rep&) {
-              athena::node_reference::export_reference_scope frozen (references);
-              presentation_make_slides ();
-              export_pdf_ready (url (text (destination)), attach_source);
-            },
-            [name] (std::string error) {
-              qt_post_to_main_thread ([name, error= std::move (error)] {
-                kill_buffer (url (text (name)));
-                system_wait ("", "");
-                report_error (error);
-              });
-            });
-        }
-        catch (const std::exception& error) {
-          if (!is_none (transient)) kill_buffer (transient);
-          report_error (error.what ());
-        }
-      });
+      export_pdf_ready (url (text (destination)), attach_source);
     }, report_error);
 }
 }

@@ -20,6 +20,4 @@ void view_toggle_slideshow ();
 void view_toggle_fullscreen ();
 void view_toggle_fullscreen_edit ();
 void view_tick_modes (editor_rep* ed);
-void view_screens_show_all ();
-void view_screens_show_this ();
 #endif

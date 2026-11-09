@@ -141,8 +141,7 @@ QTMCommandRegistry::registerViewMenuCommands () {
         QObject::tr ("Viewport"), true);
       const QString rendering= qs (document.page_rendering);
       const bool persistentApplicable=
-        rendering == QStringLiteral ("paper") ||
-        rendering == QStringLiteral ("papyrus");
+        rendering == QStringLiteral ("paper");
       append_item (
         out, "persistent-fit-width", QObject::tr ("Persistent fit width"),
         QObject::tr ("Viewport"), persistentApplicable, true,

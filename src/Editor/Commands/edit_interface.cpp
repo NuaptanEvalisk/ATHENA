@@ -290,7 +290,7 @@ edit_interface_rep::get_window_width () {
   bool sb= (get_init_string (SCROLL_BARS) != "false");
   if (full_screen) {
     string medium= get_init_string (PAGE_MEDIUM);
-    if (medium == "automatic" || medium == "beamer") sb= false;
+    if (medium == "automatic" || medium == "slideshow") sb= false;
   }
   if (sb) w -= interface_scrollbar_width ();
   return w;
@@ -630,6 +630,11 @@ edit_interface_rep::compute_env_rects (path p, path focus, rectangles& rs, bool 
                                       SI outline_width, const cursor_navigation& navigation) {
   if (p == rp) return;
   tree st= subtree (et, p);
+  // Only slideshow treats the slide and its body as the editing canvas.
+  if ((is_func (st, SLIDE_PAGE) ||
+       (is_document (st) && is_func (subtree (et, path_up (p)), SLIDE_PAGE))) &&
+      get_init_string (PAGE_MEDIUM) == "slideshow")
+    return;
   if ((is_func (st, TABLE) || is_func (st, SUBTABLE) || is_func (st, MATH_GRID)) &&
       recurse && get_preference ("show table cells") == "on") {
     rectangles rl;
@@ -665,7 +670,7 @@ edit_interface_rep::compute_env_rects (path p, path focus, rectangles& rs, bool 
            (is_func (st, WITH) && is_graphical_text (st[N(st)-1])) ||
            (is_compound (st, "math", 1) &&
             is_compound (subtree (et, path_up (p)), "input")) ||
-           navigation.at (p / rp).contracts ().child_enforcing (st))
+           navigation.at (p / rp).child_enforcing (st))
     compute_env_rects (path_up (p), focus, rs, recurse, outline_width, navigation);
   else {
     using athena::contracts::access_policy;
@@ -814,30 +819,10 @@ editor_rep::editor_command_state_snapshot () {
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_INSIDE_FLOAT_OR_FOOTNOTE;
   if (generic_in_main_flow (this))
     snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_MAIN_FLOW;
-  if (inside ("overlays") || inside ("overlays-compressed") ||
-      inside ("overlays-phantoms") || inside ("overlays-greyed") ||
-      inside ("gr-overlays"))
-    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_OVERLAYS_CONTEXT;
-  tree buffer_root= the_buffer ();
-  if (is_document (buffer_root) && N(buffer_root) > 0 &&
-      is_compound (buffer_root[N(buffer_root)-1], "screens"))
-    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_SCREENS_BUFFER;
-
   snapshot.flags |= editor_style_command_flags;
-  const bool screens_mode= inside ("screens");
-  if (screens_mode)
-    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_SCREENS_MODE;
-  bool beamer_style= false;
-  tree style= get_style ();
-  for (int i= 0; i < arity (style); ++i)
-    if (is_atomic (style[i]) && as_string (style[i]) == "beamer") {
-      beamer_style= true;
-      break;
-    }
-  if (screens_mode || beamer_style ||
-      get_user_preference ("presentation tool", "off") == "on")
-    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_PRESENTATION_MODE;
-
+  if (get_init_string ("page-medium") == "slideshow")
+    snapshot.flags |= ACTOR_EDITOR_COMMAND_STATE_SLIDE_DOCUMENT |
+                      ACTOR_EDITOR_COMMAND_STATE_PRESENTATION_MODE;
   int undo= undo_possibilities ();
   int redo= redo_possibilities ();
   if (undo < 0) undo= 0;
@@ -1071,7 +1056,7 @@ editor_rep::focus_toolbar_state_snapshot () {
     set (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT, defined_at_init ("code-style"));
   }
   catch (...) {}
-  set (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT, query (presentation_screens));
+  set (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT, query (presentation_page_context));
   set (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT, query (generic_table_markup_context));
   set (ACTOR_FOCUS_TOOLBAR_DOC_TITLE_CONTEXT, text_doc_title_context (t));
   set (ACTOR_FOCUS_TOOLBAR_DOC_AUTHOR_CONTEXT, text_doc_author_context (t));
@@ -1132,10 +1117,8 @@ editor_rep::focus_toolbar_state_snapshot () {
   snapshot.alternate_checked= alternateSecond;
   snapshot.pure_alternate_context= text_node_in_group (t, "alternate-tag");
   if (snapshot.alternate_available) {
-    const bool fold= text_node_in_group (t, "folded-tag") ||
-                     text_node_in_group (t, "unfolded-tag");
-    snapshot.alternate_label= fold ? "Unfold" : "Expand";
-    snapshot.alternate_icon= fold && alternateSecond ? "tm_alternate_both" :
+    snapshot.alternate_label= "Alternate form";
+    snapshot.alternate_icon=
       alternateSecond ? "tm_alternate_second" : "tm_alternate_first";
     const string focusTag= as_string (L(t));
     if (focusTag == "wide" || focusTag == "wide*") {
@@ -1219,29 +1202,6 @@ editor_rep::focus_toolbar_state_snapshot () {
       }
   }
 
-  try {
-    snapshot.overlays_context= presentation_overlays (t);
-    snapshot.overlay_context= presentation_overlay (t);
-    if (snapshot.overlays_context || snapshot.overlay_context) {
-      snapshot.overlay_current= presentation_overlay_current (t);
-      snapshot.overlay_count= presentation_overlay_count (t);
-      if (snapshot.overlay_context && N(t) > 0 && is_atomic (t[0])) {
-        const string ref= as_string (t[0]);
-        snapshot.overlay_reference= as_int (ref);
-      }
-      if (snapshot.overlay_context && snapshot.overlay_count > 0)
-        for (int i=1; i<=snapshot.overlay_count; ++i) {
-          bool visible= false;
-          try {
-            visible= presentation_overlay_visible (t, i);
-          }
-          catch (...) {}
-          snapshot.overlay_visible.push_back (visible);
-        }
-    }
-  }
-  catch (...) {}
-
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_BUFFER)) {
     tree buffer= the_buffer ();
     tree root= the_root ();
@@ -1262,10 +1222,6 @@ editor_rep::focus_toolbar_state_snapshot () {
     snapshot.document_insert_abstract_available=
       is_document (buffer) && N(buffer) > 0 && cursorEmpty &&
       hasDocData && !hasAbstractData;
-    snapshot.document_insert_screens_available=
-      defined_at_init ("beamer-style") &&
-      !(is_document (buffer) && N(buffer) > 0 &&
-        is_compound (buffer[N(buffer)-1], "screens"));
   }
 
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_ALGORITHM_CONTEXT)) {
@@ -1572,7 +1528,7 @@ editor_rep::focus_toolbar_state_snapshot () {
       display.data (), static_cast<std::size_t> (N(display)));
   }
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_BUFFER) ||
-      snapshot.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT)) {
+      snapshot.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT)) {
     try {
       const auto styles= document_get_style_list (this);
       if (N(styles)) {
@@ -1670,20 +1626,9 @@ editor_rep::focus_toolbar_state_snapshot () {
         document_current_basic_theme (this) != "plain";
     }
 
-    if (snapshot.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT)) {
-      try {
-        tree sw= presentation_slide_switch (t);
-        for (int i=0; i<N(sw); ++i) {
-          string label= "Slide " * as_string (i + 1);
-          try {
-            label= presentation_slide_name (sw[i], i);
-          }
-          catch (...) {}
-          snapshot.slide_names.emplace_back (
-            label.data (), static_cast<std::size_t> (N(label)));
-        }
-      }
-      catch (...) {}
+    if (snapshot.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT)) {
+      for (int i=0; i<presentation_page_count (); ++i)
+        snapshot.slide_names.push_back ("Slide " + std::to_string (i+1));
       try {
         tree slide= presentation_slide_document (t);
         const bool hasTitle=
@@ -1727,8 +1672,6 @@ editor_rep::refresh_editor_style_command_flags () {
     editor_style_command_flags |= ACTOR_EDITOR_COMMAND_STATE_STD_LIST;
   if (style_has ("env-float-dtd"))
     editor_style_command_flags |= ACTOR_EDITOR_COMMAND_STATE_ENV_FLOAT;
-  if (style_has ("std-fold-dtd"))
-    editor_style_command_flags |= ACTOR_EDITOR_COMMAND_STATE_STD_FOLD;
   if (style_has ("std-dtd"))
     editor_style_command_flags |= ACTOR_EDITOR_COMMAND_STATE_STD_DTD;
   if (style_has ("env-math-dtd"))
@@ -1891,7 +1834,7 @@ edit_interface_rep::apply_changes () {
       else cur_wy= wy;
     }
   }  
-  if (get_init_string (PAGE_MEDIUM) == "beamer" && full_screen) sb= 0;
+  if (get_init_string (PAGE_MEDIUM) == "slideshow" && full_screen) sb= 0;
   if (sb != cur_sb) {
     cur_sb= sb;
     (void) publish_ui (

@@ -13,7 +13,6 @@
   <binding name="in-math?" native="editor_mode_math" returns="bool" />
   <binding name="in-prog?" native="editor_mode_program" returns="bool" />
   <binding name="in-table?" native="editor_mode_table" returns="bool" />
-  <binding name="in-screens?" native="editor_mode_screens" returns="bool" />
   <binding name="in-std?" native="editor_mode_standard" returns="bool" />
   <binding name="in-std-text?" native="editor_mode_standard_text" returns="bool" />
   <binding name="in-smart-ref?" native="editor_mode_smart_reference" returns="bool" />
@@ -47,50 +46,16 @@
   <binding name="cursor-history-forward" native="cursor_history_forward" returns="void" />
   <binding name="variant-set" native="editing_variant_set" returns="void"><arg type="tree" /><arg type="tree_label" /></binding>
   <binding name="alternate-toggle" native="editing_alternate_toggle" returns="void"><arg type="tree" /></binding>
-  <binding name="mouse-fold" native="editing_mouse_fold" returns="void"><arg type="tree" /></binding>
-  <binding name="mouse-unfold" native="editing_mouse_unfold" returns="void"><arg type="tree" /></binding>
   <binding name="kbd-select-enlarge" native="editing_select_enlarge" returns="void" />
   <binding name="doc-data" native="native_doc_data" returns="tree"><arg type="tree" /><arg type="tree" /></binding>
   <binding name="author-data" native="native_author_data" returns="tree"><arg type="tree" /></binding>
   <binding name="abstract-data" native="native_abstract_data" returns="tree"><arg type="tree" /></binding>
-  <binding name="screens-index" native="presentation_screens_index" returns="string"><arg type="tree" /></binding>
-  <binding name="screens-arity" native="presentation_screens_arity" returns="string"><arg type="tree" /></binding>
-  <binding name="nr-pages" native="presentation_page_count" returns="int" />
-  <binding name="screens-bar" native="presentation_screens_bar" returns="tree"><arg type="tree" /></binding>
-  <binding name="dynamic-first" native="presentation_first" returns="void" />
-  <binding name="dynamic-last" native="presentation_last" returns="void" />
-  <binding name="dynamic-next" native="presentation_next" returns="void" />
-  <binding name="dynamic-previous" native="presentation_previous" returns="void" />
-  <binding name="dynamic-operate-on-buffer" native="presentation_operate_buffer" returns="void"><arg type="string" /></binding>
-  <binding name="dynamic-traverse-buffer" native="presentation_traverse_buffer" returns="void"><arg type="string" /></binding>
-  <binding name="dynamic-make-slides" native="presentation_make_slides" returns="void" />
-  <binding name="screens-switch-to" native="presentation_switch_to" returns="void"><arg type="int" /></binding>
-  <binding name="screens-navigate" native="presentation_navigate" returns="void"><arg type="string" /></binding>
-  <binding name="screens-context?" native="presentation_screens" returns="bool"><arg type="tree" /></binding>
-  <binding name="overlays-context?" native="presentation_overlays" returns="bool"><arg type="tree" /></binding>
-  <binding name="overlay-context?" native="presentation_overlay" returns="bool"><arg type="tree" /></binding>
-  <binding name="overlays-current" native="presentation_overlay_current" returns="int"><arg type="tree" /></binding>
-  <binding name="overlay-current" native="presentation_overlay_current" returns="int"><arg type="tree" /></binding>
-  <binding name="overlays-arity" native="presentation_overlay_count" returns="int"><arg type="tree" /></binding>
-  <binding name="overlay-arity" native="presentation_overlay_count" returns="int"><arg type="tree" /></binding>
-  <binding name="overlay-visible?" native="presentation_overlay_visible" returns="bool"><arg type="tree" /><arg type="int" /></binding>
-  <binding name="overlays-switch-to" native="presentation_overlay_switch" returns="void"><arg type="tree" /><arg type="int" /></binding>
-  <binding name="native-overlays-switch-parent" native="presentation_overlay_switch" returns="void"><arg type="tree" /><arg type="int" /></binding>
-  <binding name="slide-get-switch" native="presentation_slide_switch" returns="tree"><arg type="tree" /></binding>
+  <binding name="slide-page-go" native="presentation_switch_to" returns="void"><arg type="int" /></binding>
   <binding name="slide-get-document" native="presentation_slide_document" returns="tree"><arg type="tree" /></binding>
-  <binding name="get-slide-name" native="presentation_slide_name" returns="string"><arg type="tree" /><arg type="int" /></binding>
   <binding name="native-slide-insert-title" native="presentation_slide_title" returns="void"><arg type="tree" /></binding>
   <binding name="native-slide-insert-graphics" native="presentation_slide_graphics" returns="void"><arg type="tree" /></binding>
   <binding name="slide-get-bg-color" native="presentation_slide_background" returns="tree" />
   <binding name="slide-set-bg-color" native="presentation_set_slide_background" returns="void"><arg type="tree" /></binding>
-  <binding name="make-toggle" native="presentation_make" returns="void"><arg type="tree_label" /></binding>
-  <binding name="make-switch" native="presentation_make" returns="void"><arg type="tree_label" /></binding>
-  <binding name="make-overlays" native="presentation_make" returns="void"><arg type="tree_label" /></binding>
-  <binding name="make-overlay" native="presentation_make" returns="void"><arg type="tree_label" /></binding>
-  <binding name="make-unroll" native="presentation_make_unroll" returns="void"><arg type="tree_label" /></binding>
-  <binding name="make-switch-list" native="presentation_make_list" returns="void"><arg type="tree_label" /><arg type="tree_label" /></binding>
-  <binding name="make-screens" native="presentation_make_screens" returns="void" />
-  <binding name="native-presentation-alternate" native="presentation_alternate" returns="bool"><arg type="tree" /></binding>
   <binding name="make-latex" native="source_make_latex" returns="void" />
   <binding name="activate-compound" native="source_activate_compound" returns="void" />
   <binding name="inactive-toggle" native="source_inactive_toggle" returns="void"><arg type="tree" /></binding>
@@ -215,8 +180,6 @@
   <binding name="ext-render-exercises-smaller?" native="application_exercises_smaller" returns="string" />
   <binding name="ext-number-solutions?" native="application_number_solutions" returns="string" />
   <binding name="run-global-transformation" native="run_global_transformation" returns="void" dispatch="ui" />
-  <binding name="screens-show-all" native="view_screens_show_all" returns="void" />
-  <binding name="screens-show-this" native="view_screens_show_this" returns="void" />
   <binding name="init-page-rendering" native="view_init_page_rendering" returns="void"><arg type="string" /></binding>
   <binding name="toggle-panorama-mode" native="view_toggle_panorama" returns="void" />
   <binding name="toggle-slideshow-mode" native="view_toggle_slideshow" returns="void" />
@@ -331,9 +294,6 @@
   </binding>
   <binding name="make-unnamed-section" native="text_make_unnamed_section" returns="void">
     <arg type="tree_label" />
-  </binding>
-  <binding name="graphics-update-proviso" native="graphics_update_proviso" returns="void">
-    <arg type="tree" /><arg type="string" />
   </binding>
   <binding name="graphics-rotate" native="graphics_rotate" returns="void">
     <arg type="double" /><arg type="bool" />

@@ -20,6 +20,8 @@
 
 struct lazy_document_rep: public lazy_rep {
   array<lazy> par;   // the paragraphs
+  bool slide= false;
+  tree slide_background;
 
   lazy_document_rep (edit_env env, tree t, path ip);
   inline operator tree () { return "Document"; }

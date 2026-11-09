@@ -6,6 +6,6 @@
     {"domain": "source"},
     {"mode": "in-table?", "domain": "table"},
     {"mode": "in-graphics?", "domain": "graphics"},
-    {"domain": "fold"}
+    {"domain": "presentation"}
   ]
 }

@@ -16,7 +16,6 @@
 #include <optional>
 
 class edit_dynamic_rep: virtual public editor_rep {
-  void show_cursor_if_hidden () override;
   double hybrid_mark= 0;
   path hybrid_selection_start, hybrid_selection_end;
   tree hybrid_owner;

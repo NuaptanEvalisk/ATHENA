@@ -299,6 +299,8 @@ selection_covers_node (const cursor_navigation& navigation, tree t, path first, 
   if (first == last) return false;
   if (first == path (0) && last == path (right_index (t))) return true;
   if (is_atomic (t)) return false;
+  // Selecting every character on a page does not select the page itself.
+  if (is_func (t, SLIDE_PAGE) && navigation.child_enforcing (t)) return false;
   // A partial paragraph/document cannot own the whole container's identity.
   // Do not ask for an unrelated, possibly not-yet-laid-out final child.
   if (is_format (t) &&

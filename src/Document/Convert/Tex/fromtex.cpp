@@ -2738,23 +2738,6 @@ latex_command_to_tree (tree t) {
     return tree (HLINK, l2e (t[1]), l2e (t[2]));
   if (is_tuple (t, "\\tmaction", 1))
     return tree (ACTION, l2e (t[1]), l2e (t[2]));
-  if (is_tuple (t) && N(t) == 3 &&
-      (starts (as_string (t[0]), "\\tmfolded")    ||
-       starts (as_string (t[0]), "\\tmunfolded")  ||
-       starts (as_string (t[0]), "\\tmdetailed")  ||
-       starts (as_string (t[0]), "\\tmsummarized"))) {
-    string tag= as_string (t[0]);
-    tag= tag (3, N(tag));
-    if (starts (tag, "folded") && tag != "folded" && N(tag) > 6)
-      tag= "folded-"* tag (6, N(tag));
-    else if (starts (tag, "unfolded")   && tag != "unfolded" && N(tag) > 8)
-      tag= "unfolded-"* tag (8, N(tag));
-    else if (starts (tag, "detailed")   && tag != "detailed" && N(tag) > 8)
-      tag= "detailed-"* tag (8, N(tag));
-    else if (starts (tag, "summarized") && tag != "summarized" && N(tag) > 10)
-      tag= "summarized-"* tag (10, N(tag));
-    return compound (tag, l2e (t[1]), l2e (t[2]));
-  }
   // End TeXmacs specific markup
 
   if (L(t) == IMAGE) return t;

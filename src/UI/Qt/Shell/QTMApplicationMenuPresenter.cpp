@@ -393,9 +393,6 @@ QTMApplicationMenuPresenter::refresh_root_visibility () {
       visible= !graphicsOnly && snapshot.valid () &&
         (snapshot.has (ACTOR_EDITOR_COMMAND_STATE_SOURCE_MODE) ||
          get_user_preference ("source tool", "off") == "on");
-    else if (menu.root_id == QStringLiteral ("dynamic"))
-      visible= !graphicsOnly && snapshot.valid () &&
-               snapshot.presentation_mode ();
     else if (menu.root_id == QStringLiteral ("format"))
       visible= !graphicsOnly;
     menu.menu->menuAction ()->setVisible (visible);

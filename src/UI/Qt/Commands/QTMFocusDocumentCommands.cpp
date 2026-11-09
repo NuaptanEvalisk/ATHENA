@@ -1,6 +1,6 @@
 /******************************************************************************
 * MODULE     : QTMFocusDocumentCommands.cpp
-* DESCRIPTION: Native document/screens structured-focus providers
+* DESCRIPTION: Native document and slide-page structured-focus providers
 * COPYRIGHT  : (C) 2026 Felix
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -39,7 +39,7 @@ document_focus_state (const QTMCommandContext& context, bool writable= true) {
   actor_editor_command_snapshot editorState= proxy->editor_command_state ();
   if (!focus.valid () || !editorState.valid () ||
       (!focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
-       !focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT)))
+       !focus.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT)))
     return state;
   state.available= true;
   state.enabled= !writable || !editorState.read_only ();
@@ -348,7 +348,7 @@ QTMCommandRegistry::registerFocusDocumentCommands () {
       if (proxy == nullptr) return out;
       actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
       if (!focus.valid () ||
-          !focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT))
+          !focus.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT))
         return out;
       for (std::size_t i=0; i<focus.slide_names.size (); ++i)
         out.append (enabled_dynamic_item (
@@ -371,7 +371,7 @@ QTMCommandRegistry::registerFocusDocumentCommands () {
       if (proxy == nullptr) return state;
       actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
       if (!focus.valid () ||
-          !focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT) ||
+          !focus.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT) ||
           focus.slide_names.empty ())
         return state;
       state.available= true;
@@ -380,38 +380,37 @@ QTMCommandRegistry::registerFocusDocumentCommands () {
     });
 
   const auto screen_command_state= [] (
-      const QTMCommandContext& context, bool deleting) {
+      const QTMCommandContext& context, bool) {
     QTMCommandState state;
     qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
     if (!proxy || !context.lastDocument.has_view ()) return state;
     const auto focus= proxy->focus_toolbar_state ();
     const auto editor= proxy->editor_command_state ();
-    if (!focus.valid () || !editor.valid () || !focus.beamer_style ||
-        !focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT) ||
+    if (!focus.valid () || !editor.valid () ||
+        !focus.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT) ||
         focus.slide_names.empty ()) return state;
     state.available= true;
-    state.enabled= !editor.read_only () &&
-      (!deleting || focus.slide_names.size () > 1);
+    state.enabled= !editor.read_only ();
     return state;
   };
   registerBehavior (
-    "editor.focus.screen-new", QTMCommandScope::Editor,
+    "editor.focus.slide-new", QTMCommandScope::Editor,
     [screen_command_state] (const QTMCommandContext& context) {
       if (!screen_command_state (context, false).enabled) return false;
-      return thumbnails_screen_action (
+      return thumbnails_slide_action (
         context.lastDocument.actor, context.lastDocument.view,
-        screen_edit_operation::insert_after);
+        slide_page_operation::insert_after);
     },
     [screen_command_state] (const QTMCommandContext& context) {
       return screen_command_state (context, false);
     });
   registerBehavior (
-    "editor.focus.screen-delete", QTMCommandScope::Editor,
+    "editor.focus.slide-delete", QTMCommandScope::Editor,
     [screen_command_state] (const QTMCommandContext& context) {
       if (!screen_command_state (context, true).enabled) return false;
-      return thumbnails_screen_action (
+      return thumbnails_slide_action (
         context.lastDocument.actor, context.lastDocument.view,
-        screen_edit_operation::erase);
+        slide_page_operation::erase);
     },
     [screen_command_state] (const QTMCommandContext& context) {
       return screen_command_state (context, true);
@@ -546,7 +545,7 @@ QTMCommandRegistry::registerFocusDocumentCommands () {
       actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
       actor_editor_command_snapshot editorState= proxy->editor_command_state ();
       if (!focus.valid () || !editorState.valid () ||
-          !focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT) ||
+          !focus.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT) ||
           !focus.slide_propose_title)
         return state;
       state.available= true;
@@ -566,7 +565,7 @@ QTMCommandRegistry::registerFocusDocumentCommands () {
       actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
       actor_editor_command_snapshot editorState= proxy->editor_command_state ();
       if (!focus.valid () || !editorState.valid () ||
-          !focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT) ||
+          !focus.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT) ||
           !focus.slide_propose_graphics)
         return state;
       state.available= true;

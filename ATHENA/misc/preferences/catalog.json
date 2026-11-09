@@ -338,13 +338,6 @@
       "callback": "latex-command"
     },
     {
-      "key": "presentation tool",
-      "type": "string",
-      "scope": "active",
-      "default": "off",
-      "callback": "tool"
-    },
-    {
       "key": "inertial scrolling",
       "type": "boolean",
       "scope": "active",
@@ -878,23 +871,6 @@
         "section": "ATHENA → Pdf/Postscript",
         "order": 1,
         "label": "Generate DataArt cover image when exporting",
-        "control": "toggle",
-        "category_order": 4,
-        "tab_order": 3,
-        "section_order": 0
-      }
-    },
-    {
-      "key": "texmacs->pdf:expand slides",
-      "type": "boolean",
-      "scope": "active",
-      "default": "off",
-      "ui": {
-        "category": "Convert",
-        "tab": "Pdf",
-        "section": "ATHENA → Pdf/Postscript",
-        "order": 0,
-        "label": "Expand beamer slides",
         "control": "toggle",
         "category_order": 4,
         "tab_order": 3,

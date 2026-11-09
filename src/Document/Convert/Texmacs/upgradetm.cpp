@@ -1846,11 +1846,7 @@ is_std_textual_env (string s) {
       << "french" << "german" << "greek" << "hungarian" << "italian"
       << "japanese" << "korean" << "polish" << "portuguese" << "romanian"
       << "russian" << "slovak" << "slovene" << "spanish" << "swedish"
-      << "taiwanese" << "ukrainian"
-      << "switch" << "screens" << "tiny-switch"
-      << "shown" << "hidden" << "shown*" << "hidden*"
-      << "unroll" << "unroll-compressed" << "unroll-phantoms" << "unroll-greyed"
-      << "folded" << "unfolded";
+      << "taiwanese" << "ukrainian";
     for (int i=0; i<N(a); i++) std_textual_envs->insert (a[i]);
   }
   return std_textual_envs->contains (s);

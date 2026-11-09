@@ -410,14 +410,16 @@ edit_text_rep::remove_structure (bool forward) {
   get_deletion_point (p, last, rix, t, u, forward);
 
   // multiparagraph delete
-  if (!(rp < p)) {
+  const bool slideshow= get_init_string (PAGE_MEDIUM) == "slideshow";
+  if (slideshow && is_func (t, SLIDE_PAGE)) return;
+  if (!(rp < p) || (slideshow && is_document (t) && is_func (u, SLIDE_PAGE))) {
     if (forward) {
       if (last >= rix) return;
-      remove_return (path (last));
+      remove_return (p * last);
     }
     else {
       if (last == 0) return;
-      remove_return (path (last-1));
+      remove_return (p * (last-1));
     }
     return;
   }
@@ -488,6 +490,7 @@ edit_text_rep::remove_structure_upwards () {
   int last= last_item (p);
   p= path_up (p);
   tree st= subtree (et, p);
+  if (is_func (st, SLIDE_PAGE) && get_init_string (PAGE_MEDIUM) == "slideshow") return;
   bool recurse=
     is_func (st, TFORMAT) || is_func (st, TABLE) ||
     is_func (st, ROW) || is_func (st, CELL) ||

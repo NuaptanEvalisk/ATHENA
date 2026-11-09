@@ -61,7 +61,7 @@ QTMCommandRegistry::registerFocusCommands () {
       if (!focus.valid () ||
           focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) ||
           focus.has (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT) ||
-          focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT) ||
+          focus.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT) ||
           !focus.has (ACTOR_FOCUS_TOOLBAR_HAS_VARIANTS) ||
           !editorState.valid ())
         return out;
@@ -98,7 +98,7 @@ QTMCommandRegistry::registerFocusCommands () {
       if (!focus.valid () ||
           focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) ||
           focus.has (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT) ||
-          focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT) ||
+          focus.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT) ||
           !focus.has (ACTOR_FOCUS_TOOLBAR_HAS_VARIANTS) ||
           !editorState.valid ())
         return state;
@@ -141,7 +141,7 @@ QTMCommandRegistry::registerFocusCommands () {
       if (proxy == nullptr) return out;
       actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
       const bool screens=
-        focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT);
+        focus.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT);
       if (!focus.valid () ||
           focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) ||
           focus.has (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT) ||
@@ -168,7 +168,7 @@ QTMCommandRegistry::registerFocusCommands () {
       if (proxy == nullptr) return state;
       actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
       const bool screens=
-        focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT);
+        focus.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT);
       if (!focus.valid () ||
           focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) ||
           focus.has (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT) ||
@@ -188,7 +188,7 @@ QTMCommandRegistry::registerFocusCommands () {
       actor_editor_command_snapshot editorState= proxy->editor_command_state ();
       const std::uint32_t surfaces=
         ACTOR_FOCUS_TOOLBAR_BUFFER |
-        ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT;
+        ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT;
       if (!focus.valid () || (focus.flags & surfaces) == 0 ||
           !editorState.valid ())
         return out;
@@ -243,7 +243,7 @@ QTMCommandRegistry::registerFocusCommands () {
       return focus_surface_state (
         context,
         ACTOR_FOCUS_TOOLBAR_BUFFER |
-        ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT,
+        ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT,
         true);
     });
   registerProvider (
@@ -256,7 +256,7 @@ QTMCommandRegistry::registerFocusCommands () {
       actor_editor_command_snapshot editorState= proxy->editor_command_state ();
       const std::uint32_t surfaces=
         ACTOR_FOCUS_TOOLBAR_BUFFER |
-        ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT;
+        ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT;
       if (!focus.valid () || (focus.flags & surfaces) == 0 ||
           !editorState.valid ())
         return out;
@@ -307,7 +307,7 @@ QTMCommandRegistry::registerFocusCommands () {
       return focus_surface_state (
         context,
         ACTOR_FOCUS_TOOLBAR_BUFFER |
-        ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT,
+        ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT,
         true);
     });
   registerProvider (
@@ -321,7 +321,7 @@ QTMCommandRegistry::registerFocusCommands () {
       if (!focus.valid () || !editorState.valid () ||
           focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) ||
           focus.has (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT) ||
-          focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT) ||
+          focus.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT) ||
           focus.has (ACTOR_FOCUS_TOOLBAR_ALGORITHM_CONTEXT))
         return out;
       const bool enabled= !editorState.read_only ();
@@ -380,7 +380,7 @@ QTMCommandRegistry::registerFocusCommands () {
       if (!focus.valid () || !editorState.valid () ||
           focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) ||
           focus.has (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT) ||
-          focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT) ||
+          focus.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT) ||
           focus.has (ACTOR_FOCUS_TOOLBAR_ALGORITHM_CONTEXT) ||
           (!focus.numbered_available &&
            !focus.alternate_available &&
@@ -759,7 +759,7 @@ QTMCommandRegistry::registerFocusCommands () {
       return focus_surface_state (
         context,
         ACTOR_FOCUS_TOOLBAR_BUFFER |
-        ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT,
+        ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT,
         true);
     });
   registerBehavior (
@@ -774,7 +774,7 @@ QTMCommandRegistry::registerFocusCommands () {
       return focus_surface_state (
         context,
         ACTOR_FOCUS_TOOLBAR_BUFFER |
-        ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT,
+        ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT,
         true);
     });
   registerBehavior (
@@ -787,7 +787,7 @@ QTMCommandRegistry::registerFocusCommands () {
     },
     [] (const QTMCommandContext& context) {
       return focus_surface_state (
-        context, ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT, true);
+        context, ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT, true);
     });
   registerBehavior (
     "editor.focus.set-main-style", QTMCommandScope::Editor,
@@ -813,7 +813,7 @@ QTMCommandRegistry::registerFocusCommands () {
       return focus_surface_state (
         context,
         ACTOR_FOCUS_TOOLBAR_BUFFER |
-        ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT,
+        ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT,
         true);
     });
   registerBehavior (
@@ -888,7 +888,7 @@ QTMCommandRegistry::registerFocusCommands () {
       if (!focus.valid () || !editorState.valid () ||
           focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) ||
           focus.has (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT) ||
-          focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT) ||
+          focus.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT) ||
           !focus.has (ACTOR_FOCUS_TOOLBAR_HAS_LABEL))
         return state;
       state.available= true;

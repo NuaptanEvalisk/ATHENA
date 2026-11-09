@@ -71,7 +71,6 @@ enum actor_editor_command_state_flag: std::uint32_t {
   ACTOR_EDITOR_COMMAND_STATE_FOCUS_NODE= 1U << 4,
   ACTOR_EDITOR_COMMAND_STATE_MATH_MODE= 1U << 5,
   ACTOR_EDITOR_COMMAND_STATE_PRESENTATION_MODE= 1U << 6,
-  ACTOR_EDITOR_COMMAND_STATE_SCREENS_MODE= 1U << 7,
   ACTOR_EDITOR_COMMAND_STATE_TEXT_MODE= 1U << 8,
   ACTOR_EDITOR_COMMAND_STATE_PROG_MODE= 1U << 9,
   ACTOR_EDITOR_COMMAND_STATE_SOURCE_MODE= 1U << 10,
@@ -83,15 +82,13 @@ enum actor_editor_command_state_flag: std::uint32_t {
   ACTOR_EDITOR_COMMAND_STATE_STD_MARKUP= 1U << 18,
   ACTOR_EDITOR_COMMAND_STATE_STD_LIST= 1U << 19,
   ACTOR_EDITOR_COMMAND_STATE_ENV_FLOAT= 1U << 20,
-  ACTOR_EDITOR_COMMAND_STATE_STD_FOLD= 1U << 21,
   ACTOR_EDITOR_COMMAND_STATE_STD_DTD= 1U << 22,
   ACTOR_EDITOR_COMMAND_STATE_NON_SMALL_SELECTION= 1U << 23,
   ACTOR_EDITOR_COMMAND_STATE_INSIDE_LETTER_HEADER= 1U << 24,
   ACTOR_EDITOR_COMMAND_STATE_INSIDE_FLOAT_OR_FOOTNOTE= 1U << 25,
   ACTOR_EDITOR_COMMAND_STATE_MAIN_FLOW= 1U << 26,
   ACTOR_EDITOR_COMMAND_STATE_ENV_MATH= 1U << 27,
-  ACTOR_EDITOR_COMMAND_STATE_OVERLAYS_CONTEXT= 1U << 30,
-  ACTOR_EDITOR_COMMAND_STATE_SCREENS_BUFFER= 1U << 31
+  ACTOR_EDITOR_COMMAND_STATE_SLIDE_DOCUMENT= 1U << 31
 };
 
 struct actor_editor_command_snapshot {
@@ -119,9 +116,6 @@ struct actor_editor_command_snapshot {
   }
   bool presentation_mode () const noexcept {
     return (flags & ACTOR_EDITOR_COMMAND_STATE_PRESENTATION_MODE) != 0;
-  }
-  bool screens_mode () const noexcept {
-    return (flags & ACTOR_EDITOR_COMMAND_STATE_SCREENS_MODE) != 0;
   }
   bool has (actor_editor_command_state_flag flag) const noexcept {
     return (flags & static_cast<std::uint32_t> (flag)) != 0;
@@ -157,7 +151,7 @@ enum actor_focus_toolbar_flag: std::uint32_t {
   ACTOR_FOCUS_TOOLBAR_HAS_LABEL= 1U << 14,
   ACTOR_FOCUS_TOOLBAR_HAS_HIDDEN_CHILDREN= 1U << 15,
   ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT= 1U << 16,
-  ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT= 1U << 17,
+  ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT= 1U << 17,
   ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT= 1U << 18,
   ACTOR_FOCUS_TOOLBAR_DOC_TITLE_CONTEXT= 1U << 19,
   ACTOR_FOCUS_TOOLBAR_DOC_AUTHOR_CONTEXT= 1U << 20,
@@ -318,15 +312,8 @@ struct actor_focus_toolbar_snapshot {
   bool table_reset_span_available= false;
   bool pen_effect_context= false;
   std::string pen_effect;
-  bool overlays_context= false;
-  bool overlay_context= false;
-  int overlay_current= 0;
-  int overlay_count= 0;
-  int overlay_reference= 0;
-  std::vector<bool> overlay_visible;
   bool document_insert_title_available= false;
   bool document_insert_abstract_available= false;
-  bool document_insert_screens_available= false;
   bool title_hidden_available= false;
   bool title_hidden_checked= false;
   std::string title_clustering;

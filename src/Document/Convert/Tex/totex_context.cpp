@@ -955,7 +955,6 @@ simple_layout_environment (string key, string& environment) {
   else if (key == "padded-left-aligned") environment= "flushleft";
   else if (key == "padded-right-aligned") environment= "flushright";
   else if (key == "compact") environment= "tmcompact";
-  else if (key == "compressed") environment= "tmcompressed";
   else if (key == "amplified") environment= "tmamplified";
   else if (key == "indent" || key == "algorithm-indent") environment= "tmindent";
   else if (key == "jump-in") environment= "tmjumpin";
@@ -1139,30 +1138,6 @@ new_theorem_output_native (scheme_tree args) {
   for (int i=1; i<N(args); ++i) title << args[i];
   scheme_tree out= stree_apply ("newtheorem");
   out << stree_string (name) << title;
-  return out;
-}
-
-bool
-tm_wrapper_key (string key) {
-  static const char* names[]= {
-    "folded", "unfolded", "folded-plain", "unfolded-plain", "folded-std",
-    "unfolded-std", "folded-explain", "unfolded-explain", "folded-env",
-    "unfolded-env", "folded-documentation", "unfolded-documentation",
-    "folded-grouped", "unfolded-grouped", "summarized", "detailed",
-    "summarized-plain", "summarized-std", "summarized-env",
-    "summarized-documentation", "summarized-grouped", "summarized-raw",
-    "summarized-tiny", "detailed-plain", "detailed-std", "detailed-env",
-    "detailed-documentation", "detailed-grouped", "detailed-raw", "detailed-tiny"
-  };
-  return one_of (key, names, sizeof (names) / sizeof (names[0]));
-}
-
-scheme_tree
-tm_wrapper_output_native (string key, scheme_tree args) {
-  string command= "tm" * replace (key, "-", "");
-  scheme_tree out= stree_apply (command);
-  scheme_tree converted= tmtex_convert_list (args);
-  for (int i=0; i<N(converted); ++i) out << converted[i];
   return out;
 }
 
@@ -3269,7 +3244,6 @@ core_dispatch (string key, scheme_tree args) {
   if (key == "small-figure" || key == "big-figure" ||
       key == "small-table" || key == "big-table")
     return float_sub (false, "h", original);
-  if (tm_wrapper_key (key)) return tm_wrapper_output_native (key, args);
   if (key == "hide-part") return preserve_object (original);
   if (key == "show-part") return preserve_lossy (original, converted_child (args, 1));
   if (key == "condensed") return preserve_lossy (original, converted_child (args, 0));

@@ -40,7 +40,6 @@
 #include "Editor/Commands/document_style_commands.hpp"
 #include "Editor/Commands/format_commands.hpp"
 #include "Editor/Commands/format_geometry.hpp"
-#include "Editor/Commands/native_dynamic_commands.hpp"
 #include "Editor/Commands/generic_editor_commands.hpp"
 #include "Document/NodeContracts/editing_query.hpp"
 #include "Document/NodeContracts/node_groups.hpp"
@@ -271,8 +270,7 @@ valid_business_id (const QString& id) {
     "focus-transclusion-after",
     "focus-materials-append",
     "focus-materials-update",
-    "letter-today",
-    "make-alter-colors"
+    "letter-today"
   };
   return ids.contains (id);
 }
@@ -308,7 +306,6 @@ valid_focus_action_id (const QString& id) {
     "document-insert-abstract",
     "script-insert-up",
     "script-insert-down",
-    "document-insert-screens",
     "table-make-subtable",
     "table-join-selected-cells",
     "table-reset-cell-span",
@@ -510,7 +507,6 @@ execute_business_id (editor ed, const QString& id) {
     text_make_header ("letter-date");
     insertion_make (as_tree_label ("date"), 0);
   }
-  else if (id == "make-alter-colors") presentation_make (as_tree_label ("alter-colors"));
   else FAILED ("unknown native editor business id");
 }
 
@@ -599,18 +595,6 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
            QSet<QString> {"new-page", "new-dpage", "page-break"}.contains (
              action.value ("kind").toString ()) ?
       true : fail_validation (error, "invalid page break kind");
-  if (op == "dynamic-buffer") {
-    const QString kind= action.value ("kind").toString ();
-    const QString operation= action.value ("operation").toString ();
-    const bool operate= operation == "operate" &&
-      QSet<QString> {"fold", "unfold", "compress", "var-compress",
-                     "expand", "var-expand"}.contains (kind);
-    const bool filter= operation == "filter" &&
-      QSet<QString> {"remove-folded", "remove-unfolded",
-                     "keep-folded", "keep-unfolded"}.contains (kind);
-    return operate || filter ? true :
-      fail_validation (error, "invalid dynamic-buffer operation");
-  }
   if (op == "focus-link-display")
     return has_string (action, "kind") &&
            QSet<QString> {"card", "link"}.contains (
@@ -622,7 +606,7 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
               true : fail_validation (error, "invalid init-env variable or value");
   if (op == "view-presentation-mode")
     return has_string (action, "mode") &&
-           QSet<QString> {"automatic", "papyrus", "paper", "beamer",
+           QSet<QString> {"automatic", "paper", "slideshow",
                           "book", "panorama"}.contains (action.value ("mode").toString ()) ?
       true : fail_validation (error, "invalid presentation mode");
   if (op == "init-default")
@@ -793,16 +777,6 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
     }.contains (action.value ("pen").toString ()) ?
       true : fail_validation (error, "invalid effect pen");
   }
-  if (op == "focus-overlay-switch")
-    return action.value ("index").isDouble () &&
-           action.value ("index").toInt (-1) >= 1 ?
-             true : fail_validation (
-               error, "focus-overlay-switch requires positive index");
-  if (op == "focus-overlay-reference")
-    return action.value ("index").isDouble () &&
-           action.value ("index").toInt (-1) >= 1 ?
-             true : fail_validation (
-               error, "focus-overlay-reference requires positive index");
   if (op == "focus-text-data") {
     if (!has_string (action, "kind"))
       return fail_validation (error, "focus-text-data requires kind");
@@ -879,19 +853,13 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
                error, "focus-slide-switch requires nonnegative index");
   if (op == "make-section" || op == "make-unnamed-section" ||
       op == "make-header" ||
-      op == "make-tmlist" || op == "make-toggle" ||
-      op == "make-switch" || op == "make-unroll" ||
-      op == "make-overlays" || op == "make-overlay" ||
+      op == "make-tmlist" ||
       op == "make-insertion")
     return has_string (action, "tag") ?
              true : fail_validation (error, op + " requires tag");
   if (op == "make-star")
     return has_string (action, "tag") && has_string (action, "style") ?
              true : fail_validation (error, "make-star requires tag/style");
-  if (op == "make-switch-list")
-    return has_string (action, "tag") && has_string (action, "list") ?
-             true : fail_validation (
-               error, "make-switch-list requires tag/list");
   if (op == "make-aux")
     return has_string (action, "env") && has_string (action, "var") &&
            has_string (action, "fallback") ?
@@ -912,7 +880,7 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
       op == "make-var-sqrt" || op == "make-neg" ||
       op == "make-above" || op == "make-below" ||
       op == "insert-native-math-block" || op == "insert-native-math-grid" ||
-      op == "make-screens" || op == "make-label" ||
+      op == "make-label" ||
       op == "make-balloon" || op == "make-marginal-note" ||
       op == "make-note-ref" || op == "make-note-inline" ||
       op == "make-note-wide" || op == "make-note-footnote" ||
@@ -1005,12 +973,6 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     if (kind == "new-page") format_make_new_page ();
     else if (kind == "new-dpage") format_make_new_dpage ();
     else format_make_page_break ();
-  }
-  else if (op == "dynamic-buffer") {
-    const QString operation= action.value ("operation").toString ();
-    native_dynamic_buffer_command (
-      ed, native_action_string (QJsonValue (operation)),
-      native_action_string (action.value ("kind")));
   }
   else if (op == "focus-link-display") {
     const path focus= ed->focus_get ();
@@ -1317,11 +1279,11 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
       generic_toggle_insertion_positioning_not (
         native_action_string (action.value ("value")));
     else if (id == "slide-insert-title" &&
-             state.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT) &&
+             state.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT) &&
              state.slide_propose_title)
       presentation_slide_title (target);
     else if (id == "slide-insert-graphics" &&
-             state.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT) &&
+             state.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT) &&
              state.slide_propose_graphics)
       presentation_slide_graphics (target);
     else if (id == "table-toggle-parwidth" &&
@@ -1341,10 +1303,6 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
       generic_structured_insert_up ();
     else if (id == "script-insert-down" && state.script_insert_down)
       generic_structured_insert_down ();
-    else if (id == "document-insert-screens" &&
-             state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
-             state.document_insert_screens_available)
-      presentation_make_screens ();
     else if (id == "edit-focus-macro-source" &&
              state.tag_extension && state.tag_macro_source_available)
       source_edit_focus_macro ();
@@ -1374,8 +1332,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
     path focus= ed->focus_get ();
     if (!state.valid () || !ed->test_subtree (focus) ||
-        state.pure_alternate_context ||
-        state.overlays_context || state.overlay_context)
+        state.pure_alternate_context)
       return;
     const int index= action.value ("index").toInt (-1);
     bool allowed= false;
@@ -1420,29 +1377,6 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     format_set_effect_pen (
       ed->the_subtree (focus),
       native_action_string (action.value ("pen")));
-  }
-  else if (op == "focus-overlay-switch") {
-    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
-    path focus= ed->focus_get ();
-    if (!state.valid () || !ed->test_subtree (focus) ||
-        (!state.overlays_context && !state.overlay_context))
-      return;
-    const int index= action.value ("index").toInt (-1);
-    if (index < 1 || index > state.overlay_count) return;
-    tree target= ed->the_subtree (focus);
-    presentation_overlay_switch (target, index);
-  }
-  else if (op == "focus-overlay-reference") {
-    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
-    path focus= ed->focus_get ();
-    if (!state.valid () || !state.overlay_context ||
-        !ed->test_subtree (focus))
-      return;
-    const int index= action.value ("index").toInt (-1);
-    if (index < 1 || index > state.overlay_count) return;
-    tree target= ed->the_subtree (focus);
-    if (N(target) == 0) return;
-    (void) tree_set (target, 0, tree (as_string (index)));
   }
   else if (op == "focus-text-data") {
     actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
@@ -1622,7 +1556,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
     if (!state.valid () ||
         (!state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
-         !state.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT)))
+         !state.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT)))
       return;
     const string name= native_action_string (action.value ("name"));
     const std::string nativeName (
@@ -1661,7 +1595,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
     if (!state.valid () ||
         (!state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
-         !state.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT)))
+         !state.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT)))
       return;
     source_edit_style ();
   }
@@ -1669,7 +1603,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
     if (!state.valid () ||
         (!state.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
-         !state.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT)))
+         !state.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT)))
       return;
     url source= url_system (
       native_action_string (action.value ("path")));
@@ -1689,7 +1623,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
   else if (op == "focus-slide-switch") {
     actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
     if (!state.valid () ||
-        !state.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT))
+        !state.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT))
       return;
     const int index= action.value ("index").toInt (-1);
     if (index < 0 ||
@@ -1711,15 +1645,6 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
   else if (op == "insert-native-math-grid") ed->make_native_math_block (true);
   else if (op == "make-tmlist")
     text_make_list (as_tree_label (native_action_string (action.value ("tag"))));
-  else if (op == "make-toggle" || op == "make-switch" || op == "make-overlays" || op == "make-overlay")
-    presentation_make (as_tree_label (native_action_string (action.value ("tag"))));
-  else if (op == "make-unroll")
-    presentation_make_unroll (as_tree_label (native_action_string (action.value ("tag"))));
-  else if (op == "make-switch-list")
-    presentation_make_list (
-      as_tree_label (native_action_string (action.value ("tag"))),
-      as_tree_label (native_action_string (action.value ("list"))));
-  else if (op == "make-screens") presentation_make_screens ();
   else if (op == "make-insertion")
     generic_make_insertion (native_action_string (action.value ("tag")));
   else if (op == "make-label") generic_make_label ();

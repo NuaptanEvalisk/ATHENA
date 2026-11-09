@@ -162,7 +162,7 @@ initialize_default_env () {
   env (PAR_COLUMNS_SEP)  = "2fn";       // separation between columns
   env (PAR_SWELL)        = "0ex";       // extra padding around large lines
 
-  env (PAGE_MEDIUM)      = "papyrus";   // paper medium: paper, papyrus, auto
+  env (PAGE_MEDIUM)      = "automatic";
   env (PAGE_PRINTED)     = "false";     // printed version?
   env (PAGE_TYPE)        = "a4";        // paper type (-> width & height)
   env (PAGE_ORIENTATION) = "portrait";  // paper orientation
@@ -277,7 +277,6 @@ initialize_default_env () {
   env (GR_SNAP_DISTANCE)    = "10px";         // default snap distance
 
   env (GR_GID)           = "default";   // graphical identifier of new objects
-  env (GR_PROVISO)       = "default";   // visibility condition for new objects
   env (GR_MAGNIFY)       = "default";   // magnify of new objects
   env (GR_OPACITY)       = "default";   // opacity of new objects
   env (GR_COLOR)         = "default";   // color of new objects
@@ -310,7 +309,6 @@ initialize_default_env () {
   env (GR_PEN_ENHANCE)     = "default";   // smoothing method for hand-drawings
 
   env (GID)              = "default";   // graphical identifier
-  env (PROVISO)          = "true";      // visibility condition
   env (MAGNIFY)          = "1";         // magnification for graphical objects
   env (POINT_STYLE)      = "disk";      // point style (square, circle...)
   env (POINT_SIZE)       = "2.5ln";     // point size

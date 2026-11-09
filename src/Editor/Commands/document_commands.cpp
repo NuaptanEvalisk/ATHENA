@@ -9,6 +9,7 @@
 *******************************************************************************/
 
 #include "Editor/Commands/document_commands.hpp"
+#include "Editor/Commands/presentation_commands.hpp"
 #include "Editor/Commands/document_style_commands.hpp"
 #include "Editor/editor.hpp"
 #include "new_view.hpp"
@@ -36,7 +37,7 @@ void document_set_default_style () {
   string paper= get_server ()->get_printer_page_type ();
   if (paper != "a4") document_init_page_type (paper);
   string medium= get_preference ("page medium");
-  if (medium != "papyrus") ed->init_env ("page-medium", tree (medium));
+  ed->init_env ("page-medium", tree (medium));
   pretend_buffer_saved (get_current_buffer ());
 }
 
@@ -468,7 +469,7 @@ bool document_test_page_rendering (string value) {
 
 void document_apply_page_rendering_state (string value) {
   editor ed= get_current_editor ();
-  if (value == "paper" || value == "papyrus")
+  if (value == "paper" || value == "automatic")
     set_preference ("page medium", value);
   view_save_zoom (document_get_init_page_rendering (ed.operator-> ()));
 
@@ -484,7 +485,8 @@ void document_apply_page_rendering_state (string value) {
     reset_defaults ({"page-border", "page-offset"});
   }
   else if (value == "slideshow") {
-    ed->init_env ("page-medium", tree ("paper"));
+    presentation_ensure_pages ();
+    ed->init_env ("page-medium", tree ("slideshow"));
     reset_defaults ({"page-packet", "page-border", "page-offset"});
   }
   else {

@@ -53,7 +53,7 @@ private:
 
   QListWidget* list;
   QLabel* message;
-  QPushButton* newScreen;
+  QPushButton* newSlide;
   QTimer* timer;
   std::shared_ptr<QTMRenderConnection> raster;
   QHash<int, cached_thumbnail> cache;
@@ -75,11 +75,11 @@ private:
 
 void thumbnails_pane_show ();
 void thumbnails_pane_accept_manifest (athena_view_id view, athena_blob_id blob);
-bool thumbnails_screen_action (athena_actor_id actor, athena_view_id view,
-                               screen_edit_operation operation, int index= -1,
+bool thumbnails_slide_action (athena_actor_id actor, athena_view_id view,
+                               slide_page_operation operation, int index= -1,
                                std::uint64_t confirmed= 0);
-void thumbnails_screen_set_clipboard (const std::string& xml);
-void thumbnails_screen_confirm_delete (athena_actor_id actor, athena_view_id view,
+void thumbnails_slide_set_clipboard (const std::string& xml);
+void thumbnails_slide_confirm_delete (athena_actor_id actor, athena_view_id view,
                                        int index, std::uint64_t stamp);
 
 #endif

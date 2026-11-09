@@ -255,8 +255,7 @@ void generic_open_paragraph_format () {
 }
 void generic_open_page_format () {
   auto ed= get_current_editor ();
-  if (!is_nil (ed->search_upwards ("screens")) ||
-      !is_nil (ed->search_upwards ("slideshow")))
+  if (!is_nil (ed->search_upwards ("slide-page")))
     athena_dispatch_ui (slide_properties_pane_show);
   else
     athena_dispatch_ui (page_properties_pane_show);

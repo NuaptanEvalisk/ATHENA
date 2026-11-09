@@ -20,7 +20,6 @@ bool editor_mode_table () {
   editor ed= get_current_editor ();
   return ed->inside ("table") && !ed->inside_graphics ();
 }
-bool editor_mode_screens () { return get_current_editor ()->inside ("screens"); }
 bool editor_mode_standard () { return get_current_editor ()->defined_at_init ("std-dtd"); }
 bool editor_mode_standard_text () { return editor_mode_text () && editor_mode_standard (); }
 bool editor_mode_smart_reference () { return get_current_editor ()->defined_at_init ("smart-ref-package"); }
@@ -48,7 +47,6 @@ editor_mode_predicate editor_mode_resolve (const std::string& name) {
   if (name == "in-prog?") return editor_mode_program;
   if (name == "in-source?") return editor_mode_source;
   if (name == "in-table?") return editor_mode_table;
-  if (name == "in-screens?") return editor_mode_screens;
   if (name == "in-std?") return editor_mode_standard;
   if (name == "in-std-text?") return editor_mode_standard_text;
   if (name == "in-smart-ref?") return editor_mode_smart_reference;

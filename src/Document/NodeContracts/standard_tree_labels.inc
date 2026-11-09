@@ -9,6 +9,7 @@
   init (RAW_DATA, "raw-data", fixed (1) -> raw (0));
 
   init (DOCUMENT, "document", native_contract (DOCUMENT));
+  init (SLIDE_PAGE, "slide-page", native_contract (SLIDE_PAGE));
   // File-envelope fields must exist before reading the first native document.
   // Their declarations cannot depend on a previous legacy import registering them.
   init (make_tree_label ("style"), "style", fixed (1) -> regular (0));
@@ -1113,7 +1114,6 @@
   init_var (GR_TRANSFORMATION, TYPE_ADHOC);
 
   init_var (GR_GID, TYPE_INTEGER);
-  init_var (GR_PROVISO, TYPE_BOOLEAN);
   init_var (GR_MAGNIFY, TYPE_NUMERIC);
   init_var (GR_OPACITY, TYPE_NUMERIC);
   init_var (GR_COLOR, TYPE_COLOR);
@@ -1145,7 +1145,6 @@
   init_var (GR_PEN_ENHANCE, TYPE_ADHOC);
 
   init_var (GID, TYPE_INTEGER);
-  init_var (PROVISO, TYPE_BOOLEAN);
   init_var (MAGNIFY, TYPE_NUMERIC);
   init_var (POINT_STYLE, TYPE_STRING);
   init_var (POINT_SIZE, TYPE_LENGTH);

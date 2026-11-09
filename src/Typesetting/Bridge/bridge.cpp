@@ -140,6 +140,7 @@ make_bridge (typesetter ttt, tree st, path ip) {
   switch (L(st)) {
   case _ERROR:
     return bridge_auto (ttt, st, ip, error_m, true);
+  case SLIDE_PAGE:
   case DOCUMENT:
     return bridge_document (ttt, st, ip);
   case SURROUND:
@@ -164,7 +165,7 @@ make_bridge (typesetter ttt, tree st, path ip) {
   case MAP_ARGS:
     // FIXME: we might want to merge bridge_rewrite and bridge_eval
     // 'map_args' should really be implemented using bridge_rewrite,
-    // but bridge_eval leads to better locality of updates for 'screens'
+    // but bridge_eval leads to better locality for conditional content
     return bridge_eval (ttt, st, ip);
   case MARK:
   case VAR_MARK:

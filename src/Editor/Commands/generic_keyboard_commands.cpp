@@ -587,7 +587,7 @@ void generic_kbd_space_bar (tree t, bool shift) {
 }
 
 void generic_kbd_enter (tree t, bool shift) {
-  if (source_enter (t) || presentation_enter (t, shift)) return;
+  if (source_enter (t)) return;
   if (text_enter (t, shift)) return;
   if (is_compound (t, "math")) {
     get_current_editor ()->go_to_end (reverse (obtain_ip (t)));

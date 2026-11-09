@@ -47,7 +47,6 @@ void move_history (bool forward) {
     destination.push_back (std::move (entry));
     if (target == ed->the_path ()) continue;
     ed->go_to (target);
-    ed->show_cursor_if_hidden ();
     return;
   }
 }

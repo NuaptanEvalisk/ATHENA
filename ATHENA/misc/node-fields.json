@@ -2,6 +2,11 @@
   "version": 1,
   "license": "GPL-3.0-or-later",
   "nodes": {
+    "slide-page": {
+      "display-name": "Slide page",
+      "fields": [{"name": "body", "role": "body"}],
+      "properties": {"background": {"type": "string"}}
+    },
     "document": {
       "inner-border": true,
       "editing-minimum": 1,

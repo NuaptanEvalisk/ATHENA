@@ -14,7 +14,7 @@ namespace {
 bool applicable (editor_rep* ed) {
   string mode= document_get_init_page_rendering (ed);
   return get_preference ("persistent fit width") == "on" &&
-         (mode == "paper" || mode == "papyrus");
+         (mode == "paper" || mode == "slideshow");
 }
 void schedule (editor_rep* ed) {
   auto& state= ed->persistent_fit;

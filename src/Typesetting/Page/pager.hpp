@@ -70,6 +70,7 @@ protected: // making page boxes
   box  pages_make_page (pagelet pg);
   void pages_make ();
   void papyrus_make ();
+  void slides_make ();
 
 public:
   pager_rep (path ip, edit_env env, array<page_item> l);

@@ -312,6 +312,7 @@ is_table_format (tree t) {
 bool
 is_multi_paragraph (tree t) {
   switch (L(t)) {
+  case SLIDE_PAGE:
   case DOCUMENT:
   case MATH_BLOCK:
     return true;

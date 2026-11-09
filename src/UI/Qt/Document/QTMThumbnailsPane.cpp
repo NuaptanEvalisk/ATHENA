@@ -35,7 +35,7 @@
 namespace {
 QTMThumbnailsPane* pane_widget= nullptr;
 ads::CDockWidget* pane_dock= nullptr;
-constexpr const char* screen_clipboard_mime= "application/x-athena-screen+xml";
+constexpr const char* slide_clipboard_mime= "application/x-athena-slide-page+xml";
 
 QSize thumbnail_preview_size (const thumbnail_page_bounds& page) {
   const double width= double (page.x2) - double (page.x1);
@@ -100,7 +100,7 @@ public:
 };
 
 bool paginated (const std::string& mode) {
-  return mode == "paper" || mode == "beamer" || mode == "slideshow" ||
+  return mode == "paper" || mode == "slideshow" ||
          mode == "book" || mode == "panorama";
 }
 
@@ -117,14 +117,14 @@ qt_actor_widget_rep* canvas_proxy (QTMMainTabWindow* shell) {
 
 QTMThumbnailsPane::QTMThumbnailsPane (QWidget* parent): QWidget (parent),
     list (new QListWidget (this)), message (new QLabel (this)),
-    newScreen (new QPushButton (tr ("New screen"), this)),
+    newSlide (new QPushButton (tr ("New slide"), this)),
     timer (new QTimer (this)) {
   setObjectName ("athenaThumbnailsContent");
   auto* layout= new QVBoxLayout (this);
   layout->setContentsMargins (4, 4, 4, 4);
   message->setAlignment (Qt::AlignCenter);
   message->setWordWrap (true);
-  message->setText (tr ("Switch to Paper, Slideshow, Book, or Panorama "
+  message->setText (tr ("Switch to Continuous, Book, Panorama, or Slideshow "
                         "to view page thumbnails."));
   layout->addWidget (message);
   list->setObjectName ("athenaThumbnailsList");
@@ -140,13 +140,13 @@ QTMThumbnailsPane::QTMThumbnailsPane (QWidget* parent): QWidget (parent),
   list->setSelectionMode (QAbstractItemView::SingleSelection);
   list->hide ();
   layout->addWidget (list, 1);
-  newScreen->setObjectName ("athenaNewScreenButton");
-  newScreen->hide ();
-  layout->addWidget (newScreen);
-  connect (newScreen, &QPushButton::clicked, this, [this] {
+  newSlide->setObjectName ("athenaNewSlideButton");
+  newSlide->hide ();
+  layout->addWidget (newSlide);
+  connect (newSlide, &QPushButton::clicked, this, [this] {
     if (available && slideshow && writable)
-      (void) thumbnails_screen_action (
-        actor, view, screen_edit_operation::insert_after, activeSlide);
+      (void) thumbnails_slide_action (
+        actor, view, slide_page_operation::insert_after, activeSlide);
   });
   // QAbstractScrollArea dispatches viewport context-menu events through the
   // item view. Its signal position is already in viewport coordinates.
@@ -160,7 +160,7 @@ QTMThumbnailsPane::QTMThumbnailsPane (QWidget* parent): QWidget (parent),
     const athena_actor_id targetActor= actor;
     const athena_view_id targetView= view;
     const QMimeData* offer= QApplication::clipboard ()->mimeData ();
-    const bool canPaste= offer && offer->hasFormat (screen_clipboard_mime);
+    const bool canPaste= offer && offer->hasFormat (slide_clipboard_mime);
     QMenu menu (this);
     QAction* copy= menu.addAction (tr ("Copy"));
     QAction* before= menu.addAction (tr ("Paste before"));
@@ -169,24 +169,30 @@ QTMThumbnailsPane::QTMThumbnailsPane (QWidget* parent): QWidget (parent),
     after->setEnabled (writable && canPaste);
     QAction* duplicate= menu.addAction (tr ("Duplicate"));
     duplicate->setEnabled (writable);
+    QAction* movePrevious= menu.addAction (tr ("Move earlier"));
+    QAction* moveNext= menu.addAction (tr ("Move later"));
+    movePrevious->setEnabled (writable && index > 0);
+    moveNext->setEnabled (writable && index+1 < pages.size ());
     menu.addSeparator ();
     QAction* insertBefore= menu.addAction (tr ("Insert before"));
     QAction* insertAfter= menu.addAction (tr ("Insert after"));
     insertBefore->setEnabled (writable);
     insertAfter->setEnabled (writable);
     menu.addSeparator ();
-    QAction* erase= menu.addAction (tr ("Delete screen"));
-    erase->setEnabled (writable && pages.size () > 1);
+    QAction* erase= menu.addAction (tr ("Delete slide"));
+    erase->setEnabled (writable);
     QAction* chosen= menu.exec (list->viewport ()->mapToGlobal (pos));
     if (!chosen || actor != targetActor || view != targetView) return;
-    const auto operation= chosen == copy ? screen_edit_operation::copy :
-      chosen == before ? screen_edit_operation::paste_before :
-      chosen == after ? screen_edit_operation::paste_after :
-      chosen == duplicate ? screen_edit_operation::duplicate :
-      chosen == insertBefore ? screen_edit_operation::insert_before :
-      chosen == insertAfter ? screen_edit_operation::insert_after :
-      screen_edit_operation::erase;
-    (void) thumbnails_screen_action (targetActor, targetView, operation, index);
+    const auto operation= chosen == copy ? slide_page_operation::copy :
+      chosen == before ? slide_page_operation::paste_before :
+      chosen == after ? slide_page_operation::paste_after :
+      chosen == duplicate ? slide_page_operation::duplicate :
+      chosen == movePrevious ? slide_page_operation::move_previous :
+      chosen == moveNext ? slide_page_operation::move_next :
+      chosen == insertBefore ? slide_page_operation::insert_before :
+      chosen == insertAfter ? slide_page_operation::insert_after :
+      slide_page_operation::erase;
+    (void) thumbnails_slide_action (targetActor, targetView, operation, index);
   });
   connect (list, &QListWidget::itemClicked, this,
            [this] (QListWidgetItem* item) {
@@ -207,7 +213,7 @@ QTMThumbnailsPane::hideEvent (QHideEvent* event) {
   // existing tiny cached images remain available when the pane is reopened.
   if (raster) raster->retire ();
   raster.reset ();
-  newScreen->hide ();
+  newSlide->hide ();
   requestedPage= -1;
   QWidget::hideEvent (event);
 }
@@ -257,7 +263,7 @@ QTMThumbnailsPane::acceptManifest (athena_view_id target, owned_actor_blob blob)
   if (slideshow != slides) cache.clear ();
   else if (!sameEntries) {
     // Screen insertion/removal changes indices. Move existing rasters by the
-    // source content identity so unaffected screens remain visible immediately.
+    // source content identity so unaffected pages remain visible immediately.
     // Paper pages have no separate content identity; keep their old position as
     // a temporary image while new pagination rasters are being prepared.
     QHash<int, cached_thumbnail> carried;
@@ -283,7 +289,7 @@ QTMThumbnailsPane::acceptManifest (athena_view_id target, owned_actor_blob blob)
   styleSignature= header.style_signature;
   contentSignature= header.content_signature;
   slideshow= slides;
-  newScreen->setVisible (available && slideshow);
+  newSlide->setVisible (available && slideshow);
   activeSlide= slides ? int (header.active_page) : -1;
   requestedPage= -1;
   layoutSettled.start ();
@@ -416,7 +422,7 @@ QTMThumbnailsPane::refresh () {
     if (actor != ATHENA_NO_ACTOR) resetDocument (ATHENA_NO_ACTOR, ATHENA_NO_VIEW);
     available= false;
     list->hide ();
-    newScreen->hide ();
+    newSlide->hide ();
     message->setText (tr ("Open a document to view thumbnails."));
     message->show ();
     return;
@@ -435,7 +441,7 @@ QTMThumbnailsPane::refresh () {
       raster.reset ();
       requestedPage= -1;
       list->hide ();
-      message->setText (tr ("Switch to Paper, Slideshow, Book, or Panorama "
+      message->setText (tr ("Switch to Continuous, Book, Panorama, or Slideshow "
                             "to view page thumbnails."));
       message->show ();
     }
@@ -447,8 +453,8 @@ QTMThumbnailsPane::refresh () {
     }
   }
   if (!available) return;
-  newScreen->setVisible (slideshow);
-  newScreen->setEnabled (writable);
+  newSlide->setVisible (slideshow);
+  newSlide->setEnabled (writable);
   if (!raster) raster= QTMRenderConnection::create ();
   if (slideshow) {
     if (activeSlide != highlightedPage) {
@@ -535,15 +541,15 @@ thumbnails_pane_accept_manifest (athena_view_id view, athena_blob_id id) {
 }
 
 bool
-thumbnails_screen_action (athena_actor_id actor, athena_view_id view,
-                          screen_edit_operation operation, int index,
+thumbnails_slide_action (athena_actor_id actor, athena_view_id view,
+                          slide_page_operation operation, int index,
                           std::uint64_t confirmed) {
   athena_blob_id payload= ATHENA_NO_BLOB;
-  if (operation == screen_edit_operation::paste_before ||
-      operation == screen_edit_operation::paste_after) {
+  if (operation == slide_page_operation::paste_before ||
+      operation == slide_page_operation::paste_after) {
     const QMimeData* offer= QApplication::clipboard ()->mimeData ();
-    if (!offer || !offer->hasFormat (screen_clipboard_mime)) return false;
-    const QByteArray bytes= offer->data (screen_clipboard_mime);
+    if (!offer || !offer->hasFormat (slide_clipboard_mime)) return false;
+    const QByteArray bytes= offer->data (slide_clipboard_mime);
     auto reservation= actor_blob_registry::instance ().allocate (
       std::size_t (bytes.size ()));
     if (!bytes.isEmpty ())
@@ -552,7 +558,7 @@ thumbnails_screen_action (athena_actor_id actor, athena_view_id view,
     payload= reservation.publish ();
   }
   auto sent= buffer_actor::try_submit_to (
-    actor, actor_command_kind::edit_screen, view,
+    actor, actor_command_kind::edit_slide_page, view,
     payload, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
     static_cast<std::uint64_t> (operation),
     static_cast<std::uint64_t> (static_cast<std::int64_t> (index)), confirmed);
@@ -562,25 +568,25 @@ thumbnails_screen_action (athena_actor_id actor, athena_view_id view,
 }
 
 void
-thumbnails_screen_set_clipboard (const std::string& xml) {
+thumbnails_slide_set_clipboard (const std::string& xml) {
   auto* offer= new QMimeData;
-  offer->setData (screen_clipboard_mime,
+  offer->setData (slide_clipboard_mime,
                   QByteArray (xml.data (), qsizetype (xml.size ())));
   QApplication::clipboard ()->setMimeData (offer);
 }
 
 void
-thumbnails_screen_confirm_delete (athena_actor_id actor, athena_view_id view,
+thumbnails_slide_confirm_delete (athena_actor_id actor, athena_view_id view,
                                   int index, std::uint64_t stamp) {
   QTMMainTabWindow* shell= QTMMainTabWindow::topTabWindow ();
-  QMessageBox prompt (QMessageBox::Warning, QObject::tr ("Delete screen"),
-    QObject::tr ("Delete screen %1 and its contents?").arg (index + 1),
+  QMessageBox prompt (QMessageBox::Warning, QObject::tr ("Delete slide"),
+    QObject::tr ("Delete slide %1 and its contents?").arg (index + 1),
     QMessageBox::NoButton, shell);
   auto* erase= prompt.addButton (QObject::tr ("Delete"),
                                  QMessageBox::DestructiveRole);
   prompt.addButton (QMessageBox::Cancel);
   prompt.exec ();
   if (prompt.clickedButton () == erase)
-    (void) thumbnails_screen_action (
-      actor, view, screen_edit_operation::erase, index, stamp);
+    (void) thumbnails_slide_action (
+      actor, view, slide_page_operation::erase, index, stamp);
 }

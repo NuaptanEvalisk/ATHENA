@@ -168,7 +168,7 @@ struct native_keymap_registry {
     add ("source", "source-keybindings.json");
     add ("table", "table-keybindings.json");
     add ("graphics", "graphics-keybindings.json");
-    add ("fold", "fold-keybindings.json");
+    add ("presentation", "presentation-keybindings.json");
   }
 
   void add (const char* domain, const char* file) {

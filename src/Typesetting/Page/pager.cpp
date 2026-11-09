@@ -282,7 +282,8 @@ pager_rep::adjust_margins (bool empty_flag) {
 
 box
 pager_rep::make_pages () {
-  if (paper) pages_make ();
+  if (env->get_string (PAGE_MEDIUM) == "slideshow") slides_make ();
+  else if (paper) pages_make ();
   else papyrus_make ();
 
   int nr_pages= N(pages);
@@ -292,7 +293,7 @@ pager_rep::make_pages () {
 
   SI pixel= env->pixel;
   array<box> pg= pages;
-  if (env->get_string (PAGE_MEDIUM) == "paper" &&
+  if ((paper || env->get_string (PAGE_MEDIUM) == "slideshow") &&
       env->get_string (PAGE_BORDER) != "none")
     for (int i=0; i<nx; i++)
       for (int j=0; j<ny; j++) {
@@ -319,7 +320,7 @@ pager_rep::make_pages () {
   for (int i=1; i<nx; i++) {
     xx[i]= xx[i-1];
     for (int j=0; j<ny; j++) {
-      int p= j*nx + i - d;
+      int p= j*nx + i - 1 - d;
       if (p >= 0 && p < nr_pages)
         xx[i]= max (xx[i-1] + pg[p]->w(), xx[i]);
     }
@@ -330,7 +331,7 @@ pager_rep::make_pages () {
   for (int j=1; j<ny; j++) {
     yy[j]= yy[j-1];
     for (int i=0; i<nx; i++) {
-      int p= j*nx + i - d;
+      int p= (j-1)*nx + i - d;
       if (p >= 0 && p < nr_pages)
         yy[j]= min (yy[j-1] - pg[p]->h(), yy[j]);
     }

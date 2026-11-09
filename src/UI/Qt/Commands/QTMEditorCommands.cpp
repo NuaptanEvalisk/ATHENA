@@ -291,18 +291,6 @@ editor_command_id (const QString& id) {
     return native_editor_command_id::history_back;
   if (id == "editor.history-forward")
     return native_editor_command_id::history_forward;
-  if (id == "editor.presentation-first")
-    return native_editor_command_id::presentation_first;
-  if (id == "editor.presentation-previous-screen")
-    return native_editor_command_id::presentation_previous_screen;
-  if (id == "editor.presentation-previous")
-    return native_editor_command_id::presentation_previous;
-  if (id == "editor.presentation-next")
-    return native_editor_command_id::presentation_next;
-  if (id == "editor.presentation-next-screen")
-    return native_editor_command_id::presentation_next_screen;
-  if (id == "editor.presentation-last")
-    return native_editor_command_id::presentation_last;
   if (id == "editor.print-to-file")
     return native_editor_command_id::print_to_file;
   if (id == "editor.print-page-selection")
@@ -372,7 +360,7 @@ native_editor_command_state (const QString& id,
     focus.valid () &&
     !focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) &&
     !focus.has (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT) &&
-    !focus.has (ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT);
+    !focus.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT);
   switch (command) {
   case native_editor_command_id::undo:
     result.enabled= !snapshot.read_only () && snapshot.undo_count != 0;
@@ -404,18 +392,6 @@ native_editor_command_state (const QString& id,
   case native_editor_command_id::history_back:
   case native_editor_command_id::history_forward:
     result.enabled= true;
-    break;
-  case native_editor_command_id::presentation_first:
-  case native_editor_command_id::presentation_previous:
-  case native_editor_command_id::presentation_next:
-  case native_editor_command_id::presentation_last:
-    result.available= snapshot.presentation_mode ();
-    result.enabled= result.available;
-    break;
-  case native_editor_command_id::presentation_previous_screen:
-  case native_editor_command_id::presentation_next_screen:
-    result.available= snapshot.presentation_mode () && snapshot.screens_mode ();
-    result.enabled= result.available;
     break;
   case native_editor_command_id::print:
     result.available= has_printing_cmd ();
@@ -1115,12 +1091,6 @@ QTMCommandRegistry::registerEditorCommands () {
     "editor.close-window",
     "editor.history-back",
     "editor.history-forward",
-    "editor.presentation-first",
-    "editor.presentation-previous-screen",
-    "editor.presentation-previous",
-    "editor.presentation-next",
-    "editor.presentation-next-screen",
-    "editor.presentation-last",
     "editor.print-to-file",
     "editor.print-page-selection",
     "editor.print-page-selection-to-file",

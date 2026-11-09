@@ -249,12 +249,39 @@ pager_rep::papyrus_make () {
   SI ph= b->h();
   SI left  = (odd+even) >> 1;
   SI height= top + dtop + bot + dbot + ph;
-  if (env->get_string (PAGE_MEDIUM) == "beamer")
+  if (env->get_string (PAGE_MEDIUM) == "slideshow")
     height= max (height, env->page_user_height + top + bot);
   array<box> bs   (1); bs   [0]= b;
   array<SI>  bs_x (1); bs_x [0]= left;
   array<SI>  bs_y (1); bs_y [0]= -top - dtop;
-  box pb= page_box (ip, "?", 0, bgc, width, height,
+  const bool slide= env->get_string (PAGE_MEDIUM) == "slideshow";
+  const int nr= slide ? N(pages) + 1 + page_offset : 0;
+  if (slide) env->write (PAGE_NR, as_string (nr));
+  box pb= page_box (ip, slide ? tree (as_string (nr)) : tree ("?"), nr, bgc, width, height,
 		    bs, bs_x, bs_y, 0, 0, 0);
   pages << pb;
+}
+
+void
+pager_rep::slides_make () {
+  // Explicit source-page boundaries, not a fixed-height page-breaking policy.
+  // Reuse the normal unbounded layout, including floats and footnotes, per page.
+  array<page_item> source= l;
+  l= array<page_item> ();
+  for (int i=0; i<N(source); ++i) {
+    const auto item= source[i];
+    if (item->type == PAGE_CONTROL_ITEM) {
+      if (is_tuple (item->t, "slide-start")) continue;
+      if (is_tuple (item->t, "slide-end")) {
+        papyrus_make ();
+        l= array<page_item> ();
+        continue;
+      }
+      if (item->t == PAGE_BREAK || item->t == NEW_PAGE ||
+          item->t == NEW_DPAGE) continue;
+    }
+    l << item;
+  }
+  if (N(l) > 0 || N(pages) == 0) papyrus_make ();
+  l= source;
 }

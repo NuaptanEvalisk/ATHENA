@@ -145,8 +145,8 @@ QTMPagePropertiesPane::buildPresentationTab () {
   QWidget* scroll= formPage (layout);
   auto* form= new QFormLayout ();
   form->setFieldGrowthPolicy (QFormLayout::AllNonFixedFieldsGrow);
-  presentationModeCombo= combo ({"Reflow", "Scroll", "Paper",
-                                 "Slideshow", "Book", "Panorama"});
+  presentationModeCombo= combo ({"Reflow", "Continuous", "Book",
+                                 "Panorama", "Slideshow"});
   addRow (form, "Presentation mode", presentationModeCombo);
   connect (presentationModeCombo, &QComboBox::currentTextChanged,
     this, [this] (const QString& value) {
@@ -479,9 +479,9 @@ QTMPagePropertiesPane::resetVariables (const QStringList& variables) {
 QString
 QTMPagePropertiesPane::decodeRendering (const QString& value) const {
   if (value == "automatic") return "Reflow";
-  if (value == "papyrus") return "Scroll";
-  if (value == "beamer" || value == "slideshow") return "Slideshow";
-  if (value.isEmpty ()) return "Paper";
+  if (value == "slideshow") return "Slideshow";
+  if (value == "paper") return "Continuous";
+  if (value.isEmpty ()) return "Reflow";
   QString out= value;
   out[0]= out[0].toUpper ();
   return out;
@@ -490,8 +490,8 @@ QTMPagePropertiesPane::decodeRendering (const QString& value) const {
 QString
 QTMPagePropertiesPane::encodeRendering (const QString& value) const {
   if (value == "Reflow") return "automatic";
-  if (value == "Scroll") return "papyrus";
-  if (value == "Slideshow") return "beamer";
+  if (value == "Slideshow") return "slideshow";
+  if (value == "Continuous") return "paper";
   return value.toLower ();
 }
 
@@ -522,7 +522,7 @@ QTMPagePropertiesPane::encodeBreaking (const QString& value) const {
 QStringList
 QTMPagePropertiesPane::pageSizeValues () const {
   QStringList values;
-  if (getBool ("beamer-style"))
+  if (getBool ("beamer-style") || getString ("page-medium") == "slideshow")
     values << "16:9" << "8:5" << "4:3" << "5:4" << "USER";
   else
     values << "A3" << "A4" << "A5" << "B4" << "B5" << "LETTER"

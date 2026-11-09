@@ -462,7 +462,6 @@ bool athena_node_reference_position (string identity) {
   };
   try {
     editor->go_to (locate ());
-    editor->show_cursor_if_hidden ();
     editor->go_to (locate ());
     return true;
   }

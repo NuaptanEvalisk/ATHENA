@@ -1481,6 +1481,11 @@ public:
          "if*", "case", "while", "for-each", "extern", "use-package"})
       if (head (source, tag))
         throw std::runtime_error (std::string ("Unsupported HTML export: bare macro code: ") + tag);
+    if (head (source, "slide-page") && N(source) == 2) {
+      tree section= tuple ("h:section", attributes ("class", "slide-page"));
+      append_nodes (section, run (source[1], env));
+      return tuple (section);
+    }
     if (head (source, "document") || head (source, "para")) {
       tree plan= html_export_sequence_plan (source, env.at ("preformatted") == tree ("#t"));
       return html_export_sequence_output (plan, children (plan[0], env));
@@ -1582,8 +1587,7 @@ public:
          "is-tuple", "look-up", "equal", "unequal", "less", "lesseq", "greater", "greatereq",
          "style-with", "style-with*", "style-only", "style-only*", "active", "active*",
          "reference", "pageref", "write", "tuple", "collection", "associate",
-         "point", "line", "arc", "bezier", "format", "tag", "meaning", "switch", "fold", "exclusive",
-         "progressive", "superposed", "hidden-title", "web-title"})
+         "point", "line", "arc", "bezier", "format", "tag", "meaning", "hidden-title", "web-title"})
       if (head (source, tag)) return tuple ();
     throw std::runtime_error (std::string ("Unsupported HTML export markup: ") + atom (source[0]).c_str ());
   }

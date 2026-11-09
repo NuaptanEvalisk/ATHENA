@@ -52,42 +52,10 @@ void toggle_page_mode (string target) {
 
 void view_init_page_rendering (string mode) {
   editor ed= get_current_editor ();
-  auto expanded= [] (string value) {
-    return value == "paper" || value == "book" ||
-           value == "panorama" || value == "slideshow";
-  };
-  string old= document_get_init_page_rendering (ed.operator-> ());
-  if (expanded (mode) && !expanded (old)) view_screens_show_all ();
-  if (!expanded (mode) && expanded (old)) view_screens_show_this ();
   document_apply_page_rendering_state (mode);
   ed->view_modes.selected_presentation= mode;
   schedule_zoom (ed.operator-> (), mode, mode == "panorama"? 2: 0,
                  ed->view_modes.fullscreen_wait);
-}
-void view_screens_show_all () {
-  editor ed= get_current_editor ();
-  path p= ed->search_upwards ("screens");
-  if (is_nil (p)) return;
-  tree screens= ed->the_subtree (p);
-  for (int i=0; i<N(screens); ++i)
-    if (is_compound (screens[i], "hidden") || is_compound (screens[i], "shown"))
-      tree_assign_node (screens[i], as_tree_label ("slide"));
-  screens= tree_assign_node (screens, DOCUMENT);
-  tree_insert_node (screens, 0, tree (as_tree_label ("slideshow")));
-}
-void view_screens_show_this () {
-  editor ed= get_current_editor ();
-  path p= ed->search_upwards ("slideshow");
-  if (is_nil (p)) return;
-  tree slides= ed->the_subtree (p);
-  if (N(slides) != 1 || !is_compound (slides[0]) || L(slides[0]) != DOCUMENT) return;
-  slides= tree_remove_node (slides, 0);
-  slides= tree_assign_node (slides, as_tree_label ("screens"));
-  path relative= ed->the_path () / p;
-  for (int i=0; i<N(slides); ++i)
-    if (is_func (slides[i], as_tree_label ("slide")))
-      tree_assign_node (slides[i], as_tree_label (
-        !is_nil (relative) && relative->item == i? "shown": "hidden"));
 }
 void view_toggle_panorama () { toggle_page_mode ("panorama"); }
 void view_toggle_slideshow () { toggle_page_mode ("slideshow"); }

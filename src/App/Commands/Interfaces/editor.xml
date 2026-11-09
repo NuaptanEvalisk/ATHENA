@@ -538,7 +538,6 @@
     <arg type="string" />
   </binding>
   <binding name="cursor-accessible?" native="cursor_is_accessible" returns="bool" />
-  <binding name="cursor-show-if-hidden" native="show_cursor_if_hidden" returns="void" />
   <binding name="select-all" native="select_all" returns="void" />
   <binding name="select-line" native="select_line" returns="void" />
   <binding name="select-from-cursor" native="select_from_cursor" returns="void" />
@@ -724,6 +723,7 @@
     <arg type="string" />
   </binding>
   <binding name="cpp-nr-pages" native="nr_pages" returns="int" />
+  <binding name="nr-pages" native="nr_pages" returns="int" />
   <binding name="print-to-file" native="print_to_file" returns="void">
     <arg type="url" />
   </binding>

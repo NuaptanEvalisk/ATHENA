@@ -198,11 +198,10 @@ installApplicationBackgroundStatus (QTMMainTabWindow* shell, QMainWindow* host) 
                     QObject::tr (label), QString::fromLatin1 (value));
   };
   addPresentationMode ("Reflow", "automatic", "presentation-mode-reflow");
-  addPresentationMode ("Scroll", "papyrus", "presentation-mode-scroll");
-  addPresentationMode ("Paper", "paper", "presentation-mode-paper");
-  addPresentationMode ("Slideshow", "beamer", "presentation-mode-slideshow");
+  addPresentationMode ("Continuous", "paper", "presentation-mode-paper");
   addPresentationMode ("Book", "book", "presentation-mode-book");
   addPresentationMode ("Panorama", "panorama", "presentation-mode-panorama");
+  addPresentationMode ("Slideshow", "slideshow", "presentation-mode-slideshow");
   const int customizeIndex= modes->count () + 1;
   modes->insertSeparator (modes->count ());
   modes->addItem (tmapp ()->icon_manager ().getIcon (
@@ -283,9 +282,7 @@ installApplicationBackgroundStatus (QTMMainTabWindow* shell, QMainWindow* host) 
         const auto state= proxy->document_menu_state ();
         modes->setEnabled (state.ready);
         if (state.ready && !modes->view ()->isVisible ()) {
-          const QString rendering= state.page_rendering == "slideshow" ?
-            QStringLiteral ("beamer") :
-            QString::fromStdString (state.page_rendering);
+          const QString rendering= QString::fromStdString (state.page_rendering);
           const int index= modes->findData (rendering);
           if (index >= 0 && index != modes->currentIndex ()) {
             QSignalBlocker block (modes);

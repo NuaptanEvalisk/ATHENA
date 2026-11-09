@@ -1354,7 +1354,7 @@ generic_parameter_name (string name) {
 bool
 generic_parameter_show_in_menu (string name) {
   for (const char* hidden: {"the-label", "auto-nr", "current-part", "language", "page-nr",
-       "page-the-page", "prog-language", "caption-summarized", "figure-width", "title-theme", "overlay-nr"})
+       "page-the-page", "prog-language", "caption-summarized", "figure-width", "title-theme"})
     if (name == hidden) return false;
   if (name == "appendix-prefix") return false;
   if (ends (name, "-numbered")) {

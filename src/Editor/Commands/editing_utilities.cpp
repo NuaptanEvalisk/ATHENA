@@ -17,17 +17,7 @@ bool parent (tree& t) {
   t= subtree (root, reverse (ip->next));
   return true;
 }
-void mouse_fold (tree t, bool fold) {
-  path ip= obtain_ip (t);
-  if (!ip_attached (ip)) return;
-  get_current_editor ()->go_to_start (reverse (ip));
-  while (parent (t)) {
-    if (text_node_in_group (t, fold ? "alternate-second-tag" : "alternate-first-tag")) {
-      editing_alternate_toggle (t);
-      return;
-    }
-  }
-}
+
 }
 
 bool editing_unnumbered_symbol (tree_label tag) {
@@ -60,7 +50,6 @@ void editing_variant_set (tree t, tree_label tag) {
 
 void editing_alternate_toggle (tree t) {
   do {
-    if (presentation_alternate (t)) return;
     if (text_node_in_group (t, "alternate-tag")) {
       string name= as_string (L(t));
       auto next= athena::contracts::standard_node_groups ().alternate (
@@ -71,8 +60,6 @@ void editing_alternate_toggle (tree t) {
   } while (parent (t));
 }
 
-void editing_mouse_fold (tree t) { mouse_fold (t, true); }
-void editing_mouse_unfold (tree t) { mouse_fold (t, false); }
 
 void editing_select_enlarge () {
   editor ed= get_current_editor ();

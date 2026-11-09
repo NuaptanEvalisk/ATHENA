@@ -409,7 +409,6 @@ edit_replace_rep::next_match (bool forward) {
       source_mode_language (*context, mode, language);
       if (search_mode == mode && search_lan == language) {
         go_to (copy (search_end));
-        show_cursor_if_hidden ();
         set_selection (search_at, search_end);
         notify_change (THE_SELECTION);
         return;

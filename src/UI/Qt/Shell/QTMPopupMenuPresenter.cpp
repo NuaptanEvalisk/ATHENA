@@ -74,8 +74,6 @@ menu_reference_visible (
     return !graphicsOnly &&
       (editor.has (ACTOR_EDITOR_COMMAND_STATE_SOURCE_MODE) ||
        get_user_preference ("source tool", "off") == "on");
-  if (id == QStringLiteral ("dynamic"))
-    return !graphicsOnly && editor.presentation_mode ();
   if (id == QStringLiteral ("format"))
     return !graphicsOnly;
   return true;

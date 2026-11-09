@@ -333,7 +333,7 @@ string printing_on ("a4");
 int
 edit_main_rep::nr_pages () {
   string medium = env->get_string (PAGE_MEDIUM);
-  if (medium == "paper") return N (eb[0]);
+  if (medium == "paper" || medium == "slideshow") return N (eb[0]);
   typeset_prepare ();
   env->write (PAGE_MEDIUM, "paper");
   box the_box= typeset_as_document (env, subtree (et, rp), reverse (rp));
@@ -366,7 +366,7 @@ edit_main_rep::layout_print_document (bool& conform, int first_page) {
   if (is_func (env->read (BG_COLOR), _PATTERN))
     env->write (BG_COLOR, env->exec (env->read (BG_COLOR)));
   if (!conform) {
-    env->write (PAGE_MEDIUM, "paper");
+    env->write (PAGE_MEDIUM, medium == "slideshow" ? "slideshow" : "paper");
     env->write (PAGE_PRINTED, "true");
   }
 
@@ -473,6 +473,11 @@ edit_main_rep::print_box (url name, box the_box, bool conform, int first, int la
     ren->set_metadata ("author", get_metadata ("author"));
     ren->set_metadata ("subject", get_metadata ("subject"));
     for (i=start; i<end; i++) {
+      if (env->get_string (PAGE_MEDIUM) == "slideshow") {
+        w= the_box[0][i]->w ();
+        h= the_box[0][i]->h ();
+        pdf_hummus_set_page_size (ren, w/cm, h/cm);
+      }
       tree bg= env->read (BG_COLOR);
       ren->set_background (bg);
       if (bg != "white" && bg != "#ffffff")

@@ -739,19 +739,6 @@ QTMCommandRegistry::registerApplicationCommands () {
       });
   }
   registerBehavior (
-    "interface.presentation-tool", QTMCommandScope::Application,
-    [] (const QTMCommandContext&) {
-      bool enabled= get_user_preference ("presentation tool", "off") == "on";
-      set_user_preference ("presentation tool", enabled ? "off" : "on");
-      return true;
-    },
-    [] (const QTMCommandContext&) {
-      QTMCommandState state= enabled_application_command ();
-      state.checkable= true;
-      state.checked= get_user_preference ("presentation tool", "off") == "on";
-      return state;
-    });
-  registerBehavior (
     "interface.source-tool", QTMCommandScope::Application,
     [] (const QTMCommandContext&) {
       bool enabled= get_user_preference ("source tool", "off") == "on";

@@ -54,7 +54,6 @@ editor_capability_bit (const QString& name, std::uint32_t& bit) {
     {"non-small-selection", ACTOR_EDITOR_COMMAND_STATE_NON_SMALL_SELECTION},
     {"math-mode", ACTOR_EDITOR_COMMAND_STATE_MATH_MODE},
     {"presentation-mode", ACTOR_EDITOR_COMMAND_STATE_PRESENTATION_MODE},
-    {"screens-mode", ACTOR_EDITOR_COMMAND_STATE_SCREENS_MODE},
     {"text-mode", ACTOR_EDITOR_COMMAND_STATE_TEXT_MODE},
     {"prog-mode", ACTOR_EDITOR_COMMAND_STATE_PROG_MODE},
     {"source-mode", ACTOR_EDITOR_COMMAND_STATE_SOURCE_MODE},
@@ -66,7 +65,6 @@ editor_capability_bit (const QString& name, std::uint32_t& bit) {
     {"std-markup", ACTOR_EDITOR_COMMAND_STATE_STD_MARKUP},
     {"std-list", ACTOR_EDITOR_COMMAND_STATE_STD_LIST},
     {"env-float", ACTOR_EDITOR_COMMAND_STATE_ENV_FLOAT},
-    {"std-fold", ACTOR_EDITOR_COMMAND_STATE_STD_FOLD},
     {"std-dtd", ACTOR_EDITOR_COMMAND_STATE_STD_DTD},
     {"inside-letter-header",
      ACTOR_EDITOR_COMMAND_STATE_INSIDE_LETTER_HEADER},
@@ -74,8 +72,7 @@ editor_capability_bit (const QString& name, std::uint32_t& bit) {
      ACTOR_EDITOR_COMMAND_STATE_INSIDE_FLOAT_OR_FOOTNOTE},
     {"main-flow", ACTOR_EDITOR_COMMAND_STATE_MAIN_FLOW},
     {"env-math", ACTOR_EDITOR_COMMAND_STATE_ENV_MATH},
-    {"overlays-context", ACTOR_EDITOR_COMMAND_STATE_OVERLAYS_CONTEXT},
-    {"screens-buffer", ACTOR_EDITOR_COMMAND_STATE_SCREENS_BUFFER}
+    {"slide-document", ACTOR_EDITOR_COMMAND_STATE_SLIDE_DOCUMENT}
   };
   auto found= bits.constFind (name);
   if (found == bits.constEnd ()) return false;
@@ -127,7 +124,7 @@ focus_capability_bit (const QString& name, std::uint32_t& bit) {
     {"has-label", ACTOR_FOCUS_TOOLBAR_HAS_LABEL},
     {"has-hidden-children", ACTOR_FOCUS_TOOLBAR_HAS_HIDDEN_CHILDREN},
     {"code-context", ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT},
-    {"screens-context", ACTOR_FOCUS_TOOLBAR_SCREENS_CONTEXT},
+    {"slide-page-context", ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT},
     {"table-context", ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT},
     {"doc-title-context", ACTOR_FOCUS_TOOLBAR_DOC_TITLE_CONTEXT},
     {"doc-author-context", ACTOR_FOCUS_TOOLBAR_DOC_AUTHOR_CONTEXT},
