@@ -987,14 +987,14 @@ else ()
 endif ()
 
 if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt6")
-  find_package (Qt6 COMPONENTS Core Gui Widgets PrintSupport Svg Network REQUIRED)
+  find_package (Qt6 COMPONENTS Core Gui Widgets PrintSupport Svg Network QuickWidgets Quick3D REQUIRED)
   if (ATHENA_PLATFORM_IPADOS AND Qt6_VERSION VERSION_LESS "6.11")
     message (FATAL_ERROR "ATHENA scenes require Qt 6.11 or later with the UIWindowScene QPA implementation")
   endif ()
   if (ATHENA_ENABLE_AUDMAP_REPL)
     find_package (qtermwidget6 REQUIRED CONFIG)
   endif ()
-  set (QT_LIBRARIES Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport Qt6::Svg Qt6::Network)
+  set (QT_LIBRARIES Qt6::Core Qt6::Gui Qt6::Widgets Qt6::PrintSupport Qt6::Svg Qt6::Network Qt6::QuickWidgets Qt6::Quick3D)
 
   if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     find_package (Qt6 COMPONENTS DBus REQUIRED)
@@ -1009,6 +1009,8 @@ if (ATHENA_GUI STREQUAL "Qt" OR ATHENA_GUI STREQUAL "Qt6")
     ${Qt6PrintSupport_INCLUDE_DIRS}
     ${Qt6Svg_INCLUDE_DIRS}
     ${Qt6Network_INCLUDE_DIRS}
+    ${Qt6QuickWidgets_INCLUDE_DIRS}
+    ${Qt6Quick3D_INCLUDE_DIRS}
   )
   if (Qt6_POSITION_INDEPENDENT_CODE)
     set (CMAKE_POSITION_INDEPENDENT_CODE ON)

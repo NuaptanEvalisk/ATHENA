@@ -9,6 +9,7 @@
 #include "UI/Qt/Commands/QTMCommandRegistry.hpp"
 #include "UI/Qt/Commands/QTMCommandRegistryInternal.hpp"
 #include "native_interfaces.hpp"
+#include "App/Commands/native_dispatch.hpp"
 
 #include <QColor>
 #include <QColorDialog>
@@ -101,6 +102,7 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
       actor_document_menu_snapshot document= proxy->document_menu_state ();
       if (!editor.valid () || !document.ready) return out;
       const bool writable= !editor.read_only ();
+      append_item (out, "animations", QObject::tr ("Animations"), QString (), true);
 
       append_item (
         out, "style/none", QObject::tr ("No style"),
@@ -277,6 +279,10 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
       if (proxy == nullptr) return false;
       actor_document_menu_snapshot document= proxy->document_menu_state ();
       if (!document.ready) return false;
+      if (key == QStringLiteral ("animations")) {
+        command_value result;
+        return native_dispatch_call ("animations-pane-show", {}, result);
+      }
 
       if (key == QStringLiteral ("style/none"))
         return submit_business (context, "document-no-style");

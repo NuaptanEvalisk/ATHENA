@@ -3,6 +3,7 @@
 * DESCRIPTION: Independent, non-editable, actor-rendered slide presentation
 ******************************************************************************/
 #include "UI/Qt/Document/QTMSlideshowWindow.hpp"
+#include "UI/Qt/Document/QTMSlideCanvas.hpp"
 #include "UI/Qt/Editor/QTMRenderService.hpp"
 #include "App/Runtime/buffer_actor.hpp"
 #include "UI/Qt/Integrations/QTMPresenterPwa.hpp"
@@ -23,6 +24,7 @@
 #include <QListView>
 #include <QListWidget>
 #include <QMenu>
+#include <QMessageBox>
 #include <QMouseEvent>
 #include <QNativeGestureEvent>
 #include <QPainter>
@@ -36,6 +38,8 @@
 #include <QVBoxLayout>
 #include <QWheelEvent>
 #include <QWidgetAction>
+#include <QVariantAnimation>
+#include <QQuickItem>
 
 #include <algorithm>
 #include <atomic>
@@ -59,6 +63,7 @@ QString slideshow_setting (const char* name, const char* fallback) {
 struct slide_image {
   QImage pixels;
   QSize render_size;
+  std::shared_ptr<const QTMSlideScene> scene;
 };
 
 class QTMSlideshowWindow final: public QWidget {
@@ -80,7 +85,16 @@ class QTMSlideshowWindow final: public QWidget {
   qreal zoom_= 1.0;
   const QString visibility_;
   const QString location_;
-  std::shared_ptr<QTMRenderConnection> raster_;
+  QTMSlideCanvas* canvas_= nullptr;
+  std::unique_ptr<QTMSlideTimeline> timeline_;
+  QVariantAnimation motion_;
+  bool transitionRunning_= false;
+  bool pageLoaded_= false;
+  bool enterAtEnd_= false;
+  int completed_= 0;
+  int elapsed_= -1;
+  QImage previousImage_;
+  QImage presenterImage_;
   QHash<int, slide_image> images_;
   QTimer poll_;
   QTimer resizeDebounce_;
@@ -116,7 +130,7 @@ class QTMSlideshowWindow final: public QWidget {
       {"finished", finished_}, {"black", blackout_},
       {"timerPaused", presenterTimerPaused_},
       {"elapsedSeconds", double (elapsed)/1000.0}};
-    qtm_presenter_pwa_publish (status, image (page_),
+    qtm_presenter_pwa_publish (status, presenterImage_.isNull () ? image (page_) : presenterImage_,
                                page_+1 < count_ ? image (page_+1) : QImage {});
   }
 
@@ -135,13 +149,13 @@ class QTMSlideshowWindow final: public QWidget {
   }
 
   void requestFrame (int index) {
-    if (pendingPage_ >= 0 || !raster_) return;
+    if (pendingPage_ >= 0) return;
     const QSize size= renderSize ();
     const std::uint64_t newSerial= ++serial_;
     if (!buffer_actor::try_submit_to (
           actor_, actor_command_kind::render_slideshow_frame, view_,
           ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
-          static_cast<std::uint64_t> (index), raster_->id (),
+          static_cast<std::uint64_t> (index), 0,
           static_cast<std::uint64_t> (size.width ()),
           static_cast<std::uint64_t> (size.height ()),
           session_, newSerial)) return;
@@ -164,18 +178,6 @@ class QTMSlideshowWindow final: public QWidget {
   }
 
   void pollFrames () {
-    if (raster_) {
-      auto frame= raster_->acquireLatestFrame ();
-      if (frame && frame.bufferGeneration () == session_ &&
-          frame.frameGeneration () == pendingSerial_ && pendingPage_ >= 0) {
-        const int index= pendingPage_;
-        images_.insert (index, {frame.image ().copy (), pendingSize_});
-        pendingPage_= -1;
-        update ();
-        syncPanorama ();
-        broadcastPresenter ();
-      }
-    }
     if (pendingPage_ >= 0 && requestAge_.elapsed () > 15000)
       pendingPage_= -1;
     if (pendingPage_ >= 0 || finished_) return;
@@ -194,6 +196,73 @@ class QTMSlideshowWindow final: public QWidget {
         break;
       }
     }
+  }
+
+  void showMotionState (bool preview= true) {
+    if (!timeline_ || !canvas_) return;
+    canvas_->setStates (timeline_->state (completed_, elapsed_));
+    if (preview) presenterImage_= canvas_->currentImage ();
+  }
+
+  void startBatch () {
+    if (!timeline_ || completed_ >= int (timeline_->batches ().size ())) return;
+    transitionRunning_= false;
+    elapsed_= 0;
+    motion_.setDuration (std::max (1, timeline_->batches ()[completed_].duration));
+    motion_.setStartValue (0.0);
+    motion_.setEndValue (double (timeline_->batches ()[completed_].duration));
+    motion_.start ();
+    showMotionState ();
+  }
+
+  void enterScene (std::shared_ptr<const QTMSlideScene> scene) {
+    canvas_->setScene (scene);
+    timeline_= std::make_unique<QTMSlideTimeline> (scene);
+    if (pageLoaded_) { showMotionState (); return; }
+    pageLoaded_= true;
+    completed_= enterAtEnd_ ? int (timeline_->batches ().size ()) : 0;
+    elapsed_= -1;
+    showMotionState ();
+    if (!enterAtEnd_ && previousImage_.isNull () && scene->motion.change.type != "none") {
+      previousImage_= QImage (scene->full.size (), QImage::Format_ARGB32_Premultiplied);
+      previousImage_.fill (Qt::black);
+    }
+    canvas_->setTransition (previousImage_, scene->motion.change);
+    canvas_->setProgress (1);
+    if (!enterAtEnd_ && !previousImage_.isNull () && scene->motion.change.type != "none") {
+      transitionRunning_= true;
+      motion_.setDuration (scene->motion.change.duration);
+      motion_.setStartValue (0.0); motion_.setEndValue (1.0);
+      canvas_->setProgress (0);
+      motion_.start ();
+    }
+    else if (!enterAtEnd_ && !timeline_->batches ().empty () && timeline_->batches ()[0].automatic)
+      startBatch ();
+    previousImage_= {};
+  }
+
+  void previous () {
+    if (transitionRunning_) {
+      motion_.stop ();
+      transitionRunning_= false;
+      if (page_ > 0) go (page_-1, true);
+      else { canvas_->setProgress (1); showMotionState (); }
+      return;
+    }
+    if (motion_.state () == QAbstractAnimation::Running) {
+      motion_.stop ();
+      transitionRunning_= false;
+      canvas_->setProgress (1);
+      elapsed_= -1;
+      showMotionState ();
+    }
+    else if (completed_ > 0) {
+      --completed_;
+      elapsed_= -1;
+      showMotionState ();
+    }
+    else if (page_ > 0) go (page_-1, true);
+    broadcastPresenter ();
   }
 
   QToolButton* tool (QHBoxLayout* row, const QString& label,
@@ -258,7 +327,7 @@ class QTMSlideshowWindow final: public QWidget {
     tool (row, QStringLiteral ("|◀"), "slideshow control first",
           [this] { go (0); });
     tool (row, QStringLiteral ("◀"), "slideshow control previous",
-          [this] { go (std::max (0, page_-1)); });
+          [this] { previous (); });
     tool (row, QStringLiteral ("▶"), "slideshow control next",
           [this] { next (); });
     tool (row, QStringLiteral ("▶|"), "slideshow control last",
@@ -316,14 +385,25 @@ class QTMSlideshowWindow final: public QWidget {
                             (nearBottom && nearControls));
   }
 
-  void go (int index) {
+  void go (int index, bool atEnd= false) {
     if (index < 0 || index >= count_) return;
+    motion_.stop ();
+    previousImage_= canvas_ ? canvas_->currentImage () : QImage ();
+    transitionRunning_= false;
+    enterAtEnd_= atEnd;
+    pageLoaded_= false;
+    completed_= 0;
+    elapsed_= -1;
+    timeline_.reset ();
     finished_= false;
     page_= index;
     pan_= {};
     zoom_= 1.0;
     blackout_= false;
     pointerVisible_= false;
+    auto found= images_.constFind (page_);
+    if (found != images_.cend ()) enterScene (found->scene);
+    else { canvas_->hide (); presenterImage_= {}; }
     if (progress_) progress_->setValue (page_+1);
     if (pageCount_) pageCount_->setText (
       QStringLiteral ("%1/%2").arg (page_+1).arg (count_));
@@ -336,6 +416,16 @@ class QTMSlideshowWindow final: public QWidget {
   }
 
   void next () {
+    if (finished_) { close (); return; }
+    if (!pageLoaded_) return;
+    if (motion_.state () == QAbstractAnimation::Running) {
+      motion_.setCurrentTime (motion_.duration ());
+      return;
+    }
+    if (timeline_ && completed_ < int (timeline_->batches ().size ())) {
+      startBatch ();
+      return;
+    }
     if (page_+1 < count_) go (page_+1);
     else {
       finished_= true;
@@ -415,6 +505,12 @@ protected:
   void paintEvent (QPaintEvent*) override {
     QPainter painter (this);
     painter.fillRect (rect (), QColor (14, 16, 20));
+    if (canvas_) {
+      canvas_->setVisible (pageLoaded_ && !finished_ && !blackout_);
+      canvas_->setView (zoom_, pan_, finished_ || blackout_);
+      canvas_->rootObject ()->setProperty ("pointerVisible", pointerVisible_);
+      canvas_->rootObject ()->setProperty ("pointerPosition", pointerPosition_);
+    }
     if (finished_) {
       painter.setPen (Qt::white);
       QFont font= painter.font ();
@@ -435,6 +531,7 @@ protected:
                         tr ("Rendering slide %1…").arg (page_+1));
       return;
     }
+    if (pageLoaded_) return;
     const QImage& pixels= found->pixels;
     const double factor= std::min (double (width ())/pixels.width (),
                                    double (height ())/pixels.height ());
@@ -456,7 +553,13 @@ protected:
   }
 
   void keyPressEvent (QKeyEvent* event) override {
-    if (finished_) { close (); return; }
+    if (finished_) {
+      if (event->key () == Qt::Key_Left || event->key () == Qt::Key_Up ||
+          event->key () == Qt::Key_PageUp || event->key () == Qt::Key_Backspace)
+        go (count_-1, true);
+      else close ();
+      return;
+    }
     const Qt::KeyboardModifiers mods= event->modifiers () &
       (Qt::ControlModifier | Qt::ShiftModifier | Qt::AltModifier | Qt::MetaModifier);
     if (mods == Qt::ControlModifier && event->key () == Qt::Key_G) {
@@ -474,7 +577,8 @@ protected:
     case Qt::Key_PageDown: next (); return;
     case Qt::Key_Left:
     case Qt::Key_Up:
-    case Qt::Key_PageUp: go (std::max (0, page_-1)); return;
+    case Qt::Key_Backspace:
+    case Qt::Key_PageUp: previous (); return;
     case Qt::Key_Home: go (0); return;
     case Qt::Key_End: go (count_-1); return;
     case Qt::Key_B:
@@ -490,11 +594,11 @@ protected:
     if (finished_) { event->accept (); return; }
     QMenu menu (this);
     QAction* first= menu.addAction (tr ("First slide"));
-    QAction* previous= menu.addAction (tr ("Previous slide"));
-    QAction* nextAction= menu.addAction (tr ("Next slide"));
+    QAction* previous= menu.addAction (tr ("Previous step"));
+    QAction* nextAction= menu.addAction (tr ("Next step"));
     QAction* last= menu.addAction (tr ("Last slide"));
     first->setEnabled (page_ > 0);
-    previous->setEnabled (page_ > 0);
+    previous->setEnabled (page_ > 0 || completed_ > 0 || motion_.state () == QAbstractAnimation::Running);
     last->setEnabled (page_+1 < count_);
     menu.addSeparator ();
     QAction* jump= menu.addAction (tr ("Go to slide…  Ctrl+G"));
@@ -513,7 +617,7 @@ protected:
     QAction* exit= menu.addAction (tr ("End slideshow  Esc"));
     const QAction* chosen= menu.exec (event->globalPos ());
     if (chosen == first) go (0);
-    else if (chosen == previous) go (std::max (0, page_-1));
+    else if (chosen == previous) this->previous ();
     else if (chosen == nextAction) this->next ();
     else if (chosen == last) go (count_-1);
     else if (chosen == jump) jumpDialog ();
@@ -549,6 +653,7 @@ protected:
       event->accept ();
       return;
     }
+    if (event->button () == Qt::LeftButton) { next (); event->accept (); return; }
     QWidget::mouseReleaseEvent (event);
   }
 
@@ -558,7 +663,7 @@ protected:
                   event->position ());
     }
     else if (event->angleDelta ().y () < 0) next ();
-    else if (event->angleDelta ().y () > 0) go (std::max (0, page_-1));
+    else if (event->angleDelta ().y () > 0) previous ();
     event->accept ();
   }
 
@@ -575,13 +680,13 @@ protected:
 
   void resizeEvent (QResizeEvent* event) override {
     QWidget::resizeEvent (event);
+    if (canvas_) canvas_->setGeometry (rect ());
     positionControls ();
     resizeDebounce_.start ();
   }
 
   void closeEvent (QCloseEvent* event) override {
-    if (raster_) raster_->retire ();
-    raster_.reset ();
+    motion_.stop ();
     // Restore the editor at the slide last presented, without permitting any
     // editing inside the separate read-only projection window.
     (void) buffer_actor::try_submit_to (
@@ -607,8 +712,7 @@ public:
     page_ (std::clamp (initial, 0, count-1)),
     panZoom_ (slideshow_option ("slideshow pan zoom", "off")),
     visibility_ (slideshow_setting ("slideshow controls visibility", "hover")),
-    location_ (slideshow_setting ("slideshow controls location", "center")),
-    raster_ (QTMRenderConnection::create ()) {
+    location_ (slideshow_setting ("slideshow controls location", "center")) {
     static std::atomic<std::uint64_t> nextSession {1};
     session_= nextSession.fetch_add (1, std::memory_order_relaxed);
     presenterTimer_.start ();
@@ -622,6 +726,26 @@ public:
     // dark while their inherited label/button text remained dark as well.
     // Keep native dialog palettes intact instead of theming the whole subtree.
     resize (1280, 720);
+    canvas_= new QTMSlideCanvas (this);
+    if (canvas_->status () == QQuickWidget::Error)
+      throw std::runtime_error ("Could not load slideshow compositor");
+    canvas_->setGeometry (rect ());
+    canvas_->hide ();
+    connect (&motion_, &QVariantAnimation::valueChanged, this, [this] (const QVariant& value) {
+      if (transitionRunning_) canvas_->setProgress (value.toReal ());
+      else { elapsed_= value.toInt (); showMotionState (false); }
+    });
+    connect (&motion_, &QVariantAnimation::finished, this, [this] {
+      if (transitionRunning_) {
+        transitionRunning_= false;
+        canvas_->setProgress (1);
+        if (timeline_ && !timeline_->batches ().empty () && timeline_->batches ()[0].automatic) startBatch ();
+      }
+      else {
+        ++completed_; elapsed_= -1; showMotionState ();
+      }
+      broadcastPresenter ();
+    });
     resizeDebounce_.setSingleShot (true);
     resizeDebounce_.setInterval (180);
     connect (&resizeDebounce_, &QTimer::timeout, this, [this] {
@@ -651,7 +775,7 @@ public:
   bool presenterAction (const QString& command, const QJsonObject& args) {
     if (command == QStringLiteral ("next")) next ();
     else if (command == QStringLiteral ("previous"))
-      go (std::max (0, page_-1));
+      previous ();
     else if (command == QStringLiteral ("first")) go (0);
     else if (command == QStringLiteral ("last")) go (count_-1);
     else if (command == QStringLiteral ("jump")) {
@@ -691,9 +815,29 @@ public:
     broadcastPresenter ();
     return true;
   }
+
+  void acceptScene (athena_actor_id actor, athena_view_id view,
+                    std::uint64_t session, std::uint64_t serial, int index,
+                    QSize requested, std::shared_ptr<const QTMSlideScene> scene) {
+    if (actor != actor_ || view != view_ || session != session_ ||
+        serial != pendingSerial_ || index != pendingPage_) return;
+    images_.insert (index, {scene->full, requested, scene});
+    pendingPage_= -1;
+    if (index == page_) enterScene (std::move (scene));
+    update ();
+    syncPanorama ();
+    broadcastPresenter ();
+  }
 };
 
 } // namespace
+
+void qtm_slideshow_accept_scene (athena_actor_id actor, athena_view_id view,
+  std::uint64_t session, std::uint64_t serial, int index, QSize requested,
+  std::shared_ptr<const QTMSlideScene> scene) {
+  for (auto& window: presenter_windows)
+    if (window) window->acceptScene (actor, view, session, serial, index, requested, scene);
+}
 
 void
 qtm_slideshow_open (athena_actor_id actor, athena_view_id view,
@@ -702,7 +846,10 @@ qtm_slideshow_open (athena_actor_id actor, athena_view_id view,
     return;
   // Explicitly separate top-level window. Never reparent or replace the
   // original Buffer Editor, which remains a normal editable document.
-  new QTMSlideshowWindow (actor, view, page_count, initial_page);
+  try { new QTMSlideshowWindow (actor, view, page_count, initial_page); }
+  catch (const std::exception& failure) {
+    QMessageBox::warning (QApplication::activeWindow (), "Slideshow", QString::fromUtf8 (failure.what ()));
+  }
 }
 
 void

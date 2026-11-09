@@ -19,6 +19,7 @@
 #include "scalable.hpp"
 #include "spacial.hpp"
 #include <string_view>
+#include <functional>
 
 namespace athena::text { struct shaped_text; }
 
@@ -64,6 +65,8 @@ public:
   // Borrowed context; the caller retains it and its box throughout a repaint.
   const image_box_preview* image_preview= nullptr;
   const box_rep* editing_diagram= nullptr;
+  // Optional retained-scene capture. Source paths stay typesetter-owned.
+  std::function<void (const path&)> source_paint;
 
 public:
   renderer_rep (bool screen_flag, double pixel_ratio= 1);

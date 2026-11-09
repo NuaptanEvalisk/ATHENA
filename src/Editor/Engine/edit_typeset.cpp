@@ -13,6 +13,7 @@
 #include "boot.hpp"
 #include <stdexcept>
 #include "Editor/Engine/edit_typeset.hpp"
+#include "Document/Model/slide_page.hpp"
 #include "Typesetting/prooftrack_presentation.hpp"
 #include "heading_word_count.hpp"
 #include "App/Runtime/tm_buffer.hpp"
@@ -952,6 +953,9 @@ edit_typeset_rep::thumbnail_page_box (int index) {
 
 void
 edit_typeset_rep::prepare_slideshow_pages () {
+  slideshow_motion.clear ();
+  for (tree page: athena::slides::source_pages (subtree (et, rp)).pages)
+    slideshow_motion.push_back (athena::slides::motion::describe (page, reverse (obtain_ip (page))));
   // Freeze a clean presentation once per playback, without changing the live
   // editing environment, field slots or reference/auxiliary records.
   typeset_preamble ();

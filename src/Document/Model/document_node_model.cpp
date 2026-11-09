@@ -16,6 +16,7 @@
 #include "Document/Model/document_node_copy.hpp"
 #include "Domains/Knowledge/enunciation_model.hpp"
 #include "Document/Model/program_model.hpp"
+#include "Document/Model/slide_motion.hpp"
 #include "unicode_text.hpp"
 
 #include <algorithm>
@@ -521,6 +522,10 @@ public:
   explicit property_validator (limits limit): budget {limit} {}
 
   std::vector<diagnostic> inspect (const tree& source) {
+    try { athena::slides::motion::validate (source); }
+    catch (const std::exception& failure) {
+      error (issue::invalid_property_value, "athena:animations", failure.what ());
+    }
     const bool enunciation= canonical_enunciation (source);
     const bool program= athena::program::is_program (source);
     if (enunciation && (N(source) != 1 || !is_func (source[0], DOCUMENT)))

@@ -201,6 +201,7 @@ page_box_rep::display_background (renderer ren) {
 void
 page_box_rep::redraw_background (renderer ren) {
   ren->move_origin (x0, y0);
+  if (ren->source_paint) ren->source_paint (ip);
   display_background (ren);
   ren->move_origin (-x0, -y0);
 }

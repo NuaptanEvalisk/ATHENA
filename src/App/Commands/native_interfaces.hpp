@@ -94,6 +94,7 @@ tree tree_child_insert (tree t, int pos, tree x);
 tree tree_rebuild (tree source, array<tree> children);
 string tree_node_id (tree source);
 bool node_properties_show (tree source);
+void animations_pane_show ();
 tree tree_duplicate_source (tree source);
 tree tree_assign (tree r, tree t);
 // Exact target, including metadata. Content-only callers must explicitly

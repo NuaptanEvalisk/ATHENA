@@ -629,6 +629,7 @@ box_rep::redraw (renderer ren, path p, rectangles& l) {
   if (ren->is_visible (x3- delta, y3- delta, x4+ delta, y4+ delta)) {
     rectangles ll;
     l= rectangles();
+    if (ren->source_paint) ren->source_paint (ip);
     pre_display (ren);
     
     int i, item=-1, n=subnr (), i1= n, i2= -1;
@@ -656,12 +657,14 @@ box_rep::redraw (renderer ren, path p, rectangles& l) {
     }
     else {
       l= rectangle (x3+ ren->ox, y3+ ren->oy, x4+ ren->ox, y4+ ren->oy);
+      if (ren->source_paint) ren->source_paint (ip);
       display (ren);
       if (!ren->is_screen) display_links (ren);
       if (nr_painted < 15) ren->apply_shadow (x1, y1, x2, y2);
       nr_painted++;
     }
 
+    if (ren->source_paint) ren->source_paint (ip);
     post_display (ren);
   }
   ren->move_origin (-x0, -y0);
@@ -697,6 +700,7 @@ box_rep::display_background (renderer ren) {
 void
 box_rep::redraw_background (renderer ren) {
   ren->move_origin (x0, y0);
+  if (ren->source_paint) ren->source_paint (ip);
   display_background (ren);
   int i, n=subnr ();
   for (i=0; i<n; i++)

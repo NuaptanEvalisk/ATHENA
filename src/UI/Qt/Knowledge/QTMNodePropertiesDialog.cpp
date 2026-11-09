@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "UI/Qt/Knowledge/QTMNodePropertiesDialog.hpp"
+#include "UI/Qt/Document/QTMSlideMotionProperties.hpp"
 #include "boot.hpp"
 #include "Document/Model/document_node_model.hpp"
 #include "Domains/Knowledge/enunciation_model.hpp"
@@ -237,10 +238,12 @@ class NodeDialog: public QDialog {
   QLabel* error;
   QDialogButtonBox* buttons;
   bool applying= false;
+  QTMSlideMotionProperties* motion= nullptr;
 public:
   NodeDialog (std::string snapshot, bool canonical, bool writable,
               node_property_submit commit, QWidget* parent,
-              std::shared_ptr<const athena::contracts::detached_environment> context):
+              std::shared_ptr<const athena::contracts::detached_environment> context,
+              bool in_slide, const std::vector<athena::slides::motion::event_frame>& frames):
     QDialog (parent), environment (std::move (context)), submit (std::move (commit)) {
     auto decoded= decode_node_property_snapshot (snapshot);
     header= std::move (decoded.header);
@@ -265,6 +268,11 @@ public:
     identity->addRow ("UUID:", id);
     content->addLayout (identity);
     if (canonical) buildFields (content, body, writable);
+    if (in_slide) {
+      motion= new QTMSlideMotionProperties (header, frames, body);
+      motion->setEnabled (writable);
+      content->addWidget (motion);
+    }
     auto* details= new QTreeWidget (body);
     details->setObjectName ("node-property-inspector");
     details->setHeaderLabels ({"Property", "Type", "Value"});
@@ -286,7 +294,7 @@ public:
     error->setTextFormat (Qt::PlainText);
     error->setWordWrap (true);
     layout->addWidget (error);
-    buttons= new QDialogButtonBox (canonical && writable ?
+    buttons= new QDialogButtonBox ((canonical || in_slide) && writable ?
       QDialogButtonBox::Ok | QDialogButtonBox::Cancel : QDialogButtonBox::Close, this);
     layout->addWidget (buttons);
     connect (buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
@@ -398,26 +406,30 @@ private:
   }
   void apply () {
     try {
-      node::metadata metadata= *node::get (header);
+      node::metadata metadata= node::get (header) ? *node::get (header) : node::metadata {};
       auto& p= metadata.properties;
-      p["kind"]= node::property (utf8 (kind->currentText ()));
-      p["name"]= name->value ();
-      p["numbered"]= node::property (numbered->isChecked ());
-      const auto optionalText= [&] (const char* key, const QString& value) {
-        const auto* old= field<std::string> (header, key);
-        if (value == (old ? qs (*old) : QString ())) return;
-        if (value.isEmpty ()) p.erase (key);
-        else p[key]= node::property (utf8 (value));
-      };
-      optionalText ("year", year->text ());
-      optionalText ("variant", variant->currentText ());
-      if (target->text ().isEmpty ()) p.erase ("target");
-      else p["target"]= node::property (node::reference {utf8 (target->text ())});
-      node::property::list names;
-      for (const auto& author: authorValues) names.emplace_back (node::rich_text {copy (author)});
-      if (!names.empty () || p.count ("attribution")) p["attribution"]= node::property (std::move (names));
+      if (kind) {
+        p["kind"]= node::property (utf8 (kind->currentText ()));
+        p["name"]= name->value ();
+        p["numbered"]= node::property (numbered->isChecked ());
+        const auto optionalText= [&] (const char* key, const QString& value) {
+          const auto* old= field<std::string> (header, key);
+          if (value == (old ? qs (*old) : QString ())) return;
+          if (value.isEmpty ()) p.erase (key);
+          else p[key]= node::property (utf8 (value));
+        };
+        optionalText ("year", year->text ());
+        optionalText ("variant", variant->currentText ());
+        if (target->text ().isEmpty ()) p.erase ("target");
+        else p["target"]= node::property (node::reference {utf8 (target->text ())});
+        node::property::list names;
+        for (const auto& author: authorValues) names.emplace_back (node::rich_text {copy (author)});
+        if (!names.empty () || p.count ("attribution")) p["attribution"]= node::property (std::move (names));
+      }
+      if (motion) motion->write (metadata);
       tree changed= model::property_header (header);
       node::set (changed, metadata);
+      athena::slides::motion::validate (changed);
       buttons->setEnabled (false);
       applying= true;
       error->clear ();
@@ -466,6 +478,16 @@ void commit (PropertyRequest request, std::string desired, node_property_complet
           throw std::runtime_error ("The document storage version has changed");
         tree scope= context->editor->the_buffer ();
         auto where= context->actor->current_state ()->interop_nodes ().locate (scope, request.lease);
+        athena::slides::motion::validate (replacement.header);
+        tree ancestor= scope;
+        for (int i: where) {
+          ancestor= ancestor[i];
+          if (is_func (ancestor, SLIDE_PAGE)) break;
+        }
+        const auto frames= athena::slides::motion::read_frames (ancestor);
+        for (const auto& effect: athena::slides::motion::read_effects (replacement.header))
+          if (std::none_of (frames.begin (), frames.end (), [&] (const auto& f) { return f.id == effect.frame; }))
+            throw std::runtime_error ("Animation frame no longer exists on this slide");
         auto prepared= model::prepare_property_replacement (scope, where,
           expected.header, replacement.header);
         if (!prepared.ok ()) error= prepared.diagnostics.front ().detail;
@@ -538,9 +560,10 @@ node_property_snapshot decode_node_property_snapshot (const std::string& bytes) 
 
 QDialog* make_node_properties_dialog (std::string snapshot, bool canonical, bool writable,
                                       node_property_submit submit, QWidget* parent,
-                                      std::shared_ptr<const athena::contracts::detached_environment> environment) {
+                                      std::shared_ptr<const athena::contracts::detached_environment> environment,
+                                      bool in_slide, std::vector<athena::slides::motion::event_frame> frames) {
   return new NodeDialog (std::move (snapshot), canonical, writable, std::move (submit),
-                        parent, std::move (environment));
+                        parent, std::move (environment), in_slide, frames);
 }
 
 bool node_properties_show (tree source) {
@@ -573,18 +596,29 @@ bool node_properties_show (tree source) {
       encode_node_property_snapshot (source, context->actor->current_state ()->storage_version)};
     bool canonical= en::is_canonical (source) && model::validate_node_properties (source).empty ();
     bool writable= !context->actor->current_state ()->read_only;
+    bool in_slide= false;
+    std::vector<athena::slides::motion::event_frame> frames;
+    for (path p= absolute; root <= p; p= path_up (p)) {
+      tree ancestor= context->editor->the_subtree (p);
+      if (is_func (ancestor, SLIDE_PAGE)) {
+        in_slide= true;
+        frames= athena::slides::motion::read_frames (ancestor);
+        break;
+      }
+      if (p == root) break;
+    }
     const auto prepared= context->editor->cursor_context_at (absolute * 0, {});
     if (writable && canonical && !prepared) {
       context->editor->set_message ("Node properties", "Source context is not ready", true);
       return false;
     }
     auto environment= prepared ? prepared->detach () : nullptr;
-    qt_post_to_main_thread ([request= std::move (request), canonical, writable, environment] {
+    qt_post_to_main_thread ([request= std::move (request), canonical, writable, environment, in_slide, frames] {
       try {
         auto* dialog= make_node_properties_dialog (request.snapshot, canonical, writable,
           [request] (std::string desired, node_property_completion complete) {
             commit (request, std::move (desired), std::move (complete));
-          }, QApplication::activeWindow (), environment);
+          }, QApplication::activeWindow (), environment, in_slide, frames);
         dialog->setAttribute (Qt::WA_DeleteOnClose);
         dialog->setWindowModality (Qt::WindowModal);
         dialog->show ();

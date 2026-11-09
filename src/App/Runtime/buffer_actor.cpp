@@ -57,6 +57,7 @@
 #include "QTMRenderService.hpp"
 #include "UI/Qt/Document/QTMThumbnailsPane.hpp"
 #include "UI/Qt/Document/QTMSlideshowWindow.hpp"
+#include "UI/Qt/Document/QTMSlideScene.hpp"
 #include "qt_renderer.hpp"
 #include <QJsonDocument>
 #include <QPainter>
@@ -2054,39 +2055,12 @@ buffer_actor::dispatch (actor_command_record& command) {
     const int availableHeight= static_cast<int> (command.argument[3]);
     if (availableWidth <= 0 || availableHeight <= 0 ||
         availableWidth > 16384 || availableHeight > 16384) break;
-    const auto manifest= make_thumbnail_manifest (editor, typeset);
-    if (index < 0 || index >= static_cast<int> (manifest.pages.size ())) break;
-    const auto target= typeset->slideshow_page_box (index);
-    box page= target.page;
-    if (is_nil (page)) break;
-    const double pageWidth= double (page->x2-page->x1);
-    const double pageHeight= double (page->y2-page->y1);
-    if (pageWidth <= 0 || pageHeight <= 0) break;
-    const double scale= std::min (
-      double (availableWidth)/pageWidth, double (availableHeight)/pageHeight);
-    const int width= std::max (1, int (std::ceil (pageWidth*scale)));
-    const int height= std::max (1, int (std::ceil (pageHeight*scale)));
-    const tree bg= effective_document_background (
-      typeset->get_init_value ("bg-color"));
-    brush colorBrush (bg);
-    int red, green, blue, alpha;
-    get_rgb_color (colorBrush->get_color (), red, green, blue, alpha);
-    const std::uint32_t argb=
-      (std::uint32_t (alpha)<<24) | (std::uint32_t (red)<<16) |
-      (std::uint32_t (green)<<8) | std::uint32_t (blue);
-    auto recording= qtm_begin_render_recording (
-      command.argument[1], width, height, 1.0, argb,
-      command.argument[4], command.argument[5],
-      render_damage {0, 0, width, height}, 0, 0, true);
-    if (!recording) break;
-    QPainter painter;
-    qt_renderer_rep renderer (&painter, 1.0, width, height, true);
-    renderer.begin (recording->device ());
-    renderer.set_zoom_factor (scale * std_shrinkf * PIXEL, false);
-    renderer.set_background (bg);
-    (void) typeset->paint_thumbnail_page (&renderer, target);
-    renderer.end ();
-    (void) recording->finish ();
+    const QSize requested (availableWidth, availableHeight);
+    qtm_record_slide_scene (*typeset, index, requested,
+      [actor=id_, view=command.view_id, session=command.argument[4],
+       serial=command.argument[5], index, requested] (auto scene) {
+        qtm_slideshow_accept_scene (actor, view, session, serial, index, requested, std::move (scene));
+      });
 #endif
     break;
   }

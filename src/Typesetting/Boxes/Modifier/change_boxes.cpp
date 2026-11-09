@@ -405,6 +405,7 @@ extern int nr_painted;
 
 void
 effect_box_rep::redraw (renderer ren, path p, rectangles& l) {
+  if (ren->source_paint) ren->source_paint (ip);
   (void) p; (void) l;
   if (((nr_painted&15) == 15) && gui_interrupted (true)) return;
   ren->move_origin (x0, y0);

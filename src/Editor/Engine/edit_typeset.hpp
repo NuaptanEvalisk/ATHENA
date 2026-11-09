@@ -17,6 +17,7 @@
 #include "hashset.hpp"
 #include "heading_word_count.hpp"
 #include "App/Runtime/thumbnail_snapshot.hpp"
+#include "Document/Model/slide_motion.hpp"
 
 class document_rep;
 class evaluation_environment_checkpoint;
@@ -37,6 +38,7 @@ protected:
   // Advances when the owning editor actually produces a new box layout.
   std::uint64_t thumbnail_layout_revision_= 1;
   box slideshow_pages;
+  std::vector<athena::slides::motion::page> slideshow_motion;
   hashmap<string,tree> init;              // environment changes w.r.t. style
   hashmap<string,tree> fin;               // environment changes w.r.t. doc
   hashmap<string,tree> grefs;             // global references
@@ -157,6 +159,7 @@ public:
   thumbnail_paint_target thumbnail_page_box (int index);
   void prepare_slideshow_pages ();
   thumbnail_paint_target slideshow_page_box (int index);
+  const std::vector<athena::slides::motion::page>& slideshow_motion_pages () const { return slideshow_motion; }
   bool paint_thumbnail_page (renderer ren, const thumbnail_paint_target& target);
   SI       get_page_width (bool deco);
   SI       get_pages_width (bool deco);

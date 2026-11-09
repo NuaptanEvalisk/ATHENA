@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <commands version="1" prefix="" initializer="initialize_commands_native">
   <binding name="native-dialogue-initialize" native="interactive_startup" returns="void" />
+  <binding name="animations-pane-show" native="animations_pane_show" returns="void" dispatch="ui" />
   <binding name="set-preference" native="application_preference_set" returns="void"><arg type="string" /><arg type="string" /></binding>
   <binding name="reset-preference" native="application_preference_reset" returns="void"><arg type="string" /></binding>
   <binding name="toggle-preference" native="application_preference_toggle" returns="void"><arg type="string" /></binding>

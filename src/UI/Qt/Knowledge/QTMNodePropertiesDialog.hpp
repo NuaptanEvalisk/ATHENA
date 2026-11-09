@@ -12,6 +12,7 @@
 #include <memory>
 #include <string>
 #include "Document/Convert/Xml/athena_document_xml.hpp"
+#include "Document/Model/slide_motion.hpp"
 
 class QDialog;
 class QWidget;
@@ -37,7 +38,9 @@ node_property_snapshot decode_node_property_snapshot (const std::string&);
 QDialog* make_node_properties_dialog (
   std::string snapshot, bool canonical, bool writable,
   node_property_submit submit, QWidget* parent= nullptr,
-  std::shared_ptr<const athena::contracts::detached_environment> environment= {});
+  std::shared_ptr<const athena::contracts::detached_environment> environment= {},
+  bool in_slide= false,
+  std::vector<athena::slides::motion::event_frame> frames= {});
 
 // Called from the owning BufferActor, with the actual attached focus node.
 bool node_properties_show (tree source);
