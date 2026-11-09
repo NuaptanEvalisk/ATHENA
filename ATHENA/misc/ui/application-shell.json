@@ -55,7 +55,7 @@
     {
       "id": "application.preferences",
       "label": "Preferences...",
-      "category": "File",
+      "category": "Edit",
       "icon": "preferences-system",
       "help": "Open ATHENA preferences"
     },
@@ -178,7 +178,7 @@
     {
       "id": "view.artifacts",
       "dock": "athena-artifacts",
-      "label": "Artifacts",
+      "label": "Artifacts manager",
       "category": "View",
       "icon": "view-list-details",
       "help": "Show artifacts for the active vault"
@@ -253,7 +253,7 @@
     {
       "id": "file.export-namespace",
       "label": "Export namespace",
-      "category": "File",
+      "category": "Workspace",
       "icon": "document-export",
       "help": "Export a namespace from the active vault"
     },
@@ -316,7 +316,7 @@
     },
     {
       "id": "workspace.artifacts-build-vault",
-      "label": "Build entire vault",
+      "label": "Build artifacts for vault",
       "category": "Workspace",
       "icon": "system-run",
       "help": "Rebuild artifacts for the active vault"
@@ -839,10 +839,6 @@
           ]
         },
         { "separator": true },
-        { "command": "file.export-namespace" },
-        { "separator": true },
-        { "command": "application.preferences" },
-        { "separator": true },
         { "command": "editor.close-document" },
         { "command": "file.restart" },
         { "command": "application.quit" }
@@ -910,6 +906,7 @@
         },
         { "command": "editor.clear-undo-history" },
         { "command": "application.view-all-preferences" },
+        { "command": "application.preferences" },
         { "separator": true },
         { "command": "namespace.copy" },
         { "command": "namespace.paste" },
@@ -2265,35 +2262,18 @@
         { "command": "workspace.vault-explorer" },
         { "command": "workspace.namespace-explorer" },
         { "command": "workspace.namespace-manager" },
+        { "command": "file.export-namespace" },
         { "command": "application.hodarium" },
         { "command": "workspace.cache-manager" },
-        {
-          "submenu": "workspace-managers",
-          "label": "Managers",
-          "items": [
-            { "command": "workspace.websites-manager" },
-            { "command": "workspace.materials-manager" },
-            { "command": "workspace.custom-styles-manager" }
-          ]
-        },
-        {
-          "submenu": "workspace-artifacts",
-          "label": "Artifacts",
-          "items": [
-            { "command": "view.artifacts" },
-            { "command": "workspace.artifacts-build-vault" }
-          ]
-        },
+        { "command": "workspace.websites-manager" },
+        { "command": "workspace.materials-manager" },
+        { "command": "workspace.custom-styles-manager" },
+        { "command": "view.artifacts" },
+        { "command": "workspace.artifacts-build-vault" },
         { "separator": true },
         { "command": "workspace.audmap-repl" },
         { "command": "workspace.google-tasks" },
-        {
-          "submenu": "workspace-vault",
-          "label": "Vault",
-          "items": [
-            { "command": "workspace.vault-maintenance" }
-          ]
-        }
+        { "command": "workspace.vault-maintenance" }
       ]
     },
     {
