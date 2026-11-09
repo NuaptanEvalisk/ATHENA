@@ -556,7 +556,22 @@ edit_select_rep::compute_selection (range_set sel) {
   rectangles rs;
   for (int i=0; i+1<N(sel); i+=2) {
     selection ssel= compute_selection (sel[i], sel[i+1], navigation);
-    if (ssel->valid) rs << ssel->rs;
+    if (ssel->valid && !is_nil (ssel->rs)) rs << ssel->rs;
+    else if (!is_nil (eb) && eb->subnr () > 0 &&
+             sel[i] == rp * 0 &&
+             sel[i+1] == rp * right_index (the_buffer ())) {
+      // Select All spans the entire source document, but its outer 0/1
+      // boundaries need not be exposed by the visible box tree. This is
+      // especially true for Beamer: only the active screen is typeset, so
+      // find_check_selection marks the document-wide range as unmappable.
+      // Keep the source range (and therefore copy/cut semantics) unchanged;
+      // recover the painted part from the actual first/last displayed boxes.
+      // Those recursive box paths produce text selection geometry rather than
+      // a blanket fill over the entire paper/screen background.
+      const path first= eb->find_left_box_path ();
+      const path last= eb->find_right_box_path ();
+      rs << eb->find_selection (first, last)->rs;
+    }
   }
   return selection (rs, start (sel), end (sel));
 }

@@ -939,6 +939,107 @@
       }
     },
     {
+      "key": "slideshow display",
+      "type": "choice",
+      "scope": "active",
+      "default": "fullscreen",
+      "ui": {
+        "category": "Rendering", "tab": "Slideshow", "section": "Slideshow",
+        "order": 0, "label": "Presentation window", "control": "choice",
+        "category_order": 3, "tab_order": 0, "section_order": 0,
+        "choices": [
+          {"value": "fullscreen", "label": "Full screen"},
+          {"value": "window", "label": "Normal window"}
+        ]
+      }
+    },
+    {
+      "key": "slideshow controls visibility",
+      "type": "choice", "scope": "active", "default": "hover",
+      "ui": {
+        "category": "Rendering", "tab": "Slideshow", "section": "Slideshow",
+        "order": 1, "label": "On-screen controls", "control": "choice",
+        "category_order": 3, "tab_order": 0, "section_order": 0,
+        "choices": [
+          {"value": "never", "label": "Never show"},
+          {"value": "always", "label": "Always show"},
+          {"value": "hover", "label": "Show when pointer approaches"}
+        ]
+      }
+    },
+    {
+      "key": "slideshow controls location",
+      "type": "choice", "scope": "active", "default": "center",
+      "ui": {
+        "category": "Rendering", "tab": "Slideshow", "section": "Slideshow",
+        "order": 2, "label": "Control bar position", "control": "choice",
+        "category_order": 3, "tab_order": 0, "section_order": 0,
+        "choices": [
+          {"value": "left", "label": "Bottom left"},
+          {"value": "right", "label": "Bottom right"},
+          {"value": "center", "label": "Bottom center"}
+        ]
+      }
+    },
+    {
+      "key": "slideshow pan zoom",
+      "type": "boolean", "scope": "active", "default": "off",
+      "ui": {
+        "category": "Rendering", "tab": "Slideshow", "section": "Slideshow",
+        "order": 3, "label": "Allow pan and zoom gestures", "control": "toggle",
+        "category_order": 3, "tab_order": 0, "section_order": 0
+      }
+    },
+    {
+      "key": "slideshow control first",
+      "type": "boolean", "scope": "active", "default": "on",
+      "ui": {"category": "Rendering", "tab": "Slideshow", "section": "Slideshow Controls",
+              "order": 0, "label": "First slide", "control": "toggle",
+              "category_order": 3, "tab_order": 0, "section_order": 1}
+    },
+    {
+      "key": "slideshow control previous",
+      "type": "boolean", "scope": "active", "default": "on",
+      "ui": {"category": "Rendering", "tab": "Slideshow", "section": "Slideshow Controls",
+              "order": 1, "label": "Previous slide", "control": "toggle",
+              "category_order": 3, "tab_order": 0, "section_order": 1}
+    },
+    {
+      "key": "slideshow control next",
+      "type": "boolean", "scope": "active", "default": "on",
+      "ui": {"category": "Rendering", "tab": "Slideshow", "section": "Slideshow Controls",
+              "order": 2, "label": "Next slide", "control": "toggle",
+              "category_order": 3, "tab_order": 0, "section_order": 1}
+    },
+    {
+      "key": "slideshow control last",
+      "type": "boolean", "scope": "active", "default": "on",
+      "ui": {"category": "Rendering", "tab": "Slideshow", "section": "Slideshow Controls",
+              "order": 3, "label": "Last slide", "control": "toggle",
+              "category_order": 3, "tab_order": 0, "section_order": 1}
+    },
+    {
+      "key": "slideshow control go to",
+      "type": "boolean", "scope": "active", "default": "on",
+      "ui": {"category": "Rendering", "tab": "Slideshow", "section": "Slideshow Controls",
+              "order": 4, "label": "Go to slide", "control": "toggle",
+              "category_order": 3, "tab_order": 0, "section_order": 1}
+    },
+    {
+      "key": "slideshow control panorama",
+      "type": "boolean", "scope": "active", "default": "on",
+      "ui": {"category": "Rendering", "tab": "Slideshow", "section": "Slideshow Controls",
+              "order": 5, "label": "Panorama", "control": "toggle",
+              "category_order": 3, "tab_order": 0, "section_order": 1}
+    },
+    {
+      "key": "slideshow control progress",
+      "type": "boolean", "scope": "active", "default": "on",
+      "ui": {"category": "Rendering", "tab": "Slideshow", "section": "Slideshow Controls",
+              "order": 6, "label": "Slide progress bar", "control": "toggle",
+              "category_order": 3, "tab_order": 0, "section_order": 1}
+    },
+    {
       "key": "texmacs->pdf:data-art cover",
       "type": "boolean",
       "scope": "active",

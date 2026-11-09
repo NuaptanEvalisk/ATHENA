@@ -56,6 +56,7 @@
 #include "node_metadata.hpp"
 #include "QTMRenderService.hpp"
 #include "UI/Qt/Document/QTMThumbnailsPane.hpp"
+#include "UI/Qt/Document/QTMSlideshowWindow.hpp"
 #include "qt_renderer.hpp"
 #include <QJsonDocument>
 #include <QPainter>
@@ -67,6 +68,7 @@
 #include <algorithm>
 #include <cstring>
 #include <exception>
+#include <limits>
 #include <unordered_map>
 #include <utility>
 
@@ -1378,6 +1380,11 @@ buffer_actor::dispatch (actor_command_record& command) {
     try {
       native_editor_action_execute (editor, document.object ());
       editor->after_menu_action ();
+      // Ctrl+A changes the selection, not the source tree. Complete its
+      // geometry/invalidation in this same owner turn so the next rendered
+      // frame has selection_rects populated with the configured highlight.
+      if (document.object ().value ("op") == QStringLiteral ("select-all"))
+        editor->apply_changes ();
       editor->publish_editor_command_state ();
       command.argument[0]= 1;
     }
@@ -2058,6 +2065,92 @@ buffer_actor::dispatch (actor_command_record& command) {
     if (index < 0 || index >= static_cast<int> (pages.size ())) break;
     const auto& page= pages[static_cast<std::size_t> (index)];
     interface->scroll_to ((page.x1+page.x2)/2, (page.y1+page.y2)/2);
+    break;
+  }
+  case actor_command_kind::start_slideshow: {
+#ifdef QTTEXMACS
+    auto* typeset= dynamic_cast<edit_typeset_rep*> (editor);
+    if (!typeset || !editor->ui_endpoint) break;
+    const auto manifest= make_thumbnail_manifest (editor, typeset);
+    if (manifest.pages.empty ()) break;
+    int initial= 0;
+    if (command.argument[0]) {
+      initial= static_cast<int> (manifest.active);
+      if (!(manifest.flags & THUMBNAIL_MANIFEST_SLIDES)) {
+        const actor_viewport_snapshot vp= editor->ui_endpoint->viewport ();
+        const double zoom= editor->ui_endpoint->zoom_factor ();
+        const double mag= zoom/std_shrinkf;
+        if (mag > 0 && std::isfinite (mag)) {
+          const double x= (double (vp.visible_x1)+vp.visible_x2)/(2*mag);
+          const double y= (double (vp.visible_y1)+vp.visible_y2)/(2*mag);
+          double best= std::numeric_limits<double>::infinity ();
+          for (int i=0; i<int (manifest.pages.size ()); ++i) {
+            const auto& page= manifest.pages[i];
+            const double dx= x < page.x1 ? page.x1-x :
+                             x > page.x2 ? x-page.x2 : 0;
+            const double dy= y < page.y1 ? page.y1-y :
+                             y > page.y2 ? y-page.y2 : 0;
+            const double distance= dx*dx+dy*dy;
+            if (distance < best) { best= distance; initial= i; }
+          }
+        }
+      }
+    }
+    const int pageCount= static_cast<int> (manifest.pages.size ());
+    (void) editor->ui_endpoint->publish_continuation (
+      [actorId=id_, targetView=command.view_id, pageCount, initial] {
+        qtm_slideshow_open (actorId, targetView, pageCount, initial);
+      });
+#endif
+    break;
+  }
+  case actor_command_kind::render_slideshow_frame: {
+#ifdef QTTEXMACS
+    auto* typeset= dynamic_cast<edit_typeset_rep*> (editor);
+    if (!typeset) break;
+    const int index= static_cast<int> (command.argument[0]);
+    const int availableWidth= static_cast<int> (command.argument[2]);
+    const int availableHeight= static_cast<int> (command.argument[3]);
+    if (availableWidth <= 0 || availableHeight <= 0 ||
+        availableWidth > 16384 || availableHeight > 16384) break;
+    const auto manifest= make_thumbnail_manifest (editor, typeset);
+    if (index < 0 || index >= static_cast<int> (manifest.pages.size ())) break;
+    const auto target= (manifest.flags & THUMBNAIL_MANIFEST_SLIDES) ?
+      (index == static_cast<int> (manifest.active) ?
+        typeset->thumbnail_page_box (0) :
+        typeset->thumbnail_hidden_slide_box (index)) :
+      typeset->thumbnail_page_box (index);
+    box page= target.page;
+    if (is_nil (page)) break;
+    const double pageWidth= double (page->x2-page->x1);
+    const double pageHeight= double (page->y2-page->y1);
+    if (pageWidth <= 0 || pageHeight <= 0) break;
+    const double scale= std::min (
+      double (availableWidth)/pageWidth, double (availableHeight)/pageHeight);
+    const int width= std::max (1, int (std::ceil (pageWidth*scale)));
+    const int height= std::max (1, int (std::ceil (pageHeight*scale)));
+    const tree bg= effective_document_background (
+      typeset->get_init_value ("bg-color"));
+    brush colorBrush (bg);
+    int red, green, blue, alpha;
+    get_rgb_color (colorBrush->get_color (), red, green, blue, alpha);
+    const std::uint32_t argb=
+      (std::uint32_t (alpha)<<24) | (std::uint32_t (red)<<16) |
+      (std::uint32_t (green)<<8) | std::uint32_t (blue);
+    auto recording= qtm_begin_render_recording (
+      command.argument[1], width, height, 1.0, argb,
+      command.argument[4], command.argument[5],
+      render_damage {0, 0, width, height}, 0, 0, true);
+    if (!recording) break;
+    QPainter painter;
+    qt_renderer_rep renderer (&painter, 1.0, width, height, true);
+    renderer.begin (recording->device ());
+    renderer.set_zoom_factor (scale * std_shrinkf * PIXEL, false);
+    renderer.set_background (bg);
+    (void) typeset->paint_thumbnail_page (&renderer, target);
+    renderer.end ();
+    (void) recording->finish ();
+#endif
     break;
   }
   case actor_command_kind::edit_screen: {

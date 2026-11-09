@@ -9,6 +9,7 @@
 #include "UI/Qt/Commands/QTMCommandRegistry.hpp"
 #include "UI/Qt/Commands/QTMCommandRegistryInternal.hpp"
 #include "UI/Qt/Editor/QTMReverseHierarchyGraph.hpp"
+#include "App/Runtime/buffer_actor.hpp"
 #include "boot.hpp"
 #include "vault.hpp"
 
@@ -67,6 +68,42 @@ document_identity (const QTMCommandContext& context) {
 
 void
 QTMCommandRegistry::registerViewMenuCommands () {
+  const auto slideshow_state= [] (const QTMCommandContext& context) {
+    QTMCommandState state;
+    qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+    if (!proxy || !context.lastDocument.has_view ()) return state;
+    const auto editor= proxy->editor_command_state ();
+    const auto document= proxy->document_menu_state ();
+    if (!editor.valid () || !document.ready) return state;
+    const QString mode= qs (document.page_rendering);
+    if (mode != QStringLiteral ("beamer") &&
+        mode != QStringLiteral ("slideshow") &&
+        mode != QStringLiteral ("paper") &&
+        mode != QStringLiteral ("book") &&
+        mode != QStringLiteral ("panorama")) return state;
+    state.available= true;
+    state.enabled= true;
+    return state;
+  };
+  registerBehavior (
+    "view.slideshow-from-beginning", QTMCommandScope::Editor,
+    [slideshow_state] (const QTMCommandContext& context) {
+      if (!slideshow_state (context).enabled) return false;
+      return static_cast<bool> (buffer_actor::try_submit_to (
+        context.lastDocument.actor, actor_command_kind::start_slideshow,
+        context.lastDocument.view, ATHENA_NO_BLOB, ATHENA_NO_BLOB,
+        EXECUTION_CAPABILITY_BUFFER, 0));
+    }, slideshow_state);
+  registerBehavior (
+    "view.slideshow-from-current", QTMCommandScope::Editor,
+    [slideshow_state] (const QTMCommandContext& context) {
+      if (!slideshow_state (context).enabled) return false;
+      return static_cast<bool> (buffer_actor::try_submit_to (
+        context.lastDocument.actor, actor_command_kind::start_slideshow,
+        context.lastDocument.view, ATHENA_NO_BLOB, ATHENA_NO_BLOB,
+        EXECUTION_CAPABILITY_BUFFER, 1));
+    }, slideshow_state);
+
   registerProvider (
     "view-controls", QTMCommandScope::Editor,
     [] (const QTMCommandContext& context) {

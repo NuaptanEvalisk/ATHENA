@@ -200,6 +200,18 @@
       "help": "Show the paginated preview pane for Paper, Slideshow, Book, and Panorama"
     },
     {
+      "id": "view.slideshow-from-beginning",
+      "label": "Start slideshow — From beginning",
+      "category": "View",
+      "help": "Start a read-only slideshow in a separate window at the first slide"
+    },
+    {
+      "id": "view.slideshow-from-current",
+      "label": "Start slideshow — From current page",
+      "category": "View",
+      "help": "Start a read-only slideshow in a separate window at the current slide"
+    },
+    {
       "id": "view.neighborhoods",
       "dock": "athena-neighborhoods-pane",
       "label": "Neighborhoods",
@@ -2224,6 +2236,15 @@
       "id": "view",
       "label": "View",
       "items": [
+        {
+          "submenu": "view-start-slideshow",
+          "label": "Start slideshow",
+          "items": [
+            {"command": "view.slideshow-from-beginning"},
+            {"command": "view.slideshow-from-current"}
+          ]
+        },
+        {"separator": true},
         { "command": "workspace.vault-explorer" },
         { "command": "workspace.namespace-explorer" },
         { "command": "view.outline" },

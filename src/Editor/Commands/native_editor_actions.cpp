@@ -534,6 +534,8 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
     return fail_validation (error, "editor action requires non-empty op");
   const QString op= opValue.toString ();
 
+  if (op == "select-all") return true;
+
   if (op == "insert-tree")
     return valid_action_tree (action.value ("value")) ? true :
       fail_validation (error, "insert-tree requires text or a tagged JSON tree");
@@ -933,7 +935,8 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
           "invalid native editor action");
   const string op= native_action_string (action.value ("op"));
 
-  if (op == "insert-tree")
+  if (op == "select-all") ed->select_all ();
+  else if (op == "insert-tree")
     ed->insert_tree (native_action_tree (action.value ("value")));
   else if (op == "make") {
     int arity= action.contains ("arity") ?

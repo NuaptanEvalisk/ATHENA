@@ -146,6 +146,8 @@ enum class actor_command_kind: std::uint32_t {
   request_thumbnail_manifest,
   request_thumbnail_raster,
   activate_thumbnail_page,
+  start_slideshow,
+  render_slideshow_frame,
   edit_screen,
   document_search_update,
   document_search_navigate,

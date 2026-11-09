@@ -1742,6 +1742,18 @@ QTMWidget::keyPressEvent (QKeyEvent* event) {
   Qt::KeyboardModifiers commandModifiers=
     event->modifiers () & (Qt::ControlModifier | Qt::ShiftModifier |
                            Qt::AltModifier | Qt::MetaModifier);
+  // Route Ctrl+A through the same owner-actor selection implementation as
+  // native commands. IMEs may deliver Ctrl+A with an empty/control-character
+  // text(), which the legacy text-driven key translator cannot resolve.
+  if (event->key () == Qt::Key_A &&
+      commandModifiers == Qt::ControlModifier) {
+    if (auto* proxy= dynamic_cast<qt_actor_widget_rep*> (tm_widget ()))
+      if (proxy->submit_editor_action (
+            QStringLiteral ("{\"op\":\"select-all\"}"), 0, 0)) {
+        event->accept ();
+        return;
+      }
+  }
   if (event->key () == Qt::Key_F &&
       commandModifiers == Qt::ControlModifier) {
     document_search_open ();

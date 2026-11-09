@@ -1331,6 +1331,29 @@ QTMPreferencesDialog::buildEditingPage () {
 
 QWidget*
 QTMPreferencesDialog::buildRenderingPage () {
+  QWidget* slideshow= make_page ();
+  QFormLayout* presenter= add_section (slideshow, "Slideshow");
+  add_combo (presenter, "slideshow display");
+  add_combo (presenter, "slideshow controls visibility");
+  add_combo (presenter, "slideshow controls location");
+  add_toggle (presenter, "slideshow pan zoom");
+  QFormLayout* buttons= add_section (slideshow, "Slideshow Controls");
+  add_toggle (buttons, "slideshow control first");
+  add_toggle (buttons, "slideshow control previous");
+  add_toggle (buttons, "slideshow control next");
+  add_toggle (buttons, "slideshow control last");
+  add_toggle (buttons, "slideshow control go to");
+  add_toggle (buttons, "slideshow control panorama");
+  add_toggle (buttons, "slideshow control progress");
+  QLabel* presenterNote= new QLabel (
+    "The context menu always contains every slideshow control, even when "
+    "its toolbar button is hidden. Esc exits; Ctrl+G jumps to a slide. "
+    "Pan/zoom operates only in the separate read-only presentation window.",
+    slideshow);
+  presenterNote->setWordWrap (true);
+  slideshow->layout ()->addWidget (presenterNote);
+  finish_page (slideshow);
+
   QWidget* components= make_page ();
   QFormLayout* c= add_section (components, "Components and Layout");
   add_combo (c, "vault labels mode");
@@ -1429,7 +1452,8 @@ QTMPreferencesDialog::buildRenderingPage () {
   add_color_button (ex, "vault proof standard color");
   finish_page (colors);
 
-  return tabbed ({{"Components and Layout", components},
+  return tabbed ({{"Slideshow", slideshow},
+                  {"Components and Layout", components},
                   {"Document Colors", documentColors},
                   {"Misc", misc},
                   {"Enunciation Colors", colors}});
