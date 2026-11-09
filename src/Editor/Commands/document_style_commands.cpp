@@ -23,6 +23,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonParseError>
+#include <map>
 
 namespace {
 
@@ -42,8 +43,8 @@ struct style_catalog_data {
   QJsonObject synopses;
   QJsonObject categories;
   QJsonObject includes;
-  QJsonObject defaults;
-  QJsonArray themes;
+  QJsonArray style_groups;
+  QJsonArray hidden_styles;
   QJsonArray precedes;
 
   style_catalog_data () {
@@ -63,16 +64,16 @@ struct style_catalog_data {
             root.value ("synopses").isObject () &&
             root.value ("categories").isObject () &&
             root.value ("includes").isObject () &&
-            root.value ("defaults").isObject () &&
-            root.value ("themes").isArray () &&
+            root.value ("style_groups").isArray () &&
+            root.value ("hidden_styles").isArray () &&
             root.value ("precedes").isArray (),
             "unsupported style catalog schema");
     menu_names= root.value ("menu_names").toObject ();
     synopses= root.value ("synopses").toObject ();
     categories= root.value ("categories").toObject ();
     includes= root.value ("includes").toObject ();
-    defaults= root.value ("defaults").toObject ();
-    themes= root.value ("themes").toArray ();
+    style_groups= root.value ("style_groups").toArray ();
+    hidden_styles= root.value ("hidden_styles").toArray ();
     precedes= root.value ("precedes").toArray ();
   }
 
@@ -83,7 +84,6 @@ struct style_catalog_data {
     return false;
   }
 
-  bool theme (string value) const { return array_contains (themes, value); }
 
   bool category (string category_name, string value) const {
     QJsonValue raw= categories.value (style_qstring (category_name));
@@ -278,11 +278,6 @@ owner_style_category (editor_rep* ed, string style) {
   for (const char* category: {"program-theme", "theorem-decorations",
                               "beamer-title-theme"})
     if (catalog.category (category, style)) return ":" * string (category);
-  if (catalog.theme (style)) {
-    if (ed != nullptr && ed->defined_at_init ("beamer-style"))
-      return ":beamer-theme";
-    return ":basic-theme";
-  }
   return style;
 }
 
@@ -323,6 +318,51 @@ string
 document_style_get_menu_name (string style) {
   string value= style_catalog ().lookup (style_catalog ().menu_names, style);
   return value == "" ? upcase_first (style) : value;
+}
+
+string
+document_style_category (string style) {
+  static thread_local std::uint64_t generation= 0;
+  static thread_local std::map<std::string, string> categories;
+  if (generation != style_cache_generation ()) {
+    categories.clear ();
+    generation= style_cache_generation ();
+  }
+  const string key= as_system_string (head (get_current_buffer_safe ())) * "/" * style;
+  const std::string native_key (key.data (), N(key));
+  const auto found= categories.find (native_key);
+  if (found != categories.end ()) return found->second;
+  const url file= document_url_resolve_package (style);
+  const string installed= as_system_string (url ("$ATHENA_PATH/styles")) * "/";
+  if (!starts (as_system_string (file), installed))
+    return categories[native_key]= "Custom styles";
+  const auto& catalog= style_catalog ();
+  if (catalog.array_contains (catalog.hidden_styles, style))
+    return categories[native_key]= "";
+  for (const auto& group: catalog.style_groups) {
+    const auto object= group.toObject ();
+    if (catalog.array_contains (object.value ("styles").toArray (), style))
+      return categories[native_key]= style_string (object.value ("label").toString ());
+  }
+  return categories[native_key]= "General";
+}
+
+array<string>
+document_grouped_style_names () {
+  const array<string> names= get_style_names ();
+  std::map<std::string, array<string>> groups;
+  for (int i=0; i<N(names); ++i) {
+    const string category= document_style_category (names[i]);
+    if (category != "")
+      groups[std::string (category.data (), N(category))] << names[i];
+  }
+  array<string> result;
+  for (const auto& group: style_catalog ().style_groups) {
+    const std::string label= group.toObject ().value ("label").toString ().toStdString ();
+    result << groups[label];
+  }
+  result << groups["Custom styles"];
+  return result;
 }
 
 string
@@ -443,32 +483,6 @@ document_has_style_package (editor_rep* ed, string package) {
     if (owner_style_overrides (ed, styles[i], package)) overridden= true;
   }
   return included && !overridden;
-}
-
-string
-document_current_basic_theme (editor_rep* ed) {
-  array<string> styles= current_style_strings (ed);
-  for (int i= 0; i < N(styles); ++i)
-    if (style_catalog ().theme (styles[i])) return styles[i];
-  return "plain";
-}
-
-string
-document_effective_theme (editor_rep* ed) {
-  // Explicit themes override the one provided by a main style such as
-  // Beamer's implicit bluish. Only the effective theme should be checked.
-  const auto styles= current_style_strings (ed);
-  for (int i=N(styles)-1; i>=0; --i)
-    if (style_catalog ().theme (styles[i])) return styles[i];
-  const auto themes= document_theme_names ();
-  for (int i=0; i<N(themes); ++i)
-    if (document_has_style_package (ed, themes[i])) return themes[i];
-  return "";
-}
-
-array<string>
-document_theme_names () {
-  return style_catalog ().strings (style_catalog ().themes);
 }
 
 bool

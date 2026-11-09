@@ -76,6 +76,7 @@ QTMCommandRegistry::registerFocusDocumentCommands () {
         QTMCommandDynamicItem item= enabled_dynamic_item (
           QString::number (static_cast<qulonglong> (i)),
           qstring (choice.label));
+        item.group= qstring (choice.category);
         item.state.enabled= enabled;
         item.state.checkable= true;
         item.state.checked= choice.checked;
@@ -252,88 +253,6 @@ QTMCommandRegistry::registerFocusDocumentCommands () {
       if (proxy == nullptr) return QTMCommandState {};
       actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
       if (focus.document_packages.empty () && focus.current_packages.empty ()) {
-        state.available= false;
-        state.enabled= false;
-      }
-      return state;
-    });
-
-  registerProvider (
-    "editor-focus-document-themes", QTMCommandScope::Editor,
-    [] (const QTMCommandContext& context) {
-      QVector<QTMCommandDynamicItem> out;
-      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
-      if (proxy == nullptr) return out;
-      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
-      actor_editor_command_snapshot editorState= proxy->editor_command_state ();
-      if (!document_focus_state (context).available || !editorState.valid ())
-        return out;
-      const bool enabled= !editorState.read_only ();
-      if (qstring (focus.document_theme_kind) == QStringLiteral ("basic")) {
-        bool plain= true;
-        for (const auto& choice: focus.document_themes)
-          if (choice.checked) {
-            plain= false;
-            break;
-          }
-        QTMCommandDynamicItem item= enabled_dynamic_item (
-          QStringLiteral ("plain"), QObject::tr ("Plain"));
-        item.state.enabled= enabled;
-        item.state.checkable= true;
-        item.state.checked= plain;
-        out.append (std::move (item));
-      }
-      for (std::size_t i=0; i<focus.document_themes.size (); ++i) {
-        const auto& choice= focus.document_themes[i];
-        QTMCommandDynamicItem item= enabled_dynamic_item (
-          QStringLiteral ("theme/%1").arg (i), qstring (choice.label));
-        item.state.enabled= enabled;
-        item.state.checkable= true;
-        item.state.checked= choice.checked;
-        out.append (std::move (item));
-      }
-      return out;
-    },
-    [] (const QString& key, const QTMCommandContext& context) {
-      if (key == QStringLiteral ("plain")) {
-        QJsonObject action;
-        action.insert ("op", "focus-document-default-theme");
-        return submit_inline_editor_action (
-          context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
-      }
-      QStringList parts= key.split ('/');
-      if (parts.size () != 2 || parts[0] != QStringLiteral ("theme"))
-        return false;
-      bool ok= false;
-      int index= parts[1].toInt (&ok);
-      if (!ok) return false;
-      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
-      if (proxy == nullptr) return false;
-      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
-      const auto& choices= focus.document_themes;
-      if (index < 0 || index >= static_cast<int> (choices.size ()))
-        return false;
-      QJsonObject action;
-      action.insert ("op", "focus-document-package");
-      const QString name=
-        qstring (choices[static_cast<std::size_t> (index)].value);
-      action.insert (
-        "action",
-        name == QStringLiteral ("alt-colors") ||
-        name == QStringLiteral ("framed-theorems") ?
-          QStringLiteral ("toggle"): QStringLiteral ("add"));
-      action.insert (
-        "name", name);
-      return submit_inline_editor_action (
-        context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
-    },
-    [] (const QTMCommandContext& context) {
-      QTMCommandState state= document_focus_state (context);
-      if (!state.available) return state;
-      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
-      if (proxy == nullptr) return QTMCommandState {};
-      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
-      if (focus.document_themes.empty ()) {
         state.available= false;
         state.enabled= false;
       }

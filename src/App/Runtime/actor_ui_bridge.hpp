@@ -194,6 +194,7 @@ struct actor_focus_choice_snapshot {
   std::string label;
   std::string help;
   bool checked= false;
+  std::string category;
 };
 
 struct actor_document_menu_snapshot {
@@ -209,8 +210,6 @@ struct actor_document_menu_snapshot {
   std::vector<actor_focus_choice_snapshot> document_styles;
   std::vector<actor_focus_choice_snapshot> document_packages;
   std::vector<actor_focus_choice_snapshot> current_packages;
-  std::vector<actor_focus_choice_snapshot> document_themes;
-  std::string document_theme_kind;
   std::string background_color;
   bool background_available= false;
   bool beamer_style= false;
@@ -287,9 +286,7 @@ struct actor_focus_toolbar_snapshot {
   std::vector<actor_focus_choice_snapshot> document_styles;
   std::vector<actor_focus_choice_snapshot> document_packages;
   std::vector<actor_focus_choice_snapshot> current_packages;
-  std::vector<actor_focus_choice_snapshot> document_themes;
   std::vector<std::string> slide_names;
-  std::string document_theme_kind;
   std::string background_color;
   bool background_available= false;
   bool beamer_style= false;

@@ -49,7 +49,6 @@ bool excluded (const tree& source) {
   case EVAL: case EVAL_ARGS: case EXTERN: case COMPOUND: case MAP_ARGS:
   case IF: case VAR_IF: case CASE: case WHILE: case FOR_EACH:
   case USE_PACKAGE: case USE_MODULE: case INCLUDE: case VAR_INCLUDE:
-  case NEW_THEME: case COPY_THEME: case APPLY_THEME: case SELECT_THEME:
   case SCRIPT: case ACTION: case WRITE: case GET_ATTACHMENT:
   case INACTIVE: case VAR_INACTIVE: case REWRITE_INACTIVE:
   case INLINE_TAG: case OPEN_TAG: case MIDDLE_TAG: case CLOSE_TAG:

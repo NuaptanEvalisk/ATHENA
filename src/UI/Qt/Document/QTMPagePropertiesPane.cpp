@@ -43,6 +43,8 @@
 #include <QLabel>
 #include <QJsonObject>
 #include <QLineEdit>
+#include <QMenu>
+#include <QToolButton>
 #include <QMessageBox>
 #include <QPushButton>
 #include <QScrollArea>
@@ -89,7 +91,7 @@ lower_page_type (const QString& value) {
 QTMPagePropertiesPane::QTMPagePropertiesPane (QWidget* parent)
   : QWidget (parent), loading (false), tabs (new QTabWidget (this)),
     timer (new QTimer (this)),
-    presentationModeCombo (nullptr), styleCombo (nullptr), themeCombo (nullptr),
+    presentationModeCombo (nullptr), styleButton (nullptr),
     citationCombo (nullptr), backgroundButton (nullptr), foregroundButton (nullptr),
     pageTypeCombo (nullptr), orientationCombo (nullptr),
     firstPageCombo (nullptr), cropMarksCombo (nullptr),
@@ -155,17 +157,25 @@ QTMPagePropertiesPane::buildPresentationTab () {
         view_init_page_rendering (tm_string (mode));
       });
     });
-  styleCombo= combo ({});
-  addRow (form, "Style", styleCombo);
-  connect (styleCombo, QOverload<int>::of (&QComboBox::activated), this, [this] (int index) {
-    if (loading || index < 0) return;
-    applyPresentationAction ("set-main-style", styleCombo->itemData (index).toString ());
-  });
-  themeCombo= combo ({});
-  addRow (form, "Theme", themeCombo);
-  connect (themeCombo, QOverload<int>::of (&QComboBox::activated), this, [this] (int index) {
-    if (loading || index < 0) return;
-    applyPresentationAction ("theme", themeCombo->itemData (index).toString ());
+  styleButton= new QToolButton (this);
+  styleButton->setPopupMode (QToolButton::InstantPopup);
+  styleButton->setSizePolicy (QSizePolicy::Expanding, QSizePolicy::Fixed);
+  auto* styleMenu= new QMenu (styleButton);
+  styleButton->setMenu (styleMenu);
+  addRow (form, "Style", styleButton);
+  connect (styleMenu, &QMenu::aboutToShow, this, [this, styleMenu] {
+    styleMenu->clear ();
+    QHash<QString, QMenu*> groups;
+    for (const auto& choice: styleChoices) {
+      const QString category= QString::fromStdString (choice.category);
+      if (!groups.contains (category)) groups[category]= styleMenu->addMenu (category);
+      QAction* action= groups[category]->addAction (QString::fromStdString (choice.label));
+      action->setCheckable (true);
+      action->setChecked (choice.checked);
+      connect (action, &QAction::triggered, this, [this, name=choice.value] {
+        applyPresentationAction ("set-main-style", QString::fromStdString (name));
+      });
+    }
   });
   citationCombo= combo ({});
   addRow (form, "Citation style", citationCombo);
@@ -584,18 +594,6 @@ QTMPagePropertiesPane::applyPresentationAction (const QString& operation,
       editor ed= get_current_editor ();
       if (operation == "set-main-style")
         document_set_main_style (tm_string (name));
-      else if (operation == "theme") {
-        if (name.isEmpty ()) {
-          // Remove explicit themes only; the main style's theme stays intact.
-          const auto styles= document_get_style_list ();
-          const auto themes= document_theme_names ();
-          for (int i=1; i<N(styles); ++i)
-            for (int j=0; j<N(themes); ++j)
-              if (styles[i] == themes[j]) document_remove_style_package (styles[i]);
-        }
-        else native_editor_action_execute (ed, QJsonObject {
-          {"op", "document-package"}, {"action", "add"}, {"name", name}});
-      }
       else if (operation == "citation") {
         QJsonObject action {{"op", "document-citation-style"},
                             {"default", name.isEmpty ()}};
@@ -610,7 +608,7 @@ QTMPagePropertiesPane::applyPresentationAction (const QString& operation,
 
 void
 QTMPagePropertiesPane::refreshPresentation () {
-  if (!targetLooksUsable () || !styleCombo) return;
+  if (!targetLooksUsable () || !styleButton) return;
   actor_document_menu_snapshot snapshot;
   auto* buffer= concrete_buffer (targetBuffer);
   auto* shell= QTMMainTabWindow::topTabWindow ();
@@ -633,8 +631,7 @@ QTMPagePropertiesPane::refreshPresentation () {
   loadCitationStyles ();
   const bool wasLoading= loading;
   loading= true;
-  QSignalBlocker b0 (presentationModeCombo), b1 (styleCombo),
-                 b2 (themeCombo), b3 (citationCombo);
+  QSignalBlocker b0 (presentationModeCombo), b3 (citationCombo);
   auto setMode= [this] (const std::string& value) {
     const QString text= decodeRendering (QString::fromStdString (value));
     if (presentationModeCombo->currentText () != text)
@@ -660,22 +657,11 @@ QTMPagePropertiesPane::refreshPresentation () {
     const int current= box->findData (selected);
     if (current >= 0) box->setCurrentIndex (current);
   };
-  QStringList styleLabels, styleIds;
+  styleChoices= snapshot.document_styles;
+  styleButton->setText (QString::fromStdString (snapshot.document_style));
   for (const auto& choice: snapshot.document_styles) {
-    styleLabels << QString::fromStdString (choice.label);
-    styleIds << QString::fromStdString (choice.value);
+    if (choice.checked) styleButton->setText (QString::fromStdString (choice.label));
   }
-  populate (styleCombo, styleLabels, styleIds,
-            QString::fromStdString (snapshot.document_style));
-  QStringList themeLabels {"Style default"}, themeIds {""};
-  QString selectedTheme;
-  for (const auto& choice: snapshot.document_themes) {
-    if (choice.value == "alt-colors" || choice.value == "framed-theorems") continue;
-    themeLabels << QString::fromStdString (choice.label);
-    themeIds << QString::fromStdString (choice.value);
-    if (choice.checked) selectedTheme= themeIds.last ();
-  }
-  populate (themeCombo, themeLabels, themeIds, selectedTheme);
   QStringList citationLabels {"Preferences default"}, citationIds {""};
   for (int i=1; i<citationCombo->count (); ++i) {
     citationLabels << citationCombo->itemText (i);

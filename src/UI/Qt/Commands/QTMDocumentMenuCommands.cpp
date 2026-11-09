@@ -110,7 +110,7 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
         const auto& choice= document.document_styles[i];
         append_item (
           out, QStringLiteral ("style/%1").arg (i), qs (choice.label),
-          QObject::tr ("Style"), writable, true, choice.checked);
+          QObject::tr ("Style") + "/" + qs (choice.category), writable, true, choice.checked);
       }
       append_item (
         out, "style/edit", QObject::tr ("Edit style"),
@@ -120,7 +120,7 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
         QObject::tr ("Style"), writable);
       append_item (
         out, "style/install", QObject::tr ("Install custom style..."),
-        QObject::tr ("Style"), writable);
+        QObject::tr ("Style/Custom styles"), writable);
       for (std::size_t i=0; i<document.current_packages.size (); ++i) {
         const QString package= qs (document.current_packages[i].label);
         append_item (
@@ -163,24 +163,6 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
         }
       }
       catch (...) {}
-
-      if (qs (document.document_theme_kind) == QStringLiteral ("basic")) {
-        bool plain= true;
-        for (const auto& choice: document.document_themes)
-          if (choice.checked) {
-            plain= false;
-            break;
-          }
-        append_item (
-          out, "theme/plain", QObject::tr ("Plain"),
-          QObject::tr ("Theme"), writable, true, plain);
-      }
-      for (std::size_t i=0; i<document.document_themes.size (); ++i) {
-        const auto& choice= document.document_themes[i];
-        append_item (
-          out, QStringLiteral ("theme/%1").arg (i), qs (choice.label),
-          QObject::tr ("Theme"), writable, true, choice.checked);
-      }
 
       append_item (
         out, "source", QObject::tr ("Edit source tree"), QString (), writable,
@@ -392,26 +374,6 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
         if (!useDefault) action.insert ("style", style);
         return submit_inline_editor_action (
           context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
-      }
-      if (key == QStringLiteral ("theme/plain")) {
-        QJsonObject action;
-        action.insert ("op", "document-default-theme");
-        return submit_inline_editor_action (
-          context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
-      }
-      if (key.startsWith (QStringLiteral ("theme/"))) {
-        QString suffix= key.mid (6);
-        bool ok= false;
-        int index= suffix.toInt (&ok);
-        const auto& choices= document.document_themes;
-        if (!ok || index < 0 || index >= static_cast<int> (choices.size ()))
-          return false;
-        QString name= qs (choices[static_cast<std::size_t> (index)].value);
-        return submit_document_package (
-          context,
-          name == QStringLiteral ("alt-colors") ||
-          name == QStringLiteral ("framed-theorems") ? "toggle" : "add",
-          name);
       }
       if (key == QStringLiteral ("source"))
         return submit_business (context, "document-toggle-source-mode");

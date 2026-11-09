@@ -1427,13 +1427,6 @@
           ]
         },
         {
-          "submenu": "focus-document-theme",
-          "label": "Theme",
-          "items": [
-            { "provider": "editor-focus-document-themes" }
-          ]
-        },
-        {
           "submenu": "focus-document-background",
           "label": "Background",
           "items": [

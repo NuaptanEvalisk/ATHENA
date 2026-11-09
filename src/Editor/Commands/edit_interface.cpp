@@ -871,11 +871,14 @@ editor_rep::document_menu_state_snapshot () {
   assign (snapshot.page_rendering, document_get_init_page_rendering (this));
   assign (snapshot.background_color, get_init_string ("bg-color"));
 
-  array<string> styleNames= get_style_names ();
-  for (int i=0; i<N(styleNames); ++i)
-    append_choice (
-      snapshot.document_styles, styleNames[i],
-      document_has_main_style (this, styleNames[i]));
+  array<string> styleNames= document_grouped_style_names ();
+  for (int i=0; i<N(styleNames); ++i) {
+    const string category= document_style_category (styleNames[i]);
+    if (category == "") continue;
+    append_choice (snapshot.document_styles, styleNames[i],
+                   document_has_main_style (this, styleNames[i]));
+    snapshot.document_styles.back ().category.assign (category.data (), N(category));
+  }
   array<string> packageNames= get_package_names ();
   for (int i=0; i<N(packageNames); ++i)
     append_choice (
@@ -902,37 +905,8 @@ editor_rep::document_menu_state_snapshot () {
       p= path_up (p);
     }
   }
-  string themeKind= snapshot.beamer_style ? string ("beamer"): string ("basic");
-  assign (snapshot.document_theme_kind, themeKind);
-  const string effective_theme= document_effective_theme (this);
-  auto append_theme_list=
-    [&] (array<string> themes,
-         std::vector<actor_focus_choice_snapshot>& target) {
-      for (int i= 0; i < N(themes); ++i)
-        append_choice (
-          target, themes[i],
-           themes[i] == effective_theme);
-    };
-  if (snapshot.beamer_style) {
-    append_theme_list (document_theme_names (), snapshot.document_themes);
-    snapshot.background_available= true;
-  }
-  else {
-    append_theme_list (document_theme_names (), snapshot.document_themes);
-    for (const char* extra: {"alt-colors", "framed-theorems"}) {
-      const string name (extra);
-      actor_focus_choice_snapshot item;
-      assign (item.value, name);
-      assign (
-        item.label,
-        name == "alt-colors" ? string ("Alternative colors"):
-                               string ("Framed theorems"));
-      item.checked= document_has_style_package (this, name);
-      snapshot.document_themes.push_back (std::move (item));
-    }
-    snapshot.background_available=
-      document_current_basic_theme (this) != "plain";
-  }
+
+  snapshot.background_available= true;
 
   tree document= the_buffer ();
   snapshot.has_preamble= document_has_preamble (document);
@@ -1566,11 +1540,14 @@ editor_rep::focus_toolbar_state_snapshot () {
         target.push_back (std::move (item));
       };
 
-    array<string> styleNames= get_style_names ();
-    for (int i=0; i<N(styleNames); ++i)
-      append_choice (
-        snapshot.document_styles, styleNames[i],
-        document_has_main_style (this, styleNames[i]));
+    array<string> styleNames= document_grouped_style_names ();
+    for (int i=0; i<N(styleNames); ++i) {
+      const string category= document_style_category (styleNames[i]);
+      if (category == "") continue;
+      append_choice (snapshot.document_styles, styleNames[i],
+                     document_has_main_style (this, styleNames[i]));
+      snapshot.document_styles.back ().category.assign (category.data (), N(category));
+    }
     array<string> packageNames= get_package_names ();
     for (int i=0; i<N(packageNames); ++i)
       append_choice (
@@ -1589,41 +1566,7 @@ editor_rep::focus_toolbar_state_snapshot () {
       background.data (), static_cast<std::size_t> (N(background)));
 
     snapshot.beamer_style= defined_at_init ("beamer-style");
-    string themeKind= snapshot.beamer_style ? string ("beamer"): string ("basic");
-    snapshot.document_theme_kind.assign (
-      themeKind.data (), static_cast<std::size_t> (N(themeKind)));
-
-    const string effective_theme= document_effective_theme (this);
-    auto append_theme_list=
-      [&] (array<string> themes,
-           std::vector<actor_focus_choice_snapshot>& target) {
-        for (int i= 0; i < N(themes); ++i)
-          append_choice (
-            target, themes[i],
-             themes[i] == effective_theme);
-      };
-    if (snapshot.beamer_style) {
-      append_theme_list (document_theme_names (), snapshot.document_themes);
-      snapshot.background_available= true;
-    }
-    else {
-      append_theme_list (document_theme_names (), snapshot.document_themes);
-      for (const char* extra: {"alt-colors", "framed-theorems"}) {
-        const string name (extra);
-        actor_focus_choice_snapshot item;
-        item.value.assign (
-          name.data (), static_cast<std::size_t> (N(name)));
-        const string label=
-          name == "alt-colors" ? string ("Alternative colors"):
-                                 string ("Framed theorems");
-        item.label.assign (
-          label.data (), static_cast<std::size_t> (N(label)));
-        item.checked= document_has_style_package (this, name);
-        snapshot.document_themes.push_back (std::move (item));
-      }
-      snapshot.background_available=
-        document_current_basic_theme (this) != "plain";
-    }
+    snapshot.background_available= true;
 
     if (snapshot.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT)) {
       for (int i=0; i<presentation_page_count (); ++i)

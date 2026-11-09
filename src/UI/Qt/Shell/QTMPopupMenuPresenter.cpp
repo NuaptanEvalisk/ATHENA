@@ -123,12 +123,16 @@ add_provider (
     if (!value.state.available) continue;
     QMenu* target= menu;
     if (!value.group.isEmpty ()) {
-      QMenu* group= groups.value (value.group, nullptr);
-      if (group == nullptr) {
-        group= menu->addMenu (value.group);
-        groups.insert (value.group, group);
+      QString path;
+      for (const QString& label: value.group.split ('/')) {
+        path += "/" + label;
+        QMenu* group= groups.value (path, nullptr);
+        if (group == nullptr) {
+          group= target->addMenu (label);
+          groups.insert (path, group);
+        }
+        target= group;
       }
-      target= group;
     }
     QAction* action= target->addAction (
       tmapp ()->icon_manager ().getPresentationIcon (value.icon), value.label);

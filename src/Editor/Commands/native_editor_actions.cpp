@@ -634,8 +634,6 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
     return has_string (action, "path") ?
              true : fail_validation (
                error, "export-pdf-embedded requires path");
-  if (op == "document-default-theme")
-    return true;
   if (op == "popup-spell-replace")
     return has_string (action, "replacement") ?
              true : fail_validation (
@@ -844,8 +842,6 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
     return has_string (action, "path") ?
              true : fail_validation (
                error, "focus-document-install-style requires path");
-  if (op == "focus-document-default-theme")
-    return true;
   if (op == "focus-slide-switch")
     return action.value ("index").isDouble () &&
            action.value ("index").toInt (-1) >= 0 ?
@@ -1017,12 +1013,6 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
         available= true;
         break;
       }
-    bool theme= false;
-    for (const auto& choice: state.document_themes)
-      if (choice.value == nativeName) {
-        available= theme= true;
-        break;
-      }
     bool current= false;
     for (const auto& package: state.current_packages)
       if (package.value == nativeName) {
@@ -1030,10 +1020,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
         break;
       }
     if (kind == "add" && available) {
-      // Themes are intentionally absent from the ordinary Add package list.
-      // Always allow a selected theme to replace an inherited main-style
-      // theme, such as Beamer's implicit bluish.
-      if (theme || !document_has_style_package (name))
+      if (!document_has_style_package (name))
         document_add_style_package (name);
     }
     else if (kind == "toggle" && available)
@@ -1056,16 +1043,6 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
   else if (op == "export-pdf-embedded")
     document_export_pdf_with_source (
       url_system (native_action_string (action.value ("path"))));
-  else if (op == "document-default-theme") {
-    actor_document_menu_snapshot state= ed->document_menu_state_snapshot ();
-    if (!state.ready || state.document_theme_kind != "basic") return;
-    for (const auto& theme: state.document_themes)
-      if (theme.checked) {
-        string name (
-          theme.value.data (), static_cast<int> (theme.value.size ()));
-        document_remove_style_package (name);
-      }
-  }
   else if (op == "popup-spell-replace")
     popup_spell_replace (
       ed, native_action_string (action.value ("replacement")));
@@ -1568,12 +1545,6 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
         available= true;
         break;
       }
-    bool theme= false;
-    for (const auto& choice: state.document_themes)
-      if (choice.value == nativeName) {
-        available= theme= true;
-        break;
-      }
     bool current= false;
     for (const auto& package: state.current_packages)
       if (package.value == nativeName) {
@@ -1581,7 +1552,7 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
         break;
       }
     if (kind == "add" && available) {
-      if (theme || !document_has_style_package (name))
+      if (!document_has_style_package (name))
         document_add_style_package (name);
     }
     else if (kind == "toggle" && available)
@@ -1609,16 +1580,6 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
       native_action_string (action.value ("path")));
     if (document_install_custom_style (source))
       document_set_main_style (document_custom_style_file_name (source));
-  }
-  else if (op == "focus-document-default-theme") {
-    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
-    if (!state.valid () || state.document_theme_kind != "basic") return;
-    for (const auto& theme: state.document_themes)
-      if (theme.checked) {
-        string name (
-          theme.value.data (), static_cast<int> (theme.value.size ()));
-        document_remove_style_package (name);
-      }
   }
   else if (op == "focus-slide-switch") {
     actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();

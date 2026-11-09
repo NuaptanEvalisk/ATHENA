@@ -286,12 +286,6 @@ private:
   tree exec_quote_arg (tree t);
   tree exec_get_label (tree t);
   tree exec_get_arity (tree t);
-  tree exec_new_theme (tree t);
-  tree exec_copy_theme (tree t);
-  tree exec_apply_theme_sub (string var);
-  tree exec_apply_theme (tree t);
-  tree exec_select_theme_sub (string theme, string from);
-  tree exec_select_theme (tree t);
   tree exec_eval_args (tree t);
   bool exec_until_mark (tree t, path p, string var, int level);
   bool exec_until_quasi (tree t, path p, string var, int level);

@@ -35,7 +35,7 @@ interaction style definitions are in `std-interaction.ats`.
 
 Transition and animation are not part of this change.
 
-## Typed Pages And Theme Layouts
+## Typed Pages And Style Layouts
 
 New pages carry a `kind` property: `title`, `section`, `content`, or `blank`.
 Title pages expose rich-text `title`, `subtitle`, `author`, and `date` properties;
@@ -48,7 +48,7 @@ Its arrow inserts a chosen kind. Duplicate copies content; New slide does not.
 There is no layout-conversion operation in this version. Deleting the last page
 clears its fields as well as its body, retaining its UUID, kind and background.
 
-`slide-layouts.ats`, loaded by `std`, defines these theme-overridable macros:
+`slide-layouts.ats`, loaded by `std`, defines these style-overridable macros:
 
 - `render-slide-title(title, subtitle, author, date, body)`
 - `render-slide-section(title, subtitle, body)`
@@ -62,8 +62,23 @@ page wrapper retains the existing slide-boundary/pager implementation. The defau
 style uses a growing, minimum-height centered area for title and section pages.
 
 Page fields reuse the inline structured-field editor. Their input context is
-captured from the rendered field, so theme title typography is retained while
+captured from the rendered field, so style title typography is retained while
 typing. Empty field hints are editing-only; printed output uses field values.
 Playback builds one clean page snapshot in a separate evaluation environment,
 then reuses its boxes for frame rendering. It does not reuse active editor field
 decorations or mutate the editing environment and auxiliary records.
+
+## Unified Styles
+
+Document appearance is selected through Style, categorized as General,
+Articles, Books, Slides and Custom styles. The categories and hidden internal
+styles are declared in `misc/styles/catalog.json`; user styles are identified
+by their resolved source rather than by an unknown catalog name. Menus, the
+focus toolbar and the presentation pane use the same actor-owned choices.
+
+The separate document Theme layer and its shipped ATS packages have been
+removed, including the new/copy/apply/select-theme evaluator nodes. No theme
+conversion or compatibility aliases are provided. Beamer loads the former
+Bluish colors directly from the ordinary `slide-colors.ats` package. Other
+document styles retain their own typography and appearance. New visual schemes
+should be authored as complete styles, reusing ordinary ATS packages as needed.

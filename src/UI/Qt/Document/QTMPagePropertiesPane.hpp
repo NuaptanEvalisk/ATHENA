@@ -13,6 +13,7 @@
 
 #include "url.hpp"
 #include "widget.hpp"
+#include "App/Runtime/actor_ui_bridge.hpp"
 
 #include <QHash>
 #include <QPointer>
@@ -27,6 +28,7 @@ class QLineEdit;
 class QPushButton;
 class QTabWidget;
 class QTimer;
+class QToolButton;
 class QVBoxLayout;
 
 class QTMPagePropertiesPane : public QWidget {
@@ -91,8 +93,8 @@ private:
   QTimer* timer;
 
   QComboBox* presentationModeCombo;
-  QComboBox* styleCombo;
-  QComboBox* themeCombo;
+  QToolButton* styleButton;
+  std::vector<actor_focus_choice_snapshot> styleChoices;
   QComboBox* citationCombo;
   QPushButton* backgroundButton;
   QPushButton* foregroundButton;

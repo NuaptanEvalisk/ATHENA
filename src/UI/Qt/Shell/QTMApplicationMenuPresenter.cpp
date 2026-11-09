@@ -201,14 +201,21 @@ QTMApplicationMenuPresenter::repopulate_provider (
     if (!value.state.available) continue;
     QMenu* target= menu;
     if (!value.group.isEmpty ()) {
-      QMenu* group= groups.value (value.group, nullptr);
-      if (group == nullptr) {
-        group= new QMenu (value.group, menu);
-        menu->insertAction (entry.action, group->menuAction ());
-        groups.insert (value.group, group);
-        entry.dynamic_menus.append (group);
+      QString path;
+      for (const QString& label: value.group.split ('/')) {
+        path += "/" + label;
+        QMenu* group= groups.value (path, nullptr);
+        if (group == nullptr) {
+          group= new QMenu (label, target);
+          if (target == menu) {
+            menu->insertAction (entry.action, group->menuAction ());
+            entry.dynamic_menus.append (group);
+          }
+          else target->addMenu (group);
+          groups.insert (path, group);
+        }
+        target= group;
       }
-      target= group;
     }
     QIcon icon= tmapp ()->icon_manager ().getPresentationIcon (value.icon);
     QAction* action= new QAction (icon, value.label, target);

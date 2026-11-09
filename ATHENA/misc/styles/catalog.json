@@ -58,11 +58,6 @@
     "framed-envs": "Display various environments inside wide frames",
     "ornaments": "Tags for various fancy ornaments",
     "presentation": "Base package for laptop presentations",
-    "bluish": "Bluish beamer theme",
-    "ice": "Ice beamer theme",
-    "metal": "Metallic beamer theme",
-    "reddish": "Reddish beamer theme",
-    "ridged-paper": "Ridged paper beamer theme",
     "framed-title": "Put titles of slides in wide frames",
     "title-bar": "Put titles of slides in bar at extreme top of screen",
     "math-ss": "Use sans serif font for mathematical formulas",
@@ -92,21 +87,6 @@
     "narrow-apply": "Use narrow space for function applications",
     "regular-apply": "Use regular space for function applications"
   },
-  "themes": [
-    "bluish",
-    "boring-white",
-    "dark-vador",
-    "granite",
-    "ice",
-    "manila-paper",
-    "metal",
-    "pale-blue",
-    "pine",
-    "reddish",
-    "ridged-paper",
-    "rough-paper",
-    "xperiment"
-  ],
   "categories": {
     "program-theme": [
       "centered-program",
@@ -121,36 +101,65 @@
       "framed-title"
     ]
   },
-  "precedes": [
-    [
-      "alt-colors",
-      ":basic-theme"
-    ],
-    [
-      ":basic-theme",
-      ":theorem-decorations"
-    ],
-    [
-      "alt-colors",
-      ":beamer-theme"
-    ],
-    [
-      ":beamer-theme",
-      ":beamer-title-theme"
-    ],
-    [
-      ":beamer-theme",
-      ":theorem-decorations"
-    ]
-  ],
+  "precedes": [],
   "includes": {
     "beamer": [
-      "title-bar",
-      "bluish"
+      "title-bar"
     ]
   },
-  "defaults": {
-    "basic_theme": "plain",
-    "beamer_theme": "bluish"
-  }
+  "style_groups": [
+    {
+      "label": "General",
+      "styles": [
+        "generic",
+        "letter"
+      ]
+    },
+    {
+      "label": "Articles",
+      "styles": [
+        "article",
+        "acmart",
+        "acmlarge",
+        "acmsmall",
+        "acmtog",
+        "sigchi",
+        "sigconf",
+        "sigplan",
+        "amsart",
+        "elsarticle",
+        "ifac",
+        "ieeeconf",
+        "ieeetran",
+        "aip",
+        "aps",
+        "llncs",
+        "svjour",
+        "tmarticle",
+        "tmconf",
+        "web-article"
+      ]
+    },
+    {
+      "label": "Books",
+      "styles": [
+        "book",
+        "svmono",
+        "tmbook",
+        "manual"
+      ]
+    },
+    {
+      "label": "Slides",
+      "styles": [
+        "beamer"
+      ]
+    }
+  ],
+  "hidden_styles": [
+    "source",
+    "verbatim-source",
+    "namespace-export-book",
+    "seminar"
+  ]
 }

@@ -37,7 +37,6 @@
     {"id":"editor-focus","items":[
       {"provider":"editor-focus-code-label","focus_requires":["code-context"]},
       {"submenu":"editor-focus-document-style","label":"Document style","icon":"tm_style","focus_requires_any":["buffer","slide-page-context"],"items":[{"provider":"editor-focus-document-styles"},{"separator":true},{"command":"editor.focus.document-edit-style"},{"command":"editor.focus.document-install-style"}]},
-      {"submenu":"editor-focus-document-theme","label":"Theme","icon":"tm_theme","focus_requires_any":["buffer","slide-page-context"],"items":[{"provider":"editor-focus-document-themes"}]},
       {"submenu":"editor-focus-document-background","label":"Background","icon":"tm_color","focus_requires_any":["buffer","slide-page-context"],"items":[{"provider":"editor-focus-document-background"}]},
       {"submenu":"editor-focus-document-packages","label":"Packages","icon":"tm_add","focus_requires_any":["buffer","slide-page-context"],"items":[{"provider":"editor-focus-document-packages"}]},
       {"command":"editor.focus.document-font","focus_requires_any":["buffer","slide-page-context"]},

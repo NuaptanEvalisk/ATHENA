@@ -567,12 +567,6 @@ concater_rep::typeset_impl (tree t, path ip) {
   case EVAL_ARGS:
     typeset_eval_args (t, ip);
     break;
-  case NEW_THEME:
-  case COPY_THEME:
-  case APPLY_THEME:
-  case SELECT_THEME:
-    typeset_executable (t, ip);
-    break;
   case MARK:
   case VAR_MARK:
     typeset_mark (t, ip);

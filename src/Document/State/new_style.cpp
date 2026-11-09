@@ -550,8 +550,7 @@ ignore_dir (string dir) {
     (dir == "Section") ||
     (dir == "Session") ||
     (dir == "Standard") ||
-    (dir == "Test") ||
-    (dir == "Themes");
+    (dir == "Test");
 }
 
 static bool
