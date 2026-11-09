@@ -212,11 +212,46 @@ class QTMSlideshowWindow final: public QWidget {
     controls_= new QWidget (this);
     controls_->setObjectName (QStringLiteral ("athenaSlideshowControls"));
     controls_->setStyleSheet (
-      QStringLiteral ("#athenaSlideshowControls { background: rgba(20,24,28,215); "
-                      "border-radius: 7px; }"
-                     "#athenaSlideshowControls QToolButton, "
-                     "#athenaSlideshowControls QLabel { color: white; "
-                     "padding: 3px 6px; }"));
+      QStringLiteral (
+        "QWidget#athenaSlideshowControls {"
+        "  background-color: rgba(20,24,28,230);"
+        "  border: 1px solid #64717c; border-radius: 0px;"
+        "}"
+        "QWidget#athenaSlideshowControls QToolButton {"
+        "  color: #f4f7fa; background-color: #303d49;"
+        "  border: 1px solid #748493; border-radius: 0px;"
+        "  padding: 5px 10px;"
+        "}"
+        "QWidget#athenaSlideshowControls QToolButton:hover {"
+        "  color: #ffffff; background-color: #415769;"
+        "  border-color: #a5bac9;"
+        "}"
+        "QWidget#athenaSlideshowControls QToolButton:pressed {"
+        "  background-color: #54778a;"
+        "}"
+        "QWidget#athenaSlideshowControls QToolButton:disabled {"
+        "  color: #9ba9b5; background-color: #29333c;"
+        "  border-color: #49555f;"
+        "}"
+        "QWidget#athenaSlideshowControls QLabel {"
+        "  color: #f4f7fa; background: transparent; border: none;"
+        "  padding: 3px 6px;"
+        "}"
+        "QWidget#athenaSlideshowControls QSlider::groove:horizontal {"
+        "  height: 6px; background: #5f6d78;"
+        "  border: 1px solid #8795a0; border-radius: 0px;"
+        "}"
+        "QWidget#athenaSlideshowControls QSlider::sub-page:horizontal {"
+        "  background: #7dd9c3; border-radius: 0px;"
+        "}"
+        "QWidget#athenaSlideshowControls QSlider::add-page:horizontal {"
+        "  background: #5f6d78; border-radius: 0px;"
+        "}"
+        "QWidget#athenaSlideshowControls QSlider::handle:horizontal {"
+        "  background: #c5f0e6; border: 1px solid #26343d;"
+        "  border-radius: 0px; width: 12px; margin: -6px 0;"
+        "}"
+      ));
     auto* row= new QHBoxLayout (controls_);
     row->setContentsMargins (8, 3, 8, 3);
     row->setSpacing (4);
