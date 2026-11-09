@@ -10,7 +10,6 @@
 #include "App/Runtime/buffer_actor.hpp"
 #include "App/Runtime/execution_context.hpp"
 #include "native_interfaces.hpp"
-#include "Editor/Commands/native_input_events.hpp"
 #include <QString>
 #include <algorithm>
 #include <cmath>
@@ -54,7 +53,6 @@ void view_notify_zoom (string, string value) {
   get_server ()->set_default_zoom_factor (zoom);
   get_server ()->set_window_zoom_factor (zoom);
 }
-void view_notify_remote (string key, string value) { native_remote_control_bind (value, key); }
 
 void view_toggle_header () {
   bool visible= !get_server ()->visible_header ();

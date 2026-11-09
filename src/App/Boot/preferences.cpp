@@ -136,7 +136,6 @@ preference_callback_name (const QString& id) {
     {"printer-dpi", "notify-printer-dpi"},
     {"printing-command", "notify-printing-command"},
     {"python-syntax", "notify-python-syntax"},
-    {"remote-control", "notify-remote-control"},
     {"restart", "notify-restart"},
     {"scheme-syntax", "notify-scheme-syntax"},
     {"security", "notify-security"},

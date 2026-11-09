@@ -246,7 +246,6 @@ valid_business_id (const QString& id) {
     "view-toggle-full-screen",
     "view-toggle-panorama",
     "view-toggle-slideshow",
-    "view-toggle-remote-control",
     "view-fit-screen",
     "view-fit-width",
     "view-toggle-persistent-fit-width",
@@ -448,8 +447,6 @@ execute_business_id (editor ed, const QString& id) {
     view_toggle_panorama ();
   else if (id == "view-toggle-slideshow")
     view_toggle_slideshow ();
-  else if (id == "view-toggle-remote-control")
-    native_remote_control_toggle ();
   else if (id == "view-fit-screen")
     view_fit_screen ();
   else if (id == "view-fit-width")

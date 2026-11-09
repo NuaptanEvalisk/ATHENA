@@ -671,234 +671,6 @@
       }
     },
     {
-      "key": "ir-up",
-      "type": "choice",
-      "scope": "active",
-      "default": "home",
-      "callback": "remote-control",
-      "ui": {
-        "category": "Keyboard",
-        "tab": "Remote Control",
-        "section": "Remote Control",
-        "order": 2,
-        "label": "Up",
-        "control": "choice",
-        "choices": [
-          {
-            "value": "home",
-            "label": "home"
-          },
-          {
-            "value": "",
-            "label": ""
-          }
-        ],
-        "category_order": 1,
-        "tab_order": 1,
-        "section_order": 0
-      }
-    },
-    {
-      "key": "ir-down",
-      "type": "choice",
-      "scope": "active",
-      "default": "end",
-      "callback": "remote-control",
-      "ui": {
-        "category": "Keyboard",
-        "tab": "Remote Control",
-        "section": "Remote Control",
-        "order": 3,
-        "label": "Down",
-        "control": "choice",
-        "choices": [
-          {
-            "value": "end",
-            "label": "end"
-          },
-          {
-            "value": "",
-            "label": ""
-          }
-        ],
-        "category_order": 1,
-        "tab_order": 1,
-        "section_order": 0
-      }
-    },
-    {
-      "key": "ir-left",
-      "type": "choice",
-      "scope": "active",
-      "default": "pageup",
-      "callback": "remote-control",
-      "ui": {
-        "category": "Keyboard",
-        "tab": "Remote Control",
-        "section": "Remote Control",
-        "order": 0,
-        "label": "Left",
-        "control": "choice",
-        "choices": [
-          {
-            "value": "pageup",
-            "label": "pageup"
-          },
-          {
-            "value": "",
-            "label": ""
-          }
-        ],
-        "category_order": 1,
-        "tab_order": 1,
-        "section_order": 0
-      }
-    },
-    {
-      "key": "ir-right",
-      "type": "choice",
-      "scope": "active",
-      "default": "pagedown",
-      "callback": "remote-control",
-      "ui": {
-        "category": "Keyboard",
-        "tab": "Remote Control",
-        "section": "Remote Control",
-        "order": 1,
-        "label": "Right",
-        "control": "choice",
-        "choices": [
-          {
-            "value": "pagedown",
-            "label": "pagedown"
-          },
-          {
-            "value": "",
-            "label": ""
-          }
-        ],
-        "category_order": 1,
-        "tab_order": 1,
-        "section_order": 0
-      }
-    },
-    {
-      "key": "ir-center",
-      "type": "choice",
-      "scope": "active",
-      "default": "S-return",
-      "callback": "remote-control",
-      "ui": {
-        "category": "Keyboard",
-        "tab": "Remote Control",
-        "section": "Remote Control",
-        "order": 4,
-        "label": "Center",
-        "control": "choice",
-        "choices": [
-          {
-            "value": "return",
-            "label": "return"
-          },
-          {
-            "value": "S-return",
-            "label": "S-return"
-          },
-          {
-            "value": "",
-            "label": ""
-          }
-        ],
-        "category_order": 1,
-        "tab_order": 1,
-        "section_order": 0
-      }
-    },
-    {
-      "key": "ir-play",
-      "type": "choice",
-      "scope": "active",
-      "default": "F5",
-      "callback": "remote-control",
-      "ui": {
-        "category": "Keyboard",
-        "tab": "Remote Control",
-        "section": "Remote Control",
-        "order": 5,
-        "label": "Play",
-        "control": "choice",
-        "choices": [
-          {
-            "value": "F5",
-            "label": "F5"
-          },
-          {
-            "value": "",
-            "label": ""
-          }
-        ],
-        "category_order": 1,
-        "tab_order": 1,
-        "section_order": 0
-      }
-    },
-    {
-      "key": "ir-pause",
-      "type": "choice",
-      "scope": "active",
-      "default": "escape",
-      "callback": "remote-control",
-      "ui": {
-        "category": "Keyboard",
-        "tab": "Remote Control",
-        "section": "Remote Control",
-        "order": 6,
-        "label": "Pause",
-        "control": "choice",
-        "choices": [
-          {
-            "value": "escape",
-            "label": "escape"
-          },
-          {
-            "value": "",
-            "label": ""
-          }
-        ],
-        "category_order": 1,
-        "tab_order": 1,
-        "section_order": 0
-      }
-    },
-    {
-      "key": "ir-menu",
-      "type": "choice",
-      "scope": "active",
-      "default": ".",
-      "callback": "remote-control",
-      "ui": {
-        "category": "Keyboard",
-        "tab": "Remote Control",
-        "section": "Remote Control",
-        "order": 7,
-        "label": "Menu",
-        "control": "choice",
-        "choices": [
-          {
-            "value": ".",
-            "label": "."
-          },
-          {
-            "value": "",
-            "label": ""
-          }
-        ],
-        "category_order": 1,
-        "tab_order": 1,
-        "section_order": 0
-      }
-    },
-    {
       "key": "draw cursor",
       "type": "string",
       "scope": "active",
@@ -1038,6 +810,62 @@
       "ui": {"category": "Rendering", "tab": "Slideshow", "section": "Slideshow Controls",
               "order": 6, "label": "Slide progress bar", "control": "toggle",
               "category_order": 3, "tab_order": 0, "section_order": 1}
+    },
+    {
+      "key": "presenter pwa enabled", "type": "boolean", "scope": "active",
+      "default": "off",
+      "ui": {"category": "Input", "tab": "Remote Control",
+              "section": "Presenter PWA", "order": 0,
+              "label": "Enable presenter controller server", "control": "toggle",
+              "category_order": 1, "tab_order": 1, "section_order": 0}
+    },
+    {
+      "key": "presenter pwa listen address", "type": "string", "scope": "active",
+      "default": "127.0.0.1",
+      "ui": {"category": "Input", "tab": "Remote Control",
+              "section": "Presenter PWA", "order": 1,
+              "label": "Listen address (0.0.0.0 for LAN)", "control": "text",
+              "category_order": 1, "tab_order": 1, "section_order": 0}
+    },
+    {
+      "key": "presenter pwa listen port", "type": "string", "scope": "active",
+      "default": "48726",
+      "ui": {"category": "Input", "tab": "Remote Control",
+              "section": "Presenter PWA", "order": 2,
+              "label": "Listen port", "control": "text",
+              "category_order": 1, "tab_order": 1, "section_order": 0}
+    },
+    {
+      "key": "presenter pwa require approval", "type": "boolean", "scope": "active",
+      "default": "on",
+      "ui": {"category": "Input", "tab": "Remote Control",
+              "section": "Presenter PWA", "order": 3,
+              "label": "Ask before allowing each device", "control": "toggle",
+              "category_order": 1, "tab_order": 1, "section_order": 0}
+    },
+    {
+      "key": "presenter pwa previews", "type": "boolean", "scope": "active",
+      "default": "on",
+      "ui": {"category": "Input", "tab": "Remote Control",
+              "section": "Presenter PWA", "order": 4,
+              "label": "Send current / next slide raster previews", "control": "toggle",
+              "category_order": 1, "tab_order": 1, "section_order": 0}
+    },
+    {
+      "key": "presenter pwa tls certificate", "type": "string", "scope": "active",
+      "default": "",
+      "ui": {"category": "Input", "tab": "Remote Control",
+              "section": "Presenter PWA", "order": 5,
+              "label": "HTTPS certificate PEM file (optional)", "control": "text",
+              "category_order": 1, "tab_order": 1, "section_order": 0}
+    },
+    {
+      "key": "presenter pwa tls key", "type": "string", "scope": "active",
+      "default": "",
+      "ui": {"category": "Input", "tab": "Remote Control",
+              "section": "Presenter PWA", "order": 6,
+              "label": "HTTPS private key PEM file (optional)", "control": "text",
+              "category_order": 1, "tab_order": 1, "section_order": 0}
     },
     {
       "key": "texmacs->pdf:data-art cover",
@@ -3543,8 +3371,8 @@
       "scope": "active",
       "default": "default",
       "ui": {
-        "category": "Keyboard",
-        "tab": "Input",
+        "category": "Input",
+        "tab": "Keyboard",
         "section": "Input",
         "order": 0,
         "label": "Space bar in text mode",
@@ -3578,8 +3406,8 @@
       "scope": "active",
       "default": "default",
       "ui": {
-        "category": "Keyboard",
-        "tab": "Input",
+        "category": "Input",
+        "tab": "Keyboard",
         "section": "Input",
         "order": 1,
         "label": "Space bar in math mode",
@@ -3613,8 +3441,8 @@
       "scope": "active",
       "default": "default",
       "ui": {
-        "category": "Keyboard",
-        "tab": "Input",
+        "category": "Input",
+        "tab": "Keyboard",
         "section": "Input",
         "order": 2,
         "label": "Automatic quotes",
@@ -3664,8 +3492,8 @@
       "scope": "active",
       "default": "mathematics",
       "ui": {
-        "category": "Keyboard",
-        "tab": "Input",
+        "category": "Input",
+        "tab": "Keyboard",
         "section": "Input",
         "order": 3,
         "label": "Automatic brackets",

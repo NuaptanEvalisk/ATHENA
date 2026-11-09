@@ -8,7 +8,6 @@ void view_notify_toolbar (string key, string value);
 void view_notify_change (int changes);
 void view_notify_footer (string key, string value);
 void view_notify_zoom (string key, string value);
-void view_notify_remote (string key, string value);
 void view_toggle_header ();
 void view_toggle_footer ();
 void view_toggle_icon_bar (int which);

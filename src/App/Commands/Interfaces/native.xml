@@ -229,11 +229,9 @@
   <binding name="notify-toolbar-presentation" native="view_notify_toolbar" returns="void"><arg type="string" /><arg type="string" /></binding>
   <binding name="notify-status-bar" native="view_notify_footer" returns="void"><arg type="string" /><arg type="string" /></binding>
   <binding name="notify-zoom-factor" native="view_notify_zoom" returns="void"><arg type="string" /><arg type="string" /></binding>
-  <binding name="notify-remote-control" native="view_notify_remote" returns="void"><arg type="string" /><arg type="string" /></binding>
   <binding name="toggle-visible-header" native="view_toggle_header" returns="void" />
   <binding name="toggle-visible-footer" native="view_toggle_footer" returns="void" />
   <binding name="toggle-visible-icon-bar" native="view_toggle_icon_bar" returns="void"><arg type="int" /></binding>
-  <binding name="toggle-remote-control-mode" native="native_remote_control_toggle" returns="void" />
   <binding name="toggle-snap-to-pages" native="view_toggle_snap" returns="void" />
   <binding name="toggle-typewriter-mode" native="view_toggle_typewriter" returns="void" />
   <binding name="change-zoom-factor" native="view_change_zoom" returns="void"><arg type="double" /></binding>
@@ -377,11 +375,6 @@
   </binding>
   <binding name="kbd-insert" native="native_keyboard_insert" returns="void">
     <arg type="content" />
-  </binding>
-  <binding name="native-remote-control-enabled?" native="native_remote_control_enabled" returns="bool" />
-  <binding name="native-remote-control-toggle" native="native_remote_control_toggle" returns="void" />
-  <binding name="native-remote-control-bind" native="native_remote_control_bind" returns="void">
-    <arg type="string" /><arg type="string" />
   </binding>
   <binding name="native-keyboard-force" native="native_keyboard_force" returns="void">
     <arg type="bool" />

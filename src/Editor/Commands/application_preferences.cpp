@@ -70,8 +70,7 @@ void application_preference_notify (string key) {
     {"notify-icon-bar", view_notify_icon_bar},
     {"notify-toolbar-presentation", view_notify_toolbar},
     {"notify-status-bar", view_notify_footer},
-    {"notify-zoom-factor", view_notify_zoom},
-    {"notify-remote-control", view_notify_remote}
+    {"notify-zoom-factor", view_notify_zoom}
   };
   for (const auto& handler: handlers)
     if (callback == handler.name) { handler.invoke (key, value); return; }

@@ -68,6 +68,11 @@ if (ATHENA_ENABLE_AUDMAP_REPL)
 endif ()
 include(AthenaCommands)
 include(AthenaShippedMacroLabels)
+# Use libmicrohttpd's maintained HTTP/HTTPS implementation instead of an
+# application-owned HTTP parser. It is optional on platforms without MHD.
+if (NOT ATHENA_PLATFORM_IPADOS)
+  pkg_check_modules(ATHENA_MICROHTTPD QUIET IMPORTED_TARGET libmicrohttpd)
+endif ()
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   "${ATHENA_SOURCE_DIR}/ATHENA/misc/node-fields.json")
 file(READ "${ATHENA_SOURCE_DIR}/ATHENA/misc/node-fields.json" ATHENA_NATIVE_FIELDS_JSON)
@@ -119,6 +124,11 @@ set_source_files_properties(App/Commands/native_commands.cpp PROPERTIES
 
 function (athena_configure_body_target target_name)
   add_library (${target_name} STATIC ${ATHENA_All_SRCS})
+  target_compile_definitions (${target_name} PRIVATE
+    ATHENA_HAVE_MICROHTTPD=$<BOOL:${ATHENA_MICROHTTPD_FOUND}>)
+  if (ATHENA_MICROHTTPD_FOUND)
+    target_link_libraries (${target_name} PUBLIC PkgConfig::ATHENA_MICROHTTPD)
+  endif ()
   athena_use_shipped_macro_labels (${target_name})
   if (ATHENA_ENABLE_WATCHDOG)
     target_sources (${target_name} PRIVATE ./App/Watchdog/watchdog_client.cpp)

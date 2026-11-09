@@ -918,7 +918,6 @@ set (ATHENA_Qt_Moc_HDRS
 )
 
 set (ATHENA_MacOS_SRCS
-  ${ATHENA_SOURCE_DIR}/src/Platform/MacOS/HIDRemote.m
   ${ATHENA_SOURCE_DIR}/src/Platform/MacOS/mac_images.mm
   ${ATHENA_SOURCE_DIR}/src/Platform/MacOS/mac_utilities.mm
 )

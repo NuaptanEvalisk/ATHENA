@@ -120,8 +120,6 @@ QTMCommandRegistry::registerPopupMenuCommands () {
       out.append (popup_item (
         "slideshow", QObject::tr ("Show all slides"), true, true,
         qs (document.page_rendering) == QStringLiteral ("slideshow")));
-      out.append (popup_item (
-        "remote-control", QObject::tr ("Remote control")));
       return out;
     },
     [] (const QString& key, const QTMCommandContext& context) {
@@ -131,8 +129,6 @@ QTMCommandRegistry::registerPopupMenuCommands () {
         return submit_business (context, "view-toggle-panorama");
       if (key == QStringLiteral ("slideshow"))
         return submit_business (context, "view-toggle-slideshow");
-      if (key == QStringLiteral ("remote-control"))
-        return submit_business (context, "view-toggle-remote-control");
       return false;
     },
     [] (const QTMCommandContext& context) {

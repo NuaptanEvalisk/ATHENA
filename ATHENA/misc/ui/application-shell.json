@@ -534,14 +534,6 @@
       "editor_action": {"op":"business","id":"editor-ai-completion-custom"}
     },
     {
-      "id": "interface.remote-control",
-      "label": "Remote control",
-      "category": "Interface",
-      "icon": "input-keyboard",
-      "help": "Toggle presentation remote-control mode for the active editor",
-      "editor_action": {"op":"business","id":"view-toggle-remote-control"}
-    },
-    {
       "id": "editor.node-properties",
       "label": "Node properties...",
       "category": "Focus",
@@ -2228,8 +2220,7 @@
         { "command": "interface.presentation-tool" },
         { "command": "interface.source-tool" },
         { "separator": true },
-        { "command": "interface.show-keypresses" },
-        { "command": "interface.remote-control" }
+        { "command": "interface.show-keypresses" }
       ]
     },
     {

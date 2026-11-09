@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#101c2b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" type="image/png" href="/icon-192.png">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="stylesheet" href="/app.css">
+  <script defer src="/app.js"></script>
+  <title>ATHENA Presenter</title>
+</head>
+<body>
+  <main class="app">
+    <header class="masthead">
+      <div class="branding"><img class="brand-logo" src="/logo.svg" alt="">
+        <h1>ATHENA</h1></div>
+      <span class="connection" id="connection" role="status" aria-live="polite">Connecting…</span>
+    </header>
+
+    <div class="alert" id="notice" role="status" aria-live="polite"></div>
+
+    <section class="session" aria-label="Slideshow status">
+      <div><span class="section-label">PRESENTATION</span>
+        <h2 id="slideLabel">Waiting for slideshow</h2></div>
+      <div class="session-meta"><div class="elapsed" id="elapsed">00:00</div>
+        <span id="timerState">Elapsed</span></div>
+    </section>
+
+    <section class="previews" aria-label="Slide previews">
+      <div class="preview-card current">
+        <div class="preview-heading"><span>ON SCREEN</span><span id="currentNumber">—</span></div>
+        <div class="preview-surface" id="pointerSurface">
+          <img id="currentImage" alt="Rasterized current slide" draggable="false">
+          <span class="preview-placeholder" id="currentPlaceholder">Start a slideshow in ATHENA</span>
+          <span class="laser-cursor" id="laserCursor" hidden></span>
+        </div>
+      </div>
+      <div class="preview-card upcoming">
+        <div class="preview-heading"><span>UP NEXT</span><span id="nextNumber">—</span></div>
+        <div class="preview-surface">
+          <img id="nextImage" alt="Rasterized next slide" draggable="false">
+          <span class="preview-placeholder" id="nextPlaceholder">Next slide preview</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="transport" aria-label="Slide navigation">
+      <button id="first" class="secondary small" type="button" aria-label="First slide" title="First slide">⏮</button>
+      <button id="previous" class="primary" type="button" aria-label="Previous slide">← <span>Previous</span></button>
+      <button id="next" class="primary accent" type="button" aria-label="Next slide"><span>Next</span> →</button>
+      <button id="last" class="secondary small" type="button" aria-label="Last slide" title="Last slide">⏭</button>
+    </section>
+
+    <section class="progress" aria-label="Slide progress">
+      <div class="progress-label"><span>Slide position</span><strong id="fraction">— / —</strong></div>
+      <input id="seek" type="range" min="1" max="1" value="1" aria-label="Jump to slide by position">
+      <form id="jumpForm" autocomplete="off"><label for="jumpPage">Go to slide</label>
+        <input id="jumpPage" type="number" min="1" step="1" inputmode="numeric" placeholder="Page #">
+        <button type="submit" class="secondary">Go</button></form>
+    </section>
+
+    <section class="extras" aria-label="Presentation tools">
+      <button class="secondary" type="button" id="black">⬛ Black screen</button>
+      <button class="secondary" type="button" id="laser">◎ Laser pointer</button>
+      <button class="secondary" type="button" id="timerPause">⏸ Pause timer</button>
+      <button class="secondary" type="button" id="timerReset">↺ Reset timer</button>
+    </section>
+
+    <section class="footer-actions">
+      <button class="secondary" type="button" id="start">▶ Start from current page</button>
+      <button class="danger" type="button" id="stop">End slideshow</button>
+    </section>
+    <footer id="installHint"></footer>
+  </main>
+</body>
+</html>

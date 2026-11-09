@@ -18,17 +18,10 @@
 
 #include <QCoreApplication>
 #include <QTimer>
-#include <atomic>
-#include <mutex>
-#include <unordered_map>
 #include <vector>
 #include <functional>
 
 namespace {
-
-std::atomic<bool> remote_enabled {false};
-std::mutex remote_mutex;
-std::unordered_map<std::string, std::string> remote_bindings;
 
 std::string bytes (string value) {
   return std::string (value.data (), N(value));
@@ -115,28 +108,8 @@ void native_deferred_tree_set (tree source, tree value) {
     context->actor->resolve_native_callback (id, false);
 }
 
-bool native_remote_control_enabled () { return remote_enabled.load (); }
-void native_remote_control_toggle () {
-  bool old= remote_enabled.load ();
-  while (!remote_enabled.compare_exchange_weak (old, !old)) {}
-}
-void native_remote_control_bind (string key, string command) {
-  std::lock_guard<std::mutex> lock (remote_mutex);
-  remote_bindings[bytes (key)]= bytes (command);
-}
-
 static void dispatch_keyboard_press (string key) {
   editor ed= get_current_editor ();
-  if (native_remote_control_enabled ()) {
-    {
-      std::lock_guard<std::mutex> lock (remote_mutex);
-      const auto mapped= remote_bindings.find (bytes (key));
-      if (mapped != remote_bindings.end ())
-        key= string (mapped->second.data (), mapped->second.size ());
-    }
-    ed->key_press (key);
-    return;
-  }
   const int mode= ed->get_input_mode ();
   const string prefix= mode == INPUT_SEARCH ? "search " :
                        mode == INPUT_SPELL ? "spell " :

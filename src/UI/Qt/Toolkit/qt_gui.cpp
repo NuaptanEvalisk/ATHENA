@@ -797,9 +797,6 @@ gui_open (int& argc, char** argv) {
     // new QApplication (argc,argv); now in texmacs.cpp
   the_gui = tm_new<qt_gui_rep> (argc, argv);
   
-#ifdef MACOSX_EXTENSIONS
-  mac_begin_remote();
-#endif
 
   // Qt may change the locale. Keep numeric configuration parsing stable.
   // (see as_double() in string.cpp)
@@ -841,9 +838,6 @@ gui_close () {
   tm_delete (the_gui);
   the_gui = NULL;
   
-#ifdef MACOSX_EXTENSIONS
-  mac_end_remote();
-#endif
 }
 
 void

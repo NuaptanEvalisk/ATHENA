@@ -5,6 +5,9 @@
 #include "UI/Qt/Document/QTMSlideshowWindow.hpp"
 #include "UI/Qt/Editor/QTMRenderService.hpp"
 #include "App/Runtime/buffer_actor.hpp"
+#include "UI/Qt/Integrations/QTMPresenterPwa.hpp"
+#include "UI/Qt/Commands/QTMCommandRegistry.hpp"
+#include "UI/Qt/Shell/QTMMainTabWindow.hpp"
 #include "UI/Qt/Toolkit/qt_utilities.hpp"
 #include "boot.hpp"
 
@@ -23,6 +26,7 @@
 #include <QMouseEvent>
 #include <QNativeGestureEvent>
 #include <QPainter>
+#include <QJsonObject>
 #include <QPointer>
 #include <QPushButton>
 #include <QScrollArea>
@@ -40,6 +44,9 @@
 #include <functional>
 
 namespace {
+
+class QTMSlideshowWindow;
+QList<QPointer<QTMSlideshowWindow>> presenter_windows;
 
 bool slideshow_option (const char* name, const char* fallback= "on") {
   return get_preference (name, fallback) == "on";
@@ -60,6 +67,12 @@ class QTMSlideshowWindow final: public QWidget {
   const int count_;
   int page_;
   bool finished_= false;
+  bool blackout_= false;
+  bool pointerVisible_= false;
+  QPointF pointerPosition_;
+  bool presenterTimerPaused_= false;
+  QElapsedTimer presenterTimer_;
+  qint64 pausedTimeMs_= 0;
   bool panZoom_= false;
   bool panning_= false;
   QPoint lastPointer_;
@@ -82,6 +95,30 @@ class QTMSlideshowWindow final: public QWidget {
   QLabel* pageCount_= nullptr;
   QPointer<QDialog> panorama_;
   QPointer<QListWidget> panoramaList_;
+
+  bool isCurrentPresenter () const {
+    for (int i=presenter_windows.size ()-1; i>=0; --i)
+      if (presenter_windows[i] && presenter_windows[i]->isVisible ())
+        return presenter_windows[i] == this;
+    return false;
+  }
+
+  void broadcastPresenter () const {
+    if (!isCurrentPresenter ()) return;
+    const auto image= [this] (int index) -> QImage {
+      const auto it= images_.constFind (index);
+      return it == images_.cend () ? QImage {} : it->pixels;
+    };
+    const qint64 elapsed= presenterTimerPaused_ ? pausedTimeMs_ :
+      pausedTimeMs_ + presenterTimer_.elapsed ();
+    const QJsonObject status {
+      {"active", true}, {"page", page_+1}, {"count", count_},
+      {"finished", finished_}, {"black", blackout_},
+      {"timerPaused", presenterTimerPaused_},
+      {"elapsedSeconds", double (elapsed)/1000.0}};
+    qtm_presenter_pwa_publish (status, image (page_),
+                               page_+1 < count_ ? image (page_+1) : QImage {});
+  }
 
   QSize renderSize () const {
     const qreal dpr= devicePixelRatioF ();
@@ -136,6 +173,7 @@ class QTMSlideshowWindow final: public QWidget {
         pendingPage_= -1;
         update ();
         syncPanorama ();
+        broadcastPresenter ();
       }
     }
     if (pendingPage_ >= 0 && requestAge_.elapsed () > 15000)
@@ -249,6 +287,8 @@ class QTMSlideshowWindow final: public QWidget {
     page_= index;
     pan_= {};
     zoom_= 1.0;
+    blackout_= false;
+    pointerVisible_= false;
     if (progress_) progress_->setValue (page_+1);
     if (pageCount_) pageCount_->setText (
       QStringLiteral ("%1/%2").arg (page_+1).arg (count_));
@@ -257,6 +297,7 @@ class QTMSlideshowWindow final: public QWidget {
       controls_->layout ()->count () != 0);
     update ();
     pollFrames ();
+    broadcastPresenter ();
   }
 
   void next () {
@@ -265,6 +306,7 @@ class QTMSlideshowWindow final: public QWidget {
       finished_= true;
       if (controls_) controls_->hide ();
       update ();
+      broadcastPresenter ();
     }
   }
 
@@ -347,6 +389,10 @@ protected:
                         tr ("End of slideshow\nPress any key to exit"));
       return;
     }
+    if (blackout_) {
+      painter.fillRect (rect (), Qt::black);
+      return;
+    }
     auto found= images_.constFind (page_);
     if (found == images_.cend () || found->pixels.isNull ()) {
       painter.setPen (Qt::white);
@@ -363,6 +409,15 @@ protected:
                        (height ()-imageSize.height ())/2 + pan_.y ());
     painter.setRenderHint (QPainter::SmoothPixmapTransform);
     painter.drawImage (QRectF (at, imageSize), pixels);
+    if (pointerVisible_) {
+      const QPointF pos= at + QPointF (
+        pointerPosition_.x () * imageSize.width (),
+        pointerPosition_.y () * imageSize.height ());
+      painter.setRenderHint (QPainter::Antialiasing);
+      painter.setPen (QPen (Qt::white, 1.5));
+      painter.setBrush (QColor (255, 35, 45, 230));
+      painter.drawEllipse (pos, 7, 7);
+    }
   }
 
   void keyPressEvent (QKeyEvent* event) override {
@@ -387,6 +442,11 @@ protected:
     case Qt::Key_PageUp: go (std::max (0, page_-1)); return;
     case Qt::Key_Home: go (0); return;
     case Qt::Key_End: go (count_-1); return;
+    case Qt::Key_B:
+      blackout_= !blackout_;
+      update ();
+      broadcastPresenter ();
+      return;
     default: event->accept (); return; // Presentation never edits the source.
     }
   }
@@ -493,6 +553,15 @@ protected:
       actor_, actor_command_kind::activate_thumbnail_page, view_,
       ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER,
       static_cast<std::uint64_t> (page_));
+    presenter_windows.removeAll (QPointer<QTMSlideshowWindow> (this));
+    bool another= false;
+    for (int i=presenter_windows.size ()-1; i>=0; --i)
+      if (presenter_windows[i] && presenter_windows[i]->isVisible ()) {
+        presenter_windows[i]->broadcastPresenter ();
+        another= true;
+        break;
+      }
+    if (!another) qtm_presenter_pwa_clear ();
     QWidget::closeEvent (event);
   }
 
@@ -507,6 +576,7 @@ public:
     raster_ (QTMRenderConnection::create ()) {
     static std::atomic<std::uint64_t> nextSession {1};
     session_= nextSession.fetch_add (1, std::memory_order_relaxed);
+    presenterTimer_.start ();
     setWindowTitle (tr ("ATHENA — Slideshow"));
     setAttribute (Qt::WA_DeleteOnClose);
     setFocusPolicy (Qt::StrongFocus);
@@ -527,15 +597,64 @@ public:
     poll_.setInterval (60);
     connect (&poll_, &QTimer::timeout, this, [this] {
       if (!resizeDebounce_.isActive ()) pollFrames ();
+      // Only metadata changes between frames; the images are shared QImages.
+      // The PWA serves them from its own thread-safe snapshot.
+      broadcastPresenter ();
     });
     poll_.start ();
     if (slideshow_setting ("slideshow display", "fullscreen") ==
         QStringLiteral ("window")) showNormal ();
     else showFullScreen ();
+    presenter_windows.append (this);
     activateWindow ();
     setFocus (Qt::OtherFocusReason);
     showControlsAt (QPoint (width ()/2, height ()/2));
     pollFrames ();
+    broadcastPresenter ();
+  }
+
+  bool presenterAction (const QString& command, const QJsonObject& args) {
+    if (command == QStringLiteral ("next")) next ();
+    else if (command == QStringLiteral ("previous"))
+      go (std::max (0, page_-1));
+    else if (command == QStringLiteral ("first")) go (0);
+    else if (command == QStringLiteral ("last")) go (count_-1);
+    else if (command == QStringLiteral ("jump")) {
+      const int index= args.value ("page").toInt ()-1;
+      if (index < 0 || index >= count_) return false;
+      go (index);
+    }
+    else if (command == QStringLiteral ("black")) {
+      blackout_= !blackout_;
+      update ();
+    }
+    else if (command == QStringLiteral ("pointer")) {
+      pointerPosition_= QPointF (args.value ("x").toDouble (),
+                                args.value ("y").toDouble ());
+      pointerVisible_= true;
+      update ();
+    }
+    else if (command == QStringLiteral ("pointer-hide")) {
+      pointerVisible_= false;
+      update ();
+    }
+    else if (command == QStringLiteral ("timer-reset")) {
+      presenterTimer_.restart ();
+      pausedTimeMs_= 0;
+      presenterTimerPaused_= false;
+    }
+    else if (command == QStringLiteral ("timer-pause")) {
+      if (!presenterTimerPaused_) pausedTimeMs_+= presenterTimer_.elapsed ();
+      else presenterTimer_.restart ();
+      presenterTimerPaused_= !presenterTimerPaused_;
+    }
+    else if (command == QStringLiteral ("end")) {
+      close ();
+      return true;
+    }
+    else return false;
+    broadcastPresenter ();
+    return true;
   }
 };
 
@@ -549,4 +668,21 @@ qtm_slideshow_open (athena_actor_id actor, athena_view_id view,
   // Explicitly separate top-level window. Never reparent or replace the
   // original Buffer Editor, which remains a normal editable document.
   new QTMSlideshowWindow (actor, view, page_count, initial_page);
+}
+
+void
+qtm_slideshow_presenter_action (const QString& command,
+                                 const QJsonObject& arguments) {
+  for (int i=presenter_windows.size ()-1; i>=0; --i)
+    if (presenter_windows[i] && presenter_windows[i]->isVisible ()) {
+      presenter_windows[i]->presenterAction (command, arguments);
+      return;
+    }
+  if (command == QStringLiteral ("start")) {
+    QTMCommandRegistry& commands= QTMCommandRegistry::instance ();
+    QTMMainTabWindow* shell= QTMMainTabWindow::topTabWindow ();
+    if (shell && commands.initialize ())
+      (void) commands.execute (QStringLiteral ("view.slideshow-from-current"),
+                               commands.captureContext (shell, nullptr));
+  }
 }

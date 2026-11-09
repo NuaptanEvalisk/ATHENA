@@ -27,6 +27,7 @@
 #include "UI/Qt/Toolkit/qt_tm_widget.hpp"
 #include "UI/Qt/Vault/QTMVaultInfoModel.hpp"
 #include "UI/Qt/Integrations/QTMDelegationClient.hpp"
+#include "UI/Qt/Integrations/QTMPresenterPwa.hpp"
 #include "UI/Qt/Vault/QTMVaultSearchWorker.hpp"
 #include "GoogleOAuth.hpp"
 #include "GoogleTasksClient.hpp"
@@ -56,6 +57,7 @@
 #include <QCompleter>
 #include <QCoreApplication>
 #include <QDialogButtonBox>
+#include <QDesktopServices>
 #include <QDir>
 #include <QFile>
 #include <QFileDialog>
@@ -431,7 +433,7 @@ category_icon (const QString& name) {
   };
   if (name == "General")
     return libreoffice_icon ("configuredialog");
-  if (name == "Keyboard")
+  if (name == "Input")
     return libreoffice_icon ("assignmacro");
   if (name == "Editing")
     return libreoffice_icon ("editdoc");
@@ -936,7 +938,7 @@ QTMPreferencesDialog::QTMPreferencesDialog (QWidget* parent)
   outer->addWidget (body, 1);
 
   addCategory ("General", buildGeneralPage ());
-  addCategory ("Keyboard", buildKeyboardPage ());
+  addCategory ("Input", buildKeyboardPage ());
   addCategory ("Editing", buildEditingPage ());
   addCategory ("Rendering", buildRenderingPage ());
   addCategory ("Convert", buildConversionPage ());
@@ -1235,7 +1237,7 @@ QTMPreferencesDialog::buildGeneralPage () {
 QWidget*
 QTMPreferencesDialog::buildKeyboardPage () {
   QWidget* input= make_page ();
-  QFormLayout* form= add_section (input, "Input");
+  QFormLayout* form= add_section (input, "Keyboard");
   add_combo (form, "text spacebar");
   add_combo (form, "math spacebar");
   add_combo (form, "automatic quotes");
@@ -1248,18 +1250,73 @@ QTMPreferencesDialog::buildKeyboardPage () {
   finish_page (input);
 
   QWidget* remote= make_page ();
-  QFormLayout* r= add_section (remote, "Remote Control");
-  add_combo (r, "ir-left");
-  add_combo (r, "ir-right");
-  add_combo (r, "ir-up");
-  add_combo (r, "ir-down");
-  add_combo (r, "ir-center");
-  add_combo (r, "ir-play");
-  add_combo (r, "ir-pause");
-  add_combo (r, "ir-menu");
+  QFormLayout* pwa= add_section (remote, "Presenter PWA");
+  QCheckBox* enablePresenter= add_toggle (pwa, "presenter pwa enabled");
+  QLineEdit* presenterAddress= add_line_edit (pwa, "presenter pwa listen address");
+  QLineEdit* presenterPort= add_line_edit (pwa, "presenter pwa listen port");
+  QCheckBox* approvePresenter= add_toggle (pwa, "presenter pwa require approval");
+  QCheckBox* previewPresenter= add_toggle (pwa, "presenter pwa previews");
+  QLineEdit* presenterCert= add_line_edit (pwa, "presenter pwa tls certificate");
+  QLineEdit* presenterKey= add_line_edit (pwa, "presenter pwa tls key");
+  auto* presenterStatus= new QLabel (remote);
+  presenterStatus->setWordWrap (true);
+  presenterStatus->setTextInteractionFlags (Qt::TextSelectableByMouse);
+  const QPointer<QLabel> presenterStatusOwner (presenterStatus);
+  auto refreshPresenter= [presenterStatusOwner] {
+    if (presenterStatusOwner)
+      presenterStatusOwner->setText (qtm_presenter_pwa_status ());
+  };
+  refreshPresenter ();
+  auto settingsChanged= [refreshPresenter] {
+    QTimer::singleShot (0, qApp, [refreshPresenter] {
+      qtm_presenter_pwa_configure ();
+      refreshPresenter ();
+    });
+  };
+  for (QCheckBox* setting: {enablePresenter, approvePresenter, previewPresenter})
+    QObject::connect (setting, &QCheckBox::toggled, this, settingsChanged);
+  for (QLineEdit* setting: {presenterAddress, presenterPort, presenterCert, presenterKey})
+    QObject::connect (setting, &QLineEdit::editingFinished, this, settingsChanged);
+  pwa->addRow (label ("Controller status:"), presenterStatus);
+  auto* presenterActions= new QWidget (remote);
+  auto* presenterButtons= new QHBoxLayout (presenterActions);
+  presenterButtons->setContentsMargins (0, 0, 0, 0);
+  auto* openPresenter= new QPushButton ("Open controller", presenterActions);
+  auto* copyPresenter= new QPushButton ("Copy controller URL", presenterActions);
+  presenterButtons->addWidget (openPresenter);
+  presenterButtons->addWidget (copyPresenter);
+  presenterButtons->addStretch ();
+  auto chooseUrl= [this] () -> QString {
+    const QStringList urls= qtm_presenter_pwa_urls ();
+    if (urls.isEmpty ()) return {};
+    if (urls.size () == 1) return urls[0];
+    bool chosen= false;
+    const QString result= QInputDialog::getItem (
+      this, "Presenter controller", "Device address:", urls, 0,
+      false, &chosen);
+    return chosen ? result : QString {};
+  };
+  QObject::connect (openPresenter, &QPushButton::clicked, this, [chooseUrl] {
+    const QString url= chooseUrl ();
+    if (!url.isEmpty ()) QDesktopServices::openUrl (QUrl (url));
+  });
+  QObject::connect (copyPresenter, &QPushButton::clicked, this, [chooseUrl] {
+    const QString url= chooseUrl ();
+    if (!url.isEmpty ()) QApplication::clipboard ()->setText (url);
+  });
+  pwa->addRow (label ("Connect a device:"), presenterActions);
+  QLabel* presenterSecurity= new QLabel (
+    "The server is off by default and listens only on 127.0.0.1 until you "
+    "change the address (0.0.0.0 accepts LAN connections). Device approval "
+    "is on by default. Plain HTTP works as a browser controller but cannot "
+    "be installed as a PWA over a LAN; a device-trusted HTTPS certificate "
+    "and matching private key are needed for installable LAN PWA support. "
+    "All approvals are cleared when the server is restarted.", remote);
+  presenterSecurity->setWordWrap (true);
+  remote->layout ()->addWidget (presenterSecurity);
   finish_page (remote);
 
-  return tabbed ({{"Input", input}, {"Remote Control", remote}});
+  return tabbed ({{"Keyboard", input}, {"Remote Control", remote}});
 }
 
 QWidget*
@@ -1352,6 +1409,7 @@ QTMPreferencesDialog::buildRenderingPage () {
     slideshow);
   presenterNote->setWordWrap (true);
   slideshow->layout ()->addWidget (presenterNote);
+
   finish_page (slideshow);
 
   QWidget* components= make_page ();

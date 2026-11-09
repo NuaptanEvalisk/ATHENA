@@ -7,6 +7,7 @@
 #include "UI/Qt/Integrations/QTMUpdateChecker.hpp"
 #include "UI/Qt/Vault/QTMVaultBackupDispatcher.hpp"
 #include "UI/Qt/Integrations/QTMHodarium.hpp"
+#include "UI/Qt/Integrations/QTMPresenterPwa.hpp"
 #include "UI/Qt/Toolkit/qt_utilities.hpp"
 #include "tm_timer.hpp"
 
@@ -156,6 +157,7 @@ void QTMApplication::load() {
   qtm_document_history_initialize ();
   qtm_vault_backup_dispatcher_initialize ();
   qtm_hodarium_initialize ();
+  qtm_presenter_pwa_initialize ();
   qtm_schedule_update_check ();
   bench_cumul ("initialize background services");
 }
