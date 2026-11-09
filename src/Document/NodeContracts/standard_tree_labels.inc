@@ -885,7 +885,6 @@
   init_var (PREAMBLE, TYPE_BOOLEAN);
   init_var (SAVE_AUX, TYPE_BOOLEAN);
   init_var (MODE, TYPE_STRING);
-  init_var (INFO_FLAG, TYPE_STRING);
   init_var (WINDOW_BARS, TYPE_STRING);
   init_var (SCROLL_BARS, TYPE_BOOLEAN);
   init_var (THE_LABEL, TYPE_REGULAR);

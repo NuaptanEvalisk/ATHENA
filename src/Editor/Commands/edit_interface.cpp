@@ -868,7 +868,6 @@ editor_rep::document_menu_state_snapshot () {
   assign (snapshot.font_base_size, get_init_string ("font-base-size"));
   assign (snapshot.document_language, document_get_language (this));
   assign (snapshot.foreground_color, get_init_string ("color"));
-  assign (snapshot.info_flag, get_init_string ("info-flag"));
   assign (snapshot.page_rendering, document_get_init_page_rendering (this));
   assign (snapshot.background_color, get_init_string ("bg-color"));
 

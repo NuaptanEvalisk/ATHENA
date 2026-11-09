@@ -24,11 +24,6 @@ void fullscreen (int target) {
   int old= fullscreen_state (ed.operator-> ());
   string mode= document_get_init_page_rendering (ed.operator-> ());
   if (old == 0) view_save_zoom (mode);
-  if (old == 1) ed->init_env ("info-flag", ed->view_modes.informative_flags);
-  if (target == 1) {
-    ed->view_modes.informative_flags= copy (ed->get_init_value ("info-flag"));
-    ed->init_env ("info-flag", tree ("none"));
-  }
   get_server ()->full_screen_mode (target != 0, target == 2);
   schedule_zoom (ed.operator-> (), mode, target == 1? 1: 0, target);
 }

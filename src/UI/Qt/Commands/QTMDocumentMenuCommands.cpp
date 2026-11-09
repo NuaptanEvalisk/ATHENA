@@ -288,25 +288,6 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
           qs (document.document_language) == key);
       }
 
-      static const struct {
-        const char* key;
-        const char* value;
-        const char* label;
-      } flags[]= {
-        {"none", "none", "None"},
-        {"minimal", "minimal", "Minimal"},
-        {"short", "short", "Short"},
-        {"detailed", "detailed", "Detailed"},
-        {"paper", "paper", "Also on paper"}
-      };
-      append_item (
-        out, "info/default", QObject::tr ("Default"),
-        QObject::tr ("Informative flags"), writable);
-      for (const auto& flag: flags)
-        append_item (
-          out, QStringLiteral ("info/%1").arg (flag.key),
-          QObject::tr (flag.label), QObject::tr ("Informative flags"), writable,
-          true, qs (document.info_flag) == QString::fromLatin1 (flag.value));
       return out;
     },
     [] (const QString& key, const QTMCommandContext& context) {
@@ -519,21 +500,6 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
         else {
           action.insert ("op", "set-document-language");
           action.insert ("language", language);
-        }
-        return submit_inline_editor_action (
-          context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
-      }
-      if (key.startsWith (QStringLiteral ("info/"))) {
-        QString value= key.mid (5);
-        QJsonObject action;
-        if (value == QStringLiteral ("default")) {
-          action.insert ("op", "init-default");
-          action.insert ("var", "info-flag");
-        }
-        else {
-          action.insert ("op", "init-env");
-          action.insert ("var", "info-flag");
-          action.insert ("value", value);
         }
         return submit_inline_editor_action (
           context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);

@@ -3,6 +3,25 @@
   "version": 1,
   "preferences": [
     {
+      "key": "informative flags", "type": "choice", "scope": "active",
+      "default": "minimal", "callback": "informative-flags",
+      "ui": {"category": "Editing", "tab": "Generic and Text",
+        "section": "Editor focus and context", "order": 3,
+        "category_order": 2, "tab_order": 0, "section_order": 0,
+        "label": "Informative flags", "control": "choice",
+        "choices": [{"value": "hidden", "label": "Hidden"},
+          {"value": "minimal", "label": "Minimal"},
+          {"value": "shown", "label": "Shown"}]}
+    },
+    {
+      "key": "informative flags on paper", "type": "string", "scope": "active",
+      "default": "off", "callback": "informative-flags",
+      "ui": {"category": "Editing", "tab": "Generic and Text",
+        "section": "Editor focus and context", "order": 4,
+        "category_order": 2, "tab_order": 0, "section_order": 0,
+        "label": "Show informative flags on paper", "control": "toggle"}
+    },
+    {
       "key": "texmacs->latex:portable",
       "type": "boolean",
       "scope": "active",

@@ -204,7 +204,6 @@ struct actor_document_menu_snapshot {
   std::string font_base_size;
   std::string document_language;
   std::string foreground_color;
-  std::string info_flag;
   std::string page_rendering;
   std::string materials_citation_style;
   std::vector<actor_focus_choice_snapshot> document_styles;

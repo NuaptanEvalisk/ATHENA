@@ -15,6 +15,7 @@
 #include "Typesetting/Boxes/construct.hpp"
 #include "analyze.hpp"
 #include "math_font.hpp"
+#include "boot.hpp"
 
 /******************************************************************************
 * Retrieving the page size
@@ -32,7 +33,6 @@ initialize_default_var_type () {
   var_type (PREAMBLE)           = Env_Preamble;
   var_type (SAVE_AUX)           = Env_Fixed;
   var_type (MODE)               = Env_Mode;
-  var_type (INFO_FLAG)          = Env_Info_Level;
 
   var_type (FONT)               = Env_Font;
   var_type (FONT_FAMILY)        = Env_Font;
@@ -673,14 +673,9 @@ edit_env_rep::update_mode () {
 
 void
 edit_env_rep::update_info_level () {
-  string s= get_string (INFO_FLAG);
-  if (s == "none") info_level= INFO_NONE;
-  else if (s == "minimal") info_level= INFO_MINIMAL;
-  else if (s == "short") info_level= INFO_SHORT;
-  else if (s == "detailed") info_level= INFO_DETAILED;
-  else if (s == "paper") info_level= INFO_PAPER;
-  else if (s == "short-paper") info_level= INFO_SHORT_PAPER;
-  else info_level= INFO_MINIMAL;
+  string s= get_preference ("informative flags");
+  info_level= s == "hidden" ? INFO_NONE : s == "shown" ? INFO_SHOWN : INFO_MINIMAL;
+  info_on_paper= get_preference ("informative flags on paper") == "on";
 }
 
 void
@@ -1040,9 +1035,6 @@ edit_env_rep::update (string s) {
     update_mode ();
     update_language ();
     update_font ();
-    break;
-  case Env_Info_Level:
-    update_info_level ();
     break;
   case Env_Font:
     update_font ();

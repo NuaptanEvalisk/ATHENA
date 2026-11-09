@@ -363,7 +363,7 @@ concater_rep::typeset_math_string (tree t, path ip, int pos, int end) {
     else { // strings
       penalty_max (tp->pen_before);
       if (spc_ok) { PRINT_SPACE (tp->spc_before); }
-      if (pos > start && s[start] == '*' && env->info_level >= INFO_SHORT) {
+      if (pos > start && s[start] == '*' && env->info_level == INFO_SHOWN) {
         color c = rgb_color (160, 160, 255);
         auto dot= std::make_shared<athena::text::font_paragraph> (
           "\xc2\xb7", athena::text::math_font_request (env->fn, athena::text::math_alphabet::normal));

@@ -20,7 +20,6 @@ string ZOOM_FACTOR ("zoom-factor");
 string PREAMBLE ("preamble");
 string SAVE_AUX ("save-aux");
 string MODE ("mode");
-string INFO_FLAG ("info-flag");
 string WINDOW_BARS ("window-bars");
 string SCROLL_BARS ("scroll-bars");
 string IDENTITY ("identity");

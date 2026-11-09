@@ -78,39 +78,33 @@ concater_rep::ghost (string s, path ip, color col) {
 
 void
 concater_rep::flag_ok (string s, path ip, color col) {
-  path dip = decorate_right (ip);
-  SI h= 4*env->fn->wfn/5;
-  int r, g, b, a;
-  get_rgb_color (col, r, g, b, a);
-  //r= 255- (255 - r)/6;
-  //g= 255- (255 - g)/6;
-  //b= 255- (255 - b)/6;
-  a= a/6;
-  color light= rgb_color (r, g, b, a);
-  int info= env->info_level;
-  if (info == INFO_MINIMAL || info == INFO_SHORT || info == INFO_SHORT_PAPER) {
-    box infob= info_box (dip, h, pencil (col, env->fn->wline), light);
-    if (info == INFO_SHORT_PAPER) {
-      box b= resize_box (ip, infob, 0, 0, 0, env->fn->yx);
-      print (b);
-    }
-    else {
-      box specb= specific_box (ip, infob, "screen", env->fn);
-      print (specb);
-    }
-  }
-  else if (info == INFO_DETAILED || info == INFO_PAPER) {
-    box textb= text_box (decorate (ip), 0, s, env->fn, col);
-    box flagb= flag_box (dip, textb, h, pencil (col, env->fn->wline), light);
-    if (info == INFO_DETAILED) {
-      box specb= specific_box (ip, flagb, "screen", env->fn);
-      print (specb);
-    }
-    else {
-      box b= resize_box (ip, flagb, 0, 0, 0, env->fn->yx);
-      print (b);
-    }
-  }
+  (void) col;
+  const bool printed= env->get_string (PAGE_PRINTED) == "true";
+  if (env->info_level == INFO_NONE || (printed && !env->info_on_paper)) return;
+  auto panel= [] (tree content, bool badge) {
+    tree style (WITH);
+    style << ORNAMENT_SHAPE << "classic" << ORNAMENT_CORNER << "0%"
+          << ORNAMENT_SWELL << "0" << ORNAMENT_BORDER << "0.5ln"
+          << ORNAMENT_HPADDING << (badge ? "0fn" : "0.3fn")
+          << ORNAMENT_VPADDING << "0fn"
+          << ORNAMENT_COLOR << (badge ? "#7d9685" : "#edf2ee")
+          << ORNAMENT_SUNNY_COLOR << "#7d9685"
+          << ORNAMENT_SHADOW_COLOR << "#7d9685"
+          << tree (ORNAMENT, content);
+    return style;
+  };
+  tree glyph (WITH, COLOR, "white", "@");
+  tree badge (RESIZE, glyph, tree (MINUS, "0.5w", "0.6fn"), "-0.25fn",
+              tree (PLUS, "0.5w", "0.6fn"), "0.95fn");
+  tree content (CONCAT, panel (badge, true));
+  if (env->info_level == INFO_SHOWN)
+    content << panel (tree (RESIZE, tree (WITH, COLOR, "#34483a", s),
+                            "", "-0.25fn", "", "0.95fn"), false);
+  tree style (WITH);
+  style << MODE << "text" << FONT_FAMILY << "ss" << FONT_SERIES << "medium"
+        << FONT_SHAPE << "right" << content;
+  box marker= typeset_as_concat (env, style, decorate_right (ip));
+  print (env->info_on_paper ? marker : specific_box (ip, marker, "screen", env->fn, true));
 }
 
 void

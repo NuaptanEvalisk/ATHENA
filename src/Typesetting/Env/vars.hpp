@@ -22,7 +22,6 @@ extern string ZOOM_FACTOR;
 extern string PREAMBLE;
 extern string SAVE_AUX;
 extern string MODE;
-extern string INFO_FLAG;
 extern string WINDOW_BARS;
 extern string SCROLL_BARS;
 extern string IDENTITY;

@@ -1326,6 +1326,8 @@ QTMPreferencesDialog::buildEditingPage () {
   add_toggle (display, "show full context");
   add_toggle (display, "show focus");
   add_toggle (display, "show table cells");
+  add_combo (display, "informative flags");
+  add_toggle (display, "informative flags on paper");
   QFormLayout* t= add_section (genericText, "Text");
   add_toggle (t, "heading word counts");
   add_toggle (t, "live spell checking");

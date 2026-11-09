@@ -5,7 +5,6 @@
 #include "tm_timer.hpp"
 class editor_rep;
 struct editor_view_modes {
-  tree informative_flags= "default";
   string panorama_revert= "paper", slideshow_revert= "paper";
   string selected_presentation;
   bool pending= false;

@@ -5,6 +5,7 @@
 #include "native_interfaces.hpp"
 #include "Editor/editor.hpp"
 #include "App/Runtime/server.hpp"
+#include "App/Runtime/tm_server.hpp"
 #include "App/Window/tm_window.hpp"
 #include "file.hpp"
 #include "boot.hpp"
@@ -77,6 +78,8 @@ void application_preference_notify (string key) {
   if (callback == "notify-restart") athena_notify_restart ();
   else if (callback == "notify-viewport-follow") notify_viewport_follow ();
   else if (callback == "notify-fold-table-of-contents") windows_refresh ("");
+  else if (callback == "notify-informative-flags" && is_server_started ())
+    get_server ()->typeset_update_all ();
 }
 void application_preferences_notify_all () {
   const array<string> keys= get_user_preference_callback_names ();

@@ -342,7 +342,6 @@ bool edit_interface_rep::prepare_link_peek (link_peek_layer& peek, SI width) {
   preview->write (PAR_LEFT, "0tmpt");
   preview->write (PAR_RIGHT, "0tmpt");
   preview->write (PAGE_MEDIUM, "papyrus");
-  preview->write (INFO_FLAG, "none");
   preview->read_only= true;
   preview->update ();
   lazy content= make_lazy (preview, extract (document, "body"), path ());

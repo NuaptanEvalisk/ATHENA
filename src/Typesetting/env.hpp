@@ -40,7 +40,6 @@ namespace athena::contracts { class macro_analysis; class detached_environment; 
 #define Env_Magnify            4
 #define Env_Language           5
 #define Env_Mode               6
-#define Env_Info_Level         7
 #define Env_Font               8
 #define Env_Font_Size          9
 #define Env_Font_Sizes        10
@@ -117,10 +116,7 @@ namespace athena::contracts { class macro_analysis; class detached_environment; 
 
 #define INFO_NONE          0
 #define INFO_MINIMAL       1
-#define INFO_SHORT         2
-#define INFO_DETAILED      3
-#define INFO_PAPER         4
-#define INFO_SHORT_PAPER   5
+#define INFO_SHOWN         2
 
 /******************************************************************************
 * The edit environment
@@ -210,6 +206,7 @@ public:
   int          nesting_level;
 
   int          info_level;
+  bool         info_on_paper;
   int          src_style;
   int          src_special;
   int          src_compact;

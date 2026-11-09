@@ -129,6 +129,7 @@ preference_callback_name (const QString& id) {
     {"icon-bar", "notify-icon-bar"},
     {"julia-syntax", "notify-julia-syntax"},
     {"labels-mode", "notify-labels-mode"},
+    {"informative-flags", "notify-informative-flags"},
     {"latex-command", "notify-latex-command"},
     {"link-color", "notify-link-color"},
     {"look-and-feel", "notify-look-and-feel"},
