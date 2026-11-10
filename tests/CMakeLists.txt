@@ -1,4 +1,14 @@
 file (GLOB_RECURSE TEST_SRC_FILES CONFIGURE_DEPENDS "*.cpp")
+list (FILTER TEST_SRC_FILES EXCLUDE REGEX "/src/Document/State/auxiliary_cache_test\\.cpp$")
+add_executable(auxiliary_cache_test
+  src/Document/State/auxiliary_cache_test.cpp
+  ${ATHENA_SOURCE_DIR}/src/Document/State/auxiliary_cache.cpp)
+set_target_properties(auxiliary_cache_test PROPERTIES AUTOMOC OFF)
+target_include_directories(auxiliary_cache_test PRIVATE
+  ${ATHENA_SOURCE_DIR}/src ${SQLITE3_INCLUDE_DIRS})
+target_link_libraries(auxiliary_cache_test PRIVATE ${SQLITE3_LIBRARIES} Threads::Threads)
+add_test(NAME auxiliary_cache_test COMMAND auxiliary_cache_test)
+set_tests_properties(auxiliary_cache_test PROPERTIES TIMEOUT 15)
 add_test(NAME shipped_macro_labels_generator_test
   COMMAND "${Python3_EXECUTABLE}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Document/NodeContracts/shipped-macro-labels-test.py")
