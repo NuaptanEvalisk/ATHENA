@@ -65,14 +65,19 @@ hashmap_rep<T,U>::resize (int n2) {
 
 TMPL bool
 hashmap_rep<T,U>::contains (const T& x) {
+  return find (x) != nullptr;
+}
+
+TMPL const U*
+hashmap_rep<T,U>::find (const T& x) const {
   int hv= hash (x);
   const list<hashentry<T,U> >* l= &(a [hv & (n-1)]);
   while (!is_nil (*l)) {
     if ((*l)->item.code == hv && (*l)->item.key == x)
-      return true;
+      return &(*l)->item.im;
     l= &((*l)->next);
   }
-  return false;
+  return nullptr;
 }
 
 TMPL bool
@@ -98,14 +103,8 @@ hashmap_rep<T,U>::bracket_rw (const T& x) {
 
 TMPL U
 hashmap_rep<T,U>::bracket_ro (const T& x) const {
-  int hv= hash (x);
-  const list<hashentry<T,U> >* l= &(a [hv & (n-1)]);
-  while (!is_nil (*l)) {
-    if ((*l)->item.code == hv && (*l)->item.key == x)
-      return (*l)->item.im;
-    l= &((*l)->next);
-  }
-  return init;
+  const U* value= find (x);
+  return value ? *value : init;
 }
 
 TMPL void

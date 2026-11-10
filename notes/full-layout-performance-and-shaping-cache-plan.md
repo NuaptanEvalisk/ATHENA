@@ -1108,6 +1108,52 @@ document speedup from this change alone. The 500 ms target remains open.
 All temporary profile clones, comparison binaries and the standalone path
 checker were removed after measurement; small logs and perf evidence remain.
 
+## Environment Reads and Source Paths (2026-11-10)
+
+The measured 121,613 environment reads previously looked up each key twice
+while recording dependencies: once for its value and again for presence.
+`hashmap_rep::find` now returns a borrowed value pointer from a single lookup;
+`edit_env_rep::read` still copies the value before capture and records presence
+separately from the default value. No contract events or snapshots are omitted.
+
+Source-occurrence capture now constructs its forward vector directly from the
+inverse path, without an intermediate reversed linked list, and prepares the
+capture's fixed anchor vector once rather than once per occurrence. Relative
+address and source-selection semantics are unchanged.
+
+Clean build/deployment ID: `c41bdda87a75d6b58c95b475e63dd610cbb67069`.
+Sequential A/B/B/A comparison against `59dd7a5c7`, using identical source
+profiles and the document's first complete layout in each fresh process:
+
+| Group | First copied-profile layout | Warm fresh-process layouts |
+| --- | ---: | ---: |
+| A1, control | 865 ms | 717 / 681 ms |
+| B1, single lookup / source paths | 797 ms | 746 / 720 ms |
+| B2, single lookup / source paths | 758 ms | 682 / 667 ms |
+| A2, control | 790 ms | 680 / 709 ms |
+
+Logs: `build_qt6/atha03-read-{a1,b1,b2,a2}/`. These measurements do **not**
+establish an aggregate speedup: warmed control mean is 696.75 ms and new mean
+703.75 ms, with overlapping ranges. The code removes demonstrated redundant
+operations, but this is not evidence of approaching 500 ms. No permanent tests
+or diagnostic instrumentation were added; the application was built with -j16
+and deployed with executable identity verification.
+
+The new LBR capture is `build_qt6/atha03-read-perf/stacks.txt`, actor 463516,
+20:30:46.253-20:30:47.170 (917 ms instrumented full layout). Of 693 samples,
+73 include anonymous transparent-huge-page allocation/compaction, 49 include
+the persistent shaping lookup, 68 variable-read capture, 27 source occurrence
+work and 12 context marking. These groups overlap and are not additive timing
+budgets. This independently repeats the earlier synchronous compaction finding.
+Allocator policy is still unchanged; isolate that policy in the next comparison
+instead of attributing kernel allocation stalls to LMDB mapping.
+
+The earlier no-THP capture's 37 persistent-lookup samples include 14 mapping
+fault samples, 15 with a leaf inside LMDB, and only one with `mdb_txn_begin`
+as the leaf. This does not justify prioritizing transaction recycling over
+actual lookup/page-fault work. Disposable profile clones and the control binary
+are removed after analysis; small timing logs and perf evidence are retained.
+
 ## Persistent Shaping Cache: Original Design (Implemented)
 
 The subsections below record the decisions that guided the completed

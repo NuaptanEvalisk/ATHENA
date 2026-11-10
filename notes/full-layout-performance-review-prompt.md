@@ -164,11 +164,21 @@ That sample also identified repeated reversed-list allocation for cursor
 boundary comparisons, mainly in `composite_box_rep::finalize`. The comparator
 now uses Boost small vectors and preserves the final 0/1 border semantics;
 1,893,225 temporary direct comparisons against the old implementation matched.
-Current deployed build: `144eae81758f004e5154d423679e3e941365aa41`.
+That deployed build: `144eae81758f004e5154d423679e3e941365aa41`.
 Warmed complete layouts were 673 / 663 ms, a reverse control 682 / 643 ms,
 then a new-build recheck 653 / 631 ms. These overlap; allocation elimination is
 proven, but no stable aggregate speedup is claimed for this small change alone.
 The goal remains unmet. Logs and detailed results are in the main note.
+
+Current deployed build: `c41bdda87a75d6b58c95b475e63dd610cbb67069`.
+Environment reads now combine value/presence lookup, and source capture avoids
+reversed-list allocation and repeated anchor construction. Clean A/B/B/A warmed
+times were 717/681, 746/720, 682/667, 680/709 ms respectively: no demonstrated
+aggregate gain. Do not describe this as reaching or reliably nearing 500 ms.
+The new LBR capture (`build_qt6/atha03-read-perf/stacks.txt`, actor 463516,
+20:30:46.253-20:30:47.170) again finds substantial anonymous huge-page
+allocation/compaction: 73 of 693 samples, distinct from shaping-cache faults.
+This policy remains unchanged and warrants an isolated follow-up comparison.
 
 1. The real XML contains 563 MathScripts nodes and **1,685 empty script slots**.
    `concater_rep::typeset_v3_scripts` sends each vacant slot through full

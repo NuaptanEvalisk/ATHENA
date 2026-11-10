@@ -55,6 +55,7 @@ public:
   bool empty ();
   void generate (void (*routine) (T));
   bool contains (const T& x);
+  const U* find (const T& x) const;
   U&   bracket_rw (const T& x);
   U    bracket_ro (const T& x) const;
   U&   bracket_rw_debug (const T& x);

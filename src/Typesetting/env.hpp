@@ -513,8 +513,9 @@ public:
   }
   inline tree read (string s) {
     if (s == MAGNIFICATION) return tree (UNINIT);
-    tree value= env[s];
-    if (contract_events) contract_events->read_variable (s, env->contains (s), &value);
+    const tree* entry= env->find (s);
+    tree value= entry ? *entry : env->init;
+    if (contract_events) contract_events->read_variable (s, entry != nullptr, &value);
     return value;
   }
   void restore_local_value (string name, tree value, bool previously_present);

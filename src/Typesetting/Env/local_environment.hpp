@@ -80,6 +80,7 @@ class source_occurrence_capture {
   source_occurrence_capture* parent;
   source_occurrence_log& destination;
   path anchor;
+  std::vector<int> anchor_key;
   std::vector<source_occurrence_entry> entries;
   bool committed= false;
 public:

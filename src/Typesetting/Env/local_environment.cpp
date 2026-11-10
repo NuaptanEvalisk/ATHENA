@@ -12,6 +12,11 @@ std::vector<int> source_address_key (path p) {
   for (; !is_nil (p); p= p->next) result.push_back (p->item);
   return result;
 }
+std::vector<int> inverse_source_address_key (path p) {
+  auto result= source_address_key (p);
+  std::reverse (result.begin (), result.end ());
+  return result;
+}
 path source_anchor (path ip) {
   path anchor= ip;
   for (path p= ip; !is_nil (p); p= p->next)
@@ -45,7 +50,7 @@ static std::shared_ptr<const source_occurrence> select_source_occurrence (
     const athena::contracts::evaluation_boundary_handle& preferred) {
   if (!log) return {};
   auto key= source_address_key (address);
-  if (!make_relative (key, source_address_key (reverse (log->anchor)))) return {};
+  if (!make_relative (key, inverse_source_address_key (log->anchor))) return {};
   struct lookup { const source_occurrence_block* block; std::vector<int> key; };
   std::vector<lookup> pending {{log.get (), std::move (key)}};
   std::shared_ptr<const source_occurrence> found;
@@ -92,7 +97,8 @@ std::shared_ptr<const source_occurrence> find_source_occurrence (
 
 source_occurrence_capture::source_occurrence_capture (
     edit_env_rep& owner, source_occurrence_log& output, path ip):
-  env (owner), parent (owner.source_occurrences), destination (output), anchor (source_anchor (ip)) {
+  env (owner), parent (owner.source_occurrences), destination (output), anchor (source_anchor (ip)),
+  anchor_key (inverse_source_address_key (anchor)) {
   env.source_occurrences= this;
 }
 
@@ -102,8 +108,8 @@ source_occurrence_capture::~source_occurrence_capture () {
 
 std::shared_ptr<source_occurrence>
 source_occurrence_capture::record (tree source, path ip) {
-  auto key= source_address_key (reverse (ip));
-  if (!make_relative (key, source_address_key (reverse (anchor)))) return {};
+  auto key= inverse_source_address_key (ip);
+  if (!make_relative (key, anchor_key)) return {};
   auto occurrence= std::make_shared<source_occurrence> (source_occurrence {
     key, source, env.src, env.macro_arg, env.macro_src, env.cur_file_name,
     env.package_origin, env.secure,
@@ -155,8 +161,8 @@ std::shared_ptr<const source_occurrence_ancestor> source_occurrence_scope::enclo
 
 void source_occurrence_capture::reuse (const source_occurrence_log& child) {
   if (!child) return;
-  auto prefix= source_address_key (reverse (child->anchor));
-  if (!make_relative (prefix, source_address_key (reverse (anchor)))) return;
+  auto prefix= inverse_source_address_key (child->anchor);
+  if (!make_relative (prefix, anchor_key)) return;
   entries.push_back ({prepend_address (prefix, child->index.front ().first),
     prepend_address (prefix, child->index.back ().prefix_last), {}, prefix, {}, child});
 }
