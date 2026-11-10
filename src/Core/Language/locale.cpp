@@ -254,7 +254,6 @@ get_std_locale (string language) {
   }
 
   std::locale loc= std::locale::classic(); 
-  std::wcout.imbue(loc);
   string loc_name(loc.name().c_str());
   std_warning << "falling back to locale " << loc_name << "\n";
   return loc;

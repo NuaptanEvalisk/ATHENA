@@ -1,14 +1,82 @@
 # ATHENA Document Cache and Realtime Derived Content
 
-Design date: 2026-10-20. Status reviewed: 2026-11-01.
+Design date: 2026-10-20. Scope revised: 2026-11-10.
 
-Status: design and implementation plan, not an implemented feature.
+Status: implementation in progress; persistent cache and realtime views are not
+yet connected. The following scope supersedes the broader historical design.
+
+## Revised Scope (2026-11-10)
+
+- Keep `.cache/<full-source-filename>.ac`, including the source extension to
+  distinguish ATH/AVD files with the same stem.
+- Cache only auxiliary-derived contributions and directory results, dependency
+  identities, numbering and separately validated layout page bindings.
+- Do not cache shaping, general boxes, font objects or other typesetting object
+  graphs. The persistent shaping cache owns that independent capability.
+- Reopening must reuse matching results, not rebuild every directory. Cache IO
+  and computation run asynchronously; publication checks the source generation.
+- Changed contributions are replaced incrementally. Persistence coalesces work
+  and updates records, rather than serializing the complete cache per keystroke.
+- Source contains directory declarations/options, headings, captions and markers,
+  not generated bodies or auxiliary envelopes. Derived changes must not enter
+  undo, history or Hodarium source revisions. `tmfs://aux` is outside this work.
+- Export waits for the derived results of its source/layout snapshot. Closing
+  the editor does not require waiting for cache production.
+
+Implementation sequence:
+
+1. Separate directory algorithms from editor mutation and shared mutable state.
+2. Introduce contribution ownership, asynchronous `.ac` storage and publication.
+3. Render generated directories as derived views and connect incremental changes.
+4. Remove persisted auxiliary, obsolete update controls and source-generation
+   paths, integrate export readiness and cache lifecycle, then build/deploy.
+
+The historical rendering-cache design in sections below is background only;
+it is not an implementation requirement for the revised scope.
+
+### Current Implementation Boundary
+
+`src/Document/State/derived_directory.{hpp,cpp}` now owns detached ToC, index,
+glossary and list generation. Inputs are explicit, source identities are removed
+from derived copies, and rich-text properties survive label removal. Index
+grouping and locale state are local to an invocation. The editor currently calls
+these functions through the existing Update entry points; it still assigns the
+results into source. This is preparatory work, not realtime-cache completion.
+
+Next integration points, verified against the current native implementation:
+
+- `bridge_rep::typeset` already retains and reuses immutable-shaped event logs
+  for contracts and source occurrences. Auxiliary contribution capture should
+  follow bridge reuse/replacement, including nested and cached inline expansion,
+  instead of relying on `env->complete` and a cleared global append-only map.
+- `concater_rep::typeset_write` currently computes entries even when incomplete,
+  then discards them. Capture must distinguish source contributions from derived
+  directory rendering so generated output cannot feed its own collection.
+- `edit_typeset_rep::typeset_sub` is the owner-side layout publication boundary.
+  Worker publication needs an ID-only actor readiness signal, analogous to
+  `buffer_actor::notify_contracts_ready`, with a separate derived generation.
+- Native `tree` handles cannot be casually shared across threads. Existing
+  `node::frozen_tree` and detached ownership transfer provide the appropriate
+  contracts. Freeze changed contribution units, not the entire document after
+  each edit. The existing v3 structured-value codec preserves node properties;
+  its MessagePack representation is suitable for binary cache records.
+- Use the already-linked SQLite implementation with worker-owned connections and
+  transactional record replacement. Editor reads consume published memory, not
+  database queries. A single storage worker does not require WAL to keep the
+  editor responsive. Record source/style/dependency receipts, contribution order
+  and result versions separately from layout-specific page bindings.
+- Remove both `attach_data` and `refresh_interop_document_source` auxiliary
+  persistence only when the derived view replacement is connected. Audit
+  `append_interop_source_attributes` as well: it can restore annotated empty
+  auxiliary envelopes. Do not conflate references or attachments with auxiliary.
+- Directory generation and page-number convergence remain required for export;
+  replacing the editor update menu alone is insufficient.
 
 This plan replaces persisted TeXmacs auxiliary data and user-driven Document
 Update with realtime derived content and disposable per-document `.ac` caches.
 The cache must reduce computation without making editing, saving, or closing
-wait for cache production. It must accelerate reopening by retaining actual
-typesetting intermediate results, not merely source text or rendered screenshots.
+wait for cache production. It accelerates reopening by retaining auxiliary
+computation results rather than rerunning generation on every open.
 
 ## 1. Requirements and Decision Status
 
@@ -16,9 +84,9 @@ typesetting intermediate results, not merely source text or rendered screenshots
 
 - Store one ATHENA Cache file beside each source document, inside its sibling
   `.cache/` directory. ATHENA manages creation, maintenance, and removal.
-- The cache contains former auxiliary output and reusable rendering computations.
-- Cache C++ computational object state in binary, including object relationships.
-  Do not route persistence through XML, Scheme text, or a JSON document tree.
+- The cache contains former auxiliary computation results and their dependencies.
+- Persist binary records, not XML or Scheme text. General rendering state and
+  shaping are outside this cache.
 - `.ac` is entirely disposable. Cross-ATHENA-version compatibility is not a goal;
   an incompatible cache is discarded rather than migrated.
 - Deliberately malicious cache files are outside the threat model. Do not add
