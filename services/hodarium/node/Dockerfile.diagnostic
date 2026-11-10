@@ -1,0 +1,7 @@
+# Package a symbol-bearing binary built against the SAME runtime and source
+# revision as the production image. Context contains athena-hodarium-node only.
+# This intentionally does not install or upgrade runtime dependencies.
+ARG RUNTIME_IMAGE=localhost/athena-hodarium-node:xml-v3-6b5817f5c
+FROM ${RUNTIME_IMAGE}
+COPY --chmod=0755 athena-hodarium-node /usr/local/bin/athena-hodarium-node
+LABEL org.opencontainers.image.description="Hodarium diagnostic build: symbols and frame pointers"
