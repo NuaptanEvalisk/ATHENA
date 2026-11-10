@@ -284,6 +284,12 @@ edit_env_rep::analyze_contracts (athena::contracts::macro_analysis& analysis) {
 }
 
 bool
+edit_env_rep::has_current_inference (tree_label label) {
+  contract_state.contracts.admit_inference (inputs.snapshot ());
+  return bool (contract_state.contracts.find_inference (label));
+}
+
+bool
 edit_env_rep::prepare_contracts (std::function<void ()> notify,
                                const evaluation_environment_checkpoint* prepared) {
   if (!contract_analysis) contract_analysis= std::make_unique<athena::contracts::macro_analysis> ();

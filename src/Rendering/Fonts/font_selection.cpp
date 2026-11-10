@@ -715,11 +715,10 @@ std::vector<selected_font_run> font_catalog::select (
       begin, end, font, active.primary.point_size, active.language,
       hdpi, vdpi, active.math_semantics, active.math_variant, active.features, uppercase});
   };
-  std::optional<unicode_paragraph> local_analysis;
+  std::vector<script_run> local_scripts;
   if (script_ranges == nullptr) {
-    local_analysis.emplace (source, request.direction, request.language);
-    script_ranges= &local_analysis->scripts ();
-    shared_graphemes= &local_analysis->graphemes ();
+    local_scripts= unicode_script_runs (source);
+    script_ranges= &local_scripts;
   }
   std::unique_ptr<grapheme_cursor> local_graphemes;
   if (!shared_graphemes) {

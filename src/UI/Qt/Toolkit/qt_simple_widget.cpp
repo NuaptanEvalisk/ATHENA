@@ -54,6 +54,9 @@ qt_simple_widget_rep::as_qwidget (QWidget* parent_widget) {
   handle_get_size_hint (width, height);
   QSize sz = to_qsize (width, height);
   scrollarea()->editor_flag= is_editor_widget ();
+  // Reserve the scrollbar gutter before the first layout publishes extents.
+  if (is_editor_widget ())
+    scrollarea()->setVerticalScrollBarPolicy (Qt::ScrollBarAlwaysOn);
   if (!is_editor_widget ()) {
     canvas()->resize (sz);
     scrollarea()->setExtents (QRect (QPoint(0,0), sz));

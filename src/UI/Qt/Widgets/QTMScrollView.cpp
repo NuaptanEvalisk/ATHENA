@@ -197,19 +197,16 @@ QTMScrollView::updateScrollBars (void) {
     return;
   }
   scoped_internal_scroll_change guard (p_internal_scroll_change);
-  QWidget *_viewport = QAbstractScrollArea::viewport();
   QScrollBar *_hScrollBar = QAbstractScrollArea::horizontalScrollBar();
   QScrollBar *_vScrollBar = QAbstractScrollArea::verticalScrollBar();
 
   int xw = p_extents.width();
   int xh = p_extents.height();
-  int w  = _viewport->width() ; // -2
-  int h  = _viewport->height(); // -2
+  int w  = maximumViewportSize ().width ();
+  int h  = maximumViewportSize ().height ();
   int sbw= qApp->style()->pixelMetric (QStyle::PM_ScrollBarExtent);
-  if (_hScrollBar->maximum() > _hScrollBar->minimum()) h += sbw;
-  if (_vScrollBar->maximum() > _vScrollBar->minimum()) w += sbw;
-  if (xw > w) h -= sbw;
-  if (xh > h) w -= sbw;
+  if (horizontalScrollBarPolicy () == Qt::ScrollBarAsNeeded && xw > w) h -= sbw;
+  if (verticalScrollBarPolicy () == Qt::ScrollBarAsNeeded && xh > h) w -= sbw;
   if (!editor_flag) {
     if (xw < w) xw= w;
     if (xh < h) xh= h;

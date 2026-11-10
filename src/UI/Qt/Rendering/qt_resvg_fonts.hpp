@@ -13,9 +13,11 @@
 #include <cstdint>
 
 class ResvgOptions;
+class QString;
 
 // Returns the ATHENA font-catalog generation used by resvg on this platform.
 // Desktop resvg keeps its historical system-font scan; iPadOS instead injects
 // explicit physical files from ATHENA's font catalog.
 std::uint64_t athena_resvg_font_generation ();
 void athena_configure_resvg_fonts (ResvgOptions& options);
+ResvgOptions& athena_resvg_options_for (const QString& file_path);

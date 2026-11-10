@@ -22,8 +22,10 @@
 #include "unicode_text.hpp"
 #include "Rendering/Fonts/math_font.hpp"
 #include <algorithm>
+#include <map>
 #include <optional>
 #include <stdexcept>
+#include <tuple>
 #include <unordered_map>
 
 #include <cstdlib>
@@ -551,7 +553,7 @@ profile_condition_matches (string condition, array<string> requested) {
 }
 
 static string
-profile_face_family (string profile, string variant, string series,
+resolve_profile_face_family (string profile, string variant, string series,
                      string shape) {
   string primary= main_family (profile);
   array<string> requested= logical_font (primary, variant, series, shape);
@@ -625,6 +627,29 @@ profile_face_family (string profile, string variant, string series,
     if (matched != "") return matched;
   }
   return primary;
+}
+
+struct profile_face_selections {
+  std::uint64_t generation= 0;
+  std::map<std::tuple<std::string, std::string, std::string, std::string>, string> entries;
+};
+
+static string
+profile_face_family (string profile, string variant, string series, string shape) {
+  auto& cache= font_domain_local<profile_face_selections> ();
+  const auto generation= athena::text::font_database_native_view ()->generation;
+  if (cache.generation != generation) {
+    cache.entries.clear ();
+    cache.generation= generation;
+  }
+  const auto bytes= [] (const string& value) {
+    return std::string (value.data (), N(value));
+  };
+  auto key= std::make_tuple (bytes (profile), bytes (variant), bytes (series), bytes (shape));
+  const auto found= cache.entries.find (key);
+  if (found != cache.entries.end ()) return found->second;
+  return cache.entries.emplace (std::move (key),
+    resolve_profile_face_family (profile, variant, series, shape)).first->second;
 }
 
 static string
@@ -2174,7 +2199,7 @@ math_alphabet default_math_alphabet (font source, bool variable) {
   return italic ? math_alphabet::italic : math_alphabet::normal;
 }
 
-physical_font_source math_font_source (font source, math_alphabet alphabet) {
+static physical_font_source resolve_math_font_source (font source, math_alphabet alphabet) {
   for (int depth=0; depth<8; ++depth) {
     font base;
     if (!source->math_source_base (base)) break;
@@ -2228,6 +2253,24 @@ physical_font_source math_font_source (font source, math_alphabet alphabet) {
   if (!source->physical_source (physical))
     throw std::runtime_error ("Math font has no physical Unicode source");
   return physical;
+}
+
+physical_font_source math_font_source (font source, math_alphabet alphabet) {
+  struct selections {
+    std::uint64_t generation= 0;
+    std::map<std::pair<std::string, math_alphabet>, physical_font_source> values;
+  };
+  auto& cache= font_domain_local<selections> ();
+  const auto generation= font_database_native_view ()->generation;
+  if (cache.generation != generation) {
+    cache.values.clear ();
+    cache.generation= generation;
+  }
+  const auto key= std::make_pair (
+    std::string (source->res_name.data (), N(source->res_name)), alphabet);
+  const auto found= cache.values.find (key);
+  if (found != cache.values.end ()) return found->second;
+  return cache.values.emplace (key, resolve_math_font_source (source, alphabet)).first->second;
 }
 
 font_request math_font_request (font source, math_alphabet alphabet) {

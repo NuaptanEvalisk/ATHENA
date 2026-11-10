@@ -25,6 +25,7 @@
 #include <string>
 #include <algorithm>
 #include <iterator>
+#include <map>
 
 namespace athena::text {
 namespace {
@@ -78,6 +79,24 @@ std::size_t from_units (std::string_view text, std::size_t units, bool utf16) {
 void checked (UErrorCode status) {
   if (U_FAILURE (status))
     throw std::runtime_error (std::string ("ICU: ") + u_errorName (status));
+}
+
+using break_iterator= std::unique_ptr<UBreakIterator, decltype (&ubrk_close)>;
+
+break_iterator new_break_iterator (UBreakIteratorType type, const std::string& locale) {
+  // Clone compiled ICU rules, never an active cursor or another text's UText.
+  thread_local std::map<std::pair<UBreakIteratorType, std::string>, break_iterator> rules;
+  const auto key= std::make_pair (type, locale);
+  auto found= rules.find (key);
+  UErrorCode status= U_ZERO_ERROR;
+  if (found == rules.end ()) {
+    break_iterator prototype (ubrk_open (type, locale.c_str (), nullptr, 0, &status), ubrk_close);
+    checked (status);
+    found= rules.emplace (key, std::move (prototype)).first;
+  }
+  break_iterator result (ubrk_clone (found->second.get (), &status), ubrk_close);
+  checked (status);
+  return result;
 }
 
 std::vector<UScriptCode>
@@ -229,6 +248,11 @@ contextual_script_ranges (std::string_view text) {
 }
 } // namespace
 
+std::vector<script_run> unicode_script_runs (std::string_view text) {
+  require_utf8 (text);
+  return contextual_script_ranges (text);
+}
+
 bool valid_utf8 (std::string_view text) noexcept {
   if (text.size () > std::size_t (std::numeric_limits<int32_t>::max ()))
     return false;
@@ -288,6 +312,7 @@ struct grapheme_cursor::implementation {
 
   explicit implementation (std::string_view bytes): text (bytes) {
     require_utf8 (bytes);
+    auto prepared= new_break_iterator (UBRK_CHARACTER, "root");
     UErrorCode status= U_ZERO_ERROR;
     UText* input= utext_openUTF8 (nullptr, bytes.empty () ? "" : bytes.data (),
                                  length (bytes), &status);
@@ -295,7 +320,7 @@ struct grapheme_cursor::implementation {
       utext_close (input);
       checked (status);
     }
-    iterator= ubrk_open (UBRK_CHARACTER, "root", nullptr, 0, &status);
+    iterator= prepared.release ();
     if (U_SUCCESS (status)) ubrk_setUText (iterator, input, &status);
     // ubrk_setUText clones the UText wrapper, not its underlying bytes.
     utext_close (input);
@@ -513,9 +538,7 @@ struct unicode_paragraph::implementation {
     graphemes= std::make_unique<grapheme_cursor> (text);
 
     const std::string language (locale);
-    std::unique_ptr<UBreakIterator, decltype (&ubrk_close)> breaker (
-      ubrk_open (UBRK_LINE, language.c_str (), nullptr, 0, &status), ubrk_close);
-    checked (status);
+    auto breaker= new_break_iterator (UBRK_LINE, language);
     std::unique_ptr<UText, decltype (&utext_close)> input (
       utext_openUTF8 (nullptr, bytes, length (text), &status), utext_close);
     checked (status);

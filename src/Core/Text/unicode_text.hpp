@@ -102,6 +102,10 @@ struct script_run {
   std::string script;     // ISO 15924 tag.
 };
 
+// Script itemization alone; font coverage selection does not need bidi or
+// line-break analysis of a projected glyph string.
+std::vector<script_run> unicode_script_runs (std::string_view text);
+
 // Analyze one Unicode paragraph once, then resolve each chosen line separately
 // (UBA rule L1 changes trailing whitespace levels at line boundaries).
 // Borrow immutable UTF-8 bytes; the necessary ICU UTF-16 copy and all mutable

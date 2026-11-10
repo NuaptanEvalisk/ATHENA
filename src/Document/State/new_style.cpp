@@ -27,6 +27,7 @@
 #include <limits>
 #include <mutex>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 /******************************************************************************
@@ -445,7 +446,14 @@ prepare_source_positions (
     for (std::size_t i= offset; i<where.size (); ++i)
       inside= inside * where[i];
     if (!evaluation->exec_until (entry, inside * 0)) return {};
-    evaluation->analyze_contracts (*analysis);
+    if constexpr (std::is_same_v<Result, athena::contracts::contract_scope>) {
+      // Identity planning needs this occurrence's contract, not fresh inference
+      // for every macro. Admission checks its transitive input/binding receipts.
+      const tree target= subtree (entry, inside);
+      if (!is_compound (target) || !evaluation->has_current_inference (L(target)))
+        evaluation->analyze_contracts (*analysis);
+    }
+    else evaluation->analyze_contracts (*analysis);
     return capture (local, *evaluation.operator-> ());
   };
 }

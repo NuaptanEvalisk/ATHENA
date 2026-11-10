@@ -247,33 +247,12 @@ may_transform (url file_name, const QImage& pm) {
 #ifdef USE_RESVGQT
 static std::mutex resvg_render_lock;
 
-struct resvg_owner_options_cache {
-  std::uint64_t generation= 0;
-  std::unique_ptr<ResvgOptions> options;
-};
-
-static ResvgOptions&
-resvg_options_for (const QString& file_path) {
-  auto& cache= font_domain_local<resvg_owner_options_cache> ();
-  const std::uint64_t generation= athena_resvg_font_generation ();
-  if (!cache.options || cache.generation != generation) {
-    cache.options= std::make_unique<ResvgOptions> ();
-    athena_configure_resvg_fonts (*cache.options);
-    cache.generation= generation;
-  }
-
-  QFileInfo info (file_path);
-  if (info.exists ())
-    cache.options->setResourcesDir (info.absolutePath ());
-  return *cache.options;
-}
-
 static QImage*
 render_svg_with_resvg (url u, int w, int h) {
   std::lock_guard<std::mutex> guard (resvg_render_lock);
   QString file_path= utf8_to_qstring (concretize (u));
   ResvgRenderer renderer;
-  if (!renderer.load (file_path, resvg_options_for (file_path)) ||
+  if (!renderer.load (file_path, athena_resvg_options_for (file_path)) ||
       renderer.isEmpty ())
     return NULL;
 

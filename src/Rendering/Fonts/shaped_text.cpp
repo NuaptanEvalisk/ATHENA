@@ -64,6 +64,7 @@ int font_scale (int size, int dpi) {
 struct shaping_font final: font_resource {
   std::unique_ptr<hb_face_t, decltype (&hb_face_destroy)> face;
   std::unique_ptr<hb_font_t, decltype (&hb_font_destroy)> font;
+  std::optional<math_font_metrics> math_constants;
 
   shaping_font (tt_face source, int xscale, int yscale):
     font_resource ("utf8-shaping:" * source->res_name, 0),
@@ -573,6 +574,8 @@ std::optional<math_font_metrics> open_type_math_metrics (
   const physical_font_source& source) {
   auto selected= math_font (source);
   if (!selected) return std::nullopt;
+  auto& constants= selected->second->math_constants;
+  if (constants) return constants;
   hb_font_t* font= selected->second->font.get ();
   auto C= [font] (hb_ot_math_constant_t constant) -> SI {
     return checked_si (hb_ot_math_get_constant (font, constant));
@@ -622,6 +625,7 @@ std::optional<math_font_metrics> open_type_math_metrics (
   result.radical_kern_after_degree= C (HB_OT_MATH_CONSTANT_RADICAL_KERN_AFTER_DEGREE);
   result.radical_degree_bottom_raise_percent=
     hb_ot_math_get_constant (font, HB_OT_MATH_CONSTANT_RADICAL_DEGREE_BOTTOM_RAISE_PERCENT);
+  constants= result;
   return result;
 }
 
@@ -898,7 +902,7 @@ shaped_line shape_line (unicode_paragraph& paragraph,
     return result;
   }
   const auto source= paragraph.source ();
-  grapheme_cursor boundaries (source);
+  auto& boundaries= paragraph.graphemes ();
   std::size_t glyph_count= 0;
   for (const auto& item: items) {
     auto selected= options;
