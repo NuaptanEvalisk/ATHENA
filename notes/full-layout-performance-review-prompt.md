@@ -49,6 +49,23 @@ interval and layout actor. Later full retypesets are separate measurements.
 
 ## Current Evidence
 
+**Latest decision:** do not disable transparent huge pages based only on the
+compaction samples. A clean default/disabled/disabled/default experiment on
+the current binary measured warmed layouts of 705/721, 763/753, 742/752,
+684/734 ms, respectively. Default mean 711 ms, disabled mean 752.5 ms.
+Application/system allocator policies remain unchanged. After three local
+attempts without stable aggregate gains, this is the AGENTS.md escalation;
+reconcile the complete cost model before another local patch.
+
+Evidence bundle: `build_qt6/atha03-layout-review-20261110.tar.gz`.
+Source baseline: commit `efc537f72`; deployed ELF ID
+`c41bdda87a75d6b58c95b475e63dd610cbb67069`. The bundle contains source,
+the exact document, clean timing logs and sampled stacks, not executables or
+the 1.4 GiB profile clones. The application uses an optimized Debug build:
+ICX `-O3 -march=native -funroll-loops -fp-model fast -g -flto=thin`.
+Do not assume it is an unoptimized `-O0` build or silently change the target
+to a release-only benchmark. Relevant generated compiler flags are included.
+
 Read `notes/full-layout-performance-and-shaping-cache-plan.md`, especially the
 November 10 attribution tables and subsequent updates. Important facts:
 
@@ -178,7 +195,8 @@ aggregate gain. Do not describe this as reaching or reliably nearing 500 ms.
 The new LBR capture (`build_qt6/atha03-read-perf/stacks.txt`, actor 463516,
 20:30:46.253-20:30:47.170) again finds substantial anonymous huge-page
 allocation/compaction: 73 of 693 samples, distinct from shaping-cache faults.
-This policy remains unchanged and warrants an isolated follow-up comparison.
+The isolated policy comparison above rejected disabling THP as a speedup;
+the default policy remains unchanged.
 
 1. The real XML contains 563 MathScripts nodes and **1,685 empty script slots**.
    `concater_rep::typeset_v3_scripts` sends each vacant slot through full

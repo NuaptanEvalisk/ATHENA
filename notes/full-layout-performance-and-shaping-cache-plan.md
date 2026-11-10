@@ -1154,6 +1154,44 @@ as the leaf. This does not justify prioritizing transaction recycling over
 actual lookup/page-fault work. Disposable profile clones and the control binary
 are removed after analysis; small timing logs and perf evidence are retained.
 
+## Transparent Huge-Page Policy Recheck (2026-11-10)
+
+The anonymous compaction samples are real, but removing that mechanism did not
+improve total layout. With the same deployed `c41bdda8...` binary, identical
+source profiles and no concurrent build, a default/disabled/disabled/default
+comparison measured:
+
+| Group | First copied-profile layout | Warm fresh-process layouts |
+| --- | ---: | ---: |
+| Default A | 775 ms | 705 / 721 ms |
+| `MIMALLOC_ALLOW_THP=0` B | 853 ms | 763 / 753 ms |
+| `MIMALLOC_ALLOW_THP=0` C | 864 ms | 742 / 752 ms |
+| Default D | 753 ms | 684 / 734 ms |
+
+The four warmed default runs average 711 ms; disabled runs average 752.5 ms.
+Do not turn the kernel samples into a claimed 10% removable wall-time budget:
+they measure one cost, not the counterfactual cost of smaller pages. Neither
+system settings nor the application's allocator policy were changed. Logs are
+in `build_qt6/atha03-thp2-{default-a,disabled-b,disabled-c,default-d}/`.
+
+Checked the deployed allocator's upstream v3.3.1 implementation, not only its
+current development branch: `mi_option_allow_thp` controls `MADV_HUGEPAGE` and
+is also consulted at allocator initialization to invoke process-wide
+`PR_SET_THP_DISABLE`. Changing the option late is not equivalent to the startup
+environment experiment. References:
+
+- https://github.com/microsoft/mimalloc/blob/v3.3.1/src/prim/unix/prim.c
+- https://docs.kernel.org/admin-guide/mm/transhuge.html
+
+After three local attempts without stable aggregate gains (box-path
+comparisons, environment/source-path preparation, and this policy experiment),
+follow AGENTS.md: stop local hypothesis patching and request the Pro review in
+`notes/full-layout-performance-review-prompt.md`. The current source, exact
+document, timing logs, LBR evidence and removed scoped probe are packaged in
+`build_qt6/atha03-layout-review-20261110.tar.gz`. No executable or disposable
+profile/cache clone belongs in that archive. The goal remains below 500 ms for
+the first complete layout with a warm shaping cache, and is still unmet.
+
 ## Persistent Shaping Cache: Original Design (Implemented)
 
 The subsections below record the decisions that guided the completed
