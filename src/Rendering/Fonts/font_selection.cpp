@@ -221,6 +221,7 @@ struct font_catalog::impl {
   font_domain& owner= current_font_domain ();
   std::shared_ptr<const font_database_view> view= font_database_native_view ();
   std::map<std::string,tt_face> loaded_faces;
+  std::map<std::tuple<std::string, long>, std::optional<std::size_t>, std::less<>> face_records;
   std::unordered_map<std::string,std::size_t> fallback_cache;
 
   void check () const {
@@ -234,6 +235,7 @@ struct font_catalog::impl {
     if (current->generation == view->generation) return;
     view= std::move (current);
     fallback_cache.clear ();
+    face_records.clear ();
   }
 
   tt_face face (const font_file_source& source) {
@@ -248,9 +250,9 @@ struct font_catalog::impl {
   bool covers (const font_file_source& source,
                const coverage_requirement& required) {
     if (required.scalars.empty () && required.variations.empty ()) return true;
-    const auto known= view->physical_faces.find (font_database_face_key (source));
-    if (known != view->physical_faces.end () && required.variations.empty ()) {
-      const auto& metadata= view->faces[known->second];
+    const auto known= record_for (source);
+    if (known && required.variations.empty ()) {
+      const auto& metadata= view->faces[*known];
       return std::all_of (
         required.scalars.begin (), required.scalars.end (),
         [&] (char32_t scalar) {
@@ -300,10 +302,15 @@ struct font_catalog::impl {
       });
   }
 
-  std::optional<std::size_t> record_for (const font_file_source& source) const {
+  std::optional<std::size_t> record_for (const font_file_source& source) {
+    const auto key= std::tie (source.file_utf8, source.face_index);
+    const auto cached= face_records.find (key);
+    if (cached != face_records.end ()) return cached->second;
     const auto found= view->physical_faces.find (font_database_face_key (source));
-    if (found == view->physical_faces.end ()) return std::nullopt;
-    return found->second;
+    const auto result= found == view->physical_faces.end () ?
+      std::optional<std::size_t> {} : found->second;
+    face_records.emplace (key, result);
+    return result;
   }
 
   long long score_candidate (

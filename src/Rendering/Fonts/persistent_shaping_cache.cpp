@@ -513,28 +513,32 @@ std::optional<shaping_cache_key> make_shaping_cache_key (
   if (font.file_utf8.empty () || text.empty () || text.size () > 2048 ||
       begin >= end || end > text.size () || size <= 0 || hdpi <= 0 || vdpi <= 0)
     return {};
-  // A font domain owns the face and keeps it open until configuration
-  // invalidation. Read its on-disk revision once per domain, not per glyph.
-  struct revisions {
-    std::unordered_map<std::string, std::string> values;
+  // Keep serialization scratch space and the SHA context in the font owner,
+  // not one allocation/provider setup per glyph. No shaped results live here.
+  struct key_builder {
+    std::unordered_map<std::string, std::string> prefixes;
+    std::string input;
+    QCryptographicHash hash {QCryptographicHash::Sha256};
   };
-  auto& revisions_cache= font_domain_local<revisions> ().values;
-  auto revision= revisions_cache.find (font.file_utf8);
-  if (revision == revisions_cache.end ()) {
+  auto& builder= font_domain_local<key_builder> ();
+  auto prefix= builder.prefixes.find (font.file_utf8);
+  if (prefix == builder.prefixes.end ()) {
+    // The face remains open until domain configuration invalidation. Its file
+    // revision and serialized identity have the same lifetime.
     std::error_code ec;
     auto length= fs::file_size (font.file_utf8, ec);
     if (ec) return {};
     auto modified= fs::last_write_time (font.file_utf8, ec);
     if (ec) return {};
-    std::string stamp;
-    u64 (stamp, length);
-    i64 (stamp, modified.time_since_epoch ().count ());
-    revision= revisions_cache.emplace (font.file_utf8, std::move (stamp)).first;
+    std::string identity= "ATHENA native shaping / schema 1";
+    bytes (identity, ATHENA_REVISION);
+    bytes (identity, font.file_utf8);
+    u64 (identity, length);
+    i64 (identity, modified.time_since_epoch ().count ());
+    prefix= builder.prefixes.emplace (font.file_utf8, std::move (identity)).first;
   }
-  std::string input= "ATHENA native shaping / schema 1";
-  bytes (input, ATHENA_REVISION);
-  bytes (input, font.file_utf8);
-  input.append (revision->second);
+  auto& input= builder.input;
+  input.assign (prefix->second);
   i64 (input, font.face_index);
   u32 (input, font.design_coords.size ());
   for (auto coordinate: font.design_coords) i64 (input, coordinate);
@@ -556,10 +560,11 @@ std::optional<shaping_cache_key> make_shaping_cache_key (
   for (const auto& feature: options.features) {
     u32 (input, feature.tag); u32 (input, feature.value);
   }
-  const auto hash= QCryptographicHash::hash (
-    QByteArrayView (input.data (), input.size ()), QCryptographicHash::Sha256);
+  builder.hash.reset ();
+  builder.hash.addData (QByteArrayView (input.data (), input.size ()));
+  const auto hash= builder.hash.resultView ();
   return shaping_cache_key {
-    std::string (hash.constData (), std::size_t (hash.size ())),
+    std::string (hash.data (), std::size_t (hash.size ())),
     options.math_semantics || options.math_variant != math_alphabet::normal ||
       options.math_script_level != 0};
 }

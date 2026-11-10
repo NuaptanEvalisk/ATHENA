@@ -2258,7 +2258,7 @@ static physical_font_source resolve_math_font_source (font source, math_alphabet
 physical_font_source math_font_source (font source, math_alphabet alphabet) {
   struct selections {
     std::uint64_t generation= 0;
-    std::map<std::pair<std::string, math_alphabet>, physical_font_source> values;
+    std::map<std::pair<font_rep*, math_alphabet>, physical_font_source> values;
   };
   auto& cache= font_domain_local<selections> ();
   const auto generation= font_database_native_view ()->generation;
@@ -2266,8 +2266,7 @@ physical_font_source math_font_source (font source, math_alphabet alphabet) {
     cache.values.clear ();
     cache.generation= generation;
   }
-  const auto key= std::make_pair (
-    std::string (source->res_name.data (), N(source->res_name)), alphabet);
+  const auto key= std::make_pair (source.operator-> (), alphabet);
   const auto found= cache.values.find (key);
   if (found != cache.values.end ()) return found->second;
   return cache.values.emplace (key, resolve_math_font_source (source, alphabet)).first->second;

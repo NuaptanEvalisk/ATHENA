@@ -22,6 +22,7 @@
 #include <filesystem>
 #include <limits>
 #include <map>
+#include <tuple>
 #include <stdexcept>
 #include FT_MULTIPLE_MASTERS_H
 
@@ -127,6 +128,13 @@ load_tt_face (string name) {
 }
 
 tt_face load_tt_face (const athena::text::font_file_source& source) {
+  // Resolve the physical identity once per font domain. Hits need neither
+  // filesystem-path parsing nor a freshly serialized resource name.
+  using key_type= std::tuple<std::string, long, std::vector<std::int32_t>>;
+  auto& faces= font_domain_local<std::map<key_type, tt_face, std::less<>>> ();
+  const auto key= std::tie (source.file_utf8, source.face_index, source.design_coords);
+  const auto found= faces.find (key);
+  if (found != faces.end ()) return found->second;
   athena::text::require_utf8 (source.file_utf8);
   if (source.file_utf8.empty () || source.file_utf8.find ('\0') != std::string::npos ||
       source.file_utf8.size () > static_cast<std::size_t> (MAX_INT - 64) ||
@@ -140,7 +148,9 @@ tt_face load_tt_face (const athena::text::font_file_source& source) {
     throw std::length_error ("Physical font identity is too large");
   const string name= "file-face:" * as_string (source.face_index) * ":" * axis_key * ":" *
     string (source.file_utf8.data (), source.file_utf8.size ());
-  return make (tt_face, name, tm_new<tt_face_rep> (name, source));
+  const tt_face face= make (tt_face, name, tm_new<tt_face_rep> (name, source));
+  faces.emplace (key, face);
+  return face;
 }
 
 int
@@ -281,9 +291,18 @@ tt_font_metric (string family, int size, int hdpi, int vdpi) {
 }
 
 font_metric tt_font_metric (tt_face face, int size, int hdpi, int vdpi) {
+  // Face identities stay stable until domain teardown; this index owns nothing.
+  using key_type= std::tuple<tt_face_rep*, int, int, int>;
+  auto& metrics= font_domain_local<std::map<key_type, font_metric>> ();
+  const key_type key {face.operator-> (), size, hdpi, vdpi};
+  const auto found= metrics.find (key);
+  if (found != metrics.end ()) return found->second;
   const string name= face->res_name * ":metric:" * as_string (size) * ":" *
     as_string (hdpi) * ":" * as_string (vdpi);
-  return make (font_metric, name, tm_new<tt_font_metric_rep> (name, face, size, hdpi, vdpi));
+  const font_metric metric= make (font_metric, name,
+    tm_new<tt_font_metric_rep> (name, face, size, hdpi, vdpi));
+  metrics.emplace (key, metric);
+  return metric;
 }
 
 /******************************************************************************
@@ -366,8 +385,15 @@ tt_font_glyphs (string family, int size, int hdpi, int vdpi) {
 
 font_glyphs tt_font_glyphs (tt_face face, int size, int hdpi, int vdpi,
                            bool extensible) {
+  using key_type= std::tuple<tt_face_rep*, int, int, int, bool>;
+  auto& glyphs= font_domain_local<std::map<key_type, font_glyphs>> ();
+  const key_type key {face.operator-> (), size, hdpi, vdpi, extensible};
+  const auto found= glyphs.find (key);
+  if (found != glyphs.end ()) return found->second;
   const string name= face->res_name * ":glyphs:" * as_string (size) * ":" *
     as_string (hdpi) * ":" * as_string (vdpi) * (extensible ? ":extensible" : "");
-  return make (font_glyphs, name,
+  const font_glyphs result= make (font_glyphs, name,
     tm_new<tt_font_glyphs_rep> (name, face, size, hdpi, vdpi, extensible));
+  glyphs.emplace (key, result);
+  return result;
 }

@@ -166,8 +166,6 @@ public:
     using namespace athena::text;
     const string s= t->label;
     const std::string source (s.data (), N(s));
-    require_utf8 (source);
-    grapheme_cursor graphemes (source);
     std::map<math_alphabet, font_request> requests;
     const auto request= [&] (math_alphabet alphabet) -> const font_request& {
       auto found= requests.find (alphabet);
@@ -184,7 +182,8 @@ public:
       int32_t next= first;
       UChar32 character;
       U8_NEXT (source.data (), next, at, character);
-      const bool variable= u_isalpha (character) && graphemes.next (first) == static_cast<std::size_t> (at);
+      // The math lexer already prepared this atom's editing iterator.
+      const bool variable= u_isalpha (character) && utf8_grapheme_next (s, first) == at;
       const auto explicit_alphabet= math_character_alphabet (character);
       const auto alphabet= explicit_alphabet == math_alphabet::normal ?
         default_math_alphabet (fn, variable) : explicit_alphabet;

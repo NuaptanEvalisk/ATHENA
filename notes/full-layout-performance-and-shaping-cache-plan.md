@@ -575,6 +575,152 @@ must be measured on a current build before proposing further changes.
   line-breaking context. Math-alphabet projection may also require distinct
   analysis because its Unicode source differs.
 
+## Shaping Key Construction Follow-Up (2026-11-10)
+
+The preceding layout changes were committed as `16507f8a5`. This follow-up
+isolated the cost inside persistent shaping-cache calls rather than replacing
+LMDB or changing its transaction lifetime without evidence.
+
+For the first target layout in a warmed process, the scoped measurements were:
+
+| Work | Before | After key-builder reuse |
+| --- | ---: | ---: |
+| Key construction, inclusive | 51.35 ms / 10668 calls | 29.53 ms / 10785 calls |
+| SHA-256 portion | 28.43 ms | 16.03 ms |
+| Remaining key serialization/setup | 22.92 ms | 13.50 ms |
+| LMDB read-transaction begin | 4.23 ms | 3.61 ms |
+| LMDB lookup | 54.29 ms | 53.12 ms |
+| Cached result decode | 4.61 ms | 4.38 ms |
+
+`make_shaping_cache_key` now retains its Qt SHA-256 context, serialization
+scratch buffer and immutable serialized file identity in the existing font
+domain. File revision invalidation has the same lifetime as before. All bytes,
+field ordering, dynamic request parameters and the digest algorithm are
+unchanged; existing records continued to hit (10785 decoded entries for 10785
+lookups in the measured post-change layout). This does not cache shaped results
+in a second memory tier. No LMDB transaction/decode changes were justified by
+the small measured costs.
+
+An additional probe found 3263 unchanged environment writes taking 8.10 ms,
+versus 13497 changed writes taking 103.51 ms, including their downstream work.
+No scope-restoration or contract-recording shortcuts were introduced: unchanged
+writes are not the large remaining budget, and changing those semantics would
+require a separate justification.
+
+### First-Run Cache Reads
+
+In the pre-change fresh copied profile, LMDB lookups cost 373.52 ms versus
+54.29 ms in the next process. A separate system fault trace recorded 243 major
+faults across the application, 238 at the same LMDB page-access instruction;
+sampled stacks include `mdb_get`. This proves actual faulting reads exist,
+not merely slow deserialization. It does not attribute every application fault
+to the shaping database or establish a universal cold-start cost. The copied
+body shaping database occupies about 650 MiB and math about 6.6 MiB. Prefetching
+the entire body cache or keeping a layout-long transaction has not been added
+as a speculative response.
+
+### Clean Build Measurement
+
+Build ID `f3c8ea881b2ff6f68a7befaa01721268ab092fac`, built with `-j16` and
+deployed using the executable helper. Temporary source probes were removed.
+The fault-trace run is separate from these uninstrumented runs:
+
+| Measurement | Run 1 | Run 2 | Run 3 |
+| --- | ---: | ---: | ---: |
+| Buffer load callback | 2478 ms | 2272 ms | 2272 ms |
+| First full target layout | 1324 ms | 1075 ms | 1062 ms |
+| Next layout before first paint | 112 ms | 156 ms | 142 ms |
+| Open-to-first-paint, including vault activation | 4315 ms | 3887 ms | 3825 ms |
+| Later layout/update | 929 ms | 1053 ms | 1039 ms |
+
+The local saving is about 22 ms. Whole-layout times overlap the preceding
+1024-1144 ms warmed range, so this is not evidence of a large end-to-end
+speedup. **The 500 ms requirement remains unmet.** Neither initial content nor
+layout has been deferred. Useful next work is the remaining per-node/paragraph
+CPU work and the separate near-second update, not further optimizing a 4 ms
+read-transaction setup cost.
+
+Evidence: `build_qt6/atha03-cache/{before,reuse,final,faults}` and the compact
+fault reports. Copied profiles/caches and the raw fault trace are removed after
+extracting the reports. No permanent tests or unrelated test suites were added;
+the real-document runs exercised the changed cache path, and diff checks passed.
+
+## November 10 Follow-Up: Physical Font Resource Lookup
+
+A further nested-scope profile separated bridge/concat work, environment and
+contract recording, Unicode analysis, shaping, and physical font resource
+lookup. Parent self times excluded instrumented children. The actual document
+was opened in Xvfb; no incremental layout or source simplification was used.
+
+The newly isolated repeated cost was **resource lookup after the font was
+already loaded**, not font discovery or HarfBuzz shaping. Each physical face
+lookup validated UTF-8, constructed a filesystem path, formatted its index and
+variation coordinates, and constructed a resource-name string. Glyph-resource
+lookup likewise formatted size/DPI and concatenated the face name. OpenType
+MATH kerning repeatedly went through the same face lookup.
+
+| Scoped work, first full target layout | Before | After |
+| --- | ---: | ---: |
+| Physical face lookup | 59.70 ms / 35264 calls | 4.80 ms / 34705 calls |
+| Glyph resource lookup | 22.66 ms / 10806 calls | 2.87 ms / 10805 calls |
+| Font selection, excluding nested probes | 50.73 ms | 34.23 ms |
+| MATH kerning, including face lookup | 33.42 ms | 5.28 ms |
+| Grapheme iterator construction | 21.04 ms / 20471 calls | 16.97 ms / 15067 calls |
+| Full layout with probes | 1114.97 ms | 1008.93 ms |
+
+MATH kerning includes the face-lookup saving and must not be added to it.
+Asynchronous transclusion/decorations cause small differences in call counts
+between runs; the large per-call lookup reduction is not a count reduction.
+
+Changes:
+
+- Owner-local physical-face indexes use file path, face index and variation
+  coordinates directly, with borrowed keys on lookup. Validation and legacy
+  resource-name construction happen on first resolution only.
+- Metric/glyph and HarfBuzz indexes use the resolved face identity and size/DPI
+  (plus the extensible flag for glyphs). Math-source selection uses the logical
+  font identity and alphabet instead of copying its resource name.
+- Font coverage queries retain the catalog record lookup, invalidated with the
+  font-database generation. Coverage and fallback decisions are unchanged.
+- Math alphabet classification reuses the lexer/editor's existing ICU grapheme
+  iterator for the same immutable atom, instead of constructing another one.
+
+These indexes refer to resources already owned by the font domain; they do not
+cache shaped runs or change the persistent cache format. Domain configuration
+invalidation and teardown retain their existing ownership semantics.
+
+The clean application build was deployed with build ID
+`cc5df07a70b3f7eba01eecfe338c93f742e4c31b`. Three uninstrumented runs using
+the copied warmed profile measured:
+
+| Measurement | Run 1 | Run 2 | Run 3 |
+| --- | ---: | ---: | ---: |
+| Buffer load callback | 2170 ms | 2199 ms | 2180 ms |
+| First full target layout | 964 ms | 877 ms | 890 ms |
+| Next layout before first paint | 91 ms | 109 ms | 92 ms |
+| Open-to-first-paint, including vault activation | 3582 ms | 3558 ms | 3547 ms |
+| Later layout/update | 805 ms | 832 ms | 774 ms |
+
+The later two full-layout results are about 17% below the previous clean
+1062/1075 ms warmed results. This is not a controlled cold-disk comparison:
+copied profile/database pages can already be resident. It is also not a claim
+that the complete open operation takes 890 ms; loading and the subsequent
+update remain separate, substantial costs.
+
+The same probes ruled out another full-environment-copy problem in this pass:
+checkpoint capture, variable materialization and the enclosing transaction
+each ran once, totaling about 0.96 ms. Contract variable reads/event recording
+still cost about 100 ms, distinct from those copies. Concat postprocessing was
+about 10 ms, not a large hidden pass. Remaining CPU work is distributed across
+text preparation, scripts, paragraph assembly, shaping/cache access and
+environment dependency recording; the 500 ms target is not achieved.
+
+Evidence: `build_qt6/atha03-deep/{scopes,fine,indexed,samples,final}`. Temporary
+scope instrumentation was removed before the final build. No permanent tests
+or broad regression suites were added for these resource-index changes. All
+owned copied profiles were removed after measurement; compact logs and the
+9.6 MiB sampling trace remain.
+
 ## Persistent Shaping Cache: Original Design (Implemented)
 
 The subsections below record the decisions that guided the completed
@@ -673,9 +819,10 @@ or a selected percentage, with configurable parallelism and visible progress.
 3. **Improved, goal still open:** The four-fix follow-up removed repeated
    contract inference, profile parsing and scrollbar-induced full layout,
    and reduced redundant Unicode setup. SVG and physical math-font reuse lower
-   the warmed full layout further to 1.02-1.14 s; the first measured process
-   still takes 1.59 s. Attribute the remaining layout and separate late update
-   before selecting the next changes.
+   the warmed full layout to roughly one second. The subsequent physical-resource
+   lookup changes above bring clean warmed full layout to 877-890 ms.
+   Attribute the remaining layout and separate late update before selecting
+   the next changes; cold mmap page faults remain a separate cost.
 4. **Done and verified:** Persistent shaping cache, asynchronous maintenance,
    bounded body/math storage and Vault prewarm builder. Maintain its existing
    correctness checks, but do not treat it as outstanding implementation work.

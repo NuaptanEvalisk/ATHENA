@@ -89,11 +89,11 @@ struct shaping_font final: font_resource {
 };
 
 shaping_font& cached_font (tt_face source, int xscale, int yscale) {
-  using key_type= std::tuple<std::string, int, int>;
+  using key_type= std::tuple<tt_face_rep*, int, int>;
   // Slots only index resources. Phase zero destroys HarfBuzz references before
   // phase three frees the FreeType face and its backing font-file bytes.
   auto& cache= font_domain_local<std::map<key_type, shaping_font*>> ();
-  key_type key {std::string (source->res_name.data (), N(source->res_name)), xscale, yscale};
+  key_type key {source.operator-> (), xscale, yscale};
   auto found= cache.find (key);
   if (found != cache.end ()) return *found->second;
   if (source->bad_face)
