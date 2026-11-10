@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "Typesetting/Bridge/impl_typesetter.hpp"
+#include "Typesetting/Concat/text_preparation.hpp"
 #include "iterator.hpp"
 #include "tm_timer.hpp"
 #include "Typesetting/Env/local_environment.hpp"
@@ -205,6 +206,7 @@ typesetter_rep::typeset () {
 
 box
 typesetter_rep::typeset_pass () {
+  text_preparation_scope prepared_text;
   old_patch= hashmap<string,tree> (UNINIT);
   l        = array<page_item> ();
   sb       = stack_border ();

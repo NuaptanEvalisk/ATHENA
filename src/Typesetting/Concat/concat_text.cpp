@@ -10,6 +10,8 @@
 ******************************************************************************/
 
 #include "Typesetting/Concat/concater.hpp"
+#include "Typesetting/Concat/text_preparation.hpp"
+#include "Rendering/Fonts/font_database.hpp"
 #include "Typesetting/formatter.hpp"
 #include "analyze.hpp"
 #include "boot.hpp"
@@ -24,10 +26,42 @@
 #include <unicode/uchar.h>
 #include <unicode/utf8.h>
 #include <map>
+#include <cstdint>
+#include <tuple>
 #include <stdexcept>
 
 #include <algorithm>
 #include <vector>
+
+namespace {
+using prepared_paragraph= std::shared_ptr<athena::text::font_paragraph>;
+struct paragraph_preparation_pool {
+  using key= std::tuple<std::uintptr_t, std::uintptr_t, std::uint64_t, string>;
+  std::map<key, prepared_paragraph> paragraphs;
+};
+struct paragraph_preparation_context {
+  paragraph_preparation_pool* active= nullptr;
+};
+
+prepared_paragraph* prepared_text (font fn, const void* language, string text) {
+  auto* pool= font_domain_local<paragraph_preparation_context> ().active;
+  if (!pool) return nullptr;
+  const auto generation= athena::text::font_database_native_view ()->generation;
+  return &pool->paragraphs[{reinterpret_cast<std::uintptr_t> (fn.operator-> ()),
+    reinterpret_cast<std::uintptr_t> (language), generation, text}];
+}
+}
+
+struct text_preparation_scope::state: paragraph_preparation_pool {
+  paragraph_preparation_context& context=
+    font_domain_local<paragraph_preparation_context> ();
+  paragraph_preparation_pool* previous= context.active;
+  state () { context.active= this; }
+  ~state () { context.active= previous; }
+};
+
+text_preparation_scope::text_preparation_scope (): state_ (std::make_unique<state> ()) {}
+text_preparation_scope::~text_preparation_scope ()= default;
 
 lazy make_lazy_vstream (edit_env env, tree t, path ip, tree channel);
 
@@ -149,6 +183,8 @@ public:
   scoped_text_paragraph (
     std::shared_ptr<athena::text::font_paragraph>& current, font fn, string s):
     slot (current), previous (current) {
+    auto* prepared= prepared_text (fn, nullptr, s);
+    if (prepared && *prepared) { slot= *prepared; return; }
     athena::text::native_text_source source;
     if (!fn->native_text_source (source))
       throw std::runtime_error ("Text font has no native Unicode shaping source: " +
@@ -159,10 +195,13 @@ public:
     // Fragments share source bytes and owner-local ICU/font state.
     slot= std::make_shared<athena::text::font_paragraph> (
       std::string (s.data (), N(s)), std::move (request));
+    if (prepared) *prepared= slot;
   }
   scoped_text_paragraph (
     std::shared_ptr<athena::text::font_paragraph>& current, font fn, tree t, language lan):
     slot (current), previous (current) {
+    auto* prepared= prepared_text (fn, lan.operator-> (), t->label);
+    if (prepared && *prepared) { slot= *prepared; return; }
     using namespace athena::text;
     const string s= t->label;
     const std::string source (s.data (), N(s));
@@ -191,6 +230,7 @@ public:
     }
     slot= std::make_shared<font_paragraph> (
       source, request (default_math_alphabet (fn, false)), styles);
+    if (prepared) *prepared= slot;
   }
   ~scoped_text_paragraph () { slot= std::move (previous); }
 };

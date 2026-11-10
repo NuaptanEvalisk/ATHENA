@@ -1025,6 +1025,48 @@ gain; it does not establish a universal percentage or meet the 500 ms target.
 Disposable profile clones, comparison executable and numeric checker were
 removed after measurement. No permanent tests or production probes were added.
 
+## Pass-Local Paragraph Preparation Sharing (2026-11-10)
+
+A scoped probe around both `scoped_text_paragraph` constructors counted exact
+`(font identity, math language identity or text, source bytes)` repetitions in
+the real document's first complete layout. The warmed run had 1,845 text
+preparations but only 985 distinct inputs, and 5,400 math preparations but only
+256 distinct inputs. First preparations took 20.3 / 4.3 ms for text / math;
+repeated preparations took another 8.5 / 53.9 ms. These constructor timings
+include Unicode analysis and font selection, not the subsequent glyph shaping.
+
+Each `typeset_pass` now shares these prepared `font_paragraph` objects within
+its owning font domain. Keys additionally include the font-database generation.
+The lookup pool is destroyed at pass exit, including exceptions; retained boxes
+own their paragraphs normally. Nested scopes restore the preceding pool.
+Source paths, shaping options, glyph placement and caret results remain per
+box. ICU's mutable bidi-line scratch only produces owned result arrays and
+does not escape into the boxes. This is not a second cache of shaped runs.
+
+The constructor probe was removed before the production build. Clean build
+`867cf86ce660071bbde6cfa6f0b153dc007bb9ef` was built with `-j16` and deployed
+with byte/build-ID verification. Sequential A/B/B/A comparisons used control
+`ec633b1dd46e9261feb5b9202ea79b3b71e3f532` and the same profile/cache source:
+
+| Group | First copied-profile complete layout | Warm fresh-process complete layout |
+| --- | ---: | ---: |
+| A1, control | 863 ms | 723 ms |
+| B1, shared preparation | 811 ms | 687 ms |
+| B2, shared preparation | 815 ms | 675 ms |
+| A2, control | 891 ms | 832 ms |
+
+Logs: `build_qt6/atha03-paragraph-{a1,b1,b2,a2}/`. Control variation is
+substantial; do not claim a fixed percentage. Both new runs improved on the
+contemporaneous controls, but the 500 ms target is still unmet.
+
+New LBR evidence in `build_qt6/atha03-paragraph-perf/stacks.txt` covers the
+751 ms layout ending at 20:02:32.415, actor TID 405433. Among 800 samples,
+77 enter anonymous transparent-huge-page allocation and synchronous memory
+compaction. This is distinct from shaping-cache mmap reads. A diagnostic
+`MIMALLOC_ALLOW_THP=0` run measured 768 / 673 ms, not enough evidence yet to
+change the application's allocator policy. Continue separating this latency
+source from actual layout work instead of treating all page faults as LMDB.
+
 ## Persistent Shaping Cache: Original Design (Implemented)
 
 The subsections below record the decisions that guided the completed

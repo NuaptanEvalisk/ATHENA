@@ -137,9 +137,25 @@ The numeric formatter has now been changed to `std::to_chars`, retaining
 `%g`'s six significant digits. A 1,200,007-value comparison found identical
 output, including signed zero and nonfinite values. Clean A/B/B/A application
 measurements gave warmed first full layouts of **805 / 807 ms (control)** and
-**795 / 765 ms (new)**. Current deployed build ID:
+**795 / 765 ms (new)**. That deployed build ID was:
 `ec633b1dd46e9261feb5b9202ea79b3b71e3f532`. This is a modest improvement,
 not the 500 ms goal. See the main performance note for complete run details.
+
+The next measured change shares paragraph analysis/font selection for exact
+input matches within one typesetting pass and font domain. A warmed probe saw
+5,400 math preparations for just 256 distinct inputs; repeated math/text
+preparation consumed 53.9 / 8.5 ms. No shaped results, source paths or caret
+boxes are shared. Keys include font identity and font-database generation.
+Clean A/B/B/A measurements: control 723 / 832 ms, new 687 / 675 ms (warmed
+fresh processes). Current deployed build:
+`867cf86ce660071bbde6cfa6f0b153dc007bb9ef`. All probes were removed.
+
+Current LBR evidence: `build_qt6/atha03-paragraph-perf/stacks.txt`, actor
+405433, **20:02:31.664-20:02:32.415**. Of 800 samples, 77 are anonymous
+transparent-huge-page allocation/compaction, not LMDB mmap reads. Investigate
+that separately before changing allocator policy. Initial no-THP timing was
+768 / 673 ms, close to the preceding new build, so no policy change is yet
+justified by this comparison alone.
 
 1. The real XML contains 563 MathScripts nodes and **1,685 empty script slots**.
    `concater_rep::typeset_v3_scripts` sends each vacant slot through full
@@ -151,10 +167,9 @@ not the 500 ms goal. See the main performance note for complete run details.
    when no snapshot retains that root, forcing shared map branches. Check
    whether safe unique-owner updates materially reduce actual layout CPU;
    published snapshots must remain immutable.
-3. Shaping cache lookup occurs after paragraph analysis and font selection.
-   Determine how much repeated preparation is for identical short math atoms.
-   Any reuse must respect owner-local ICU/FreeType state and font configuration
-   invalidation. Do not add a duplicate RAM tier for persisted shaped runs.
+3. Repeated paragraph preparation is now shared as described above. Inspect
+   the remaining persistent lookup and shaping work rather than repeating this
+   optimization. Do not add a duplicate RAM tier for persisted shaped runs.
 
 ## Deliverable
 
