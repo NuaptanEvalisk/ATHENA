@@ -226,7 +226,11 @@ edit_cursor_rep::tree_path (path sp, SI x, SI y, SI delta,
   path p= stp;
   const auto resolve= [&] (const cursor_navigation& navigation) {
     tree body= subtree (et, rp);
+    // A displayed occurrence proves access, not cursor canonicality. In
+    // particular, concat boundaries must not become stops that go_to_here
+    // immediately folds back onto the preceding text.
     if (!(boundary && context && cursor_occurrence_admitted (stp, boundary) &&
+          navigation.valid_cursor (body, stp / rp) &&
           navigation.is_mapped_cursor (body, stp / rp))) {
       p= rp * navigation.correct_cursor (body, stp / rp);
       p= make_cursor_accessible (p, searching_forwards, navigation);
@@ -260,9 +264,12 @@ edit_cursor_rep::cursor_move_sub (SI& x0, SI& y0, SI& d0, SI dx, SI dy) {
     path bp;
     const path p= tree_path (sp, x, y, delta, &side, &bp);
     if (is_nil (p)) throw pending_hit {};
-    return p == ref_p && side == ref_affinity &&
+    // Corrected aliases have no display occurrence and no meaningful affinity.
+    // Only two actual display hits can distinguish sides of the same source.
+    return p == ref_p &&
       (is_nil (bp) || is_nil (ref_bp) ||
-       eb->find_source_boundary (bp) == eb->find_source_boundary (ref_bp));
+       (side == ref_affinity &&
+        eb->find_source_boundary (bp) == eb->find_source_boundary (ref_bp)));
   };
   if (ref_p != tp) {
     if (!searching_forwards && path_less (tp, ref_p));
