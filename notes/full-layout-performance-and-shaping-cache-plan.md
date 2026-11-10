@@ -1067,6 +1067,47 @@ compaction. This is distinct from shaping-cache mmap reads. A diagnostic
 change the application's allocator policy. Continue separating this latency
 source from actual layout work instead of treating all page faults as LMDB.
 
+The no-THP LBR run (`build_qt6/atha03-no-thp-perf/stacks.txt`, actor 410437,
+20:04:42.159-20:04:42.873) had zero huge-page/compaction samples. Of its 660
+samples, 37 include persistent shaping lookup and 14 of those include file
+mapping faults. A subsequent clean comparison gave 716 / 705 ms with default
+THP policy and 697 / 691 ms with `MIMALLOC_ALLOW_THP=0`; the effect is modest
+and the policy remains unchanged. The upstream mimalloc implementation disables
+THP process-wide during allocator initialization for this option:
+https://github.com/microsoft/mimalloc/blob/main/src/prim/unix/prim.c
+Do not confuse it with an option that only changes shaping-cache mappings.
+
+## Box Boundary Path Allocation Follow-Up (2026-11-10)
+
+In the no-THP layout sample, 14 path-reversal stacks were directly under
+`composite_box_rep::finalize`, versus three under source occurrence capture.
+Finalizing each composite compared each accessible child's two cursor borders
+by allocating reversed linked lists for both operands. Script boxes repeated
+the same operation. The new inverse-path comparator reads those coordinates
+into Boost small vectors and compares from the root, without allocating a
+linked node per ancestor. Longer paths retain unbounded small-vector growth.
+The special final `0/1` cursor-border rules are preserved, not replaced by
+ordinary lexicographic subtree ordering.
+
+A temporary check compiled the actual new header and old `path.cpp` comparator:
+1,893,225 comparisons matched, including empty paths, negative decoration
+coordinates, unequal depths, shared ancestors and paths exceeding inline
+capacity. No permanent test or timing probe was added. Application build
+`144eae81758f004e5154d423679e3e941365aa41` was built with `-j16`, deployed and
+verified. No warnings/errors appeared in its three initial document runs.
+
+| Group | First copied-profile complete layout | Warm fresh-process complete layouts |
+| --- | ---: | ---: |
+| New comparator | 747 ms | 673 / 663 ms |
+| Prior comparator, reverse control | 729 ms | 682 / 643 ms |
+| New comparator, recheck | 749 ms | 653 / 631 ms |
+
+Logs: `build_qt6/atha03-path-{new,control,recheck}/`. The measurements overlap;
+the eliminated allocations are definite, but do not claim a stable whole-
+document speedup from this change alone. The 500 ms target remains open.
+All temporary profile clones, comparison binaries and the standalone path
+checker were removed after measurement; small logs and perf evidence remain.
+
 ## Persistent Shaping Cache: Original Design (Implemented)
 
 The subsections below record the decisions that guided the completed
@@ -1174,7 +1215,11 @@ or a selected percentage, with configurable parallelism and visible progress.
    remain a separate cost. Later body-scan removal measured 740-769 ms in its
    window, but the latest contemporaneous control is 796-836 ms versus
    806-847 ms for the latest changes. Do not present those latest changes as a
-   document-level speedup. Pro review is prepared; the 500 ms goal is still open.
+   document-level speedup. Subsequent measured paragraph preparation sharing
+   improved contemporaneous control results; the latest path-comparison build
+   measures 631-673 ms warmed, with overlapping reverse-control measurements.
+   See the follow-ups above rather than comparing unrelated measurement windows.
+   Pro review is prepared; the 500 ms goal is still open.
 4. **Done and verified:** Persistent shaping cache, asynchronous maintenance,
    bounded body/math storage and Vault prewarm builder. Maintain its existing
    correctness checks, but do not treat it as outstanding implementation work.

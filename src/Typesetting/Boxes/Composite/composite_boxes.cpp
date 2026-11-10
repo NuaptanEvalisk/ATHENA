@@ -11,6 +11,7 @@
 
 #include "Typesetting/Boxes/composite.hpp"
 #include "Typesetting/Boxes/construct.hpp"
+#include "Typesetting/Boxes/Composite/inverse_path.hpp"
 
 /******************************************************************************
 * Setting up composite boxes
@@ -199,9 +200,9 @@ composite_box_rep::finalize () {
     cout << "  r  = " << r << "\n";
     */
     if (is_accessible (l) && is_accessible (r)) {
-      if (is_decoration (lip) || path_less (reverse (l), reverse (lip)))
+      if (is_decoration (lip) || inverse_path_less (l, lip))
 	lip= l;
-      if (is_decoration (rip) || path_less (reverse (rip), reverse (r)))
+      if (is_decoration (rip) || inverse_path_less (rip, r))
 	rip= r;
     }
   }

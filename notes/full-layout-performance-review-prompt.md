@@ -147,15 +147,28 @@ input matches within one typesetting pass and font domain. A warmed probe saw
 preparation consumed 53.9 / 8.5 ms. No shaped results, source paths or caret
 boxes are shared. Keys include font identity and font-database generation.
 Clean A/B/B/A measurements: control 723 / 832 ms, new 687 / 675 ms (warmed
-fresh processes). Current deployed build:
+fresh processes). That deployed build:
 `867cf86ce660071bbde6cfa6f0b153dc007bb9ef`. All probes were removed.
 
 Current LBR evidence: `build_qt6/atha03-paragraph-perf/stacks.txt`, actor
 405433, **20:02:31.664-20:02:32.415**. Of 800 samples, 77 are anonymous
 transparent-huge-page allocation/compaction, not LMDB mmap reads. Investigate
 that separately before changing allocator policy. Initial no-THP timing was
-768 / 673 ms, close to the preceding new build, so no policy change is yet
-justified by this comparison alone.
+768 / 673 ms. Follow-up default/no-THP warmed times were 716 / 705 versus
+697 / 691 ms; the application policy remains unchanged. The no-THP LBR run
+(`build_qt6/atha03-no-thp-perf/stacks.txt`, actor 410437,
+20:04:42.159-20:04:42.873) has zero huge-page-compaction samples, but still
+14 persistent-lookup file-mapping fault samples. Keep these costs distinct.
+
+That sample also identified repeated reversed-list allocation for cursor
+boundary comparisons, mainly in `composite_box_rep::finalize`. The comparator
+now uses Boost small vectors and preserves the final 0/1 border semantics;
+1,893,225 temporary direct comparisons against the old implementation matched.
+Current deployed build: `144eae81758f004e5154d423679e3e941365aa41`.
+Warmed complete layouts were 673 / 663 ms, a reverse control 682 / 643 ms,
+then a new-build recheck 653 / 631 ms. These overlap; allocation elimination is
+proven, but no stable aggregate speedup is claimed for this small change alone.
+The goal remains unmet. Logs and detailed results are in the main note.
 
 1. The real XML contains 563 MathScripts nodes and **1,685 empty script slots**.
    `concater_rep::typeset_v3_scripts` sends each vacant slot through full

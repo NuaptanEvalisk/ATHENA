@@ -12,6 +12,7 @@
 #include "Typesetting/Boxes/composite.hpp"
 #include "Typesetting/Boxes/modifier.hpp"
 #include "Typesetting/Boxes/Composite/native_script_cursor.hpp"
+#include "Typesetting/Boxes/Composite/inverse_path.hpp"
 #include "Typesetting/Boxes/Composite/italic_correct.hpp"
 #include "Typesetting/Boxes/construct.hpp"
 #include "math_font.hpp"
@@ -24,7 +25,7 @@ static void
 finalize_left (path& lip, box sb) {
   if (is_accessible (sb->ip)) {
     path new_lip= descend (sb->ip->next, 0);
-    if (path_less (reverse (new_lip), reverse (lip))) lip= new_lip;
+    if (inverse_path_less (new_lip, lip)) lip= new_lip;
   }
 }
 
@@ -32,7 +33,7 @@ static void
 finalize_right (path& rip, box sb) {
   if (is_accessible (sb->ip)) {
     path new_rip= descend (sb->ip->next, 1);
-    if (path_less (reverse (rip), reverse (new_rip))) rip= new_rip;
+    if (inverse_path_less (rip, new_rip)) rip= new_rip;
   }
 }
 
