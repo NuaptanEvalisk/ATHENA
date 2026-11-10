@@ -83,21 +83,41 @@ void checked (UErrorCode status) {
 
 using break_iterator= std::unique_ptr<UBreakIterator, decltype (&ubrk_close)>;
 
-break_iterator new_break_iterator (UBreakIteratorType type, const std::string& locale) {
-  // Clone compiled ICU rules, never an active cursor or another text's UText.
-  thread_local std::map<std::pair<UBreakIteratorType, std::string>, break_iterator> rules;
-  const auto key= std::make_pair (type, locale);
-  auto found= rules.find (key);
-  UErrorCode status= U_ZERO_ERROR;
-  if (found == rules.end ()) {
-    break_iterator prototype (ubrk_open (type, locale.c_str (), nullptr, 0, &status), ubrk_close);
-    checked (status);
-    found= rules.emplace (key, std::move (prototype)).first;
+class text_break_iterator {
+  UBreakIterator* iterator;
+
+  void release_text () {
+    static const UChar empty= 0;
+    UErrorCode status= U_ZERO_ERROR;
+    ubrk_setText (iterator, &empty, 0, &status);
   }
-  break_iterator result (ubrk_clone (found->second.get (), &status), ubrk_close);
-  checked (status);
-  return result;
-}
+public:
+  text_break_iterator (UBreakIteratorType type, const std::string& locale,
+                       std::string_view text) {
+    // Both callers consume the iterator synchronously, without callbacks.
+    // Retain ICU's working storage, but never retain a caller's text bytes.
+    thread_local std::map<std::pair<UBreakIteratorType, std::string>, break_iterator> iterators;
+    const auto key= std::make_pair (type, locale);
+    auto found= iterators.find (key);
+    UErrorCode status= U_ZERO_ERROR;
+    if (found == iterators.end ()) {
+      break_iterator prepared (ubrk_open (type, locale.c_str (), nullptr, 0, &status), ubrk_close);
+      checked (status);
+      found= iterators.emplace (key, std::move (prepared)).first;
+    }
+    iterator= found->second.get ();
+    UText input= UTEXT_INITIALIZER;
+    utext_openUTF8 (&input, text.empty () ? "" : text.data (), length (text), &status);
+    if (U_SUCCESS (status)) ubrk_setUText (iterator, &input, &status);
+    utext_close (&input);
+    if (U_FAILURE (status)) {
+      release_text ();
+      checked (status);
+    }
+  }
+  ~text_break_iterator () { release_text (); }
+  UBreakIterator* get () const { return iterator; }
+};
 
 std::vector<UScriptCode>
 script_extensions (UChar32 scalar) {
@@ -308,29 +328,15 @@ std::size_t codepoint_to_byte (std::string_view s, std::size_t i) {
 
 struct grapheme_cursor::implementation {
   std::string_view text;
-  UBreakIterator* iterator= nullptr;
+  std::vector<int32_t> boundaries {0};
 
   explicit implementation (std::string_view bytes): text (bytes) {
     require_utf8 (bytes);
-    auto prepared= new_break_iterator (UBRK_CHARACTER, "root");
-    UErrorCode status= U_ZERO_ERROR;
-    UText* input= utext_openUTF8 (nullptr, bytes.empty () ? "" : bytes.data (),
-                                 length (bytes), &status);
-    if (U_FAILURE (status)) {
-      utext_close (input);
-      checked (status);
-    }
-    iterator= prepared.release ();
-    if (U_SUCCESS (status)) ubrk_setUText (iterator, input, &status);
-    // ubrk_setUText clones the UText wrapper, not its underlying bytes.
-    utext_close (input);
-    if (U_FAILURE (status)) {
-      ubrk_close (iterator);
-      iterator= nullptr;
-      checked (status);
-    }
+    text_break_iterator prepared (UBRK_CHARACTER, "root", bytes);
+    for (int32_t at= ubrk_first (prepared.get ());
+         (at= ubrk_next (prepared.get ())) != UBRK_DONE;)
+      boundaries.push_back (at);
   }
-  ~implementation () { ubrk_close (iterator); }
 };
 
 grapheme_cursor::grapheme_cursor (std::string_view text):
@@ -344,19 +350,22 @@ void grapheme_cursor::reset (std::string_view text) {
 
 bool grapheme_cursor::boundary (std::size_t byte) {
   position (impl_->text, byte);
-  return ubrk_isBoundary (impl_->iterator, static_cast<int32_t> (byte));
+  const auto& boundaries= impl_->boundaries;
+  return std::binary_search (boundaries.begin (), boundaries.end (), static_cast<int32_t> (byte));
 }
 
 std::size_t grapheme_cursor::next (std::size_t byte) {
   position (impl_->text, byte);
-  int32_t result= ubrk_following (impl_->iterator, static_cast<int32_t> (byte));
-  return result == UBRK_DONE ? impl_->text.size () : std::size_t (result);
+  const auto& boundaries= impl_->boundaries;
+  const auto found= std::upper_bound (boundaries.begin (), boundaries.end (), static_cast<int32_t> (byte));
+  return found == boundaries.end () ? impl_->text.size () : std::size_t (*found);
 }
 
 std::size_t grapheme_cursor::previous (std::size_t byte) {
   position (impl_->text, byte);
-  int32_t result= ubrk_preceding (impl_->iterator, static_cast<int32_t> (byte));
-  return result == UBRK_DONE ? 0 : std::size_t (result);
+  const auto& boundaries= impl_->boundaries;
+  const auto found= std::lower_bound (boundaries.begin (), boundaries.end (), static_cast<int32_t> (byte));
+  return found == boundaries.begin () ? 0 : std::size_t (*std::prev (found));
 }
 
 std::vector<word_span> word_segments (std::string_view text, std::string_view locale) {
@@ -538,12 +547,7 @@ struct unicode_paragraph::implementation {
     graphemes= std::make_unique<grapheme_cursor> (text);
 
     const std::string language (locale);
-    auto breaker= new_break_iterator (UBRK_LINE, language);
-    std::unique_ptr<UText, decltype (&utext_close)> input (
-      utext_openUTF8 (nullptr, bytes, length (text), &status), utext_close);
-    checked (status);
-    ubrk_setUText (breaker.get (), input.get (), &status);
-    checked (status);
+    text_break_iterator breaker (UBRK_LINE, language, text);
     for (int32_t at= ubrk_first (breaker.get ());
          (at= ubrk_next (breaker.get ())) != UBRK_DONE;) {
       const auto offset= static_cast<std::size_t> (at);

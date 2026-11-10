@@ -893,6 +893,83 @@ remains unmet. Build/deployment succeeded with `-j16`; deployed build ID:
 `dd517020993f21f71b682123b4e10b87c707c8d9`. Evidence is also in
 `build_qt6/atha03-body-after/`. Copied profiles were removed after measurement.
 
+### LBR Sampling and Repeated Analysis/Snapshot Preparation
+
+The local CPU supports LBR call chains. Unlike the failing DWARF unwinder,
+`perf record --call-graph lbr --clockid mono` recovers application frames.
+The profiling helper now accepts `--call-graph` and suppresses inline expansion
+and report call graphs: this avoids the local addr2line failures and a perf
+report crash while preserving raw stacks for `perf script --no-inline`.
+
+For the warmed 778 ms layout ending at 18:50:31.098 on November 10, select
+18:50:30.320-18:50:31.098 and the actual layout actor, TID 268134. Do not
+select the busiest thread: concurrent vault maintenance has more samples but
+does not execute this layout. Of 674 actor samples, 128 contain structured
+scripts, 85 environment writes, 79 font-paragraph construction, 43 variable-read
+recording, and 41 persistent shaping lookup. These inclusive, overlapping
+counts are not additive wall-time budgets. Of the 43 variable-read samples,
+17 contain tree copying; ICU iterator cloning appears under both Unicode
+paragraph construction and mathematical font projection. Seventeen shaping
+lookup samples also contain mmap page faults, even in the warmed process run.
+
+Changes following that evidence:
+
+- Persistent environment input-map branches copy string views backed by their
+  immutable revision owners, rather than copying all neighbouring string keys.
+  Snapshot ownership, retained branches and erase/reinsert were checked under
+  ASan/UBSan with a temporary standalone check.
+- Logical math-font lookups use typed owner-domain keys before constructing
+  serialized resource names. Font-domain retirement also retires these handles.
+  These first two changes measured 864 / 748 / 775 ms: effectively unchanged
+  relative to the preceding 879 / 740 / 769 ms; do not claim a measured win.
+- Grapheme cursors retain ICU-derived boundary arrays. Thread-local ICU
+  character/line iterators are reused only for synchronous analysis, with their
+  borrowed text detached afterward. No custom Unicode rules are introduced.
+  A short-paragraph analysis microbenchmark changed from 263 to 221 ms;
+  this is not the document-layout result. The existing targeted Unicode,
+  navigation, bidi and multithread checks passed under ASan/UBSan.
+- An experiment shared immutable variable payloads between nested captures.
+  It was removed: the required full content comparisons and extra map lookups
+  replaced the copying cost without demonstrating a useful layout reduction.
+  The experimental build measured 881 / 763 / 831 ms. In its warmed LBR sample,
+  40 of 76 variable-read samples entered payload reuse, mostly comparison rather
+  than copying. Do not reinstate this as a claimed performance optimization.
+
+Sampling evidence: `build_qt6/atha03-lbr-warm/`; the intermediate clean binary
+measurement is in `build_qt6/atha03-ledger-font/`. No application timing probes
+were added for this follow-up.
+
+Final retained build: `93f3f1eefa3ed529b9fd99833ed0b4de1b7b1d90`, built with
+`-j16` and atomically deployed/verified by the local installation helper.
+Its first sequence measured 883 / 949 / 802 ms. To check time-window drift,
+the original `dd517020...` executable preserved by perf was run again, followed
+immediately by the new executable with identical harness settings:
+
+| Build | First copied-profile layout | Warmed fresh-process layouts |
+| --- | ---: | ---: |
+| Original control | 950 ms | 796 / 836 ms |
+| Final retained build | 934 ms | 847 / 806 ms |
+
+This does **not** demonstrate an aggregate full-layout improvement. The ICU
+microbenchmark and reduced repeated preparation are narrower results, not a
+substitute for the user's goal. Logs are in `build_qt6/atha03-unicode-control/`
+and `build_qt6/atha03-unicode-recheck/`. No warnings/errors appeared in the final
+three-run initial measurement. After repeated non-winning local attempts,
+stop adding speculative fixes and request the Pro review described in
+`notes/full-layout-performance-review-prompt.md`. The 500 ms goal remains open.
+
+Two concrete follow-up candidates, not implemented here:
+
+- The actual stored document contains 563 structured script nodes: 559 have
+  three empty slots and four have two. All 1,685 vacant slots currently enter
+  `typeset_as_concat`, including font/Unicode preparation. Empty slots still
+  need correct cursor geometry, affinities and environment/source receipts;
+  prove those invariants before replacing their preparation with a shortcut.
+- `evaluation_inputs::record` copies the root before an Immer update even when
+  nobody retains the old root. This guarantees shared map ownership during
+  mutation and prevents Immer's unique-branch update path. Measure this
+  separately; do not compromise already published snapshots to reduce copying.
+
 ## Persistent Shaping Cache: Original Design (Implemented)
 
 The subsections below record the decisions that guided the completed
@@ -997,7 +1074,10 @@ or a selected percentage, with configurable parallelism and visible progress.
    contemporaneous warmed control average from 1,021 to 931 ms, with substantial
    variation between runs. Attribute remaining CPU and waiting costs and the
    separate late update before selecting the next changes; cold mmap page faults
-   remain a separate cost. The 500 ms goal is still open.
+   remain a separate cost. Later body-scan removal measured 740-769 ms in its
+   window, but the latest contemporaneous control is 796-836 ms versus
+   806-847 ms for the latest changes. Do not present those latest changes as a
+   document-level speedup. Pro review is prepared; the 500 ms goal is still open.
 4. **Done and verified:** Persistent shaping cache, asynchronous maintenance,
    bounded body/math storage and Vault prewarm builder. Maintain its existing
    correctness checks, but do not treat it as outstanding implementation work.

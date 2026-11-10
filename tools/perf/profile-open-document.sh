@@ -32,6 +32,7 @@ Options:
   --settle-ms N             Post-render guard interval (default: 500).
   --timeout-seconds N       Hard timeout for each run (default: 300).
   --frequency N             perf sampling frequency (default: 499).
+  --call-graph MODE         perf call graph: dwarf,16384 (default), fp or lbr.
   --allow-concurrent        Permit another ATHENA process to remain running.
   --help                    Show this help.
 
@@ -56,6 +57,7 @@ vault_settle_ms=1000
 settle_ms=500
 timeout_seconds=300
 frequency=499
+call_graph="dwarf,16384"
 allow_concurrent=0
 
 require_value() {
@@ -136,6 +138,11 @@ while (($#)); do
     --frequency)
       require_value "$1" "${2:-}"
       frequency="$2"
+      shift 2
+      ;;
+    --call-graph)
+      require_value "$1" "${2:-}"
+      call_graph="$2"
       shift 2
       ;;
     --allow-concurrent)
@@ -346,6 +353,7 @@ vault_settle_ms=$vault_settle_ms
 settle_ms=$settle_ms
 timeout_seconds=$timeout_seconds
 perf_frequency=$frequency
+perf_call_graph=$call_graph
 kernel=$(uname -srmo)
 EOF
 lscpu >> "$output/metadata.txt" 2>/dev/null || true
@@ -464,8 +472,8 @@ run_perf() {
         --event cpu_core/cycles/P \
         --event cpu_atom/cycles/P \
         --freq "$frequency" \
-        --call-graph dwarf,16384 \
-        --timestamp --sample-cpu --compression-level=1 \
+        --call-graph "$call_graph" \
+        --clockid mono --timestamp --sample-cpu --compression-level=1 \
         --output "$run_dir/perf.data" -- \
       "$binary" --no-splash-screen -debug-bench \
         -log-file "$run_dir/athena.log" \
@@ -481,7 +489,8 @@ run_perf() {
   fi
 
   "$perf_bin" report --stdio --input "$run_dir/perf.data" \
-    --no-children --sort comm,dso,symbol --percent-limit 0.5 \
+    --no-inline --call-graph none --no-children \
+    --sort comm,dso,symbol --percent-limit 0.5 \
     > "$run_dir/perf-report.txt"
   summarize_timing perf "$run" "$timing_file"
 }

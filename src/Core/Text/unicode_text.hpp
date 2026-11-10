@@ -37,7 +37,7 @@ std::size_t codepoint_to_byte (std::string_view text, std::size_t points);
 
 // The caller owns the immutable bytes for this cursor's lifetime. Rebind after
 // an edit; retain the cursor while navigating the same text revision. Each
-// owner uses its own iterator, never a shared mutable ICU iterator.
+// cursor owns ICU-derived boundaries, not a live mutable ICU iterator.
 class grapheme_cursor {
   struct implementation;
   std::unique_ptr<implementation> impl_;

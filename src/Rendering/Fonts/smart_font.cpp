@@ -2075,17 +2075,25 @@ smart_font_rep::get_wide_correction (string s, int mode) {
 font
 smart_font_bis (string family, string variant, string series, string shape,
                  int sz, int hdpi, int vdpi) {
+  using request= std::tuple<string, string, string, string, string, int, int, int>;
+  struct selections { std::map<request, font> values; };
+  auto& selected= font_domain_local<selections> ().values;
+  const string language= default_cjk_language_name ();
+  const request key {family, variant, series, shape, language, sz, hdpi, vdpi};
+  const auto cached= selected.find (key);
+  if (cached != selected.end ()) return cached->second;
   string name=
     family * "-" * variant * "-" *
-    series * "-" * shape * "-" * default_cjk_language_name () * "-" *
+    series * "-" * shape * "-" * language * "-" *
     as_string (sz) * "-" * as_string (vdpi) * "-smart";
   if (hdpi != vdpi)
     name=
       family * "-" * variant * "-" *
-      series * "-" * shape * "-" * default_cjk_language_name () * "-" *
+      series * "-" * shape * "-" * language * "-" *
       as_string (sz) * "-" *
       as_string (hdpi) * "-" * as_string (vdpi) * "-smart";
-  if (font::instances->contains (name)) return font (name);
+  if (font::instances->contains (name))
+    return selected.emplace (key, font (name)).first->second;
   if (starts (family, "sys-")) {
     if (family == "sys-chinese") {
       string name= default_chinese_font_name ();
@@ -2118,9 +2126,11 @@ smart_font_bis (string family, string variant, string series, string shape,
   if (sec_family == "") sec_family= "roman";
   font sec_fn= closest_font (sec_family, "rm", "medium", "right", sz, vdpi);
   font err_fn= error_font (sec_fn);
-  return make (font, name,
-               tm_new<smart_font_rep> (name, base_fn, err_fn, family, variant,
-                                       series, shape, sz, hdpi, vdpi));
+  const font result= make (font, name,
+    tm_new<smart_font_rep> (name, base_fn, err_fn, family, variant,
+                          series, shape, sz, hdpi, vdpi));
+  selected.emplace (key, result);
+  return result;
 }
 
 font

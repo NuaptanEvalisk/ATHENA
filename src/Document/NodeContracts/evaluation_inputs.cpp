@@ -2,12 +2,15 @@
 #include "Document/NodeContracts/evaluation_inputs.hpp"
 #include <immer/map.hpp>
 #include <immer/algorithm.hpp>
+#include <string_view>
 
 namespace athena::contracts {
 
 struct evaluation_input_snapshot::root {
-  struct revision {};
-  using entries= immer::map<std::string, std::shared_ptr<const revision>>;
+  // The mapped revision owns the key bytes. Copying a persistent branch only
+  // copies views and shared handles, not every neighbouring variable name.
+  struct revision { std::string name; };
+  using entries= immer::map<std::string_view, std::shared_ptr<const revision>>;
   entries names;
 };
 
@@ -22,9 +25,10 @@ bool evaluation_input_snapshot::same_receipt (
 evaluation_input_snapshot evaluation_input_snapshot::baseline (std::set<std::string> names) {
   evaluation_input_snapshot result;
   auto next= std::make_shared<root> ();
-  const auto revision= std::make_shared<const root::revision> ();
-  for (const auto& name: names)
-    next->names= std::move (next->names).set (name, revision);
+  for (const auto& name: names) {
+    const auto revision= std::make_shared<const root::revision> (root::revision {name});
+    next->names= std::move (next->names).set (revision->name, revision);
+  }
   result.base= std::move (next);
   return result;
 }
@@ -34,7 +38,7 @@ std::set<std::string> evaluation_input_snapshot::changed_since (
   if (base == before.base) return {};
   const root::entries empty;
   std::set<std::string> result;
-  const auto collect= [&] (const auto& entry) { result.insert (entry.first); };
+  const auto collect= [&] (const auto& entry) { result.emplace (entry.first); };
   immer::diff (before.base ? before.base->names : empty, base ? base->names : empty,
     immer::make_differ (collect, collect,
       [&] (const auto&, const auto& entry) { collect (entry); }));
@@ -48,8 +52,11 @@ void evaluation_inputs::record (std::string name, bool present) {
   // alone cannot identify a changed value or a branch restored from a snapshot.
   // Persist the single changed branch here; taking a checkpoint never drains
   // an accumulated batch on the editor's preparation path.
-  if (present) next->names= std::move (next->names).set (
-    std::move (name), std::make_shared<const root::revision> ());
+  if (present) {
+    const auto revision= std::make_shared<const root::revision> (
+      root::revision {std::move (name)});
+    next->names= std::move (next->names).set (revision->name, revision);
+  }
   else next->names= std::move (next->names).erase (name);
   current.base= std::move (next);
 }
