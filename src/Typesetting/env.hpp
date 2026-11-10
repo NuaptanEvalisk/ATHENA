@@ -125,6 +125,7 @@ namespace athena::contracts { class macro_analysis; class detached_environment; 
 class edit_env;
 class source_occurrence_capture;
 class source_occurrence_scope;
+class auxiliary_contribution_capture;
 class evaluation_context_capture;
 class evaluation_environment_checkpoint;
 struct source_occurrence_block;
@@ -452,6 +453,7 @@ public:
   bool   exec_until (tree t, path p);
   athena::contracts::contract_event_capture* contract_events= nullptr;
   source_occurrence_capture* source_occurrences= nullptr;
+  auxiliary_contribution_capture* auxiliary_contributions= nullptr;
   source_occurrence_scope* active_source_occurrence= nullptr;
   evaluation_context_capture* recorded_contexts= nullptr;
   athena::contracts::evaluation_boundary_handle mark_execution_boundary ();

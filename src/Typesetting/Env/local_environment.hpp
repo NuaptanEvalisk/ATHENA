@@ -3,6 +3,25 @@
 
 #include "Typesetting/env.hpp"
 #include "Document/NodeContracts/execution_state.hpp"
+#include "Document/State/auxiliary_contributions.hpp"
+
+class auxiliary_contribution_capture {
+  edit_env_rep& env;
+  auxiliary_contribution_capture* parent;
+  athena::derived::contribution_log& destination;
+  std::vector<athena::derived::contribution_entry> entries;
+  bool committed= false;
+public:
+  auxiliary_contribution_capture (edit_env_rep&, athena::derived::contribution_log&);
+  ~auxiliary_contribution_capture ();
+  auxiliary_contribution_capture (const auxiliary_contribution_capture&)= delete;
+  auxiliary_contribution_capture& operator= (const auxiliary_contribution_capture&)= delete;
+  void record (const string& channel, const tree& content);
+  void reuse (const athena::derived::contribution_log&);
+  std::size_t record_count () const { return entries.size (); }
+  void discard_since (std::size_t count) { entries.erase (entries.begin () + count, entries.end ()); }
+  void commit ();
+};
 
 // These records retain actor-owned source/argument handles. They are not worker
 // inputs; detached native events refer only to the separate boundary token.
@@ -173,6 +192,8 @@ class evaluation_environment_transaction {
   std::size_t event_count;
   source_occurrence_capture* occurrences;
   std::size_t occurrence_count;
+  auxiliary_contribution_capture* auxiliary;
+  std::size_t auxiliary_count;
   std::optional<evaluation_context_capture::state> recorded;
   bool finished= false;
 public:

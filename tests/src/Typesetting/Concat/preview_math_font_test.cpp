@@ -26,6 +26,7 @@
 #include "named_symbol.hpp"
 #include "math_font.hpp"
 #include "Typesetting/Concat/concater.hpp"
+#include "Typesetting/Bridge/bridge.hpp"
 #include "math_tree_v3.hpp"
 #include "Document/Convert/Xml/math_v2_to_v3.hpp"
 #include "Document/Convert/Xml/athena_document_xml.hpp"
@@ -51,6 +52,38 @@ letter_font (box b) {
 class PreviewMathFontTest: public QObject {
   Q_OBJECT
 private slots:
+  void auxiliaryContributionsFollowBridgeReuse () {
+    athena::contracts::evaluation_state state (athena::contracts::builtin_contracts ().snapshot ());
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (state, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->update ();
+    auto write= [] (const char* text) { return tree (WRITE, "toc", tree (QUOTE, text)); };
+    tree source (DOCUMENT, write ("first"), write ("second"), "body");
+    std::unique_ptr<typesetter_rep, decltype (&delete_typesetter)> ttt (
+      new_typesetter (env, source, path (DETACHED)), delete_typesetter);
+    ttt->screen_tree= true;
+    (void) ttt->typeset ();
+    auto first= ttt->br->auxiliary_contributions;
+    QCOMPARE (athena::derived::contribution_channels (first)["toc"],
+              tree (DOCUMENT, "first", "second"));
+    notify_assign (ttt.get (), path (2), tree ("edited body"));
+    (void) ttt->typeset ();
+    QVERIFY (ttt->br->auxiliary_contributions == first);
+    notify_assign (ttt.get (), path (1), write ("changed"));
+    (void) ttt->typeset ();
+    QCOMPARE (athena::derived::contribution_channels (ttt->br->auxiliary_contributions)["toc"],
+              tree (DOCUMENT, "first", "changed"));
+    // The previous immutable snapshot remains valid for an in-flight worker.
+    QCOMPARE (athena::derived::contribution_channels (first)["toc"],
+              tree (DOCUMENT, "first", "second"));
+    notify_remove (ttt.get (), path (0), 1);
+    (void) ttt->typeset ();
+    QCOMPARE (athena::derived::contribution_channels (ttt->br->auxiliary_contributions)["toc"],
+              tree (DOCUMENT, "changed"));
+  }
+
   void auxiliaryCaptionsPreserveMathProperties () {
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);

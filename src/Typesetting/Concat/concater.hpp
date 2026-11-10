@@ -54,6 +54,7 @@ struct inline_math_fragment {
   array<line_item> items;
   athena::contracts::contract_event_log effects;
   source_occurrence_log occurrences;
+  athena::derived::contribution_log auxiliary;
 };
 using inline_math_fragments= std::vector<inline_math_fragment>;
 

@@ -18,6 +18,7 @@ protected:
   hashmap<string,tree> changes_before;
   athena::contracts::contract_event_log contracts_before;
   source_occurrence_log occurrences_before;
+  athena::derived::contribution_log auxiliary_before;
 
   bool                 corrupted;
   array<line_item>     a;
@@ -178,6 +179,7 @@ bridge_surround_rep::my_typeset (int desired_status) {
     athena::contracts::contract_event_capture capture (
       env->contract_events, contracts_before, &env->contract_state.contracts);
     source_occurrence_capture occurrences (*env.operator-> (), occurrences_before, ip);
+    auxiliary_contribution_capture auxiliary (*env.operator-> (), auxiliary_before);
     /*
     cout << st[0] << "\n";
     cout << st[1] << "\n";
@@ -189,11 +191,13 @@ bridge_surround_rep::my_typeset (int desired_status) {
     env->local_end (prev_back);
     capture.commit ();
     occurrences.commit ();
+    auxiliary.commit ();
     corrupted= false;
   }
   else {
     athena_artifact_radioactive_reuse_queries ();
     if (env->source_occurrences) env->source_occurrences->reuse (occurrences_before);
+    if (env->auxiliary_contributions) env->auxiliary_contributions->reuse (auxiliary_before);
   }
 
   ttt->insert_marker (st, ip);

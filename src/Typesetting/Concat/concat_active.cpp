@@ -366,7 +366,9 @@ concater_rep::typeset_write (tree t, path ip) {
   // Auxiliary entries are derived content: retain semantic properties (notably
   // native math), but never persist another copy of the source node identities.
   tree   r= remove_labels (athena::node::content_projection (env->exec (t[1])));
-  if (env->complete) {
+  if (env->auxiliary_contributions)
+    env->auxiliary_contributions->record (s, r);
+  else if (env->complete) {
     if (!env->local_aux->contains (s))
       env->local_aux (s)= tree (DOCUMENT);
     env->local_aux (s) << r;

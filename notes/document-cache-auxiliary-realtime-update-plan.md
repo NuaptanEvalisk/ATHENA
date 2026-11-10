@@ -2,8 +2,9 @@
 
 Design date: 2026-10-20. Scope revised: 2026-11-10.
 
-Status: implementation in progress; persistent cache and realtime views are not
-yet connected. The following scope supersedes the broader historical design.
+Status: implementation in progress. Background storage and reusable contribution
+logs are implemented; document cache ownership and realtime views are not yet
+connected. The following scope supersedes the broader historical design.
 
 ## Revised Scope (2026-11-10)
 
@@ -42,6 +43,47 @@ from derived copies, and rich-text properties survive label removal. Index
 grouping and locale state are local to an invocation. The editor currently calls
 these functions through the existing Update entry points; it still assigns the
 results into source. This is preparatory work, not realtime-cache completion.
+
+`auxiliary_cache.{hpp,cpp}` provides worker-owned SQLite storage and computation,
+receipt-checked in-memory lookup, replacement of pending work by key, stale-job
+rejection, and result publication before disk IO. Dirty records are coalesced
+for 750 ms and written transactionally; cache hits do not rewrite records.
+Explicit waiting and flushing are separate from nonblocking close. Incompatible
+or damaged caches can be rebuilt, while storage failures leave computed results
+available. Source existence is rechecked around writes. Idle-source deletion
+watching and lifecycle integration are still pending.
+
+`auxiliary_contributions.{hpp,cpp}` retains frozen WRITE payloads in shared
+ordered logs. Bridge, surround and inline-fragment replay reuse child logs;
+unchanged contributions preserve log identity even if ordinary body text changes.
+Failed evaluation rolls back captures. The old complete-pass auxiliary map is
+currently populated from this log; partial-pass logs are ready for the upcoming
+asynchronous consumer. This does not yet remove auxiliary from saved documents.
+
+The focused storage test covers superseded computations, reopening, storage
+contention without blocking result publication, transactional retry, record
+deletion, format invalidation, damaged-cache rebuilding and closing/deleting
+during computation. The bridge check exercises reuse, replacement, deletion and
+retention of an earlier snapshot. These checks do not establish completed
+realtime directory, export or save integration.
+
+Verification on 2026-11-10: `auxiliary_cache_test` and
+`auxiliaryContributionsFollowBridgeReuse` passed. `ATHENA.bin` was built with
+`-j16` and deployed with the local executable installer (build ID
+`499588b48a8f4c8e2529aff3d42b0df1f5926f40`). No broad regression suite was run.
+
+Remaining owner integration must keep receipt preparation, MessagePack encoding
+and decoding, and directory generation on the worker. Publishing raw cache bytes
+and then decoding a complete directory on the BufferActor would merely move the
+pause to a different boundary. The actor should receive frozen generated trees
+and invalidate only affected directory displays. Unsaved buffers need an
+in-memory session; Save As must change cache ownership without treating the
+not-yet-created destination as a deleted source. Folded/progressive display logs
+are partial views and must not be mistaken for a complete document inventory.
+Before enabling production cache writes, exclude `.cache` from vault inventory,
+watch registration, and Hodarium application/file traversal. The current explicit
+exclusions in `background_workers.cpp`, `hodarium_worker.cpp`, and
+`hodarium_application.cpp` list `.athena`, `.backup` and `.git`, not `.cache`.
 
 Next integration points, verified against the current native implementation:
 

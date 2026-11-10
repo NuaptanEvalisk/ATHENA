@@ -423,6 +423,31 @@ void evaluation_environment_checkpoint::restore (edit_env_rep& state) const {
   if (state.recorded_contexts) state.recorded_contexts->rebase (*this);
 }
 
+auxiliary_contribution_capture::auxiliary_contribution_capture (
+    edit_env_rep& owner, athena::derived::contribution_log& output):
+  env (owner), parent (owner.auxiliary_contributions), destination (output) {
+  env.auxiliary_contributions= this;
+}
+auxiliary_contribution_capture::~auxiliary_contribution_capture () {
+  if (!committed) env.auxiliary_contributions= parent;
+}
+void auxiliary_contribution_capture::record (const string& channel, const tree& content) {
+  entries.emplace_back (athena::derived::contribution {
+    std::string (channel.data (), N(channel)), athena::node::frozen_tree (content)});
+}
+void auxiliary_contribution_capture::reuse (const athena::derived::contribution_log& child) {
+  if (child) entries.emplace_back (child);
+}
+void auxiliary_contribution_capture::commit () {
+  if (entries.empty ()) destination.reset ();
+  else if (!destination || destination->entries != entries)
+    destination= std::make_shared<const athena::derived::contribution_block> (
+      athena::derived::contribution_block {std::move (entries)});
+  env.auxiliary_contributions= parent;
+  committed= true;
+  if (parent) parent->reuse (destination);
+}
+
 evaluation_environment_transaction::evaluation_environment_transaction (edit_env_rep& state):
   env (state), contracts (state.contract_state.contracts),
   values (state.env), back (state.back),
@@ -432,7 +457,9 @@ evaluation_environment_transaction::evaluation_environment_transaction (edit_env
   package_origin (state.package_origin), secure (state.secure),
   capture (state.contract_events), event_count (capture ? capture->record_count () : 0),
   occurrences (state.source_occurrences),
-  occurrence_count (occurrences ? occurrences->record_count () : 0) {
+  occurrence_count (occurrences ? occurrences->record_count () : 0),
+  auxiliary (state.auxiliary_contributions),
+  auxiliary_count (auxiliary ? auxiliary->record_count () : 0) {
   if (env.recorded_contexts) recorded= env.recorded_contexts->snapshot ();
   auto variables= copy (values);
   auto source_variables= copy (sources);
@@ -460,6 +487,8 @@ void evaluation_environment_transaction::rollback () {
   if (capture) capture->discard_since (event_count);
   env.source_occurrences= occurrences;
   if (occurrences) occurrences->discard_since (occurrence_count);
+  env.auxiliary_contributions= auxiliary;
+  if (auxiliary) auxiliary->discard_since (auxiliary_count);
   if (recorded) env.recorded_contexts->restore (std::move (*recorded));
   {
     athena::contracts::contract_event_suspension pause (env.contract_events);

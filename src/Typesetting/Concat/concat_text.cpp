@@ -622,6 +622,8 @@ concater_rep::typeset_cached_math_child (tree t, path ip, int index) {
         a << copy_fragment_item (fragment.items[j]);
       if (env->source_occurrences)
         env->source_occurrences->reuse (fragment.occurrences);
+      if (env->auxiliary_contributions)
+        env->auxiliary_contributions->reuse (fragment.auxiliary);
       return;
     }
   }
@@ -663,8 +665,10 @@ concater_rep::typeset_cached_math_child (tree t, path ip, int index) {
     athena::contracts::contract_event_capture events (
       env->contract_events, prepared.effects, &env->contract_state.contracts);
     source_occurrence_capture occurrences (*env.operator-> (), prepared.occurrences, ip);
+    auxiliary_contribution_capture auxiliary (*env.operator-> (), prepared.auxiliary);
     typeset (t, ip);
     occurrences.commit ();
+    auxiliary.commit ();
     events.commit ();
   }
   // Some inline commands modify the preceding item's penalty or spacing.

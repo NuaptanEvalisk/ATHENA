@@ -432,6 +432,8 @@ bridge_rep::typeset (int desired_status) {
   const bool replayed= cache_candidate && env->replay_contract_events (contract_changes, true);
   if (replayed && env->source_occurrences)
     env->source_occurrences->reuse (source_occurrences);
+  if (replayed && env->auxiliary_contributions)
+    env->auxiliary_contributions->reuse (auxiliary_contributions);
   if (!replayed) {
     if (cache_candidate) notify_change ();
     AthenaArtifactRadioactiveScope radioactive_scope (
@@ -447,6 +449,7 @@ bridge_rep::typeset (int desired_status) {
     athena::contracts::contract_event_capture capture (
       env->contract_events, contract_changes, &env->contract_state.contracts);
     source_occurrence_capture occurrences (*env.operator-> (), source_occurrences, ip);
+    auxiliary_contribution_capture auxiliary (*env.operator-> (), auxiliary_contributions);
     source_occurrence_scope occurrence (*env.operator-> (), st, ip);
     if (env->hl_lan != 0) env->lan->highlight (st);
     int pending_generation= ttt->progressive_pending_generation;
@@ -458,6 +461,7 @@ bridge_rep::typeset (int desired_status) {
     env->local_end (prev_back);
     capture.commit ();
     occurrences.commit ();
+    auxiliary.commit ();
     ttt->local_end (l, sb);
     env->link_env= old_link_env;
     status= progressively_pending? CORRUPTED: desired_status;

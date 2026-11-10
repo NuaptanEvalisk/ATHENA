@@ -236,6 +236,8 @@ typesetter_rep::typeset_pass () {
     env->touched  = hashmap<string,bool> (false);
   }
   br->typeset (PROCESSED+ WANTED_PARAGRAPH);
+  if (env->complete)
+    env->local_aux= athena::derived::contribution_channels (br->auxiliary_contributions);
   auto release_pager= [] (pager p) { tm_delete (p); };
   std::unique_ptr<pager_rep, decltype(release_pager)> ppp (
     tm_new<pager_rep> (br->ip, env, l), release_pager);

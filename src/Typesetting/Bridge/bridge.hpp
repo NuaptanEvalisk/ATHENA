@@ -44,6 +44,7 @@ public:
   hashmap<string,tree> changes;  // changes in the environment
   athena::contracts::contract_event_log contract_changes;
   source_occurrence_log source_occurrences;
+  athena::derived::contribution_log auxiliary_contributions;
 
   array<page_item>     l;        // the typesetted lines of st
   stack_border         sb;       // border properties of l
