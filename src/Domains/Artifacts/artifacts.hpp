@@ -215,9 +215,10 @@ bool athena_artifact_is_defining_occurrence (
   const tree& document, path source_path,
   const AthenaArtifactRecord& record);
 
+// The source path is relative to an already extracted document body.
 // Exclude the entire definition, including titles and nested body content.
 bool athena_artifact_is_inside_definition (
-  const tree& document, path source_path);
+  const tree& body, path source_path);
 
 // Internal process worker used by the incremental parallel extractor.
 bool athena_artifacts_run_extract_worker (

@@ -797,6 +797,102 @@ progressive rendering; document decoding and first-paint delays remain separate.
 **The 500 ms target remains unmet.** Further attribution must separate CPU time,
 cache faults and scheduling delays rather than select the fastest wall-clock run.
 
+### CPU-Time Attribution Follow-Up
+
+A subsequent scoped probe records thread CPU time for the entire layout and
+exclusive wall time for nested operations. Fresh-process warmed runs gave:
+
+| First complete layout | Wall time | Thread CPU time |
+| --- | ---: | ---: |
+| Run 2 | 975.4 ms | 973.9 ms |
+| Run 3 | 964.4 ms | 953.0 ms |
+
+This excludes waiting as the main explanation for this measurement window.
+In run 2, 11,740 context marks cost 17.0 ms and 18,664 context writes cost
+13.3 ms. The 150,252 recursive tree-copy invocations cost 38.8 ms exclusive;
+their 108.7 ms inclusive sum double-counts recursive children and must not be
+reported as a separate wall-time budget. Variable reads cost 73.3 ms including
+copies, or 42.2 ms exclusive. Evaluator execution cost 30.8 ms exclusive.
+
+Most time remains outside these probes, so replacing environment snapshots or
+changing thread priority would not address the dominant measured cost. Next
+attribute the remaining concatenation, font/Unicode preparation and box
+construction CPU time. No new optimization is claimed from this probe alone.
+Temporary gated instrumentation was removed after the further attribution below.
+Logs: `build_qt6/atha03-cost/`. The copied profile has been removed.
+
+### Expanded Attribution
+
+The next probe covers the complete bridge/concatenation hierarchy and font
+pipeline in one run. Warmed first complete layout: 995.0 ms. Exclusive times
+(children subtracted, so these are not overlapping budgets):
+
+| Scope | Calls | Exclusive time |
+| --- | ---: | ---: |
+| Bridge typesetting | 3,497 | 140.9 ms |
+| Generic concatenation dispatch | 19,023 | 177.6 ms |
+| Physical run shaping/cache lookup | 10,668 | 113.6 ms |
+| Line shaping outside physical run shaping | 14,658 | 29.2 ms |
+| Text atom typesetting outside measured children | 1,835 | 61.8 ms |
+| Math atom typesetting outside measured children | 5,365 | 47.0 ms |
+| Native scripts outside measured children | 609 | 55.9 ms |
+| Paragraph formatting outside measured children | 370 | 76.1 ms |
+| Font update outside measured children | 3,791 | 33.4 ms |
+| Font selection outside measured children | 12,401 | 37.9 ms |
+| Unicode paragraph construction | 8,182 | 50.9 ms |
+| Layout outside all measured scopes | 1 | 3.4 ms |
+
+Previously measured copying, evaluator execution, variable reads and source
+occurrence/context capture account for the remainder. The residual outside
+bridge/content work is small, so final pagination/positioning is not the missing
+large cost. Generic bridge and concatenation scopes still contain unmeasured
+helpers: do not call their exclusive time pure dispatch overhead. Next split
+them by node kind and environment/macro-expansion/stack-assembly operations.
+The shaping measurement includes persistent-cache lookup and glyph-resource
+attachment, not just HarfBuzz computation. Logs: `build_qt6/atha03-cost2/`.
+The copied profile and temporary probes have been removed.
+
+### Repeated Body Scans During Link Preparation
+
+A third scoped run measured 996 ms for warmed complete layout. Environment
+patch merging cost 7.0 ms, contract-log commits 4.9 ms, source-log commits
+4.0 ms, and stack insertion 4.7 ms. These are not the missing large cost.
+CONCAT handling itself accounted for 38.9 ms outside measured descendants;
+bridge handling still contains 117.5 ms of other helpers.
+
+Sampling then exposed `artifacts.cpp::document_body` during layout. Both
+typesetter callers of `athena_artifact_is_inside_definition` already supply the
+body from the live document tree. The helper nevertheless searched every
+top-level child for a file-envelope `body`, converting each label to a string,
+for each eligible text atom and CONCAT. ATHA 03 has 212 body children. This
+scan is unrelated to checking the source path and repeats across the page.
+
+The helper now explicitly consumes a body and walks its source path once,
+instead of unwrapping it and repeatedly resolving ancestors from the root.
+Invalid paths retain their previous false result. Generic file-envelope
+extraction still accepts full documents, but compares interned labels directly.
+The legacy definition predicate itself is unchanged by this performance fix.
+
+Logs: `build_qt6/atha03-cost3/`, `build_qt6/atha03-cost3-samples/`, and
+`build_qt6/atha03-body-before/`. The profiler's DWARF call-chain unwinder did
+not recover application frames reliably; flat samples and explicit nested
+timing scopes, not reconstructed call chains, support these findings.
+
+Normal-mode comparison (no profiler attached and no cost probes enabled):
+
+| Build | First copied-profile layout | Subsequent fresh-process layouts |
+| --- | ---: | ---: |
+| Before | 966 ms | 903 / 1,043 ms |
+| After | 879 ms | 740 / 769 ms |
+
+The before binary still contained disabled instrumentation; the after binary
+has none. Together with host-load variation, this means the observed reduction
+is not an isolated measurement of the helper's saving. It does establish a
+new real-document result, not a progressive-layout shortcut. The 500 ms goal
+remains unmet. Build/deployment succeeded with `-j16`; deployed build ID:
+`dd517020993f21f71b682123b4e10b87c707c8d9`. Evidence is also in
+`build_qt6/atha03-body-after/`. Copied profiles were removed after measurement.
+
 ## Persistent Shaping Cache: Original Design (Implemented)
 
 The subsections below record the decisions that guided the completed

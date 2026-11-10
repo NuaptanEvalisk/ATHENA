@@ -475,8 +475,9 @@ std::string anchor_stem (std::string value) {
 
 tree document_body (const tree& document) {
   if (!is_compound (document)) return document;
+  static const tree_label body_label= make_tree_label ("body");
   for (int i=0; i<N(document); i++)
-    if (tag_name (document[i]) == "body" && N(document[i]) >= 1)
+    if (is_func (document[i], body_label) && N(document[i]) >= 1)
       return document[i][0];
   return document;
 }
@@ -2794,14 +2795,16 @@ athena_artifact_is_defining_occurrence (
 
 bool
 athena_artifact_is_inside_definition (
-  const tree& document, path source_path) {
-  tree body= document_body (document);
-  if (!has_subtree (body, source_path)) return false;
-  for (path current= source_path; !is_nil (current);
-       current= path_up (current)) {
-    if (is_compound (subtree (body, current), "definition", 1)) return true;
+  const tree& body, path source_path) {
+  static const tree_label definition= make_tree_label ("definition");
+  tree current= body;
+  bool inside= false;
+  for (path p= source_path; !is_nil (p); p= p->next) {
+    if (is_atomic (current) || p->item < 0 || p->item >= N(current)) return false;
+    current= current[p->item];
+    inside= inside || is_func (current, definition, 1);
   }
-  return false;
+  return inside;
 }
 
 bool
