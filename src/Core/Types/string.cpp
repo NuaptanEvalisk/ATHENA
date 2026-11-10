@@ -11,6 +11,7 @@
 ******************************************************************************/
 
 #include "Core/Types/string.hpp"
+#include <charconv>
 #include <cstring>
 #include <stdio.h>
 #include <stdexcept>
@@ -429,14 +430,11 @@ as_long_int (const string& s) {
 double
 as_double (const string& s) {
   double x= 0.0;
-  {
-    int i, n= N(s);
-    STACK_NEW_ARRAY (buf, char, n+1);
-    for (i=0; i<n; i++) buf[i]=s[i];
-    buf[n]='\0';
-    sscanf (buf, "%lf", &x);
-    STACK_DELETE_ARRAY (buf);
-  } // in order to avoid segmentation fault due to compiler bug
+  const auto parsed= std::from_chars (s.data (), s.data () + N(s), x);
+  if (parsed.ec == std::errc () && parsed.ptr == s.data () + N(s)) return x;
+  // Keep the existing treatment of whitespace, prefixes and partial numbers.
+  x= 0.0;
+  sscanf (s.c_str (), "%lf", &x);
   return x;
 }
 

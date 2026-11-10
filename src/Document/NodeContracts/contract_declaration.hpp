@@ -218,7 +218,7 @@ class contract_event_capture {
   std::map<tree_label, std::shared_ptr<const node_contract>> queries;
   std::set<std::string> absences;
   std::map<std::tuple<std::size_t, std::string, std::string>, group_query_result> group_reads;
-  std::map<std::string, variable_query> variable_reads;
+  std::map<std::string, std::size_t, std::less<>> variable_reads;
   std::map<std::pair<external_source, std::string>, external_query> external_reads;
   bool effects= false;
   bool boundaries= false;

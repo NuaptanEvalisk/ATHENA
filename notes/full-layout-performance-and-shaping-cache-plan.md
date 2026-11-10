@@ -721,6 +721,82 @@ or broad regression suites were added for these resource-index changes. All
 owned copied profiles were removed after measurement; compact logs and the
 9.6 MiB sampling trace remain.
 
+## November 10 Follow-Up: Label Registry and Dependency Recording
+
+Further measurements use the same real ATHA 03 document in fresh Xvfb
+processes. Temporary probes were removed after attribution. Logs are under
+`build_qt6/atha03-paragraph/`; copied profiles are disposable and removed after
+measurement.
+
+### Confirmed Repeated Work
+
+- The first full layout performed 367,444 label operations: 219,245 name
+  conversions, 69,858 existence queries, 50,233 name-to-label queries and
+  28,108 calls to the label-creation API. Previously every call acquired the
+  global registry mutex, including an exclusive lock when creating a node
+  whose tag was already registered. Background document readers use the same
+  registry. CPU samples also caught this actor inside its read/write locks.
+- Each newly captured environment-variable read looked up the deduplication
+  map, constructed a frozen query, then passed through `record`, which looked
+  up the same map again and stored another copy of the query. The capture now
+  indexes its existing event vector, borrows the lookup name, and inserts at
+  the first search position. Writes, child-effect blocks and rollback retain
+  their previous invalidation rules. Genuine frozen value snapshots remain.
+- About 42,000 numeric conversions copied their input and used `sscanf`.
+  Complete numeric strings now use standard `from_chars`; other forms retain
+  the old parser without the temporary buffer. A direct `strtod` replacement
+  was rejected after it changed incomplete-exponent behavior. Boundary forms
+  and 100,000 generated doubles agreed with the old conversion in a targeted
+  comparison; this was not a broad regression run.
+
+Successful label lookups are now retained per thread. Extension registration
+is append-only, so an already resolved mapping remains valid; explicit
+registration/rebinding advances an atomic revision and invalidates thread-local
+indexes. Missing labels are never cached. There is no new shaping-cache tier
+and no bypass of registry synchronization for a cache miss or registration.
+
+Instrumented attribution, not production timings:
+
+| Work | Before | After |
+| --- | ---: | ---: |
+| Variable-read capture | 114.5 ms | 74.4 ms |
+| Numeric parsing | 17.8 ms | 2.9 ms |
+| Label API calls, warmed lookup switch comparison | 93.0 ms | 28.7 ms |
+
+The label-switch comparison's full layouts were 1,220 and 929 ms. These
+include probe overhead and background/cache-residency variation, so do not
+interpret their entire difference as mutex CPU time. Unicode fragment boxes
+still cost roughly 132 ms in the warmed sample; paragraph line breaking was
+about 23 ms, not the dominant outstanding cost.
+
+### Clean Binary and Contemporaneous Control
+
+Built with `-j16` and deployed through the local executable installer. Final
+build ID: `d20da9e6bebc2ea0264dc50ae461b1778f14608b`. No probes or cache switches
+remain in the source/binary. Runtime logs contained no warnings or errors.
+
+The first clean run group did not beat the earlier 877-890 ms measurements
+consistently. Rather than attributing that to scheduling without evidence, the
+exact previous binary (`cc5df07a70b3f7eba01eecfe338c93f742e4c31b`) was recovered
+read-only from its still-running executable mapping and run as an independent
+control. The user's process was not attached to or changed. The temporary
+control executable was deleted after the comparison.
+
+| Binary/run group | First copied-profile full layout | Subsequent fresh-process full layouts |
+| --- | ---: | ---: |
+| New, `final` | 1,204 ms | 930 / 889 ms |
+| Previous, `control` | 1,530 ms | 1,016 / 1,025 ms |
+| New, `confirmation` | 1,136 ms | 1,059 / 844 ms |
+
+The four warmed new-binary measurements average 931 ms versus 1,021 ms for the
+two contemporaneous control measurements, an observed improvement of about 9%.
+The range is wide: do not advertise 844 ms as a stable latency or compare these
+runs directly with an earlier host-load window. Copied-profile first runs are
+not controlled cold-disk measurements. All figures are complete layout, not
+progressive rendering; document decoding and first-paint delays remain separate.
+**The 500 ms target remains unmet.** Further attribution must separate CPU time,
+cache faults and scheduling delays rather than select the fastest wall-clock run.
+
 ## Persistent Shaping Cache: Original Design (Implemented)
 
 The subsections below record the decisions that guided the completed
@@ -820,9 +896,12 @@ or a selected percentage, with configurable parallelism and visible progress.
    contract inference, profile parsing and scrollbar-induced full layout,
    and reduced redundant Unicode setup. SVG and physical math-font reuse lower
    the warmed full layout to roughly one second. The subsequent physical-resource
-   lookup changes above bring clean warmed full layout to 877-890 ms.
-   Attribute the remaining layout and separate late update before selecting
-   the next changes; cold mmap page faults remain a separate cost.
+   lookup changes above brought clean warmed full layout to 877-890 ms in that
+   measurement window. The later label/dependency/numeric changes reduce the
+   contemporaneous warmed control average from 1,021 to 931 ms, with substantial
+   variation between runs. Attribute remaining CPU and waiting costs and the
+   separate late update before selecting the next changes; cold mmap page faults
+   remain a separate cost. The 500 ms goal is still open.
 4. **Done and verified:** Persistent shaping cache, asynchronous maintenance,
    bounded body/math storage and Vault prewarm builder. Maintain its existing
    correctness checks, but do not treat it as outstanding implementation work.

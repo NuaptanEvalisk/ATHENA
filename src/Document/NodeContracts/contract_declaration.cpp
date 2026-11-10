@@ -763,9 +763,12 @@ void contract_event_capture::record (contract_event_record event) {
   }
   else if (const auto* query= std::get_if<variable_query> (&event)) {
     const auto found= variable_reads.find (query->name);
-    if (found != variable_reads.end () && found->second.present == query->present &&
-        (!query->value || found->second.value == query->value)) return;
-    variable_reads.insert_or_assign (query->name, *query);
+    if (found != variable_reads.end ()) {
+      const auto& previous= std::get<variable_query> (events[found->second]);
+      if (previous.present == query->present &&
+          (!query->value || previous.value == query->value)) return;
+    }
+    variable_reads.insert_or_assign (query->name, events.size ());
   }
   else if (const auto* query= std::get_if<external_query> (&event)) {
     const auto key= std::make_pair (query->source, query->name);
@@ -797,12 +800,21 @@ void contract_event_capture::record (contract_event_record event) {
 }
 
 void contract_event_capture::read_variable (const string& name, bool present, const tree* value) {
-  const auto key= bytes (name);
-  const auto previous= variable_reads.find (key);
-  if (previous != variable_reads.end () && previous->second.present == present &&
-      (!value || (previous->second.value && previous->second.value->matches (*value)))) return;
-  record (variable_query {key, present,
-    value && present ? std::optional<node::frozen_tree> (*value) : std::nullopt});
+  const std::string_view key (name.data (), N(name));
+  const auto at= variable_reads.lower_bound (key);
+  const bool found= at != variable_reads.end () && at->first == key;
+  if (found) {
+    const auto& previous= std::get<variable_query> (events[at->second]);
+    if (previous.present == present &&
+        (!present || !value || (previous.value && previous.value->matches (*value)))) {
+      return;
+    }
+  }
+  variable_query query {std::string (key), present,
+    value && present ? std::optional<node::frozen_tree> (*value) : std::nullopt};
+  if (found) at->second= events.size ();
+  else variable_reads.emplace_hint (at, query.name, events.size ());
+  events.emplace_back (std::move (query));
 }
 
 variable_write contract_event_capture::write_variable (const string& name, const tree* value) {
