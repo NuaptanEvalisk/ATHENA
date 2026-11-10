@@ -18,6 +18,7 @@
 #include "heading_word_count.hpp"
 #include "App/Runtime/thumbnail_snapshot.hpp"
 #include "Document/Model/slide_motion.hpp"
+#include "Document/State/directory_session.hpp"
 
 class document_rep;
 class evaluation_environment_checkpoint;
@@ -58,6 +59,10 @@ protected:
   hashmap<path,int> heading_word_count_cache_map;
   edit_env env;                           // the environment for typesetting
   typesetter ttt;                         // the (not) yet typesetted document
+  std::unique_ptr<athena::derived::directory_session> directory_views;
+  string directory_source;
+  bool directory_views_changed= false;
+  void prepare_directory_owner ();
 
 protected:
   typesetter           get_typesetter ();
@@ -97,6 +102,7 @@ public:
   ~edit_typeset_rep ();
   void clear_local_info ();
   void prepare_cursor_environment () override;
+  void publish_derived_directories () override;
   void set_field_environment (
     std::shared_ptr<const athena::contracts::detached_environment>) override;
   std::shared_ptr<const evaluation_environment_checkpoint> cursor_context_at (

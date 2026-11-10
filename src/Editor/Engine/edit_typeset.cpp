@@ -333,15 +333,45 @@ edit_typeset_rep::typeset_preamble () {
 }
 
 void
+edit_typeset_rep::prepare_directory_owner () {
+  string source;
+  if (is_rooted (buf->name, "default") || is_rooted (buf->name, "file"))
+    source= as_system_string (buf->name);
+  if (!directory_views || source != directory_source) {
+    std::function<void()> ready;
+    if (const auto* context= current_execution_context (); context && context->actor) {
+      const auto actor= context->actor_id;
+      const auto view= context->view_id;
+      ready= [actor, view] { buffer_actor::notify_derived_directories_ready (actor, view); };
+    }
+    directory_views= std::make_unique<athena::derived::directory_session> (
+      std::filesystem::path (std::string (source.data (), N(source))), std::move (ready));
+    directory_source= source;
+  }
+}
+
+void
 edit_typeset_rep::typeset_prepare () {
   env->base_file_name= buf->master;
   env->read_only= buf->read_only;
   pre->restore (*env.operator-> ());
+  if (directory_views) {
+    prepare_directory_owner ();
+    for (const auto& [key, value]: directory_views->views ())
+      env->write (string (key.data (), key.size ()), value);
+  }
   env->style_init_env ();
   if (compound_counter_view)
     athena::avd::apply_counter_state (
       env, compound_counter_variables, compound_incoming_counters);
   env->update ();
+}
+
+void
+edit_typeset_rep::publish_derived_directories () {
+  // Admission occurs after the next source pass, not against a stale source
+  // generation between an editing command and its scheduled layout.
+  if (directory_views) notify_change (THE_TREE | THE_EXTENTS | THE_FREEZE);
 }
 
 void
@@ -1820,6 +1850,7 @@ edit_typeset_rep::heading_word_count_at (path p) {
 void
 edit_typeset_rep::typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2) {
   //time_t t1= texmacs_time ();
+  directory_views_changed= false;
   typeset_prepare ();
   box previous_eb= eb;
   eb= empty_box (reverse (rp));
@@ -1869,6 +1900,15 @@ edit_typeset_rep::typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2) {
     page_geometry_from_layout= true;
     progressive_typeset_pending=
       ttt->progressive_root_active && ttt->progressive_pending;
+    const auto contributions= ttt->br->auxiliary_contributions;
+    if (!directory_views && contributions && contributions->has_directories)
+      prepare_directory_owner ();
+    if (directory_views && !progressive_typeset_pending &&
+        (printed || N(folded_headings) == 0)) {
+      directory_views->submit (ttt->br->auxiliary_contributions,
+        env->local_ref, env->page_refs_changed);
+      directory_views_changed= printed ? directory_views->wait () : directory_views->receive ();
+    }
     if (full_repaint) {
       SI big= (SI) (1 << 30);
       x1= -big; y1= -big; x2= big; y2= big;
@@ -1944,6 +1984,7 @@ edit_typeset_rep::typeset (SI& x1, SI& y1, SI& x2, SI& y2) {
     bool page_refs_changed= env->page_refs_changed;
     x1= min (x1, sx1); y1= min (y1, sy1);
     x2= max (x2, sx2); y2= max (y2, sy2);
+    if (directory_views_changed) continue;
     if (!env->complete) break;
     env->complete= false;
     clean_unused (env->local_ref, env->touched);

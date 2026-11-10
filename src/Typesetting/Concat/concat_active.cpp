@@ -362,6 +362,11 @@ remove_labels (tree t) {
 void
 concater_rep::typeset_write (tree t, path ip) {
   if (N(t) != 2) { typeset_error (t, ip); return; }
+  if (env->provides ("derived-directory-output") &&
+      env->read ("derived-directory-output") == "true") {
+    control ("write", ip);
+    return;
+  }
   string s= env->exec_string (t[0]);
   // Auxiliary entries are derived content: retain semantic properties (notably
   // native math), but never persist another copy of the source node identities.

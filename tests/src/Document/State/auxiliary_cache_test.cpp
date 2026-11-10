@@ -13,6 +13,24 @@ namespace fs= std::filesystem;
 using namespace athena::derived;
 
 int main () {
+  {
+    auxiliary_cache memory ({}, "test");
+    std::uint64_t stored= 0;
+    auto refresh= [&] {
+      stored= memory.request ({"toc", "same-receipt", [] { return cache_bytes {1}; }});
+    };
+    memory.wait (memory.post ("refresh", refresh));
+    memory.wait (stored);
+    assert (memory.lookup ("toc", "same-receipt")->bytes == cache_bytes {1});
+    memory.wait (memory.request ({"toc", "same-receipt", [] { return cache_bytes {2}; }, true, false}));
+    assert (memory.lookup ("toc", "same-receipt")->bytes == cache_bytes {2});
+    stored= 0;
+    memory.wait (memory.post ("refresh", refresh));
+    assert (stored != 0);
+    memory.wait (stored);
+    assert (!memory.lookup ("refresh", ""));
+    memory.flush ();
+  }
   const auto root= fs::temp_directory_path () / ("athena-auxiliary-test-" +
     std::to_string (std::chrono::steady_clock::now ().time_since_epoch ().count ()));
   fs::create_directories (root);

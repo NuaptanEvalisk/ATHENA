@@ -603,6 +603,7 @@ concater_rep::typeset_impl (tree t, path ip) {
     typeset_executable (t, ip);
     break;
   case EXTERN:
+  case DERIVED_DIRECTORY:
     typeset_rewrite (t, ip);
     break;
   case VAR_INCLUDE:

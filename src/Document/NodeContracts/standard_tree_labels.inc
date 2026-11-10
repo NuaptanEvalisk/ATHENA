@@ -510,6 +510,9 @@
         fixed (1, 1, BIFORM) ->
         string_type (0) -> name (0, "kind") ->
         string_type (1) -> name (1, "title"));
+  init (DERIVED_DIRECTORY, "derived-directory",
+        fixed (2, 0, DETAILED) -> string_type (0) -> name (0, "kind") ->
+        string_type (1) -> name (1, "channel"));
 
   init (TUPLE, "tuple",
         repeat (0, 1) -> accessible (0));

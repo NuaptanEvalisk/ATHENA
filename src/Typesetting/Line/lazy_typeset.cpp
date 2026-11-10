@@ -804,6 +804,7 @@ make_lazy_impl (edit_env env, tree t, path ip) {
   case COMPOUND:
     return make_lazy_compound (env, t, ip);
   case EXTERN:
+  case DERIVED_DIRECTORY:
   case VAR_INCLUDE:
     return make_lazy_rewrite (env, t, ip);
   case STYLE_ONLY:

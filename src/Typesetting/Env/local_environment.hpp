@@ -17,6 +17,7 @@ public:
   auxiliary_contribution_capture (const auxiliary_contribution_capture&)= delete;
   auxiliary_contribution_capture& operator= (const auxiliary_contribution_capture&)= delete;
   void record (const string& channel, const tree& content);
+  void request (athena::derived::directory_request);
   void reuse (const athena::derived::contribution_log&);
   std::size_t record_count () const { return entries.size (); }
   void discard_since (std::size_t count) { entries.erase (entries.begin () + count, entries.end ()); }

@@ -106,6 +106,7 @@ public:
   // and is consumed on the owner between commands, once per notified view.
   static void notify_contracts_ready (athena_actor_id actor_id,
                                       athena_view_id view_id);
+  static void notify_derived_directories_ready (athena_actor_id, athena_view_id);
 
   static bool invoke_on (
     athena_actor_id actor_id, actor_command_kind kind,
@@ -210,6 +211,7 @@ private:
   };
   std::unordered_map<athena_response_id, response_state> responses_;
   std::unordered_set<athena_view_id> contracts_ready_;
+  std::unordered_set<athena_view_id> derived_directories_ready_;
 
   struct implementation;
   std::unique_ptr<implementation> impl_;
@@ -229,6 +231,7 @@ private:
   void run_loop ();
   void execute (actor_command_record& command);
   void publish_ready_contracts ();
+  void publish_ready_directories ();
   void flush_hybrid_activations ();
   void publish_tmfs_title (editor_rep* preferred_editor);
 

@@ -618,7 +618,7 @@ bool sync_worker::saved (const std::filesystem::path& path, const std::string& o
       auto relative= path.lexically_normal ().lexically_relative (binding.root);
       if (relative.empty () || relative.is_absolute () || *relative.begin () == "..") continue;
       if (std::any_of (relative.begin (), relative.end (), [] (const std::filesystem::path& part) {
-        return part == ".athena" || part == ".backup" || part == ".git";
+        return part == ".athena" || part == ".backup" || part == ".git" || part == ".cache";
       })) continue;
       if (object.empty ()) throw std::invalid_argument ("Saved Hodarium document has no source UUID");
       // A stray save notification must not publish legacy bytes or activate

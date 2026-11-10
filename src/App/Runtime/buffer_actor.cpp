@@ -746,6 +746,20 @@ buffer_actor::notify_contracts_ready (athena_actor_id actor_id,
   actor->commands_.wake ();
 }
 
+void
+buffer_actor::notify_derived_directories_ready (athena_actor_id actor_id,
+                                               athena_view_id view_id) {
+  auto lifetime= acquire_actor (actor_id);
+  buffer_actor* actor= lifetime.get ();
+  if (actor == nullptr) return;
+  {
+    std::lock_guard<std::mutex> guard (actor->state_lock_);
+    if (!actor->accepting_ || !actor->started_) return;
+    if (!actor->derived_directories_ready_.insert (view_id).second) return;
+  }
+  actor->commands_.wake ();
+}
+
 bool
 buffer_actor::invoke_on (
   athena_actor_id actor_id, actor_command_kind kind, athena_view_id view_id,
@@ -1099,12 +1113,14 @@ buffer_actor::run_loop () {
 
     if (received == actor_command_transport::event::wakeup) {
       publish_ready_contracts ();
+      publish_ready_directories ();
       flush_hybrid_activations ();
       continue;
     }
 
     execute (*command.record);
     publish_ready_contracts ();
+    publish_ready_directories ();
     actor_command_record completed= *command.record;
     std::uint64_t command_id= completed.command_id;
     {
@@ -1168,6 +1184,23 @@ buffer_actor::publish_ready_contracts () {
     signal.kind= actor_command_kind::contracts_ready;
     signal.capabilities= EXECUTION_CAPABILITY_BUFFER;
     // Signals have no mailbox ticket and do not advance command completion.
+    execute (signal);
+  }
+}
+
+void
+buffer_actor::publish_ready_directories () {
+  std::unordered_set<athena_view_id> ready;
+  {
+    std::lock_guard<std::mutex> guard (state_lock_);
+    ready.swap (derived_directories_ready_);
+    if (!accepting_) return;
+  }
+  for (const auto view: ready) {
+    actor_command_record signal;
+    signal.view_id= view;
+    signal.kind= actor_command_kind::derived_directories_ready;
+    signal.capabilities= EXECUTION_CAPABILITY_BUFFER;
     execute (signal);
   }
 }
@@ -2169,6 +2202,9 @@ buffer_actor::dispatch (actor_command_record& command) {
       editor->prepare_cursor_environment ();
       editor->notify_change (THE_CURSOR | THE_FOCUS);
     }
+    break;
+  case actor_command_kind::derived_directories_ready:
+    if (editor != nullptr) editor->publish_derived_directories ();
     break;
   case actor_command_kind::resume_hybrid_activation:
     if (editor != nullptr)

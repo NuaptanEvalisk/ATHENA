@@ -459,6 +459,7 @@ public:
   virtual double   divide_lengths (string l1, string l2) = 0;
   virtual void     init_update () = 0;
   virtual void     prepare_cursor_environment () = 0;
+  virtual void     publish_derived_directories () {}
   virtual void set_field_environment (
     std::shared_ptr<const athena::contracts::detached_environment>) = 0;
   virtual std::shared_ptr<const evaluation_environment_checkpoint> cursor_context_at (

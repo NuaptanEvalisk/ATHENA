@@ -438,11 +438,25 @@ void auxiliary_contribution_capture::record (const string& channel, const tree& 
 void auxiliary_contribution_capture::reuse (const athena::derived::contribution_log& child) {
   if (child) entries.emplace_back (child);
 }
+void auxiliary_contribution_capture::request (athena::derived::directory_request value) {
+  entries.emplace_back (std::move (value));
+}
 void auxiliary_contribution_capture::commit () {
   if (entries.empty ()) destination.reset ();
-  else if (!destination || destination->entries != entries)
+  else if (!destination || destination->entries != entries) {
+    bool pages= false, directories= false;
+    for (const auto& entry: entries)
+      if (const auto* request= std::get_if<athena::derived::directory_request> (&entry)) {
+        directories= true;
+        pages= pages || request->kind == "the-index";
+      }
+      else if (const auto* child= std::get_if<athena::derived::contribution_log> (&entry)) {
+        directories= directories || (*child)->has_directories;
+        pages= pages || (*child)->needs_page_references;
+      }
     destination= std::make_shared<const athena::derived::contribution_block> (
-      athena::derived::contribution_block {std::move (entries)});
+      athena::derived::contribution_block {std::move (entries), pages, directories});
+  }
   env.auxiliary_contributions= parent;
   committed= true;
   if (parent) parent->reuse (destination);

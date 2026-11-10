@@ -20,6 +20,8 @@ struct cache_record {
 struct cache_request {
   std::string key, receipt;
   std::function<cache_bytes()> compute;
+  bool cacheable= true;
+  bool reuse_existing= true;
 };
 
 class auxiliary_cache {
@@ -36,6 +38,7 @@ public:
   std::shared_ptr<const cache_record> lookup (
     const std::string& key, const std::string& receipt) const;
   std::uint64_t request (cache_request);
+  std::uint64_t post (std::string key, std::function<void()>);
   std::uint64_t erase (std::string key);
   bool loaded () const;
   std::string error () const;

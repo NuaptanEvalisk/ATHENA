@@ -182,6 +182,7 @@ make_bridge (typesetter ttt, tree st, path ip) {
   case QUASI:
     return bridge_eval (ttt, st, ip);
   case EXTERN:
+  case DERIVED_DIRECTORY:
   case VAR_INCLUDE:
     return bridge_rewrite (ttt, st, ip);
   case INCLUDE:

@@ -27,6 +27,7 @@
 #include "math_font.hpp"
 #include "Typesetting/Concat/concater.hpp"
 #include "Typesetting/Bridge/bridge.hpp"
+#include "Document/State/directory_session.hpp"
 #include "math_tree_v3.hpp"
 #include "Document/Convert/Xml/math_v2_to_v3.hpp"
 #include "Document/Convert/Xml/athena_document_xml.hpp"
@@ -52,6 +53,54 @@ letter_font (box b) {
 class PreviewMathFontTest: public QObject {
   Q_OBJECT
 private slots:
+  void derivedDirectoryIsAReplayedView () {
+    athena::contracts::evaluation_state state (athena::contracts::builtin_contracts ().snapshot ());
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
+    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (state, url_none (), h1, h2, h3, h4, h5, h6);
+    env->write_default_env ();
+    env->exec (tree (USE_PACKAGE, "generic"));
+    env->update ();
+    tree first (CONCAT, "First", tree (WRITE, "toc", tree (QUOTE, "feedback")));
+    auto write= [] (tree entry) { return tree (WRITE, "toc", tree (QUOTE, entry)); };
+    tree source (DOCUMENT, compound ("table-of-contents", "toc", tree (DOCUMENT, "stale output")),
+                 write (first), write ("Second"));
+    const tree saved= copy (source);
+    std::unique_ptr<typesetter_rep, decltype (&delete_typesetter)> ttt (
+      new_typesetter (env, source, path (DETACHED)), delete_typesetter);
+    ttt->screen_tree= true;
+    (void) ttt->typeset ();
+    athena::derived::directory_session session ({}, {});
+    session.submit (ttt->br->auxiliary_contributions, env->local_ref, false);
+    QVERIFY (session.wait ());
+    QVERIFY (!session.views ().empty ());
+    QCOMPARE (session.views ().begin ()->second, tree (DOCUMENT, first, "Second"));
+    for (const auto& [key, view]: session.views ())
+      env->write (string (key.data (), key.size ()), view);
+    box displayed= ttt->typeset ();
+    std::function<bool(box)> visible= [&] (box value) {
+      if (value->get_type () == TEXT_BOX && value->get_leaf_string () == "First") return true;
+      for (int i= 0; i < N(value); ++i) if (visible (value[i])) return true;
+      return false;
+    };
+    QVERIFY (visible (displayed));
+    QCOMPARE (source, saved);
+    QCOMPARE (athena::derived::contribution_channels (ttt->br->auxiliary_contributions)["toc"],
+              tree (DOCUMENT, first, "Second"));
+    session.submit (ttt->br->auxiliary_contributions, env->local_ref, false);
+    QVERIFY (!session.wait ());
+    notify_assign (ttt.get (), path (2), write ("Changed"));
+    (void) ttt->typeset ();
+    session.submit (ttt->br->auxiliary_contributions, env->local_ref, false);
+    QVERIFY (session.wait ());
+    QCOMPARE (session.views ().begin ()->second, tree (DOCUMENT, first, "Changed"));
+    notify_remove (ttt.get (), path (1), 2);
+    (void) ttt->typeset ();
+    session.submit (ttt->br->auxiliary_contributions, env->local_ref, false);
+    QVERIFY (session.wait ());
+    QCOMPARE (session.views ().begin ()->second, tree (DOCUMENT, ""));
+  }
+
   void auxiliaryContributionsFollowBridgeReuse () {
     athena::contracts::evaluation_state state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);

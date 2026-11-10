@@ -38,7 +38,7 @@ void validate_path (const std::string& path) {
       std::filesystem::path (path).extension () != ".ath")
     throw std::invalid_argument ("Invalid Hodarium document application path");
   for (const auto& part: std::filesystem::path (path))
-    if (part == ".athena" || part == ".backup" || part == ".git")
+    if (part == ".athena" || part == ".backup" || part == ".git" || part == ".cache")
       throw std::invalid_argument ("Hodarium cannot replace internal Vault data");
 }
 }

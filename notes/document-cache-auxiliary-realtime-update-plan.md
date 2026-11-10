@@ -2,9 +2,10 @@
 
 Design date: 2026-10-20. Scope revised: 2026-11-10.
 
-Status: implementation in progress. Background storage and reusable contribution
-logs are implemented; document cache ownership and realtime views are not yet
-connected. The following scope supersedes the broader historical design.
+Status: implementation in progress. Background storage, reusable contribution
+logs and owner-side realtime directory views are connected. Removal of persisted
+auxiliary/generated bodies, folded-source collection and export/lifecycle
+completion remain. The following scope supersedes the historical design.
 
 ## Revised Scope (2026-11-10)
 
@@ -40,9 +41,9 @@ it is not an implementation requirement for the revised scope.
 `src/Document/State/derived_directory.{hpp,cpp}` now owns detached ToC, index,
 glossary and list generation. Inputs are explicit, source identities are removed
 from derived copies, and rich-text properties survive label removal. Index
-grouping and locale state are local to an invocation. The editor currently calls
-these functions through the existing Update entry points; it still assigns the
-results into source. This is preparatory work, not realtime-cache completion.
+grouping and locale state are local to an invocation. The old Update entry points
+still assign these results into source and must be removed; realtime rendering
+now uses the detached result directly instead.
 
 `auxiliary_cache.{hpp,cpp}` provides worker-owned SQLite storage and computation,
 receipt-checked in-memory lookup, replacement of pending work by key, stale-job
@@ -57,46 +58,62 @@ watching and lifecycle integration are still pending.
 ordered logs. Bridge, surround and inline-fragment replay reuse child logs;
 unchanged contributions preserve log identity even if ordinary body text changes.
 Failed evaluation rolls back captures. The old complete-pass auxiliary map is
-currently populated from this log; partial-pass logs are ready for the upcoming
-asynchronous consumer. This does not yet remove auxiliary from saved documents.
+currently populated from this log. Directory demand is captured in the same log;
+ordinary body edits with unchanged contributions do not schedule computation.
+This does not yet remove auxiliary from saved documents.
+
+`directory_session.{hpp,cpp}` owns the asynchronous derived views. The worker
+collects requested channels, calculates dependency receipts, decodes matching
+MessagePack records or generates missing results, and transfers detached native
+trees through a generation-checked mailbox. No encoding/decoding or SQLite IO
+runs during owner publication. Index receipts include only referenced page
+bindings. Unsaved buffers use an in-memory session. Cache storage failures do not
+invalidate a successfully calculated view; generation failures remain explicit.
+
+The `derived-directory` primitive registers demand and reads a dependency-tracked
+environment binding. Shipped section macros use it instead of their persisted
+body argument. Generated output suppresses WRITE collection to prevent feedback.
+Worker readiness is signalled by actor/view IDs, and only a changed result or
+generation failure requests layout; loading and persisting cache records do not.
+The editor admits results after submitting the current completed contribution
+log, and printed layout waits explicitly before consuming its views. Old source
+bodies and Update commands remain temporarily, but are not used by these macros.
+
+Vault inventory/watch registration and Hodarium application/save filtering now
+exclude `.cache`. Idle deletion and source-move ownership still need lifecycle
+integration.
 
 The focused storage test covers superseded computations, reopening, storage
 contention without blocking result publication, transactional retry, record
 deletion, format invalidation, damaged-cache rebuilding and closing/deleting
 during computation. The bridge check exercises reuse, replacement, deletion and
-retention of an earlier snapshot. These checks do not establish completed
-realtime directory, export or save integration.
+retention of an earlier snapshot. The directory-view check loads the shipped
+generic style, displays background output, edits and deletes contributions,
+checks empty results and verifies unchanged source plus suppression of output
+feedback. These checks do not establish complete export or save integration.
 
 Verification on 2026-11-10: `auxiliary_cache_test` and
+`preview_math_font_test`'s `derivedDirectoryIsAReplayedView` and
 `auxiliaryContributionsFollowBridgeReuse` passed. `ATHENA.bin` was built with
-`-j16` and deployed with the local executable installer (build ID
-`499588b48a8f4c8e2529aff3d42b0df1f5926f40`). No broad regression suite was run.
+`-j16` and deployed with the local executable installer, verifying build ID
+`c2793bf8b337fa4173152d5a982c50dff5e99a81` and byte identity. No broad regression
+suite was run. The temporary check profile directory was removed.
 
-Remaining owner integration must keep receipt preparation, MessagePack encoding
-and decoding, and directory generation on the worker. Publishing raw cache bytes
-and then decoding a complete directory on the BufferActor would merely move the
-pause to a different boundary. The actor should receive frozen generated trees
-and invalidate only affected directory displays. Unsaved buffers need an
-in-memory session; Save As must change cache ownership without treating the
-not-yet-created destination as a deleted source. Folded/progressive display logs
-are partial views and must not be mistaken for a complete document inventory.
-Before enabling production cache writes, exclude `.cache` from vault inventory,
-watch registration, and Hodarium application/file traversal. The current explicit
-exclusions in `background_workers.cpp`, `hodarium_worker.cpp`, and
-`hodarium_application.cpp` list `.athena`, `.backup` and `.git`, not `.cache`.
+Remaining integration must keep the worker/owner split above. Save As must change
+cache ownership without treating the not-yet-created destination as a deleted
+source. Progressive logs are not submitted until complete. With folded headings,
+screen submission is temporarily deferred to avoid replacing a complete result
+with a partial inventory. `bridge_folded_hidden_rep::my_typeset` already executes
+hidden source through `env->exec` for counters/definitions without producing
+boxes; WRITE collection belongs in that semantic path, not a second full layout.
+Printed layout ignores editor folding and must use its complete source log.
 
 Next integration points, verified against the current native implementation:
 
-- `bridge_rep::typeset` already retains and reuses immutable-shaped event logs
-  for contracts and source occurrences. Auxiliary contribution capture should
-  follow bridge reuse/replacement, including nested and cached inline expansion,
-  instead of relying on `env->complete` and a cleared global append-only map.
-- `concater_rep::typeset_write` currently computes entries even when incomplete,
-  then discards them. Capture must distinguish source contributions from derived
-  directory rendering so generated output cannot feed its own collection.
-- `edit_typeset_rep::typeset_sub` is the owner-side layout publication boundary.
-  Worker publication needs an ID-only actor readiness signal, analogous to
-  `buffer_actor::notify_contracts_ready`, with a separate derived generation.
+- Contribution and directory demand logs follow bridge reuse/replacement,
+  including nested and cached inline expansion, independently of `env->complete`.
+- `edit_typeset_rep::typeset_sub` is the owner-side layout publication boundary;
+  `buffer_actor::notify_derived_directories_ready` is its ID-only wakeup path.
 - Native `tree` handles cannot be casually shared across threads. Existing
   `node::frozen_tree` and detached ownership transfer provide the appropriate
   contracts. Freeze changed contribution units, not the entire document after

@@ -83,7 +83,7 @@ std::string format_of (database& db) {
 
 records read_records (const std::filesystem::path& file, const std::string& format) {
   records result;
-  if (!std::filesystem::exists (file)) return result;
+  if (file.empty () || !std::filesystem::exists (file)) return result;
   database db (file, false);
   if (format_of (db) != format) return result;
   statement rows (db, "SELECT key,receipt,value FROM records");
@@ -145,7 +145,8 @@ struct auxiliary_cache::state {
   bool reset_file= false;
   std::string error, storage_error;
   state (std::filesystem::path source, std::string format, std::function<void()> notify):
-    source (std::move (source)), file (auxiliary_cache::location (this->source)),
+    source (std::move (source)),
+    file (this->source.empty () ? std::filesystem::path () : auxiliary_cache::location (this->source)),
     format ("athena-auxiliary-1:" + format), notify (std::move (notify)) {}
 };
 
@@ -198,7 +199,8 @@ class cache_worker {
         {
           std::lock_guard<std::mutex> guard (state.mutex);
           const auto old= state.published.find (key);
-          if (old != state.published.end () && old->second->receipt == job.request.receipt)
+          if (job.request.cacheable && job.request.reuse_existing && old != state.published.end () &&
+              old->second->receipt == job.request.receipt)
             result= old->second;
         }
         if (result) continue;
@@ -211,6 +213,7 @@ class cache_worker {
           catch (const std::exception& e) { error= e.what (); continue; }
         }
       }
+      if (!job.request.cacheable) continue;
       if (!current (state, job)) continue;
       changed[key]= std::move (result);
     }
@@ -248,8 +251,8 @@ class cache_worker {
     std::string error;
     bool deleted= false;
     try {
-      deleted= !std::filesystem::exists (state.source);
-      if (!deleted && !state.dirty.empty ()) {
+      deleted= !state.source.empty () && !std::filesystem::exists (state.source);
+      if (!state.source.empty () && !deleted && !state.dirty.empty ()) {
         if (state.reset_file) { std::filesystem::remove (state.file); state.reset_file= false; }
         write_records (state.file, state.format, state.dirty);
         deleted= !std::filesystem::exists (state.source);
@@ -341,6 +344,11 @@ std::uint64_t auxiliary_cache::request (cache_request request) {
 }
 std::uint64_t auxiliary_cache::erase (std::string key) {
   return request ({std::move (key), {}, {}});
+}
+std::uint64_t auxiliary_cache::post (std::string key, std::function<void()> action) {
+  return request ({std::move (key), {}, [action= std::move (action)] {
+    action (); return cache_bytes {};
+  }, false});
 }
 bool auxiliary_cache::loaded () const {
   std::lock_guard<std::mutex> guard (data->mutex); return data->loaded;

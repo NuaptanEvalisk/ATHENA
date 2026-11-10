@@ -92,7 +92,7 @@ struct source_watch::impl {
     auto& scope= *node.directory;
     std::map<std::string, std::pair<std::uint64_t,std::uint64_t>> children;
     for (const auto& name: scope.open (".").names ()) {
-      if (name == ".athena" || name == ".backup" || name == ".git") continue;
+      if (name == ".athena" || name == ".backup" || name == ".git" || name == ".cache") continue;
       try {
         auto child= scope.open (name);
         const auto metadata= child.stat ();
@@ -130,7 +130,7 @@ struct source_watch::impl {
     result.emplace (path, std::make_tuple (own.type (), 0, std::filesystem::file_time_type {}));
     for (const auto& file: std::filesystem::directory_iterator (path)) {
       const auto name= file.path ().filename ();
-      if (name == ".athena" || name == ".backup" || name == ".git") continue;
+      if (name == ".athena" || name == ".backup" || name == ".git" || name == ".cache") continue;
       const auto status= file.symlink_status ();
       if (std::filesystem::is_directory (status))
         result.emplace (file.path (), std::make_tuple (status.type (), 0, std::filesystem::file_time_type {}));
@@ -212,7 +212,7 @@ std::uint64_t source_watch::revision () {
       const auto& event= *reinterpret_cast<const inotify_event*> (buffer + offset);
       offset+= sizeof (event) + event.len;
       const std::string name= event.len ? event.name : "";
-      if (name == ".athena" || name == ".backup" || name == ".git") continue;
+      if (name == ".athena" || name == ".backup" || name == ".git" || name == ".cache") continue;
       if (event.mask & IN_IGNORED) data->directories.erase (event.wd);
       if ((event.mask & (IN_Q_OVERFLOW | IN_DELETE_SELF | IN_MOVE_SELF | IN_IGNORED)) ||
           (event.mask & IN_ISDIR) || data->accepts (std::filesystem::path (name)))
@@ -383,7 +383,7 @@ std::vector<disk_file> inventory (const std::filesystem::path& root,
       if (watch) watch->directory (entry.path ());
       auto names= entry.names (); std::sort (names.begin (), names.end ());
       for (const auto& child: names)
-        if (child != ".athena" && child != ".backup" && child != ".git")
+        if (child != ".athena" && child != ".backup" && child != ".git" && child != ".cache")
           visit (relative / child, depth + 1);
     }
     else if (physical.extension () == ".ath")

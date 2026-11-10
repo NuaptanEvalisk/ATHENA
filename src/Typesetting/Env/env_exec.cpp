@@ -90,6 +90,19 @@ using rewrite_environment= native_context_scope<edit_env>;
 tree
 edit_env_rep::rewrite (tree t) {
   switch (L(t)) {
+  case DERIVED_DIRECTORY: {
+    if (N(t) != 2) return tree (_ERROR, "invalid derived directory");
+    const auto text= [] (const string& value) { return std::string (value.data (), N(value)); };
+    athena::derived::directory_request request {
+      text (exec_string (t[0])), text (exec_string (t[1])),
+      text (get_string (LANGUAGE)), provides ("index-break-style") ?
+        text (get_string ("index-break-style")) : std::string ()};
+    if (auxiliary_contributions) auxiliary_contributions->request (request);
+    const auto name= request.key ();
+    const string key (name.data (), name.size ());
+    const tree body= provides (key) ? read (key) : tree (DOCUMENT, "");
+    return tree (WITH, "derived-directory-output", "true", body);
+  }
   case EXTERN:
     {
       int i, n= N(t);
@@ -348,6 +361,7 @@ edit_env_rep::exec (tree t) {
   case FOR_EACH:
     return exec_for_each (t);
   case EXTERN:
+  case DERIVED_DIRECTORY:
     return exec_rewrite (t);
   case VAR_INCLUDE:
     return exec_rewrite (t);
