@@ -5,6 +5,16 @@
 #include "Document/NodeContracts/execution_state.hpp"
 #include "Document/State/auxiliary_contributions.hpp"
 
+class auxiliary_execution_scope {
+  edit_env_rep& env;
+  bool previous;
+public:
+  explicit auxiliary_execution_scope (edit_env_rep&, bool enabled= true);
+  ~auxiliary_execution_scope ();
+  auxiliary_execution_scope (const auxiliary_execution_scope&)= delete;
+};
+void collect_auxiliary_write (edit_env_rep&, tree);
+
 class auxiliary_contribution_capture {
   edit_env_rep& env;
   auxiliary_contribution_capture* parent;

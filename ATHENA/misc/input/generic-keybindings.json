@@ -318,7 +318,6 @@
         {"key": "std L", "commands": [{"call": "open-document*", "args": []}]},
         {"key": "std p", "commands": [{"call": "preview-buffer", "args": []}]},
         {"key": "std q", "commands": [{"call": "safely-quit-ATHENA", "args": []}]},
-        {"key": "std R", "commands": [{"call": "update-document", "args": ["all"]}]},
         {"key": "std s", "commands": [{"call": "save-buffer-manual", "args": []}]},
         {"key": "std S", "commands": [{"call": "save-buffer-as-dialog", "args": []}]},
         {"key": "std u", "commands": [{"call": "toggle-underlined", "args": []}]},

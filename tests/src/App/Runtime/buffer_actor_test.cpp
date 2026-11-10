@@ -557,7 +557,6 @@ TestBufferActor::sourceCommitPreservesBorrowedMetadata () {
     // These are the same member references borrowed by edit_env_rep.
     new_data held= state->data;
     auto& refs= held->ref;
-    auto& aux= held->aux;
     auto& att= held->att;
     tree& source= actor->current_source ();
     auto& nodes= state->interop_nodes ();
@@ -565,9 +564,9 @@ TestBufferActor::sourceCommitPreservesBorrowedMetadata () {
     nodes.insert_siblings (source, paragraph, true,
       athena::interop::value::array ({athena::interop::value {{"text", "Hello, World!"}}}));
     actor->commit_current_source ();
-    body_stable= &refs == &state->data->ref && &aux == &state->data->aux && &att == &state->data->att;
+    body_stable= &refs == &state->data->ref && &att == &state->data->att;
     tree& refreshed= actor->current_source ();
-    for (const char* name: {"references", "auxiliary", "attachments"}) {
+    for (const char* name: {"references", "attachments"}) {
       tree field= compound (name, tree (COLLECTION, tree (ASSOCIATE, "key", "updated")));
       bool replaced= false;
       for (int i= 0; i < N (refreshed); ++i)
@@ -579,8 +578,8 @@ TestBufferActor::sourceCommitPreservesBorrowedMetadata () {
       if (!replaced) insert (refreshed, N (refreshed), tree (TUPLE, field));
     }
     actor->commit_current_source ();
-    metadata_stable= &refs == &state->data->ref && &aux == &state->data->aux && &att == &state->data->att;
-    references_updated= refs["key"] == "updated" && aux["key"] == "updated" && att["key"] == "updated";
+    metadata_stable= &refs == &state->data->ref && &att == &state->data->att;
+    references_updated= refs["key"] == "updated" && att["key"] == "updated";
   });
   QVERIFY (buffer->actor->invoke (actor_command_kind::run_native_continuation,
     ATHENA_NO_VIEW, ATHENA_NO_BLOB, ATHENA_NO_BLOB, nullptr, EXECUTION_CAPABILITY_BUFFER, id));

@@ -29,8 +29,6 @@ edit_env_rep::edit_env_rep (athena::contracts::evaluation_state& contract_state2
 			    url base_file_name2,
 			    hashmap<string,tree>& local_ref2,
 			    hashmap<string,tree>& global_ref2,
-			    hashmap<string,tree>& local_aux2,
-			    hashmap<string,tree>& global_aux2,
 			    hashmap<string,tree>& local_att2,
 			    hashmap<string,tree>& global_att2):
   contract_state (contract_state2),
@@ -41,7 +39,6 @@ edit_env_rep::edit_env_rep (athena::contracts::evaluation_state& contract_state2
   secure (is_secure (base_file_name2)),
   native_callbacks_enabled (true),
   local_ref (local_ref2), global_ref (global_ref2),
-  local_aux (local_aux2), global_aux (global_aux2),
   local_att (local_att2), global_att (global_att2),
   missing (UNINIT), redefined (), touched (false)
 {
@@ -81,13 +78,10 @@ edit_env::edit_env (athena::contracts::evaluation_state& contract_state,
 		    url base_file_name,
 		    hashmap<string,tree>& local_ref,
 		    hashmap<string,tree>& global_ref,
-		    hashmap<string,tree>& local_aux,
-		    hashmap<string,tree>& global_aux,
 		    hashmap<string,tree>& local_att,
 		    hashmap<string,tree>& global_att):
   rep (tm_new<edit_env_rep> (contract_state, base_file_name,
                              local_ref, global_ref,
-                             local_aux, global_aux,
                              local_att, global_att)) {}
 
 void

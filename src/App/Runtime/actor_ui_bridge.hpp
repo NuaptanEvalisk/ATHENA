@@ -215,7 +215,6 @@ struct actor_document_menu_snapshot {
   bool beamer_style= false;
   bool has_preamble= false;
   bool preamble_mode= false;
-  bool save_aux= false;
   bool materials_citation_default= true;
   bool commutative_diagram= false;
 };

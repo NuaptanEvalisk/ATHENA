@@ -72,10 +72,9 @@ void attach_source (url output, tree fragment) {
         tree entry= document[i][0][j];
         if (is_func (entry, ASSOCIATE, 2) &&
             (entry[0] == "global-title" || entry[0] == "global-author" ||
-             entry[0] == "global-subject" || entry[0] == "save-aux")) continue;
+             entry[0] == "global-subject")) continue;
         settings << entry;
       }
-      settings << tree (ASSOCIATE, "save-aux", "false");
       document[i][0]= settings;
     }
   }

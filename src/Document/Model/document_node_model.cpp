@@ -674,8 +674,8 @@ std::optional<role_declaration> standard_source_role (const tree& source) {
       semantic_role::content, "",
       std::vector<child_role> (N(source), child_role::data)};
   // Auxiliary section containers persist the channel/name wrapper in source,
-  // but their generated body is disposable derived data: generate_aux_recursively
-  // clears and rebuilds the last child on every refresh.  The channel selector
+  // but their last child is only an empty placeholder; generated content is a
+  // derived view, never an authored subtree. The channel selector
   // is data as well; only the optional explicit display name is source content.
   if (is_compound (source, "table-of-contents", 2) ||
       is_compound (source, "the-index", 2) ||

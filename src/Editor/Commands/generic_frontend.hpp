@@ -11,7 +11,6 @@ void generic_insert_inline_image_dialog ();
 void generic_insert_thumbnails_dialog ();
 void generic_insert_figure (string kind);
 void generic_make_animation (tree_label);
-void generic_update_document (string);
 void generic_open_global_search ();
 void generic_search_open_result (url, path);
 void generic_search_open_occurrence (url, path, path);

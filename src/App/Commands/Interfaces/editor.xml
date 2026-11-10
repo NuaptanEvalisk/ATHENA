@@ -269,20 +269,6 @@
   <binding name="list-references*" native="list_refs" returns="array_string">
     <arg type="bool" />
   </binding>
-  <binding name="get-auxiliary" native="get_aux" returns="tree">
-    <arg type="string" />
-  </binding>
-  <binding name="set-auxiliary" native="set_aux" returns="void">
-    <arg type="string" />
-    <arg type="content" />
-  </binding>
-  <binding name="reset-auxiliary" native="reset_aux" returns="void">
-    <arg type="string" />
-  </binding>
-  <binding name="list-auxiliaries" native="list_auxs" returns="array_string" />
-  <binding name="list-auxiliaries*" native="list_auxs" returns="array_string">
-    <arg type="bool" />
-  </binding>
   <binding name="get-attachment" native="get_att" returns="tree">
     <arg type="string" />
   </binding>
@@ -708,10 +694,6 @@
     <arg type="path" />
   </binding>
   <binding name="update-current-buffer" native="typeset_invalidate_all" returns="void" />
-  <binding name="generate-all-aux" native="generate_aux" returns="void" />
-  <binding name="generate-aux" native="generate_aux" returns="void">
-    <arg type="string" />
-  </binding>
   <binding name="notify-page-change" native="notify_page_change" returns="void" />
   <binding name="notify-change" native="notify_change" returns="void">
     <arg type="int" />

@@ -13,7 +13,9 @@
 #include "iterator.hpp"
 #include "tm_timer.hpp"
 #include "Typesetting/Env/local_environment.hpp"
+#include "Document/State/directory_session.hpp"
 #include <memory>
+#include <stdexcept>
 
 /******************************************************************************
 * Constructor and destructor
@@ -230,14 +232,11 @@ typesetter_rep::typeset_pass () {
   // Typeset
   env->page_refs_changed= false;
   if (env->complete) {
-    env->local_aux= hashmap<string,tree> (UNINIT);
     env->missing  = hashmap<string,tree> (UNINIT);
     env->redefined= array<tree> ();
     env->touched  = hashmap<string,bool> (false);
   }
   br->typeset (PROCESSED+ WANTED_PARAGRAPH);
-  if (env->complete)
-    env->local_aux= athena::derived::contribution_channels (br->auxiliary_contributions);
   auto release_pager= [] (pager p) { tm_delete (p); };
   std::unique_ptr<pager_rep, decltype(release_pager)> ppp (
     tm_new<pager_rep> (br->ip, env, l), release_pager);
@@ -366,17 +365,38 @@ typeset (typesetter ttt, SI& x1, SI& y1, SI& x2, SI& y2) {
 box
 typeset_as_document (edit_env env, tree t, path ip) {
   box b;
-  for (int pass=0; pass<6; pass++) {
+  std::unique_ptr<athena::derived::directory_session> directories;
+  for (int pass=0; pass<8; pass++) {
     temporary_environment_scope execution (*env.operator-> ());
+    if (directories)
+      for (const auto& [key, view]: directories->views ())
+        env->write (string (key.data (), key.size ()), view);
     env->style_init_env ();
     env->update ();
     std::unique_ptr<typesetter_rep, decltype(&delete_typesetter)> ttt (
       new_typesetter (env, t, ip), delete_typesetter);
     b= ttt->typeset ();
     bool again= env->page_refs_changed;
+    const auto contributions= ttt->br->auxiliary_contributions;
+    if (!directories && contributions && contributions->has_directories) {
+      string source;
+      if (is_rooted (env->base_file_name, "default") ||
+          is_rooted (env->base_file_name, "file"))
+        source= as_system_string (env->base_file_name);
+      directories= std::make_unique<athena::derived::directory_session> (
+        std::filesystem::path (std::string (source.data (), N(source))),
+        std::function<void()> ());
+    }
+    if (directories) {
+      directories->submit (contributions, env->local_ref, again);
+      again= directories->wait () || again;
+    }
     if (!again) break;
-    if (pass == 5)
-      typeset_warning << "Page references did not stabilize" << LF;
+    if (pass == 7) {
+      if (env->get_string (PAGE_PRINTED) == "true")
+        throw std::runtime_error ("Printed directories and page references did not stabilize");
+      typeset_warning << "Directories and page references did not stabilize" << LF;
+    }
   }
   return b;
 }

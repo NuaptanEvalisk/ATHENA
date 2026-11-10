@@ -1330,7 +1330,6 @@ schedule_export_finalization (url buffer, bool includeDataArt) {
       const url cover= athena_data_art_generate_cover (target);
       if (!is_none (cover)) athena_data_art_insert_doc_data_cover (target, cover);
     }
-    generic_update_document ("all");
     qt_schedule_editor_idle (1000, [] {
       qt_post_to_main_thread ([] { system_wait ("", ""); });
     });

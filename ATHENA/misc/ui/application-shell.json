@@ -548,13 +548,6 @@
       "help": "Reload the active document from its source"
     },
     {
-      "id": "editor.update-all",
-      "label": "Update document",
-      "category": "Document",
-      "icon": "view-refresh",
-      "help": "Update generated document data"
-    },
-    {
       "id": "editor.close-document",
       "label": "Close document",
       "category": "File",
@@ -2070,7 +2063,6 @@
             }
           ]
         },
-        { "command": "editor.update-all" },
         {
           "submenu": "editor-main-print",
           "label": "Print",

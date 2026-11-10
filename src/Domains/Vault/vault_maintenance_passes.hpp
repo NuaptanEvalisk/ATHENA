@@ -45,7 +45,6 @@ struct VaultMaintenanceSummary {
   std::vector<VaultMaintenanceMissingImage> missing_images;
   size_t health_files_scanned = 0;
   size_t health_files_failed = 0;
-  int maintenance_worker_processes = -1;
   size_t artifact_documents_seen = 0;
   size_t artifact_documents_changed = 0;
   size_t artifact_documents_deleted = 0;
@@ -62,12 +61,6 @@ struct VaultMaintenanceSummary {
   size_t redundant_wikilinks_removed = 0;
   size_t redundant_wikilink_files_changed = 0;
   size_t redundant_wikilink_unverified_targets = 0;
-  bool toc_update_enabled = false;
-  size_t toc_files_scanned = 0;
-  size_t toc_files_containing_toc = 0;
-  size_t toc_files_updated = 0;
-  size_t toc_failures = 0;
-  int toc_worker_processes = 0;
   bool rag_update_enabled = false;
   bool rag_delegation_enabled = false;
   bool rag_delegation_attempted = false;
@@ -152,8 +145,6 @@ VaultMaintenancePassResult vault_maintenance_pass_scan_missing_images (
 VaultMaintenancePassResult vault_maintenance_pass_build_artifacts (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_remove_redundant_wikilinks (
-  VaultMaintenanceContext& ctx);
-VaultMaintenancePassResult vault_maintenance_pass_update_tables_of_contents (
   VaultMaintenanceContext& ctx);
 VaultMaintenancePassResult vault_maintenance_pass_continuous_rag (
   VaultMaintenanceContext& ctx);

@@ -22,12 +22,11 @@ public:
   hashmap<string,tree> init;  // initial values of environment variables
   hashmap<string,tree> fin;   // final values of environment variables
   hashmap<string,tree> ref;   // all labels with references
-  hashmap<string,tree> aux;   // auxiliary output: toc, bib, etc.
   hashmap<string,tree> att;   // attachments: LaTeX source, etc.
 
   inline new_data_rep ():
     style (tuple ("generic")),
-    init ("?"), fin ("?"), ref ("?"), aux ("?"), att ("?") {}
+    init ("?"), fin ("?"), ref ("?"), att ("?") {}
 };
 
 class new_data {
@@ -36,7 +35,7 @@ CONCRETE(new_data);
 };
 CONCRETE_CODE(new_data);
 
-tree attach_data (tree body, new_data data, bool no_aux= false);
+tree attach_data (tree body, new_data data, bool omit_references= false);
 tree detach_data (tree doc, new_data& data);
 
 #endif // NEW_DATA_H

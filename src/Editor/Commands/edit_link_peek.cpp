@@ -324,9 +324,9 @@ bool edit_interface_rep::prepare_link_peek (link_peek_layer& peek, SI width) {
   // Independent environment and reference tables keep preview assignments,
   // labels and page numbers out of the edited document's typesetter state.
   athena::contracts::evaluation_state preview_state (athena::contracts::builtin_contracts ().snapshot ());
-  hashmap<string,tree> r1 (UNINIT), r2 (UNINIT), a1 (UNINIT), a2 (UNINIT);
+  hashmap<string,tree> r1 (UNINIT), r2 (UNINIT);
   hashmap<string,tree> t1 (UNINIT), t2 (UNINIT);
-  edit_env preview (preview_state, source, r1, r2, a1, a2, t1, t2);
+  edit_env preview (preview_state, source, r1, r2, t1, t2);
   preview->write_default_env ();
   tree style= extract (document, "style");
   tree packages (USE_PACKAGE);

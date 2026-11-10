@@ -17,6 +17,9 @@ public:
                bool page_references_changed);
   bool receive ();
   const std::map<std::string,tree>& views () const;
+  // Glossary contents do not depend on language-specific index ordering.
+  // Legacy-format exporters consume a detached body, never source mutation.
+  tree glossary_view (const std::string& channel) const;
   bool wait ();
 private:
   struct impl;

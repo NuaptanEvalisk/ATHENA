@@ -48,11 +48,6 @@ redundant_wikilinks_enabled (const VaultMaintenanceContext& ctx) {
 }
 
 bool
-toc_update_enabled (const VaultMaintenanceContext& ctx) {
-  return ctx.summary.toc_update_enabled;
-}
-
-bool
 continuous_rag_enabled (const VaultMaintenanceContext& ctx) {
 #if ATHENA_ENABLE_LOCAL_INFERENCE
   return ctx.summary.rag_update_enabled;
@@ -123,9 +118,6 @@ registered_passes () {
       "Remove block wikilinks superseded by radioactive links",
       vault_maintenance_pass_remove_redundant_wikilinks}, false,
       redundant_wikilinks_enabled},
-    {{"update-tocs", "Update tables of contents",
-      vault_maintenance_pass_update_tables_of_contents}, false,
-      toc_update_enabled},
     {{"continuous-rag", "Update Continuous RAG index",
       vault_maintenance_pass_continuous_rag}, false,
       continuous_rag_enabled},

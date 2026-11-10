@@ -72,7 +72,6 @@
   <binding name="native-insert-inline-image-dialog" native="generic_insert_inline_image_dialog" returns="void" />
   <binding name="native-insert-thumbnails-dialog" native="generic_insert_thumbnails_dialog" returns="void" />
   <binding name="make-anim" native="generic_make_animation" returns="void"><arg type="tree_label" /></binding>
-  <binding name="update-document" native="generic_update_document" returns="void"><arg type="string" /></binding>
   <binding name="open-global-search" native="generic_open_global_search" returns="void" />
   <binding name="global-search-open-result" native="generic_search_open_result" returns="void"><arg type="url" /><arg type="path" /></binding>
   <binding name="global-search-open-occurrence" native="generic_search_open_occurrence" returns="void"><arg type="url" /><arg type="path" /><arg type="path" /></binding>
@@ -215,7 +214,6 @@
   <binding name="show-character-count" native="tools_show_character_count" returns="void" />
   <binding name="show-word-count" native="tools_show_word_count" returns="void" />
   <binding name="show-line-count" native="tools_show_line_count" returns="void" />
-  <binding name="toggle-save-aux" native="tools_toggle_save_aux" returns="void" />
   <binding name="toggle-show-kbd" native="tools_toggle_show_keyboard" returns="void" />
   <binding name="clear-font-cache" native="tools_clear_font_cache" returns="void" />
   <binding name="scan-disk-for-fonts" native="tools_scan_fonts" returns="void" dispatch="ui" />

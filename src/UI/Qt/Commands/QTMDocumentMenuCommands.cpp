@@ -180,21 +180,8 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
         QObject::tr ("Flatten transclusions into new document"),
         QString (), writable);
 
-      static const struct {
-        const char* key;
-        const char* label;
-      } updates[]= {
-        {"all", "All"},
-        {"buffer", "Buffer"},
-        {"materials", "Referenced Materials"},
-        {"table-of-contents", "Table of contents"},
-        {"index", "Index"},
-        {"glossary", "Glossary"}
-      };
-      for (const auto& entry: updates)
-        append_item (
-          out, QStringLiteral ("update/%1").arg (entry.key),
-          QObject::tr (entry.label), QObject::tr ("Update"), writable);
+      append_item (out, "refresh-materials", QObject::tr ("Refresh referenced materials"),
+                   QString (), writable);
 
       append_item (
         out, "macro/preamble", QObject::tr ("Edit preamble"),
@@ -207,10 +194,10 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
         QObject::tr ("Macros"), writable);
       append_item (
         out, "aux/inclusions", QObject::tr ("Inclusions"),
-        QObject::tr ("Refresh auxiliary data"), true);
+        QObject::tr ("Refresh resources"), true);
       append_item (
         out, "aux/pictures", QObject::tr ("Pictures"),
-        QObject::tr ("Refresh auxiliary data"), true);
+        QObject::tr ("Refresh resources"), true);
       append_item (
         out, "stats/characters", QObject::tr ("Characters"),
         QObject::tr ("Statistics"), true);
@@ -220,9 +207,6 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
       append_item (
         out, "stats/lines", QObject::tr ("Lines"),
         QObject::tr ("Statistics"), true);
-      append_item (
-        out, "save-aux", QObject::tr ("Save auxiliary data"),
-        QString (), writable, true, document.save_aux);
 
       append_item (out, "font", QObject::tr ("Font..."), QString (), writable);
       append_item (
@@ -387,9 +371,8 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
         return submit_business (context, "document-toggle-preamble-mode");
       if (key == QStringLiteral ("vault/flatten"))
         return submit_business (context, "document-flatten-transclusions");
-      if (key.startsWith (QStringLiteral ("update/")))
-        return submit_business (
-          context, QStringLiteral ("document-update-") + key.mid (7));
+      if (key == QStringLiteral ("refresh-materials"))
+        return submit_business (context, "document-refresh-materials");
       if (key == QStringLiteral ("macro/preamble"))
         return submit_business (context, "document-toggle-preamble-mode");
       if (key == QStringLiteral ("macro/extract-style"))
@@ -406,8 +389,6 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
         return submit_business (context, "document-word-count", false);
       if (key == QStringLiteral ("stats/lines"))
         return submit_business (context, "document-line-count", false);
-      if (key == QStringLiteral ("save-aux"))
-        return submit_business (context, "document-toggle-save-aux");
       if (key == QStringLiteral ("font"))
         return submit_business (context, "open-document-font-selector");
       if (key == QStringLiteral ("paragraph"))

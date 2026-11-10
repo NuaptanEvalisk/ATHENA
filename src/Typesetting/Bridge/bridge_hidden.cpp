@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "Typesetting/Bridge/bridge.hpp"
+#include "Typesetting/Env/local_environment.hpp"
 
 class bridge_hidden_rep: public bridge_rep {
 protected:
@@ -128,5 +129,6 @@ bridge_folded_hidden_rep::my_typeset (int desired_status) {
   (void) desired_status;
   // Screen folding suppresses boxes, not definitions or counters. The normal
   // Bridge capture retains these effects for subsequent cache admission.
+  auxiliary_execution_scope collect (*env.operator-> ());
   if (N(st) == 1) env->exec (st[0]);
 }

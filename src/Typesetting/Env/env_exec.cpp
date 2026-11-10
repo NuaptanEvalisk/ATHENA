@@ -646,6 +646,13 @@ edit_env_rep::exec (tree t) {
     return result;
   }
 
+  case WRITE:
+    if (collect_auxiliary_on_exec) {
+      if (N(t) != 2) return tree (_ERROR, "invalid write");
+      collect_auxiliary_write (*this, t);
+      return "";
+    }
+    [[fallthrough]];
   default:
     if (L(t) < START_EXTENSIONS) {
       int i, n= N(t);

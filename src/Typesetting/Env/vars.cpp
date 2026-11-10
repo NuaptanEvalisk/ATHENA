@@ -18,7 +18,6 @@
 string DPI ("dpi");
 string ZOOM_FACTOR ("zoom-factor");
 string PREAMBLE ("preamble");
-string SAVE_AUX ("save-aux");
 string MODE ("mode");
 string WINDOW_BARS ("window-bars");
 string SCROLL_BARS ("scroll-bars");

@@ -17,8 +17,8 @@ std::string interop_document_source_error (const tree& source);
 // native node identities. The body is an owner-local alias, not a snapshot.
 void refresh_interop_document_source (tree& source, const tree& body, new_data data);
 // Preserve attributes outside new_data while keeping the existing save policy
-// for standard fields, including auxiliary data and transient viewport values.
+// for references and transient viewport values. Auxiliary is never source.
 // Standard field/collection/association headers are source data too. Recover
 // those headers by their declared field/key, never by guessing body paths.
 void append_interop_source_attributes (tree& snapshot, const tree& source,
-                                       bool no_aux= false);
+                                       bool omit_references= false);

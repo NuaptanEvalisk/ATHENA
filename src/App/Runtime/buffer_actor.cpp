@@ -196,7 +196,6 @@ run_native_editor_command (editor_rep* editor,
     if (!state.focus_node_available ()) return false;
     break;
   case native_editor_command_id::save:
-  case native_editor_command_id::update_all:
     if (state.read_only ()) return false;
     break;
   case native_editor_command_id::math_correct_all:
@@ -301,9 +300,6 @@ run_native_editor_command (editor_rep* editor,
       break;
     case native_editor_command_id::revert:
       application_revert_buffer (get_current_buffer ());
-      break;
-    case native_editor_command_id::update_all:
-      generic_update_document ("all");
       break;
     case native_editor_command_id::close_document:
       application_close_buffer ();
@@ -860,7 +856,6 @@ buffer_actor::apply_saved_document (const std::string& expected_storage,
   state.data->init= std::move (data->init);
   state.data->fin= std::move (data->fin);
   state.data->ref= std::move (data->ref);
-  state.data->aux= std::move (data->aux);
   state.data->att= std::move (data->att);
   state.artifacts.reset ();
   athena::artifact::close (id_);
@@ -1040,14 +1035,13 @@ buffer_actor::commit_current_source (athena_view_id view_id) {
   if (inside (live) != inside (body)) assign (live, body);
   const bool environment_changed= next->style != state.data->style ||
     next->init != state.data->init || next->fin != state.data->fin ||
-    next->ref != state.data->ref || next->aux != state.data->aux || next->att != state.data->att;
+    next->ref != state.data->ref || next->att != state.data->att;
   // Editors' environments borrow these member objects by reference. Replacing
   // the new_data owner would leave their ref/aux/att bindings dangling.
   state.data->style= next->style;
   state.data->init= next->init;
   state.data->fin= next->fin;
   state.data->ref= next->ref;
-  state.data->aux= next->aux;
   state.data->att= next->att;
   for (auto& entry: impl_->views) {
     if (environment_changed) entry.second.instance->set_data (state.data);
@@ -1801,14 +1795,12 @@ buffer_actor::dispatch (actor_command_record& command) {
     case athena::document::xml_storage_version::v3: command.argument[0]= 3; break;
     default: throw std::runtime_error ("Unknown document snapshot storage version");
     }
-    bool no_aux= false;
     if (editor != nullptr) {
       editor->get_data (impl_->state.data);
-      no_aux= !editor->get_save_aux ();
     }
     tree body= subtree (impl_->state.document, impl_->state.root_path);
-    tree snapshot= copy (attach_data (body, impl_->state.data, no_aux));
-    append_interop_source_attributes (snapshot, impl_->state.source_envelope, no_aux);
+    tree snapshot= copy (attach_data (body, impl_->state.data));
+    append_interop_source_attributes (snapshot, impl_->state.source_envelope);
     command.payload0= actor_tree_registry::instance ().store (
       std::move (snapshot));
     break;
@@ -2493,7 +2485,7 @@ buffer_actor::dispatch (actor_command_record& command) {
       if (format == "html") body= export_editor->exec_html (body);
       export_editor->get_data (impl_->state.data);
       tree document= attach_data (
-        body, impl_->state.data, !export_editor->get_save_aux ());
+        body, impl_->state.data);
       if (format == "latex")
         document= change_doc_attr (
           document, "view", as_string (current_view_url (command.view_id)));

@@ -307,9 +307,9 @@ private slots:
     struct CloseVault { ~CloseVault () { vault_close (); } } close;
     athena_artifact_radioactive_refresh ();
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write ("athena-radioactive-links-in-transclusion", "true");
@@ -341,9 +341,9 @@ private slots:
     QVERIFY (is_compound (body[3], "tabular", 1));
     for (SI width: {320*PIXEL, 540*PIXEL}) {
       athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-      hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-      hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-      edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+      hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+      hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
       env->write_default_env ();
       env->write (PAR_WIDTH, as_string (width) * "tmpt");
       env->write (PAR_LEFT, "0tmpt");
@@ -363,9 +363,9 @@ private slots:
     tree text ("Editable link");
     attach_ip (text, path (0));
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->link_env= link_repository (true);
     env->update ();
@@ -416,9 +416,9 @@ private slots:
   }
   void detachedLazyLocusRetainsTarget () {
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->read_only= true;
     env->update ();
@@ -558,9 +558,9 @@ private slots:
     QVERIFY (std::string (as_charp (page), N(page)).find ("query is invalid") != std::string::npos);
 
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->write ("athena-radioactive-links-in-transclusion", "true");
     env->write (RADIOACTIVE_LINK_COLOR, "preserve");

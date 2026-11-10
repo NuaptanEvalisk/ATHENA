@@ -64,9 +64,9 @@ using document_source_contract_preparation= std::function<
 using document_source_environment_preparation= std::function<
   std::shared_ptr<const evaluation_environment_checkpoint> (const std::vector<int>&)>;
 struct source_contract_maps {
-  hashmap<string,tree> refs, global_refs, aux, global_aux;
+  hashmap<string,tree> refs, global_refs;
   hashmap<string,tree> attachments, global_attachments;
-  bool shared_aux= false, shared_attachments= false;
+  bool shared_attachments= false;
 };
 // One source-owner operation prepares its baseline only on first custom macro
 // and reuses increasing paragraph entries. No cache escapes that operation.

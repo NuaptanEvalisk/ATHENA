@@ -63,6 +63,7 @@ protected:
   string directory_source;
   bool directory_views_changed= false;
   void prepare_directory_owner ();
+  void prepare_directory_views (tree source);
 
 protected:
   typesetter           get_typesetter ();
@@ -71,13 +72,11 @@ protected:
   hashmap<string,tree> get_init ();
   hashmap<string,tree> get_fin ();
   hashmap<string,tree> get_ref ();
-  hashmap<string,tree> get_aux ();
   hashmap<string,tree> get_att ();
   void                 set_init (hashmap<string,tree> init= tree ("?"));
   void                 add_init (hashmap<string,tree> init);
   void                 set_fin (hashmap<string,tree> fin);
   void                 set_ref (hashmap<string,tree> ref);
-  void                 set_aux (hashmap<string,tree> aux);
   void                 set_att (hashmap<string,tree> att);
   tree                 folded_screen_tree ();
   bool                 heading_fold_set_current (bool folded, bool toggle);
@@ -194,17 +193,13 @@ public:
   void     init_style ();
   void     init_style (string style);
   tree     get_ref (string key);
-  tree     get_aux (string key);
   tree     get_att (string key);
   void     set_ref (string key, tree im);
-  void     set_aux (string key, tree im);
   void     set_att (string key, tree im);
   void     reset_ref (string key);
-  void     reset_aux (string key);
   void     reset_att (string key);
   array<string> find_refs (string val, bool global);
   array<string> list_refs (bool global);
-  array<string> list_auxs (bool global);
   array<string> list_atts (bool global);
 
   void     typeset_style_use_cache (tree style);

@@ -49,6 +49,8 @@ public:
   void flush ();
   void close ();
   static std::filesystem::path location (const std::filesystem::path& source);
+  // Called by background source inventory, never by an editing command.
+  static void prune_directory (const std::filesystem::path& source_directory);
 private:
   std::shared_ptr<state> data;
 };

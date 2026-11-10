@@ -14,6 +14,7 @@
 #include <stdexcept>
 #include "Editor/Engine/edit_typeset.hpp"
 #include "Document/Model/slide_page.hpp"
+#include "Document/State/derived_directory.hpp"
 #include "Typesetting/prooftrack_presentation.hpp"
 #include "heading_word_count.hpp"
 #include "App/Runtime/tm_buffer.hpp"
@@ -90,7 +91,6 @@ edit_typeset_rep::edit_typeset_rep ():
   heading_word_count_cache_map (0),
   env (contract_state, buf->master,
        buf->data->ref, grefs,
-       buf->data->aux, buf->data->aux,
        buf->data->att, buf->data->att),
   ttt (new_typesetter (env, subtree (et, rp), reverse (rp))) {
     pre= std::make_unique<evaluation_environment_checkpoint> (*env.operator-> ());
@@ -106,7 +106,6 @@ edit_typeset_rep::set_data (new_data data) {
   init= copy (data->init);
   set_fin   (data->fin);
   set_ref   (data->ref);
-  set_aux   (data->aux);
   set_att   (data->att);
   notify_page_change ();
   ttt->br->notify_assign (path (), subtree (et, rp));
@@ -124,7 +123,6 @@ edit_typeset_rep::get_data (new_data& data) {
   data->init = get_init ();
   data->fin  = get_fin ();
   data->ref  = get_ref ();
-  data->aux  = get_aux ();
   data->att  = get_att ();
 }
 
@@ -137,11 +135,9 @@ void edit_typeset_rep::set_style (tree t) {
 hashmap<string,tree> edit_typeset_rep::get_init () { return init; }
 hashmap<string,tree> edit_typeset_rep::get_fin () { return fin; }
 hashmap<string,tree> edit_typeset_rep::get_ref () { return buf->data->ref; }
-hashmap<string,tree> edit_typeset_rep::get_aux () { return buf->data->aux; }
 hashmap<string,tree> edit_typeset_rep::get_att () { return buf->data->att; }
 void edit_typeset_rep::set_fin (hashmap<string,tree> H) { fin= H; }
 void edit_typeset_rep::set_ref (hashmap<string,tree> H) { buf->data->ref= H; }
-void edit_typeset_rep::set_aux (hashmap<string,tree> H) { buf->data->aux= H; }
 void edit_typeset_rep::set_att (hashmap<string,tree> H) { buf->data->att= H; }
 
 tree
@@ -195,32 +191,6 @@ edit_typeset_rep::list_refs (bool global) {
 }
 
 tree
-edit_typeset_rep::get_aux (string key) {
-  return buf->data->aux[key];
-}
-
-void
-edit_typeset_rep::set_aux (string key, tree im) {
-  buf->data->aux (key)= im;
-}
-
-void
-edit_typeset_rep::reset_aux (string key) {
-  buf->data->aux->reset (key);
-}
-
-array<string>
-edit_typeset_rep::list_auxs (bool global) {
-  tree a= (tree) buf->data->aux;
-  array<string> v;
-  int i, n= N(a);
-  for (i=0; i<n; i++)
-    v << a[i][0]->label;
-  merge_sort (v);
-  return v;
-}
-
-tree
 edit_typeset_rep::get_att (string key) {
   return buf->data->att[key];
 }
@@ -263,7 +233,6 @@ edit_typeset_rep::add_init (hashmap<string,tree> H) {
 void
 edit_typeset_rep::clear_local_info () {
   buf->data->ref= hashmap<string,tree> ();
-  buf->data->aux= hashmap<string,tree> ();
 }
 
 /******************************************************************************
@@ -403,15 +372,14 @@ edit_typeset_rep::compound_counter_environment () {
 tree
 edit_typeset_rep::evaluate_compound_counters (const tree& incoming) {
   athena::avd::validate_counter_state (incoming);
-  // Semantic execution has its own environment and reference/auxiliary maps.
+  // Semantic execution has its own environment and reference maps.
   // It neither builds boxes nor changes this view's live typesetter state.
   athena::contracts::evaluation_state local_state= athena::contracts::evaluation_state (contract_state.contracts.snapshot ());
   hashmap<string,tree> refs= copy (buf->data->ref);
   hashmap<string,tree> global_refs= copy (grefs);
-  hashmap<string,tree> aux= copy (buf->data->aux);
   hashmap<string,tree> attachments= copy (buf->data->att);
   edit_env evaluation (local_state, buf->master, refs, global_refs,
-                       aux, aux, attachments, attachments);
+                       attachments, attachments);
   pre->restore (*evaluation.operator-> ());
   evaluation->style_init_env ();
   evaluation->update ();
@@ -451,15 +419,14 @@ edit_typeset_rep::prepare_tree_position (
   if (!is_inside (source, position))
     throw std::invalid_argument ("Source preparation has an invalid destination");
   // Command preparation evaluates the selected source/prospective subtree. Its outputs must
-  // not publish counters, references or auxiliary data into the live document.
+  // not publish counters or references into the live document.
   athena::contracts::evaluation_state state (context.contract_context ().snapshot ());
   athena::contracts::evaluation_state_scope owner (&state);
   hashmap<string,tree> refs= copy (buf->data->ref);
   hashmap<string,tree> global_refs= copy (grefs);
-  hashmap<string,tree> aux= copy (buf->data->aux);
   hashmap<string,tree> attachments= copy (buf->data->att);
   edit_env preparation (state, buf->master, refs, global_refs,
-                        aux, aux, attachments, attachments);
+                        attachments, attachments);
   context.restore (*preparation.operator-> ());
   preparation->style_init_env ();
   preparation->update ();
@@ -479,11 +446,9 @@ edit_typeset_rep::prepare_source_identity_contracts () {
       const auto base= prepare_document_context ();
       source_maps->refs= copy (buf->data->ref);
       source_maps->global_refs= copy (grefs);
-      source_maps->aux= copy (buf->data->aux);
       source_maps->attachments= copy (buf->data->att);
-      // The live command evaluator uses the same local/global aux and
-      // attachment stores. Keep those aliases in its isolated preparation.
-      source_maps->shared_aux= source_maps->shared_attachments= true;
+      // Preserve the live evaluator's local/global attachment alias here.
+      source_maps->shared_attachments= true;
       // Source identity activation includes the author's document preamble.
       // Unlike display cursor preparation, role planning needs its definitions
       // even when they are not part of the visible BODY traversal.
@@ -493,7 +458,6 @@ edit_typeset_rep::prepare_source_identity_contracts () {
       athena::contracts::evaluation_state_scope owner (&state);
       edit_env preparation (state, buf->master,
                             source_maps->refs, source_maps->global_refs,
-                            source_maps->aux, source_maps->aux,
                             source_maps->attachments, source_maps->attachments);
       base->restore (*preparation.operator-> ());
       preparation->style_init_env ();
@@ -987,14 +951,18 @@ edit_typeset_rep::prepare_slideshow_pages () {
   for (tree page: athena::slides::source_pages (subtree (et, rp)).pages)
     slideshow_motion.push_back (athena::slides::motion::describe (page, reverse (obtain_ip (page))));
   // Freeze a clean presentation once per playback, without changing the live
-  // editing environment, field slots or reference/auxiliary records.
+  // editing environment, field slots or reference records.
   typeset_preamble ();
+  prepare_directory_views (subtree (et, rp));
   athena::contracts::evaluation_state state (contract_state.contracts.snapshot ());
   auto refs= copy (buf->data->ref), global_refs= copy (grefs);
-  auto aux= copy (buf->data->aux), attachments= copy (buf->data->att);
+  auto attachments= copy (buf->data->att);
   edit_env presentation (state, buf->master, refs, global_refs,
-                         aux, aux, attachments, attachments);
+                         attachments, attachments);
   pre->restore (*presentation.operator-> ());
+  if (directory_views)
+    for (const auto& [key, view]: directory_views->views ())
+      presentation->write (string (key.data (), key.size ()), view);
   presentation->style_init_env ();
   if (compound_counter_view)
     athena::avd::apply_counter_state (
@@ -1321,6 +1289,9 @@ edit_typeset_rep::exec_html (tree t, path p) {
   else t= copy (t);
   const auto context= conversion_context_at (p);
   hashmap<string,tree> H= context->variables ();
+  if (directory_views)
+    for (const auto& [key, view]: directory_views->views ())
+      H (string (key.data (), key.size ()))= view;
   tree patch= html_export_environment_patch ();
   hashmap<string,tree> P (UNINIT, patch);
   H->join (P);
@@ -1358,8 +1329,31 @@ edit_typeset_rep::exec_html (tree t, path p) {
   }
 }
 
+void
+edit_typeset_rep::prepare_directory_views (tree t) {
+  // Explicit export/playback collects source effects without producing screen
+  // boxes. Editing and snippet conversion consume asynchronous views instead.
+  const auto context= prepare_document_context ();
+  athena::derived::contribution_log contributions;
+  {
+    temporary_environment_scope execution (*env.operator-> ());
+    context->restore (*env.operator-> ());
+    env->update ();
+    auxiliary_contribution_capture capture (*env.operator-> (), contributions);
+    auxiliary_execution_scope collect (*env.operator-> ());
+    (void) env->exec (t);
+    capture.commit ();
+  }
+  if (directory_views || (contributions && contributions->has_directories)) {
+    prepare_directory_owner ();
+    directory_views->submit (std::move (contributions), env->local_ref, true);
+    directory_views->wait ();
+  }
+}
+
 tree
 edit_typeset_rep::exec_html (tree t) {
+  prepare_directory_views (t);
   return exec_html (t, rp * 0);
 }
 
@@ -1390,6 +1384,9 @@ edit_typeset_rep::exec_latex (tree t, path p) {
   hashmap<string,tree> H= context->variables ();
   tree patch= scheme_tree_to_tree (
     latex_export_env_patch (tree_to_scheme_tree (t), expand_user_macro));
+  if (directory_views)
+    for (const auto& [key, view]: directory_views->views ())
+      H (string (key.data (), key.size ()))= view;
   hashmap<string,tree> P (UNINIT, patch);
   H->join (P);
   prefix_specific (H, "tmlatex-");
@@ -1410,6 +1407,28 @@ edit_typeset_rep::exec_latex (tree t, path p) {
 
 tree
 edit_typeset_rep::exec_latex (tree t) {
+  prepare_directory_views (t);
+  if (directory_views) {
+    // TeX regenerates its own ToC/index, but its glossary converter consumes
+    // entries. Populate only this export copy, including when macro expansion
+    // is disabled; no generated body is assigned to the editor document.
+    std::function<tree(tree)> materialize= [&] (tree source) -> tree {
+      if (is_atomic (source)) return source;
+      tree result (source, N(source));
+      for (int i=0; i<N(source); ++i) result[i]= materialize (source[i]);
+      athena::node::copy_metadata (source, result);
+      if (athena::derived::is_directory (source)) {
+        const string kind= athena::derived::directory_kind (source);
+        if (kind == "the-glossary" || kind == "list-of-figures" || kind == "list-of-tables") {
+          const string channel= as_string (source[0]);
+          result[N(source)-1]= directory_views->glossary_view (
+            std::string (channel.data (), N(channel)));
+        }
+      }
+      return result;
+    };
+    t= materialize (t);
+  }
   return exec_latex (t, rp * 0);
 }
 
@@ -1903,8 +1922,7 @@ edit_typeset_rep::typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2) {
     const auto contributions= ttt->br->auxiliary_contributions;
     if (!directory_views && contributions && contributions->has_directories)
       prepare_directory_owner ();
-    if (directory_views && !progressive_typeset_pending &&
-        (printed || N(folded_headings) == 0)) {
+    if (directory_views && !progressive_typeset_pending) {
       directory_views->submit (ttt->br->auxiliary_contributions,
         env->local_ref, env->page_refs_changed);
       directory_views_changed= printed ? directory_views->wait () : directory_views->receive ();
@@ -1977,6 +1995,7 @@ edit_typeset_rep::typeset (SI& x1, SI& y1, SI& x2, SI& y2) {
   int missing_nr= INT_MAX;
   int redefined_nr= INT_MAX;
   int page_ref_updates= 0;
+  int directory_updates= 0;
   x1= MAX_SI; y1= MAX_SI; x2= MIN_SI; y2= MIN_SI;
   while (true) {
     SI sx1, sy1, sx2, sy2;
@@ -1984,7 +2003,17 @@ edit_typeset_rep::typeset (SI& x1, SI& y1, SI& x2, SI& y2) {
     bool page_refs_changed= env->page_refs_changed;
     x1= min (x1, sx1); y1= min (y1, sy1);
     x2= max (x2, sx2); y2= max (y2, sy2);
-    if (directory_views_changed) continue;
+    if (directory_views_changed) {
+      if (++directory_updates > 8)
+        throw std::runtime_error ("Directory layout did not stabilize");
+      if (env->get_string (PAGE_PRINTED) == "true") {
+        // A changed directory can move every later page. Printed output must
+        // recollect page bindings before accepting an index's cached ordering.
+        ttt->execution_base.reset ();
+        ttt->br->notify_assign (path (), ttt->br->st);
+      }
+      continue;
+    }
     if (!env->complete) break;
     env->complete= false;
     clean_unused (env->local_ref, env->touched);
@@ -1994,6 +2023,8 @@ edit_typeset_rep::typeset (SI& x1, SI& y1, SI& x2, SI& y2) {
     if (page_refs_changed) {
       page_ref_updates++;
       if (page_ref_updates > 5) {
+        if (env->get_string (PAGE_PRINTED) == "true")
+          throw std::runtime_error ("Page references did not stabilize for export");
         typeset_warning << "Page references did not stabilize" << LF;
         break;
       }

@@ -72,10 +72,6 @@ void tools_show_line_count () {
     as_string (tools_count_lines (tools_selection_or_document ())), "Statistics");
 }
 
-void tools_toggle_save_aux () {
-  editor ed= get_current_editor ();
-  ed->init_env ("save-aux", ed->get_env_string ("save-aux") == "true"? "false": "true");
-}
 void tools_toggle_show_keyboard () { set_show_kbd (!get_show_kbd ()); }
 
 void tools_clear_font_cache () {

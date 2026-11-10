@@ -1577,7 +1577,7 @@ public:
       return html_export_enunciation_output (enunciation, title, run (enunciation[4], env),
                                               atom (request ("enunciation-color", enunciation, env)));
     }
-    for (const char* tag: {"with-limits", "line-break", "no_break", "no-indent", "yes-indent",
+    for (const char* tag: {"with-limits", "line-break", "no-break", "no-indent", "yes-indent",
          "no-indent*", "yes-indent*", "page-break*", "page-break", "no-page-break*", "no-page-break",
          "no-break-here*", "no-break-here", "no-break-start", "no-break-end", "new-page*", "new-page",
          "new-dpage*", "new-dpage", "assign", "provides", "macro", "drd-props", "arg", "quote-arg",
@@ -1586,7 +1586,7 @@ public:
          "times", "over", "div", "mod", "merge", "length", "range", "number", "date", "translate",
          "is-tuple", "look-up", "equal", "unequal", "less", "lesseq", "greater", "greatereq",
          "style-with", "style-with*", "style-only", "style-only*", "active", "active*",
-         "reference", "pageref", "write", "tuple", "collection", "associate",
+         "reference", "pageref", "write", "flag", "toc-notify", "tuple", "collection", "associate",
          "point", "line", "arc", "bezier", "format", "tag", "meaning", "hidden-title", "web-title"})
       if (head (source, tag)) return tuple ();
     throw std::runtime_error (std::string ("Unsupported HTML export markup: ") + atom (source[0]).c_str ());

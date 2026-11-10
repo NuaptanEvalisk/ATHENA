@@ -259,7 +259,8 @@ create_backup (const fs::path& root, fs::path& archive_path) {
          root, fs::directory_options::skip_permission_denied, ec), end;
        !ec && it != end; it.increment (ec)) {
     fs::path path = it->path ();
-    if (it->is_directory (ec) && path.filename () == ".backup") {
+    if (it->is_directory (ec) &&
+        (path.filename () == ".backup" || path.filename () == ".cache")) {
       it.disable_recursion_pending ();
       continue;
     }

@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "App/Runtime/background_workers.hpp"
+#include "Document/State/auxiliary_cache.hpp"
 #include "tm_ostream.hpp"
 #include "boot.hpp"
 #include <algorithm>
@@ -383,7 +384,9 @@ std::vector<disk_file> inventory (const std::filesystem::path& root,
       if (watch) watch->directory (entry.path ());
       auto names= entry.names (); std::sort (names.begin (), names.end ());
       for (const auto& child: names)
-        if (child != ".athena" && child != ".backup" && child != ".git" && child != ".cache")
+        if (child == ".cache")
+          athena::derived::auxiliary_cache::prune_directory (entry.path ());
+        else if (child != ".athena" && child != ".backup" && child != ".git")
           visit (relative / child, depth + 1);
     }
     else if (physical.extension () == ".ath")

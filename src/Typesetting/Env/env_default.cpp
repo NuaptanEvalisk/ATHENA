@@ -45,7 +45,6 @@ initialize_default_env () {
   env (DPI)              = "600";       // resolution in dots per inch
   env (ZOOM_FACTOR)      = "1";         // zoom factor on screen
   env (PREAMBLE)         = "false";     // preamble mode ?
-  env (SAVE_AUX)         = "true";      // save auxiliary data on disk ?
   env (MODE)             = "text";      // typesetting mode
   env (WINDOW_BARS)      = "auto";      // override menu/icon bar settings
   env (SCROLL_BARS)      = "true";      // allow scroll bars around canvas?

@@ -143,6 +143,7 @@ struct auxiliary_cache::state {
   // Only the worker touches dirty records and file recovery state.
   records dirty;
   bool reset_file= false;
+  bool source_seen= false;
   std::string error, storage_error;
   state (std::filesystem::path source, std::string format, std::function<void()> notify):
     source (std::move (source)),
@@ -183,7 +184,13 @@ class cache_worker {
     std::string error;
     if (load) {
       records loaded;
-      try { loaded= read_records (state.file, state.format); }
+      try {
+        if (!state.source.empty ()) {
+          state.source_seen= std::filesystem::exists (state.source);
+          auxiliary_cache::prune_directory (state.source.parent_path ());
+        }
+        loaded= read_records (state.file, state.format);
+      }
       catch (const database_error& e) { error= e.what (); state.reset_file= e.disposable (); }
       catch (const std::exception& e) { error= e.what (); }
       {
@@ -247,11 +254,19 @@ class cache_worker {
     }
   }
 
-  static void persist (auxiliary_cache::state& state) {
+  static bool persist (auxiliary_cache::state& state) {
     std::string error;
     bool deleted= false;
     try {
       deleted= !state.source.empty () && !std::filesystem::exists (state.source);
+      if (!state.source.empty () && !deleted) state.source_seen= true;
+      // A named new buffer or Save As destination may not have been saved yet.
+      // Keep its pending results until the source exists, rather than treating
+      // it as a deleted document and permanently losing this cache revision.
+      if (deleted && !state.source_seen && !state.dirty.empty ()) {
+        std::lock_guard<std::mutex> guard (state.mutex);
+        if (!state.closed) return true;
+      }
       if (!state.source.empty () && !deleted && !state.dirty.empty ()) {
         if (state.reset_file) { std::filesystem::remove (state.file); state.reset_file= false; }
         write_records (state.file, state.format, state.dirty);
@@ -269,6 +284,7 @@ class cache_worker {
       state.storage_error= std::move (error);
     }
     state.completed.notify_all ();
+    return false;
   }
 public:
   cache_worker (): thread ([this] {
@@ -290,7 +306,12 @@ public:
           else wake.wait_until (guard, next->second);
         }
       }
-      if (flush) persist (*state);
+      if (flush) {
+        if (persist (*state)) {
+          std::lock_guard<std::mutex> guard (mutex);
+          if (!stopping) writes[state]= clock::now () + std::chrono::seconds (1);
+        }
+      }
       else run (state);
     }
   }) {}
@@ -308,6 +329,22 @@ cache_worker& worker () { static cache_worker instance; return instance; }
 
 std::filesystem::path auxiliary_cache::location (const std::filesystem::path& source) {
   return source.parent_path () / ".cache" / (source.filename ().string () + ".ac");
+}
+
+void auxiliary_cache::prune_directory (const std::filesystem::path& directory) {
+  std::error_code error;
+  std::filesystem::directory_iterator it (directory / ".cache", error), end;
+  for (; !error && it != end; it.increment (error)) {
+    const auto file= it->path ();
+    if (file.extension () != ".ac") continue;
+    const auto source= directory / file.stem ();
+    if (source.extension () != ".ath" && source.extension () != ".avd") continue;
+    std::error_code probe;
+    const bool exists= std::filesystem::exists (source, probe);
+    if (probe || exists) continue;
+    std::filesystem::remove (file, probe);
+    std::filesystem::remove (file.string () + "-journal", probe);
+  }
 }
 
 auxiliary_cache::auxiliary_cache (std::filesystem::path source, std::string format,

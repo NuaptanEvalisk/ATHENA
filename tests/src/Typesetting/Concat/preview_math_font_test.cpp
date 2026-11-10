@@ -27,6 +27,7 @@
 #include "math_font.hpp"
 #include "Typesetting/Concat/concater.hpp"
 #include "Typesetting/Bridge/bridge.hpp"
+#include "Typesetting/Env/local_environment.hpp"
 #include "Document/State/directory_session.hpp"
 #include "math_tree_v3.hpp"
 #include "Document/Convert/Xml/math_v2_to_v3.hpp"
@@ -55,9 +56,9 @@ class PreviewMathFontTest: public QObject {
 private slots:
   void derivedDirectoryIsAReplayedView () {
     athena::contracts::evaluation_state state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->exec (tree (USE_PACKAGE, "generic"));
     env->update ();
@@ -103,13 +104,14 @@ private slots:
 
   void auxiliaryContributionsFollowBridgeReuse () {
     athena::contracts::evaluation_state state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->update ();
     auto write= [] (const char* text) { return tree (WRITE, "toc", tree (QUOTE, text)); };
-    tree source (DOCUMENT, write ("first"), write ("second"), "body");
+    tree source (DOCUMENT, write ("first"),
+      compound ("folded-hidden", tree (CONCAT, "Hidden content", write ("second"))), "body");
     std::unique_ptr<typesetter_rep, decltype (&delete_typesetter)> ttt (
       new_typesetter (env, source, path (DETACHED)), delete_typesetter);
     ttt->screen_tree= true;
@@ -120,7 +122,7 @@ private slots:
     notify_assign (ttt.get (), path (2), tree ("edited body"));
     (void) ttt->typeset ();
     QVERIFY (ttt->br->auxiliary_contributions == first);
-    notify_assign (ttt.get (), path (1), write ("changed"));
+    notify_assign (ttt.get (), path (1, 0, 1), write ("changed"));
     (void) ttt->typeset ();
     QCOMPARE (athena::derived::contribution_channels (ttt->br->auxiliary_contributions)["toc"],
               tree (DOCUMENT, "first", "changed"));
@@ -135,9 +137,9 @@ private slots:
 
   void auxiliaryCaptionsPreserveMathProperties () {
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->complete= true;
     env->update ();
@@ -153,28 +155,33 @@ private slots:
     // Exercise WRITE itself: the expanded caption is valid before label removal.
     tree expanded= env->exec (tree (QUOTE, entry));
     QVERIFY (athena::math_v3::valid_scripts (expanded[1][2][1][2][0]));
-    (void) typeset_as_concat (env,
-      tree (WRITE, "figure", tree (QUOTE, entry)), path (0));
-    QVERIFY (env->local_aux->contains ("figure"));
-    tree actual= env->local_aux["figure"];
+    athena::derived::contribution_log log;
+    {
+      auxiliary_contribution_capture capture (*env.operator-> (), log);
+      (void) typeset_as_concat (env,
+        tree (WRITE, "figure", tree (QUOTE, entry)), path (0));
+      capture.commit ();
+    }
+    tree actual= athena::derived::contribution_channels (log)["figure"];
     tree copied= actual[0][1][2][1][2][0];
     QVERIFY (athena::math_v3::valid_scripts (copied));
     QVERIFY (athena::node::id (copied).empty ());
     QVERIFY (athena::node::content_equal (actual[0], entry));
-    // Source and derived caption can coexist without duplicate identities.
-    tree document (DOCUMENT, compound ("body", tree (DOCUMENT, caption)),
-      compound ("auxiliary", tree (COLLECTION, tree (ASSOCIATE, "figure", actual))));
-    const auto encoded= athena::document::write_xml_v3 (document);
-    QVERIFY (athena::document::read_xml_v3 (encoded) == document);
+    const auto encoded= athena::document::write_xml_v3 (actual, athena::document::xml_kind::fragment);
+    QVERIFY (athena::document::read_xml_v3 (encoded, athena::document::xml_kind::fragment) == actual);
     QCOMPARE (athena::node::id (power), meta.id);
 
     tree labelled (CONCAT, tree (LABEL, "caption-anchor"), power);
     athena::node::metadata wrapper;
     wrapper.properties["caption-kind"]= athena::node::property (std::string ("figure"));
     athena::node::set (labelled, wrapper);
-    (void) typeset_as_concat (env,
-      tree (WRITE, "annotated-caption", tree (QUOTE, labelled)), path (0));
-    tree cleaned= env->local_aux["annotated-caption"][0];
+    {
+      auxiliary_contribution_capture capture (*env.operator-> (), log);
+      (void) typeset_as_concat (env,
+        tree (WRITE, "annotated-caption", tree (QUOTE, labelled)), path (0));
+      capture.commit ();
+    }
+    tree cleaned= athena::derived::contribution_channels (log)["annotated-caption"][0];
     QVERIFY (is_func (cleaned, CONCAT, 1));
     QVERIFY (athena::node::equal_metadata (cleaned, labelled));
     QVERIFY (athena::math_v3::valid_scripts (cleaned[0]));
@@ -183,9 +190,9 @@ private slots:
 
   void vacantScriptCursorsPreserveVisibleGeometry () {
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -221,9 +228,9 @@ private slots:
 
   void nativeDisplayParagraphIsCentered () {
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "text");
@@ -255,9 +262,9 @@ private slots:
 
   void transformedNamedSymbolsHaveInlineOrigins () {
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     for (const char* family: {"TeX Gyre Pagella", "roman"})
       for (const char* size: {"10", "12", "18"}) {
@@ -302,9 +309,9 @@ private slots:
   }
   void migratedBigOperatorGlyphsAndScriptsRender () {
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -341,9 +348,9 @@ private slots:
 
   void migratedHistoricalLayoutRetainsGeometry () {
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -375,9 +382,9 @@ private slots:
 
   void nativeV3MiddleStretchMatchesLegacyUnicodeMiddle () {
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -421,9 +428,9 @@ private slots:
 
   void nativeV3DelimitedAutoMatchesLegacyGeometry () {
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -454,9 +461,9 @@ private slots:
 
   void nativeV3DelimitedFixedAndManualSize () {
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -477,9 +484,9 @@ private slots:
 
   void nativeV3ScriptsMatchLegacyUnicodeGeometry () {
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -540,9 +547,9 @@ private slots:
 
   void nativeV3LeftScriptsRespectRightLimitsPolicy () {
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -580,9 +587,9 @@ private slots:
 
   void nativeV3MathGridAndUnnumberedBlockLayout () {
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -612,9 +619,9 @@ private slots:
 
   void nativeV3SingleEquationNumberUsesStyleCounterAndBinding () {
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "text"); // MathBlock itself must establish math mode.
@@ -658,9 +665,9 @@ private slots:
 
   void nativeV3AnnotationAndLongArrowMatchLegacyUnicodeGeometry () {
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -697,9 +704,9 @@ private slots:
 
   void nativeV3AccentMatchesLegacyUnicodeGeometry () {
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -728,9 +735,9 @@ private slots:
 
   void nativeV3MathVariantMatchesExpandedStyleSemantics () {
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -922,9 +929,9 @@ private slots:
                        std::pair<string,string> ("TeX Gyre Bonum",
                                                   "texgyrebonum-math")}) {
       athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-      hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-      hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-      edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+      hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+      hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+      edit_env env (contract_state, url_none (), h1, h2, h5, h6);
       env->write_default_env ();
       env->write (FONT, family.first);
       env->write (FONT_BASE_SIZE, "12");
@@ -953,9 +960,9 @@ private slots:
 
   void pagellaMatrixDelimiterGrowsWithRows () {
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (FONT_BASE_SIZE, "12");
@@ -974,9 +981,9 @@ private slots:
 
   void pagellaDelimitersFollowMathAxis () {
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (MODE, "math");
@@ -1042,9 +1049,9 @@ private slots:
 
   void legacyInlineCalPreservesFont () {
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->write (FONT, "TeX Gyre Pagella");
     env->write (FONT_SERIES, "bold");

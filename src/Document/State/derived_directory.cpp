@@ -25,6 +25,31 @@
 
 namespace athena::derived {
 
+tree source_declarations (tree source) {
+  if (is_atomic (source)) return source;
+  if (is_directory (source)) {
+    if (source[N(source)-1] == tree (DOCUMENT, "") &&
+        !node::contains_metadata (source[N(source)-1])) return source;
+    tree result (source, N(source));
+    for (int i=0; i<N(source)-1; ++i) result[i]= source[i];
+    result[N(source)-1]= tree (DOCUMENT, "");
+    node::copy_metadata (source, result);
+    return result;
+  }
+  tree result= source;
+  for (int i=0; i<N(source); ++i) {
+    tree child= source_declarations (source[i]);
+    if (strong_equal (child, source[i])) continue;
+    if (strong_equal (result, source)) {
+      result= tree (source, N(source));
+      for (int j=0; j<N(source); ++j) result[j]= source[j];
+      node::copy_metadata (source, result);
+    }
+    result[i]= child;
+  }
+  return result;
+}
+
 /******************************************************************************
 * Removing labels
 ******************************************************************************/

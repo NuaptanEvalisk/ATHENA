@@ -90,22 +90,24 @@ void refresh_interop_document_source (tree& source, const tree& body, new_data d
   collection_field (source, "final", data->fin);
   collection_field (source, "attachments", data->att);
   collection_field (source, "references", data->ref);
-  collection_field (source, "auxiliary", data->aux);
+  for (int i= 0; i < N(source);)
+    if (is_compound (source[i], "auxiliary")) remove (source, i, 1);
+    else ++i;
 }
 
 void append_interop_source_attributes (tree& snapshot, const tree& source,
-                                       bool no_aux) {
+                                       bool omit_references) {
   if (!is_document (source)) return;
   athena::node::copy_metadata (source, snapshot);
   for (int i= 0; i < N (source); ++i) {
+    if (is_compound (source[i], "auxiliary")) continue;
     bool standard= false;
     for (const auto* name: {"TeXmacs", "style", "body", "initial", "final",
-                            "attachments", "references", "auxiliary"}) {
+                            "attachments", "references"}) {
       if (!is_compound (source[i], name)) continue;
       standard= true;
       if (N(source[i]) != 1 || std::string (name) == "TeXmacs" ||
-          (no_aux && (std::string (name) == "references" ||
-                      std::string (name) == "auxiliary"))) break;
+          (omit_references && std::string (name) == "references")) break;
       int index= field (snapshot, name);
       // Retain annotated empty collection envelopes without bringing back
       // viewport keys or other values intentionally filtered by attach_data.

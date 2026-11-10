@@ -126,8 +126,6 @@ string aofm_convert_vault_model_vault;
 string vault_maintenance_dir;
 bool   vault_maintenance_check_only = false;
 string rag_delegated_embedding_dir;
-string vault_maintenance_toc_worker_file;
-string vault_maintenance_toc_worker_marker;
 string artifact_extract_worker_manifest;
 string artifact_extract_worker_output;
 string rag_server_dir;
@@ -802,7 +800,6 @@ print_command_line_help () {
   cout << "  --upgrade-vault-sorters [dir] --sorter-map JSON  Offline explicit C-to-Luau namespace sorter migration\n";
   cout << "  --convert-style [source.ts] [dest.ats]  Convert a legacy style to native UTF-8 XML\n";
   cout << "  --rag-delegated-embedding [dir]  Run only delegated incremental embedding\n";
-  cout << "  --vault-maintenance-toc-worker [file] [marker]  Internal ToC maintenance worker\n";
   cout << "  --generate-website [dir] [id]  Generate a vault website headlessly\n";
   cout << "  --run-website-post-command [dir] [id]  Run only a website post-generation command\n";
   cout << "  --check-only               With --vault-maintenance, run only the document health check\n";
@@ -957,9 +954,6 @@ set_global_options  (int argc, char** argv)  {
       }
       else if (s == "-rag-delegated-embedding") {
         i++;
-      }
-      else if (s == "-vault-maintenance-toc-worker") {
-        i += 2;
       }
       else if (s == "-generate-website") {
         i += 2;
@@ -1255,28 +1249,6 @@ TeXmacs_main (int argc, char** argv) {
       bool ok= vault_maintenance_run (vault_maintenance_dir,
                                       vault_maintenance_check_only);
       exit (ok ? 0 : 1);
-    }
-    if (vault_maintenance_toc_worker_file != "" &&
-        vault_maintenance_toc_worker_marker != "") {
-      application_document_load_options options;
-      options.strict= true;
-      application_load_document (url_system (vault_maintenance_toc_worker_file), options);
-      bool failed= true;
-      try {
-        url document= url_system (vault_maintenance_toc_worker_file);
-        bool generated= qt_with_buffer (document, [] {
-          get_current_editor ()->generate_aux ("table-of-contents");
-        });
-        failed= !generated || buffer_save (document);
-      }
-      catch (...) {
-        failed= true;
-      }
-      std::ofstream marker (athena_to_std_string (
-        vault_maintenance_toc_worker_marker), std::ios::binary);
-      if (marker) marker << (failed ? "save-failed" : "ok");
-      marker.close ();
-      exit (failed ? 1 : 0);
     }
     if (website_generate_dir != "" && website_generate_id != "") {
       // Website export loads the converter modules it needs on demand.  Do not
@@ -1946,15 +1918,6 @@ texmacs_entrypoint (int argc, char** argv) {
         rag_delegated_embedding_dir= argv[i];
         headless_mode= true;
         exec_exit= false;
-      }
-    }
-    if (s == "-vault-maintenance-toc-worker") {
-      if (i + 2 < argc) {
-        i++;
-        vault_maintenance_toc_worker_file= argv[i];
-        i++;
-        vault_maintenance_toc_worker_marker= argv[i];
-        headless_mode= true;
       }
     }
     if (s == "-artifact-extract-worker") {

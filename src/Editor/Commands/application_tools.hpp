@@ -9,7 +9,6 @@ tree tools_selection_or_document ();
 void tools_show_character_count ();
 void tools_show_word_count ();
 void tools_show_line_count ();
-void tools_toggle_save_aux ();
 void tools_toggle_show_keyboard ();
 void tools_clear_font_cache ();
 void tools_scan_fonts ();

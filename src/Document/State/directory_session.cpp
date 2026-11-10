@@ -187,6 +187,16 @@ bool directory_session::receive () {
   return true;
 }
 const std::map<std::string,tree>& directory_session::views () const { return data->views; }
+tree directory_session::glossary_view (const std::string& channel) const {
+  for (const auto& request: contribution_directories (data->previous))
+    if (request.channel == channel &&
+        (request.kind == "the-glossary" || request.kind == "list-of-figures" ||
+         request.kind == "list-of-tables")) {
+      const auto found= data->views.find (request.key ());
+      if (found != data->views.end ()) return copy (found->second);
+    }
+  throw std::runtime_error ("No prepared glossary view for channel " + channel);
+}
 bool directory_session::wait () {
   data->cache->wait (data->ticket);
   return receive ();

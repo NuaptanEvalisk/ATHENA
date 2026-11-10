@@ -279,7 +279,6 @@ editor_command_id (const QString& id) {
     return native_editor_command_id::node_properties;
   if (id == "editor.save") return native_editor_command_id::save;
   if (id == "editor.revert") return native_editor_command_id::revert;
-  if (id == "editor.update-all") return native_editor_command_id::update_all;
   if (id == "editor.close-document")
     return native_editor_command_id::close_document;
   if (id == "editor.save-as") return native_editor_command_id::save_as;
@@ -381,7 +380,6 @@ native_editor_command_state (const QString& id,
     result.enabled= snapshot.focus_node_available ();
     break;
   case native_editor_command_id::save:
-  case native_editor_command_id::update_all:
     result.enabled= !snapshot.read_only ();
     break;
   case native_editor_command_id::revert:
@@ -1083,7 +1081,6 @@ QTMCommandRegistry::registerEditorCommands () {
     "editor.node-properties",
     "editor.save",
     "editor.revert",
-    "editor.update-all",
     "editor.close-document",
     "editor.save-as",
     "editor.preview",

@@ -392,10 +392,10 @@ edit_main_rep::probe_print_references () {
     }
     return result;
   };
-  const auto refs= get_ref (), aux= get_aux (), attachments= get_att ();
-  const auto probe_refs= detached (refs), probe_aux= detached (aux), probe_att= detached (attachments);
-  set_ref (probe_refs); set_aux (probe_aux); set_att (probe_att);
-  auto restore= [&] { set_ref (refs); set_aux (aux); set_att (attachments); typeset_prepare (); };
+  const auto refs= get_ref (), attachments= get_att ();
+  const auto probe_refs= detached (refs), probe_att= detached (attachments);
+  set_ref (probe_refs); set_att (probe_att);
+  auto restore= [&] { set_ref (refs); set_att (attachments); typeset_prepare (); };
   try { (void) layout_print_document (conform); }
   catch (...) { restore (); throw; }
   restore ();

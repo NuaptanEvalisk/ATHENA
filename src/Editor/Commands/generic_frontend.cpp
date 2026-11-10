@@ -153,64 +153,6 @@ void generic_make_animation (tree_label label) {
   tree wrapper (label, content, "1s");
   ed->insert_tree (wrapper, ed->command_tree_end (wrapper, path (0)));
 }
-namespace {
-struct document_update : std::enable_shared_from_this<document_update> {
-  athena_actor_id actor;
-  athena_view_id view;
-  std::string what;
-  int remaining;
-  void schedule () {
-    auto self= shared_from_this ();
-    qt_post_to_main_thread ([self] {
-      QTimer::singleShot (1, [self] {
-        if (self->what == "all") {
-          get_server ()->inclusions_gc ();
-          tools_picture_gc ();
-        }
-        athena::avd::submit_source_task (
-            self->actor, self->view,
-            [self] (editor_rep& ed) {
-              struct cursor_keeper {
-                editor_rep& ed;
-                observer point;
-                ~cursor_keeper () {
-                  ed.position_delete (point);
-                }
-              } saved{ed, ed.position_new (ed.the_path ())};
-              if (self->what == "all" || self->what == "materials")
-                materials_update_current_document ();
-              if (self->what == "all") {
-                ed.generate_aux ();
-                ed.typeset_invalidate_all ();
-              } else if (self->what == "buffer")
-                ed.typeset_invalidate_all ();
-              else if (self->what != "materials")
-                ed.generate_aux (text (self->what));
-              ed.go_to (ed.position_get (saved.point));
-            },
-            [self] (std::string error) {
-              if (!error.empty ()) {
-                report (error);
-                return;
-              }
-              if (--self->remaining > 0)
-                self->schedule ();
-            });
-      });
-    });
-  }
-};
-} // namespace
-void generic_update_document (string what) {
-  const auto* owner= current_execution_context ();
-  auto request= std::make_shared<document_update> ();
-  request->actor= owner->actor_id;
-  request->view= owner->view_id;
-  request->what.assign (what.data (), N (what));
-  request->remaining=
-      std::clamp (as_int (get_preference ("document update times", "1")), 1, 5);
-  request->schedule ();
-}
 void generic_open_global_search () {
   if (!vault_active ()) {
     qtm_info_dialog ("No active vault. Please load a vault first.", "Global search");

@@ -52,9 +52,8 @@ tree
 tree_extents (tree doc) {
   athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
   hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
-  hashmap<string,tree> h3 (UNINIT), h4 (UNINIT);
   hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
-  edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+  edit_env env (contract_state, url_none (), h1, h2, h5, h6);
   initialize_environment (env, doc, contract_state);
   tree t= extract (doc, "body");
   lazy lz= make_lazy (env, t, path ());
@@ -262,9 +261,8 @@ typeset_output_widget (tree doc, tree style, SI screen_width,
   doc= enrich_embedded_document (doc, style);
   athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
   hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
-  hashmap<string,tree> h3 (UNINIT), h4 (UNINIT);
   hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
-  edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+  edit_env env (contract_state, url_none (), h1, h2, h5, h6);
   initialize_environment (env, doc, contract_state);
   tree t= extract (doc, "body");
   lazy lz= make_lazy (env, t, path ());

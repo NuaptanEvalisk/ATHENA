@@ -353,7 +353,7 @@ scan_documents (const fs::path& root) {
     const fs::path path = it->path ();
     if (it->is_directory (ec)) {
       if (path.filename () == ".backup" || path.filename () == ".athena" ||
-          path.filename () == ".git" ||
+          path.filename () == ".git" || path.filename () == ".cache" ||
           is_orphan_collection_path (root, path))
         it.disable_recursion_pending ();
       continue;
@@ -383,7 +383,7 @@ scan_ath_documents (const fs::path& root) {
     const fs::path path = it->path ();
     if (it->is_directory (ec)) {
       if (path.filename () == ".backup" || path.filename () == ".athena" ||
-          path.filename () == ".git" ||
+          path.filename () == ".git" || path.filename () == ".cache" ||
           is_orphan_collection_path (root, path))
         it.disable_recursion_pending ();
       continue;

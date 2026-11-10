@@ -1335,7 +1335,6 @@ QTMPreferencesDialog::buildEditingPage () {
   add_combo (t, "text autocompletion sorting");
   add_combo (t, "text autocompletion accept key");
   add_toggle (t, "disable unix primary selection");
-  add_combo (t, "document update times");
   add_dynamic_qstring_combo (t, "custom dictionary import language", document_language_choices ());
   QPushButton* import= new QPushButton ("Import");
   QObject::connect (import, &QPushButton::clicked, [import] () {
@@ -1827,8 +1826,6 @@ QTMPreferencesDialog::buildVaultCategories () {
   QWidget* maintenance= make_page ();
   QFormLayout* mt= add_section (maintenance, "Maintenance");
   add_combo (mt, "vault max full backups");
-  add_combo (mt, "vault maintenance worker processes");
-  add_toggle (mt, "vault maintenance update table of contents");
   add_toggle (mt, "vault maintenance remove redundant block wikilinks");
   add_toggle (mt, "vault maintenance continuous rag");
   add_combo (mt, "vault maintenance rag delegation fallback");

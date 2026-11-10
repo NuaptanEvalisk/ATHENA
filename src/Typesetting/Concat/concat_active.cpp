@@ -334,50 +334,10 @@ concater_rep::typeset_set_binding (tree t, path ip) {
   else typeset_dynamic (keys, ip);
 }
 
-static tree
-remove_labels (tree t) {
-  if (is_atomic (t)) return copy (t);
-  else if (is_func (t, LABEL)) return "";
-  else if (is_func (t, CONCAT)) {
-    tree r (CONCAT);
-    for (int i=0; i<N(t); i++)
-      if (!is_func (t[i], LABEL))
-        r << remove_labels (t[i]);
-    athena::node::copy_metadata (t, r);
-    if (!athena::node::get (r)) {
-      if (N(r) == 0) return "";
-      if (N(r) == 1) return r[0];
-    }
-    return r;
-  }
-  else {
-    tree r (t, N(t));
-    for (int i=0; i<N(t); i++)
-      r[i]= remove_labels (t[i]);
-    athena::node::copy_metadata (t, r);
-    return r;
-  }
-}
-
 void
 concater_rep::typeset_write (tree t, path ip) {
   if (N(t) != 2) { typeset_error (t, ip); return; }
-  if (env->provides ("derived-directory-output") &&
-      env->read ("derived-directory-output") == "true") {
-    control ("write", ip);
-    return;
-  }
-  string s= env->exec_string (t[0]);
-  // Auxiliary entries are derived content: retain semantic properties (notably
-  // native math), but never persist another copy of the source node identities.
-  tree   r= remove_labels (athena::node::content_projection (env->exec (t[1])));
-  if (env->auxiliary_contributions)
-    env->auxiliary_contributions->record (s, r);
-  else if (env->complete) {
-    if (!env->local_aux->contains (s))
-      env->local_aux (s)= tree (DOCUMENT);
-    env->local_aux (s) << r;
-  } 
+  collect_auxiliary_write (*env.operator-> (), t);
   control ("write", ip);
 }
 

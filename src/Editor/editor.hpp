@@ -157,13 +157,11 @@ protected:
   virtual hashmap<string,tree> get_init () = 0;
   virtual hashmap<string,tree> get_fin () = 0;
   virtual hashmap<string,tree> get_ref () = 0;
-  virtual hashmap<string,tree> get_aux () = 0;
   virtual hashmap<string,tree> get_att () = 0;
   virtual void                 set_init (hashmap<string,tree> H= tree ("?"))=0;
   virtual void                 add_init (hashmap<string,tree> H) = 0;
   virtual void                 set_fin (hashmap<string,tree> H) = 0;
   virtual void                 set_ref (hashmap<string,tree> H) = 0;
-  virtual void                 set_aux (hashmap<string,tree> H) = 0;
   virtual void                 set_att (hashmap<string,tree> H) = 0;
 
   /* exchanging property information */
@@ -531,17 +529,13 @@ public:
   virtual void     init_env (string var, tree by) = 0;
   virtual void     init_default (string var) = 0;
   virtual tree     get_ref (string key) = 0;
-  virtual tree     get_aux (string key) = 0;
   virtual tree     get_att (string key) = 0;
   virtual void     set_ref (string key, tree im) = 0;
-  virtual void     set_aux (string key, tree im) = 0;
   virtual void     set_att (string key, tree im) = 0;
   virtual void     reset_ref (string key) = 0;
-  virtual void     reset_aux (string key) = 0;
   virtual void     reset_att (string key) = 0;
   virtual array<string> find_refs (string val, bool global= false) = 0;
   virtual array<string> list_refs (bool global= false) = 0;
-  virtual array<string> list_auxs (bool global= false) = 0;
   virtual array<string> list_atts (bool global= false) = 0;
   virtual void     typeset_forced () = 0;
   virtual void     typeset_invalidate (path p) = 0;
@@ -723,13 +717,6 @@ public:
   virtual bool make_return_before () = 0;
   virtual bool make_return_after () = 0;
   virtual void ensure_trailing_proof_paragraph () = 0;
-
-  /* public routines from edit_process */
-  virtual void generate_table_of_contents (string toc) = 0;
-  virtual void generate_index (string idx) = 0;
-  virtual void generate_glossary (string glo) = 0;
-  virtual void generate_aux (string which= "") = 0;
-  virtual bool get_save_aux () = 0;
 
   /* public routines from edit_select */
   virtual path formula_root (path p) = 0;

@@ -1900,74 +1900,6 @@
       }
     },
     {
-      "key": "vault maintenance worker processes",
-      "type": "choice",
-      "scope": "active",
-      "default": "Unlimited",
-      "ui": {
-        "category": "Vault",
-        "tab": "Maintenance",
-        "section": "Maintenance",
-        "order": 1,
-        "label": "Maintenance worker processes",
-        "control": "choice",
-        "choices": [
-          {
-            "value": "Unlimited",
-            "label": "Unlimited"
-          },
-          {
-            "value": "1",
-            "label": "1"
-          },
-          {
-            "value": "2",
-            "label": "2"
-          },
-          {
-            "value": "4",
-            "label": "4"
-          },
-          {
-            "value": "8",
-            "label": "8"
-          },
-          {
-            "value": "12",
-            "label": "12"
-          },
-          {
-            "value": "16",
-            "label": "16"
-          },
-          {
-            "value": "20",
-            "label": "20"
-          }
-        ],
-        "category_order": 5,
-        "tab_order": 1,
-        "section_order": 0
-      }
-    },
-    {
-      "key": "vault maintenance update table of contents",
-      "type": "boolean",
-      "scope": "active",
-      "default": "off",
-      "ui": {
-        "category": "Vault",
-        "tab": "Maintenance",
-        "section": "Maintenance",
-        "order": 2,
-        "label": "Update all tables of contents during vault maintenance",
-        "control": "toggle",
-        "category_order": 5,
-        "tab_order": 1,
-        "section_order": 0
-      }
-    },
-    {
       "key": "vault maintenance continuous rag",
       "type": "boolean",
       "scope": "active",
@@ -2730,37 +2662,6 @@
       "type": "string",
       "scope": "active",
       "default": "on"
-    },
-    {
-      "key": "document update times",
-      "type": "choice",
-      "scope": "active",
-      "default": "1",
-      "ui": {
-        "category": "Editing",
-        "tab": "Generic and Text",
-        "section": "Text",
-        "order": 4,
-        "label": "Document updates run",
-        "control": "choice",
-        "choices": [
-          {
-            "value": "1",
-            "label": "Once"
-          },
-          {
-            "value": "2",
-            "label": "Twice"
-          },
-          {
-            "value": "3",
-            "label": "Three times"
-          }
-        ],
-        "category_order": 2,
-        "tab_order": 0,
-        "section_order": 1
-      }
     },
     {
       "key": "live spell checking",

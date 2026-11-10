@@ -435,6 +435,41 @@ void auxiliary_contribution_capture::record (const string& channel, const tree& 
   entries.emplace_back (athena::derived::contribution {
     std::string (channel.data (), N(channel)), athena::node::frozen_tree (content)});
 }
+auxiliary_execution_scope::auxiliary_execution_scope (edit_env_rep& owner, bool enabled):
+  env (owner), previous (owner.collect_auxiliary_on_exec) {
+  env.collect_auxiliary_on_exec= enabled;
+}
+auxiliary_execution_scope::~auxiliary_execution_scope () {
+  env.collect_auxiliary_on_exec= previous;
+}
+
+static tree auxiliary_content_without_labels (tree t) {
+  if (is_atomic (t)) return copy (t);
+  if (is_func (t, LABEL)) return "";
+  tree r (L(t));
+  for (int i= 0; i < N(t); ++i)
+    if (!is_func (t, CONCAT) || !is_func (t[i], LABEL))
+      r << auxiliary_content_without_labels (t[i]);
+  athena::node::copy_metadata (t, r);
+  if (is_func (t, CONCAT) && !athena::node::get (r)) {
+    if (N(r) == 0) return "";
+    if (N(r) == 1) return r[0];
+  }
+  return r;
+}
+
+void collect_auxiliary_write (edit_env_rep& env, tree t) {
+  if (env.provides ("derived-directory-output") &&
+      env.read ("derived-directory-output") == "true") return;
+  // A WRITE payload is data; nested WRITE nodes are not source occurrences.
+  auxiliary_execution_scope payload (env, false);
+  const string channel= env.exec_string (t[0]);
+  const tree content= auxiliary_content_without_labels (
+    athena::node::content_projection (env.exec (t[1])));
+  if (env.auxiliary_contributions)
+    env.auxiliary_contributions->record (channel, content);
+}
+
 void auxiliary_contribution_capture::reuse (const athena::derived::contribution_log& child) {
   if (child) entries.emplace_back (child);
 }

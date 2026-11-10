@@ -38,12 +38,6 @@ collect_orphan_assets_preference () {
   return get_preference ("vault collect orphan assets", "off") == "on";
 }
 
-static bool
-update_tables_of_contents_preference () {
-  return get_preference ("vault maintenance update table of contents", "off") ==
-         "on";
-}
-
 static std::string
 rag_fallback_preference () {
   std::string value= lower_copy (trim_copy (tm_to_std (get_preference (
@@ -75,23 +69,6 @@ summary_keep_count_preference () {
   catch (...) {}
   log_info ("invalid maintenance summary retention preference '" + pref +
             "'; using All");
-  return -1;
-}
-
-static int
-maintenance_worker_processes_preference () {
-  std::string pref = trim_copy (tm_to_std (
-    get_preference ("vault maintenance worker processes", "Unlimited")));
-  std::string low = lower_copy (pref);
-  if (pref.empty () || low == "unlimited") return -1;
-  try {
-    size_t pos = 0;
-    int value = std::stoi (pref, &pos);
-    if (pos == pref.size () && value >= 1) return value;
-  }
-  catch (...) {}
-  log_info ("invalid maintenance worker process preference '" + pref +
-            "'; using Unlimited");
   return -1;
 }
 
@@ -198,8 +175,6 @@ vault_maintenance_pass_load_preferences (VaultMaintenanceContext& ctx) {
 VaultMaintenancePassResult
 vault_maintenance_pass_read_policy_preferences (VaultMaintenanceContext& ctx) {
   ctx.summary.backup_limit = backup_limit_preference ();
-  ctx.summary.maintenance_worker_processes = maintenance_worker_processes_preference ();
-  ctx.summary.toc_update_enabled = update_tables_of_contents_preference ();
   ctx.summary.rag_update_enabled =
     get_preference ("vault maintenance continuous rag", "off") == "on";
   ctx.summary.rag_delegation_enabled =

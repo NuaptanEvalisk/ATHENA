@@ -742,7 +742,6 @@ set (ATHENA_Include_Dirs
   ${ATHENA_SOURCE_DIR}/src/Editor/Commands
   ${ATHENA_SOURCE_DIR}/src/Editor/Engine
   ${ATHENA_SOURCE_DIR}/src/Editor/Modify
-  ${ATHENA_SOURCE_DIR}/src/Editor/Process
   ${ATHENA_SOURCE_DIR}/src/Editor/Selection
   ${ATHENA_SOURCE_DIR}/src/Infrastructure/Files
   ${ATHENA_SOURCE_DIR}/src/Infrastructure/Link

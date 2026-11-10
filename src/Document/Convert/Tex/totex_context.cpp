@@ -17,6 +17,7 @@
 #include "hashmap.hpp"
 #include "iterator.hpp"
 #include "new_style.hpp"
+#include "Document/State/derived_directory.hpp"
 #include "Document/NodeContracts/builtin_contracts.hpp"
 #include "Document/NodeContracts/editing_query.hpp"
 #include "file.hpp"
@@ -1227,6 +1228,9 @@ init_mode_stats_native (scheme_tree value, scheme_tree styles, scheme_tree initi
   const tree* original= native_mode_stats_source;
   tree body= original && is_document (*original)
     ? extract (*original, "body") : scheme_tree_to_tree (value);
+  // Match source-contract admission: generated directory entries belong to the
+  // export view, not to the authored source whose macro uses are counted here.
+  body= athena::derived::source_declarations (body);
   if (!is_document (body)) body= tree (DOCUMENT, body);
   tree init= scheme_tree_to_tree (initial);
   tree style (TUPLE);

@@ -1,637 +1,168 @@
-# ATHENA Document Cache and Realtime Derived Content
+# Auxiliary Results Cache and Realtime Directories
 
-Design date: 2026-10-20. Scope revised: 2026-11-10.
+Implemented scope: 2026-11-10.
 
-Status: implementation in progress. Background storage, reusable contribution
-logs and owner-side realtime directory views are connected. Removal of persisted
-auxiliary/generated bodies, folded-source collection and export/lifecycle
-completion remain. The following scope supersedes the historical design.
+## Purpose
 
-## Revised Scope (2026-11-10)
+Replace document-persisted TeXmacs auxiliary data and manually regenerated
+directory bodies with realtime derived views. Keep disposable auxiliary
+computation results between opens in sibling caches:
 
-- Keep `.cache/<full-source-filename>.ac`, including the source extension to
-  distinguish ATH/AVD files with the same stem.
-- Cache only auxiliary-derived contributions and directory results, dependency
-  identities, numbering and separately validated layout page bindings.
-- Do not cache shaping, general boxes, font objects or other typesetting object
-  graphs. The persistent shaping cache owns that independent capability.
-- Reopening must reuse matching results, not rebuild every directory. Cache IO
-  and computation run asynchronously; publication checks the source generation.
-- Changed contributions are replaced incrementally. Persistence coalesces work
-  and updates records, rather than serializing the complete cache per keystroke.
-- Source contains directory declarations/options, headings, captions and markers,
-  not generated bodies or auxiliary envelopes. Derived changes must not enter
-  undo, history or Hodarium source revisions. `tmfs://aux` is outside this work.
-- Export waits for the derived results of its source/layout snapshot. Closing
-  the editor does not require waiting for cache production.
-
-Implementation sequence:
-
-1. Separate directory algorithms from editor mutation and shared mutable state.
-2. Introduce contribution ownership, asynchronous `.ac` storage and publication.
-3. Render generated directories as derived views and connect incremental changes.
-4. Remove persisted auxiliary, obsolete update controls and source-generation
-   paths, integrate export readiness and cache lifecycle, then build/deploy.
-
-The historical rendering-cache design in sections below is background only;
-it is not an implementation requirement for the revised scope.
-
-### Current Implementation Boundary
-
-`src/Document/State/derived_directory.{hpp,cpp}` now owns detached ToC, index,
-glossary and list generation. Inputs are explicit, source identities are removed
-from derived copies, and rich-text properties survive label removal. Index
-grouping and locale state are local to an invocation. The old Update entry points
-still assign these results into source and must be removed; realtime rendering
-now uses the detached result directly instead.
-
-`auxiliary_cache.{hpp,cpp}` provides worker-owned SQLite storage and computation,
-receipt-checked in-memory lookup, replacement of pending work by key, stale-job
-rejection, and result publication before disk IO. Dirty records are coalesced
-for 750 ms and written transactionally; cache hits do not rewrite records.
-Explicit waiting and flushing are separate from nonblocking close. Incompatible
-or damaged caches can be rebuilt, while storage failures leave computed results
-available. Source existence is rechecked around writes. Idle-source deletion
-watching and lifecycle integration are still pending.
-
-`auxiliary_contributions.{hpp,cpp}` retains frozen WRITE payloads in shared
-ordered logs. Bridge, surround and inline-fragment replay reuse child logs;
-unchanged contributions preserve log identity even if ordinary body text changes.
-Failed evaluation rolls back captures. The old complete-pass auxiliary map is
-currently populated from this log. Directory demand is captured in the same log;
-ordinary body edits with unchanged contributions do not schedule computation.
-This does not yet remove auxiliary from saved documents.
-
-`directory_session.{hpp,cpp}` owns the asynchronous derived views. The worker
-collects requested channels, calculates dependency receipts, decodes matching
-MessagePack records or generates missing results, and transfers detached native
-trees through a generation-checked mailbox. No encoding/decoding or SQLite IO
-runs during owner publication. Index receipts include only referenced page
-bindings. Unsaved buffers use an in-memory session. Cache storage failures do not
-invalidate a successfully calculated view; generation failures remain explicit.
-
-The `derived-directory` primitive registers demand and reads a dependency-tracked
-environment binding. Shipped section macros use it instead of their persisted
-body argument. Generated output suppresses WRITE collection to prevent feedback.
-Worker readiness is signalled by actor/view IDs, and only a changed result or
-generation failure requests layout; loading and persisting cache records do not.
-The editor admits results after submitting the current completed contribution
-log, and printed layout waits explicitly before consuming its views. Old source
-bodies and Update commands remain temporarily, but are not used by these macros.
-
-Vault inventory/watch registration and Hodarium application/save filtering now
-exclude `.cache`. Idle deletion and source-move ownership still need lifecycle
-integration.
-
-The focused storage test covers superseded computations, reopening, storage
-contention without blocking result publication, transactional retry, record
-deletion, format invalidation, damaged-cache rebuilding and closing/deleting
-during computation. The bridge check exercises reuse, replacement, deletion and
-retention of an earlier snapshot. The directory-view check loads the shipped
-generic style, displays background output, edits and deletes contributions,
-checks empty results and verifies unchanged source plus suppression of output
-feedback. These checks do not establish complete export or save integration.
-
-Verification on 2026-11-10: `auxiliary_cache_test` and
-`preview_math_font_test`'s `derivedDirectoryIsAReplayedView` and
-`auxiliaryContributionsFollowBridgeReuse` passed. `ATHENA.bin` was built with
-`-j16` and deployed with the local executable installer, verifying build ID
-`c2793bf8b337fa4173152d5a982c50dff5e99a81` and byte identity. No broad regression
-suite was run. The temporary check profile directory was removed.
-
-Remaining integration must keep the worker/owner split above. Save As must change
-cache ownership without treating the not-yet-created destination as a deleted
-source. Progressive logs are not submitted until complete. With folded headings,
-screen submission is temporarily deferred to avoid replacing a complete result
-with a partial inventory. `bridge_folded_hidden_rep::my_typeset` already executes
-hidden source through `env->exec` for counters/definitions without producing
-boxes; WRITE collection belongs in that semantic path, not a second full layout.
-Printed layout ignores editor folding and must use its complete source log.
-
-Next integration points, verified against the current native implementation:
-
-- Contribution and directory demand logs follow bridge reuse/replacement,
-  including nested and cached inline expansion, independently of `env->complete`.
-- `edit_typeset_rep::typeset_sub` is the owner-side layout publication boundary;
-  `buffer_actor::notify_derived_directories_ready` is its ID-only wakeup path.
-- Native `tree` handles cannot be casually shared across threads. Existing
-  `node::frozen_tree` and detached ownership transfer provide the appropriate
-  contracts. Freeze changed contribution units, not the entire document after
-  each edit. The existing v3 structured-value codec preserves node properties;
-  its MessagePack representation is suitable for binary cache records.
-- Use the already-linked SQLite implementation with worker-owned connections and
-  transactional record replacement. Editor reads consume published memory, not
-  database queries. A single storage worker does not require WAL to keep the
-  editor responsive. Record source/style/dependency receipts, contribution order
-  and result versions separately from layout-specific page bindings.
-- Remove both `attach_data` and `refresh_interop_document_source` auxiliary
-  persistence only when the derived view replacement is connected. Audit
-  `append_interop_source_attributes` as well: it can restore annotated empty
-  auxiliary envelopes. Do not conflate references or attachments with auxiliary.
-- Directory generation and page-number convergence remain required for export;
-  replacing the editor update menu alone is insufficient.
-
-This plan replaces persisted TeXmacs auxiliary data and user-driven Document
-Update with realtime derived content and disposable per-document `.ac` caches.
-The cache must reduce computation without making editing, saving, or closing
-wait for cache production. It accelerates reopening by retaining auxiliary
-computation results rather than rerunning generation on every open.
-
-## 1. Requirements and Decision Status
-
-### Required behavior
-
-- Store one ATHENA Cache file beside each source document, inside its sibling
-  `.cache/` directory. ATHENA manages creation, maintenance, and removal.
-- The cache contains former auxiliary computation results and their dependencies.
-- Persist binary records, not XML or Scheme text. General rendering state and
-  shaping are outside this cache.
-- `.ac` is entirely disposable. Cross-ATHENA-version compatibility is not a goal;
-  an incompatible cache is discarded rather than migrated.
-- Deliberately malicious cache files are outside the threat model. Do not add
-  authentication, signing, sandboxing, or an elaborate security architecture.
-  Handle ordinary interrupted writes, incompatible builds, and damaged files.
-- Cache serialization and filesystem operations must not block the GUI or
-  BufferActor. Do not deep-copy a document or box graph on an editing boundary.
-- Computation and persistence are incremental at appropriate units. Do not
-  serialize a whole document after each edit or create a disk record per keystroke.
-- Cached content must never be required to save source, capture history, or sync.
-- The table of contents is realtime, including unsaved edits and undo/redo.
-  A user must not need Document Update to make derived content correct.
-- Deleting a source document eventually removes its managed cache. Cache writes
-  already queued for that document must not resurrect the deleted cache.
-
-### Proposed implementation choices
-
-The SQLite container, MessagePack encoding, record schema, naming collision
-policy, queue budgets, and scheduling parameters below are implementation
-proposals. They are not existing capabilities or measured performance results.
-
-The original naming example was `Example.ath -> .cache/Example.ac`. A proposed
-collision-free spelling is `.cache/Example.ath.ac`, with `.cache/Example.avd.ac`
-for an AVD of the same stem. Settle this spelling before implementation; do not
-allow two source types with the same basename to share a cache accidentally.
-
-This plan does not authorize rewriting the user's Notes, recovering closed
-buffers, or repairing generated directory entries in existing documents.
-
-## 2. Implementation Audit Baseline (2026-10-20)
-
-### Auxiliary lifecycle
-
-`new_data::aux` is a map from a channel name to a generated tree. Standard styles
-write `toc`, `figure`, `table`, `index`, and `glossary` channels; custom channel
-names are possible. Figure captions can be collected even without an explicit
-list of figures in the document.
-
-The current pipeline is:
-
-```text
-source headings, captions, index and glossary markers
-  -> style evaluation / WRITE
-  -> buffer auxiliary map
-  -> generate_aux and its consumers
-  -> generated bodies inserted into source directory nodes
-  -> auxiliary and generated bodies persisted with the source document
+```
+Lecture.ath
+.cache/Lecture.ath.ac
 ```
 
-Relevant implementation:
-
-- `src/Typesetting/Concat/concat_active.cpp`: `typeset_write` evaluates and collects
-  channel entries only when `env->complete` is true.
-- `src/Typesetting/Bridge/typesetter.cpp`: a complete pass clears `local_aux` before
-  collecting it again. Partial passes do not incrementally replace contributions.
-- `src/Editor/Process/edit_process.cpp`: generates contents, indexes, and glossaries
-  by clearing generated bodies, moving the cursor, and inserting rebuilt trees.
-- `src/Document/State/new_data.cpp`: attaches and detaches persisted collections.
-- `src/Interop/Adapters/interop_document_source.cpp`: refreshes the source envelope
-  from the live auxiliary and reference maps.
-- `src/App/Runtime/buffer_actor.cpp`: normal source saving and document-history
-  snapshots serialize that envelope, so invalid auxiliary data blocks them too.
-- `src/Sync/State/hodarium_worker.cpp`: document revisions carry saved source
-  bytes, including these derived values. Cache-only differences can therefore
-  create source revision differences.
-
-`references` is a separate number/page binding map, not another name for `aux`.
-Attachments are separate again. Materials has its own rendering update path.
-The native Outline pane reads the current document through actor snapshots; it
-does not depend on a saved auxiliary table of contents.
-
-### Already fixed
-
-Commit `8ededcc97`, `fix: preserve native math in generated auxiliary entries`:
-
-- Preserves semantic properties in the WRITE-side label-removal transformation.
-- Removes source identities from derived copies.
-- Adds XML writer paths, ancestry, and concrete MathScripts validation reasons.
-- Adds caption generation and codec regression coverage.
-
-The triggering live document had valid math in its body, but its generated figure
-caption lost `math:scripts-policy` on `S^1`. Saving and history capture failed.
-No repair of that closed buffer or its source file is part of this plan.
-
-### Remaining code-audit findings
-
-These are dated findings, not newly executed runtime tests. On 2026-11-01,
-`edit_process.cpp` still reconstructs `remove_labels` compounds without metadata
-and clears generated bodies before checking `which`. Recheck other call sites
-when implementing this plan; intervening native migrations changed some owners:
-
-1. A second `remove_labels` in `edit_process.cpp` still reconstructs compounds
-   without their metadata. Consuming auxiliary entries can again damage v3 math.
-2. `generate_aux_recursively` clears every recognized generated section before
-   checking `which`. Updating one kind can erase other kinds without rebuilding.
-3. Native menu actions send `index` and `glossary`, while the generator matches
-   `the-index` and `the-glossary`. These paths can clear without regenerating.
-4. The Save auxiliary data preference is not consulted by the current native
-   save and history-snapshot paths. Older `attach_data(no_aux)` also couples
-   auxiliary omission with reference-map omission.
-5. Auxiliary production is a full-pass side effect, not a dependency-indexed
-   incremental calculation. Its map has no independently published generation.
-
-## 3. Document Update Inventory
-
-The menu is authored in `src/UI/Qt/Commands/QTMDocumentMenuCommands.cpp`; native
-actions dispatch through `src/Editor/Commands/native_editor_actions.cpp` to
-`ATHENA/progs/generic/document-edit.scm`.
-
-| Current command | Actual work | Replacement |
-| --- | --- | --- |
-| Update All | Materials update, auxiliary generation, inclusion and picture cache resets, full buffer invalidation | Dependency-driven derived updates |
-| Update Buffer | Full typesetting invalidation, including preamble and root bridge | Ordinary scoped invalidation; diagnostic full rebuild only |
-| Referenced Materials | Recompute citations/list and assign a replacement document tree | Citation and Materials dependency updates |
-| Table of contents | Force typesetting, collect entries, overwrite generated source body | Realtime directory view |
-| Index / Glossary | Auxiliary transformation and generated source-body replacement | Incremental entry indexes and views |
-| Refresh inclusions | Reset inclusion cache and invalidate all views | Resource change notification and dependent-unit invalidation |
-| Refresh pictures | Reset picture cache and update all buffers | Image-version invalidation of actual consumers |
-
-`inclusions_gc` in `tm_server.cpp` and `picture-gc` in `tm-tools.scm` make Update
-All affect other open documents, not merely the active one.
-
-Other surfaces that must change:
-
-- `ATHENA/misc/ui/application-shell.json`: `editor.update-all`, also exposed by
-  the native editor command provider and actor dispatch.
-- `ATHENA/misc/preferences/catalog.json`: `document update times`, currently a
-  choice of repeated passes, with the `doc-update-times` callback.
-- `src/UI/Qt/Commands/QTMFocusSpecialCommands.cpp`: Materials update action.
-- `src/UI/Qt/Vault/QTMNamespaceExport.cpp`: finalization calls Update All and
-  uses delayed work rather than a derived-state completion contract.
-- `src/Domains/Vault/vault_maintenance_pass_health.cpp` and
-  `src/App/Entry/athena.cpp`: ToC maintenance workers load documents, generate
-  their contents, and save source files.
-- Remaining Scheme documentation utilities and some runtime checks call
-  `generate-all-aux`, `generate-aux`, and `update-current-buffer` directly.
-
-Materials already refreshes on document import and several explicit insert/style
-operations. That is not a unified subscription to citation order, Materials
-record revisions, inherited Namespace membership, and CSL dependencies.
-
-Keep the concepts of invalidation, recomputation, and waiting for a fixed
-snapshot's derived results. Remove the requirement that users invoke them to
-obtain a correct document. Explicit external data retrieval and plugin execution
-remain separate user operations; do not automatically rerun them as cache work.
-
-## 4. Source and Derived State Boundary
-
-The authoritative source retains headings, captions, index/glossary markers,
-citation UUIDs and locators, explicit material selections, styles, user metadata,
-and directory declarations with their scope and display options.
-
-Generated directory bodies, collected auxiliary entries, resolved layout page
-numbers, and typesetting products are derived state. They belong in memory and
-optionally `.ac`, not in source saving, undo records, document history, or
-Hodarium document payloads.
-
-Do not implement this as a serializer that silently omits any invalid subtree.
-Define explicit derived roles and source projection rules. Invalid authoritative
-source still fails validation. Only data explicitly classified as regenerable
-is excluded. Preserve custom directory titles/options and distinguish manual
-content from old generated output before changing persisted representations.
-
-Audit `references`, attachments, and Materials fields individually. Logical
-labels and link targets remain source semantics even when their resolved number
-or page is cached. Do not delete all of these under an auxiliary cleanup flag.
-
-## 5. Cache Storage and Binary Representation
-
-Use existing SQLite for the per-document indexed container and existing
-`msgpack-cxx` for binary C++ value/object records. Do not invent a database file
-format, allocation manager, or crash journal. SQLite is public domain;
-msgpack-cxx uses the Boost Software License 1.0.
-
-Reference implementations and documentation:
-
-- https://www.sqlite.org/appfileformat.html
-- https://www.sqlite.org/atomiccommit.html
-- https://www.sqlite.org/copyright.html
-- https://github.com/msgpack/msgpack-c
-
-Suggested logical records, not a finalized SQL schema:
-
-| Record family | Content |
-| --- | --- |
-| Header | Application/format marker, build compatibility token, source UUID/type, known source revision |
-| Units | Source anchor, product kind, input fingerprint, environment/dependency signature, layout variant, binary payload |
-| Dependencies | Unit-to-resource and unit-to-semantic-input relationships needed for validation/invalidation |
-| Contributions | Per-source auxiliary/reference contributions and their ordering/scope |
-| Resources | Referenced font/image/style descriptors and stable revision fingerprints, not live handles |
-| Checkpoints | Sequential environment and pagination continuation state |
-
-Persist one unit or bounded group per BLOB, not one SQL row per box or glyph.
-Use record-local object IDs for shared subobjects. Avoid duplicating the same
-large payload in every intermediate layer; derived records may reference shared
-records within the cache.
-
-Use short batched transactions owned by a cache service. A normal rollback
-journal is a suitable initial single-file-oriented choice; temporary journal
-files are permitted. Do not disable the established transaction machinery just
-because the data is disposable. Lock contention skips/requeues cache work rather
-than waiting in the editor. No per-keystroke fsync or shutdown flush barrier.
-
-This is direct binary serialization of computational object state, not a dump
-of C++ object memory. Encode concrete type tags, fields, and relationships; do
-not persist vtables, addresses, observers, or process-specific handles. Bind
-fonts and other owner-local resources when materializing a result for an owner.
-
-## 6. Persisted Computational Products
-
-| Product | Granularity and reusable content |
-| --- | --- |
-| Semantic evaluation | Cacheable macro expansion, observed input dependencies, output environment changes |
-| Auxiliary entries | Individual source contributions with full structured content and logical destinations |
-| Paragraph analysis | Glyph shaping, metrics, math spacing, hyphenation and line-break candidates |
-| Paragraph layout | Width-specific break decisions, local line boxes and spacing |
-| Formula layout | Scripts, accents, fractions, stretchy delimiters, operator geometry and source mapping |
-| Tables | Per-cell content/measurements, table constraint solution, local placement |
-| Block layout | Page items, stack borders, relative box graph, break penalties and backgrounds |
-| Navigation basis | Relative source-to-box mappings, caret positions, labels and link declarations |
-| Pagination | Output-profile-specific pages and continuation checkpoints, including pending floats/notes |
-
-Current useful boundaries are `bridge_rep::l`, `sb`, and `changes`, plus
-`line_item`, `page_item`, and the box graph. See `src/Typesetting/Bridge/bridge.hpp`,
-`src/Typesetting/Format/line_item.hpp`, `src/Typesetting/Format/page_item.hpp`, and
-`src/Typesetting/boxes.hpp`.
-
-Do not cache mutable lazy closures carrying `edit_env`, arbitrary plugin runtime
-state, or external side effects as if they were pure values. Represent known
-pending computations as dependency-bound data, or mark that product uncacheable
-and use the normal computation path. Core text, math, and table results need
-actual codecs and tests, not a screenshot-based substitute.
-
-Exclude cursor/selection/focus/hover state, GUI widgets, threads, locks, renderer
-handles, and live font objects. Do not duplicate existing RAG/search databases.
-Painting-only state should be separable from geometry where feasible; otherwise
-the relevant appearance dependency must invalidate the stored product.
-
-## 7. Identity and Incremental Validity
-
-A cache key is conceptually:
-
-```text
-source anchor + product kind + semantic input fingerprint
-              + environment dependency fingerprint + layout profile
-```
-
-Use persistent UUIDs where available, with relative source paths where needed.
-Insertion before a block must not reuse old absolute paths or caret positions.
-Persist block-relative mappings and rebind them against the current source.
-
-UUID alone is not a content revision. Fingerprints include semantic properties,
-not just visible text. In-session generations reject stale asynchronous work;
-cross-session validation uses source and dependency fingerprints. Existing small
-tree hashes must not automatically become authoritative persistent cache keys.
-
-Reuse fingerprints computed during parsing/edit propagation. Do not scan or hash
-the whole tree on every edit. A changed source-file fingerprint does not reject
-all units: still-valid units in the changed document can remain useful.
-
-Dependencies include actual font selection and file revisions, relevant styles
-and preferences, language/line-breaking configuration, images, transclusion
-sources, and relevant artifact/material revisions. Never trust an old layout
-whose dependency checks have not completed.
-
-Sequential state requires explicit input/output checkpoints: counters, macro
-definitions, scoped environment changes, and reference contributions. Recompute
-forward when an input changes and stop when the unchanged suffix's required
-state converges. Reusing boxes without replaying their semantic contributions
-would render plausible output with incorrect numbering and references.
-
-Resize reuses shaping where valid and recomputes line breaks. Font changes
-invalidate dependent shaping. Table cell reuse does not imply local-only column
-solving, and a page break can affect later pages. Keep only a bounded number of
-recent geometry variants rather than storing every intermediate drag width.
-
-## 8. Ownership and Nonblocking Production
-
-Existing boxes are mutable (`position_at`, relocation, geometry adjustment),
-their reference counts are not generally atomic, and fonts belong to an owner
-domain. See `src/Core/Abstractions/basic.hpp` and
-`notes/font-domain-ownership.md`. Wrapping an existing box in `shared_ptr` does
-not make its descendants or resource handles safe to traverse on a worker.
-
-Required ownership change:
-
-1. Normal typesetting produces immutable computational result blocks that are
-   also used by rendering. Separate mutable placement/interaction and owner-local
-   resource bindings from those blocks.
-2. Publishing a completed block transfers a bounded-cost lifetime-safe handle and
-   generation token. It does not traverse or deep-copy the result graph.
-3. Cache workers serialize only frozen result data. They never access live trees,
-   mutable bridges, editor environments, Scheme state, or native font handles.
-4. Worker completion carries source/session generations. Stale results cannot
-   replace a newer in-memory result or become its claimed current cache record.
-5. Destruction of a large detached result must not cause an editing-thread pause;
-   thread-neutral payload reclamation belongs off the editor hot path.
-
-Do not build a second full graph synchronously merely to make it serializable.
-This ownership boundary is a prerequisite, not an optimization to postpone.
-
-Use a bounded queue charged by retained bytes as well as task count. Coalesce
-successive versions of the same unit, discard superseded work, and skip caching
-when saturated. Normal typing must not enqueue an unbounded history of results.
-Cache maintenance needs CPU/I/O budgets too: low-priority scheduling alone does
-not prevent it from competing with interactive work.
-
-Only persist computations that normal display/export already needed. Do not
-force layout to fill `.ac`. Cheap units or low-value large results may remain
-memory-only when serialization is not worth its measured cost.
-
-## 9. Open and Restore
-
-1. Load authoritative source normally; read cache metadata asynchronously.
-2. Reject incompatible builds/formats and source-identity mismatches. Missing,
-   readonly, locked, or damaged cache files do not prevent opening the source.
-3. Prioritize visible units and a small neighborhood rather than decoding the
-   whole cache. Validate content, environment, and resource dependencies.
-4. Decode immutable computation records off the editor thread. Bind owner-local
-   resources and relative source locations incrementally on the proper owner.
-5. Reuse matching geometry and semantic contributions. If cache I/O loses the
-   race to normal computation, discard the late result rather than replacing
-   newer state or making the editor wait.
-
-Do not front-load whole-document object reconstruction onto BufferActor. Restoring
-computed geometry must avoid rerunning shaping and line breaking for cache hits.
-
-Unsaved-edit results may be cached, but they are only reusable when their input
-matches the source being displayed. `.ac` is not an autosave or recovery source
-and must never overwrite `.ath`. It is valid to have an incomplete or lagging cache.
-
-## 10. Realtime Directories and Materials
-
-Replace global append-only auxiliary collection with per-source contributions:
-
-```text
-source edit / undo / redo / dependency change
-  -> affected semantic units
-  -> replace or remove their contributions
-  -> update scoped ordered indexes
-  -> publish affected generated views
-  -> optionally persist completed results in .ac
-```
-
-Directory rendering subscribes to this state. Editing a heading updates its
-entry; moving or deleting it updates order/membership. Numbering changes propagate
-according to their actual sequential dependencies. Preserve math and formatting
-in titles, custom `toc-override` behavior, scoped channel names, and transclusion
-inclusion rules. A plain-text heading scanner is not a replacement for semantics.
-
-Semantic work needed for a requested directory can cover offscreen source, but
-must not require full offscreen physical layout. Missing contributions must not
-be silently presented as a complete current directory. Track completeness and
-revision explicitly; publish coherent generations and cancel superseded work.
-
-Generated view updates do not mutate source, move the cursor, create undo steps,
-or trigger source saves. Preserve native sidebar folding as view state. Reflow
-uses logical navigation such as `Go`; paginated display and PDF use their own
-layout's page map, never a previously persisted screen/PDF page number.
-
-Materials dependencies include citation membership/order, locator changes,
-record revisions, Namespace-inherited selections, CSL style, and locale. Preserve
-explicit UUID selections and locators as source; generated citation strings and
-bibliographies belong to derived state. Some CSL changes affect many citations;
-that scope must be represented rather than falsely treated as independent edits.
-
-## 11. Export Completion
-
-Replace calls to Update All and arbitrary idle delays with an internal completion
-request for a fixed source snapshot and output profile. Export computes needed
-directory, reference, material, and page results for that snapshot, without
-modifying the open source buffer.
-
-Page-numbered directories can change pagination themselves. Iterate dependent
-results until stable, detect repeated/nonconverging states, and report a useful
-bounded failure rather than exporting a supposedly current stale directory.
-Do not expose a user setting for how many times to press or repeat Update.
-
-Keep caches for different page sizes, widths, fonts, and export ranges separate.
-AVD cache validation also includes definition/order and constituent source
-revisions. Scope/order changes invalidate assembly results while unaffected
-source computations may remain reusable. Unsaved or virtual documents without
-a durable source location use memory caches until an owned disk location exists.
-
-## 12. Realtime Filesystem Maintenance
-
-- Prioritize visible cache reads, nearby reads, coalesced writes, then idle cleanup.
-- Use source events and bounded reconciliation scans, not a vault walk per edit.
-  Existing `source_watch` can supply notifications, but cache-directory events
-  must not repeatedly invalidate normal source inventories.
-- On confirmed deletion, invalidate the cache owner token, cancel queued work,
-  release database users, and delete the managed cache and its owned sidecars.
-- Distinguish atomic source replacement and rename from deletion. A missing or
-  unmounted vault root is not proof that all its documents were deleted.
-- On rename/move, migrate a matching cache if convenient; otherwise discard and
-  rebuild. Coordinate active owners and never overwrite an unrelated cache.
-- Multiple instances share the transaction protocol but do not wait for cache
-  locks during editing. Validate units by input keys, not last-writer-wins state.
-  Namespace generation tokens by session; process-local counters are insufficient.
-- Evict obsolete variants and orphan records under byte/usage budgets. Avoid
-  foreground VACUUM or compaction. Cleanup must not delete unrelated user files
-  merely because they are located in a directory named `.cache`.
-- Exclude managed cache directories from search, UUID/artifact/RAG inventories,
-  website inputs, backup dispatch, and Hodarium. Include temporary database files
-  in those exclusions. Audit the current inventory exclusions when implementing
-  this cache; the original October 20 audit found `.cache` was not excluded.
-- Cache failures are nonfatal and rate-limited in diagnostics. Readonly directories
-  use memory-only operation. Source saving and shutdown never join cache flushes.
-
-## 13. Implementation Sequence
-
-Each phase needs focused tests and an appropriate commit. These are required
-pieces of the complete design, not a proposal to stop after the first cache layer.
-
-1. Establish baselines and exact derived/source field ownership. Add regressions
-   for the remaining auxiliary metadata, selector, and selective-update defects.
-2. Introduce generation-aware contribution storage and derived directory views.
-   Remove generated-body edits from normal directory updates.
-3. Establish immutable typesetting result blocks and owner-local resource binding;
-   prove publication and reclamation do not traverse large graphs on the editor.
-4. Implement per-document cache ownership, SQLite records, binary codecs, bounded
-   asynchronous reads/writes, and dependency validation for actual core layouts.
-5. Connect incremental semantic, paragraph, math, table, reference, and external
-   resource invalidation. Add AVD assembly and output-profile dependencies.
-6. Replace export/maintenance Update calls with completion requests. Remove source
-   rewrite jobs whose only purpose is refreshing generated directories.
-7. Switch source persistence/history/sync to the authoritative projection; remove
-   auxiliary persistence and obsolete generated-body storage under explicit rules.
-   Validate on isolated document copies before any separately authorized Notes work.
-8. Remove normal Update/Refresh Auxiliary/Save Auxiliary UI, command registrations,
-   repeat-count preferences, and obsolete glue only after their consumers move.
-   Preserve diagnostic cache rebuild and genuine user-requested external actions.
-9. Finish filesystem lifecycle, exclusions, budgets, and end-to-end performance
-   validation. Do not claim completion from successful serialization alone.
-
-Native command binding changes must follow
-`src/App/Commands/Interfaces/README.md`: edit the XML declarations and
-generate the C++ adapters, never hand-write per-command wrapper glue.
-
-## 14. Acceptance Criteria
-
-### Correctness
-
-- Without `.ac`, with stale `.ac`, and with matching `.ac`, source semantics and
-  rendered output agree, including caret mapping, structured math, and links.
-- Header/math-caption edits immediately update directory views before saving;
-  move/delete/undo/redo and custom scopes behave correctly.
-- Reflow directory navigation and PDF page numbers are independently correct.
-- Auxiliary/cache corruption never pauses source saving or blocks history/sync.
-- A late result cannot overwrite newer content, reference state, or layout.
-- Source deletion cannot be followed by cache resurrection from pending writes.
-- Atomic saves, moves, root unavailability, two instances, forced exit, missing
-  fonts, resource changes, and readonly storage have explicit regression cases.
-- Source-only edits, derived updates, and diagnostic rebuilds have the intended
-  modified/undo/history behavior; derived updates alone create none of these.
-
-### Performance
-
-Compare cache-disabled, cold-cache, warm-cache, and actively-writing scenarios on
-the same documents. Include long lecture notes, complex tables, mathematical
-captions/headings, transclusions, and AVDs. Use isolated copies, not live Notes.
-
-Measure first usable viewport time, complete layout time, input-to-frame median
-and tail latency, BufferActor time attributable to caching, worker CPU/I/O,
-retained memory, bytes written, hit rate, and recomputed-unit counts.
-
-Trace assertions must show no cache I/O, lock waits, graph serialization, full
-document hashing, or large snapshot copying on the interactive actor path.
-Bound both cache queues and late-result materialization work. A normal local edit
-must leave unrelated units reusable. Counter/table/pagination propagation must
-stop when dependencies permit, not unconditionally invalidate the whole document.
-
-Tune granularity, batching, budgets, and eviction from those measurements. No
-numeric latency claim is established yet. Faster reopening does not justify worse
-typing or resize latency; skip low-value cache production when necessary.
-
-## 15. Current Completion State
-
-The per-document persistent `.ac` cache and replacement of Document Update by
-realtime derived directories are still planned, not delivered. The metadata fix
-in `8ededcc97` is existing behavior, not the completion of this cache project.
-
-Other subsystems already publish immutable results and use in-memory layout
-caches; this plan does not claim those mechanisms are absent. Reuse their
-current owner/domain contracts. DRD has been replaced by native NodeContracts,
-and conversion is native; neither migration is a prerequisite still to do.
-
-Acceptance checks should follow AGENTS.md: the cases above identify concrete
-uncertainties, not a requirement to add a permanent suite for every item.
+The full source filename, including its extension, distinguishes ATH and AVD
+documents. This is not a shaping cache or a general typesetting cache: no font
+objects, boxes, editor snapshots or rendering object graphs are stored.
+`tmfs://aux` buffers are unrelated and unchanged.
+
+## Source and Derived Content
+
+Source retains headings, captions, index/glossary markers and directory
+declarations with their options. A declaration's old generated-body argument is
+replaced by an empty document placeholder on admission. Its own metadata and
+explicit title are retained.
+
+The old top-level auxiliary envelope is neither restored into runtime state nor
+written by document saves or interop source projection. Existing files are not
+batch-rewritten; normal loading and subsequent saving perform this separation.
+References and attachments retain their independent existing policies.
+
+Generated views do not mutate source and do not produce undo entries, history
+snapshots or Hodarium revisions. The runtime auxiliary maps and their copying
+paths have been removed.
+
+## Collection and Incremental Maintenance
+
+WRITE effects are captured into immutable ordered contribution logs.
+Bridge, surround and inline-fragment reuse retain shared child logs. Changed
+contributions replace their units; ordinary body changes that leave contribution
+identity unchanged do not schedule directory regeneration. Partial progressive
+layout logs are not published as complete documents.
+
+Folded source collects contributions during its existing semantic execution,
+without constructing hidden layout boxes. Generated directory output suppresses
+WRITE capture, preventing output from feeding back into its own input.
+
+A directory declaration records a request including kind, channel, language and
+index break style. The native derived-directory primitive reads the corresponding
+environment binding. Shipped styles use this primitive instead of the obsolete
+source body. Supported derived outputs are ToC, index, glossary and figure/table
+lists, including explicit-title forms.
+
+## Worker and Storage Ownership
+
+One background worker owns SQLite connections, receipt calculation, directory
+generation and binary encoding/decoding. SQLite uses ordinary transactions,
+not WAL: editor threads never read the database, so reader/writer concurrency
+would not help. No additional dependency is required.
+
+The disk records contain generated directory results encoded as MessagePack
+using the native v3 structured-value codec. Dependency receipts include the
+request options and semantic contributions; index receipts also include the
+referenced page bindings. A build/version stamp invalidates incompatible caches
+without migration. Damaged records are regenerated.
+
+Contribution logs are retained in memory, not serialized as complete document
+snapshots. Reopening still collects source contributions during semantic/layout
+execution to establish validity. Matching disk records skip directory
+generation; this design does not promise zero semantic execution on reopen.
+
+The owner freezes only changed semantic payloads. The worker returns detached
+native trees through a generation-checked mailbox and wakes the owning actor
+using actor/view IDs. Stale publications cannot replace current results.
+Serialization, database IO and directory generation do not run on the editor's
+publication path.
+
+Pending requests are coalesced by key. Dirty records are batched for 750 ms and
+updated transactionally. Cache hits do not rewrite records. Successfully
+computed results remain usable after a storage failure; calculation failures
+are reported explicitly. Closing a session does not wait for cache production.
+
+## Loading, Export and Playback
+
+Interactive layout starts with currently available views and accepts refreshed
+results asynchronously. It does not wait for disk IO.
+
+Printed export explicitly waits for current directory results and reruns layout
+when they change. Page-reference and derived-view convergence are bounded;
+failure is an explicit export error rather than silently exporting incomplete
+directories.
+
+Whole-document HTML export performs semantic collection, waits for the views and
+overlays them on its expansion environment. Heading expansion preserves logical
+anchors; HTML ToC entries link their titles to those anchors instead of emitting
+unavailable printed page numbers. Snippet export uses already prepared views.
+
+LaTeX retains its own ToC/index generation. Glossary/list declarations receive
+their generated entries in a detached export copy, including when macro
+expansion is disabled. Slideshow preparation also receives complete directory
+views without changing the document.
+
+## Lifecycle
+
+Unnamed documents use memory-only sessions. A named destination that has not
+been saved yet retains pending results until the source appears. Save As or
+rename changes session ownership to the new source path; disposable caches need
+not be moved.
+
+The storage worker checks source existence around persistence. Background vault
+inventory removes orphan ATH/AVD caches and their SQLite journals when it sees
+the sibling cache directory. Opening another cache in the same directory also
+prunes orphans. There is no editor-thread filesystem scan and no independent
+continuous global watcher.
+
+Vault inventory, file watches, offline document scans, Hodarium and backup paths
+exclude `.cache`. Backups do not carry disposable cache copies. Deleting an
+entire cache directory is supported; subsequent use recreates needed results.
+
+## Retired Controls
+
+Removed Document Update, Save auxiliary, the update-times preference, auxiliary
+getter/setter/reset/generation commands, the offline ToC maintenance pass and its
+dedicated worker CLI. The old edit_process class is gone.
+
+Referenced-material refresh remains an explicit independent command. Resource
+refresh and general rendering/font invalidation are not auxiliary regeneration
+and remain supported.
+
+## Implementation Map
+
+- `src/Document/State/derived_directory.*`: detached directory algorithms and
+  source-declaration normalization.
+- `src/Document/State/auxiliary_contributions.*`: immutable ordered logs.
+- `src/Document/State/auxiliary_cache.*`: worker-owned storage and job scheduling.
+- `src/Document/State/directory_session.*`: dependency receipts, generated views
+  and owner mailbox.
+- `src/Typesetting/Env/local_environment.*`: semantic WRITE capture.
+- `src/Editor/Engine/edit_typeset.*`: owner publication, export and playback.
+- `src/Typesetting/Bridge/typesetter.cpp`: detached print layout and directory/
+  page-reference convergence, including PDF export and reference probes.
+- `ATHENA/packages/section/section-base.ats` and standard automatic macros:
+  directory presentation.
+
+## Verification
+
+Focused storage checks cover superseded jobs, reopening, storage contention and
+retry, invalidation, damaged caches, close/delete races, deferred first-save
+persistence and orphan pruning. The focused bridge/view checks cover reusable
+contributions, replacement/deletion, folded-source collection, output feedback
+suppression and unchanged document source.
+
+Application builds used `-j16` and were deployed with the local installer. Final
+ELF build ID: `0ef40c636675afc4edd449286b0a7d69a57d2914`; installed and built
+executables were verified byte-identical.
+
+A synthetic document containing obsolete auxiliary and generated ToC content
+was saved and exported through the application CLI. Native saving retained only
+the declaration and empty placeholder. HTML contained the two current headings
+both in its ToC and body, with title links resolving to their heading anchors.
+PDF contained the complete ToC with resolved page numbers; its rendered first
+page was inspected. Neither output retained the obsolete content. A separate
+glossary export to LaTeX retained its current entry, explanation and page link,
+not the obsolete source body. The temporary documents/profile were removed.
+
+No broad regression suite was run. These checks establish the concrete
+persistence/export paths, not exhaustive coverage of every style or directory.

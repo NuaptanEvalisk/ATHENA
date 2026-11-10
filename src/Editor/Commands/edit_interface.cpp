@@ -913,7 +913,6 @@ editor_rep::document_menu_state_snapshot () {
   snapshot.preamble_mode=
     snapshot.has_preamble && N(document) > 0 &&
     is_compound (document[0], "show-preamble");
-  snapshot.save_aux= get_init_string (SAVE_AUX) == "true";
   string citationStyle=
     get_user_preference ("materials csl style", "springer-mathphys");
   for (int i=0; i<N(document); ++i) {

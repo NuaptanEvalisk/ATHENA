@@ -162,8 +162,6 @@ public:
   bool                         native_callbacks_enabled;
   hashmap<string,tree>&        local_ref;
   hashmap<string,tree>&        global_ref;
-  hashmap<string,tree>&        local_aux;
-  hashmap<string,tree>&        global_aux;
   hashmap<string,tree>&        local_att;
   hashmap<string,tree>&        global_att;
   bool                         complete;    // typeset complete document ?
@@ -438,8 +436,6 @@ public:
 		url base_file_name,
 		hashmap<string,tree>& local_ref,
 		hashmap<string,tree>& global_ref,
-		hashmap<string,tree>& local_aux,
-		hashmap<string,tree>& global_aux,
 		hashmap<string,tree>& local_att,
 		hashmap<string,tree>& global_att);
   ~edit_env_rep ();
@@ -454,6 +450,7 @@ public:
   athena::contracts::contract_event_capture* contract_events= nullptr;
   source_occurrence_capture* source_occurrences= nullptr;
   auxiliary_contribution_capture* auxiliary_contributions= nullptr;
+  bool collect_auxiliary_on_exec= false;
   source_occurrence_scope* active_source_occurrence= nullptr;
   evaluation_context_capture* recorded_contexts= nullptr;
   athena::contracts::evaluation_boundary_handle mark_execution_boundary ();
@@ -628,8 +625,6 @@ class edit_env {
 	    url base_file_name,
 	    hashmap<string,tree>& local_ref,
 	    hashmap<string,tree>& global_ref,
-	    hashmap<string,tree>& local_aux,
-	    hashmap<string,tree>& global_aux,
 	    hashmap<string,tree>& local_att,
 	    hashmap<string,tree>& global_att);
 };

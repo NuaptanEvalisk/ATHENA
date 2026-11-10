@@ -38,6 +38,22 @@ int main () {
   std::ofstream (source) << "source";
   const cache_bytes expected {0, 255, 1, 0, 7};
   {
+    const auto destination= root / "New document.ath";
+    auxiliary_cache cache (destination, "test");
+    cache.wait (cache.request ({"toc", "first-save", [&] { return expected; }}));
+    auto saving= std::async (std::launch::async, [&] { cache.flush (); });
+    assert (saving.wait_for (std::chrono::milliseconds (40)) == std::future_status::timeout);
+    assert (cache.lookup ("toc", "first-save")->bytes == expected);
+    std::ofstream (destination) << "saved source";
+    saving.get ();
+    cache.close ();
+    assert (fs::exists (auxiliary_cache::location (destination)));
+    fs::remove (destination);
+    auxiliary_cache::prune_directory (root);
+    assert (!fs::exists (auxiliary_cache::location (destination)));
+    assert (fs::exists (source));
+  }
+  {
     auxiliary_cache cache (source, "test");
     std::promise<void> started, release;
     auto gate= release.get_future ().share ();

@@ -49,7 +49,6 @@ enum class native_editor_command_id: std::uint32_t {
   node_properties,
   save,
   revert,
-  update_all,
   close_document,
   save_as,
   preview,

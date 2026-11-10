@@ -11,12 +11,13 @@
 ******************************************************************************/
 
 #include "Document/State/new_data.hpp"
+#include "Document/State/derived_directory.hpp"
 #include "convert.hpp"
 #include "merge_sort.hpp"
 #include "vars.hpp"
 
 tree
-attach_data (tree body, new_data data, bool no_aux) {
+attach_data (tree body, new_data data, bool omit_references) {
   tree doc (DOCUMENT);
   if (data->style != tree (TUPLE))
     doc << compound ("style", copy (data->style));
@@ -27,17 +28,16 @@ attach_data (tree body, new_data data, bool no_aux) {
     init->reset (PAGE_SCREEN_HEIGHT);
     if (!init->contains ("no-zoom")) init->reset (ZOOM_FACTOR);
     init->reset ("full-screen-mode");
+    init->reset ("save-aux");
     doc << compound ("initial", make_collection (init));
   }
   if (N (data->fin) != 0)
     doc << compound ("final", make_collection (data->fin));
   if (N (data->att) != 0)
     doc << compound ("attachments", make_collection (data->att));
-  if (!no_aux) {
+  if (!omit_references) {
     if (N (data->ref) != 0)
       doc << compound ("references", make_collection (data->ref));
-    if (N (data->aux) != 0)
-      doc << compound ("auxiliary", make_collection (data->aux));
   }
   //object arg1 (data->buffer_name);
   //object arg2 (body);
@@ -51,9 +51,9 @@ tree
 detach_data (tree doc, new_data& data) {
   data->style  = extract (doc, "style");
   data->init   = hashmap<string,tree> (UNINIT, extract (doc, "initial"));
+  data->init->reset ("save-aux");
   data->fin    = hashmap<string,tree> (UNINIT, extract (doc, "final"));
   data->ref    = hashmap<string,tree> (UNINIT, extract (doc, "references"));
-  data->aux    = hashmap<string,tree> (UNINIT, extract (doc, "auxiliary"));
   data->att    = hashmap<string,tree> (UNINIT, extract (doc, "attachments"));
-  return extract (doc, "body");
+  return athena::derived::source_declarations (extract (doc, "body"));
 }

@@ -20,7 +20,6 @@
 #include "Editor/Modify/edit_math.hpp"
 #include "Editor/Modify/edit_table.hpp"
 #include "Editor/Modify/edit_dynamic.hpp"
-#include "Editor/Process/edit_process.hpp"
 #include "Editor/Selection/edit_select.hpp"
 #include "Editor/Selection/edit_replace.hpp"
 
@@ -34,7 +33,6 @@ class edit_main_rep:
   public edit_math_rep,
   public edit_table_rep,
   public edit_dynamic_rep,
-  public edit_process_rep,
   public edit_select_rep,
   public edit_replace_rep
 {

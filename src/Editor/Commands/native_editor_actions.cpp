@@ -224,12 +224,7 @@ valid_business_id (const QString& id) {
     "document-no-style",
     "document-toggle-source-mode",
     "document-toggle-preamble-mode",
-    "document-update-all",
-    "document-update-buffer",
-    "document-update-materials",
-    "document-update-table-of-contents",
-    "document-update-index",
-    "document-update-glossary",
+    "document-refresh-materials",
     "document-extract-style-file",
     "document-extract-style-package",
     "document-refresh-inclusions",
@@ -237,7 +232,6 @@ valid_business_id (const QString& id) {
     "document-character-count",
     "document-word-count",
     "document-line-count",
-    "document-toggle-save-aux",
     "open-document-paragraph-format",
     "open-document-page-format",
     "open-document-metadata",
@@ -402,18 +396,8 @@ execute_business_id (editor ed, const QString& id) {
   else if (id == "document-toggle-source-mode") document_toggle_source_mode ();
   else if (id == "document-toggle-preamble-mode")
     document_toggle_preamble_mode ();
-  else if (id == "document-update-all")
-    generic_update_document ("all");
-  else if (id == "document-update-buffer")
-    generic_update_document ("buffer");
-  else if (id == "document-update-materials")
-    generic_update_document ("materials");
-  else if (id == "document-update-table-of-contents")
-    generic_update_document ("table-of-contents");
-  else if (id == "document-update-index")
-    generic_update_document ("index");
-  else if (id == "document-update-glossary")
-    generic_update_document ("glossary");
+  else if (id == "document-refresh-materials")
+    materials_update_current_document ();
   else if (id == "document-extract-style-file")
     source_extract_style (true);
   else if (id == "document-extract-style-package")
@@ -428,8 +412,6 @@ execute_business_id (editor ed, const QString& id) {
     tools_show_word_count ();
   else if (id == "document-line-count")
     tools_show_line_count ();
-  else if (id == "document-toggle-save-aux")
-    tools_toggle_save_aux ();
   else if (id == "open-document-paragraph-format")
     athena_dispatch_ui (paragraph_properties_pane_show);
   else if (id == "open-document-page-format")

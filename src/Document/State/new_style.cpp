@@ -341,11 +341,9 @@ get_style_environment (tree style, url source_name, bool native_callbacks) {
   athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
   hashmap<string,tree> lref;
   hashmap<string,tree> gref;
-  hashmap<string,tree> laux;
-  hashmap<string,tree> gaux;
   hashmap<string,tree> latt;
   hashmap<string,tree> gatt;
-  edit_env env (contract_state, source_name, lref, gref, laux, gaux, latt, gatt);
+  edit_env env (contract_state, source_name, lref, gref, latt, gatt);
   env->set_native_callbacks_enabled (native_callbacks);
   if (!busy) {
     env->exec (tree (USE_PACKAGE, A (style)));
@@ -398,21 +396,18 @@ prepare_source_positions (
       if (!*baseline) return {};
       if (prepare_maps) *original_maps= prepare_maps ();
     }
-    // Native and cold callers have different auxiliary/attachment ownership.
+    // Native and cold callers have different attachment ownership.
     // Reuse the same aliases they would pass to their isolated edit_env.
     const bool forward= !where.empty () && prefix->entry && where.front () >= prefix->paragraph;
     const auto& start= forward ? prefix->entry : *baseline;
     const source_contract_maps& saved= forward ? prefix->maps : *original_maps;
     hashmap<string,tree> refs= copy (saved.refs);
     hashmap<string,tree> global_refs= copy (saved.global_refs);
-    hashmap<string,tree> aux= copy (saved.aux);
-    hashmap<string,tree> global_aux= copy (saved.global_aux);
     hashmap<string,tree> attachments= copy (saved.attachments);
     hashmap<string,tree> global_attachments= copy (saved.global_attachments);
     athena::contracts::evaluation_state local ((*baseline)->contract_context ().snapshot ());
     athena::contracts::evaluation_state_scope owner (&local);
     edit_env evaluation (local, source_name, refs, global_refs,
-                         aux, saved.shared_aux ? aux : global_aux,
                          attachments,
                          saved.shared_attachments ? attachments : global_attachments);
     // Source planning visits nodes in preorder. Retain just the latest root
@@ -430,9 +425,9 @@ prepare_source_positions (
       prefix->paragraph= where.front ();
       prefix->entry= std::make_shared<const evaluation_environment_checkpoint> (
         *evaluation.operator-> ());
-      prefix->maps= {copy (refs), copy (global_refs), copy (aux),
-                     copy (global_aux), copy (attachments), copy (global_attachments),
-                     saved.shared_aux, saved.shared_attachments};
+      prefix->maps= {copy (refs), copy (global_refs),
+                     copy (attachments), copy (global_attachments),
+                     saved.shared_attachments};
     }
     tree entry= body[where.front ()];
     std::size_t offset= 1;
@@ -485,9 +480,9 @@ prepare_document_source_contexts (tree doc, url source_name, bool offline, Captu
       auto prepared_style= get_style_environment (style, source_name, !offline);
       athena::contracts::evaluation_state state= prepared_style->context ();
       athena::contracts::evaluation_state_scope owner (&state);
-      hashmap<string,tree> refs, global_refs, aux, global_aux, attachments, global_attachments;
+      hashmap<string,tree> refs, global_refs, attachments, global_attachments;
       edit_env initial (state, source_name, refs, global_refs,
-                        aux, global_aux, attachments, global_attachments);
+                        attachments, global_attachments);
       prepared_style->restore (*initial.operator-> ());
       initial->style_init_env ();
       initial->update ();
@@ -496,7 +491,7 @@ prepare_document_source_contexts (tree doc, url source_name, bool offline, Captu
       const tree preamble= get_document_preamble (doc);
       if (preamble != "") initial->exec (preamble);
       initial->analyze_contracts ();
-      *preamble_maps= {copy (refs), copy (global_refs), copy (aux), copy (global_aux),
+      *preamble_maps= {copy (refs), copy (global_refs),
                        copy (attachments), copy (global_attachments)};
       return std::make_shared<const evaluation_environment_checkpoint> (
         *initial.operator-> ());

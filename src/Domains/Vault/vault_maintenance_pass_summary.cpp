@@ -395,23 +395,6 @@ summary_document_tree (VaultMaintenanceContext& ctx, bool success,
     work_rows.push_back (
       tm_row ({tm_text ("Redundant block wikilinks"),
                tm_text ("removal disabled")}));
-  if (summary.toc_update_enabled)
-    work_rows.push_back (
-      tm_row ({tm_text ("Tables of contents"),
-               tm_text ("found " +
-                        std::to_string (summary.toc_files_containing_toc) +
-                        " ToC document(s) among " +
-                        std::to_string (summary.toc_files_scanned) +
-                        " scanned, changed " +
-                        std::to_string (summary.toc_files_updated) +
-                        ", failures " +
-                        std::to_string (summary.toc_failures) +
-                        ", workers " +
-                        std::to_string (summary.toc_worker_processes))}));
-  else
-    work_rows.push_back (
-      tm_row ({tm_text ("Tables of contents"),
-               tm_text ("update disabled")}));
   if (summary.rag_update_enabled) {
     std::string mode= summary.rag_delegation_succeeded
                         ? "delegated"
@@ -642,16 +625,6 @@ vault_maintenance_pass_print_summary (VaultMaintenanceContext& ctx) {
               std::to_string (
                 summary.redundant_wikilink_unverified_targets));
   else log_info ("summary: redundant block wikilink removal disabled");
-  if (summary.toc_update_enabled)
-    log_info ("summary: updated tables of contents in " +
-              std::to_string (summary.toc_files_updated) + " of " +
-              std::to_string (summary.toc_files_containing_toc) +
-              " matching document(s), scanned " +
-              std::to_string (summary.toc_files_scanned) +
-              ", failures " + std::to_string (summary.toc_failures) +
-              ", worker processes " +
-              std::to_string (summary.toc_worker_processes));
-  else log_info ("summary: table-of-contents update disabled");
   if (summary.rag_update_enabled) {
     std::string mode= summary.rag_delegation_succeeded
                         ? "delegated"

@@ -73,9 +73,9 @@ private slots:
   void retiredMagnificationIsNotAnEnvironmentVariable () {
     athena::contracts::evaluation_state contract_state (
       athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     const SI length= env->as_length ("12pt");
     const int fontSize= env->fn_size;
     QVERIFY (!env->provides (MAGNIFICATION));
@@ -106,9 +106,9 @@ private slots:
     QFETCH (QString, family);
     QFETCH (QString, series);
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->write (FONT, string (family.toUtf8 ().constData ()));
     env->write (FONT_SERIES, string (series.toUtf8 ().constData ()));
@@ -142,9 +142,9 @@ private slots:
     QFETCH (QString, family);
     QFETCH (QString, series);
     athena::contracts::evaluation_state contract_state (athena::contracts::builtin_contracts ().snapshot ());
-    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h3 (UNINIT);
-    hashmap<string,tree> h4 (UNINIT), h5 (UNINIT), h6 (UNINIT);
-    edit_env env (contract_state, url_none (), h1, h2, h3, h4, h5, h6);
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (contract_state, url_none (), h1, h2, h5, h6);
     env->write_default_env ();
     env->write (FONT, string (family.toUtf8 ().constData ()));
     env->write (FONT_SERIES, string (series.toUtf8 ().constData ()));
