@@ -970,6 +970,61 @@ Two concrete follow-up candidates, not implemented here:
   mutation and prevents Immer's unique-branch update path. Measure this
   separately; do not compromise already published snapshots to reduce copying.
 
+## Disjoint Layout Attribution Follow-Up (2026-11-10)
+
+The two candidates above have now been bounded by scoped timers on the real
+document, not by adding overlapping inclusive stack costs. Empty script slots
+cost 28-33 ms inclusive, and their empty math atoms account for 10-12 ms.
+All input-revision updates cost 20-22 ms. Neither explains the remaining gap
+to 500 ms, so no empty-caret shortcut or mutable snapshot path was introduced.
+
+A more detailed warmed probe measured 812.105 ms wall / 804.971 ms actor CPU.
+Its first layout made 121,613 variable reads, 150,252 recursive tree-copy
+calls, 14,735 length conversions and 10,667 shaping-cache lookups. Variable
+reads including copying took 63.9 ms; tree copies across all callers took
+33.2 ms exclusive. These numbers overlap and must not be added. Length
+conversion took 29.6 ms inclusive. Bridge setup/teardown itself took only
+19.8 ms; the larger bridge-body and CONCAT residuals contain uninstrumented
+descendant work, not a demonstrated slow wrapper loop.
+
+The full self-time table and remaining leads are in
+`notes/full-layout-performance-review-prompt.md`. Probe code and logs are
+in `build_qt6/atha03-scoped-probe-evidence.tar.gz`; all temporary probes were
+removed. Instrumented totals are attribution evidence, not a new clean
+performance result.
+
+A concrete repeated path is numeric formatting in length evaluation:
+`as_tmlen` executes unit expressions, creates numeric strings, scales them
+into another numeric tree, and `as_length`/`as_vspace` parse them again.
+LBR samples show floating-point libc formatting under these calls. Replacing
+the shared numeric formatter with standard `to_chars` retains the six
+significant digits of `%g`, without a new cache or altered length semantics.
+An ephemeral comparison of 1,200,007 values, including random IEEE-754 bit
+patterns and signed zero/infinities/NaNs, found identical strings. The primitive
+comparison took 515 ms with printf and 132 ms with to_chars. That is not the
+whole-document speedup; the clean binary comparison is recorded separately.
+
+Both application binaries were rebuilt without probes. The control build ID
+was `f7a6a0723c96f5a1797d6beaa721398daae0625e`; the numeric-format build,
+deployed with byte/build-ID verification, is
+`ec633b1dd46e9261feb5b9202ea79b3b71e3f532`. Runs were sequential in A/B/B/A
+order, with no overlapping build or diagnostic process. Each pair starts from
+the same profile/cache source and launches a second fresh process afterward:
+
+| Group | First copied-profile complete layout | Warm fresh-process complete layout |
+| --- | ---: | ---: |
+| A1, control | 1025 ms | 805 ms |
+| B1, to_chars | 969 ms | 795 ms |
+| B2, to_chars | 924 ms | 765 ms |
+| A2, control | 956 ms | 807 ms |
+
+Logs are in `build_qt6/atha03-numeric-{a1,b1,b2,a2}/`. These are the requested
+document's first full layout per process, not startup layouts, later retypesets
+or the profiler's open-to-paint total. This small comparison supports a modest
+gain; it does not establish a universal percentage or meet the 500 ms target.
+Disposable profile clones, comparison executable and numeric checker were
+removed after measurement. No permanent tests or production probes were added.
+
 ## Persistent Shaping Cache: Original Design (Implemented)
 
 The subsections below record the decisions that guided the completed

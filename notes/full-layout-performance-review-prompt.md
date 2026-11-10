@@ -59,7 +59,7 @@ November 10 attribution tables and subsequent updates. Important facts:
   51 ms Unicode paragraph construction, 43 ms variable reads, 40 ms exclusive
   tree copying, 71 ms exclusive paragraph formatting and 23 ms line breaking.
   Do not add inclusive nested timings to these exclusive values.
-- This round's final build ID is
+- The earlier Unicode/resource round's final build ID was
   `93f3f1eefa3ed529b9fd99833ed0b4de1b7b1d90`.
   Contemporaneous warmed control: 796 / 836 ms; final build: 847 / 806 ms.
   No document-level speedup has been established for this round.
@@ -84,6 +84,62 @@ The removed payload-sharing experiment has stacks in
 source; use it only to understand why that experiment was rejected.
 
 ## Specific Leads to Prove or Reject
+
+### Scoped Follow-Up, November 10
+
+The first two leads below have now been measured and are not the dominant
+remaining gap. An instrumented warmed first layout took 812.105 ms wall and
+804.971 ms actor CPU. Instrumentation overhead and machine load mean this is
+not a before/after speed comparison. The disjoint self-time categories include:
+
+| Category | Calls | Self time |
+| --- | ---: | ---: |
+| Bridge bookkeeping, excluding its body | 3,476 | 19.8 ms |
+| Bridge body outside instrumented descendants | 3,476 | 111.8 ms |
+| CONCAT outside instrumented descendants | 1,945 | 111.5 ms |
+| Paragraph formatting outside instrumented descendants | 368 | 71.8 ms |
+| Shaping cache lookup | 10,667 | 61.6 ms |
+| Macro expansion outside instrumented descendants | 3,225 | 54.5 ms |
+| Math paragraph setup excluding font selection | 5,335 | 41.9 ms |
+| Variable reads excluding tree copying | 121,613 | 37.5 ms |
+| Environment writes excluding nested measured work | 16,459 | 35.1 ms |
+| Font selection | 12,379 | 33.5 ms |
+| Tree copying, counting recursive children only once | 150,252 | 33.2 ms |
+| Shaping excluding persistent lookup | 10,667 | 31.7 ms |
+| Font updates excluding nested measured work | 3,784 | 25.6 ms |
+| Length conversion excluding nested measured work | 14,735 | 24.4 ms |
+| Source occurrence construction | 23,073 | 22.8 ms |
+| Input revision recording | 15,159 | 21.7 ms |
+
+These categories do not cover every call; the residual CONCAT and bridge-body
+categories still contain other uninstrumented work. They are not evidence
+that the wrapper loops themselves take 111 ms.
+
+Empty script slots cost 33.2 ms inclusive; their empty math atoms cost 11.7 ms
+inclusive. All input revision updates cost 21.7 ms, despite 10,313 updates
+having a unique root. Neither can explain the remaining hundreds of ms.
+All variable reads including their copying cost 63.9 ms, not 63.9 + 33.2 ms.
+All length conversion including nested work cost 29.6 ms.
+
+Probe source and the exact log are retained in the small archive
+`build_qt6/atha03-scoped-probe-evidence.tar.gz`. Temporary probes were removed
+from production sources. See `build_qt6/atha03-ledger-probe/timing-run-2/` for
+the complete log. Earlier broad probes are in `build_qt6/atha03-broad-probe/`.
+
+The numeric-format path is concrete: `as_tmlen` executes unit expressions,
+serializes numeric TMLEN children, scales and serializes them again, and
+`as_length`/`as_vspace` immediately parse the strings. LBR samples show libc
+floating-point printf machinery inside this path. Preserve the existing
+six-significant-digit representation when changing its formatting primitive;
+do not silently change geometry precision while optimizing it.
+
+The numeric formatter has now been changed to `std::to_chars`, retaining
+`%g`'s six significant digits. A 1,200,007-value comparison found identical
+output, including signed zero and nonfinite values. Clean A/B/B/A application
+measurements gave warmed first full layouts of **805 / 807 ms (control)** and
+**795 / 765 ms (new)**. Current deployed build ID:
+`ec633b1dd46e9261feb5b9202ea79b3b71e3f532`. This is a modest improvement,
+not the 500 ms goal. See the main performance note for complete run details.
 
 1. The real XML contains 563 MathScripts nodes and **1,685 empty script slots**.
    `concater_rep::typeset_v3_scripts` sends each vacant slot through full

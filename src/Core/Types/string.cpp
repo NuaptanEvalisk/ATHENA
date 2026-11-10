@@ -456,81 +456,45 @@ as_string_bool (bool f) {
 string
 as_string (int i) {
   char buf[64];
-#ifdef HAVE_SNPRINTF
-  snprintf (buf, 64, "%i", i);
-#else
-  sprintf (buf, "%i", i);
-#endif
-  // sprintf (buf, "%i\0", i);
-  return string (buf);
+  const auto result= std::to_chars (buf, buf + sizeof buf, i);
+  return string (buf, result.ptr - buf);
 }
 
 string
 as_string (unsigned int i) {
   char buf[64];
-#ifdef HAVE_SNPRINTF
-  snprintf (buf, 64, "%u", i);
-#else
-  sprintf (buf, "%u", i);
-#endif
-  // sprintf (buf, "%u\0", i);
-  return string (buf);
+  const auto result= std::to_chars (buf, buf + sizeof buf, i);
+  return string (buf, result.ptr - buf);
 }
 
 string
 as_string (long int i) {
   char buf[64];
-#ifdef HAVE_SNPRINTF
-  snprintf (buf, 64, "%li", i);
-#else
-  sprintf (buf, "%li", i);
-#endif
-  // sprintf (buf, "%li\0", i);
-  return string (buf);
+  const auto result= std::to_chars (buf, buf + sizeof buf, i);
+  return string (buf, result.ptr - buf);
 }
 
 string
 as_string (long long int i) {
   char buf[64];
-#ifdef HAVE_SNPRINTF  
-#  ifdef OS_MINGW
-  snprintf (buf, 64, "%I64d", i);
-#  else
-  snprintf (buf, 64, "%lli", i);
-#  endif
-#else
-#  ifdef OS_MINGW
-  sprintf (buf, "%I64d", i);
-#  else
-  sprintf (buf, "%lli", i);
-#  endif
-#endif
-  // sprintf (buf, "%lli\0", i);
-  return string (buf);
+  const auto result= std::to_chars (buf, buf + sizeof buf, i);
+  return string (buf, result.ptr - buf);
 }
 
 string
 as_string (unsigned long int i) {
   char buf[64];
-#ifdef HAVE_SNPRINTF    
-  snprintf (buf, 64, "%lu", i);
-#else
-  sprintf (buf, "%lu", i);
-#endif
-  // sprintf (buf, "%lu\0", i);
-  return string (buf);
+  const auto result= std::to_chars (buf, buf + sizeof buf, i);
+  return string (buf, result.ptr - buf);
 }
 
 string
 as_string (double x) {
   char buf[64];
-#ifdef HAVE_SNPRINTF    
-  snprintf (buf, 64, "%g", x);
-#else
-  sprintf (buf, "%g", x);
-#endif
-  // sprintf (buf, "%g\0", x);
-  return string(buf);
+  // Preserve %g's six significant digits, including in computed lengths.
+  const auto result= std::to_chars (
+    buf, buf + sizeof buf, x, std::chars_format::general, 6);
+  return string (buf, result.ptr - buf);
 }
 
 string
