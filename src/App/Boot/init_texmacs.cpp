@@ -485,7 +485,6 @@ init_system_state () {
 bool
 test_athena_path (url path, bool set_environment) {
   if (!exists (path)) return false;
-  if (!exists (path * "doc")) return false;
   if (!exists (path * "fonts")) return false;
   if (!exists (path * "misc/command-properties.json")) return false;
   if (!exists (path * "styles")) return false;
