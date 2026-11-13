@@ -269,17 +269,7 @@ tm_server_rep::interpose_handler () {
 
 void
 tm_server_rep::post_repaint_handler () {
-  if (headless_mode) return;
-  for (int i=0; i<N(bufs); i++) {
-    tm_buffer buf= (tm_buffer) bufs[i];
-    for (int j=0; j<N(buf->vws); j++) {
-      tm_view vw= (tm_view) buf->vws[j];
-      if (vw->win != NULL)
-        (void) buffer_actor::try_submit_coalesced_to (
-          buf->actor->id (), actor_command_kind::progressive_typeset,
-          vw->runtime_id);
-    }
-  }
+  // Layout is complete before repaint; no prefix-extension work is scheduled.
 }
 
 void

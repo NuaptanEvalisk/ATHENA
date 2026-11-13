@@ -1879,19 +1879,9 @@ edit_typeset_rep::typeset_sub (SI& x1, SI& y1, SI& x2, SI& y2) {
   try {
 #endif
     bool printed= env->get_string (PAGE_PRINTED) == "true";
-    ttt->progressive= !printed &&
-      env->get_string (PAGE_MEDIUM) == "automatic";
-    path relative_cursor= rp <= tp? tp / rp: path ();
-    ttt->progressive_required=
-      is_nil (relative_cursor)? 0: max (0, relative_cursor->item);
-    bool progressive_was_pending= progressive_typeset_pending;
-    ttt->progressive_advance=
-      !progressive_was_pending || progressive_typeset_continue;
-    ttt->progressive_budget_ms= progressive_was_pending? 12: 0;
-    if (progressive_typeset_continue) {
-      ttt->br->status= CORRUPTED;
-      progressive_typeset_continue= false;
-    }
+    // Complete the document before publishing geometry; a blank tail must not
+    // depend on a later repaint to become available. Bridges still reuse edits.
+    ttt->progressive= false;
     bool folded_screen= !printed &&
       (fold_view_has_toc || N(folded_headings) != 0 ||
        N(folded_tocs) != 0 || N(unfolded_tocs) != 0);
