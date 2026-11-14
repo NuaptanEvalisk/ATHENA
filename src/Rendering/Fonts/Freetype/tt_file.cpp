@@ -10,6 +10,7 @@
 ******************************************************************************/
 
 #include "Rendering/Fonts/Freetype/tt_file.hpp"
+#include "Rendering/Fonts/font.hpp"
 #include "boot.hpp"
 #include "font_domain.hpp"
 #include <mutex>
@@ -213,6 +214,22 @@ tt_platform_add_pattern_names (FcPattern* pattern, const char* field,
   }
 }
 
+static int
+tt_platform_weight (FcPattern* pattern) {
+  int weight= FC_WEIGHT_REGULAR;
+  (void) FcPatternGetInteger (pattern, FC_WEIGHT, 0, &weight);
+  int result= FcWeightToOpenType (weight);
+  if (result <= 0) result= 400;
+  // Some installed faces (notably FandolSong Bold) advertise regular weight
+  // despite an explicit Bold style. Correct both catalog representations here.
+  FcChar8* style= nullptr;
+  if (result == 400 &&
+      FcPatternGetString (pattern, FC_STYLE, 0, &style) == FcResultMatch &&
+      contains (string ("bold"), style_features (string ((const char*) style))))
+    result= 700;
+  return result;
+}
+
 static tree
 tt_platform_characteristics (FcPattern* pattern) {
   tree result (TUPLE);
@@ -235,9 +252,7 @@ tt_platform_characteristics (FcPattern* pattern) {
   if (FcPatternGetInteger (pattern, FC_SPACING, 0, &spacing) == FcResultMatch)
     result << (spacing == FC_MONO || spacing == FC_DUAL?
                "mono=yes": "mono=no");
-  int weight= FC_WEIGHT_REGULAR;
-  if (FcPatternGetInteger (pattern, FC_WEIGHT, 0, &weight) == FcResultMatch)
-    result << (string ("weight=") * as_string (FcWeightToOpenType (weight)));
+  result << (string ("weight=") * as_string (tt_platform_weight (pattern)));
   int width= FC_WIDTH_NORMAL;
   if (FcPatternGetInteger (pattern, FC_WIDTH, 0, &width) == FcResultMatch)
     result << (string ("width=") * as_string (width));
@@ -293,11 +308,9 @@ tt_platform_collect_set (FcFontSet* set) {
       style= string ((const char*) style_value);
     int face_index= 0;
     (void) FcPatternGetInteger (pattern, FC_INDEX, 0, &face_index);
-    int weight= FC_WEIGHT_REGULAR;
     int width= FC_WIDTH_NORMAL;
     int slant= FC_SLANT_ROMAN;
     int spacing= FC_PROPORTIONAL;
-    (void) FcPatternGetInteger (pattern, FC_WEIGHT, 0, &weight);
     (void) FcPatternGetInteger (pattern, FC_WIDTH, 0, &width);
     (void) FcPatternGetInteger (pattern, FC_SLANT, 0, &slant);
     (void) FcPatternGetInteger (pattern, FC_SPACING, 0, &spacing);
@@ -312,8 +325,7 @@ tt_platform_collect_set (FcFontSet* set) {
     record.file.file_utf8.assign (path.data (), N(path));
     record.file.face_index= face_index;
     record.style.assign (style.data (), N(style));
-    record.weight= FcWeightToOpenType (weight);
-    if (record.weight <= 0) record.weight= 400;
+    record.weight= tt_platform_weight (pattern);
     record.width= width;
     record.slant=
       slant == FC_SLANT_ITALIC ? 1 :

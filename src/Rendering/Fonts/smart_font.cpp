@@ -634,7 +634,7 @@ struct profile_face_selections {
   std::map<std::tuple<std::string, std::string, std::string, std::string>, string> entries;
 };
 
-static string
+string
 profile_face_family (string profile, string variant, string series, string shape) {
   auto& cache= font_domain_local<profile_face_selections> ();
   const auto generation= athena::text::font_database_native_view ()->generation;

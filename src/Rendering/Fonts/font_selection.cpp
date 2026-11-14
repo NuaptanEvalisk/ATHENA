@@ -167,7 +167,6 @@ policy_families (
     const font_database_view& view) {
   std::vector<std::string> result;
   const std::string cjk= cjk_preferred_family (scalars);
-  append_unique (result, cjk);
 
   if (!request.fallback.family.empty ()) {
     string family (request.fallback.family.data (), request.fallback.family.size ());
@@ -179,18 +178,23 @@ policy_families (
       string range_variant (range.data (), range.size ());
       if (variant != "" && variant != "rm")
         range_variant= variant * "-" * range_variant;
+      // Resolve the profile before substitutions: the comma-separated rules
+      // are not a physical family name (e.g. italic cjk=KaiTi).
       array<string> logical=
-        logical_font (family, range_variant, series, shape);
+        logical_font (profile_face_family (family, range_variant, series, shape),
+                      range_variant, series, shape);
       logical= apply_substitutions (logical);
       if (N(logical) > 0)
         append_unique (
           result, std::string (logical[0].data (), N(logical[0])));
     }
-    array<string> logical= logical_font (family, variant, series, shape);
+    array<string> logical= logical_font (
+      profile_face_family (family, variant, series, shape), variant, series, shape);
     logical= apply_substitutions (logical);
     if (N(logical) > 0) {
       append_unique (
         result, std::string (logical[0].data (), N(logical[0])));
+      append_unique (result, cjk);
       bool sans= false, mono= false;
       for (int i=1; i<N(logical); ++i) {
         sans= sans || logical[i] == "sansserif";
@@ -202,6 +206,7 @@ policy_families (
         append_unique (result, found->second);
     }
   }
+  else append_unique (result, cjk);
   return result;
 }
 
