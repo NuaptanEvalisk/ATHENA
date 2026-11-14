@@ -2230,6 +2230,26 @@
       ]
     },
     {
+      "command": "emb",
+      "help": "Insert ↪",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↪"
+        }
+      ]
+    },
+    {
+      "command": "hookrightarrow",
+      "help": "Insert ↪",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": "↪"
+        }
+      ]
+    },
+    {
       "command": "rightsquigarrow",
       "help": "Insert ↝",
       "actions": [
