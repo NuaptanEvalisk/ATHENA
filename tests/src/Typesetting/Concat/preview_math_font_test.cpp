@@ -24,6 +24,7 @@
 #include "qt_renderer.hpp"
 #include "Rendering/Fonts/Freetype/tt_file.hpp"
 #include "named_symbol.hpp"
+#include "Editor/Commands/native_latex_commands.hpp"
 #include "math_font.hpp"
 #include "Typesetting/Concat/concater.hpp"
 #include "Typesetting/Bridge/bridge.hpp"
@@ -1088,6 +1089,50 @@ private slots:
         QCOMPARE (qGreen (pixel), qBlue (pixel));
       }
     QVERIFY (ink);
+  }
+
+  void wasyleadstoVirtualBitmapRenders () {
+    string help;
+    command latex;
+    QVERIFY (native_latex_get_command ("leadsto", help, latex));
+    QCOMPARE (help, string ("Insert ⇝"));
+    QVERIFY (!is_nil (latex));
+    athena::contracts::evaluation_state state (
+      athena::contracts::builtin_contracts ().snapshot ());
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);
+    hashmap<string,tree> h5 (UNINIT), h6 (UNINIT);
+    edit_env env (state, url_none (), h1, h2, h5, h6);
+    env->write_default_env ();
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (MODE, "math");
+    env->update ();
+    font base= env->fn;
+    const int hdpi= (72 * base->wpt + PIXEL/2) / PIXEL;
+    const int vdpi= (72 * base->hpt + PIXEL/2) / PIXEL;
+    font recipe= virtual_font (
+      base, "tradi-negate", base->size, hdpi, vdpi, true, true);
+    const glyph leaf= base->get_glyph ("<wasyleadsto>");
+    const glyph resolved= recipe->get_glyph ("<leadsto>");
+    QVERIFY2 (leaf->width > 0 && leaf->height > 0,
+              "Legacy wasyleadsto token has no raster bitmap");
+    QVERIFY2 (resolved->width > 0 && resolved->height > 0,
+              "Named leadsto virtual recipe is missing its bitmap");
+    QImage raster (340, 80, QImage::Format_ARGB32_Premultiplied);
+    raster.fill (Qt::white);
+    QPainter painter (&raster);
+    qt_renderer_rep ren (&painter, 1.0, 340, 80, true);
+    ren.set_clipping (0, -80*PIXEL, 340*PIXEL, 0);
+    ren.set_pencil (pencil ((color) qRgb (0, 0, 0)));
+    base->draw_fixed (&ren, "<wasyleadsto>", 20*PIXEL, -40*PIXEL);
+    recipe->draw_fixed (&ren, "<leadsto>", 180*PIXEL, -40*PIXEL);
+    painter.end ();
+    int legacyInk= 0, recipeInk= 0;
+    for (int y=0; y<raster.height (); ++y)
+      for (int x=0; x<raster.width (); ++x)
+        if (qGray (raster.pixel (x, y)) < 128)
+          ++(x < 170 ? legacyInk : recipeInk);
+    QVERIFY2 (legacyInk > 10, "Wasyleadsto token has no visible ink");
+    QVERIFY2 (recipeInk > 10, "Leadsto virtual recipe has no visible ink");
   }
 };
 

@@ -2217,6 +2217,19 @@
       ]
     },
     {
+      "command": "leadsto",
+      "help": "Insert ⇝",
+      "actions": [
+        {
+          "op": "insert-tree",
+          "value": [
+            "named-symbol",
+            "texmacs:leadsto"
+          ]
+        }
+      ]
+    },
+    {
       "command": "rightsquigarrow",
       "help": "Insert ↝",
       "actions": [
