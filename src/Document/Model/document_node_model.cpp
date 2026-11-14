@@ -1051,9 +1051,21 @@ void source_identity_state::apply (tree& body, const identity_edit_plan& plan) {
       owners[entry.first]= entry.second;
       for (const auto& id: entry.second) locations[id]= entry.first;
     }
-    committed_children.clear ();
-    committed_children.reserve (N(body));
-    for (int j=0; j<N(body); ++j) committed_children.push_back (copy (body[j]));
+    // These are deep snapshots, not shared tree handles. Recopying every root
+    // child here made even a last-paragraph keystroke clone the entire document.
+    // A non-root modification cannot change its root siblings; insert/remove
+    // at the DOCUMENT level instead reports an empty dirty path and uses the
+    // first unchanged-prefix boundary computed during prepare().
+    if (!plan.scope.empty () && N(body) == int (committed_children.size ())) {
+      const int changed= plan.scope.front ();
+      committed_children[changed]= copy (body[changed]);
+    }
+    else {
+      const int begin= plan.root_suffix_begin.value_or (0);
+      committed_children.resize (N(body));
+      for (int j= begin; j<N(body); ++j)
+        committed_children[j]= copy (body[j]);
+    }
     committed_header= copy (node_header (body));
     dirty.reset (); ++revision; applying= false;
   }
