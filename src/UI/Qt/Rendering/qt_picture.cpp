@@ -331,8 +331,11 @@ get_image_for_real (url u, int w, int h, tree eff, SI pixel) {
   return pm;
 }
 
-static hashmap<string,QImage*> qt_pic_cache;
+static hashmap<string,std::shared_ptr<QImage>> qt_pic_cache;
 static std::mutex qt_pic_cache_lock;
+// A cache purge may be requested on the GUI thread while a BufferActor uses
+// the returned image. Pin that image until the caller's next lookup.
+static thread_local std::shared_ptr<QImage> qt_picture_in_use;
 
 static string
 qt_picture_cache_key (url u, int w, int h, tree eff, SI pixel) {
@@ -349,30 +352,23 @@ get_image (url u, int w, int h, tree eff, SI pixel) {
   string key= qt_picture_cache_key (u, w, h, eff, pixel);
   {
     std::lock_guard<std::mutex> guard (qt_pic_cache_lock);
-    if (qt_pic_cache->contains (key)) return qt_pic_cache[key];
+    if (qt_pic_cache->contains (key)) {
+      qt_picture_in_use= qt_pic_cache[key];
+      return qt_picture_in_use.get ();
+    }
   }
 
-  QImage* loaded= get_image_for_real (u, w, h, eff, pixel);
+  std::shared_ptr<QImage> loaded (get_image_for_real (u, w, h, eff, pixel));
   std::lock_guard<std::mutex> guard (qt_pic_cache_lock);
-  if (!qt_pic_cache->contains (key)) {
-    qt_pic_cache (key)= loaded;
-    return loaded;
-  }
-  delete loaded;
-  return qt_pic_cache[key];
+  if (!qt_pic_cache->contains (key)) qt_pic_cache (key)= std::move (loaded);
+  qt_picture_in_use= qt_pic_cache[key];
+  return qt_picture_in_use.get ();
 }
 
 void
 qt_clean_picture_cache () {
   std::lock_guard<std::mutex> guard (qt_pic_cache_lock);
-  iterator<string> it= iterate (qt_pic_cache);
-  while (it->busy ()) {
-    string key= it->next ();
-    QImage* im= qt_pic_cache [key];
-    delete im;
-    qt_pic_cache (key)= (QImage*) NULL;
-  }
-  qt_pic_cache= hashmap<string,QImage*> ();
+  qt_pic_cache= hashmap<string,std::shared_ptr<QImage>> ();
 }
 
 picture

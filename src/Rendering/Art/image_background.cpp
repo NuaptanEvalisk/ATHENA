@@ -12,11 +12,13 @@
 #include "boot.hpp"
 
 #include "athena_platform.hpp"
+#include <QTemporaryFile>
 
 #if ATHENA_PLATFORM_IPADOS
 #include <QImage>
 #include <QImageReader>
 #include <QImageWriter>
+#include <QSaveFile>
 #else
 #include <MagickWand/MagickWand.h>
 #endif
@@ -161,9 +163,18 @@ image_remove_white_background_png (url image, string& error) {
                                                qBlue (row[x]), 0);
   }
 
-  QImageWriter writer (filename, "PNG");
+  QSaveFile output (filename);
+  if (!output.open (QIODevice::WriteOnly)) {
+    error= to_tm (output.errorString ().toStdString ());
+    return false;
+  }
+  QImageWriter writer (&output, "PNG");
   if (!writer.write (bitmap)) {
     error= to_tm (writer.errorString ().toStdString ());
+    return false;
+  }
+  if (!output.commit ()) {
+    error= to_tm (output.errorString ().toStdString ());
     return false;
   }
   return true;
@@ -185,7 +196,11 @@ image_remove_white_background_png (url image, string& error) {
 
   PixelWand* white= NewPixelWand ();
   PixelSetColor (white, "white");
-  MagickSetImageAlphaChannel (wand, ActivateAlphaChannel);
+  // ActivateAlphaChannel leaves a PNG without an alpha channel fully
+  // transparent. SetAlphaChannel initializes an opaque channel when absent
+  // while retaining existing transparency, so only the matched white pixels
+  // become invisible.
+  MagickSetImageAlphaChannel (wand, SetAlphaChannel);
   MagickSetImageBackgroundColor (wand, white);
   MagickSetImageFuzz (wand, 0.06 * QuantumRange);
   if (MagickTransparentPaintImage (wand, white, 0.0, 0.06 * QuantumRange,
@@ -197,8 +212,32 @@ image_remove_white_background_png (url image, string& error) {
   }
 
   MagickSetImageFormat (wand, "PNG32");
-  if (MagickWriteImage (wand, filename.c_str ()) == MagickFalse) {
+  // Never expose a truncated PNG to a renderer still reading the linked path.
+  // Prepare the complete result beside the original and rename it atomically.
+  const QString pattern= QString::fromStdString (
+    (path.parent_path () / (path.filename ().string () + ".XXXXXX.png")).string ());
+  QTemporaryFile output (pattern);
+  if (!output.open ()) {
+    error= to_tm (output.errorString ().toStdString ());
+    DestroyPixelWand (white);
+    DestroyMagickWand (wand);
+    return false;
+  }
+  const std::string temp= output.fileName ().toStdString ();
+  output.close ();
+  if (MagickWriteImage (wand, temp.c_str ()) == MagickFalse) {
     error= to_tm (magick_exception (wand));
+    DestroyPixelWand (white);
+    DestroyMagickWand (wand);
+    return false;
+  }
+
+  std::error_code ec;
+  const auto permissions= fs::status (path, ec).permissions ();
+  if (!ec) fs::permissions (fs::path (temp), permissions, ec);
+  if (!ec) fs::rename (fs::path (temp), path, ec);
+  if (ec) {
+    error= "Could not replace processed image: " * to_tm (ec.message ());
     DestroyPixelWand (white);
     DestroyMagickWand (wand);
     return false;
