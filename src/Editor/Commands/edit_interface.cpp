@@ -2106,11 +2106,15 @@ edit_interface_rep::apply_changes () {
     if (!is_nil (focus_ids) && got_focus)
       native_link_follow_ids (focus_ids, "focus");
   }
-  else if (env_change & THE_SELECTION) {
-    update_focus_loci ();
-    if (!headless_mode) qtm_tooltip_close ();
-    if (!is_nil (focus_ids) && got_focus)
-      native_link_follow_ids (focus_ids, "focus");
+  else {
+    // Async radioactive snapshots affect hover outlines but not focus links.
+    if (env_change & THE_DECORATIONS) update_mouse_loci ();
+    if (env_change & THE_SELECTION) {
+      update_focus_loci ();
+      if (!headless_mode) qtm_tooltip_close ();
+      if (!is_nil (focus_ids) && got_focus)
+        native_link_follow_ids (focus_ids, "focus");
+    }
   }
   if (env_change & THE_LOCUS) {
     if (locus_new_rects != locus_rects) {

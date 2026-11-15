@@ -605,15 +605,20 @@ direct_link_box (path ip, box b, string ref) {
 // hit testing project them onto the old box without redoing paragraph layout.
 class live_radioactive_box_rep final:
     public modifier_box_rep, public inline_link_source {
-  std::shared_ptr<live_radioactive_decorations> live;
-  int child;
-  string tint;
+  struct source {
+    std::shared_ptr<live_radioactive_decorations> live;
+    int child;
+    string tint;
+  };
+  // Structured CONCAT matches and ordinary text matches may decorate the same
+  // source box. Keep both live snapshots without adding a second box layer.
+  std::vector<source> sources;
 
-  template<class F> void for_regions (F&& visit) {
-    const auto snapshot= live->read ();
+  template<class F> void for_regions (const source& link, F&& visit) {
+    const auto snapshot= link.live->read ();
     if (!snapshot) return;
     for (const auto& match: snapshot->spans) {
-      if (match.child != child || match.begin >= match.end) continue;
+      if (match.child != link.child || match.begin >= match.end) continue;
       if (b->get_type () != TEXT_BOX) {
         // A native math expression is a structured box, not a textual leaf.
         // The matching projection addresses it as one complete source node.
@@ -644,54 +649,81 @@ class live_radioactive_box_rep final:
 public:
   live_radioactive_box_rep (path ip, box body,
     std::shared_ptr<live_radioactive_decorations> state, int part, string color):
-    modifier_box_rep (ip, body), live (std::move (state)),
-    child (part), tint (color) {}
+    modifier_box_rep (ip, body), sources ({{std::move (state), part, color}}) {}
+
+  live_radioactive_box_rep (path ip, box body, std::vector<source> links):
+    modifier_box_rep (ip, body), sources (std::move (links)) {}
+
+  box prepend (path new_ip, std::shared_ptr<live_radioactive_decorations> state,
+               int child, string tint) {
+    std::vector<source> links= sources;
+    links.insert (links.begin (), {std::move (state), child, tint});
+    return tm_new<live_radioactive_box_rep> (new_ip, b, std::move (links));
+  }
 
   operator tree () override { return (tree) b; }
   box adjust_kerning (int mode, double factor) override {
-    return live_radioactive_box (ip, b->adjust_kerning (mode, factor),
-                                live, child, tint);
+    return tm_new<live_radioactive_box_rep> (
+      ip, b->adjust_kerning (mode, factor), sources);
   }
   box expand_glyphs (int mode, double factor) override {
-    return live_radioactive_box (ip, b->expand_glyphs (mode, factor),
-                                live, child, tint);
+    return tm_new<live_radioactive_box_rep> (
+      ip, b->expand_glyphs (mode, factor), sources);
   }
   bool inline_link (box& body, inline_link_info& link) override {
     body= b;
-    link= {list<string> (), "", "", 0, live, child, tint};
+    const auto& source= sources.front ();
+    link= {list<string> (), "", "", 0,
+           source.live, source.child, source.tint};
+    return true;
+  }
+  bool inline_links (box& body, std::vector<inline_link_info>& links) override {
+    body= b;
+    for (const auto& source: sources)
+      links.push_back ({list<string> (), "", "", 0,
+                        source.live, source.child, source.tint});
     return true;
   }
   tree message (tree type, SI x, SI y, rectangles& rs) override {
     if (type == "link-target" || type == "select" || type == "double-click") {
-      tree answer;
-      for_regions ([&] (rectangle r, string target) {
-        if (x >= r->x1 && x < r->x2 && y >= r->y1 && y < r->y2) {
-          if (type == "link-target") rs << r;
-          answer= type == "link-target" ?
-            tree (TUPLE, "link-target", target) : tree (TUPLE, "direct-link", target);
-        }
-      });
-      if (!is_nil (answer)) return answer;
+      for (const auto& source: sources) {
+        tree answer;
+        for_regions (source, [&] (rectangle r, string target) {
+          if (x >= r->x1 && x < r->x2 && y >= r->y1 && y < r->y2) {
+            if (type == "link-target") rs << r;
+            answer= type == "link-target" ?
+              tree (TUPLE, "link-target", target) :
+              tree (TUPLE, "direct-link", target);
+          }
+        });
+        if (answer != "") return answer;
+      }
     }
     return modifier_box_rep::message (type, x, y, rs);
   }
   void post_display (renderer& ren) override {
-    const bool decorate= tint != "" && tint != "preserve";
-    const pencil ink= decorate ?
-      pencil (named_color (tint), ren->pixel) : pencil (false);
-    for_regions ([&] (rectangle r, string target) {
-      ren->href (target, r->x1, r->y1, r->x2, r->y2);
-      if (decorate)
-        b->draw_link_ink_clipped (ren,
-          rectangle (r->x1, min (b->y3, r->y1), r->x2,
-                     max (b->y4, r->y2)), ink);
-    });
+    // Inner text ink is painted first; a structured parent match takes
+    // precedence over it, as it did when the boxes were nested.
+    for (auto it= sources.rbegin (); it != sources.rend (); ++it) {
+      const bool decorate= it->tint != "" && it->tint != "preserve";
+      const pencil ink= decorate ?
+        pencil (named_color (it->tint), ren->pixel) : pencil (false);
+      for_regions (*it, [&] (rectangle r, string target) {
+        ren->href (target, r->x1, r->y1, r->x2, r->y2);
+        if (decorate)
+          b->draw_link_ink_clipped (ren,
+            rectangle (r->x1, min (b->y3, r->y1), r->x2,
+                       max (b->y4, r->y2)), ink);
+      });
+    }
   }
 };
 
 box live_radioactive_box (
     path ip, box b, std::shared_ptr<live_radioactive_decorations> links,
     int source_child, string color) {
+  if (auto* decorated= dynamic_cast<live_radioactive_box_rep*> (b.operator-> ()))
+    return decorated->prepend (ip, std::move (links), source_child, color);
   return tm_new<live_radioactive_box_rep> (
     ip, b, std::move (links), source_child, color);
 }

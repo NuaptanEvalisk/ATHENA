@@ -49,6 +49,7 @@ delete_typesetter (typesetter ttt) {
 
 bool
 refresh_radioactive_links (typesetter ttt) {
+  ttt->radioactive_decorations_changed= false;
   const std::uint64_t revision= athena_artifact_radioactive_revision ();
   const auto completed= athena_artifact_radioactive_async_completion_epoch ();
   if (ttt->radioactive_refresh_revision == revision &&

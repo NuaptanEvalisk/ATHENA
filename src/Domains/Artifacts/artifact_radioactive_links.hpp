@@ -155,7 +155,8 @@ public:
 };
 
 bool athena_artifact_radioactive_changed (
-  const std::shared_ptr<AthenaArtifactRadioactiveDependencies>& dependencies);
+    const std::shared_ptr<AthenaArtifactRadioactiveDependencies>& dependencies,
+    bool* decorations_changed= nullptr);
 std::uint64_t athena_artifact_radioactive_generation (
   const std::shared_ptr<AthenaArtifactRadioactiveDependencies>& dependencies);
 std::uint64_t athena_artifact_radioactive_revision ();

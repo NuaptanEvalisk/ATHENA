@@ -298,11 +298,11 @@ struct inline_piece {
 inline_piece inspect_inline (box b) {
   inline_piece result;
   while (auto* wrapper= dynamic_cast<inline_link_source*> (b.operator-> ())) {
-    if (result.links.size () >= 256) return {};
     box body;
-    inline_link_info link;
-    if (!wrapper->inline_link (body, link) || is_nil (body)) return {};
-    result.links.push_back (link);
+    std::vector<inline_link_info> links;
+    if (!wrapper->inline_links (body, links) || is_nil (body) ||
+        result.links.size () + links.size () > 256) return {};
+    result.links.insert (result.links.end (), links.begin (), links.end ());
     b= body;
   }
   result.text= dynamic_cast<utf8_line_box_rep*> (b.operator-> ());

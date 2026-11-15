@@ -50,4 +50,10 @@ class inline_link_source {
 public:
   virtual ~inline_link_source () = default;
   virtual bool inline_link (box& body, inline_link_info& link) = 0;
+  virtual bool inline_links (box& body, std::vector<inline_link_info>& links) {
+    inline_link_info link;
+    if (!inline_link (body, link)) return false;
+    links.push_back (std::move (link));
+    return true;
+  }
 };

@@ -45,6 +45,7 @@ public:
   int  progressive_pending_generation;
   std::uint64_t radioactive_refresh_revision= 0;
   std::uint64_t radioactive_completion_revision= 0;
+  bool radioactive_decorations_changed= false;
 
 public:
   typesetter_rep (edit_env& env, tree et, path ip);

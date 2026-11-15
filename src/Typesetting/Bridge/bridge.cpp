@@ -357,7 +357,10 @@ bridge_rep::my_clean_links () {
 
 bool
 bridge_rep::refresh_radioactive_links () {
-  bool own_changed= athena_artifact_radioactive_changed (radioactive_dependencies);
+  bool decoration_changed= false;
+  bool own_changed= athena_artifact_radioactive_changed (
+    radioactive_dependencies, &decoration_changed);
+  if (decoration_changed) ttt->radioactive_decorations_changed= true;
   // A shared cache may already have been refreshed by a different owner.
   own_changed= own_changed || radioactive_generation !=
     athena_artifact_radioactive_generation (radioactive_dependencies);

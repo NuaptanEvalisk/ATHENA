@@ -1154,13 +1154,13 @@ std::shared_ptr<live_radioactive_decorations> live_tree_matches (
   return live;
 }
 
-void apply_async_completion (MatchQuery& query, const RadioactiveIndex& index) {
-  if (!query.mailbox) return;
+bool apply_async_completion (MatchQuery& query, const RadioactiveIndex& index) {
+  if (!query.mailbox) return false;
   auto completion= std::atomic_exchange_explicit (
     &query.mailbox->result, std::shared_ptr<const AsyncMatchCompletion> {},
     std::memory_order_acq_rel);
   if (!completion || completion->serial != query.serial ||
-      completion->revision != index.matching_revision) return;
+      completion->revision != index.matching_revision) return false;
   query.pending= false;
   query.initialized= true;
   query.revision= completion->revision;
@@ -1191,6 +1191,7 @@ void apply_async_completion (MatchQuery& query, const RadioactiveIndex& index) {
   query.selected= completion->selected;
   query.decorations->publish (next);
   async_decoration_epoch.fetch_add (1, std::memory_order_release);
+  return true;
 }
 
 std::vector<AthenaArtifactRadioactiveMatch> cached_text_matches (
@@ -1704,7 +1705,9 @@ bool athena_artifact_radioactive_baseline (
 }
 
 bool athena_artifact_radioactive_changed (
-    const std::shared_ptr<AthenaArtifactRadioactiveDependencies>& dependencies) {
+    const std::shared_ptr<AthenaArtifactRadioactiveDependencies>& dependencies,
+    bool* decorations_changed) {
+  if (decorations_changed) *decorations_changed= false;
   if (!dependencies) return false;
   auto index= active_index ();
   static const RadioactiveIndex empty;
@@ -1714,17 +1717,19 @@ bool athena_artifact_radioactive_changed (
     changed_heads (dependencies->revision, current) :
     std::shared_ptr<const QSet<QString>> {};
   bool affected= false;
+  bool decorated= false;
   for (auto& entry: dependencies->queries) {
     auto& query= entry.second;
     if (query.decorations) {
       // Only the document actor reads source paths or installs new link
       // rectangles. A completion does not corrupt the typeset bridge: both
       // text metrics and the retained box hierarchy remain unchanged.
-      apply_async_completion (query, current);
+      decorated |= apply_async_completion (query, current);
       if (!index) continue;
       if (query.pending) {
         if (query.requested_revision != current.matching_revision) {
           clear_live (query);
+          decorated= true;
           async_decoration_epoch.fetch_add (1, std::memory_order_release);
           schedule_async_match (query, index);
         }
@@ -1741,6 +1746,7 @@ bool athena_artifact_radioactive_changed (
         continue;
       }
       clear_live (query);
+      decorated= true;
       async_decoration_epoch.fetch_add (1, std::memory_order_release);
       schedule_async_match (query, index);
       continue;
@@ -1755,6 +1761,7 @@ bool athena_artifact_radioactive_changed (
   }
   dependencies->revision= current.matching_revision;
   if (affected) ++dependencies->generation;
+  if (decorations_changed) *decorations_changed= decorated;
   return affected;
 }
 

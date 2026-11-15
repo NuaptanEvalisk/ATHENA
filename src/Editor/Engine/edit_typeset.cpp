@@ -2095,10 +2095,13 @@ edit_typeset_rep::typeset_invalidate_all () {
 void
 edit_typeset_rep::typeset_refresh_radioactive_links () {
   if (refresh_radioactive_links (ttt)) notify_change (THE_TREE);
-  const auto epoch= athena_artifact_radioactive_decoration_epoch ();
-  if (radioactive_decorations_seen != epoch) {
-    radioactive_decorations_seen= epoch;
+  if (ttt->radioactive_decorations_changed) {
     notify_change (THE_DECORATIONS);
+    // Async matches change the paint and hit regions of retained boxes without
+    // invalidating the typesetter. A decoration-only notification does not
+    // repaint those boxes, leaving obsolete blue ink visible after its link
+    // has disappeared. Redraw the viewport, not the document layout.
+    invalidate_all ();
   }
 }
 
