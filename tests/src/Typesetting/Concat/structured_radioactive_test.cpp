@@ -127,6 +127,39 @@ private slots:
     QCOMPARE (first->spans.front ().begin, 0);
     QCOMPARE (first->spans.front ().end, 16);
 
+    // A new document snapshot must not blank an unchanged paragraph while its
+    // defining-occurrence context is checked again by the async completion.
+    {
+      AthenaArtifactRadioactiveScope scope (dependencies, &dependencies, true);
+      link= athena_artifact_radioactive_async_text (
+        "cohomology rings are useful", path (3), url_none (),
+        tree (DOCUMENT, "another paragraph changed"), path ());
+      scope.complete ();
+    }
+    QCOMPARE (link->read (), first);
+
+    // Rebase retained matches through consecutive edits without waiting for
+    // either job. UTF-8 source offsets must not become token or UTF-16 offsets.
+    for (const string& text: {string ("cohomology rings are useful today"),
+         string ("\xe4\xb8\xad\xe6\x96\x87 cohomology rings are useful today")}) {
+      AthenaArtifactRadioactiveScope scope (dependencies, &dependencies, true);
+      link= athena_artifact_radioactive_async_text (
+        text, path (3), url_none (), tree (), path ());
+      scope.complete ();
+      QVERIFY (link->read ());
+      QCOMPARE (link->read ()->spans.size (), size_t (1));
+      const int prefix= text[0] == 'c' ? 0 : 7;
+      QCOMPARE (link->read ()->spans.front ().begin, prefix);
+      QCOMPARE (link->read ()->spans.front ().end, prefix + 16);
+    }
+    auto rebased= link->read ();
+    QTRY_VERIFY_WITH_TIMEOUT (([&] {
+      athena_artifact_radioactive_changed (dependencies);
+      return link->read () != rebased;
+    }) (), 10000);
+    QCOMPARE (link->read ()->spans.front ().begin, 7);
+    QCOMPARE (link->read ()->spans.front ().end, 23);
+
     // A negative match still needs its own query. When a new definition is
     // published, the exact same retained geometry acquires a live link.
     std::shared_ptr<live_radioactive_decorations> negative;
@@ -152,6 +185,22 @@ private slots:
     }) (), 10000);
     QCOMPARE (negative->read ()->spans.front ().end, 14);
 
+    // Changing a matched title schedules a replacement without a blank frame.
+    records.push_back (record ("another", "cohomology rings"));
+    publish ();
+    first= link->read ();
+    const auto epoch= athena_artifact_radioactive_decoration_epoch ();
+    bool decorations_changed= false;
+    athena_artifact_radioactive_changed (dependencies, &decorations_changed);
+    QVERIFY (!decorations_changed);
+    QCOMPARE (link->read (), first);
+    QCOMPARE (athena_artifact_radioactive_decoration_epoch (), epoch);
+    QTRY_VERIFY_WITH_TIMEOUT (([&] {
+      athena_artifact_radioactive_changed (dependencies);
+      return link->read () != first;
+    }) (), 10000);
+    QCOMPARE (link->read ()->spans.size (), size_t (1));
+
     // A replacement under the same source slot invalidates the old result.
     {
       AthenaArtifactRadioactiveScope scope (dependencies, &dependencies, true);
@@ -159,10 +208,12 @@ private slots:
         "no relevant title", path (4), url_none (), tree (), path ());
       scope.complete ();
     }
-    QVERIFY (!negative->read ());
+    QVERIFY (negative->read ());
+    QCOMPARE (negative->read ()->spans.size (), size_t (0));
+    rebased= negative->read ();
     QTRY_VERIFY_WITH_TIMEOUT (([&] {
       athena_artifact_radioactive_changed (dependencies);
-      return bool (negative->read ());
+      return negative->read () != rebased;
     }) (), 10000);
     QCOMPARE (negative->read ()->spans.size (), size_t (0));
   }

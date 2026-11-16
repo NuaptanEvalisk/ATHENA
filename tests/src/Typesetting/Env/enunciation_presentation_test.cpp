@@ -24,6 +24,9 @@
 #include "gui.hpp"
 #include "native_dispatch.hpp"
 #include "App/Runtime/server.hpp"
+#include "App/Runtime/buffer_state.hpp"
+#include "App/Runtime/execution_context.hpp"
+#include "Editor/Engine/edit_main.hpp"
 #include "Typesetting/typesetter.hpp"
 #include "Typesetting/Bridge/impl_typesetter.hpp"
 #include "analyze.hpp"
@@ -46,6 +49,17 @@
 
 bool headless_mode= true;
 bool is_headless () { return true; }
+static server_rep* test_server= nullptr;
+
+class RadioactiveEditor: public edit_main_rep {
+public:
+  using editor_rep::eb;
+  using editor_rep::contract_state;
+  using edit_typeset_rep::get_typesetter;
+  RadioactiveEditor (server_rep* server, buffer_document_state* buffer):
+    editor_rep (server, buffer), edit_main_rep (server, buffer) {}
+  void* derived_this () override { return this; }
+};
 
 namespace {
 namespace node= athena::node;
@@ -987,6 +1001,90 @@ private slots:
     QCOMPARE (node::id (changed), node::id (t));
   }
 
+  void radioactiveTypingKeepsPublishedLinks_data () {
+    QTest::addColumn<QString> ("kind");
+    for (const auto* kind: {"theorem", "proof", "definition"})
+      QTest::newRow (kind) << QString (kind);
+  }
+
+  void radioactiveTypingKeepsPublishedLinks () {
+    QFETCH (QString, kind);
+    QTemporaryDir directory;
+    const auto root= std::filesystem::path (directory.path ().toStdString ());
+    AthenaVaultfileInfo info;
+    std::string error;
+    QVERIFY2 (athena_vaultfile_write (root, info, error), error.c_str ());
+    QCOMPARE (vault_load (url_system (root.string ().c_str ()), "test", "vault.sqlite"),
+              string (""));
+    struct Cleanup { ~Cleanup () {
+      athena_artifact_radioactive_enable_async (false);
+      vault_close ();
+    } } cleanup;
+    athena_artifact_radioactive_refresh ();
+    AthenaArtifactRecord record;
+    record.uuid= "spectral-theorem";
+    record.type= "definition";
+    record.relative_path= "dictionary.ath";
+    record.semantic_names= {"spectral theorem"};
+    athena_artifact_radioactive_overlay (
+      vault_capture_context ()->incarnation, "dictionary.ath", 7301, {record});
+    athena_artifact_radioactive_enable_async (true);
+    tree theorem= source (kind.toUtf8 ().constData (), false);
+    theorem[0]= tree (DOCUMENT, "spectral theorem first paragraph",
+                     "spectral theorem second paragraph");
+    auto* buffer= tm_new<buffer_document_state> (
+      nullptr, string ((root / "editing.ath").string ().c_str ()), "", "UTF-8", false, 0);
+    swap_current_document_tree (&buffer->document);
+    buffer->data->init ("no-zoom")= "true";
+    buffer->data->init (ZOOM_FACTOR)= "1";
+    set_document (buffer->document, buffer->root_path, tree (DOCUMENT, theorem));
+    auto* ed= tm_new<RadioactiveEditor> (test_server, buffer);
+    struct Delete {
+      ::editor owner;
+      buffer_document_state* buffer;
+      ~Delete () {
+        owner= ::editor ();
+        swap_current_document_tree (nullptr);
+        tm_delete (buffer);
+      }
+    } destroy {::editor (ed), buffer};
+    ed->init_style ("generic");
+    ed->typeset_preamble ();
+    ExecutionContext context (nullptr, ed, &ed->contract_state,
+      &buffer->document, 0, 0, 0, EXECUTION_CAPABILITY_BUFFER);
+    ExecutionScope execution (context);
+    ed->set_enunciation_editing_id (node::id (theorem));
+    ed->go_to_end (buffer->root_path * path (0, 0, 1));
+    auto ts= ed->get_typesetter ();
+    auto render= [&] { ed->typeset_forced (); return ed->eb; };
+    box rendered= render ();
+    AthenaArtifactRadioactiveMatch match;
+    match.uuids= {record.uuid};
+    match.disambiguation_key= athena_artifact_radioactive_key (record);
+    const string destination (athena_artifact_radioactive_destination (match).c_str ());
+    auto linked= [&] (int paragraph) {
+      auto caret= rendered->find_check_cursor (
+        buffer->root_path * path (0, 0, paragraph, 2));
+      if (!caret->valid) return false;
+      rectangles regions;
+      return rendered->message ("link-target", caret->ox,
+        caret->oy + (caret->y1 + caret->y2)/2, regions) ==
+        tree (TUPLE, "link-target", destination);
+    };
+    QTRY_VERIFY_WITH_TIMEOUT ((refresh_radioactive_links (ts), linked (0) && linked (1)), 10000);
+    // Do not consume another worker result between edits: these boxes must
+    // retain the published links, rather than briefly paint an empty snapshot.
+    for (bool removing: {false, false, true}) {
+      ed->start_editing ();
+      if (removing) ed->remove_text (false);
+      else ed->insert_tree ("x");
+      ed->end_editing ();
+      rendered= render ();
+      QVERIFY2 (linked (0), "Typing discarded the untouched paragraph's published link");
+      QVERIFY2 (linked (1), "Typing discarded the edited paragraph's unchanged link");
+    }
+  }
+
   void radioactiveDictionaryChangesPreserveNestedParagraphs () {
     QTemporaryDir directory;
     QVERIFY (directory.isValid ());
@@ -1115,6 +1213,7 @@ static void run_tests (int argc, char** argv) {
   int result;
   {
     server sv;
+    test_server= sv.operator-> ();
     EnunciationPresentationTest test;
     result= QTest::qExec (&test, argc, argv);
   }

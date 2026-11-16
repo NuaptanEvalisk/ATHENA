@@ -319,7 +319,11 @@ bridge_compound_rep::notify_macro (
               env->depends (st[d + 1], var, l) ||
               env->depends (st[d + 2], var, l) ||
               env->depends (st[d + 3], var, l);
-    valid= false;
+    // The usual QED layout retains macro arguments. Deliver edits to their
+    // bridges instead of discarding every paragraph's live decorations.
+    // my_typeset still recomputes the rewrite and replaces a changed layout.
+    if (valid && dep && !is_nil (body))
+      body->notify_macro (type, var, l, p, u);
     status= CORRUPTED;
     return dep;
   }

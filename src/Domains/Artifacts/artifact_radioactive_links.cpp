@@ -956,12 +956,8 @@ bool same_matches (const std::vector<AthenaArtifactRadioactiveMatch>& a,
   return true;
 }
 
-bool update_query (MatchQuery& query, const RadioactiveIndex& index,
-    QString text, std::vector<Token> tokens, AthenaArtifactRadioactiveWork& work) {
-  // A never-matched query must visit every position anyway. Its old revision
-  // is not a comparison baseline and must not trigger a change-journal merge.
-  const auto heads= query.initialized ? changed_heads (query.revision, index) :
-    std::shared_ptr<const QSet<QString>> ();
+std::pair<int,int> unchanged_tokens (const MatchQuery& query,
+    const QString& text, const std::vector<Token>& tokens) {
   const int old_count= query.tokens.size (), count= tokens.size ();
   int first= 0, suffix= 0;
   // Include surface text and gaps: blacklists apply to surface forms, not only
@@ -983,6 +979,17 @@ bool update_query (MatchQuery& query, const RadioactiveIndex& index,
         text.mid (tokens[ni].start, ne-tokens[ni].start)) break;
     ++suffix;
   }
+  return {first, suffix};
+}
+
+bool update_query (MatchQuery& query, const RadioactiveIndex& index,
+    QString text, std::vector<Token> tokens, AthenaArtifactRadioactiveWork& work) {
+  // A never-matched query must visit every position anyway. Its old revision
+  // is not a comparison baseline and must not trigger a change-journal merge.
+  const auto heads= query.initialized ? changed_heads (query.revision, index) :
+    std::shared_ptr<const QSet<QString>> ();
+  const int old_count= query.tokens.size (), count= tokens.size ();
+  const auto [first, suffix]= unchanged_tokens (query, text, tokens);
   const bool edited= !query.initialized || first != count || first != old_count;
   std::vector<std::shared_ptr<const MatchChoice>> choices (count);
   for (int i=0; i<first; ++i) choices[i]= query.choices[i];
@@ -1054,8 +1061,8 @@ std::shared_ptr<live_radioactive_decorations> ensure_live (MatchQuery& query) {
   return query.decorations;
 }
 
-void clear_live (MatchQuery& query) {
-  if (query.decorations) query.decorations->publish ({});
+void invalidate_live (MatchQuery& query) {
+  // Cancel stale work without erasing the last committed decoration snapshot.
   if (query.mailbox)
     query.mailbox->wanted.fetch_add (1, std::memory_order_release);
   ++query.serial;
@@ -1069,10 +1076,29 @@ void update_live_source (MatchQuery& query, url file, tree document, path source
   // exclusion must be recomputed by the actor, not reused from old metadata.
   if (query.source_file != file || query.source_path != source ||
       query.source_document.operator-> () != document.operator-> ())
-    clear_live (query);
+    invalidate_live (query);
   query.source_file= file;
   query.source_document= document;
   query.source_path= source;
+}
+
+void publish_live_matches (MatchQuery& query);
+
+void retain_live_matches (MatchQuery& query, const QString& text,
+                         const std::vector<Token>& tokens) {
+  const auto [first, suffix]= unchanged_tokens (query, text, tokens);
+  const int old_count= query.tokens.size (), count= tokens.size ();
+  std::vector<AthenaArtifactRadioactiveMatch> retained;
+  for (auto match: query.selected) {
+    if (match.end <= first) retained.push_back (std::move (match));
+    else if (match.start >= old_count - suffix) {
+      match.start+= count - old_count;
+      match.end+= count - old_count;
+      retained.push_back (std::move (match));
+    }
+  }
+  query.selected= std::move (retained);
+  invalidate_live (query);
 }
 
 std::shared_ptr<live_radioactive_decorations> live_text_matches (
@@ -1083,7 +1109,7 @@ std::shared_ptr<live_radioactive_decorations> live_text_matches (
   query.parts.resize (1);
   auto& part= query.parts[0];
   const bool edited= update_part (part, source, dependencies.work);
-  if (edited) clear_live (query);
+  if (edited) retain_live_matches (query, part.projection.text, part.tokens);
   query.text= part.projection.text;
   query.tokens= part.tokens;
   query.positions.clear ();
@@ -1096,6 +1122,7 @@ std::shared_ptr<live_radioactive_decorations> live_text_matches (
   query.heads.clear ();
   for (const auto& token: query.tokens) query.heads.insert (token.key);
   update_live_source (query, file, document, source_path);
+  if (edited && live->read ()) publish_live_matches (query);
   auto index= active_index ();
   if (index && !query.pending &&
       (!query.initialized || query.revision != index->matching_revision))
@@ -1139,7 +1166,7 @@ std::shared_ptr<live_radioactive_decorations> live_tree_matches (
   }
   const bool edited= query.text != surface ||
     query.positions != positions || query.child_lengths != lengths;
-  if (edited) clear_live (query);
+  if (edited) retain_live_matches (query, surface, tokens);
   query.text= std::move (surface);
   query.tokens= std::move (tokens);
   query.positions= std::move (positions);
@@ -1147,6 +1174,7 @@ std::shared_ptr<live_radioactive_decorations> live_tree_matches (
   query.heads.clear ();
   for (const auto& token: query.tokens) query.heads.insert (token.key);
   update_live_source (query, file, document, source_path);
+  if (edited && live->read ()) publish_live_matches (query);
   auto index= active_index ();
   if (index && index->has_structured_names && !query.pending &&
       (!query.initialized || query.revision != index->matching_revision))
@@ -1154,24 +1182,11 @@ std::shared_ptr<live_radioactive_decorations> live_tree_matches (
   return live;
 }
 
-bool apply_async_completion (MatchQuery& query, const RadioactiveIndex& index) {
-  if (!query.mailbox) return false;
-  auto completion= std::atomic_exchange_explicit (
-    &query.mailbox->result, std::shared_ptr<const AsyncMatchCompletion> {},
-    std::memory_order_acq_rel);
-  if (!completion || completion->serial != query.serial ||
-      completion->revision != index.matching_revision) return false;
-  query.pending= false;
-  query.initialized= true;
-  query.revision= completion->revision;
+void publish_live_matches (MatchQuery& query) {
   const auto next= std::make_shared<live_radioactive_snapshot> ();
-  for (const auto& match: completion->selected) {
+  for (const auto& match: query.selected) {
     if (match.start < 0 || match.end <= match.start ||
         std::size_t (match.end) > query.positions.size ()) continue;
-    if (!is_nil (query.source_path) &&
-        athena_artifact_radioactive_is_defining_occurrence (
-          match, query.source_file, query.source_document, query.source_path))
-      continue;
     const auto target= athena_artifact_radioactive_destination (match);
     if (target.empty ()) continue;
     const auto& start= query.positions[match.start].first;
@@ -1188,8 +1203,27 @@ bool apply_async_completion (MatchQuery& query, const RadioactiveIndex& index) {
           string (target.data (), int (target.size ()))});
     }
   }
-  query.selected= completion->selected;
   query.decorations->publish (next);
+}
+
+bool apply_async_completion (MatchQuery& query, const RadioactiveIndex& index) {
+  if (!query.mailbox) return false;
+  auto completion= std::atomic_exchange_explicit (
+    &query.mailbox->result, std::shared_ptr<const AsyncMatchCompletion> {},
+    std::memory_order_acq_rel);
+  if (!completion || completion->serial != query.serial ||
+      completion->revision != index.matching_revision) return false;
+  query.pending= false;
+  query.initialized= true;
+  query.revision= completion->revision;
+  query.selected= completion->selected;
+  if (!is_nil (query.source_path))
+    query.selected.erase (std::remove_if (
+      query.selected.begin (), query.selected.end (), [&] (const auto& match) {
+        return athena_artifact_radioactive_is_defining_occurrence (
+          match, query.source_file, query.source_document, query.source_path);
+      }), query.selected.end ());
+  publish_live_matches (query);
   async_decoration_epoch.fetch_add (1, std::memory_order_release);
   return true;
 }
@@ -1728,9 +1762,7 @@ bool athena_artifact_radioactive_changed (
       if (!index) continue;
       if (query.pending) {
         if (query.requested_revision != current.matching_revision) {
-          clear_live (query);
-          decorated= true;
-          async_decoration_epoch.fetch_add (1, std::memory_order_release);
+          invalidate_live (query);
           schedule_async_match (query, index);
         }
         continue;
@@ -1745,9 +1777,7 @@ bool athena_artifact_radioactive_changed (
         query.revision= current.matching_revision;
         continue;
       }
-      clear_live (query);
-      decorated= true;
-      async_decoration_epoch.fetch_add (1, std::memory_order_release);
+      invalidate_live (query);
       schedule_async_match (query, index);
       continue;
     }
