@@ -37,9 +37,17 @@ class NativeMathEditor: public edit_main_rep {
 public:
   using editor_rep::contract_state;
   using editor_rep::eb;
+  using editor_rep::current_display_cursor;
   NativeMathEditor (server_rep* server, buffer_document_state* buffer):
     editor_rep (server, buffer), edit_main_rep (server, buffer) {}
   void* derived_this () override { return this; }
+  void compute_env_rects (path p, rectangles& rs, bool recurse, SI width) {
+    const auto context= editor_rep::cursor_context_at (the_path ());
+    if (!context) return;
+    with_admitted_navigation (*context, [&] (const cursor_navigation& navigation) {
+      edit_interface_rep::compute_env_rects (p, p, rs, recurse, width, navigation);
+    });
+  }
 };
 
 class NativeV3MathEditorTest: public QObject {
@@ -104,6 +112,35 @@ class NativeV3MathEditorTest: public QObject {
   }
 
 private slots:
+  void matrixScriptKeepsPreparedCursor () {
+    ExecutionContext context (nullptr, editor, &editor->contract_state,
+      &buffer->document, 0, 0, 0, EXECUTION_CAPABILITY_BUFFER);
+    ExecutionScope scope (context);
+    tree matrix= compound ("matrix", tree (TFORMAT,
+      tree (TABLE, tree (ROW, tree (CELL, "G"), tree (CELL, "F")),
+                   tree (ROW, tree (CELL, "F"), tree (CELL, "E")))));
+    reset_inline (matrix);
+    const path cell= content_path () * path (0, 0, 0, 0) * 0;
+    editor->go_to_end (cell);
+    editor->typeset_forced ();
+    editor->current_display_cursor ();
+    QCOMPARE (editor->get_env_value (MODE), tree ("math"));
+    const int base_level= as_int (editor->get_env_value (MATH_LEVEL));
+    editor->start_editing ();
+    editor->make_script (false, true);
+    editor->end_editing ();
+    QVERIFY (is_func (subtree (current_document_tree (), cell), MATH_SCRIPTS, 5));
+    QCOMPARE (editor->the_path (), cell * path (3, 0));
+    editor->typeset_forced ();
+    editor->current_display_cursor ();
+    QCOMPARE (editor->get_env_value (MODE), tree ("math"));
+    QCOMPARE (editor->get_env_value (MATH_LEVEL), tree (as_string (base_level + 1)));
+    QVERIFY (editor->eb->find_check_cursor (editor->the_path ())->valid);
+    editor->insert_tree ("i");
+    editor->typeset_forced ();
+    QCOMPARE (subtree (current_document_tree (), cell * 3), tree ("i"));
+  }
+
   void removedDisplayCommandsAreUnknown () {
     for (const char* name: {"equation", "equation*", "eqnarray", "eqnarray*"}) {
       string help;

@@ -816,6 +816,17 @@ public:
     if (is_atom (bp)) return reverse (ip) * path (bp->item, 0);
     return modifier_box_rep::find_tree_path (bp);
   }
+  athena::contracts::evaluation_boundary_handle find_source_boundary (path bp) override {
+    if (!is_atom (bp)) return modifier_box_rep::find_source_boundary (bp);
+    // Vacant slots are virtual leaves of this box, but their environment
+    // belongs to the slot's recorded layout, not to the scripts owner.
+    // Tables can evaluate the same source more than once, so returning the
+    // owner's boundary makes the empty slot's occurrence ambiguous.
+    box layout= layouts[bp->item-1];
+    bool found;
+    const path position= layout->find_box_path (find_tree_path (bp), found);
+    return layout->find_source_boundary (position);
+  }
   cursor find_cursor (path bp) override {
     if (!is_atom (bp)) return modifier_box_rep::find_cursor (bp);
     box layout= layouts[bp->item-1];
