@@ -500,7 +500,11 @@ concater_rep::typeset_v3_variant (tree t, path ip) {
     typeset_error (t, ip); return;
   }
   native_math_context_scope mode (*env.operator-> (), t);
+  // The variant's borders are distinct from its editable expression's paths.
+  // Preserve both so focus/selection cannot fall back to paragraph padding.
+  marker (descend (ip, 0));
   typeset (t[1], descend (ip, 1));
+  marker (descend (ip, 1));
 }
 
 void

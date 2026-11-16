@@ -112,6 +112,43 @@ class NativeV3MathEditorTest: public QObject {
   }
 
 private slots:
+  void displayVariantBackspaceKeepsLocalFocus () {
+    ExecutionContext context (nullptr, editor, &editor->contract_state,
+      &buffer->document, 0, 0, 0, EXECUTION_CAPABILITY_BUFFER);
+    ExecutionScope scope (context);
+    reset ("");
+    editor->typeset_forced ();
+    const tree variant (MATH_VARIANT, "bb", "N");
+    // The N N keymap's insert-tree action; key sequence feedback requires a UI.
+    editor->start_editing ();
+    editor->insert_tree (variant);
+    editor->end_editing ();
+    QCOMPARE (content (), variant);
+    editor->typeset_forced ();
+    editor->start_editing ();
+    editor->remove_text (false);
+    editor->end_editing ();
+    QCOMPARE (content (), variant);
+    QCOMPARE (editor->the_path (), content_path () * path (1, 1));
+    editor->typeset_forced ();
+    QVERIFY (editor->eb->find_check_cursor (editor->the_path ())->valid);
+    selection glyph= editor->eb->find_check_selection (
+      content_path () * path (1, 0), content_path () * path (1, 1));
+    QVERIFY (glyph->valid);
+    for (int side: {0, 1}) {
+      bool found= false;
+      editor->eb->find_box_path (content_path () * side, found);
+      QVERIFY2 (found, "MathVariant boundary has no rendered box");
+    }
+    rectangles focus;
+    editor->compute_env_rects (content_path (), focus, false, PIXEL);
+    QVERIFY (N(focus) > 0);
+    rectangle bounds= least_upper_bound (glyph->rs);
+    rectangle outline= least_upper_bound (focus);
+    QVERIFY (outline->x1 >= bounds->x1 - 4*PIXEL);
+    QVERIFY (outline->x2 <= bounds->x2 + 4*PIXEL);
+  }
+
   void matrixScriptKeepsPreparedCursor () {
     ExecutionContext context (nullptr, editor, &editor->contract_state,
       &buffer->document, 0, 0, 0, EXECUTION_CAPABILITY_BUFFER);
