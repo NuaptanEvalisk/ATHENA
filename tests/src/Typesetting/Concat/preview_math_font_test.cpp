@@ -13,6 +13,7 @@
 #include <functional>
 #include "boot.hpp"
 #include "converter.hpp"
+#include "convert.hpp"
 #include "data_cache.hpp"
 #include "Document/NodeContracts/execution_state.hpp"
 #include "gui.hpp"
@@ -55,6 +56,38 @@ letter_font (box b) {
 class PreviewMathFontTest: public QObject {
   Q_OBJECT
 private slots:
+  void accentWithCommandInserter () {
+    athena::contracts::evaluation_state state (athena::contracts::builtin_contracts ().snapshot ());
+    hashmap<string,tree> h1 (UNINIT), h2 (UNINIT), h5 (UNINIT), h6 (UNINIT);
+    edit_env env (state, url_none (), h1, h2, h5, h6);
+    env->write_default_env ();
+    env->exec (tree (USE_PACKAGE, "generic"));
+    env->write (FONT, "TeX Gyre Pagella");
+    env->write (MODE, "math");
+    env->write (FONT_SERIES, "bold");
+    env->write (MATH_FONT_SERIES, "bold");
+    env->update ();
+    auto before= env->fn;
+    tree accent (MATH_ACCENT, "̃", "o", tree (HYBRID, "longcommandname"));
+    athena::node::metadata meta;
+    meta.properties["math:accent-stretch"]= athena::node::property (false);
+    athena::node::set (accent, meta);
+    box result= typeset_as_concat (env, accent, path (0));
+    QVERIFY (result->w () > 0);
+    QCOMPARE (env->fn->res_name, before->res_name);
+    QVERIFY (!occurs ("<rubber-", tree_to_scheme ((tree) result)));
+    const int width= (result->x4-result->x3)/PIXEL + 32;
+    const int height= (result->y4-result->y3)/PIXEL + 32;
+    QImage image (width, height, QImage::Format_ARGB32_Premultiplied);
+    image.fill (Qt::white);
+    QPainter painter (&image);
+    qt_renderer_rep renderer (&painter, 1.0, width, height, true);
+    renderer.set_clipping (0, -height*PIXEL, width*PIXEL, 0);
+    rectangles invalid;
+    result->redraw (&renderer, path (), invalid,
+      16*PIXEL-result->x3, -16*PIXEL-result->y4);
+  }
+
   void derivedDirectoryIsAReplayedView () {
     athena::contracts::evaluation_state state (athena::contracts::builtin_contracts ().snapshot ());
     hashmap<string,tree> h1 (UNINIT), h2 (UNINIT);

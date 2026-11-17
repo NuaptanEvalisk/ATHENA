@@ -451,18 +451,28 @@ compute_wide_accent (path ip, box b, string s,
   if (unicode && scalar_accent) {
     const SI target= max ((SI) 0, ax2 - ax1);
     auto stretched= athena::text::shape_math_stretch (fn, scalar, target, false);
-    if (stretched && (!wide || stretched->extent >= target)) {
+    if (stretched) {
       wideb= math_glyph_box (decorate_middle (ip), s, fn, pen,
                              std::move (stretched->run));
-      sep= above ? -fn->yx : fn->sep;
-      if (above) {
-        const SI min_d= fn->yx / 8;
-        const SI max_d= fn->yx / 3;
-        if (wideb->y1 + sep < min_d) sep= min_d - wideb->y1;
-        if (wideb->y1 + sep >= max_d) sep= max_d - wideb->y1;
+      // Some MATH accents have finite size variants but no assembly. Keep
+      // the largest glyph instead of treating its UTF-8 bytes as <name>.
+      if (wide && stretched->extent > 0 && stretched->extent < target) {
+        const double sx= static_cast<double> (target) / stretched->extent;
+        wideb= transformed_box (decorate_middle (ip), wideb,
+          scaling (point (sx, 1.0), point (0.0, 0.0)));
       }
-      return stretched->assembled || stretched->extent > fn->wquad;
     }
+    else
+      wideb= wide_box (decorate_middle (ip), s, fn, pen, wide ? target : 0);
+    sep= above ? -fn->yx : fn->sep;
+    if (above) {
+      const SI min_d= fn->yx / 8;
+      const SI max_d= fn->yx / 3;
+      if (wideb->y1 + sep < min_d) sep= min_d - wideb->y1;
+      if (wideb->y1 + sep >= max_d) sep= max_d - wideb->y1;
+    }
+    return wide || (stretched &&
+      (stretched->assembled || stretched->extent > fn->wquad));
   }
   if (ends (s, "dot>") || (s == "<acute>") ||
       (s == "<grave>") || (s == "<abovering>")) wide= false;
