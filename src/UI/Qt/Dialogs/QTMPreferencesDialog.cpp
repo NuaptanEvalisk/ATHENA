@@ -1132,7 +1132,7 @@ QTMPreferencesDialog::buildGeneralPage () {
     add_toggle (basicForm, "middle click closes ads tab");
   QObject::connect (middleClickAdsTabs, &QCheckBox::toggled,
                     [] () { qtm_apply_ads_tab_close_preferences (); });
-  QComboBox* saveMode= add_combo (basicForm, "document save mode");
+  saveMode= add_combo (basicForm, "document save mode");
   QComboBox* realtimeInterval= add_combo (basicForm, "realtime save interval");
   QObject::connect (saveMode, qOverload<int> (&QComboBox::currentIndexChanged),
                     [] { qtm_document_persistence_preferences_changed (); });
@@ -1887,6 +1887,33 @@ QTMPreferencesDialog::buildVaultCategories () {
     backupDescription->setText (dispatcherReadError.isEmpty ()
       ? "No active vault." : dispatcherReadError);
   }
+  QFrame* warning= new QFrame (backup);
+  warning->setFrameShape (QFrame::StyledPanel);
+  auto* warningLayout= new QHBoxLayout (warning);
+  auto* warningIcon= new QLabel (warning);
+  warningIcon->setPixmap (warning->style ()->standardIcon (
+    QStyle::SP_MessageBoxWarning).pixmap (24, 24));
+  warningLayout->addWidget (warningIcon);
+  auto* warningText= new QLabel (
+    "Realtime saves can trigger repeated backups of the entire vault while you type, "
+    "increasing CPU and disk usage. Choose “Idle for 5 minutes” to back up after editing.", warning);
+  warningText->setWordWrap (true);
+  warningLayout->addWidget (warningText, 1);
+  bk->addRow (warning);
+  auto updateBackupWarning= [this, dispatcherTable, warning] {
+    bool show= false;
+    if (saveMode->currentData ().toString () == "realtime")
+      for (int row=0; row<dispatcherTable->rowCount (); ++row) {
+        auto* trigger= qobject_cast<QComboBox*> (dispatcherTable->cellWidget (row, 1));
+        if (trigger && trigger->currentData ().toString () == "realtime") {
+          show= true;
+          break;
+        }
+      }
+    warning->setVisible (show);
+  };
+  updateBackupWarning ();
+  QObject::connect (saveMode, &QComboBox::currentIndexChanged, warning, updateBackupWarning);
   bk->addRow (dispatcherTable);
 
   QWidget* dispatcherButtons= new QWidget (backup);
@@ -1904,7 +1931,7 @@ QTMPreferencesDialog::buildVaultCategories () {
   removeDispatcher->setEnabled (dispatchersAvailable);
   bk->addRow (dispatcherButtons);
 
-  auto saveDispatchers= [backup, dispatcherTable] () {
+  auto saveDispatchers= [backup, dispatcherTable, updateBackupWarning] () {
     QVector<QTMBackupDispatcher> dispatchers;
     for (int row=0; row<dispatcherTable->rowCount (); ++row) {
       QTableWidgetItem* destination= dispatcherTable->item (row, 0);
@@ -1920,6 +1947,7 @@ QTMPreferencesDialog::buildVaultCategories () {
       QMessageBox::warning (backup, "Backup dispatchers", error);
       return false;
     }
+    updateBackupWarning ();
     return true;
   };
 

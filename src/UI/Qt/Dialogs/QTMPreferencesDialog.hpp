@@ -19,6 +19,7 @@
 
 class QListWidget;
 class QCompleter;
+class QComboBox;
 class QLineEdit;
 class QModelIndex;
 class QStandardItemModel;
@@ -42,6 +43,7 @@ private:
   QWidget* buildOtherPage ();
 
   QListWidget*   categoryList;
+  QComboBox* saveMode;
   QStackedWidget* pageStack;
   QLineEdit* searchEdit;
   QCompleter* searchCompleter;
