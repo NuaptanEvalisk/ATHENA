@@ -82,15 +82,16 @@ void edit_interface_rep::mouse_touch_context (SI x, SI y,
   publish_context_menu (x, y, 0, std::move (popup));
 }
 
-void edit_interface_rep::refresh_node_references () {
+void edit_interface_rep::refresh_node_references (bool document) {
+  if (!document && link_peeks.empty ()) return;
   // A derived-reference refresh is not a source edit and must neither enter
   // undo history nor close an unrelated interactive hover stack.
   auto overlays= std::move (link_peeks);
   // Only native transclusions depend on the derived reference snapshots.
   // Invalidating the entire environment discards every bridge and repeats
   // page layout for each independent source resolution on cold open.
-  if (get_typesetter ()->screen_tree) typeset_invalidate_all ();
-  else {
+  if (document && get_typesetter ()->screen_tree) typeset_invalidate_all ();
+  else if (document) {
     const std::function<void (const tree&, path)> invalidate=
       [&] (const tree& source, path relative) {
         if (athena::node_reference::canonical (source)) {
@@ -102,8 +103,15 @@ void edit_interface_rep::refresh_node_references () {
       };
     invalidate (subtree (et, rp), path ());
   }
+  // apply_changes can emit further environment/extents notifications while
+  // laying out the resolved references. Keep the peek out of their dismissal
+  // path and size its replacement against the updated viewport.
+  if (document && !overlays.empty () && has_changed (THE_TREE | THE_ENVIRONMENT | THE_EXTENTS)) {
+    notify_change (THE_FREEZE);
+    apply_changes ();
+  }
   link_peeks= std::move (overlays);
-  for (auto& peek: link_peeks) if (athena_link_peek_native_target (peek.target)) {
+  for (auto& peek: link_peeks) if (peek.uses_node_references) {
     const rectangle old= peek.bounds;
     if (!prepare_link_peek (peek, old->x2-old->x1)) continue;
     const SI pad= 10*pixel;
@@ -117,11 +125,11 @@ void edit_interface_rep::refresh_node_references () {
   invalidate_all ();
 }
 
-void athena_refresh_node_reference_view () {
+void athena_refresh_node_reference_view (bool document) {
   const auto* context= current_execution_context ();
   if (!context || !context->actor || !context->editor) return;
   if (auto* editor= dynamic_cast<edit_interface_rep*> (context->editor))
-    editor->refresh_node_references ();
+    editor->refresh_node_references (document);
 }
 
 void edit_interface_rep::clear_link_peek () {
@@ -317,6 +325,7 @@ void edit_interface_rep::update_link_peek (SI x, SI y, int modifiers) {
 }
 
 bool edit_interface_rep::prepare_link_peek (link_peek_layer& peek, SI width) {
+  athena::node_reference::peek_scope overlay;
   url source;
   tree document= athena_link_peek_document (peek.target, source, peek.ancestry);
   if (document == tree (UNINIT)) return false;
@@ -351,6 +360,7 @@ bool edit_interface_rep::prepare_link_peek (link_peek_layer& peek, SI width) {
   if (is_nil (rendered)) return false;
   peek.content= rendered;
   peek.source= source;
+  peek.uses_node_references= overlay.used_references;
   return true;
 }
 

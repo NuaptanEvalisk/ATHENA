@@ -16,6 +16,14 @@ struct view {
   node_location::snapshot snapshot;
   std::uint64_t revision= 0;
 };
+// Includes nested transclusions typeset inside the detached hover document.
+struct peek_scope {
+  peek_scope ();
+  ~peek_scope ();
+  bool used_references= false;
+private:
+  peek_scope* previous;
+};
 // Presentation may retain its last snapshot during refresh. Inserters require
 // a snapshot verified in the current source epoch before accepting a target.
 view get (std::vector<std::string> ids, std::vector<std::string> ancestry= {},
@@ -40,4 +48,4 @@ std::string target_id (const string& url);
 } // namespace athena::node_reference
 
 // Executes only on the target editor's BufferActor; no GUI or document mutation.
-void athena_refresh_node_reference_view ();
+void athena_refresh_node_reference_view (bool document);

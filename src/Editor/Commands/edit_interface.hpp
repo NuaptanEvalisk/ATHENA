@@ -183,6 +183,7 @@ protected:
     box content;
     rectangle bounds;
     SI scroll_y= 0;
+    bool uses_node_references= false;
     std::vector<std::string> ancestry;
   };
   std::vector<link_peek_layer> link_peeks;
@@ -225,7 +226,7 @@ public:
   void update_link_peek (SI x, SI y, int modifiers);
   bool prepare_link_peek (link_peek_layer& peek, SI width);
   void draw_link_peek (renderer ren);
-  void refresh_node_references ();
+  void refresh_node_references (bool document);
   edit_interface_rep ();
   ~edit_interface_rep ();
   operator tree ();

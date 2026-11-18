@@ -34,6 +34,7 @@
 namespace athena::node_reference {
 namespace {
 using recipient= std::pair<std::uint64_t, std::uint64_t>;
+thread_local peek_scope* active_peek= nullptr;
 using key= std::tuple<std::string, std::vector<std::string>, std::vector<std::string>>;
 struct entry {
   vault_context_handle vault;
@@ -41,7 +42,7 @@ struct entry {
   std::vector<std::string> ids, ancestry;
   std::shared_ptr<node_location::query> query;
   view published, verified;
-  std::set<recipient> subscribers;
+  std::map<recipient, bool> subscribers; // true if also used by the document
   std::uint64_t generation= 0;
   std::uint64_t query_epoch= 0, verified_epoch= 0;
   bool refreshing= false;
@@ -134,7 +135,7 @@ class monitor: public QObject {
   QTimer delivery_timer;
   std::uint64_t observed= changes.load ();
   std::map<std::string, recipient> members;
-  std::set<recipient> refresh;
+  std::map<recipient, bool> refresh;
   std::weak_ptr<entry> navigating;
   std::uint64_t navigation_origin= 0;
 public:
@@ -218,12 +219,13 @@ public:
     std::set<std::uint64_t> alive;
     for (const auto& pair: published_buffer_metadata ()) alive.insert (pair.second.actor_id);
     for (auto it= refresh.begin (); it != refresh.end (); ) {
-      if (!alive.count (it->first)) { it= refresh.erase (it); continue; }
-      auto callback= actor_continuation_registry::instance ().store ([] {
-        athena_refresh_node_reference_view ();
+      const auto [actor, view]= it->first;
+      if (!alive.count (actor)) { it= refresh.erase (it); continue; }
+      auto callback= actor_continuation_registry::instance ().store ([document= it->second] {
+        athena_refresh_node_reference_view (document);
       });
-      if (buffer_actor::try_submit_to (it->first, actor_command_kind::run_native_continuation,
-          it->second, ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, callback))
+      if (buffer_actor::try_submit_to (actor, actor_command_kind::run_native_continuation,
+          view, ATHENA_NO_BLOB, ATHENA_NO_BLOB, EXECUTION_CAPABILITY_BUFFER, callback))
         it= refresh.erase (it);
       else { actor_continuation_registry::instance ().discard (callback); ++it; }
     }
@@ -317,7 +319,7 @@ public:
         e->published.snapshot->state == node_location::status::unreadable;
       e->retry_after= std::chrono::steady_clock::now () + std::chrono::seconds (2);
       if (refresh_views)
-        refresh.insert (e->subscribers.begin (), e->subscribers.end ());
+        for (const auto& [who, document]: e->subscribers) refresh[who] |= document;
     }
     if (newly_published) prefetch_nested_references (newly_published);
     if (refresh_views) delivery_timer.start ();
@@ -357,6 +359,9 @@ void start (const std::shared_ptr<entry>& e) {
 }
 }
 
+peek_scope::peek_scope (): previous (active_peek) { active_peek= this; }
+peek_scope::~peek_scope () { active_peek= previous; }
+
 void source_changed () {
   changes.fetch_add (1, std::memory_order_relaxed);
 }
@@ -387,7 +392,8 @@ view get (std::vector<std::string> ids, std::vector<std::string> ancestry,
     }
     current= stored;
     if (const auto* context= current_execution_context ())
-      if (context->actor) stored->subscribers.emplace (context->actor_id, context->view_id);
+      if (context->actor) stored->subscribers[{context->actor_id, context->view_id}] |= active_peek == nullptr;
+    if (active_peek) active_peek->used_references= true;
     result= require_current? stored->verified: stored->published;
     if (require_current && (stored->refreshing ||
         stored->verified_epoch != changes.load (std::memory_order_relaxed)))
