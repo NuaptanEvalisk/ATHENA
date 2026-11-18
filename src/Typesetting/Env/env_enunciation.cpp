@@ -186,7 +186,9 @@ tree native_enunciation_macro (edit_env_rep* env, const tree& source) {
   tree name= "";
   for (const auto& value: en::names (source))
     name= append (name, rich (value, 0), ", ");
-  tree heading= complete ? name : label_text (env, registry, source, render);
+  const tree displayed_name= definition_title && name != "" ?
+    tree (WITH, "athena-radioactive-links-suppressed", "true", name) : name;
+  tree heading= complete ? displayed_name : label_text (env, registry, source, render);
   tree advance= "";
   const string kind= definition ? text (definition->kind) : string ("enunciation");
   const bool numbered= *property<bool> (source, "numbered") && !complete;
@@ -212,10 +214,13 @@ tree native_enunciation_macro (edit_env_rep* env, const tree& source) {
   else if (!complete && definition && env->provides (kind * "-unnumbered"))
     heading= compound (kind * "-unnumbered", heading);
 
+  if (!complete && env->get_string ("athena-radioactive-links-in-transclusion") == "true")
+    heading= tree (WITH, "athena-radioactive-links-suppressed", "true", heading);
+
   tree details= "";
   if (!complete) {
-    if (subject) heading= append (heading, name);
-    else details= name;
+    if (subject) heading= append (heading, displayed_name);
+    else details= displayed_name;
   }
   if (const auto* authors= property<node::property::list> (source, "attribution")) {
     tree names= "";

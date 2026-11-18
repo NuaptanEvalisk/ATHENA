@@ -216,6 +216,32 @@ private slots:
       return negative->read () != rebased;
     }) (), 10000);
     QCOMPARE (negative->read ()->spans.size (), size_t (0));
+
+    // Matchable runs in a transclusion can share one decoration path.
+    records.push_back (record ("law", "Convergence in Law"));
+    records.push_back (record ("weak", "Weak Convergence"));
+    publish ();
+    std::shared_ptr<live_radioactive_decorations> label, law, weak;
+    {
+      AthenaArtifactRadioactiveScope scope (dependencies, &dependencies, true);
+      auto run= [&] (string s) {
+        return athena_artifact_radioactive_async_text (
+          s, decorate (path (3)), url_none (), tree (), path ());
+      };
+      label= run ("Definition 23");
+      law= run ("Convergence in Law");
+      weak= run ("Weak Convergence");
+      scope.complete ();
+    }
+    QTRY_VERIFY_WITH_TIMEOUT (([&] {
+      athena_artifact_radioactive_changed (dependencies);
+      return label->read () && law->read () && weak->read ();
+    }) (), 10000);
+    QVERIFY (label->read ()->spans.empty ());
+    QCOMPARE (law->read ()->spans.size (), size_t (1));
+    QCOMPARE (law->read ()->spans.front ().end, 18);
+    QCOMPARE (weak->read ()->spans.size (), size_t (1));
+    QCOMPARE (weak->read ()->spans.front ().end, 16);
   }
 
   void incrementalMatching () {

@@ -44,6 +44,7 @@ extern "C" {
 #include <condition_variable>
 #include <thread>
 #include <tuple>
+#include <type_traits>
 
 namespace fs= std::filesystem;
 
@@ -1034,11 +1035,21 @@ AthenaArtifactRadioactiveDependencies& query_dependencies () {
   return **queried_block;
 }
 
+template<class Input>
 MatchQuery& source_query (AthenaArtifactRadioactiveDependencies& dependencies,
-                         path source, bool structured) {
+                         path source, const Input& input) {
+  constexpr bool structured= std::is_same_v<Input,tree>;
+  const bool synthetic= is_decoration (source);
   std::string key= structured ? "tree:" : "text:";
   for (; !is_nil (source); source= source->next)
     key += std::to_string (source->item) + "/";
+  // descend() preserves a decoration path for every child of an expansion.
+  // Those boxes may share live offsets only when their match inputs agree.
+  if (synthetic) {
+    key+= ':';
+    if constexpr (structured) key+= structure_key (input).toStdString ();
+    else key.append (input.data (), N(input));
+  }
   auto& query= dependencies.queries[key];
   query.structured= structured;
   query.visited= true;
@@ -1104,7 +1115,7 @@ void retain_live_matches (MatchQuery& query, const QString& text,
 std::shared_ptr<live_radioactive_decorations> live_text_matches (
     string source, path address, url file, tree document, path source_path) {
   auto& dependencies= query_dependencies ();
-  auto& query= source_query (dependencies, address, false);
+  auto& query= source_query (dependencies, address, source);
   const auto live= ensure_live (query);
   query.parts.resize (1);
   auto& part= query.parts[0];
@@ -1134,7 +1145,7 @@ std::shared_ptr<live_radioactive_decorations> live_tree_matches (
     const tree& source, path address, url file, tree document, path source_path) {
   if (!is_func (source, CONCAT)) return {};
   auto& dependencies= query_dependencies ();
-  auto& query= source_query (dependencies, address, true);
+  auto& query= source_query (dependencies, address, source);
   const auto live= ensure_live (query);
   query.parts.resize (N(source));
   std::vector<Token> tokens;
@@ -1231,7 +1242,7 @@ bool apply_async_completion (MatchQuery& query, const RadioactiveIndex& index) {
 std::vector<AthenaArtifactRadioactiveMatch> cached_text_matches (
     const RadioactiveIndex& index, string text, path source) {
   auto& dependencies= query_dependencies ();
-  auto& query= source_query (dependencies, source, false);
+  auto& query= source_query (dependencies, source, text);
   query.parts.resize (1);
   auto& part= query.parts[0];
   const bool edited= update_part (part, text, dependencies.work);
@@ -1249,7 +1260,7 @@ std::vector<AthenaArtifactRadioactiveTreeMatch> cached_tree_matches (
     const RadioactiveIndex& index, const tree& text, path source) {
   if (!is_func (text, CONCAT)) return {};
   auto& dependencies= query_dependencies ();
-  auto& query= source_query (dependencies, source, true);
+  auto& query= source_query (dependencies, source, text);
   query.parts.resize (N(text));
   std::vector<Token> tokens;
   QString surface;
