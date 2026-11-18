@@ -4218,6 +4218,28 @@
           ]
         },
         {
+          "key": "[ var var var var",
+          "actions": [
+            {
+              "op": "bracket-open",
+              "left": "⌊",
+              "right": "⌋",
+              "large": "default"
+            }
+          ]
+        },
+        {
+          "key": "[ var var var var var",
+          "actions": [
+            {
+              "op": "bracket-open",
+              "left": "⌈",
+              "right": "⌉",
+              "large": "default"
+            }
+          ]
+        },
+        {
           "key": "]",
           "actions": [
             {
