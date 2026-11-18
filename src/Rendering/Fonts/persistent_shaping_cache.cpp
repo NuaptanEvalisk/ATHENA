@@ -199,6 +199,7 @@ std::uint32_t decayed (usage_record record, std::uint32_t epoch) {
 struct cache_database {
   lmdb::env env= lmdb::env::create ();
   lmdb::dbi entries, popularity, meta;
+  std::string eviction_cursor;
   std::size_t limit;
   explicit cache_database (const fs::path& dir, std::size_t maximum): limit (maximum) {
     fs::create_directories (dir);
@@ -309,8 +310,7 @@ class shaping_service {
     update (storage.math, math);
   }
 
-  void evict (cache_database& db) {
-    auto txn= lmdb::txn::begin (db.env);
+  void evict (cache_database& db, lmdb::txn& txn) {
     const auto used= db.active_bytes (txn);
     if (used < db.limit * 3 / 4) return;
     struct candidate { std::string key; std::uint32_t score, epoch; };
@@ -318,29 +318,32 @@ class shaping_service {
     const auto epoch= current_epoch ();
     {
       auto cursor= lmdb::cursor::open (txn, db.entries);
-      std::string_view key, value;
-      if (cursor.get (key, value, MDB_FIRST)) do {
+      std::string_view key= db.eviction_cursor, value;
+      if (db.eviction_cursor.empty () || !cursor.get (key, value, MDB_SET_RANGE)) {
+        if (!cursor.get (key, value, MDB_FIRST)) return;
+      }
+      do {
         std::string popularity_key; u64 (popularity_key, fingerprint (key));
         std::string_view metadata;
         auto score= db.popularity.get (txn, popularity_key, metadata) ?
           usage (metadata) : usage_record {};
         all.push_back ({std::string (key), decayed (score, epoch), score.epoch});
         key= {}; value= {};
-      } while (cursor.get (key, value, MDB_NEXT));
+      } while (all.size () < 1024 && cursor.get (key, value, MDB_NEXT));
+      db.eviction_cursor= cursor.get (key, value, MDB_NEXT) ? std::string (key) : std::string ();
     }
-    // Eviction is background-only. Rank the whole database, then free a batch
-    // of cold pages before the next copy-on-write transaction needs them.
+    // Digests distribute runs across the keyspace. Rotate the sample so hot
+    // runs survive without ranking or copying the entire database.
     std::sort (all.begin (), all.end (), [] (const auto& a, const auto& b) {
       if (a.score != b.score) return a.score < b.score;
       return a.epoch < b.epoch;
     });
-    const auto trim= std::max<std::size_t> (1, all.size () / 8);
+    const auto trim= std::max<std::size_t> (1, all.size () / 4);
     for (std::size_t i=0; i<std::min (trim, all.size ()); ++i) {
       db.entries.del (txn, all[i].key);
       std::string popularity_key; u64 (popularity_key, fingerprint (all[i].key));
       db.popularity.del (txn, popularity_key);
     }
-    txn.commit ();
   }
 
   void write_batch (
@@ -352,10 +355,11 @@ class shaping_service {
       for (const auto& [_,entry]: batch)
         if (entry.key.math == (pass == 1)) ++count;
       if (!count) continue;
-      evict (db);
       auto txn= lmdb::txn::begin (db.env);
+      unsigned written= 0;
       for (const auto& [_,entry]: batch) {
         if (entry.key.math != (pass == 1)) continue;
+        if (written++ % 128 == 0) evict (db, txn);
         db.entries.put (txn, entry.key.digest, entry.data);
         std::string popularity_key;
         u64 (popularity_key, fingerprint (entry.key.digest));
@@ -393,14 +397,9 @@ class shaping_service {
         try {
           if (!batch.empty ()) write_batch (*storage, batch);
           flush_hits (*storage);
-          evict (storage->body);
-          evict (storage->math);
         }
         catch (const lmdb::error&) {
           // Disposable cache: a full/damaged store must not stop the editor.
-          // On a full map the next idle pass can reclaim cold entries.
-          try { evict (storage->body); evict (storage->math); }
-          catch (...) {}
         }
         {
           std::lock_guard<std::mutex> lock (mutex);
