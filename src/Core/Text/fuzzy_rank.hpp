@@ -30,6 +30,12 @@ struct fuzzy_rank_result {
   int  score;
 };
 
-fuzzy_rank_result fuzzy_rank (string query, array<fuzzy_rank_field> fields);
+struct fuzzy_rank_hits {
+  int field= -1;
+  array<int> bytes;
+};
+
+fuzzy_rank_result fuzzy_rank (string query, array<fuzzy_rank_field> fields,
+                              fuzzy_rank_hits* hits= nullptr);
 
 #endif // defined FUZZY_RANK_H

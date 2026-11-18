@@ -76,7 +76,7 @@ fuzzy_find_at (string text, string token, int start) {
 }
 
 static int
-fuzzy_subsequence_score (string text, string token) {
+fuzzy_subsequence_score (string text, string token, array<int>* hits) {
   int qi= 0;
   int first= -1;
   int last= -1;
@@ -87,6 +87,7 @@ fuzzy_subsequence_score (string text, string token) {
 
   for (int i=0; i<N(text) && qi<N(token); i++) {
     if (text[i] == token[qi]) {
+      if (hits) *hits << i;
       if (first < 0) {
         first= i;
         if (fuzzy_word_boundary (text, i)) boundary_bonus= 400;
@@ -107,11 +108,11 @@ fuzzy_subsequence_score (string text, string token) {
 }
 
 static int
-fuzzy_token_score (string text, string token) {
+fuzzy_token_score (string text, string token, array<int>* hits) {
   if (N(token) == 0) return 0;
-  if (text == token) return 10000 - N(text);
 
   int best= -1;
+  int best_pos= -1;
   for (int pos= fuzzy_find_at (text, token, 0);
        pos >= 0;
        pos= fuzzy_find_at (text, token, pos + 1)) {
@@ -123,19 +124,22 @@ fuzzy_token_score (string text, string token) {
       score= 8200 - 3 * pos - N(text);
     else
       score= 5400 - 6 * pos - N(text);
-    if (score > best) best= score;
+    if (score > best) { best= score; best_pos= pos; }
   }
-  if (best >= 0) return best;
+  if (best >= 0) {
+    if (hits) for (int j=0; j<N(token); ++j) *hits << (best_pos + j);
+    return best;
+  }
 
-  return fuzzy_subsequence_score (text, token);
+  return fuzzy_subsequence_score (text, token, hits);
 }
 
 static int
-fuzzy_field_score (string text, array<string> tokens) {
+fuzzy_field_score (string text, array<string> tokens, array<int>* hits= nullptr) {
   if (N(tokens) == 0) return 0;
   int total= 0;
   for (int i=0; i<N(tokens); i++) {
-    int score= fuzzy_token_score (text, tokens[i]);
+    int score= fuzzy_token_score (text, tokens[i], hits);
     if (score < 0) return -1;
     total += score;
   }
@@ -143,21 +147,27 @@ fuzzy_field_score (string text, array<string> tokens) {
 }
 
 fuzzy_rank_result
-fuzzy_rank (string query, array<fuzzy_rank_field> fields) {
+fuzzy_rank (string query, array<fuzzy_rank_field> fields, fuzzy_rank_hits* hits) {
+  if (hits) *hits= fuzzy_rank_hits ();
   query= fuzzy_lower (query);
   array<string> tokens= fuzzy_tokens (query);
   if (N(tokens) == 0) return fuzzy_rank_result (true, 0);
 
   int best= -1;
+  int winner= -1;
   for (int i=0; i<N(fields); i++) {
     if (fields[i].weight <= 0) continue;
     string text= fuzzy_lower (fields[i].text);
     int score= fuzzy_field_score (text, tokens);
     if (score < 0) continue;
     score= score * fields[i].weight - N(text);
-    if (score > best) best= score;
+    if (score > best) { best= score; winner= i; }
   }
 
   if (best < 0) return fuzzy_rank_result (false, -1);
+  if (hits) {
+    hits->field= winner;
+    fuzzy_field_score (fuzzy_lower (fields[winner].text), tokens, &hits->bytes);
+  }
   return fuzzy_rank_result (true, best);
 }

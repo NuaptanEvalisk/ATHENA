@@ -21,6 +21,7 @@
 #include "UI/Qt/Dialogs/QTMNativeDialogs.hpp"
 #include "UI/Qt/Toolkit/qt_utilities.hpp"
 #include <QApplication>
+#include <QBitArray>
 #include <QCoreApplication>
 #include <QDir>
 #include <QEvent>
@@ -28,6 +29,9 @@
 #include <QHash>
 #include <QKeyEvent>
 #include <QMetaObject>
+#include <QPainter>
+#include <QStyledItemDelegate>
+#include <QTextLayout>
 #include <QShowEvent>
 #include <QThread>
 #include <QVariant>
@@ -37,6 +41,9 @@
 #include <mutex>
 #include <unordered_map>
 #include <utility>
+#include <cmath>
+#include <unicode/utf8.h>
+#include <unicode/utf16.h>
 
 static const int quick_switcher_limit= 100;
 
@@ -51,7 +58,110 @@ enum QuickRoles {
   QuickTypeRole= Qt::UserRole,
   QuickPayloadRole,
   QuickCompletionRole,
-  QuickNamespacePathRole
+  QuickNamespacePathRole,
+  QuickHighlightRole
+};
+
+array<fuzzy_rank_field>
+fileFields (string base, string path) {
+  array<fuzzy_rank_field> fields;
+  fields << fuzzy_rank_field (base, 100) << fuzzy_rank_field (path, 35);
+  return fields;
+}
+
+void highlightItem (QListWidgetItem* item, string query) {
+  const bool file= item->data (QuickTypeRole).toInt () == QuickFile;
+  const string text= from_qstring (item->data (QuickPayloadRole).toString ());
+  array<fuzzy_rank_field> fields;
+  if (file)
+    fields= fileFields (from_qstring (item->text ().section ('/', -1)), text);
+  else fields << fuzzy_rank_field (text, 100);
+  fuzzy_rank_hits hits;
+  fuzzy_rank (query, fields, &hits);
+  if (N(hits.bytes) == 0) return;
+
+  // The winning field is either the displayed path or its filename suffix.
+  // Matcher offsets are UTF-8 bytes; Qt formats address UTF-16 code units.
+  const int offset= N(text) - N(fields[hits.field].text);
+  QBitArray marked (N(text));
+  for (int i=0; i<N(hits.bytes); ++i) marked.setBit (offset + hits.bytes[i]);
+  QList<QTextLayout::FormatRange> formats;
+  QTextCharFormat bold;
+  bold.setFontWeight (QFont::Bold);
+  for (int byte=0, pos=0; byte<N(text);) {
+    const int start= byte;
+    UChar32 cp;
+    U8_NEXT (text.data (), byte, N(text), cp);
+    const int length= U16_LENGTH (cp);
+    for (int i=start; i<byte; ++i)
+      if (marked.testBit (i)) {
+        if (!formats.isEmpty () && formats.last ().start + formats.last ().length == pos)
+          formats.last ().length+= length;
+        else formats.append ({pos, length, bold});
+        break;
+      }
+    pos+= length;
+  }
+  item->setData (QuickHighlightRole, QVariant::fromValue (formats));
+}
+
+class QuickItemDelegate final: public QStyledItemDelegate {
+public:
+  using QStyledItemDelegate::QStyledItemDelegate;
+
+  QSize sizeHint (const QStyleOptionViewItem& option, const QModelIndex& index) const override {
+    return drawRow (nullptr, option, index);
+  }
+
+  void paint (QPainter* painter, const QStyleOptionViewItem& option,
+              const QModelIndex& index) const override {
+    drawRow (painter, option, index);
+  }
+
+private:
+  QSize drawRow (QPainter* painter, QStyleOptionViewItem opt, const QModelIndex& index) const {
+    initStyleOption (&opt, index);
+    const auto text= opt.text;
+    QTextLayout layout (text, opt.font);
+    layout.setFormats (index.data (QuickHighlightRole).value<QList<QTextLayout::FormatRange>> ());
+    layout.beginLayout ();
+    auto line= layout.createLine ();
+    layout.endLayout ();
+    const bool file= index.data (QuickTypeRole).toInt () == QuickFile;
+    const bool avd= file && text.endsWith (".avd", Qt::CaseInsensitive);
+    QFont badgeFont= opt.font;
+    badgeFont.setPixelSize (qMax (9, qRound (opt.fontMetrics.height () * 0.60)));
+    badgeFont.setBold (true);
+    QFontMetrics fm (badgeFont);
+    const int pad= qMax (3, fm.height () / 4);
+    const int badgeWidth= qMax (fm.horizontalAdvance ("ATH"), fm.horizontalAdvance ("AVD")) + 2*pad;
+    const int indent= file ? badgeWidth + 2*pad : 0;
+    if (painter) {
+      const auto* style= opt.widget ? opt.widget->style () : QApplication::style ();
+      opt.text.clear ();
+      style->drawControl (QStyle::CE_ItemViewItem, &opt, painter, opt.widget);
+      painter->save ();
+      painter->setClipRect (opt.rect, Qt::IntersectClip);
+      const int x= opt.rect.left () + pad;
+      if (file) {
+        QRect badge (x, opt.rect.top () + (opt.rect.height ()-fm.height ())/2,
+                     badgeWidth, fm.height ());
+        painter->setRenderHint (QPainter::Antialiasing);
+        painter->setPen (Qt::NoPen);
+        painter->setBrush (avd ? QColor ("#58458a") : QColor ("#226663"));
+        painter->drawRoundedRect (badge, 3, 3);
+        painter->setPen (Qt::white);
+        painter->setFont (badgeFont);
+        painter->drawText (badge, Qt::AlignCenter, avd ? "AVD" : "ATH");
+      }
+      painter->setPen (opt.palette.color (opt.state & QStyle::State_Selected ?
+                                         QPalette::HighlightedText : QPalette::Text));
+      layout.draw (painter, QPointF (x+indent, opt.rect.top ()+(opt.rect.height ()-line.height ())/2));
+      painter->restore ();
+    }
+    return {int (std::ceil (line.naturalTextWidth ())) + indent + 2*pad,
+            qMax (int (std::ceil (line.height ())), fm.height ()) + pad};
+  }
 };
 
 struct QuickSwitcherRequest {
@@ -248,6 +358,8 @@ QTMQuickSwitcher::QTMQuickSwitcher (QWidget* parent,
   rawList= new QListWidget (this);
   structuredList= new QListWidget (this);
   recentList= new QListWidget (this);
+  for (auto* list: {rawList, structuredList, recentList})
+    list->setItemDelegate (new QuickItemDelegate (list));
   tabs->addTab (rawList, "Raw");
   tabs->addTab (structuredList, "Structured");
   tabs->addTab (recentList, "Recents");
@@ -298,16 +410,10 @@ QTMQuickSwitcher::loadFiles (const array<string>& recentFiles) {
     url rel= delta (root * url (""), files[i]);
     if (locase_all (suffix (rel)) != "ath" && locase_all (suffix (rel)) != "avd") continue;
     QString relPath= to_qstring (as_unix_string (rel));
-    QString base= relPath.section ('/', -1);
-    base.chop (4);
-
     Entry e;
     e.relPath= relPath;
-    e.baseName= base;
-    QString searchPath= relPath;
-    searchPath.chop (4);
-    e.searchPath= from_qstring (searchPath);
-    e.searchBase= from_qstring (base);
+    e.searchPath= from_qstring (relPath);
+    e.searchBase= from_qstring (relPath.section ('/', -1));
     e.mtime= vault_get_mtime (files[i]);
     entries.push_back (e);
     QString absolutePath= to_qstring (concretize (files[i]));
@@ -349,10 +455,7 @@ QTMQuickSwitcher::loadNamespaces () {
 
 int
 QTMQuickSwitcher::fuzzyScore (const Entry& e, string query) const {
-  array<fuzzy_rank_field> fields;
-  fields << fuzzy_rank_field (e.searchBase, 100);
-  fields << fuzzy_rank_field (e.searchPath, 35);
-  fuzzy_rank_result result= fuzzy_rank (query, fields);
+  fuzzy_rank_result result= fuzzy_rank (query, fileFields (e.searchBase, e.searchPath));
   return result.matched ? result.score : -1;
 }
 
@@ -369,6 +472,13 @@ QTMQuickSwitcher::updateList () {
   if (tabs->currentIndex () == 0) updateRawList ();
   else if (tabs->currentIndex () == 1) updateStructuredList ();
   else updateRecentList ();
+  string query= from_qstring (searchEdit->text ().trimmed ());
+  if (N(query) != 0) {
+    auto* list= activeList ();
+    for (int i=0; i<list->count (); ++i)
+      if (list->item (i)->data (QuickTypeRole).toInt () != QuickUp)
+        highlightItem (list->item (i), query);
+  }
 }
 
 void
@@ -575,9 +685,7 @@ QTMQuickSwitcher::updateStructuredList () {
         const athena_namespace_match& m= members[i];
         url rel= delta (root * url (""), m.file_url ());
         string relString= as_unix_string (rel);
-        array<fuzzy_rank_field> fields;
-        fields << fuzzy_rank_field (m.stem, 100);
-        fields << fuzzy_rank_field (relString, 35);
+        auto fields= fileFields (as_unix_string (tail (rel)), relString);
         fuzzy_rank_result result= fuzzy_rank (query, fields);
         int score= result.matched ? result.score : -1;
         if (score >= 0) matches.push_back (std::make_pair (-score, i));

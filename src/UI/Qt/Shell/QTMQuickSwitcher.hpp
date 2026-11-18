@@ -42,7 +42,6 @@ protected:
 private:
   struct Entry {
     QString relPath;
-    QString baseName;
     string  searchPath;
     string  searchBase;
     int     mtime;
