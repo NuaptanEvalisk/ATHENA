@@ -118,7 +118,6 @@ struct CompoundPdfJob {
   QTemporaryDir directory;
   QString destination;
   QByteArray original, counters;
-  std::vector<std::uint64_t> epochs;
   std::vector<athena::pdf::merge_member> pdf_members;
   QPointer<QProgressDialog> progress;
   std::atomic<bool> cancelled {false};
@@ -751,12 +750,8 @@ class QTMCompoundViewport: public QAbstractScrollArea {
   void exportMember (const std::shared_ptr<CompoundPdfJob>& job, std::size_t index) {
     if (job->cancelled) { finishPdf (job, tr ("Cancelled")); return; }
     if (index == members_.size ()) {
-      for (std::size_t i= 0; i < members_.size (); ++i) {
-        const auto source= concrete_runtime_view (views_[i].runtime_id);
-        if (!source || source->buf->actor->source_epoch () != job->epochs[i]) {
-          finishPdf (job, tr ("A source changed during export; please export again.")); return;
-        }
-      }
+      // Each completed member PDF is an export snapshot. Later source edits
+      // do not invalidate pages already rendered by that member's actor.
       QPointer<QTMCompoundViewport> self (this);
       QThreadPool::globalInstance ()->start ([self, job, count= members_.size ()] {
         QString error;
@@ -801,8 +796,7 @@ class QTMCompoundViewport: public QAbstractScrollArea {
               member.destinations.push_back ({std::string (as_charp (label), N (label)),
                 static_cast<unsigned long> (page), x, y});
             }, true);
-          job->epochs[index]= current_execution_context ()->actor->source_epoch ();
-        }, finish);
+        }, finish, false);
       }, [finish] (std::string error) { if (!error.empty ()) finish (std::move (error)); });
   }
 
@@ -818,7 +812,6 @@ class QTMCompoundViewport: public QAbstractScrollArea {
     try { job->original= file_revision (target); }
     catch (const std::exception& e) { reportFailure (tr ("Export Compound PDF"), QString::fromUtf8 (e.what ())); return; }
     job->preview= preview;
-    job->epochs.resize (members_.size ());
     job->pdf_members.resize (members_.size ());
     job->progress= new QProgressDialog (tr ("Preparing compound PDF"), tr ("Cancel"), 0, int (members_.size ()), &owner_);
     job->progress->setAutoClose (false);

@@ -16,8 +16,10 @@
 
 class editor_rep;
 // Called on an owner actor; completion may run on that actor or the GUI.
+// Whole-document callers can ignore cursor/selection changes during preparation.
 void athena_node_reference_with_native_export (
-  std::function<void(editor_rep&)>, std::function<void(std::string)>);
+  std::function<void(editor_rep&)>, std::function<void(std::string)>,
+  bool selection_sensitive= true);
 
 namespace athena::node_reference {
 // Detached print layouts expose source identities as destinations, without

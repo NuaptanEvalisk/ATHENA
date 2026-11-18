@@ -102,7 +102,6 @@ struct export_preparation::impl: std::enable_shared_from_this<impl> {
   prepared_references collected;
   prepared_snapshot published;
   std::vector<std::shared_ptr<node_location::query>> queries;
-  std::map<std::string, athena::filesystem::metadata> disk_revisions;
   std::size_t pending= 0, bytes= 0;
   completion done;
   impl (std::shared_ptr<node_location::service> service, completion callback, preparation_limits limits):
@@ -163,11 +162,8 @@ struct export_preparation::impl: std::enable_shared_from_this<impl> {
         std::lock_guard<std::mutex> guard (lock);
         if (published) return;
         for (const auto& target: result->items) {
-          for (const auto& candidate: target.candidates) if (candidate.disk_revision) {
-            auto found= disk_revisions.emplace (candidate.file, *candidate.disk_revision);
-            if (!found.second && !athena::filesystem::same_revision (found.first->second, *candidate.disk_revision))
-              throw std::runtime_error ("Source changed during export reference preparation");
-          }
+          // Each resolved target already owns a captured fragment. A later
+          // read of the same file need not have the same storage revision.
           for (const auto* part: {&target.fragment_xml, &target.preview_context_xml, &target.source_url}) {
             if (part->size () > limits.content_bytes-bytes)
               throw std::length_error ("Export reference graph exceeds its content budget");

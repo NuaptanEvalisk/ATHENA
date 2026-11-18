@@ -25,8 +25,6 @@ namespace ref= athena::node_reference;
 struct request {
   athena_actor_id actor;
   athena_view_id view;
-  std::uint64_t epoch;
-  std::string source;
   std::vector<int> cursor, selection_start, selection_end;
   bool selected= false;
   vault_context_handle vault;
@@ -51,15 +49,16 @@ void perform (const std::shared_ptr<request>& job) {
   if (!context || !context->actor || !context->editor ||
       context->actor_id != job->actor || context->view_id != job->view) return;
   try {
-    if (!vault_context_is_current (job->vault) || ref::source_epoch () != job->epoch ||
-        text (as_string (context->actor->current_buffer_url ())) != job->source)
-      throw std::runtime_error ("Source changed while preparing export; please export again");
+    if (!vault_context_is_current (job->vault))
+      throw std::runtime_error ("Export vault was closed or changed");
     auto* editor= context->editor;
-    if (indices (editor->the_path ()) != job->cursor ||
+    if (job->selected && (indices (editor->the_path ()) != job->cursor ||
         editor->selection_active_any () != job->selected ||
-        (job->selected && (indices (editor->selection_get_start ()) != job->selection_start ||
-                           indices (editor->selection_get_end ()) != job->selection_end)))
+        indices (editor->selection_get_start ()) != job->selection_start ||
+        indices (editor->selection_get_end ()) != job->selection_end))
       throw std::runtime_error ("Cursor or selection changed while preparing export; please export again");
+    // Render the current owner-local source against the prepared reference
+    // snapshots. Edits may introduce more references, handled by the probe.
     ref::export_reference_scope frozen (job->ready);
     editor->probe_print_references ();
     auto missing= frozen.missing ();
@@ -122,7 +121,7 @@ public:
         if (job->completion) job->completion ("Export source was closed");
         it= pending.erase (it); continue;
       }
-      if (!job->ready && (!vault_context_is_current (job->vault) || ref::source_epoch () != job->epoch))
+      if (!job->ready && !vault_context_is_current (job->vault))
         job->preparation->cancel ();
       if (!job->ready) { ++it; continue; }
       athena::avd::submit_source_task (job->actor, job->view,
@@ -147,7 +146,8 @@ void resume_preparation (std::shared_ptr<request> job, std::vector<ref::selectio
 } // namespace
 
 void athena_node_reference_with_native_export (
-  std::function<void(editor_rep&)> action, std::function<void(std::string)> completion) {
+  std::function<void(editor_rep&)> action, std::function<void(std::string)> completion,
+  bool selection_sensitive) {
   const auto* context= current_execution_context ();
   if (!context || !context->actor || !context->editor)
     throw std::runtime_error ("Selection export requires an owning editor");
@@ -170,10 +170,8 @@ void athena_node_reference_with_native_export (
   }
   auto job= std::make_shared<request> ();
   job->actor= context->actor_id; job->view= context->view_id;
-  job->epoch= ref::source_epoch ();
-  job->source= text (as_string (context->actor->current_buffer_url ()));
   job->cursor= indices (context->editor->the_path ());
-  job->selected= context->editor->selection_active_any ();
+  job->selected= selection_sensitive && context->editor->selection_active_any ();
   if (job->selected) {
     job->selection_start= indices (context->editor->selection_get_start ());
     job->selection_end= indices (context->editor->selection_get_end ());
