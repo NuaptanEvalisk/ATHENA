@@ -154,7 +154,7 @@ revision_store::revision_store (const std::filesystem::path& database) {
     check (db_, sqlite3_busy_timeout (db_, 5000));
     {
       statement version (db_, "PRAGMA user_version");
-      if (!version.row () || sqlite3_column_int (version.value, 0) > 5)
+      if (!version.row () || sqlite3_column_int (version.value, 0) > 6)
         throw std::runtime_error ("Unsupported Hodarium revision store version");
     }
     sql (db_, "PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL;"
@@ -195,7 +195,40 @@ revision_store::revision_store (const std::filesystem::path& database) {
         while (entries.row ()) admit_revision (db_, entries.bytes (0));
       }
     }
-    sql (db_, "PRAGMA user_version=5;");
+    {
+      statement version (db_, "PRAGMA user_version"); version.row ();
+      if (sqlite3_column_int (version.value, 0) < 6) {
+        sql (db_, R"SQL(
+          CREATE TABLE object_heads(vault TEXT,object TEXT,id TEXT,PRIMARY KEY(vault,object,id)) WITHOUT ROWID;
+          CREATE TABLE object_progress(vault TEXT,object TEXT,id TEXT,n INTEGER,applied_id TEXT,
+            PRIMARY KEY(vault,object)) WITHOUT ROWID;
+          INSERT INTO object_heads SELECT r.vault,r.object,r.id FROM eligible e JOIN revisions r ON r.id=e.id
+            WHERE NOT EXISTS(SELECT 1 FROM parents p JOIN eligible child ON child.id=p.child WHERE p.parent=r.id);
+          INSERT INTO object_progress SELECT h.vault,h.object,min(h.id),count(*),a.revision FROM object_heads h
+            LEFT JOIN applied a USING(vault,object) GROUP BY h.vault,h.object;
+          CREATE INDEX progress_pending ON object_progress(vault,object) WHERE n=1 AND id IS NOT applied_id;
+          CREATE INDEX progress_conflicts ON object_progress(vault,object) WHERE n>1;
+          CREATE TRIGGER progress_admit AFTER INSERT ON eligible BEGIN
+            DELETE FROM object_heads WHERE (vault,object,id) IN
+              (SELECT r.vault,r.object,p.parent FROM revisions r JOIN parents p ON p.child=r.id WHERE r.id=NEW.id);
+            INSERT INTO object_heads SELECT vault,object,id FROM revisions WHERE id=NEW.id;
+            INSERT INTO object_progress
+              SELECT h.vault,h.object,min(h.id),count(*),a.revision FROM object_heads h
+              LEFT JOIN applied a USING(vault,object)
+              WHERE (h.vault,h.object)=(SELECT vault,object FROM revisions WHERE id=NEW.id)
+              GROUP BY h.vault,h.object
+              ON CONFLICT(vault,object) DO UPDATE SET id=excluded.id,n=excluded.n,applied_id=excluded.applied_id;
+          END;
+          CREATE TRIGGER progress_apply AFTER INSERT ON applied BEGIN
+            UPDATE object_progress SET applied_id=NEW.revision WHERE vault=NEW.vault AND object=NEW.object;
+          END;
+          CREATE TRIGGER progress_reapply AFTER UPDATE OF revision ON applied BEGIN
+            UPDATE object_progress SET applied_id=NEW.revision WHERE vault=NEW.vault AND object=NEW.object;
+          END;
+          PRAGMA user_version=6;
+        )SQL");
+      }
+    }
     tx.commit ();
   }
   catch (...) { sqlite3_close (db_); db_= nullptr; throw; }
@@ -622,14 +655,9 @@ std::vector<revision> revision_store::application_candidates (const std::string&
     const std::string& after_object, std::uint32_t limit) const {
   if (limit == 0 || limit > 256)
     throw std::invalid_argument ("Invalid application inventory budget");
-  statement st (db_, "WITH heads AS (SELECT r.id,r.object FROM revisions r WHERE r.vault=? "
-    "AND r.object>? AND r.id IN(SELECT id FROM eligible) AND NOT EXISTS(SELECT 1 FROM parents "
-    "JOIN eligible e ON e.id=parents.child WHERE parent=r.id)),"
-    "single AS (SELECT object,MIN(id) AS id FROM heads GROUP BY object HAVING COUNT(*)=1) "
-    "SELECT r.id,r.descriptor FROM single s JOIN revisions r ON r.id=s.id "
-    "LEFT JOIN applied a ON a.vault=r.vault AND a.object=r.object "
-    "WHERE (a.revision IS NULL OR a.revision<>r.id) AND NOT EXISTS("
-    "SELECT 1 FROM apply_intents i WHERE i.vault=r.vault AND i.object=r.object AND i.completed=0) "
+  statement st (db_, "SELECT s.id,r.descriptor FROM object_progress s JOIN revisions r ON r.id=s.id "
+    "WHERE s.vault=? AND s.object>? AND s.n=1 AND s.id IS NOT s.applied_id AND NOT EXISTS("
+    "SELECT 1 FROM apply_intents i WHERE i.vault=s.vault AND i.object=s.object AND i.completed=0) "
     "ORDER BY s.object LIMIT ?");
   st.text (1, vault); st.text (2, after_object);
   check (db_, sqlite3_bind_int (st.value, 3, int (limit)));
@@ -642,11 +670,8 @@ std::vector<revision_conflict> revision_store::conflicts (const std::string& vau
     const std::string& after_object, std::uint32_t limit) const {
   if (limit == 0 || limit > 256)
     throw std::invalid_argument ("Invalid Hodarium conflict page size");
-  statement st (db_, "WITH heads AS (SELECT r.id,r.object FROM revisions r WHERE r.vault=? "
-    "AND r.object>? AND r.id IN(SELECT id FROM eligible) AND NOT EXISTS(SELECT 1 FROM parents "
-    "JOIN eligible e ON e.id=parents.child WHERE parent=r.id)),"
-    "conflicts AS (SELECT object,MIN(id) AS id,COUNT(*) AS count FROM heads GROUP BY object HAVING COUNT(*)>1) "
-    "SELECT c.object,r.descriptor,c.count FROM conflicts c JOIN revisions r ON r.id=c.id "
+  statement st (db_, "SELECT c.object,r.descriptor,c.n FROM object_progress c JOIN revisions r ON r.id=c.id "
+    "WHERE c.vault=? AND c.object>? AND c.n>1 "
     "ORDER BY c.object LIMIT ?");
   st.text (1, vault); st.text (2, after_object);
   check (db_, sqlite3_bind_int (st.value, 3, int (limit)));
