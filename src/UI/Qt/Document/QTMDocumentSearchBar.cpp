@@ -25,6 +25,7 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QStyle>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -97,7 +98,7 @@ QTMDocumentSearchBar::QTMDocumentSearchBar (QTMWidget* owner):
     tmapp ()->icon_manager ().getIcon ("tm_search_last"),
     tr ("Last match"));
   QToolButton* close= makeButton (
-    tmapp ()->icon_manager ().getIcon ("tm_close_tool"),
+    style ()->standardIcon (QStyle::SP_TitleBarCloseButton),
     tr ("Close search (Escape)"));
 
   resultLabel->setMinimumWidth (64);
