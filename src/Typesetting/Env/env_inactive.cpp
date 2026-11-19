@@ -406,7 +406,8 @@ edit_env_rep::rewrite_inactive_hybrid (
       for (int i=1; i<N(t); ++i)
         r << tree (SPACE, "0.3fn") << field ("Selection", subvar (var, i));
     }
-    return tree (MARK, var, r);
+    return tree (MARK, var,
+                 tree (WITH, "athena-radioactive-links-suppressed", "true", r));
   }
   return rewrite_inactive_default (t, var, block, flush);
 }
