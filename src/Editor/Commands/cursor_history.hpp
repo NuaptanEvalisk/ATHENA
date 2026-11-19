@@ -4,3 +4,4 @@
 void cursor_history_add (path position);
 void cursor_history_backward ();
 void cursor_history_forward ();
+void cursor_history_clear_for_actor ();

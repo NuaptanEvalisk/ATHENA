@@ -25,9 +25,8 @@ struct saved_position {
 struct history {
   std::vector<std::unique_ptr<saved_position>> past, future;
 };
+thread_local std::map<int, history> histories;
 history& current_history () {
-  // Position observers and their trees remain on the owning BufferActor.
-  static thread_local std::map<int, history> histories;
   return histories[get_server ()->get_window_serial ()];
 }
 bool same (const std::vector<std::unique_ptr<saved_position>>& entries, path p) {
@@ -62,3 +61,4 @@ void cursor_history_add (path p) {
 }
 void cursor_history_backward () { move_history (false); }
 void cursor_history_forward () { move_history (true); }
+void cursor_history_clear_for_actor () { histories.clear (); }

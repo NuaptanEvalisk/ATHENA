@@ -1134,6 +1134,8 @@ buffer_actor::run_loop () {
     completed_condition_.notify_all ();
   }
 
+  // History positions must detach while the actor still owns their trees.
+  cursor_history_clear_for_actor ();
   impl_.reset ();
 
   {
