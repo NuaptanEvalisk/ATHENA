@@ -8,6 +8,7 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 #include "UI/Qt/Vault/QTMVaultAvailablePage.hpp"
+#include "UI/Qt/Vault/QTMVaultBadge.hpp"
 #include "UI/Qt/Widgets/QTMChoiceNavigation.hpp"
 #include "UI/Qt/Vault/QTMVaultAnchorModel.hpp"
 #include "UI/Qt/Vault/QTMVaultLinkModel.hpp"
@@ -62,6 +63,7 @@ QTMVaultAvailablePage::QTMVaultAvailablePage (QWidget* parent):
   status->setWordWrap (true);
   progress= new QProgressBar (this);
   list= new QListWidget (this);
+  install_vault_badges (list, query, caseInsensitive, fuzzy);
   new QTMListChoiceNavigation (list, {query, display});
   list->setAlternatingRowColors (true);
   previewTitle= new QLabel (this);
@@ -246,6 +248,7 @@ void QTMVaultAvailablePage::filter () {
   for (const auto& match: matches) {
     const auto& entry= entries[match.second];
     auto* item= new QListWidgetItem (entry.title, list);
+    vault_kind_badge (item, entry.tag);
     item->setData (Qt::UserRole, static_cast<qulonglong> (match.second));
     item->setToolTip (entry.relative_path + "\n" +
       (entry.source_uuid.isEmpty () ? entry.upper : entry.source_uuid));

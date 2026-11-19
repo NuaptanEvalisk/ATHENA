@@ -39,7 +39,7 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
-#include <QListWidget>
+#include "UI/Qt/Vault/QTMVaultMatchFormat.hpp"
 #include <QMessageBox>
 #include <QProgressBar>
 #include <QPushButton>
@@ -333,6 +333,7 @@ TransclusionFilePage::TransclusionFilePage (QWidget* parent)
   searchEdit= new QLineEdit (this);
   searchEdit->setPlaceholderText ("Search .ath, .avd and .tm files");
   fileList= new QListWidget (this);
+  install_vault_badges (fileList);
   fileList->setAlternatingRowColors (true);
 
   QVBoxLayout* layout= new QVBoxLayout (this);
@@ -378,6 +379,10 @@ TransclusionFilePage::updateList () {
   for (auto m: matches) {
     const WikilinkFileEntry& e= w->files[m.index];
     QListWidgetItem* item= new QListWidgetItem (e.relPath);
+    vault_file_badge (item);
+    array<fuzzy_rank_field> fields;
+    fields << fuzzy_rank_field (e.searchStem, 100) << fuzzy_rank_field (e.searchPath, 35);
+    vault_rank_highlight (item, query, e.searchPath, fields);
     item->setData (WikilinkPayloadRole, e.relPath);
     item->setData (WikilinkIndexRole, m.index);
     item->setData (WikilinkCompletionRole, strip_known_extension (e.relPath));
@@ -487,6 +492,7 @@ TransclusionEnunciationPage::TransclusionEnunciationPage (QWidget* parent)
   fuzzyCheck->setChecked (
     get_preference (transclusion_search_fuzzy_pref, "off") == "on");
   pairList= new QListWidget (this);
+  install_vault_badges (pairList, searchEdit, caseInsensitiveCheck, fuzzyCheck);
   pairList->setAlternatingRowColors (true);
   pairList->setMinimumWidth (500);
   previewTitle= new QLabel ("Select an enunciation to preview it.", this);
@@ -627,6 +633,7 @@ TransclusionEnunciationPage::updateList () {
       if (list_filter_score (target.title, query, caseInsensitiveCheck->isChecked (),
                              fuzzyCheck->isChecked ()) < 0) continue;
       auto* item= new QListWidgetItem (target.title, pairList);
+      vault_kind_badge (item, target.kind);
       item->setData (WikilinkIndexRole, i);
       item->setToolTip (target.uuid);
     }
@@ -651,6 +658,8 @@ TransclusionEnunciationPage::updateList () {
   for (auto m: matches) {
     QListWidgetItem* item= new QListWidgetItem (
       anchor_pair_key (pairs[m.second].upper));
+    if (anchor_pair_is_enunciation (pairs[m.second]))
+      vault_kind_badge (item, anchor_pair_tag (pairs[m.second].upper));
     item->setData (WikilinkIndexRole, m.second);
     pairList->addItem (item);
   }
@@ -766,6 +775,7 @@ TransclusionUpperPage::TransclusionUpperPage (QWidget* parent)
   fuzzyCheck->setChecked (
     get_preference (transclusion_search_fuzzy_pref, "off") == "on");
   anchorList= new QListWidget (this);
+  install_vault_badges (anchorList, searchEdit, caseInsensitiveCheck, fuzzyCheck);
   anchorList->setAlternatingRowColors (true);
   anchorList->setMinimumWidth (500);
   previewTitle= new QLabel ("Select an anchor to preview it.", this);
@@ -966,6 +976,7 @@ TransclusionLowerPage::TransclusionLowerPage (QWidget* parent)
   fuzzyCheck->setChecked (
     get_preference (transclusion_search_fuzzy_pref, "off") == "on");
   anchorList= new QListWidget (this);
+  install_vault_badges (anchorList, searchEdit, caseInsensitiveCheck, fuzzyCheck);
   anchorList->setAlternatingRowColors (true);
   anchorList->setMinimumWidth (500);
   previewTitle= new QLabel ("Select a lower bound to preview the range.", this);
@@ -1235,6 +1246,7 @@ TransclusionSearchPage::TransclusionSearchPage (QWidget* parent)
   progress->setRange (0, 1);
   progress->setValue (0);
   resultList= new QListWidget (this);
+  install_vault_badges (resultList, queryEdit, caseInsensitiveCheck, fuzzyCheck);
   resultList->setAlternatingRowColors (true);
   previewTitle= new QLabel ("Select a search result to preview it.", this);
   configurePreviewTitle (previewTitle);
@@ -1482,6 +1494,7 @@ TransclusionSearchPage::searchFile (
             !anchor_pair_matches_enunciation (pair, tag))
           continue;
         std::vector<VaultContentMatch> matches;
+        QString excerpt;
         if (options.mode == VaultSearchMode::Semantic) {
           // Semantic positions belong to the full body, not a rendered range.
           // Only existing canonical source targets can supply the reference ID.
@@ -1513,12 +1526,19 @@ TransclusionSearchPage::searchFile (
                                      caseInsensitive, fuzzy);
           std::stable_sort (matches.begin (), matches.end (),
                             vault_search_match_precedes);
+          excerpt= vault_hit_excerpt (range, matches.front ().start);
         }
         if (vault_search_cancelled ()) break;
         if (matches.empty ()) continue;
 
         TransclusionSearchResult result;
-        if (options.nodeModel) result.sourceUuid= sourceIds[index];
+        result.excerpt= std::move (excerpt);
+        if (options.nodeModel) {
+          result.sourceUuid= sourceIds[index];
+          result.kind= QString::fromStdString (athena::enunciation::standard_registry ()
+            .kind_name (subtree (body, pair.upperWhere)));
+        }
+        else if (anchor_pair_is_enunciation (pair)) result.kind= anchor_pair_tag (pair.upper);
         result.file= u;
         result.upper= pair.upper;
         result.lower= pair.lower;
@@ -1664,10 +1684,11 @@ void
 TransclusionSearchPage::addResult (const TransclusionSearchResult& result) {
   results.push_back (result);
   QListWidgetItem* item= new QListWidgetItem (
-    QString ("%1 (%2)  %3")
-      .arg (result.relPath)
-      .arg (result.occurrence)
-      .arg (clean_anchor_display (result.upper)));
+    clean_anchor_display (result.upper) +
+    (result.excerpt.isEmpty () || result.upper.contains (result.excerpt) ?
+      QString () : "   " + result.excerpt) +
+    QString ("   %1 (%2)").arg (result.relPath).arg (result.occurrence));
+  vault_kind_badge (item, result.kind);
   item->setData (WikilinkIndexRole, (int) results.size () - 1);
   QString tooltip= QString ("%1\nOccurrence %2 of %3\n%4 ... %5")
       .arg (result.relPath)

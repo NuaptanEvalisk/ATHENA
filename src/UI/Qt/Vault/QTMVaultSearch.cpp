@@ -510,6 +510,22 @@ list_filter_score (const QString& text, const QString& query,
   return fuzzy_subsequence_score (haystack, needle);
 }
 
+QString
+vault_hit_excerpt (tree root, path start) {
+  if (is_nil (start)) return {};
+  const path leaf= path_up (start);
+  if (!has_subtree (root, leaf)) return {};
+  const tree atom= subtree (root, leaf);
+  if (!is_atomic (atom)) return {};
+  const string& s= atom->label;
+  int offset= last_item (start);
+  if (offset < 0 || offset > N(s)) return {};
+  int begin= std::max (0, offset - 36), end= std::min (N(s), offset + 160);
+  while (begin < offset && (s[begin] & 0xc0) == 0x80) ++begin;
+  while (end < N(s) && (s[end] & 0xc0) == 0x80) ++end;
+  return to_qstring (s (begin, end)).simplified ();
+}
+
 int
 fuzzy_file_score (const WikilinkFileEntry& file, string query) {
   array<fuzzy_rank_field> fields;

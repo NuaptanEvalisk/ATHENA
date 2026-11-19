@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "UI/Qt/Shell/QTMQuickSwitcher.hpp"
+#include "UI/Qt/Vault/QTMVaultMatchFormat.hpp"
 #include "application_lifecycle.hpp"
 #include "analyze.hpp"
 #include "App/Runtime/actor_transport.hpp"
@@ -58,8 +59,7 @@ enum QuickRoles {
   QuickTypeRole= Qt::UserRole,
   QuickPayloadRole,
   QuickCompletionRole,
-  QuickNamespacePathRole,
-  QuickHighlightRole
+  QuickNamespacePathRole
 };
 
 array<fuzzy_rank_field>
@@ -76,93 +76,8 @@ void highlightItem (QListWidgetItem* item, string query) {
   if (file)
     fields= fileFields (from_qstring (item->text ().section ('/', -1)), text);
   else fields << fuzzy_rank_field (text, 100);
-  fuzzy_rank_hits hits;
-  fuzzy_rank (query, fields, &hits);
-  if (N(hits.bytes) == 0) return;
-
-  // The winning field is either the displayed path or its filename suffix.
-  // Matcher offsets are UTF-8 bytes; Qt formats address UTF-16 code units.
-  const int offset= N(text) - N(fields[hits.field].text);
-  QBitArray marked (N(text));
-  for (int i=0; i<N(hits.bytes); ++i) marked.setBit (offset + hits.bytes[i]);
-  QList<QTextLayout::FormatRange> formats;
-  QTextCharFormat bold;
-  bold.setFontWeight (QFont::Bold);
-  for (int byte=0, pos=0; byte<N(text);) {
-    const int start= byte;
-    UChar32 cp;
-    U8_NEXT (text.data (), byte, N(text), cp);
-    const int length= U16_LENGTH (cp);
-    for (int i=start; i<byte; ++i)
-      if (marked.testBit (i)) {
-        if (!formats.isEmpty () && formats.last ().start + formats.last ().length == pos)
-          formats.last ().length+= length;
-        else formats.append ({pos, length, bold});
-        break;
-      }
-    pos+= length;
-  }
-  item->setData (QuickHighlightRole, QVariant::fromValue (formats));
+  vault_rank_highlight (item, query, text, fields);
 }
-
-class QuickItemDelegate final: public QStyledItemDelegate {
-public:
-  using QStyledItemDelegate::QStyledItemDelegate;
-
-  QSize sizeHint (const QStyleOptionViewItem& option, const QModelIndex& index) const override {
-    return drawRow (nullptr, option, index);
-  }
-
-  void paint (QPainter* painter, const QStyleOptionViewItem& option,
-              const QModelIndex& index) const override {
-    drawRow (painter, option, index);
-  }
-
-private:
-  QSize drawRow (QPainter* painter, QStyleOptionViewItem opt, const QModelIndex& index) const {
-    initStyleOption (&opt, index);
-    const auto text= opt.text;
-    QTextLayout layout (text, opt.font);
-    layout.setFormats (index.data (QuickHighlightRole).value<QList<QTextLayout::FormatRange>> ());
-    layout.beginLayout ();
-    auto line= layout.createLine ();
-    layout.endLayout ();
-    const bool file= index.data (QuickTypeRole).toInt () == QuickFile;
-    const bool avd= file && text.endsWith (".avd", Qt::CaseInsensitive);
-    QFont badgeFont= opt.font;
-    badgeFont.setPixelSize (qMax (9, qRound (opt.fontMetrics.height () * 0.60)));
-    badgeFont.setBold (true);
-    QFontMetrics fm (badgeFont);
-    const int pad= qMax (3, fm.height () / 4);
-    const int badgeWidth= qMax (fm.horizontalAdvance ("ATH"), fm.horizontalAdvance ("AVD")) + 2*pad;
-    const int indent= file ? badgeWidth + 2*pad : 0;
-    if (painter) {
-      const auto* style= opt.widget ? opt.widget->style () : QApplication::style ();
-      opt.text.clear ();
-      style->drawControl (QStyle::CE_ItemViewItem, &opt, painter, opt.widget);
-      painter->save ();
-      painter->setClipRect (opt.rect, Qt::IntersectClip);
-      const int x= opt.rect.left () + pad;
-      if (file) {
-        QRect badge (x, opt.rect.top () + (opt.rect.height ()-fm.height ())/2,
-                     badgeWidth, fm.height ());
-        painter->setRenderHint (QPainter::Antialiasing);
-        painter->setPen (Qt::NoPen);
-        painter->setBrush (avd ? QColor ("#58458a") : QColor ("#226663"));
-        painter->drawRoundedRect (badge, 3, 3);
-        painter->setPen (Qt::white);
-        painter->setFont (badgeFont);
-        painter->drawText (badge, Qt::AlignCenter, avd ? "AVD" : "ATH");
-      }
-      painter->setPen (opt.palette.color (opt.state & QStyle::State_Selected ?
-                                         QPalette::HighlightedText : QPalette::Text));
-      layout.draw (painter, QPointF (x+indent, opt.rect.top ()+(opt.rect.height ()-line.height ())/2));
-      painter->restore ();
-    }
-    return {int (std::ceil (line.naturalTextWidth ())) + indent + 2*pad,
-            qMax (int (std::ceil (line.height ())), fm.height ()) + pad};
-  }
-};
 
 struct QuickSwitcherRequest {
   array<string> recentFiles;
@@ -359,7 +274,7 @@ QTMQuickSwitcher::QTMQuickSwitcher (QWidget* parent,
   structuredList= new QListWidget (this);
   recentList= new QListWidget (this);
   for (auto* list: {rawList, structuredList, recentList})
-    list->setItemDelegate (new QuickItemDelegate (list));
+    install_vault_badges (list);
   tabs->addTab (rawList, "Raw");
   tabs->addTab (structuredList, "Structured");
   tabs->addTab (recentList, "Recents");
@@ -493,6 +408,7 @@ QTMQuickSwitcher::updateRawList () {
     for (int index : rawDefaultIndices) {
       QListWidgetItem* item= new QListWidgetItem (entries[index].relPath);
       item->setData (QuickTypeRole, QuickFile);
+      vault_file_badge (item);
       item->setData (QuickPayloadRole, entries[index].relPath);
       item->setData (QuickCompletionRole, entries[index].relPath);
       rawList->addItem (item);
@@ -512,6 +428,7 @@ QTMQuickSwitcher::updateRawList () {
       const Entry& e= entries[m.second];
       QListWidgetItem* item= new QListWidgetItem (e.relPath);
       item->setData (QuickTypeRole, QuickFile);
+      vault_file_badge (item);
       item->setData (QuickPayloadRole, e.relPath);
       item->setData (QuickCompletionRole, e.relPath);
       rawList->addItem (item);
@@ -534,6 +451,7 @@ QTMQuickSwitcher::updateRecentList () {
     for (int index: recentIndices) {
       QListWidgetItem* item= new QListWidgetItem (entries[index].relPath);
       item->setData (QuickTypeRole, QuickFile);
+      vault_file_badge (item);
       item->setData (QuickPayloadRole, entries[index].relPath);
       item->setData (QuickCompletionRole, entries[index].relPath);
       recentList->addItem (item);
@@ -552,6 +470,7 @@ QTMQuickSwitcher::updateRecentList () {
       int index= recentIndices[match.second];
       QListWidgetItem* item= new QListWidgetItem (entries[index].relPath);
       item->setData (QuickTypeRole, QuickFile);
+      vault_file_badge (item);
       item->setData (QuickPayloadRole, entries[index].relPath);
       item->setData (QuickCompletionRole, entries[index].relPath);
       recentList->addItem (item);
@@ -673,6 +592,7 @@ QTMQuickSwitcher::updateStructuredList () {
         QString relPath= to_qstring (as_unix_string (rel));
         QListWidgetItem* item= new QListWidgetItem (relPath);
         item->setData (QuickTypeRole, QuickFile);
+        vault_file_badge (item);
         item->setData (QuickPayloadRole, relPath);
         item->setData (QuickCompletionRole, relPath);
         structuredList->addItem (item);
@@ -707,6 +627,7 @@ QTMQuickSwitcher::updateStructuredList () {
         QString relPath= to_qstring (as_unix_string (rel));
         QListWidgetItem* item= new QListWidgetItem (relPath);
         item->setData (QuickTypeRole, QuickFile);
+        vault_file_badge (item);
         item->setData (QuickPayloadRole, relPath);
         item->setData (QuickCompletionRole, relPath);
         structuredList->addItem (item);

@@ -9,6 +9,7 @@
 ******************************************************************************/
 
 #include "UI/Qt/Vault/QTMVaultArtifactPage.hpp"
+#include "UI/Qt/Vault/QTMVaultBadge.hpp"
 #include "boot.hpp"
 
 #include "UI/Qt/Vault/QTMVaultAnchorModel.hpp"
@@ -323,6 +324,7 @@ QTMVaultArtifactPage::QTMVaultArtifactPage (
   searchButton= new QPushButton ("&Search", this);
   statusLabel= new QLabel ("Loading artifacts...", this);
   resultList= new QListWidget (this);
+  install_vault_badges (resultList, queryEdit, caseInsensitiveCheck, fuzzyCheck);
   resultList->setAlternatingRowColors (true);
   resultList->setMinimumWidth (440);
   previewTitle= new QLabel ("Select an artifact to preview it.", this);
@@ -479,8 +481,8 @@ QTMVaultArtifactPage::runSearch () {
 
   for (const Match& match: matches) {
     const AthenaArtifactRecord& record= records[(size_t) match.index];
-    QString label= artifact_kind (record) + ": " + qstr (record.display_text);
-    QListWidgetItem* item= new QListWidgetItem (label, resultList);
+    QListWidgetItem* item= new QListWidgetItem (qstr (record.display_text), resultList);
+    vault_kind_badge (item, artifact_kind (record));
     item->setData (ArtifactRecordRole, match.index);
     QString tip= qstr (record.relative_path);
     if (!match.exact) tip += "\nFuzzy score: " +

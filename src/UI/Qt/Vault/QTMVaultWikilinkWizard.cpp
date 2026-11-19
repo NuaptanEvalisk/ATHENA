@@ -40,7 +40,7 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
-#include <QListWidget>
+#include "UI/Qt/Vault/QTMVaultMatchFormat.hpp"
 #include <QMessageBox>
 #include <QProgressBar>
 #include <QPushButton>
@@ -473,6 +473,7 @@ WikilinkFilePage::WikilinkFilePage (QWidget* parent)
   searchEdit= new QLineEdit (this);
   searchEdit->setPlaceholderText ("Search .ath, .avd and .tm files");
   fileList= new QListWidget (this);
+  install_vault_badges (fileList);
   fileList->setAlternatingRowColors (true);
 
   QVBoxLayout* layout= new QVBoxLayout (this);
@@ -518,6 +519,10 @@ WikilinkFilePage::updateList () {
   for (auto m: matches) {
     const WikilinkFileEntry& e= w->files[m.index];
     QListWidgetItem* item= new QListWidgetItem (e.relPath);
+    vault_file_badge (item);
+    array<fuzzy_rank_field> fields;
+    fields << fuzzy_rank_field (e.searchStem, 100) << fuzzy_rank_field (e.searchPath, 35);
+    vault_rank_highlight (item, query, e.searchPath, fields);
     item->setData (WikilinkPayloadRole, e.relPath);
     item->setData (WikilinkIndexRole, m.index);
     item->setData (WikilinkCompletionRole, strip_known_extension (e.relPath));
@@ -598,6 +603,7 @@ WikilinkAnchorPage::WikilinkAnchorPage (QWidget* parent)
   fuzzyCheck->setChecked (
     get_preference (wikilink_search_fuzzy_pref, "off") == "on");
   anchorList= new QListWidget (this);
+  install_vault_badges (anchorList, searchEdit, caseInsensitiveCheck, fuzzyCheck);
   anchorList->setAlternatingRowColors (true);
   anchorList->setTabKeyNavigation (false);
   anchorList->setMinimumWidth (500);
@@ -752,6 +758,7 @@ WikilinkAnchorPage::updateList () {
       if (is_nil (target.where) || list_filter_score (target.title, query,
           caseInsensitiveCheck->isChecked (), fuzzyCheck->isChecked ()) < 0) continue;
       auto* item= new QListWidgetItem (target.title, anchorList);
+      vault_kind_badge (item, target.kind);
       item->setData (WikilinkIndexRole, i);
       item->setData (WikilinkPayloadRole, target.uuid);
     }
@@ -791,6 +798,8 @@ WikilinkAnchorPage::updateList () {
     QString text= enunciationUpper.count (m.second) != 0 ?
       anchor_pair_key (anchors[m.second].anchor) : anchors[m.second].anchor;
     QListWidgetItem* item= new QListWidgetItem (text);
+    if (enunciationUpper.count (m.second))
+      vault_kind_badge (item, anchor_pair_tag (anchors[m.second].anchor));
     item->setData (WikilinkIndexRole, m.second);
     item->setData (WikilinkPayloadRole, anchors[m.second].anchor);
     anchorList->addItem (item);
@@ -962,9 +971,11 @@ WikilinkSearchPage::WikilinkSearchPage (QWidget* parent)
   progress->setRange (0, 1);
   progress->setValue (0);
   resultList= new QListWidget (this);
+  install_vault_badges (resultList, queryEdit, caseInsensitiveCheck, fuzzyCheck);
   resultList->setAlternatingRowColors (true);
   resultList->setTabKeyNavigation (false);
   anchorList= new QListWidget (this);
+  install_vault_badges (anchorList, queryEdit, caseInsensitiveCheck, fuzzyCheck);
   anchorList->setAlternatingRowColors (true);
   anchorList->setTabKeyNavigation (false);
   displayEdit= new QLineEdit (this);
@@ -1228,6 +1239,8 @@ WikilinkSearchPage::searchFile (
               return better (b, a);
             });
           VaultContentMatch match= *best;
+          match.excerpt= vault_hit_excerpt (
+            options.mode == VaultSearchMode::Semantic ? body : source, match.start);
           match.start= match.end= target.where;
           match.sourceUuid= target.uuid;
           matches.push_back (std::move (match));
@@ -1262,24 +1275,29 @@ WikilinkSearchPage::searchFile (
     int occurrence= 1;
     for (const VaultContentMatch& match: matches) {
       WikilinkSearchResult result;
-      if (!match.sourceUuid.isEmpty ())
-        result.sourceUuid= match.sourceUuid;
-      else if (options.nodeModel) {
+      {
         tree current= body;
         path remaining= match.start;
-        result.sourceUuid= QString::fromStdString (athena::node::id (current));
-        while (!is_nil (remaining) && is_compound (current) &&
-               remaining->item >= 0 && remaining->item < N(current)) {
+        const auto& registry= athena::enunciation::standard_registry ();
+        for (;;) {
+          const auto kind= registry.kind_name (current);
+          if (!kind.empty ()) result.kind= QString::fromStdString (kind);
+          if (options.nodeModel && match.sourceUuid.isEmpty ()) {
+            const auto id= athena::node::id (current);
+            if (!id.empty ()) result.sourceUuid= QString::fromStdString (id);
+          }
+          if (is_nil (remaining) || is_atomic (current) ||
+              remaining->item < 0 || remaining->item >= N(current)) break;
           current= current[remaining->item];
           remaining= remaining->next;
-          const auto id= athena::node::id (current);
-          if (!id.empty ()) result.sourceUuid= QString::fromStdString (id);
         }
+        if (!match.sourceUuid.isEmpty ()) result.sourceUuid= match.sourceUuid;
       }
       result.relPath= rel;
       result.file= u;
       result.occurrence= occurrence++;
       result.fileHits= hitCount;
+      result.excerpt= match.excerpt.isEmpty () ? vault_hit_excerpt (body, match.start) : match.excerpt;
       result.hitStart= match.start;
       result.hitEnd= match.end;
       result.exact= match.exact;
@@ -1415,7 +1433,9 @@ void
 WikilinkSearchPage::addResult (const WikilinkSearchResult& result) {
   results.push_back (result);
   QListWidgetItem* item= new QListWidgetItem (
+    (result.excerpt.isEmpty () ? QString () : result.excerpt + "   ") +
     QString ("%1 (%2)").arg (result.relPath).arg (result.occurrence));
+  vault_kind_badge (item, result.kind);
   item->setData (WikilinkIndexRole, (int) results.size () - 1);
   QString tooltip= QString ("%1\nOccurrence %2 of %3")
       .arg (result.relPath)
@@ -1465,6 +1485,7 @@ WikilinkSearchPage::updatePreview (QListWidgetItem* current) {
           const auto targets= vault_source_targets (body);
           const QString title= targets.empty () ? id : targets.front ().title;
           auto* item= new QListWidgetItem (title, anchorList);
+          if (!targets.empty ()) vault_kind_badge (item, targets.front ().kind);
           item->setData (WikilinkPayloadRole, id);
           anchorList->setCurrentRow (0);
           displayEdit->setText (title);
