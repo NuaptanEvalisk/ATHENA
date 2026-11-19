@@ -15,6 +15,7 @@
 #include "Interop/Adapters/interop_document.hpp"
 #include "Interop/Adapters/interop_buffers.hpp"
 #include "Interop/Adapters/interop_artifacts.hpp"
+#include "Interop/Adapters/interop_rag.hpp"
 #include "Domains/Namespaces/namespaces_private.hpp"
 #include <chrono>
 #include <set>
@@ -375,7 +376,7 @@ std::shared_ptr<const resolver_registry> native_resolvers () {
   static const auto registry = std::make_shared<const resolver_registry> (resolver_registry {
     std::make_shared<native_resolver> ("root"), std::make_shared<native_resolver> ("vault"),
     std::make_shared<native_resolver> ("namespace"), filesystem_resolver (), document_resolver (),
-    buffers_resolver (), artifacts_resolver ()});
+    buffers_resolver (), artifacts_resolver (), rag_resolver ()});
   return registry;
 }
 } // namespace athena::interop

@@ -31,7 +31,6 @@
 #include <exception>
 #include <iomanip>
 #include <optional>
-#include <random>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -70,7 +69,7 @@
 #include "Domains/Vault/vaultfile_json.hpp"
 #include "Domains/Namespaces/namespace_sorter_migration.hpp"
 #include "Domains/Websites/websites.hpp"
-#include "Services/MCP/mcp_rag_server.hpp"
+#include "Services/Delegation/delegation_server.hpp"
 #include "rag_delegation_crypto.hpp"
 #include "native_keyboard_loader.hpp"
 #include "native_interfaces.hpp"
@@ -132,9 +131,6 @@ string rag_server_dir;
 string rag_embedding_model;
 string rag_embedding_device= "auto";
 int    rag_server_port = 8765;
-bool   rag_server_port_set = false;
-bool   rag_server_reindex = false;
-int    rag_index_jobs = 0;
 string rag_listen_address = "127.0.0.1";
 string delegation_key_dir;
 string delegation_accepted_clients;
@@ -546,21 +542,6 @@ as_positive_integer_arg (string s) {
   return is_positive_integer_arg (s) ? as_int (s) : 0;
 }
 
-static std::string
-random_hex_token (int bytes) {
-  static const char* hex= "0123456789abcdef";
-  std::random_device rd;
-  std::mt19937 gen (rd ());
-  std::uniform_int_distribution<int> dist (0, 255);
-  std::string out;
-  out.reserve (size_t (bytes) * 2);
-  for (int i=0; i<bytes; i++) {
-    int value= dist (gen);
-    out.push_back (hex[(value >> 4) & 15]);
-    out.push_back (hex[value & 15]);
-  }
-  return out;
-}
 
 #ifdef QTTEXMACS
 // Qt application infrastructure
@@ -805,9 +786,8 @@ print_command_line_help () {
   cout << "  --check-only               With --vault-maintenance, run only the document health check\n";
   cout << "  --aofm-convert-file [file]  Convert one AOFM Markdown file headlessly\n";
   cout << "  --aofm-convert-vault [src] [dest] [jobs]  Convert an AOFM vault headlessly\n";
-  cout << "  --rag-server [dir]          Start a Continuous RAG MCP server\n";
+  cout << "  --rag-server [dir]          Start the embedding and artifact delegation server\n";
   cout << "  --rag-embedding-device [auto|cpu]  Select RAG embedding device mode\n";
-  cout << "  --rag-index-jobs [n]        Parallelize initial RAG indexing with n processes\n";
   cout << "  --rag-listen-address [addr] Listen address for RAG server endpoints\n";
   cout << "  --delegation-key-dir [dir]  ATHENA delegation server key directory\n";
   cout << "  --delegation-accepted-clients [json]  Accepted delegation client keys\n";
@@ -976,12 +956,6 @@ set_global_options  (int argc, char** argv)  {
       else if (s == "-rag-embedding-device") {
         i++;
       }
-      else if (s == "-rag-index-jobs") {
-        i++;
-      }
-      else if (s == "-rag-reindex") {
-        // Handled in texmacs_entrypoint
-      }
       else if (s == "-rag-listen-address") {
         i++;
       }
@@ -1136,16 +1110,11 @@ TeXmacs_main (int argc, char** argv) {
 
 #if ATHENA_ENABLE_CLI
     if (rag_server_dir != "") {
-      athena::mcp::RagServerOptions options;
-      options.vault_root= std::filesystem::path (
+      athena::delegation::DelegationServerOptions options;
+      auto preferences_root= std::filesystem::path (
         athena_to_std_string (rag_server_dir));
-      load_vault_preferences_if_enabled (options.vault_root,
+      load_vault_preferences_if_enabled (preferences_root,
                                          "Continuous RAG");
-      if (!rag_server_port_set) {
-        string port_pref= get_user_preference ("rag mcp port", "8765");
-        if (is_positive_integer_arg (port_pref))
-          rag_server_port= as_positive_integer_arg (port_pref);
-      }
       options.port= rag_server_port;
       if (rag_embedding_model != "")
         options.embedding_model= std::filesystem::path (
@@ -1166,8 +1135,6 @@ TeXmacs_main (int argc, char** argv) {
         rag_embedding_device= pref_device;
       if (rag_embedding_device != "cpu") rag_embedding_device= "auto";
       options.embedding_device= athena_to_std_string (rag_embedding_device);
-      options.index_jobs= rag_index_jobs;
-      options.force_reindex= rag_server_reindex;
       options.listen_address= athena_to_std_string (rag_listen_address);
       if (delegation_key_dir != "")
         options.delegation_key_dir= std::filesystem::path (
@@ -1181,23 +1148,12 @@ TeXmacs_main (int argc, char** argv) {
       options.artifact_range_batch_size= artifact_range_batch_size;
       options.artifact_queue_limit= artifact_queue_limit;
       options.artifact_queue_bytes= artifact_queue_bytes;
-      string token_pref= get_user_preference ("rag mcp bearer token", "");
-      if (token_pref == "") {
-        std::string token= random_hex_token (32);
-        set_user_preference ("rag mcp bearer token", string (token.c_str ()));
-        save_user_preferences ();
-        options.bearer_token= token;
-      }
-      else options.bearer_token= athena_to_std_string (token_pref);
-
-      bool ok= athena::mcp::start_rag_server (options);
+      bool ok= athena::delegation::start_delegation_server (options);
       if (!ok) exit (1);
       texmacs_started= true;
       if (!disable_error_recovery) install_crash_reporting ();
       signal (SIGTERM, clean_exit_on_sigterm);
       release_boot_lock ();
-      io_info << "rag mcp: bearer token "
-              << "configured" << "\n";
 #ifdef QTTEXMACS
       QCoreApplication::exec ();
 #endif
@@ -1962,7 +1918,6 @@ texmacs_entrypoint (int argc, char** argv) {
       i++;
       if (i < argc && is_positive_integer_arg (string (argv[i]))) {
         rag_server_port= as_positive_integer_arg (string (argv[i]));
-        rag_server_port_set= true;
       }
     }
     if (s == "-rag-embedding-model") {
@@ -1975,14 +1930,6 @@ texmacs_entrypoint (int argc, char** argv) {
         string device= argv[i];
         rag_embedding_device= device == "cpu"? "cpu": "auto";
       }
-    }
-    if (s == "-rag-index-jobs") {
-      i++;
-      if (i < argc && is_positive_integer_arg (string (argv[i])))
-        rag_index_jobs= as_positive_integer_arg (string (argv[i]));
-    }
-    if (s == "-rag-reindex") {
-      rag_server_reindex= true;
     }
     if (s == "-rag-listen-address") {
       i++;

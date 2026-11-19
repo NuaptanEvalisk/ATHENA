@@ -14,7 +14,7 @@
 #include <memory>
 #include <string>
 
-namespace athena::mcp {
+namespace athena::delegation {
 
 struct ArtifactDelegationQueueOptions {
   std::filesystem::path model_path;
@@ -49,6 +49,6 @@ private:
   std::unique_ptr<Impl> impl;
 };
 
-} // namespace athena::mcp
+} // namespace athena::delegation
 
 #endif // ARTIFACT_DELEGATION_QUEUE_HPP

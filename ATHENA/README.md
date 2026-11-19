@@ -347,22 +347,18 @@ ATHENA can connect local documents to Google Tasks.
 
 ### Continuous RAG
 
-ATHENA can run a separate headless continuous RAG server for a vault.
+ATHENA indexes vault content locally for retrieval.
 
-- Start a read-only MCP Streamable HTTP server with
-  `ATHENA.bin -H --rag-server <vault-root>`.
 - Store the vault-local index in SQLite with FTS and optional vector
   embeddings.
 - Parse `.ath` documents through ATHENA tree import rather than plain string
   scraping.
 - Chunk by headings, enunciations, proofs, anchors, links, transclusions, and
   namespace context.
-- Use llama.cpp embedding models for local embeddings and retrieval, with CPU
-  mode and process-level parallel indexing options.
-- Expose MCP tools and resources for status, search, chunk/document reads,
-  related chunks, and backlinks.
-- Support `--skip-fonts-cache` for headless server runs that do not need GUI
-  font menu preparation.
+- Use llama.cpp embedding models for local embeddings and retrieval.
+- Query the existing index through the local AUDMAP connection.
+- Run the independent inference delegation backend with
+  `ATHENA.bin -H --rag-server <vault-root>`.
 
 ### UI And Native Qt Work
 

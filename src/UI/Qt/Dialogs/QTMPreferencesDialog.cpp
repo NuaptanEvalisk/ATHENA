@@ -84,7 +84,6 @@
 #include <QProcessEnvironment>
 #endif
 #include <QPushButton>
-#include <QRandomGenerator>
 #include <QScrollArea>
 #include <QSet>
 #include <QSignalBlocker>
@@ -377,18 +376,6 @@ preferred_fonts () {
   return result;
 }
 
-static QString
-random_hex_token (int bytes) {
-  static const char* hex= "0123456789abcdef";
-  QString out;
-  out.reserve (bytes * 2);
-  for (int i=0; i<bytes; i++) {
-    int value= QRandomGenerator::global ()->bounded (256);
-    out.append (QChar (hex[(value >> 4) & 15]));
-    out.append (QChar (hex[value & 15]));
-  }
-  return out;
-}
 
 static void
 set_preferred_fonts (const QStringList& fonts) {
@@ -2693,7 +2680,6 @@ QTMPreferencesDialog::buildOtherPage () {
                               "collecting preference metadata.");
 
   QFormLayout* rag= add_section (connectivity, "Continuous RAG");
-  add_line_edit (rag, "rag mcp port");
   QCheckBox* delegationEnabled= add_toggle (rag, "rag delegation enabled");
   QObject::connect (delegationEnabled, &QCheckBox::toggled,
                     [refreshRagDelegationEnabled] () {
@@ -2783,32 +2769,6 @@ QTMPreferencesDialog::buildOtherPage () {
     refreshRealtimeNpuControls ();
   });
   refreshRealtimeNpuControls ();
-  QLineEdit* bearerToken= add_line_edit (rag, "rag mcp bearer token");
-  QWidget* tokenButtons= new QWidget (connectivity);
-  QHBoxLayout* tokenLayout= new QHBoxLayout (tokenButtons);
-  tokenLayout->setContentsMargins (0, 0, 0, 0);
-  QPushButton* generateToken= new QPushButton ("Generate token", tokenButtons);
-  QPushButton* copyToken= new QPushButton ("Copy token", tokenButtons);
-  tokenLayout->addWidget (generateToken);
-  tokenLayout->addWidget (copyToken);
-  tokenLayout->addStretch (1);
-  rag->addRow (label ("Token management:"), tokenButtons);
-  QObject::connect (generateToken, &QPushButton::clicked,
-                    [bearerToken] () {
-    QString token= random_hex_token (32);
-    bearerToken->setText (token);
-    set_pref ("rag mcp bearer token", token);
-  });
-  QObject::connect (copyToken, &QPushButton::clicked,
-                    [bearerToken] () {
-    QApplication::clipboard ()->setText (bearerToken->text ());
-  });
-  QLabel* ragNote= new QLabel (
-    "Start the local read-only MCP server with ATHENA.bin -H --rag-server "
-    "<vault-root>. The endpoint is http://127.0.0.1:<port>/mcp and requires "
-    "the bearer token above.");
-  ragNote->setWordWrap (true);
-  connectivity->layout ()->addWidget (ragNote);
   finish_page (connectivity);
 
   return tabbed ({{"AI", ai}, {"Connectivity", connectivity},

@@ -134,10 +134,6 @@ public:
     const std::set<std::string>& allowed_rel_paths, std::size_t limit= 0,
     const std::function<bool ()>& cancelled= {});
   std::optional<RagChunk> read_chunk (const std::string& chunk_id) const;
-  std::string read_document (const std::string& rel_path) const;
-  std::vector<RagChunk> related (const std::string& chunk_id, int limit) const;
-  std::vector<RagChunk> backlinks (const std::string& target, int limit) const;
-  std::vector<RagChunk> list_chunks (int limit) const;
 
   const std::filesystem::path& vault_root () const;
 

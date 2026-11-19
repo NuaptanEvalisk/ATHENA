@@ -52,7 +52,7 @@ responsibility. It is no longer the top-level source organization:
 | `src/Math/` | Mathematics-related geometry, handwriting and graphical tools |
 | `src/Platform/` | Unix, Windows, macOS and iPadOS entrypoints and platform adapters |
 | `src/Rendering/` | Fonts, PDF, image and graphical rendering support |
-| `src/Services/` | AUDMAP transport, RAG, MCP, Google and plugins |
+| `src/Services/` | AUDMAP transport, RAG, inference delegation, Google and plugins |
 | `src/Sync/` | Hodarium client, synchronization state and headless node entrypoint |
 | `src/Typesetting/` | Typesetter, boxes, environment, macros, styles and page layout |
 | `src/UI/` | Abstract widgets and Qt UI broken into focused, named directories |

@@ -4064,23 +4064,6 @@
       }
     },
     {
-      "key": "rag mcp port",
-      "type": "string",
-      "scope": "active",
-      "default": "8765",
-      "ui": {
-        "category": "Other",
-        "tab": "Connectivity",
-        "section": "Continuous RAG",
-        "order": 0,
-        "label": "MCP port",
-        "control": "text",
-        "category_order": 9,
-        "tab_order": 1,
-        "section_order": 1
-      }
-    },
-    {
       "key": "rag embedding model",
       "type": "string",
       "scope": "active",
@@ -4242,23 +4225,6 @@
         "category_order": 9,
         "tab_order": 1,
         "section_order": 2
-      }
-    },
-    {
-      "key": "rag mcp bearer token",
-      "type": "string",
-      "scope": "active",
-      "default": "",
-      "ui": {
-        "category": "Other",
-        "tab": "Connectivity",
-        "section": "Continuous RAG",
-        "order": 5,
-        "label": "MCP bearer token",
-        "control": "text",
-        "category_order": 9,
-        "tab_order": 1,
-        "section_order": 1
       }
     },
     {

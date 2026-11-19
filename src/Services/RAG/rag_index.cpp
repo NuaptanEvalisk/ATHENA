@@ -1855,28 +1855,6 @@ RagIndex::read_chunk (const std::string& chunk_id) const {
   return chunk_from_stmt (st.get ());
 }
 
-std::string
-RagIndex::read_document (const std::string& rel_path) const {
-  if (!valid_vault_relative_path (rel_path)) return "";
-  std::string text;
-  if (!read_bytes (impl->config.vault_root / rel_path, text)) return "";
-  return text;
-}
-
-std::vector<RagChunk>
-RagIndex::list_chunks (int limit) const {
-  if (impl->db == nullptr) return {};
-  limit= std::max (1, std::min (limit, 200));
-  Statement st (impl->db, "SELECT chunk_id, rel_path, kind, tree_path, anchor, "
-                         "title, heading_path, text, source "
-                         "FROM chunks ORDER BY rel_path, tree_path LIMIT ?");
-  sqlite3_bind_int (st.get (), 1, limit);
-  std::vector<RagChunk> out;
-  while (sqlite3_step (st.get ()) == SQLITE_ROW)
-    out.push_back (chunk_from_stmt (st.get ()));
-  return out;
-}
-
 std::vector<RagChunk>
 RagIndex::search_vector (
   const std::vector<float>& query_vector, const std::string& embedding_space,
@@ -2061,40 +2039,6 @@ RagIndex::search (const std::string& query, int limit) {
                return a.score > b.score;
              });
   if ((int) out.size () > limit) out.resize (limit);
-  return out;
-}
-
-std::vector<RagChunk>
-RagIndex::related (const std::string& chunk_id, int limit) const {
-  std::optional<RagChunk> c= read_chunk (chunk_id);
-  if (!c) return {};
-  limit= std::max (1, std::min (limit, 50));
-  Statement st (impl->db, "SELECT chunk_id, rel_path, kind, tree_path, anchor, "
-                         "title, heading_path, text, source "
-                         "FROM chunks WHERE rel_path=? AND chunk_id!=? "
-                         "ORDER BY tree_path LIMIT ?");
-  bind_text (st.get (), 1, c->rel_path);
-  bind_text (st.get (), 2, chunk_id);
-  sqlite3_bind_int (st.get (), 3, limit);
-  std::vector<RagChunk> out;
-  while (sqlite3_step (st.get ()) == SQLITE_ROW)
-    out.push_back (chunk_from_stmt (st.get ()));
-  return out;
-}
-
-std::vector<RagChunk>
-RagIndex::backlinks (const std::string& target, int limit) const {
-  limit= std::max (1, std::min (limit, 50));
-  Statement st (impl->db,
-    "SELECT c.chunk_id, c.rel_path, c.kind, c.tree_path, c.anchor, c.title, "
-    "c.heading_path, c.text, c.source "
-    "FROM edges e JOIN chunks c ON c.chunk_id=e.src_chunk "
-    "WHERE e.target LIKE ? ORDER BY c.rel_path, c.tree_path LIMIT ?");
-  bind_text (st.get (), 1, "%" + target + "%");
-  sqlite3_bind_int (st.get (), 2, limit);
-  std::vector<RagChunk> out;
-  while (sqlite3_step (st.get ()) == SQLITE_ROW)
-    out.push_back (chunk_from_stmt (st.get ()));
   return out;
 }
 

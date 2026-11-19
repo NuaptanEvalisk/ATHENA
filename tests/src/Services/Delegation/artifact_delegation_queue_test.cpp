@@ -12,8 +12,8 @@
 #include <QJsonObject>
 #include <QThread>
 
-using athena::mcp::ArtifactDelegationQueue;
-using athena::mcp::ArtifactDelegationQueueOptions;
+using athena::delegation::ArtifactDelegationQueue;
+using athena::delegation::ArtifactDelegationQueueOptions;
 
 class TestArtifactDelegationQueue: public QObject {
   Q_OBJECT

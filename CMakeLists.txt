@@ -779,7 +779,7 @@ set (ATHENA_Include_Dirs
   ${ATHENA_SOURCE_DIR}/src/Rendering/VTK
   ${ATHENA_SOURCE_DIR}/src/Services/AUDMAP
   ${ATHENA_SOURCE_DIR}/src/Services/Google
-  ${ATHENA_SOURCE_DIR}/src/Services/MCP
+  ${ATHENA_SOURCE_DIR}/src/Services/Delegation
   ${ATHENA_SOURCE_DIR}/src/Services/Plugins
   ${ATHENA_SOURCE_DIR}/src/Services/RAG
   ${ATHENA_SOURCE_DIR}/src/Sync/Hodarium
@@ -874,7 +874,7 @@ file (GLOB_RECURSE ATHENA_Subsystems_SRCS CONFIGURE_DEPENDS
   "${ATHENA_SOURCE_DIR}/src/Rendering/Pdf/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Rendering/VTK/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Services/Google/*.cpp"
-  "${ATHENA_SOURCE_DIR}/src/Services/MCP/*.cpp"
+  "${ATHENA_SOURCE_DIR}/src/Services/Delegation/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Services/RAG/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Integrations/Ghostscript/*.cpp"
   "${ATHENA_SOURCE_DIR}/src/Integrations/Imlib2/*.cpp"

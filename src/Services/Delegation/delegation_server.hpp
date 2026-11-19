@@ -1,6 +1,6 @@
 /******************************************************************************
-* MODULE     : mcp_rag_server.hpp
-* DESCRIPTION: MCP Streamable HTTP server for Continuous RAG
+* MODULE     : delegation_server.hpp
+* DESCRIPTION: Authenticated embedding and artifact delegation server
 * COPYRIGHT  : (C) 2026 Nuaptan Felix Evalisk
 *******************************************************************************
 * This software falls under the GNU general public license version 3 or later.
@@ -8,22 +8,18 @@
 * in the root directory or <http://www.gnu.org/licenses/gpl-3.0.html>.
 ******************************************************************************/
 
-#ifndef MCP_RAG_SERVER_HPP
-#define MCP_RAG_SERVER_HPP
+#ifndef DELEGATION_SERVER_HPP
+#define DELEGATION_SERVER_HPP
 
 #include <filesystem>
 #include <string>
 
-namespace athena::mcp {
+namespace athena::delegation {
 
-struct RagServerOptions {
-  std::filesystem::path vault_root;
+struct DelegationServerOptions {
   int port= 8765;
   std::filesystem::path embedding_model;
   std::string embedding_device= "auto";
-  int index_jobs= 0;
-  bool force_reindex= false;
-  std::string bearer_token;
   std::string listen_address= "127.0.0.1";
   std::filesystem::path delegation_key_dir;
   std::filesystem::path delegation_accepted_clients;
@@ -33,8 +29,8 @@ struct RagServerOptions {
   int artifact_queue_bytes= 32 * 1024 * 1024;
 };
 
-bool start_rag_server (const RagServerOptions& options);
+bool start_delegation_server (const DelegationServerOptions& options);
 
-} // namespace athena::mcp
+} // namespace athena::delegation
 
-#endif // MCP_RAG_SERVER_HPP
+#endif // DELEGATION_SERVER_HPP

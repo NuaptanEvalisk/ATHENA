@@ -18,7 +18,7 @@ remains the shipped runtime resource tree, **not** a C++ source directory.
 | `Math/` | Mathematical geometry, handwriting and specialized tools |
 | `Platform/` | Unix, Windows, macOS and iPadOS adaptations |
 | `Rendering/` | Graphical rendering, images, fonts, PDF backends and VTK |
-| `Services/` | AUDMAP transport, RAG, MCP, Google integration and plugins |
+| `Services/` | AUDMAP transport, RAG, inference delegation, Google integration and plugins |
 | `Sync/` | Native Hodarium client, logical synchronization, and headless node |
 | `Typesetting/` | Typesetter, page layout, boxes, environments and style evaluation |
 | `UI/` | Abstract widgets and the Qt-specific presentation layer |

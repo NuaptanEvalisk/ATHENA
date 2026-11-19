@@ -426,6 +426,21 @@ applies independently.
 
 ## CLI
 
+### RAG queries
+
+Resolve `@/vaults/@/rag`, then use `status {}` or
+`search {"query":"convergence in law","limit":10}` on its handle. Search
+returns ranked lexical matches from the saved vault index, not live buffers.
+Each hit includes a chunk ID and vault-relative document path. Resolve
+`@/vaults/@/rag/"<chunk_id>"` and call `get {}` for the full indexed text;
+use the filesystem/document domains for the source document. A tree path is
+relative to the indexed snapshot, not a persistent node ID.
+
+These operations never create, maintain or rebuild the index, start a model,
+or enable Continuous RAG. On a vault without a usable index, status reports
+`open: false` and search returns an error. The delegation HTTP backend is
+independent of this local query interface.
+
 ### Artifact queries
 
 Artifacts are children of a vault, optionally selected through the `artifacts`

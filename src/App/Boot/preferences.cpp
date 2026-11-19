@@ -364,8 +364,7 @@ get_user_preference_names () {
 bool
 user_preference_is_sensitive (string var) {
   string key= locase_all (var);
-  if (key == "rag mcp bearer token" ||
-      key == "google oauth client id" ||
+  if (key == "google oauth client id" ||
       key == "google oauth client secret")
     return true;
 

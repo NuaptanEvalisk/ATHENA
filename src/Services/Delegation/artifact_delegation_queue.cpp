@@ -5,7 +5,7 @@
 *******************************************************************************
 */
 
-#include "Services/MCP/artifact_delegation_queue.hpp"
+#include "Services/Delegation/artifact_delegation_queue.hpp"
 
 #include "Domains/Artifacts/artifact_range_llm.hpp"
 #include "rag_delegation_crypto.hpp"
@@ -26,7 +26,7 @@
 #include <utility>
 #include <vector>
 
-namespace athena::mcp {
+namespace athena::delegation {
 namespace {
 
 using Clock= std::chrono::steady_clock;
@@ -460,4 +460,4 @@ QJsonObject ArtifactDelegationQueue::counts () const { return impl->counts (); }
 QJsonObject ArtifactDelegationQueue::limits () const { return impl->limits (); }
 bool ArtifactDelegationQueue::available () const { return impl->available (); }
 
-} // namespace athena::mcp
+} // namespace athena::delegation
