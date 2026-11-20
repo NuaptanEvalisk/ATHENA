@@ -316,7 +316,7 @@ display_tree (tree transclusion, const AthenaTransclusionResolution& resolved) {
   string source_url= "tmfs://transclusion-source/" * uuid;
 
   tree source_line (CONCAT);
-  source_line << compound ("hlink", "[Source: " * filename * "]", source_url);
+  source_line << compound ("hlink", filename, source_url);
   tree document (DOCUMENT);
   document << tree (WITH, "font-size", "0.8", "color", "blue", source_line);
   if (is_func (resolved.content, DOCUMENT)) document << A(resolved.content);

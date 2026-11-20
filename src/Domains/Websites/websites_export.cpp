@@ -659,7 +659,7 @@ resolve_transclusion (tree t, const std::string& source_rel,
         content, rel, output_rel, cx, transclusion_ancestry);
 
       tree source_link (HLINK,
-        std_to_tm ("[Source: " + fs::path (rel).filename ().string () + "]"),
+        std_to_tm (fs::path (rel).filename ().string ()),
         std_to_tm ("tmfs://wikilink/" + id));
       tree entry (DOCUMENT);
       entry << tree (WITH, "font-size", "0.8", "color", "blue",

@@ -51,9 +51,21 @@ selection_hit_x (box eb, SI x) {
 }
 
 static const int IMAGE_RESIZE_NONE   = 0;
-static const int IMAGE_RESIZE_RIGHT  = 1;
-static const int IMAGE_RESIZE_BOTTOM = 2;
-static const int IMAGE_RESIZE_CORNER = 3;
+struct image_grip { int x, y; const char* cursor; };
+static constexpr image_grip image_grips[]= {
+  {0,0,nullptr},
+  {-1,1,"XC_bottom_right_corner"}, {1,-1,"XC_bottom_right_corner"},
+  {1,1,"XC_bottom_left_corner"}, {-1,-1,"XC_bottom_left_corner"},
+  {-1,0,"XC_right_side"}, {1,0,"XC_right_side"},
+  {0,1,"XC_bottom_side"}, {0,-1,"XC_bottom_side"}
+};
+
+static rectangle
+grip_bounds (rectangle r, image_grip g, SI radius) {
+  SI x= g.x < 0 ? r->x1 : g.x > 0 ? r->x2 : (r->x1+r->x2)/2;
+  SI y= g.y < 0 ? r->y1 : g.y > 0 ? r->y2 : (r->y1+r->y2)/2;
+  return rectangle (x-radius, y-radius, x+radius, y+radius);
+}
 static const int TABLE_RESIZE_NONE   = 0;
 static const int TABLE_RESIZE_COLUMN = 1;
 static const int TABLE_RESIZE_ROW    = 2;
@@ -116,13 +128,10 @@ edit_interface_rep::image_bounds (path p, rectangle& r) {
 
 rectangles
 edit_interface_rep::image_resize_handles (rectangle r) {
-  SI s= 5 * pixel;
-  SI mx= (r->x1 + r->x2) / 2;
-  SI my= (r->y1 + r->y2) / 2;
-  rectangle right  (r->x2 - s, my - s, r->x2 + s, my + s);
-  rectangle bottom (mx - s, r->y1 - s, mx + s, r->y1 + s);
-  rectangle corner (r->x2 - s, r->y1 - s, r->x2 + s, r->y1 + s);
-  return rectangles (right, rectangles (bottom, rectangles (corner)));
+  rectangles result;
+  for (auto g: image_grips)
+    if (g.cursor) result= rectangles (grip_bounds (r, g, 5*pixel), result);
+  return result;
 }
 
 int
@@ -130,16 +139,8 @@ edit_interface_rep::image_resize_handle_at (SI x, SI y,
                                             rectangle& r, path& p) {
   if (!selected_image_path (p) || !image_bounds (p, r)) return IMAGE_RESIZE_NONE;
 
-  SI s= 7 * pixel;
-  SI mx= (r->x1 + r->x2) / 2;
-  SI my= (r->y1 + r->y2) / 2;
-  rectangle corner (r->x2 - s, r->y1 - s, r->x2 + s, r->y1 + s);
-  rectangle right  (r->x2 - s, my - s, r->x2 + s, my + s);
-  rectangle bottom (mx - s, r->y1 - s, mx + s, r->y1 + s);
-
-  if (inside_rect (x, y, corner)) return IMAGE_RESIZE_CORNER;
-  if (inside_rect (x, y, right)) return IMAGE_RESIZE_RIGHT;
-  if (inside_rect (x, y, bottom)) return IMAGE_RESIZE_BOTTOM;
+  for (int i=1; i<int (sizeof (image_grips)/sizeof (*image_grips)); ++i)
+    if (inside_rect (x, y, grip_bounds (r, image_grips[i], 7*pixel))) return i;
   return IMAGE_RESIZE_NONE;
 }
 
@@ -198,21 +199,11 @@ edit_interface_rep::image_resize_update (SI x, SI y) {
   SI max_w= max (as_length ("4096px"), min_w);
   SI old_w= max (abs_si (image_resize_x2 - image_resize_x1), (SI) 1);
   SI old_h= max (abs_si (image_resize_y2 - image_resize_y1), (SI) 1);
-  SI new_w= old_w;
-  SI new_h= old_h;
-  if (image_resize_handle == IMAGE_RESIZE_RIGHT ||
-      image_resize_handle == IMAGE_RESIZE_CORNER)
-    new_w= max (old_w + x - image_resize_start_x, min_w);
-  if (image_resize_handle == IMAGE_RESIZE_BOTTOM ||
-      image_resize_handle == IMAGE_RESIZE_CORNER)
-    new_h= max (old_h + image_resize_start_y - y, min_w);
-
-  double sx= ((double) new_w) / ((double) old_w);
-  double sy= ((double) new_h) / ((double) old_h);
-  double scale= sx;
-  if (image_resize_handle == IMAGE_RESIZE_BOTTOM) scale= sy;
-  else if (image_resize_handle == IMAGE_RESIZE_CORNER)
-    scale= (sx >= 1.0 && sy >= 1.0)? min (sx, sy): max (sx, sy);
+  auto g= image_grips[image_resize_handle];
+  double sx= 1.0 + double (g.x * (x-image_resize_start_x)) / old_w;
+  double sy= 1.0 + double (g.y * (y-image_resize_start_y)) / old_h;
+  double scale= !g.x ? sy : !g.y ? sx :
+    (sx >= 1.0 && sy >= 1.0)? min (sx, sy): max (sx, sy);
 
   SI final_w= (SI) tm_round (((double) old_w) * scale);
   final_w= min (max (final_w, min_w), max_w);
@@ -1015,12 +1006,8 @@ edit_interface_rep::mouse_any (string type, SI x, SI y, int mods, time_t t,
     rectangle r;
     path p;
     int handle= image_resize_handle_at (x, y, r, p);
-    if (handle == IMAGE_RESIZE_CORNER)
-      pointer_name= "XC_bottom_right_corner";
-    else if (handle == IMAGE_RESIZE_RIGHT)
-      pointer_name= "XC_right_side";
-    else if (handle == IMAGE_RESIZE_BOTTOM)
-      pointer_name= "XC_bottom_side";
+    if (handle != IMAGE_RESIZE_NONE)
+      pointer_name= image_grips[handle].cursor;
     else {
       int row, column;
       handle= table_resize_handle_at (x, y, p, row, column, r);

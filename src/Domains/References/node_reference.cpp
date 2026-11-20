@@ -129,7 +129,7 @@ static tree compute_display (const view& current) {
         source_name= std::filesystem::path (target.candidates[0].file).filename ().string ();
       tree source_line (CONCAT);
       source_line << tree (HLINK,
-        native ("[Source: " + source_name + "]"), source);
+        native (source_name), source);
       tree lineage (TUPLE);
       for (const auto& id: result.ancestry) lineage << native (id);
       lineage << native (target.id);
