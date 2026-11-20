@@ -16,14 +16,13 @@
 bool in_presentation_mode ();
 
 /******************************************************************************
-* Specific boxes
+* Screen-only editor decorations
 ******************************************************************************/
 
-struct specific_box_rep: public box_rep {
+struct screen_only_box_rep: public box_rep {
   box b;
-  string filter;
-  specific_box_rep (path ip, box b2, string filter2, font fn, bool keep_size):
-    box_rep (ip), b (b2), filter (filter2) {
+  screen_only_box_rep (path ip, box b2, font fn, bool keep_size):
+    box_rep (ip), b (b2) {
       if (keep_size) {
         x1= b->x1; y1= b->y1;
         x2= b->x2; y2= b->y2;
@@ -36,14 +35,9 @@ struct specific_box_rep: public box_rep {
       x4= b->x4; y4= b->y4;
     }
   operator tree () {
-    return tuple ("specific", (tree) b, filter); }
+    return tuple ("screen-only", (tree) b); }
   void display (renderer ren) {
-    bool ok= false;
-    if (filter == "screen") ok= !ren->is_printer () && !in_presentation_mode ();
-    else if (filter == "printer") ok= ren->is_printer ();
-    else if (filter == "even") ok= (ren->cur_page & 1) == 0;
-    else if (filter == "odd") ok= (ren->cur_page & 1) == 1;
-    if (ok) {
+    if (!ren->is_printer () && !in_presentation_mode ()) {
       rectangles rs;
       b->redraw (ren, path (), rs);
     }
@@ -183,8 +177,8 @@ scrollbar_box_rep::message (tree type, SI x, SI y, rectangles& rs) {
 ******************************************************************************/
 
 box
-specific_box (path ip, box b, string filter, font fn, bool keep_size) {
-  return tm_new<specific_box_rep> (ip, b, filter, fn, keep_size);
+screen_only_box (path ip, box b, font fn, bool keep_size) {
+  return tm_new<screen_only_box_rep> (ip, b, fn, keep_size);
 }
 
 box

@@ -802,16 +802,6 @@ generic_display_card_as_link (tree t) {
 }
 
 void
-generic_make_specific (string format) {
-  editor ed= get_current_editor ();
-  tree specific= compound ("specific", format, "");
-  if (format == "texmacs" || ed->in_source ())
-    ed->var_insert_tree (specific, path (1, 0));
-  else
-    ed->var_insert_tree (compound ("inactive", specific), path (0, 1, 0));
-}
-
-void
 generic_make_include (url target) {
   get_current_editor ()->insert_tree (
     compound ("include", delta_unix (target)));

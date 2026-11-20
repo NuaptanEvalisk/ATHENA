@@ -533,10 +533,6 @@
         url_type (0));
   init (GRADIENT, "gradient",
         fixed (3) -> returns_color ());           // not yet implemented
-  init (SPECIFIC, "specific",
-        fixed (1, 1, BIFORM) ->
-        string_type (0) -> name (0, "medium") ->
-        regular (1) -> name (1, "content"));
   init (FLAG, "flag",
         options (2, 1, DETAILED) ->
         regular (0) -> name (0, "flag text") ->

@@ -47,7 +47,28 @@ focus_surface_state (
 
 void
 QTMCommandRegistry::registerFocusCommands () {
-  registerFocusParameterCommands ();
+  registerBehavior (
+    "editor.focus.search", QTMCommandScope::Editor,
+    [] (const QTMCommandContext& context) {
+      QJsonObject action;
+      action.insert ("op", "focus-search");
+      return submit_inline_editor_action (context, action);
+    },
+    [] (const QTMCommandContext& context) {
+      QTMCommandState state;
+      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
+      if (proxy == nullptr) return state;
+      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
+      if (!focus.valid () || focus.has (ACTOR_FOCUS_TOOLBAR_BUFFER) ||
+          focus.has (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT) ||
+          focus.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT) ||
+          (!focus.has (ACTOR_FOCUS_TOOLBAR_HAS_SEARCH_MENU) &&
+           !focus.has (ACTOR_FOCUS_TOOLBAR_CAN_SEARCH)))
+        return state;
+      state.available= true;
+      state.enabled= true;
+      return state;
+    });
   registerFocusDocumentCommands ();
   registerFocusSpecialCommands ();
   registerProvider (
@@ -909,8 +930,7 @@ QTMCommandRegistry::registerFocusCommands () {
     "editor.focus.remove-up",
     "editor.focus.remove-down",
     "editor.focus.exit-left",
-    "editor.focus.exit-right",
-    "editor.focus.remove-tag"
+    "editor.focus.exit-right"
   };
   for (const QString& id: focusCommands)
     registerBehavior (

@@ -1340,27 +1340,6 @@ editor_rep::focus_toolbar_state_snapshot () {
   string tag= as_string (L (t));
   snapshot.tag_label.assign (tag.data (), static_cast<std::size_t> (N(tag)));
   try {
-    snapshot.tag_extension= is_extension (tree (as_tree_label (tag)));
-  }
-  catch (...) {}
-  if (snapshot.tag_extension) {
-    try {
-      snapshot.tag_macro_source_available=
-        source_has_macro (tag);
-    }
-    catch (...) {}
-    const QByteArray encoded= QJsonDocument (QJsonObject {{"op", "make"},
-      {"tag", QString::fromUtf8 (tag.data (), N(tag))}}).toJson (QJsonDocument::Compact);
-    const string command (encoded.constData (), encoded.size ());
-    snapshot.tag_shortcut_command.assign (
-      command.data (), static_cast<std::size_t> (N(command)));
-    try {
-      snapshot.tag_shortcut_exists=
-        user_shortcuts_has (command);
-    }
-    catch (...) {}
-  }
-  try {
     string value= generic_focus_tag_name (tag);
     snapshot.tag_name.assign (
       value.data (), static_cast<std::size_t> (N(value)));
@@ -1385,108 +1364,6 @@ editor_rep::focus_toolbar_state_snapshot () {
   }
   catch (...) {}
   set (ACTOR_FOCUS_TOOLBAR_HAS_VARIANTS, snapshot.variants.size () > 1);
-
-  auto append_parameter=
-    [&] (std::vector<actor_focus_parameter_snapshot>& target,
-         const string& parameter, const string& explicitLabel,
-         generic_parameter_mode mode) {
-      const std::string key (
-        parameter.data (), static_cast<std::size_t> (N(parameter)));
-      for (const auto& existing: target)
-        if (existing.name == key) return;
-
-      actor_focus_parameter_snapshot item;
-      item.name= key;
-      string label= explicitLabel;
-      if (N(label) == 0) {
-        try { label= generic_parameter_name (parameter); }
-        catch (...) { label= parameter; }
-      }
-      item.label.assign (
-        label.data (), static_cast<std::size_t> (N(label)));
-      try {
-        const athena::contracts::editing_query parameters {context->contract_context ()};
-        item.type= athena::contracts::type_name (
-          parameters.describe (as_tree_label (parameter)).type);
-      }
-      catch (...) {}
-      try {
-        string current= generic_parameter_get_string (parameter, mode);
-        item.current.assign (
-          current.data (), static_cast<std::size_t> (N(current)));
-      }
-      catch (...) {}
-      try { item.is_default= generic_parameter_default (parameter, mode); }
-      catch (...) {}
-
-      try {
-        for (const auto& entry: format_parameter_choices (parameter)) {
-          actor_focus_parameter_choice_snapshot choice;
-          string value= is_atomic (entry.value) ? entry.value->label :
-            scheme_tree_to_string (tree_to_scheme_tree (entry.value));
-          choice.label.assign (entry.label.data (), N(entry.label));
-          choice.value.assign (value.data (), N(value));
-          item.choices.push_back (std::move (choice));
-        }
-      }
-      catch (...) {}
-      target.push_back (std::move (item));
-    };
-
-  generic_parameter_mode globalMode {true, ""};
-  generic_parameter_mode localMode {false, as_string (L (t))};
-
-  auto append_parameter_list=
-    [&] (std::vector<actor_focus_parameter_snapshot>& target,
-         generic_parameter_mode mode) {
-      try {
-        array<string> values= generic_focus_parameters_list_memo (t, mode);
-        for (int i=0; i<N(values); ++i)
-          append_parameter (target, values[i], string (""), mode);
-      }
-      catch (...) {}
-    };
-  append_parameter_list (snapshot.global_parameters, globalMode);
-  append_parameter_list (snapshot.local_parameters, localMode);
-
-  try {
-    for (const auto& parameter: format_customizable_parameters (t))
-      append_parameter (snapshot.local_parameters, parameter.name,
-                        parameter.label, localMode);
-  }
-  catch (...) {}
-
-  try {
-    const auto themes= source_search_themes (as_string (L (t)));
-    for (int i=0; i<N(themes); ++i) {
-      const auto members= source_theme_members (themes[i]);
-      if (!members) continue;
-      for (int j=0; j<N(*members); ++j) {
-        string variable= themes[i] * "-" * (*members)[j];
-        append_parameter (
-          snapshot.global_parameters, variable, string (""), globalMode);
-        append_parameter (
-          snapshot.local_parameters, variable, string (""), localMode);
-      }
-    }
-  }
-  catch (...) {}
-
-  try {
-    for (const auto& option: source_search_options (as_string (L (t)))) {
-      actor_focus_style_option_snapshot item;
-      item.name.assign (
-        option.data (), static_cast<std::size_t> (N(option)));
-      string label= document_style_get_menu_name (option);
-      item.label.assign (
-        label.data (), static_cast<std::size_t> (N(label)));
-      string help= document_style_get_documentation (option);
-      item.help.assign (help.data (), static_cast<std::size_t> (N(help)));
-      item.checked= document_has_style_package (this, option);
-      snapshot.style_options.push_back (std::move (item));
-    }
-  }
-  catch (...) {}
 
   if (snapshot.has (ACTOR_FOCUS_TOOLBAR_CODE_CONTEXT)) {
     string language= get_env_string ("prog-language");

@@ -3187,7 +3187,7 @@ core_dispatch (string key, scheme_tree args) {
       key == "material-citation" || key == "referenced-materials")
     return latex_export_link_dispatch (key, args);
   if (key == "around" || key == "around*" || key == "big-around" ||
-      key == "specific" || key == "translate" || key == "localize")
+      key == "translate" || key == "localize")
     return latex_export_misc_handler (key, args);
   if (key == "compound" || key == "value") return compound_output (args);
   if (key == "number") return number_output (args);

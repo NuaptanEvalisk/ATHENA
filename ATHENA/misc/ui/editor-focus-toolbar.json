@@ -15,7 +15,6 @@
     {"id":"editor.focus.remove-down","label":"Remove below","category":"Focus","icon":"tm_delete_down","help":"Structured remove downwards","palette":false},
     {"id":"editor.focus.exit-left","label":"Exit left","category":"Focus","icon":"tm_exit_left","help":"Exit the focused tag on the left","palette":false},
     {"id":"editor.focus.exit-right","label":"Exit right","category":"Focus","icon":"tm_exit_right","help":"Exit the focused tag on the right","palette":false},
-    {"id":"editor.focus.remove-tag","label":"Remove tag","category":"Focus","icon":"tm_focus_delete","help":"Remove the focused structure","palette":false},
     {"id":"editor.focus.set-main-style","label":"Document style","category":"Focus","icon":"tm_style","help":"Set the main document style","palette":false},
     {"id":"editor.focus.document-font","label":"Document font","category":"Focus","icon":"tm_focus_font","help":"Choose the main document font","palette":false},
     {"id":"editor.focus.page-properties","dock":"athena-page-properties-pane","label":"Customize presentation","category":"Focus","icon":"tm_portrait","help":"Customize presentation","palette":false},
@@ -50,7 +49,6 @@
       {"command":"editor.focus.slide-delete","focus_requires":["slide-page-context"]},
       {"command":"editor.focus.slide-title","focus_requires":["slide-page-context"]},
       {"command":"editor.focus.slide-draw","focus_requires":["slide-page-context"]},
-      {"submenu":"editor-focus-slide-preferences","label":"Preferences for tag","icon":"tm_focus_prefs","focus_requires":["slide-page-context"],"items":[{"provider":"editor-focus-preferences"},{"separator":true},{"provider":"editor-focus-tag-edit"}]},
       {"provider":"editor-focus-document-extras","focus_requires":["buffer"]},
       {"separator":true},
       {"command":"editor.focus.metadata-properties","focus_requires_any":["doc-title-context","doc-author-context","abstract-context"]},
@@ -89,9 +87,6 @@
       {"submenu":"editor-focus-variant","label":"Structured variant","items":[{"provider":"editor-focus-variants"}],"focus_forbids":["buffer","code-context","slide-page-context"]},
       {"command":"editor.focus.exit-left","focus_forbids":["buffer","code-context","slide-page-context"]},
       {"command":"editor.focus.exit-right","focus_forbids":["buffer","code-context","slide-page-context"]},
-      {"command":"editor.focus.remove-tag","focus_forbids":["buffer","code-context","slide-page-context"]},
-      {"submenu":"editor-focus-preferences","label":"Preferences for tag","icon":"tm_focus_prefs","focus_forbids":["buffer","code-context","slide-page-context"],"items":[{"provider":"editor-focus-preferences"},{"separator":true},{"provider":"editor-focus-tag-edit"}]},
-      {"submenu":"editor-focus-rendering","label":"Rendering options for tag","icon":"tm_theme","focus_forbids":["buffer","code-context","slide-page-context"],"items":[{"provider":"editor-focus-rendering"}]},
       {"command":"editor.focus.search","focus_forbids":["buffer","code-context","slide-page-context"]}
     ]}
   ]

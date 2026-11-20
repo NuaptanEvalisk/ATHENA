@@ -645,7 +645,7 @@ class reader {
       fail (codec_error::resource_limit, error.what ());
     }
   }
-  tree node (std::size_t depth, bool binary= false) {
+  tree node (std::size_t depth, bool binary= false, bool* stripped_specific= nullptr) {
     count.node (depth);
     if (xml.name () == QLatin1StringView (binary ? "b" : "t")) {
       attributes ({"i"});
@@ -733,7 +733,9 @@ class reader {
     if (deprecated_display_tag (tag))
       fail (codec_error::invalid_structure,
             "Historical display math is not XML v3 content");
-    tree_label label= as_tree_label (tag);
+    // Retired output wrappers are consumed here, not registered as extensions.
+    const bool specific= tag == "specific";
+    tree_label label= specific ? TUPLE : as_tree_label (tag);
     if (label <= TMSTRING || label == UNKNOWN ||
         label == DELIMITED || label == BIG_OPERATOR || label == MATH_MIDDLE)
       fail (codec_error::invalid_structure,
@@ -774,6 +776,7 @@ class reader {
         fail (codec_error::invalid_structure, "Invalid MathBlock numbering");
       block_numbered= flag == QLatin1StringView ("1");
     }
+    bool inactive_specific= false;
     array<tree> children;
     athena::node::metadata meta= metadata (depth);
     if (label == MATH_SCRIPTS) {
@@ -800,11 +803,19 @@ class reader {
       if (!xml.isStartElement ()) fail (codec_error::invalid_structure, "Missing node end");
       if (label == RAW_DATA && N (children) != 0)
         fail (codec_error::invalid_structure, "RAW_DATA requires one byte payload");
-      children << node (depth + 1, label == RAW_DATA);
+      children << node (depth + 1, label == RAW_DATA,
+                        label == INACTIVE ? &inactive_specific : nullptr);
       whitespace ();
     }
     if (label == RAW_DATA && N (children) != 1)
       fail (codec_error::invalid_structure, "RAW_DATA requires one byte payload");
+    if (specific) {
+      if (N (children) != 2)
+        fail (codec_error::invalid_structure, "Expected output target and content");
+      if (stripped_specific) *stripped_specific= true;
+      return children[1];
+    }
+    if (inactive_specific && N (children) == 1) return children[0];
     tree result (label, children);
     attach (result, meta);
     if (!math_v3::valid_native_math (result))

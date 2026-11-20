@@ -407,7 +407,7 @@ concater_rep::typeset_math_string (tree t, path ip, int pos, int end) {
         auto dot= std::make_shared<athena::text::font_paragraph> (
           "\xc2\xb7", athena::text::math_font_request (env->fn, athena::text::math_alphabet::normal));
         box   tb= utf8_line_box (decorate (ip), std::move (dot), 0, 2, env->fn, c);
-        box   sb= specific_box (decorate (ip), tb, "screen", env->fn);
+        box   sb= screen_only_box (decorate (ip), tb, env->fn);
         box   mb= move_box (decorate (ip), sb, -tb->w()>>1, 0);
         box   rb= resize_box (decorate (ip), mb, 0, tb->y1, 0, tb->y2);
         a << line_item (STD_ITEM, OP_SKIP, rb, HYPH_INVALID);

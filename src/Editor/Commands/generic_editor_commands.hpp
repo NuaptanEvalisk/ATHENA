@@ -93,7 +93,6 @@ tree generic_cardlink_native_render (tree body, string icon, string type);
 string generic_cardlink_default_link_body (tree destination);
 tree generic_display_link_as_card (tree t);
 tree generic_display_card_as_link (tree t);
-void generic_make_specific (string format);
 void generic_make_include (url target);
 void generic_make_experimental_build_warning ();
 void generic_kill_paragraph ();

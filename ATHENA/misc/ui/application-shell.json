@@ -1546,23 +1546,6 @@
         },
         { "command": "editor.focus.exit-left" },
         { "command": "editor.focus.exit-right" },
-        { "command": "editor.focus.remove-tag" },
-        {
-          "submenu": "focus-preferences",
-          "label": "Preferences for tag",
-          "items": [
-            { "provider": "editor-focus-preferences" },
-            { "separator": true },
-            { "provider": "editor-focus-tag-edit" }
-          ]
-        },
-        {
-          "submenu": "focus-rendering",
-          "label": "Rendering options for tag",
-          "items": [
-            { "provider": "editor-focus-rendering" }
-          ]
-        },
         { "command": "editor.focus.search" },
         { "separator": true },
         { "command": "namespace.open" },
@@ -1797,20 +1780,6 @@
             { "command": "editor.format.transform.dilate" },
             { "command": "editor.format.transform.skew" },
             { "command": "editor.format.transform.linear" }
-          ]
-        },
-        {
-          "submenu": "format-specific",
-          "label": "Specific output",
-          "items": [
-            { "command": "editor.format.specific.texmacs" },
-            { "command": "editor.format.specific.latex" },
-            { "command": "editor.format.specific.html" },
-            { "command": "editor.format.specific.screen" },
-            { "command": "editor.format.specific.printer" },
-            { "command": "editor.format.specific.image" },
-            { "command": "editor.format.specific.even" },
-            { "command": "editor.format.specific.odd" }
           ]
         },
         {

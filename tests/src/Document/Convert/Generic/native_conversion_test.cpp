@@ -403,9 +403,6 @@ void TestNativeConversion::htmlMarkupAndResources () {
     QVERIFY (occurs ("unsupported-html-fixture", failure ([] {
       text (source (R"tm((unsupported-html-fixture "must not disappear"))tm"), "texmacs-tree", "html-snippet");
     })));
-    QVERIFY (occurs ("raster fallback", failure ([] {
-      text (source (R"tm((specific "image" (math "x")))tm"), "texmacs-tree", "html-snippet");
-    })));
     for (const char* html: {
         "<p>x<sub>i<sup>2</sup></sub></p>", "<math><msub><mi>y</mi><mn>1</mn></msub></math>",
         "<math><semantics><mrow><mi>x</mi><mo>+</mo><mn>1</mn></mrow><annotation encoding='application/x-tex'>x+1</annotation></semantics></math>",

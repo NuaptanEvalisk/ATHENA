@@ -189,7 +189,6 @@ private:
   void registerApplicationCommands ();
   void registerEditorCommands ();
   void registerFocusCommands ();
-  void registerFocusParameterCommands ();
   void registerFocusDocumentCommands ();
   void registerFocusSpecialCommands ();
   void registerDocumentMenuCommands ();

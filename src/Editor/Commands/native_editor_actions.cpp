@@ -302,8 +302,7 @@ valid_focus_action_id (const QString& id) {
     "script-insert-down",
     "table-make-subtable",
     "table-join-selected-cells",
-    "table-reset-cell-span",
-    "edit-focus-macro-source"
+    "table-reset-cell-span"
   };
   return ids.contains (id);
 }
@@ -562,12 +561,6 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
                           "reduce"}.contains (action.value ("kind").toString ()) ?
       true : fail_validation (error, "invalid format geometry kind");
   if (op == "make-rigid") return true;
-  if (op == "format-specific")
-    return has_string (action, "kind") &&
-           QSet<QString> {"texmacs", "latex", "html", "screen", "printer",
-                          "image", "even", "odd"}.contains (
-                            action.value ("kind").toString ()) ?
-      true : fail_validation (error, "invalid specific output kind");
   if (op == "format-hspace" || op == "format-htab" ||
       op == "format-vspace-before" || op == "format-vspace-after")
     return has_string (action, "value") ?
@@ -713,23 +706,6 @@ native_editor_action_validate (const QJsonObject& action, QString* error) {
   if (op == "focus-set-label")
     return has_string (action, "value") ?
              true : fail_validation (error, "focus-set-label requires value");
-  if (op == "focus-parameter") {
-    if (!has_string (action, "scope") || !has_string (action, "name"))
-      return fail_validation (
-        error, "focus-parameter requires scope/name");
-    const QString scope= action.value ("scope").toString ();
-    if (scope != "global" && scope != "local")
-      return fail_validation (error, "invalid focus parameter scope");
-    const bool reset= action.value ("reset").toBool (false);
-    if (!reset && !has_string (action, "value"))
-      return fail_validation (
-        error, "focus-parameter requires value unless reset");
-    return true;
-  }
-  if (op == "focus-style-option")
-    return has_string (action, "name") ?
-             true : fail_validation (
-               error, "focus-style-option requires name");
   if (op == "focus-search")
     return true;
   if (op == "focus-hidden-field")
@@ -936,8 +912,6 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     else geometry_make_reduce_by ("0.5ex");
   }
   else if (op == "make-rigid") ed->make_rigid ();
-  else if (op == "format-specific")
-    generic_make_specific (native_action_string (action.value ("kind")));
   else if (op == "format-hspace")
     ed->make_hspace (native_action_string (action.value ("value")));
   else if (op == "format-htab")
@@ -1262,9 +1236,6 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
       generic_structured_insert_up ();
     else if (id == "script-insert-down" && state.script_insert_down)
       generic_structured_insert_down ();
-    else if (id == "edit-focus-macro-source" &&
-             state.tag_extension && state.tag_macro_source_available)
-      source_edit_focus_macro ();
     else if (id == "table-make-subtable" &&
              state.has (ACTOR_FOCUS_TOOLBAR_TABLE_CONTEXT) &&
              state.table_subtable_available)
@@ -1448,59 +1419,6 @@ native_editor_action_execute (editor ed, const QJsonObject& action) {
     (void) generic_focus_set_label (
       ed->the_subtree (focus),
       native_action_string (action.value ("value")));
-  }
-  else if (op == "focus-parameter") {
-    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
-    if (!state.valid ()) return;
-    const string scope= native_action_string (action.value ("scope"));
-    const string name= native_action_string (action.value ("name"));
-    const std::vector<actor_focus_parameter_snapshot>* parameters=
-      scope == "global" ? &state.global_parameters:
-      scope == "local" ? &state.local_parameters: nullptr;
-    if (parameters == nullptr) return;
-    const std::string nativeName (
-      name.data (), static_cast<std::size_t> (N(name)));
-    bool allowed= false;
-    for (const auto& parameter: *parameters)
-      if (parameter.name == nativeName) {
-        allowed= true;
-        break;
-      }
-    if (!allowed) return;
-
-    generic_parameter_mode mode {scope == "global", ""};
-    if (!mode.global) {
-      path focus= ed->focus_get ();
-      if (!ed->test_subtree (focus)) return;
-      tree target= ed->the_subtree (focus);
-      mode.focus_label= as_string (L (target));
-    }
-    if (action.value ("reset").toBool (false))
-      generic_parameter_reset (name, mode);
-    else {
-      tree value (native_action_string (action.value ("value")));
-      if (action.contains ("choice")) {
-        const auto entries= format_parameter_choices (name);
-        const int index= action.value ("choice").toInt (-1);
-        if (index < 0 || static_cast<std::size_t> (index) >= entries.size ()) return;
-        value= entries[index].value;
-      }
-      generic_parameter_set (name, value, mode);
-    }
-  }
-  else if (op == "focus-style-option") {
-    actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();
-    if (!state.valid ()) return;
-    const string name= native_action_string (action.value ("name"));
-    const std::string nativeName (
-      name.data (), static_cast<std::size_t> (N(name)));
-    bool allowed= false;
-    for (const auto& option: state.style_options)
-      if (option.name == nativeName) {
-        allowed= true;
-        break;
-      }
-    if (allowed) document_toggle_style_package (name);
   }
   else if (op == "focus-search") {
     actor_focus_toolbar_snapshot state= ed->focus_toolbar_state_snapshot ();

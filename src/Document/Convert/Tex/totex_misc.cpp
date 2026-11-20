@@ -36,32 +36,6 @@ around_output (string key, scheme_tree args) {
 }
 
 scheme_tree
-preserve_object_output (scheme_tree source) {
-  scheme_tree records (TUPLE);
-  records << stree_string (latex_export_athena_data_object (source));
-  return latex_export_athena_data_inline (records);
-}
-
-scheme_tree
-specific_output (scheme_tree args) {
-  scheme_tree source= source_apply ("specific", args);
-  if (!stree_list (args) || N(args) < 2 || !string_atom (args[0]))
-    return preserve_object_output (source);
-
-  string kind= atom_text (args[0]);
-  if (kind == "latex") return stree_string (latex_export_tt (args[1]));
-  if (kind == "image") return latex_export_render_image (args[1]);
-  if (kind == "printer") return tmtex_convert (args[1]);
-  if (kind == "odd" || kind == "even") {
-    scheme_tree out= stree_apply ("ifthispageodd");
-    if (kind == "odd") out << tmtex_convert (args[1]) << stree_string ("");
-    else out << stree_string ("") << tmtex_convert (args[1]);
-    return out;
-  }
-  return preserve_object_output (source);
-}
-
-scheme_tree
 translate_output (scheme_tree args) {
   if (!stree_list (args) || N(args) < 3 ||
       !string_atom (args[1]) || !string_atom (args[2]))
@@ -87,7 +61,6 @@ scheme_tree
 latex_export_misc_handler (string key, scheme_tree args) {
   if (key == "around" || key == "around*" || key == "big-around")
     return around_output (key, args);
-  if (key == "specific") return specific_output (args);
   if (key == "translate") return translate_output (args);
   if (key == "localize") return localize_output (args);
   return scheme_tree ();

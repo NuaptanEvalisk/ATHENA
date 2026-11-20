@@ -75,8 +75,7 @@ enum class native_editor_command_id: std::uint32_t {
   focus_remove_up,
   focus_remove_down,
   focus_exit_left,
-  focus_exit_right,
-  focus_remove_tag
+  focus_exit_right
 };
 
 enum class actor_command_kind: std::uint32_t {

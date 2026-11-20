@@ -199,8 +199,6 @@ edit_interface_rep::compute_operation_footer (
       r= concat ("write to ", verbatim (as_string (st[0]))); break;
     case TOC_NOTIFY:
       r= concat ("toc notify: ", verbatim (as_string (st[1]))); break;
-    case SPECIFIC:
-      r= concat ("specific ", as_string (st[0])); break;
     case HYPHENATE_AS:
       r= concat ("hyphenate as ", verbatim (as_string (st[0]))); break;
     case IMAGE:
@@ -320,8 +318,6 @@ edit_interface_rep::compute_compound_footer (
       return concat (up, "variable(" * as_string (l/2+1) * ") ");
     else
       return concat (up, "value(" * as_string (l/2+1) * ") ");
-  case SPECIFIC:
-    return concat (up, "texmacs ");
   default:
     return concat (up, athena::contracts::editing_query {contracts}.name (L(st)) * " ");
   }

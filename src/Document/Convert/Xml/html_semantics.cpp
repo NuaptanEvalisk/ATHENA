@@ -1552,13 +1552,6 @@ public:
       local["source-url"]= included[0];
       return run (included[1], local);
     }
-    if (head (source, "specific")) {
-      string target= atom (source[1]);
-      if (target == "html") return tuple (quoted (force_text (source[2])));
-      if (target == "html*") return run (source[2], env);
-      if (target == "image") return request ("picture", source[2], env);
-      return tuple ();
-    }
     if (head (source, "compound") || head (source, "value") || head (source, "quote-value")) {
       tree expanded= tuple (force_text (source[1]));
       for (int i=2; i<N(source); ++i) expanded << source[i];

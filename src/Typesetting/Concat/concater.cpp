@@ -105,7 +105,7 @@ concater_rep::flag_ok (string s, path ip, color col) {
   style << MODE << "text" << FONT_FAMILY << "ss" << FONT_SERIES << "medium"
         << FONT_SHAPE << "right" << content;
   box marker= typeset_as_concat (env, style, decorate_right (ip));
-  print (env->info_on_paper ? marker : specific_box (ip, marker, "screen", env->fn, true));
+  print (env->info_on_paper ? marker : screen_only_box (ip, marker, env->fn, true));
 }
 
 void
@@ -800,9 +800,6 @@ concater_rep::typeset_impl (tree t, path ip) {
     marker (descend (ip, 0));
     typeset_inactive (env->exec (t), decorate (ip));
     marker (descend (ip, 1));
-    break;
-  case SPECIFIC:
-    typeset_specific (t, ip);
     break;
   case FLAG:
     typeset_flag (t, ip);

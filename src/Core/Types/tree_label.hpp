@@ -108,7 +108,7 @@ enum tree_label {
 
   // various other tags
   TUPLE, ATTR, TMLEN, COLLECTION, ASSOCIATE, BACKUP, _PATTERN, GRADIENT,
-  SPECIFIC, FLAG, HYPHENATE_AS,
+  FLAG, HYPHENATE_AS,
 
 
   // graphical tags

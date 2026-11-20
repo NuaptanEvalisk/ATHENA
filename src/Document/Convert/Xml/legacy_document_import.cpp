@@ -292,6 +292,12 @@ class importer {
       try { return text (source, old, dest, role, extensible_delimiter); }
       catch (const legacy_text_error& error) { throw legacy_document_error (old, error); }
     }
+    if (is_compound (source, "specific", 2) ||
+        (is_func (source, INACTIVE, 1) && is_compound (source[0], "specific", 2))) {
+      mappings.push_back ({old, dest, {}});
+      int child= is_func (source, INACTIVE) ? 0 : 1;
+      return visit (source[child], child_path (old, child), dest, role, depth + 1);
+    }
     if (is_func (source, RAW_DATA)) {
       if (N (source) != 1 || !is_atomic (source[0]))
         throw codec_exception (codec_error::invalid_structure, "Invalid legacy binary payload");

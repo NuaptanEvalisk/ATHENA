@@ -211,9 +211,6 @@ packrat_parser_rep::serialize (
     case TOC_NOTIFY:
       break;
 
-    case SPECIFIC:
-      serialize (t[1], p * 1, syntax);
-      break;
     case FLAG:
       break;
     case HYPHENATE_AS:

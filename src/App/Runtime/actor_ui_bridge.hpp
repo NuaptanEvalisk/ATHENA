@@ -168,27 +168,6 @@ enum actor_focus_toolbar_flag: std::uint32_t {
   ACTOR_FOCUS_TOOLBAR_FRAME_CONTEXT= 1U << 31
 };
 
-struct actor_focus_parameter_choice_snapshot {
-  std::string value;
-  std::string label;
-};
-
-struct actor_focus_parameter_snapshot {
-  std::string name;
-  std::string label;
-  std::string type;
-  std::string current;
-  bool is_default= false;
-  std::vector<actor_focus_parameter_choice_snapshot> choices;
-};
-
-struct actor_focus_style_option_snapshot {
-  std::string name;
-  std::string label;
-  std::string help;
-  bool checked= false;
-};
-
 struct actor_focus_choice_snapshot {
   std::string value;
   std::string label;
@@ -241,7 +220,6 @@ struct actor_focus_toolbar_snapshot {
   std::uint32_t flags= 0;
   std::string tag_label;
   std::string tag_name;
-  std::string tag_shortcut_command;
   std::vector<std::string> variants;
   std::vector<std::string> variant_names;
   std::string code_language;
@@ -267,9 +245,6 @@ struct actor_focus_toolbar_snapshot {
   bool figure_context= false;
   bool titled_named= false;
   bool frame_titled= false;
-  bool tag_extension= false;
-  bool tag_macro_source_available= false;
-  bool tag_shortcut_exists= false;
   bool multicol_style= false;
   bool float_wide= false;
   bool floatable_wide= false;
@@ -279,9 +254,6 @@ struct actor_focus_toolbar_snapshot {
   std::string marginal_valign;
   std::string balloon_halign;
   std::string balloon_valign;
-  std::vector<actor_focus_parameter_snapshot> global_parameters;
-  std::vector<actor_focus_parameter_snapshot> local_parameters;
-  std::vector<actor_focus_style_option_snapshot> style_options;
   std::vector<actor_focus_choice_snapshot> document_styles;
   std::vector<actor_focus_choice_snapshot> document_packages;
   std::vector<actor_focus_choice_snapshot> current_packages;

@@ -360,29 +360,6 @@ concater_rep::typeset_toc_notify (tree t, path ip) {
 ******************************************************************************/
 
 void
-concater_rep::typeset_specific (tree t, path ip) {
-  if (N(t) != 2) { typeset_error (t, ip); return; }
-  string which= env->exec_string (t[0]);
-  bool keep_size= ends (which, "*");
-  if (keep_size) which= which (0, N(which)-1);
-  if (which == "texmacs" || which == "image") {
-    marker (descend (ip, 0));
-    typeset (t[1], descend (ip, 1));
-    marker (descend (ip, 1));
-    //typeset_dynamic (t[1], descend (ip, 1));
-  }
-  else if (which == "screen" || which == "printer" ||
-           which == "even" || which == "odd") {
-    box  sb= typeset_as_concat (env, attach_middle (t[1], ip));
-    box  b = specific_box (decorate_middle (ip), sb, which, env->fn, keep_size);
-    marker (descend (ip, 0));
-    print (b);
-    marker (descend (ip, 1));
-  }
-  else control ("specific", ip);
-}
-
-void
 concater_rep::typeset_flag (tree t, path ip) {
   if (N(t) != 2 && N(t) != 3) { typeset_error (t, ip); return; }
   string name= env->exec_string (t[0]);

@@ -240,7 +240,6 @@ run_native_editor_command (editor_rep* editor,
     break;
   case native_editor_command_id::focus_exit_left:
   case native_editor_command_id::focus_exit_right:
-  case native_editor_command_id::focus_remove_tag:
     if (!genericFocus || !focus.has (ACTOR_FOCUS_TOOLBAR_CURSOR_INSIDE))
       return false;
     break;
@@ -381,9 +380,6 @@ run_native_editor_command (editor_rep* editor,
       break;
     case native_editor_command_id::focus_exit_right:
       generic_structured_exit_right ();
-      break;
-    case native_editor_command_id::focus_remove_tag:
-      editor->remove_structure_upwards ();
       break;
     default:
       editor->cancel_menu_action ();

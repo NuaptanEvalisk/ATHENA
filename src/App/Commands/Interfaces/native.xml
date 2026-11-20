@@ -1072,9 +1072,6 @@
   <binding name="label-insert" native="generic_label_insert" returns="void">
     <arg type="tree" />
   </binding>
-  <binding name="make-specific" native="generic_make_specific" returns="void">
-    <arg type="string" />
-  </binding>
   <binding name="make-include" native="generic_make_include" returns="void">
     <arg type="url" />
   </binding>

@@ -492,7 +492,7 @@ class reader {
       fail (codec_error::resource_limit, error.what ());
     }
   }
-  tree node (std::size_t depth, bool binary= false) {
+  tree node (std::size_t depth, bool binary= false, bool* stripped_specific= nullptr) {
     count.node (depth);
     if (xml.name () == QLatin1StringView (binary ? "bytes" : "text")) {
       if (!v2) return atom (binary);
@@ -519,8 +519,11 @@ class reader {
     string tag= native (decode (xml.attributes ().value ("tag").toString (),
                                 !encoding.isEmpty (), false));
     if (N (tag) == 0) fail (codec_error::invalid_structure, "Empty document tag");
-    tree_label label= make_tree_label (tag);
+    // Retired output wrappers are consumed here, not registered as extensions.
+    const bool specific= tag == "specific";
+    tree_label label= specific ? TUPLE : make_tree_label (tag);
     if (label <= TMSTRING) fail (codec_error::invalid_structure, "Invalid compound tag");
+    bool inactive_specific= false;
     array<tree> children;
     athena::node::metadata meta;
     if (v2) meta= metadata (depth);
@@ -530,11 +533,19 @@ class reader {
       if (!xml.isStartElement ()) fail (codec_error::invalid_structure, "Missing node end");
       if (label == RAW_DATA && N (children) != 0)
         fail (codec_error::invalid_structure, "RAW_DATA requires one byte payload");
-      children << node (depth + 1, label == RAW_DATA);
+      children << node (depth + 1, label == RAW_DATA,
+                        label == INACTIVE ? &inactive_specific : nullptr);
       whitespace ();
     }
     if (label == RAW_DATA && N (children) != 1)
       fail (codec_error::invalid_structure, "RAW_DATA requires one byte payload");
+    if (specific) {
+      if (N (children) != 2)
+        fail (codec_error::invalid_structure, "Expected output target and content");
+      if (stripped_specific) *stripped_specific= true;
+      return children[1];
+    }
+    if (inactive_specific && N (children) == 1) return children[0];
     tree result (label, children);
     attach (result, meta);
     return result;

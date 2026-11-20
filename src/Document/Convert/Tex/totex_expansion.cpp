@@ -58,7 +58,7 @@ static const char* primitive_names[]= {
   "style-only", "style-only*", "active", "active*", "inactive", "inactive*", "rewrite-inactive",
   "inline-tag", "open-tag", "middle-tag", "close-tag", "symbol", "latex", "hybrid", "tuple",
   "attr", "tmlen", "collection", "associate", "backup", "set-binding", "get-binding",
-  "hidden-binding", "label", "reference", "pageref", "write", "specific", "tag", "meaning", "flag",
+  "hidden-binding", "label", "reference", "pageref", "write", "tag", "meaning", "flag",
   "graphics", "commutative-diagram", "superpose", "gr-group", "gr-transform", "text-at", "cline",
   "arc", "carc", "spline", "spine*", "cspline", "fill", "image", "box-info", "frame-direct",
   "frame-inverse", "format", "set", "reset", "expand", "expand*", "hide-expand", "display-baloon",
