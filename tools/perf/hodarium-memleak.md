@@ -11,7 +11,22 @@ The installed tool was preferred over a new allocator tracker; stock memleak
 alone cannot attach to libmimalloc's missing mmap/munmap symbols or its C++ new
 entry points. Heaptrack and Valgrind were not installed on this host.
 
-## Current TrueNAS capture
+## November 20 allocator upgrade
+
+At 2026-11-20 13:50:34 UTC+8 the TrueNAS app switched to
+`localhost/athena-hodarium-node:debug-6b5817f5c-mi3.7.0`. The previous
+diagnostic image (`debug-6b5817f5c-20261110`) remains the rollback target.
+Both images have the identical node executable (SHA-256
+`e5eaeb3c252582c4ccf38b2fa567f66c380b7b729a6870de5ac4450e9fe50e3d`).
+The running process mapped `/usr/local/lib/libmimalloc.so.3.7` (v3.7.0,
+SHA-256 `a530bd80446959b54ae5a6dee511de5b57529e7dd16a74d7c4fc3c4c6a4373c3`).
+The compose configuration changed only its image tag. The TrueNAS app was
+running and the node reported authorized after replacement. Anonymous RSS
+shortly before replacement was 4,745,212 KiB; the initial observation of
+the new process was 95,336 KiB. A fresh process is not evidence of a fix:
+compare the RSS trend at comparable uptime and sync workload.
+
+## November 10 TrueNAS capture
 
 Started 2026-11-10 against release PID 1206143. Subsequently replaced, with user
 authorization, by diagnostic PID 1253690 in the same container

@@ -55,11 +55,14 @@ the existing ``QWebSocket::errorOccurred`` signal requires it. Bookworm's Qt 6.4
 is unsupported; no legacy fallback is added to the core.
 The build stage uses ``build-essential``, ``cmake``,
 ``pkg-config``, ``qt6-base-dev``, ``qt6-websockets-dev``, ``libicu-dev``,
-``libsodium-dev``, ``libsqlite3-dev``, ``libgnutls28-dev``, ``libmimalloc-dev``,
+``libsodium-dev``, ``libsqlite3-dev``, ``libgnutls28-dev``, ``curl``,
 ``libspdlog-dev``, and ``nlohmann-json3-dev``. The runtime uses
 ``libqt6core6t64``, ``libqt6network6``, ``libqt6websockets6``, ``libssl3t64``,
 ``libicu76``, ``libsodium23``, ``libsqlite3-0``, ``libgnutls30t64``,
-``libmimalloc3``, and ``libspdlog1.15``, plus ``libstdc++6`` and CA certificates.
+and ``libspdlog1.15``, plus ``libstdc++6`` and CA certificates.
+The node image builds a pinned mimalloc shared library from a checksum-verified
+upstream archive (see ``build-mimalloc.sh``). Both stages use that build, not
+Trixie's mimalloc 3.0.1. This does not change the desktop allocator.
 These names were checked against Trixie's amd64 package metadata, without
 installing host packages. Debian's base Qt development package can pull GUI
 development dependencies into the disposable build stage; the node does not
@@ -69,7 +72,7 @@ Qt Network's OpenSSL backend and CA certificates support HTTPS alongside
 GnuTLS for peer transport. Package references:
 `Trixie package index <https://deb.debian.org/debian/dists/trixie/main/binary-amd64/Packages.xz>`_,
 `Qt WebSockets <https://packages.debian.org/trixie/libqt6websockets6>`_,
-`mimalloc <https://packages.debian.org/trixie/libmimalloc3>`_, and
+`mimalloc <https://github.com/microsoft/mimalloc/releases/tag/v3.7.0>`_, and
 `spdlog <https://packages.debian.org/trixie/libspdlog1.15>`_.
 
 When explicitly ready to build the development image, run from the repository

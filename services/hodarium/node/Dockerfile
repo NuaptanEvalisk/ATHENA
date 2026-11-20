@@ -7,9 +7,11 @@ RUN apt-get update \
        build-essential ca-certificates cmake pkg-config python3 \
        qt6-base-dev qt6-websockets-dev \
        libicu-dev libsodium-dev libsqlite3-dev libgnutls28-dev \
-       libmimalloc-dev libspdlog-dev nlohmann-json3-dev \
+       curl libspdlog-dev nlohmann-json3-dev \
     && rm -rf /var/lib/apt/lists/*
 
+COPY services/hodarium/node/build-mimalloc.sh /tmp/build-mimalloc.sh
+RUN sh /tmp/build-mimalloc.sh
 WORKDIR /src
 COPY CMakeLists.txt LICENSE COPYING ./
 COPY cmake/ cmake/
@@ -21,7 +23,8 @@ COPY ATHENA/misc/symbols/ ATHENA/misc/symbols/
 
 RUN cmake -S . -B build_hodarium_node \
       -DATHENA_BUILD_HODARIUM_NODE_ONLY=ON -DCMAKE_BUILD_TYPE=Release \
-    && cmake --build build_hodarium_node --target athena-hodarium-node -j20 \
+      -Dmimalloc_DIR=/opt/mimalloc/lib/cmake/mimalloc \
+    && cmake --build build_hodarium_node --target athena-hodarium-node -j16 \
     && cmake --install build_hodarium_node --prefix /out
 
 FROM debian:trixie-slim AS runtime
@@ -33,7 +36,7 @@ LABEL org.opencontainers.image.title="ATHENA Hodarium headless node" \
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
        ca-certificates libstdc++6 libqt6core6t64 libqt6network6 libqt6websockets6 \
-       libssl3t64 libicu76 libsodium23 libsqlite3-0 libgnutls30t64 libmimalloc3 \
+       libssl3t64 libicu76 libsodium23 libsqlite3-0 libgnutls30t64 \
        libspdlog1.15 \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd --gid 10001 athena-hodarium-node \
@@ -42,6 +45,9 @@ RUN apt-get update \
        athena-hodarium-node \
     && install -d -m 0700 -o 10001 -g 10001 /var/lib/athena-hodarium-node /vault
 
+COPY --from=build /opt/mimalloc/lib/libmimalloc.so.* /usr/local/lib/
+COPY --from=build /opt/mimalloc/share/doc/mimalloc/LICENSE /usr/share/doc/mimalloc/LICENSE
+RUN ldconfig
 COPY --from=build /out/bin/athena-hodarium-node /usr/local/bin/athena-hodarium-node
 COPY LICENSE COPYING /usr/share/doc/athena-hodarium-node/
 
