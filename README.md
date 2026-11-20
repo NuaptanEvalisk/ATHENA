@@ -45,6 +45,29 @@ unsupported structure, or behave differently in ATHENA.
 Treat `.ath` as the native ATHENA format. If interchange with another system is
 required, use an explicitly supported export format and verify the result.
 
+## New in 0.13
+
+- **Native slides.** Edit and reorder slide pages using thumbnails, then present
+  in a separate window. Styles such as Seafoam define page layouts and fields:
+  set an affiliation once and reuse it across slides. Slides support transitions
+  and triggered entrance, emphasis and exit animations.
+- **Faster first layout.** Long notes are laid out in full before the first
+  repaint. Persistent glyph-shaping results can be prebuilt from a vault;
+  directory data such as the table of contents is cached asynchronously.
+- **Better navigation.** Link previews update without moving the viewport,
+  and matched terms stay highlighted while an enunciation is edited.
+  Quick Switcher and link inserters show match highlights and type badges.
+  ProofTrack can relink a proof through a transcluded statement.
+- **Math and document editing.** Use Ctrl+Enter to turn a display formula into
+  an aligned MathGrid, Ctrl+5 to enter an indexed root, and Tab to cycle square
+  brackets through floor and ceiling. Document settings brings page layout,
+  colors and metadata together.
+- **Vault services.** Local RAG queries use AUDMAP instead of the retired MCP
+  endpoint. Hodarium adds memory diagnostics, and its headless node image
+  ships mimalloc 3.7.0.
+
+The native document format remains XML v3.
+
 ## New in 0.12
 
 ATHENA 0.12 builds on the XML v3 document model introduced in 0.11. Its
@@ -78,7 +101,7 @@ the editor, services, clients and tools.
   `services/`, external clients under `clients/`, and tests mirror those
   owners. Linux executable deployment uses the atomic install helper.
 
-See [the 0.12 source changes](https://github.com/NuaptanEvalisk/ATHENA/compare/0.11.0...master)
+See [the 0.12 source changes](https://github.com/NuaptanEvalisk/ATHENA/compare/0.11.0...0.12.0)
 for the detailed development history. Version 0.12 is a native-runtime and
 workflow release, not a new document-format generation.
 
@@ -138,7 +161,7 @@ and verify actual documents and histories before switching devices.
 The maintained full compilation guide is the ATHENA document
 **ATHENA - Compiling** (the PDF is exported separately from ATHENA).
 The repository's `COMPILE.ath`, `COMPILE.tex` and `COMPILE.pdf` are older
-0.10-era snapshots and are not the authoritative 0.12 build guide.
+0.10-era snapshots and are not the current build guide.
 
 **GNU/Linux x86-64:** Qt 6 with native Wayland is the maintained desktop
 target. An existing configured Debug tree is built with:
@@ -180,14 +203,11 @@ After starting ATHENA, use the documentation under the Help menu. The manual is
 still under construction. Additional project information is available at
 [athena.evalisk.org](https://athena.evalisk.org/).
 
-The project website and this README describe 0.12. Some bundled welcome and
-inherited help pages may still describe older releases or retired features;
-a wider documentation rewrite is planned for 1.0. This retained help format
-is not the native format for newly saved user documents.
+The project website and this README describe 0.13.
 
 ## Status
 
-ATHENA 0.12 is under active development. Interfaces, document structures, and
+ATHENA 0.13 is under active development. Interfaces, document structures, and
 workflows may still change as the project develops.
 
 ## Licensing

@@ -45,6 +45,17 @@ style system. Commands and callbacks execute natively; external automation uses
 AUDMAP. The project also inherits decades of work by Joris van der Hoeven and
 the GNU TeXmacs contributors.
 
+## Changes in 0.13
+
+Slide pages now have native thumbnails, style-defined layouts and shared
+fields. Seafoam is a built-in presentation style. A separate player runs
+page transitions and object animations. For long mathematical notes, the
+first repaint uses the complete layout, with reusable text and math shaping
+and asynchronous directory caches. Quick Switcher and link inserters show
+matched letters and type badges; link previews no longer move the viewport.
+Document settings combines layout, colors and metadata. The document
+format remains XML v3.
+
 ## Changes in 0.12
 
 Version 0.12 removes the embedded Scheme/Guile application runtime. Native C++
