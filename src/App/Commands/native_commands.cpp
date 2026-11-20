@@ -75,7 +75,6 @@
 #include "QTMPreferencesDialog.hpp"
 #include "QTMPagePropertiesPane.hpp"
 #include "QTMParagraphPropertiesPane.hpp"
-#include "QTMMetadataPropertiesPane.hpp"
 #include "QTMGoogleTasksPane.hpp"
 #include "GoogleCloudTodo.hpp"
 #include "boot.hpp"

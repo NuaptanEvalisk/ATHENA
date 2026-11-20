@@ -52,7 +52,6 @@
 #include "native_interfaces.hpp"
 #include "UI/Qt/Document/QTMParagraphPropertiesPane.hpp"
 #include "UI/Qt/Document/QTMPagePropertiesPane.hpp"
-#include "UI/Qt/Document/QTMMetadataPropertiesPane.hpp"
 #include "UI/Qt/Editor/QTMReverseHierarchyGraph.hpp"
 
 #include <QJsonArray>
@@ -218,9 +217,6 @@ valid_business_id (const QString& id) {
     "insert-floating-table",
     "insert-floating-algorithm",
     "open-document-font-selector",
-    "document-background-pattern",
-    "document-background-gradient",
-    "document-background-picture",
     "document-no-style",
     "document-toggle-source-mode",
     "document-toggle-preamble-mode",
@@ -234,7 +230,6 @@ valid_business_id (const QString& id) {
     "document-line-count",
     "open-document-paragraph-format",
     "open-document-page-format",
-    "open-document-metadata",
     "view-toggle-full-screen-edit",
     "view-toggle-full-screen",
     "view-toggle-panorama",
@@ -385,12 +380,6 @@ execute_business_id (editor ed, const QString& id) {
     generic_insert_figure ("floating-algorithm");
   else if (id == "open-document-font-selector")
     open_document_font_selector ();
-  else if (id == "document-background-pattern")
-    generic_document_background_select ("pattern");
-  else if (id == "document-background-gradient")
-    generic_document_background_select ("gradient");
-  else if (id == "document-background-picture")
-    generic_document_background_select ("picture");
   else if (id == "document-no-style") document_set_no_style ();
   else if (id == "document-toggle-source-mode") document_toggle_source_mode ();
   else if (id == "document-toggle-preamble-mode")
@@ -415,8 +404,6 @@ execute_business_id (editor ed, const QString& id) {
     athena_dispatch_ui (paragraph_properties_pane_show);
   else if (id == "open-document-page-format")
     athena_dispatch_ui (page_properties_pane_show);
-  else if (id == "open-document-metadata")
-    athena_dispatch_ui (metadata_properties_pane_show);
   else if (id == "view-toggle-full-screen-edit")
     view_toggle_fullscreen_edit ();
   else if (id == "view-toggle-full-screen")

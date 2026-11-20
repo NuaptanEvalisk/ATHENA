@@ -101,7 +101,6 @@ void generic_make_balloon ();
 void generic_spell_live_replace_current_word (string replacement);
 void generic_spell_live_insert_current_word ();
 // Background selector for native editor commands: no Scheme procedure callback.
-void generic_document_background_select (string mode);
 void generic_make_note_ref ();
 void generic_make_note_inline ();
 void generic_make_note_wide ();

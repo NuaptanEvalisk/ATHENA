@@ -906,7 +906,6 @@ editor_rep::document_menu_state_snapshot () {
     }
   }
 
-  snapshot.background_available= true;
 
   tree document= the_buffer ();
   snapshot.has_preamble= document_has_preamble (document);
@@ -1437,12 +1436,7 @@ editor_rep::focus_toolbar_state_snapshot () {
     }
     catch (...) {}
 
-    const string background= get_init_string ("bg-color");
-    snapshot.background_color.assign (
-      background.data (), static_cast<std::size_t> (N(background)));
-
     snapshot.beamer_style= defined_at_init ("beamer-style");
-    snapshot.background_available= true;
 
     if (snapshot.has (ACTOR_FOCUS_TOOLBAR_SLIDE_PAGE_CONTEXT)) {
       for (const auto& type: athena::slides::types (presentation_field_reader (*this))) {

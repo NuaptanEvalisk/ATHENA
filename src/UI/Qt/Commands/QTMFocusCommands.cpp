@@ -12,7 +12,6 @@
 #include "UI/Qt/Commands/QTMCommandRegistry.hpp"
 #include "UI/Qt/Commands/QTMCommandRegistryInternal.hpp"
 
-#include "UI/Qt/Document/QTMMetadataPropertiesPane.hpp"
 #include "UI/Qt/Document/QTMPagePropertiesPane.hpp"
 #include "UI/Qt/Document/QTMSlidePropertiesPane.hpp"
 #include "UI/Qt/Document/QTMTablePropertiesPane.hpp"
@@ -842,7 +841,7 @@ QTMCommandRegistry::registerFocusCommands () {
     [] (const QTMCommandContext& context) {
       url target= frozen_document_url (context);
       if (is_none (target)) return false;
-      metadata_properties_pane_show_for (target);
+      page_properties_pane_show_for (target, true);
       return true;
     },
     [] (const QTMCommandContext& context) {

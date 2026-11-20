@@ -111,6 +111,7 @@ QTMPagePropertiesPane::QTMPagePropertiesPane (QWidget* parent)
   tabs->addTab (buildMarginsTab (), "Margins");
   tabs->addTab (buildBreakingTab (), "Page Breaking");
   tabs->addTab (buildHeadersTab (), "Headers");
+  tabs->addTab (buildMetadataTab (), "Metadata");
   connect (tabs, &QTabWidget::currentChanged, this,
            [this] (int) { refreshAll (); });
 
@@ -126,7 +127,7 @@ QTMPagePropertiesPane::QTMPagePropertiesPane (QWidget* parent)
 
 QSize
 QTMPagePropertiesPane::sizeHint () const {
-  return QSize (420, 720);
+  return QSize (760, 640);
 }
 
 QWidget*
@@ -196,7 +197,7 @@ QTMPagePropertiesPane::buildPresentationTab () {
       const QColor initial (getString (variable));
       const QColor chosen= QColorDialog::getColor (
         initial.isValid () ? initial : Qt::white, this,
-        variable == "bg-color" ? "Presentation background" : "Presentation foreground");
+        variable == "bg-color" ? "Page background" : "Text color");
       if (chosen.isValid ()) {
         setString (variable, chosen.name ());
         refreshPresentation ();
@@ -208,8 +209,8 @@ QTMPagePropertiesPane::buildPresentationTab () {
     });
     addRow (form, label, controls);
   };
-  addColorRow ("Background", "bg-color", backgroundButton);
-  addColorRow ("Foreground", "color", foregroundButton);
+  addColorRow ("Page background", "bg-color", backgroundButton);
+  addColorRow ("Text color", "color", foregroundButton);
   layout->addLayout (form);
   auto* note= new QLabel (
     "These settings control how the knowledge content is presented. "
@@ -265,6 +266,56 @@ QTMPagePropertiesPane::addResetButton (QVBoxLayout* layout,
     resetVariables (variables);
     refreshAll ();
   });
+}
+
+QWidget*
+QTMPagePropertiesPane::buildMetadataTab () {
+  QVBoxLayout* layout;
+  QWidget* page= formPage (layout);
+  auto* form= new QFormLayout ();
+  form->setFieldGrowthPolicy (QFormLayout::AllNonFixedFieldsGrow);
+  const struct { const char* label; const char* key; } fields[]= {
+    {"Title", "title"}, {"Author", "author"}, {"Subject", "subject"},
+    {"Created time", "created-time"}, {"Modified time", "modified-time"},
+    {"Content hash", "content-hash"}
+  };
+  QStringList variables;
+  for (auto field: fields) {
+    auto* edit= lineEdit ();
+    metadataEdits.insert (field.key, edit);
+    addRow (form, field.label, edit);
+    const QString variable= "global-" + QString (field.key);
+    variables << variable;
+    connect (edit, &QLineEdit::editingFinished, this, [this, edit, variable] {
+      if (!loading && edit->isModified ()) setString (variable, edit->text ());
+    });
+  }
+  layout->addLayout (form);
+  addResetButton (layout, variables);
+  layout->addStretch (1);
+  return page;
+}
+
+void
+QTMPagePropertiesPane::refreshMetadata () {
+  const auto keys= metadataEdits.keys ();
+  QHash<QString,QString> values;
+  qt_with_buffer (targetBuffer, [&] {
+    for (const auto& key: keys)
+      values.insert (key, qs (get_current_editor ()->get_metadata (tm_string (key))));
+  });
+  for (const auto& key: keys)
+    metadataEdits.value (key)->setText (values.value (key));
+}
+
+void
+QTMPagePropertiesPane::showMetadata () {
+  tabs->setCurrentIndex (5);
+}
+
+void
+metadata_properties_pane_show () {
+  page_properties_pane_show_for (get_current_buffer_safe (), true);
 }
 
 QWidget*
@@ -552,6 +603,7 @@ QTMPagePropertiesPane::refreshAll () {
   case 2: rebuildMarginsTab (); break;
   case 3: refreshBreaking (); break;
   case 4: refreshHeaders (); break;
+  case 5: refreshMetadata (); break;
   }
   loading= false;
 }
@@ -957,18 +1009,18 @@ QTMPagePropertiesPane::insertHeaderPageNumber () {
 }
 
 void
-page_properties_pane_show_for (url target) {
+page_properties_pane_show_for (url target, bool metadata) {
   if (QCoreApplication::instance () != nullptr &&
       QThread::currentThread () != QCoreApplication::instance ()->thread ()) {
     QMetaObject::invokeMethod (
       QCoreApplication::instance (),
-      [target] () { page_properties_pane_show_for (target); },
+      [target, metadata] () { page_properties_pane_show_for (target, metadata); },
       Qt::QueuedConnection);
     return;
   }
   QTMMainTabWindow* win= QTMMainTabWindow::topTabWindow ();
   if (win == nullptr || win->dockManager () == nullptr) {
-    QMessageBox::warning (QApplication::activeWindow (), "Customize presentation",
+    QMessageBox::warning (QApplication::activeWindow (), "Document settings",
                           "No active ATHENA window.");
     return;
   }
@@ -982,22 +1034,28 @@ page_properties_pane_show_for (url target) {
   }
 
   if (page_properties_pane_dock == nullptr) {
-    page_properties_pane_dock= new ads::CDockWidget ("Customize presentation");
-    page_properties_pane_dock->setObjectName ("athena-page-properties-pane");
-    page_properties_pane_dock->resize (420, 720);
+    page_properties_pane_dock= new ads::CDockWidget ("Document settings");
+    page_properties_pane_dock->setObjectName ("athena-document-settings-pane");
+    page_properties_pane_dock->resize (page_properties_pane_widget->sizeHint ());
     page_properties_pane_dock->setWidget (page_properties_pane_widget);
     page_properties_pane_dock->setFeature (
       ads::CDockWidget::DockWidgetDeleteOnClose, false);
     QObject::connect (page_properties_pane_dock, &QObject::destroyed, [] () {
       page_properties_pane_dock= nullptr;
     });
-    win->showAdsDockWidget (page_properties_pane_dock,
-                            ads::RightDockWidgetArea);
+    win->dockManager ()->addDockWidgetFloating (page_properties_pane_dock);
+    win->scheduleAdsLayoutRestore (page_properties_pane_dock);
   }
+  else if (!page_properties_pane_dock->dockAreaWidget () ||
+           !page_properties_pane_dock->dockContainer ())
+    win->dockManager ()->addDockWidgetFloating (page_properties_pane_dock);
 
-  win->showAdsDockWidget (page_properties_pane_dock, ads::RightDockWidgetArea);
+  page_properties_pane_dock->toggleView (true);
+  page_properties_pane_dock->show ();
+  page_properties_pane_dock->raise ();
   if (!is_none (target)) page_properties_pane_widget->setTargetBuffer (target);
   else page_properties_pane_widget->refreshFromCurrentBuffer ();
+  if (metadata) page_properties_pane_widget->showMetadata ();
   page_properties_pane_widget->setFocus ();
 }
 

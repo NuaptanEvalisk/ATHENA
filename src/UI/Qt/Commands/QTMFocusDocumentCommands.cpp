@@ -12,8 +12,6 @@
 #include "UI/Qt/Commands/QTMCommandRegistryInternal.hpp"
 #include "UI/Qt/Document/QTMThumbnailsPane.hpp"
 
-#include <QColor>
-#include <QColorDialog>
 #include <QFileDialog>
 #include <QInputDialog>
 #include <QJsonObject>
@@ -362,95 +360,6 @@ QTMCommandRegistry::registerFocusDocumentCommands () {
     },
     [] (const QTMCommandContext& context) {
       return document_focus_state (context);
-    });
-  registerBehavior (
-    "editor.focus.document-background", QTMCommandScope::Editor,
-    [] (const QTMCommandContext& context) {
-      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
-      if (proxy == nullptr) return false;
-      actor_focus_toolbar_snapshot focus= proxy->focus_toolbar_state ();
-      QColor initial (qstring (focus.background_color));
-      QColor selected= QColorDialog::getColor (
-        initial.isValid () ? initial : Qt::white,
-        context.shell.data (), QObject::tr ("Document background"));
-      if (!selected.isValid ()) return true;
-      QJsonObject action;
-      action.insert ("op", "init-env");
-      action.insert ("var", "bg-color");
-      action.insert ("value", selected.name ());
-      return submit_inline_editor_action (
-        context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
-    },
-    [] (const QTMCommandContext& context) {
-      QTMCommandState state= document_focus_state (context);
-      if (!state.available) return state;
-      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
-      if (proxy == nullptr ||
-          !proxy->focus_toolbar_state ().background_available) {
-        state.available= false;
-        state.enabled= false;
-      }
-      return state;
-    });
-  registerProvider (
-    "editor-focus-document-background", QTMCommandScope::Editor,
-    [] (const QTMCommandContext& context) {
-      QVector<QTMCommandDynamicItem> out;
-      QTMCommandState state= document_focus_state (context);
-      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
-      if (!state.available || proxy == nullptr ||
-          !proxy->focus_toolbar_state ().background_available)
-        return out;
-      const bool enabled= state.enabled;
-      auto append= [&] (const QString& key, const QString& label,
-                         const QString& icon= QString ()) {
-        QTMCommandDynamicItem item= enabled_dynamic_item (key, label);
-        item.icon= icon;
-        item.state.enabled= enabled;
-        out.append (std::move (item));
-      };
-      append (QStringLiteral ("default"), QObject::tr ("Default"));
-      append (QStringLiteral ("color"), QObject::tr ("Color..."),
-              QStringLiteral ("tm_color"));
-      append (QStringLiteral ("pattern"), QObject::tr ("Pattern..."));
-      append (QStringLiteral ("gradient"), QObject::tr ("Gradient..."));
-      append (QStringLiteral ("picture"), QObject::tr ("Picture..."),
-              QStringLiteral ("tm_camera"));
-      return out;
-    },
-    [] (const QString& key, const QTMCommandContext& context) {
-      if (key == QStringLiteral ("color"))
-        return QTMCommandRegistry::instance ().execute (
-          QStringLiteral ("editor.focus.document-background"), context);
-      QJsonObject action;
-      if (key == QStringLiteral ("default")) {
-        action.insert ("op", "init-default");
-        action.insert ("var", "bg-color");
-      }
-      else {
-        action.insert ("op", "business");
-        if (key == QStringLiteral ("pattern"))
-          action.insert ("id", "document-background-pattern");
-        else if (key == QStringLiteral ("gradient"))
-          action.insert ("id", "document-background-gradient");
-        else if (key == QStringLiteral ("picture"))
-          action.insert ("id", "document-background-picture");
-        else
-          return false;
-      }
-      return submit_inline_editor_action (
-        context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
-    },
-    [] (const QTMCommandContext& context) {
-      QTMCommandState state= document_focus_state (context);
-      if (!state.available) return state;
-      qt_actor_widget_rep* proxy= editor_proxy_for_context (context);
-      if (proxy == nullptr ||
-          !proxy->focus_toolbar_state ().background_available) {
-        state.available= false;
-        state.enabled= false;
-      }
-      return state;
     });
   registerBehavior (
     "editor.focus.slide-title", QTMCommandScope::Editor,

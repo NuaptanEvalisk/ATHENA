@@ -251,7 +251,7 @@ TestToolbarController::presentationCustomizeOpensPaneWithoutChangingMode () {
   QTest::mouseClick (modes->view ()->viewport (), Qt::LeftButton,
                      Qt::NoModifier, position);
   QTRY_VERIFY (shell.findChild<ads::CDockWidget*> (
-    "athena-page-properties-pane") != nullptr);
+    "athena-document-settings-pane") != nullptr);
   QCOMPARE (modes->currentData ().toString (), QStringLiteral ("book"));
 }
 

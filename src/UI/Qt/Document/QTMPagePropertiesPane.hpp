@@ -37,9 +37,13 @@ public:
   QSize sizeHint () const override;
 
   void refreshFromCurrentBuffer ();
+  void showMetadata ();
   void setTargetBuffer (url buffer);
 
 private:
+  QWidget* buildMetadataTab ();
+  void refreshMetadata ();
+  QHash<QString,QLineEdit*> metadataEdits;
   QWidget* buildFormatTab ();
   QWidget* buildPresentationTab ();
   QWidget* buildMarginsTab ();
@@ -124,6 +128,7 @@ private:
 };
 
 void page_properties_pane_show ();
-void page_properties_pane_show_for (url target);
+void page_properties_pane_show_for (url target, bool metadata= false);
+void metadata_properties_pane_show ();
 
 #endif // QTMPAGEPROPERTIESPANE_HPP

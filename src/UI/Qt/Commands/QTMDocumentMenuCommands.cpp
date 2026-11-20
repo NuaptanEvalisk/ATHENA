@@ -11,8 +11,6 @@
 #include "native_interfaces.hpp"
 #include "App/Commands/native_dispatch.hpp"
 
-#include <QColor>
-#include <QColorDialog>
 #include <QFileDialog>
 #include <QInputDialog>
 #include <QJsonObject>
@@ -211,32 +209,8 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
       append_item (out, "font", QObject::tr ("Font..."), QString (), writable);
       append_item (
         out, "paragraph", QObject::tr ("Paragraph..."), QString (), writable);
-      append_item (out, "page", QObject::tr ("Customize presentation..."),
+      append_item (out, "page", QObject::tr ("Document settings..."),
                    QString (), writable);
-      append_item (
-        out, "metadata", QObject::tr ("Metadata..."), QString (), writable);
-
-      append_item (
-        out, "color/background-default", QObject::tr ("Default"),
-        QObject::tr ("Background"), writable);
-      append_item (
-        out, "color/background", QObject::tr ("Other..."),
-        QObject::tr ("Background"), writable);
-      append_item (
-        out, "color/pattern", QObject::tr ("Pattern..."),
-        QObject::tr ("Background"), writable);
-      append_item (
-        out, "color/gradient", QObject::tr ("Gradient..."),
-        QObject::tr ("Background"), writable);
-      append_item (
-        out, "color/picture", QObject::tr ("Picture..."),
-        QObject::tr ("Background"), writable);
-      append_item (
-        out, "color/foreground-default", QObject::tr ("Default"),
-        QObject::tr ("Foreground"), writable);
-      append_item (
-        out, "color/foreground", QObject::tr ("Other..."),
-        QObject::tr ("Foreground"), writable);
 
       append_item (
         out, "language/default", QObject::tr ("Default"),
@@ -254,6 +228,7 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
           out, QStringLiteral ("language/%1").arg (key), title_case (key),
           QObject::tr ("Language"), writable, true,
           qs (document.document_language) == key);
+        out.last ().icon= QStringLiteral ("tm_") + key;
       }
 
       return out;
@@ -395,52 +370,7 @@ QTMCommandRegistry::registerDocumentMenuCommands () {
         return submit_business (context, "open-document-paragraph-format");
       if (key == QStringLiteral ("page"))
         return submit_business (context, "open-document-page-format");
-      if (key == QStringLiteral ("metadata"))
-        return submit_business (context, "open-document-metadata");
 
-      if (key.startsWith (QStringLiteral ("color/"))) {
-        QString kind= key.mid (6);
-        QJsonObject action;
-        if (kind == QStringLiteral ("background-default") ||
-            kind == QStringLiteral ("foreground-default")) {
-          action.insert ("op", "init-default");
-          action.insert (
-            "var", kind.startsWith (QStringLiteral ("background")) ?
-                     QStringLiteral ("bg-color"): QStringLiteral ("color"));
-        }
-        else if (kind == QStringLiteral ("background") ||
-                 kind == QStringLiteral ("foreground")) {
-          QString initialText=
-            kind == QStringLiteral ("background") ?
-              qs (document.background_color): qs (document.foreground_color);
-          QColor initial (initialText);
-          QColor selected= QColorDialog::getColor (
-            initial.isValid () ? initial : Qt::white,
-            context.shell.data (),
-            kind == QStringLiteral ("background") ?
-              QObject::tr ("Document background"):
-              QObject::tr ("Document foreground"));
-          if (!selected.isValid ()) return true;
-          action.insert ("op", "init-env");
-          action.insert (
-            "var", kind == QStringLiteral ("background") ?
-                     QStringLiteral ("bg-color"): QStringLiteral ("color"));
-          action.insert ("value", selected.name ());
-        }
-        else {
-          action.insert ("op", "business");
-          if (kind == QStringLiteral ("pattern"))
-            action.insert ("id", "document-background-pattern");
-          else if (kind == QStringLiteral ("gradient"))
-            action.insert ("id", "document-background-gradient");
-          else if (kind == QStringLiteral ("picture"))
-            action.insert ("id", "document-background-picture");
-          else
-            return false;
-        }
-        return submit_inline_editor_action (
-          context, action, 0, ACTOR_EDITOR_COMMAND_STATE_READ_ONLY);
-      }
       if (key.startsWith (QStringLiteral ("language/"))) {
         QString language= key.mid (9);
         QJsonObject action;

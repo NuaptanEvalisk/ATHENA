@@ -1420,13 +1420,6 @@
           ]
         },
         {
-          "submenu": "focus-document-background",
-          "label": "Background",
-          "items": [
-            { "provider": "editor-focus-document-background" }
-          ]
-        },
-        {
           "submenu": "focus-document-packages",
           "label": "Packages",
           "items": [
